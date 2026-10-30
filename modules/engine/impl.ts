@@ -10,6 +10,7 @@ import { bindEngine, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } 
 import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
+import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import type { EngineCtx } from "./projections.ts";
@@ -31,6 +32,7 @@ export const periodic = {
 /** A task reached Done: if it was the Unblock for a turn with no account, wake that agent in that thread. */
 export const consumers = {
   ...bridgeConsumers,
+  ...gateResumeConsumers,
   ...captureConsumers,
   "engine.unblock": {
     on: ["task.completed"],

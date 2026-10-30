@@ -1,5 +1,6 @@
 // Automations module (lane L6). The host loads these handlers once the manifest status is live (ARCH 12.4).
 // `consumeEvent` is the trigger consumer the host runs for every event; `loadRunPlan` is what the executor reads for a Run of an Automation.
+import { setConnectorCallHost } from "./connector-host.ts";
 import { setDocumentNetwork } from "./document-network.ts";
 import { handlers } from "./handlers/index.ts";
 import { setConnectorReadSender } from "./handlers/try-read.ts";
@@ -8,9 +9,10 @@ import { chooseScheduleRecovery, runDueSchedules, SCHEDULE_EVERY_MS } from "./sc
 import type { ChoiceLimits, ScheduleChoiceKey } from "./schedule/schedule.ts";
 
 export { handlers };
-export const hostSeams = { setDocumentNetwork, setConnectorReadSender };
+export const hostSeams = { setDocumentNetwork, setConnectorReadSender, setConnectorCallHost };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
-import { acceptHook, loadRunPlan, startRun } from "./handlers/triggers.ts";
+import { acceptHook, consumeEvent, loadRunPlan, startRun } from "./handlers/triggers.ts";
+import { acceptAppHook, pollDue } from "./handlers/connector-run.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
@@ -25,6 +27,14 @@ type Row = Record<string, unknown>;
 const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => { try { return ctx.db.all(sql, ...a) as Row[]; } catch { return []; } };
 const kept = (r: Row[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
 export const consumers = {
+  /** Something happened in a connected app (a poll found an item, a webhook took a delivery): start a Run of every turned-on Automation waiting for it. */
+  "automations.app_event": {
+    on: ["app_event.received"],
+    async run(ctx: Ctx, event: { id: string; name: string; payload: Record<string, unknown> }): Promise<string[]> {
+      const started = await consumeEvent(ctx as unknown as AutoCtx, { id: event.id, type: event.name, payload: event.payload });
+      return started.map((s) => s.automationId);
+    },
+  },
   "automations.connector_offer": {
     on: ["vault.item_created"],
     run(ctx: Ctx, event: { payload?: Record<string, unknown> }): void {
@@ -42,6 +52,10 @@ export const periodic = {
 export const hostCalls = {
   /** The inbound webhook route asks this: does the URL belong to a live, turned-on automation, and if so start its Run. Null is the one answer to every refusal. */
   "automations.accept_hook": (ctx: Ctx, i: Parameters<typeof acceptHook>[1]) => acceptHook(ctx as unknown as AutoCtx, i),
+  /** The inbound route for a connector's webhook trigger asks this. Null is the one answer to every refusal. */
+  "automations.accept_app_hook": (ctx: Ctx, i: Parameters<typeof acceptAppHook>[1]) => acceptAppHook(ctx as unknown as AutoCtx, i),
+  /** The host poller asks which polling triggers are due, and who owns each. It then polls as that owner. */
+  "automations.poll_due": (ctx: Ctx) => pollDue(ctx as unknown as AutoCtx),
   /** What the executor needs for a Run of an Automation (P-L6_24): the pinned definition, what started it, who it acts as, the vault names it may use. Nothing when the Run is not an Automation's. */
   "automations.run_plan": (ctx: Ctx, i: { runId: string }) => {
     const p = loadRunPlan(ctx, i.runId);

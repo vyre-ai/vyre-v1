@@ -14,6 +14,10 @@ Area: automations. Risk: low. Applies to: space.
 
 ## Capabilities that need it
 
+- automations.connector.poll
+- automations.connector.remove
+- automations.connector.save
+- automations.connector.trust_host
 - automations.create
 - automations.groups.create
 - automations.make_personal_copy

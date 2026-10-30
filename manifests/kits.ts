@@ -6,7 +6,7 @@ const channel = t.enm('stable', 'beta');
 const kitRow = t.obj({ kitId: id.kit, key: t.str(), title: t.str(), version: t.str(), channel, installed: t.bool(), contents: t.arr(t.enm('ui', 'structure', 'steps', 'tools')) });
 // A step of a Kit the sheet check found broken before Install: which item and step, the capability it calls, the input it would send, and why it would fail.
 const problem = t.obj({ item: t.str(), step: t.enm('apply', 'undo'), cap: t.str(), input: t.rec(), message: t.str() });
-const sheet = t.obj({ tools: t.arr(t.str()), recordTypes: t.arr(t.str()), networkDomains: t.arr(t.str()), vaultNames: t.arr(t.str()), scripts: t.int(), problems: t.arr(problem) });
+const sheet = t.obj({ tools: t.arr(t.str()), recordTypes: t.arr(t.str()), networkDomains: t.arr(t.str()), vaultNames: t.arr(t.str()), scripts: t.int(), skills: t.arr(t.str()), marketplaces: t.arr(t.str()), plugins: t.arr(t.str()), connections: t.arr(t.str()), agents: t.arr(t.str()), problems: t.arr(problem) });
 const target = { kitId: id.kit };
 
 export default defineManifest({

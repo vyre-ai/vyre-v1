@@ -18,8 +18,8 @@ const has = (s: string, n: string): boolean => s.includes(n);
 const at = (s: string, n: string): number => { const i = s.indexOf(n); assert.ok(i >= 0, `expected ${n}`); return i; };
 const call = async <T,>(s: SampleProject, cap: string, input: unknown): Promise<T> => (await s.data.call(cap, input)) as T;
 
-test("the page has four tabs in order, and draws its loading frame before the project arrives", () => {
-  assert.deepEqual(TAB_SPECS.map((t) => t.title), ["Overview", "Plan", "Files", "Chat"]);
+test("the page has five tabs in order (Teammates is the agents made for the project), and draws its loading frame before the project arrives", () => {
+  assert.deepEqual(TAB_SPECS.map((t) => t.title), ["Overview", "Plan", "Files", "Chat", "Teammates"]);
   const out = within(createSampleProject(), <ProjectPage projectId="pj_0" />);
   assert.ok(has(out, 'data-testid="project-loading"') && !has(out, "Rivera engagement"));
 });

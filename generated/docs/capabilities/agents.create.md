@@ -44,6 +44,7 @@ type In = {
     minutesPerRun?: number;
     tokensPerDay?: number;
   };
+  projectId?: string;
   idempotencyKey: string;
 };
 ```
@@ -82,6 +83,7 @@ type Out = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 ```
@@ -115,6 +117,7 @@ type Out = {
     "model": "example",
     "name": "Intake",
     "ownerId": "usr_a1b2c3",
+    "projectId": "prj_a1b2c3",
     "role": "example",
     "templateKey": "example",
     "tools": {
@@ -153,6 +156,7 @@ type Out = {
       "pausedReason": "example",
       "role": "example",
       "status": "awake",
+      "teammateOf": "prj_a1b2c3",
       "templateVersion": 1,
       "toolsAllowed": [
         "example"

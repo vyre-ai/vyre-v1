@@ -1,6 +1,6 @@
 # automations.try_read
 
-Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.
+Try one read. Name a stored connector action (app and action) and the host sends it with the Vault key. Or name a documented host (method, path, domains, vaultItemId). The reply is the level, plus the shape of the reply for a stored action.
 
 | | |
 |---|---|
@@ -25,11 +25,15 @@ Try one read on a documented host. The Vault fills the key when the host sends i
 
 ```ts
 type In = {
-  method: string;
-  path: string;
-  domains: Array<string>;
+  app?: string;
+  action?: string;
+  input?: Record<string, unknown>;
+  allowHost?: string;
+  method?: string;
+  path?: string;
+  domains?: Array<string>;
   markedSafe?: boolean;
-  vaultItemId: string;
+  vaultItemId?: string;
   actionKey?: string;
 };
 ```
@@ -40,6 +44,9 @@ type In = {
 type Out = {
   level: "tested" | "draft";
   reason?: string;
+  status?: number;
+  shape?: unknown;
+  notes?: Array<string>;
 };
 ```
 
@@ -56,10 +63,14 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "action": "list_customers",
     "actionKey": "example",
+    "allowHost": "example",
+    "app": "stripe",
     "domains": [
       "example"
     ],
+    "input": {},
     "markedSafe": true,
     "method": "example",
     "path": "example",
@@ -67,7 +78,12 @@ type Out = {
   },
   "output": {
     "level": "tested",
-    "reason": "example"
+    "notes": [
+      "example"
+    ],
+    "reason": "example",
+    "shape": {},
+    "status": 1
   }
 }
 ```

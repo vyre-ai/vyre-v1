@@ -1,5 +1,7 @@
 // Try one safe connector read. The Vault key value is not planned, sent, or returned.
 // A successful read stores tested for the action key. The row holds no secret.
+// With an app and an action, the request comes from the stored connector instead of from the caller (handlers/connector-run.ts).
+import { tryStored } from "./connector-run.ts";
 import { recordConnectorLevel } from "../connector-level.ts";
 import type { LevelDb } from "../connector-level.ts";
 import { planSafeTest, runSafeTest } from "../connector-test.ts";
@@ -8,6 +10,7 @@ import type { AutoCtx } from "../projections.ts";
 type ReadSender = (plan: { method: string; url: string; vaultItemId: string }) => Promise<{ status: number }>;
 
 const NO_SUCCESS = "The read did not succeed.";
+const AGENT_SHAPE = "Save the connector first, then name it with app and action. A host and a Vault item are not taken from an agent.";
 
 let readSender: ReadSender | null = null;
 
@@ -48,7 +51,10 @@ function fieldsOf(input: unknown): { method: string; path: string; domains: stri
   };
 }
 
-export async function tryConnectorRead(ctx: AutoCtx, input: unknown): Promise<{ level: "tested" | "draft"; reason?: string }> {
+export async function tryConnectorRead(ctx: AutoCtx, input: unknown): Promise<{ level: "tested" | "draft"; reason?: string; status?: number; shape?: unknown; notes?: string[] }> {
+  if (typeof input === "object" && input !== null && typeof (input as Record<string, unknown>).app === "string") return tryStored(ctx, input as Record<string, unknown>);
+  // The host and the Vault item come from the caller in this shape, so only a person may use it. An agent writes a connector and names it, and the key goes only to a host a person allowed.
+  if (ctx.principal !== undefined && (ctx.principal.kind !== "person" || ctx.actingFor !== undefined)) return { level: "draft", reason: AGENT_SHAPE };
   const fields = fieldsOf(input);
   if (fields === undefined) return { level: "draft", reason: NO_SUCCESS };
 

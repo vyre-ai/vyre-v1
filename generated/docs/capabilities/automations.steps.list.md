@@ -42,6 +42,8 @@ type Out = {
       output: unknown;
       effects: "read" | "write" | "outward";
       gateAct?: string;
+      app?: string;
+      level?: "draft" | "tested" | "published";
     }>;
 };
 ```
@@ -64,12 +66,14 @@ type Out = {
   "output": {
     "steps": [
       {
+        "app": "example",
         "category": "example",
         "effects": "read",
         "gateAct": "example",
         "input": {},
         "key": "example",
         "kind": "example",
+        "level": "draft",
         "output": {},
         "title": "example"
       }

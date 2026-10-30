@@ -2021,6 +2021,204 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/connector/get",
+    "cap": "automations.connector.get",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/info",
+    "cap": "automations.connector.info",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/poll",
+    "cap": "automations.connector.poll",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": "automations.personal",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/publish",
+    "cap": "automations.connector.publish",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/read",
+    "cap": "automations.connector.read",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/remove",
+    "cap": "automations.connector.remove",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": "automations.personal",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/save",
+    "cap": "automations.connector.save",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": "automations.personal",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/send",
+    "cap": "automations.connector.send",
+    "v": 1,
+    "module": "automations",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "send"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/trust_host",
+    "cap": "automations.connector.trust_host",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": "automations.personal",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "send"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/webhook_url/get",
+    "cap": "automations.connector.webhook_url.get",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connector/webhook_url/rotate",
+    "cap": "automations.connector.webhook_url.rotate",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/connector_offer/accept",
     "cap": "automations.connector_offer.accept",
     "v": 1,
@@ -2095,6 +2293,24 @@ export const routes: Route[] = [
     "method": "POST",
     "path": "/v1/automations/connector_shares",
     "cap": "automations.connector_shares",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/connectors/list",
+    "cap": "automations.connectors.list",
     "v": 1,
     "module": "automations",
     "effects": "read",
@@ -2536,6 +2752,24 @@ export const routes: Route[] = [
     },
     "idempotency": "natural",
     "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/read_docs",
+    "cap": "automations.read_docs",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -8539,6 +8773,60 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/engine/mcp/call",
+    "cap": "engine.mcp.call",
+    "v": 1,
+    "module": "engine",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "send"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/engine/mcp/read",
+    "cap": "engine.mcp.read",
+    "v": 1,
+    "module": "engine",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/engine/mcp/tools",
+    "cap": "engine.mcp.tools",
+    "v": 1,
+    "module": "engine",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/engine/models/list",
     "cap": "engine.models.list",
     "v": 1,
@@ -10982,6 +11270,24 @@ export const routes: Route[] = [
     "resource": {
       "type": "task",
       "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/gate/result/take",
+    "cap": "gate.result.take",
+    "v": 1,
+    "module": "gate",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -19610,6 +19916,420 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/plugins/agent_template/use",
+    "cap": "plugins.agent_template.use",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/agent_templates/list",
+    "cap": "plugins.agent_templates.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/allow/list",
+    "cap": "plugins.allow.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/allow/set",
+    "cap": "plugins.allow.set",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "kits.install",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/browse",
+    "cap": "plugins.browse",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/command/render",
+    "cap": "plugins.command.render",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/commands/list",
+    "cap": "plugins.commands.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/config/set",
+    "cap": "plugins.config.set",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/connection/add",
+    "cap": "plugins.connection.add",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/connection/remove",
+    "cap": "plugins.connection.remove",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/connections/list",
+    "cap": "plugins.connections.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/files",
+    "cap": "plugins.files",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/get",
+    "cap": "plugins.get",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/hooks/list",
+    "cap": "plugins.hooks.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/install",
+    "cap": "plugins.install",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/list",
+    "cap": "plugins.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/marketplace/add",
+    "cap": "plugins.marketplace.add",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "kits.install",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/marketplace/refresh",
+    "cap": "plugins.marketplace.refresh",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "kits.install",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/marketplace/remove",
+    "cap": "plugins.marketplace.remove",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "kits.install",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/marketplaces/list",
+    "cap": "plugins.marketplaces.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/mcp/servers",
+    "cap": "plugins.mcp.servers",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/set_enabled",
+    "cap": "plugins.set_enabled",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/plugins/uninstall",
+    "cap": "plugins.uninstall",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/portal/account_create",
     "cap": "portal.account_create",
     "v": 1,
@@ -20227,6 +20947,63 @@ export const routes: Route[] = [
       "id": "/projectId"
     },
     "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/teammates/create",
+    "cap": "projects.teammates.create",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/teammates/list",
+    "cap": "projects.teammates.list",
+    "v": 1,
+    "module": "projects",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/teammates/remove",
+    "cap": "projects.teammates.remove",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "key",
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
@@ -23702,6 +24479,96 @@ export const routes: Route[] = [
       "id": "/siteId"
     },
     "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/skills/add",
+    "cap": "skills.add",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/skills/list",
+    "cap": "skills.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/skills/load",
+    "cap": "skills.load",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/skills/remove",
+    "cap": "skills.remove",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/skills/set_enabled",
+    "cap": "skills.set_enabled",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
     "risk": "medium",
     "offline": null,
     "teamOnly": false,

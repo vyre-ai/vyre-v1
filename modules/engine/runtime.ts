@@ -11,6 +11,8 @@ import { createEngineApiTools } from "./api-tools.ts";
 import { buildOpener, roleBlocks } from "./session.ts";
 import { withRecall } from "./recall.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
+import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
+import { createPluginTools } from "./plugin-tools.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { EngineSessionPorts } from "./session.ts";
@@ -39,6 +41,10 @@ export interface EngineHostSeam {
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
   dataDir?: string;
   now?: () => number;
+  /** The fetch for remote MCP servers: the network guard's (lib/net-guard.ts), so a private address is refused. Absent: a remote server answers "unavailable". */
+  mcpFetch?: unknown;
+  /** Replaces how a plugin's process is started (a test launcher). Default: the sandbox. */
+  pluginLaunch?: unknown;
   /** Where the bridge logs a turn that failed or a reply it could not post. */
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
@@ -60,6 +66,7 @@ let closeOpener: (() => Promise<void>) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
 export function setEngineHost(h: EngineHostSeam | null): void {
+  if (h === null) void closePluginRuntime();   // plugin servers end with the daemon
   if (h === null && closeOpener) void closeOpener().catch(() => undefined);   // processes end and MCP tokens are revoked at shutdown
   closeOpener = null;
   host = h;
@@ -68,6 +75,14 @@ export function setEngineHost(h: EngineHostSeam | null): void {
 }
 
 export function engineHost(): EngineHostSeam | null { return host; }
+
+/** The sandbox plan plugin code runs in: the host's own, or the default for this platform. Rejects where nothing can confine it, and then nothing starts. */
+export function sandboxPlan(): Promise<SandboxPlan> {
+  const h = host;
+  if (h?.sandbox) return Promise.resolve(h.sandbox);
+  if (h?.dataDir) return defaultPlan(h.dataDir, h.cli?.programRead)();
+  return Promise.reject(new Error("no sandbox is set up on this computer"));
+}
 
 async function accountFor(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedAccount | null> {
   const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}) }, q.askerId)) as ResolveOut;
@@ -109,7 +124,7 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
-  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call) }) : undefined;
+  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
   const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
   const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
   closeOpener = opener ? () => opener.close() : null;

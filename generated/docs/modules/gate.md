@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (10)
+## Capabilities (11)
 
 - [gate.acts.list](../capabilities/gate.acts.list.md): The ten Gate act kinds with risk, preview and who they apply to
 - [gate.deny](../capabilities/gate.deny.md): Deny a hold: send back with a note for the asker thread, or drop the call
@@ -14,6 +14,7 @@ Requires: nothing.
 - [gate.holds.list](../capabilities/gate.holds.list.md): List holds with their state, act and task
 - [gate.park](../capabilities/gate.park.md): Park a call that authorize held: render the exact preview, create the Approve task, park the call (called by invoke)
 - [gate.release](../capabilities/gate.release.md): Re-invoke the parked capability with an approval token bound to the payload hash, then resume the turn or step
+- [gate.result.take](../capabilities/gate.result.take.md): System: hand the engine the answer of an approved call for a chat turn parked on it, once, and clear it. Only the server may call it; a requester or approver never reads the answer here.
 - [gate.rules.list](../capabilities/gate.rules.list.md): List Gate rules: Space defaults, the owner floor and per-agent overrides
 - [gate.rules.set](../capabilities/gate.rules.set.md): Set a Gate rule for an act at the Space, owner floor or agent level; a rule can never loosen the strictest level
 

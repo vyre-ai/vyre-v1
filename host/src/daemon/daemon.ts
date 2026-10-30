@@ -246,7 +246,7 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number };
+  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; poll?: number };
 }
 
 export interface Daemon {
@@ -359,14 +359,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
   // POST /hooks/<connector> (P-L5_17): a provider's signed webhook; the connector module's host call `<connector>.accept_webhook` verifies the signature and records the event once
-  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown>; automation(a: { automationId: string; secret: string; payload: unknown; idempotencyKey?: string }): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")), automation: () => Promise.resolve(null) };
+  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown>; automation(a: { automationId: string; secret: string; payload: unknown; idempotencyKey?: string }): Promise<unknown>; appHook(a: { app: string; trigger: string; secret: string; payload: unknown; idempotencyKey?: string }): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")), automation: () => Promise.resolve(null), appHook: () => Promise.resolve(null) };
+  // Polling triggers of connectors written in the Space: the automations module says which are due, and each is read as the person who owns the connector, with that person's Vault access
+  let pollConnectors: () => Promise<void> = () => Promise.resolve();
   // POST /compute/poll: a computer that joined the Space reports in with its credential; the network module's host call decides (it knows only the credential's hash)
   let computePoll: (credential: string, report: { docker?: boolean; version?: string }) => Promise<{ serverId: string; owner?: string } | null> = () => Promise.resolve(null);
   let computeJobs: (nodeId: string, running: string[]) => Promise<unknown[]> = () => Promise.resolve([]);
   let computeResult: (nodeId: string, a: { jobId: string; ok: boolean; result?: unknown; error?: string }) => Promise<{ status: string }> = () => Promise.resolve({ status: "unknown" });
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a) });
-  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
+  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), appHook: (a) => webhooks.appHook(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
   let ownerOfSpace: () => string | null = () => cfg.owner;
@@ -515,7 +517,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const runsHost = createRunsHost({ call: (n, i, as) => hookRunner.call(n, i, as), log: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "runs", attrs }) });
       closers.push(() => runsHost.settle(5_000));
       const acceptors = new Set([...loaded.moduleExports].flatMap(([id, ns]) => (ns["hostCalls"] && typeof ns["hostCalls"] === "object" && `${id}.accept_webhook` in (ns["hostCalls"] as object) ? [id] : [])));
-      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a), automation: (a) => hookRunner.call("automations.accept_hook", a) };
+      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a), automation: (a) => hookRunner.call("automations.accept_hook", a), appHook: (a) => hookRunner.call("automations.accept_app_hook", a) };
       computePoll = (credential, report) => hookRunner.call("network.node_poll", { credential, report }) as Promise<{ serverId: string; owner?: string } | null>;
       // what a computer that joined is asked to do (the computers module's jobs), what it answers, and the one door it has into an agent's home: a job's token, as that agent, for the home calls only
       computeJobs = async (nodeId, running) => ((await hookRunner.call("computers.node_jobs", { nodeId, running, ...(o.computeLeaseMs !== undefined ? { leaseMs: o.computeLeaseMs } : {}) })) as { jobs?: unknown[] } | null)?.jobs ?? [];
@@ -726,6 +728,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ? invoke(call.cap, call.input, { space: call.space, principal: call.principal, preAuth: true, origin: "schedule", ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}) }).then(() => undefined)
         : runAsScheduled(call));
       invokeRef = invoke;
+      pollConnectors = async () => {
+        const due = (await hookRunner.call("automations.poll_due", {})) as { app: string; trigger: string; owner: { kind: string; id: string } }[] | null;
+        for (const d of due ?? []) {
+          try {
+            await invoke("automations.connector.poll", { app: d.app, trigger: d.trigger }, { space: spaceId, principal: { kind: d.owner.kind as "person" | "agent" | "service", id: d.owner.id }, origin: "hook" });
+          } catch (e) {
+            sink.log({ space: spaceId, level: 40, msg: "a connector poll failed", place: "connectors", attrs: { app: d.app, trigger: d.trigger, code: (e as { error?: { code?: string } } | null)?.error?.code ?? "unknown" } });
+          }
+        }
+      };
       const mcpExports = loaded.moduleExports.get("mcp");
       const makeMcp = mcpExports?.["createMcpRuntime"];
       if (typeof makeMcp === "function") {
@@ -945,6 +957,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
         configureVault: () => ({ sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
+        // automations: connectors written in the Space fill a Vault field and reach a host through the same guarded port
+        setConnectorCallHost: () => connectorPort,
         setDocumentNetwork: () => documentPin(),
         setConnectorReadSender: (d) => connectorReadSender(d),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
@@ -1261,6 +1275,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
     scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
     scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
+    scheduler.add({ name: "connectors.poll", schedule: { everyMs: o.intervals?.poll ?? 15_000 }, run: async () => { await pollConnectors(); } });
     scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
     for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) }, run: async () => { await hooks?.runPeriodic(p.name); } });
     scheduler.add({ name: "idempotency.purge", schedule: { daily: { hour: 4, minute: 0 } }, run: async () => { await log?.purgeIdempotency(); } });

@@ -163,6 +163,21 @@ export function createClient(transport: Transport) {
         get: call("automations.alerts.get", 1),
         set: call("automations.alerts.set", 1),
       },
+      connector: {
+        get: call("automations.connector.get", 1),
+        info: call("automations.connector.info", 1),
+        poll: call("automations.connector.poll", 1),
+        publish: call("automations.connector.publish", 1),
+        read: call("automations.connector.read", 1),
+        remove: call("automations.connector.remove", 1),
+        save: call("automations.connector.save", 1),
+        send: call("automations.connector.send", 1),
+        trust_host: call("automations.connector.trust_host", 1),
+        webhook_url: {
+          get: call("automations.connector.webhook_url.get", 1),
+          rotate: call("automations.connector.webhook_url.rotate", 1),
+        },
+      },
       connector_offer: {
         accept: call("automations.connector_offer.accept", 1),
         decline: call("automations.connector_offer.decline", 1),
@@ -170,6 +185,9 @@ export function createClient(transport: Transport) {
       connector_offers: call("automations.connector_offers", 1),
       connector_share: call("automations.connector_share", 1),
       connector_shares: call("automations.connector_shares", 1),
+      connectors: {
+        list: call("automations.connectors.list", 1),
+      },
       create: call("automations.create", 1),
       delete: call("automations.delete", 1),
       draft_connector: call("automations.draft_connector", 1),
@@ -199,6 +217,7 @@ export function createClient(transport: Transport) {
       },
       preview_promote: call("automations.preview_promote", 1),
       promote: call("automations.promote", 1),
+      read_docs: call("automations.read_docs", 1),
       replay: call("automations.replay", 1),
       restore_version: call("automations.restore_version", 1),
       retry: call("automations.retry", 1),
@@ -643,6 +662,11 @@ export function createClient(transport: Transport) {
         heartbeat: call("engine.lease.heartbeat", 1),
         release: call("engine.lease.release", 1),
       },
+      mcp: {
+        call: call("engine.mcp.call", 1),
+        read: call("engine.mcp.read", 1),
+        tools: call("engine.mcp.tools", 1),
+      },
       models: {
         list: call("engine.models.list", 1),
       },
@@ -836,6 +860,9 @@ export function createClient(transport: Transport) {
       },
       park: call("gate.park", 1),
       release: call("gate.release", 1),
+      result: {
+        take: call("gate.result.take", 1),
+      },
       rules: {
         list: call("gate.rules.list", 1),
         set: call("gate.rules.set", 1),
@@ -1484,6 +1511,55 @@ export function createClient(transport: Transport) {
       },
       send: call("notifications.send", 1),
     },
+    plugins: {
+      agent_template: {
+        use: call("plugins.agent_template.use", 1),
+      },
+      agent_templates: {
+        list: call("plugins.agent_templates.list", 1),
+      },
+      allow: {
+        list: call("plugins.allow.list", 1),
+        set: call("plugins.allow.set", 1),
+      },
+      browse: call("plugins.browse", 1),
+      command: {
+        render: call("plugins.command.render", 1),
+      },
+      commands: {
+        list: call("plugins.commands.list", 1),
+      },
+      config: {
+        set: call("plugins.config.set", 1),
+      },
+      connection: {
+        add: call("plugins.connection.add", 1),
+        remove: call("plugins.connection.remove", 1),
+      },
+      connections: {
+        list: call("plugins.connections.list", 1),
+      },
+      files: call("plugins.files", 1),
+      get: call("plugins.get", 1),
+      hooks: {
+        list: call("plugins.hooks.list", 1),
+      },
+      install: call("plugins.install", 1),
+      list: call("plugins.list", 1),
+      marketplace: {
+        add: call("plugins.marketplace.add", 1),
+        refresh: call("plugins.marketplace.refresh", 1),
+        remove: call("plugins.marketplace.remove", 1),
+      },
+      marketplaces: {
+        list: call("plugins.marketplaces.list", 1),
+      },
+      mcp: {
+        servers: call("plugins.mcp.servers", 1),
+      },
+      set_enabled: call("plugins.set_enabled", 1),
+      uninstall: call("plugins.uninstall", 1),
+    },
     portal: {
       account_create: call("portal.account_create", 1),
       account_disable: call("portal.account_disable", 1),
@@ -1526,6 +1602,11 @@ export function createClient(transport: Transport) {
       shared_view: call("projects.shared_view", 1),
       stages: {
         set: call("projects.stages.set", 1),
+      },
+      teammates: {
+        create: call("projects.teammates.create", 1),
+        list: call("projects.teammates.list", 1),
+        remove: call("projects.teammates.remove", 1),
       },
       templates: {
         list: call("projects.templates.list", 1),
@@ -1778,6 +1859,13 @@ export function createClient(transport: Transport) {
       table_promote: call("sites.table_promote", 1),
       tables: call("sites.tables", 1),
       update: call("sites.update", 1),
+    },
+    skills: {
+      add: call("skills.add", 1),
+      list: call("skills.list", 1),
+      load: call("skills.load", 1),
+      remove: call("skills.remove", 1),
+      set_enabled: call("skills.set_enabled", 1),
     },
     source_rules: {
       list: call("source_rules.list", 1),

@@ -504,12 +504,42 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
   }
 }
 
+
+// ---- a connector action written in this Space (modules/automations/connector-def.ts): the key is the app and the action joined by a hyphen
+
+const WRITTEN_KEY = /^[a-z][a-z0-9_]{1,31}-[a-z][a-z0-9_]{0,40}$/;
+
+/**
+ * A step whose key is no built-in step may be an action of a connector written in this Space. The automations module knows which, and whether the action only reads.
+ * A test run answers an action that changes something with nothing, and runs one that only reads. The key is filled by the Vault in the module, never here.
+ */
+async function writtenConnectorStep(env: StepEnv, node: StepNode, call: StepCall): Promise<StepResult> {
+  const missing = (): never => { throw stepError("validation.bad_input", `There is no step called ${node.key}.`, false); };
+  if (!WRITTEN_KEY.test(node.key) || !env.ctx.call) return missing();
+  const info = (await env.ctx.call("automations.connector.info", { key: node.key })) as { found?: boolean; effect?: "read" | "outward" } | null;
+  if (!info?.found) return missing();
+  const input = render(node.input, scopeOf(env, call)) as In;
+  const values = { ...input };
+  delete values["connectorLevel"];
+  if (call.sandbox && info.effect !== "read") return { output: null };
+  try {
+    const out = (info.effect === "read"
+      ? await env.ctx.call("automations.connector.read", { key: node.key, input: values })
+      : await env.ctx.call("automations.connector.send", { key: node.key, input: values, idempotencyKey: call.key })) as { output?: unknown; status?: number } | null;
+    return { output: out?.output ?? null };
+  } catch (e) {
+    const held = gateHold(e);
+    if (held) return held;
+    throw e;
+  }
+}
+
 // ---- the runner ----
 
 /** Run one step. Sandboxes (test mode, replay) answer every step that writes or sends with its sample and run only what reads. */
 export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Promise<StepResult> {
   const def = STEPS.get(node.key);
-  if (!def) throw stepError("validation.bad_input", `There is no step called ${node.key}.`, false);
+  if (!def) return writtenConnectorStep(env, node, call);
   const scope = scopeOf(env, call);
   const input = render(node.input, scope) as In;
   const parks = def.kind === "wait" || node.key === "approval";
@@ -550,10 +580,10 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
 
 export async function stepsTest(ctx: StepsCtx, input: In): Promise<unknown> {
   const def = STEPS.get(input.key);
-  if (!def) raise(ctx, "validation.bad_input", `There is no step called ${input.key}.`);
+  if (!def && !WRITTEN_KEY.test(String(input.key))) raise(ctx, "validation.bad_input", `There is no step called ${input.key}.`);
   const env: StepEnv = { ctx, run: { id: "run_test", label: "Test" } };
   const call: StepCall = { attempt: 1, key: "run_test:test:1", outputs: {}, sandbox: true, resumed: false, trigger: input.sample ?? {} };
-  const stubbed = def.effects !== "read" || def.kind === "wait" || def.key === "approval";
+  const stubbed = def ? def.effects !== "read" || def.kind === "wait" || def.key === "approval" : false;
   try {
     // a step that only reads runs for real; loops and lanes have nothing to run in a test
     const r = await runStep(env, { id: "test", key: input.key, input: input.input ?? {} }, call);

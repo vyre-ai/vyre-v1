@@ -8,7 +8,10 @@ import { draftConnector } from "./draft-connector.ts";
 import { acceptConnectorOffer, connectorOffers, declineConnectorOffer } from "./connector-offer.ts";
 import { openDocument } from "./open-document.ts";
 import { openMcp } from "./open-mcp.ts";
+import { readDocs } from "./read-docs.ts";
 import { connectorShares, shareConnector } from "./connector-share.ts";
+import { connectorGet, connectorHookGet, connectorHookRotate, connectorPublish, connectorRemove, connectorSave, connectorTrustHost, connectorsList } from "./connector-def.ts";
+import { connectorInfo, connectorPoll, connectorRead, connectorSend } from "./connector-run.ts";
 import { tryConnectorRead } from "./try-read.ts";
 import { migrateRuns, migrationPreview } from "./migrate.ts";
 import { exportPackage, importPackage, packagesList } from "./packages.ts";
@@ -23,10 +26,23 @@ export const handlers = {
   "automations.delete": remove,
   "automations.draft_connector": draftConnector,
   "automations.open_document": openDocument,
+  "automations.connector.get": connectorGet,
+  "automations.connector.info": connectorInfo,
+  "automations.connector.poll": connectorPoll,
+  "automations.connector.publish": connectorPublish,
+  "automations.connector.read": connectorRead,
+  "automations.connector.remove": connectorRemove,
+  "automations.connector.save": connectorSave,
+  "automations.connector.send": connectorSend,
+  "automations.connector.trust_host": connectorTrustHost,
+  "automations.connector.webhook_url.get": connectorHookGet,
+  "automations.connector.webhook_url.rotate": connectorHookRotate,
+  "automations.connectors.list": connectorsList,
   "automations.connector_offers": connectorOffers,
   "automations.connector_offer.decline": declineConnectorOffer,
   "automations.connector_offer.accept": acceptConnectorOffer,
   "automations.open_mcp": openMcp,
+  "automations.read_docs": readDocs,
   "automations.try_read": tryConnectorRead,
   "automations.connector_share": shareConnector,
   "automations.connector_shares": connectorShares,

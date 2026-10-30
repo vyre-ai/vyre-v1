@@ -1060,6 +1060,7 @@ export type AgentsCreateIn = {
     minutesPerRun?: number;
     tokensPerDay?: number;
   };
+  projectId?: string;
   idempotencyKey: string;
 };
 export type AgentsCreateOut = {
@@ -1093,6 +1094,7 @@ export type AgentsCreateOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsDeleteIn = {
@@ -1135,6 +1137,7 @@ export type AgentsGetOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsGuideGetIn = Record<string, unknown>;
@@ -1161,6 +1164,8 @@ export type AgentsListIn = {
   section?: "personal" | "shared" | "space";
   folderId?: string;
   status?: Array<"awake" | "working" | "asleep" | "paused">;
+  teammates?: "hide" | "include" | "only";
+  projectId?: string;
   cursor?: string;
   limit?: number;
 };
@@ -1195,6 +1200,7 @@ export type AgentsListOut = {
       templateVersion: number;
       createdAt: number;
       lastActiveAt?: number;
+      teammateOf?: string;
     }>;
   next?: string;
   total?: number;
@@ -1234,6 +1240,7 @@ export type AgentsPauseOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsRestoreIn = {
@@ -1270,6 +1277,7 @@ export type AgentsRestoreOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsRestoreVersionIn = {
@@ -1308,6 +1316,7 @@ export type AgentsRestoreVersionOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsResumeIn = {
@@ -1344,6 +1353,7 @@ export type AgentsResumeOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsRoleLineSetIn = {
@@ -1381,6 +1391,7 @@ export type AgentsRoleLineSetOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
   undoVersionId: string;
 };
@@ -1536,6 +1547,7 @@ export type AgentsSetOwnerOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsSnapshotTakeIn = {
@@ -1722,6 +1734,7 @@ export type AgentsUpdateOut = {
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 export type AgentsVersionsIn = {
@@ -1995,6 +2008,333 @@ export type AutomationsAlertsSetOut = {
       }>;
   };
 };
+export type AutomationsConnectorGetIn = {
+  app: string;
+};
+export type AutomationsConnectorGetOut = {
+  connector: {
+    app: string;
+    title: string;
+    docsUrl?: string;
+    level: "draft" | "tested" | "published";
+    domains: Array<string>;
+    auth: {
+      type: "api_key" | "bearer" | "basic" | "none";
+      field?: string;
+      userField?: string;
+      header?: string;
+      prefix?: string;
+      query?: string;
+    };
+    vaultHandle?: string;
+    owner: {
+      kind: string;
+      id: string;
+    };
+    actions: Array<{
+        key: string;
+        title: string;
+        description?: string;
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+        path: string;
+        effect: "read" | "outward";
+        params: Array<{
+            name: string;
+            in: "path" | "query" | "header" | "body";
+            required: boolean;
+            type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            description?: string;
+          }>;
+        output?: string;
+        level: "draft" | "tested" | "published";
+        stepKey: string;
+      }>;
+    triggers: Array<{
+        key: string;
+        title: string;
+        kind: "poll" | "webhook";
+        level: "draft" | "tested" | "published";
+        action?: string;
+        intervalSec?: number;
+        polling?: {
+          primed: boolean;
+          fired: number;
+          lastAt?: number;
+          lastStatus?: number;
+          lastError?: string;
+          failures: number;
+        };
+        webhook?: {
+          exists: boolean;
+          lastDeliveryAt?: number;
+          url?: string;
+        };
+      }>;
+    updatedAt: number;
+    publishedAt?: number;
+  };
+  definition: Record<string, unknown>;
+};
+export type AutomationsConnectorInfoIn = {
+  key: string;
+};
+export type AutomationsConnectorInfoOut = {
+  found: boolean;
+  app?: string;
+  action?: string;
+  title?: string;
+  effect?: "read" | "outward";
+  level?: "draft" | "tested" | "published";
+};
+export type AutomationsConnectorPollIn = {
+  app: string;
+  trigger: string;
+};
+export type AutomationsConnectorPollOut = {
+  polled: boolean;
+  fired: number;
+  status?: number;
+  reason?: string;
+  nextAt?: number;
+  more?: boolean;
+};
+export type AutomationsConnectorPublishIn = {
+  app: string;
+};
+export type AutomationsConnectorPublishOut = {
+  connector: {
+    app: string;
+    title: string;
+    docsUrl?: string;
+    level: "draft" | "tested" | "published";
+    domains: Array<string>;
+    auth: {
+      type: "api_key" | "bearer" | "basic" | "none";
+      field?: string;
+      userField?: string;
+      header?: string;
+      prefix?: string;
+      query?: string;
+    };
+    vaultHandle?: string;
+    owner: {
+      kind: string;
+      id: string;
+    };
+    actions: Array<{
+        key: string;
+        title: string;
+        description?: string;
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+        path: string;
+        effect: "read" | "outward";
+        params: Array<{
+            name: string;
+            in: "path" | "query" | "header" | "body";
+            required: boolean;
+            type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            description?: string;
+          }>;
+        output?: string;
+        level: "draft" | "tested" | "published";
+        stepKey: string;
+      }>;
+    triggers: Array<{
+        key: string;
+        title: string;
+        kind: "poll" | "webhook";
+        level: "draft" | "tested" | "published";
+        action?: string;
+        intervalSec?: number;
+        polling?: {
+          primed: boolean;
+          fired: number;
+          lastAt?: number;
+          lastStatus?: number;
+          lastError?: string;
+          failures: number;
+        };
+        webhook?: {
+          exists: boolean;
+          lastDeliveryAt?: number;
+          url?: string;
+        };
+      }>;
+    updatedAt: number;
+    publishedAt?: number;
+  };
+  published: number;
+};
+export type AutomationsConnectorReadIn = {
+  key: string;
+  input?: Record<string, unknown>;
+  dryRun?: boolean;
+};
+export type AutomationsConnectorReadOut = {
+  output: unknown;
+  status: number;
+  dryRun: boolean;
+};
+export type AutomationsConnectorRemoveIn = {
+  app: string;
+};
+export type AutomationsConnectorRemoveOut = {
+  removed: boolean;
+};
+export type AutomationsConnectorSaveIn = {
+  definition: {
+    app: string;
+    title: string;
+    docsUrl?: string;
+    domains: Array<string>;
+    auth: {
+      type: "api_key" | "bearer" | "basic" | "none";
+      field?: string;
+      userField?: string;
+      header?: string;
+      prefix?: string;
+      query?: string;
+    };
+    actions?: Array<{
+        key: string;
+        title: string;
+        description?: string;
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+        path: string;
+        params?: Array<{
+            name: string;
+            in: "path" | "query" | "header" | "body";
+            required?: boolean;
+            type?: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            description?: string;
+          }>;
+        output?: string;
+        host?: string;
+        effect?: "read" | "outward";
+        markedSafe?: boolean;
+      }>;
+    triggers?: Array<{
+        key: string;
+        title: string;
+        kind: "poll" | "webhook";
+        action?: string;
+        intervalSec?: number;
+        items?: string;
+        idField?: string;
+        order?: "newest_first" | "oldest_first";
+        cursor?: {
+          mode: "none" | "updated_since" | "after_id" | "next_token";
+          param?: string;
+          field?: string;
+          format?: "iso" | "epoch_s" | "epoch_ms";
+          from?: string;
+        };
+        sample?: unknown;
+      }>;
+  };
+  vaultHandle?: string;
+};
+export type AutomationsConnectorSaveOut = {
+  connector: {
+    app: string;
+    title: string;
+    docsUrl?: string;
+    level: "draft" | "tested" | "published";
+    domains: Array<string>;
+    auth: {
+      type: "api_key" | "bearer" | "basic" | "none";
+      field?: string;
+      userField?: string;
+      header?: string;
+      prefix?: string;
+      query?: string;
+    };
+    vaultHandle?: string;
+    owner: {
+      kind: string;
+      id: string;
+    };
+    actions: Array<{
+        key: string;
+        title: string;
+        description?: string;
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+        path: string;
+        effect: "read" | "outward";
+        params: Array<{
+            name: string;
+            in: "path" | "query" | "header" | "body";
+            required: boolean;
+            type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            description?: string;
+          }>;
+        output?: string;
+        level: "draft" | "tested" | "published";
+        stepKey: string;
+      }>;
+    triggers: Array<{
+        key: string;
+        title: string;
+        kind: "poll" | "webhook";
+        level: "draft" | "tested" | "published";
+        action?: string;
+        intervalSec?: number;
+        polling?: {
+          primed: boolean;
+          fired: number;
+          lastAt?: number;
+          lastStatus?: number;
+          lastError?: string;
+          failures: number;
+        };
+        webhook?: {
+          exists: boolean;
+          lastDeliveryAt?: number;
+          url?: string;
+        };
+      }>;
+    updatedAt: number;
+    publishedAt?: number;
+  };
+};
+export type AutomationsConnectorSendIn = {
+  key: string;
+  input?: Record<string, unknown>;
+  dryRun?: boolean;
+  idempotencyKey: string;
+};
+export type AutomationsConnectorSendOut = {
+  output: unknown;
+  status: number;
+  dryRun: boolean;
+};
+export type AutomationsConnectorTrustHostIn = {
+  app: string;
+  host: string;
+};
+export type AutomationsConnectorTrustHostOut = {
+  app: string;
+  host: string;
+  allowed: boolean;
+};
+export type AutomationsConnectorWebhookUrlGetIn = {
+  app: string;
+  trigger: string;
+};
+export type AutomationsConnectorWebhookUrlGetOut = {
+  url: string;
+  method: "POST";
+  lastDeliveryAt?: number;
+};
+export type AutomationsConnectorWebhookUrlRotateIn = {
+  app: string;
+  trigger: string;
+  confirm: true;
+};
+export type AutomationsConnectorWebhookUrlRotateOut = {
+  url: string;
+  method: "POST";
+};
 export type AutomationsConnectorOfferAcceptIn = {
   itemId: string;
 };
@@ -2039,6 +2379,70 @@ export type AutomationsConnectorSharesOut = {
           title: string;
           level: "draft" | "tested";
         }>;
+    }>;
+};
+export type AutomationsConnectorsListIn = Record<string, unknown>;
+export type AutomationsConnectorsListOut = {
+  connectors: Array<{
+      app: string;
+      title: string;
+      docsUrl?: string;
+      level: "draft" | "tested" | "published";
+      domains: Array<string>;
+      auth: {
+        type: "api_key" | "bearer" | "basic" | "none";
+        field?: string;
+        userField?: string;
+        header?: string;
+        prefix?: string;
+        query?: string;
+      };
+      vaultHandle?: string;
+      owner: {
+        kind: string;
+        id: string;
+      };
+      actions: Array<{
+          key: string;
+          title: string;
+          description?: string;
+          method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+          path: string;
+          effect: "read" | "outward";
+          params: Array<{
+              name: string;
+              in: "path" | "query" | "header" | "body";
+              required: boolean;
+              type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+              description?: string;
+            }>;
+          output?: string;
+          level: "draft" | "tested" | "published";
+          stepKey: string;
+        }>;
+      triggers: Array<{
+          key: string;
+          title: string;
+          kind: "poll" | "webhook";
+          level: "draft" | "tested" | "published";
+          action?: string;
+          intervalSec?: number;
+          polling?: {
+            primed: boolean;
+            fired: number;
+            lastAt?: number;
+            lastStatus?: number;
+            lastError?: string;
+            failures: number;
+          };
+          webhook?: {
+            exists: boolean;
+            lastDeliveryAt?: number;
+            url?: string;
+          };
+        }>;
+      updatedAt: number;
+      publishedAt?: number;
     }>;
 };
 export type AutomationsCreateIn = {
@@ -2960,6 +3364,20 @@ export type AutomationsPromoteOut = {
       }>;
   };
 };
+export type AutomationsReadDocsIn = {
+  url: string;
+  offset?: number;
+};
+export type AutomationsReadDocsOut = {
+  ok: boolean;
+  finalUrl?: string;
+  text?: string;
+  nextOffset?: number;
+  totalChars?: number;
+  links?: Array<string>;
+  reason?: string;
+  note: string;
+};
 export type AutomationsReplayIn = {
   automationId: string;
   runId: string;
@@ -3207,6 +3625,8 @@ export type AutomationsStepsListOut = {
       output: unknown;
       effects: "read" | "write" | "outward";
       gateAct?: string;
+      app?: string;
+      level?: "draft" | "tested" | "published";
     }>;
 };
 export type AutomationsStopIn = {
@@ -3238,16 +3658,23 @@ export type AutomationsTriggersListOut = {
     }>;
 };
 export type AutomationsTryReadIn = {
-  method: string;
-  path: string;
-  domains: Array<string>;
+  app?: string;
+  action?: string;
+  input?: Record<string, unknown>;
+  allowHost?: string;
+  method?: string;
+  path?: string;
+  domains?: Array<string>;
   markedSafe?: boolean;
-  vaultItemId: string;
+  vaultItemId?: string;
   actionKey?: string;
 };
 export type AutomationsTryReadOut = {
   level: "tested" | "draft";
   reason?: string;
+  status?: number;
+  shape?: unknown;
+  notes?: Array<string>;
 };
 export type AutomationsUndeleteIn = {
   automationId: string;
@@ -8328,6 +8755,48 @@ export type EngineLeaseReleaseIn = {
 export type EngineLeaseReleaseOut = {
   ok: boolean;
 };
+export type EngineMcpCallIn = {
+  agentId: string;
+  server: string;
+  tool: string;
+  input?: unknown;
+  idempotencyKey: string;
+};
+export type EngineMcpCallOut = {
+  isError: boolean;
+  text: string;
+  structured?: unknown;
+};
+export type EngineMcpReadIn = {
+  agentId: string;
+  server: string;
+  tool: string;
+  input?: unknown;
+};
+export type EngineMcpReadOut = {
+  isError: boolean;
+  text: string;
+  structured?: unknown;
+};
+export type EngineMcpToolsIn = {
+  agentId: string;
+  server?: string;
+};
+export type EngineMcpToolsOut = {
+  servers: Array<{
+      key: string;
+      name: string;
+      from: "plugin" | "connection";
+      ok: boolean;
+      error?: string;
+      tools: Array<{
+          name: string;
+          description: string;
+          inputSchema: unknown;
+          readOnly: boolean;
+        }>;
+    }>;
+};
 export type EngineModelsListIn = {
   accountRef?: string;
   threadId?: string;
@@ -10732,6 +11201,13 @@ export type GateReleaseIn = {
 };
 export type GateReleaseOut = {
   result: unknown;
+};
+export type GateResultTakeIn = {
+  holdId: string;
+};
+export type GateResultTakeOut = {
+  found: boolean;
+  result?: unknown;
 };
 export type GateRulesListIn = {
   scope?: "space" | "floor" | "agent";
@@ -14400,6 +14876,11 @@ export type KitsInstallSheetOut = {
     networkDomains: Array<string>;
     vaultNames: Array<string>;
     scripts: number;
+    skills: Array<string>;
+    marketplaces: Array<string>;
+    plugins: Array<string>;
+    connections: Array<string>;
+    agents: Array<string>;
     problems: Array<{
         item: string;
         step: "apply" | "undo";
@@ -18065,6 +18546,457 @@ export type NotificationsSendOut = {
   outcome: "interrupt" | "badge" | "digest" | "dropped_muted" | "capped";
   notificationId?: string;
 };
+export type PluginsAgentTemplateUseIn = {
+  pluginId: string;
+  name: string;
+  agentName?: string;
+  idempotencyKey: string;
+};
+export type PluginsAgentTemplateUseOut = {
+  agentId: string;
+};
+export type PluginsAgentTemplatesListIn = Record<string, unknown>;
+export type PluginsAgentTemplatesListOut = {
+  templates: Array<{
+      pluginId: string;
+      plugin: string;
+      name: string;
+      description: string;
+      tools: Array<string>;
+      model?: string;
+    }>;
+};
+export type PluginsAllowListIn = Record<string, unknown>;
+export type PluginsAllowListOut = {
+  allowed: Array<{
+      kind: "marketplace" | "plugin";
+      marketplace: string;
+      plugin?: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type PluginsAllowSetIn = {
+  kind: "marketplace" | "plugin";
+  marketplace: string;
+  plugin?: string;
+  allowed: boolean;
+  idempotencyKey: string;
+};
+export type PluginsAllowSetOut = {
+  allowed: Array<{
+      kind: "marketplace" | "plugin";
+      marketplace: string;
+      plugin?: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type PluginsBrowseIn = {
+  marketplaceId?: string;
+  q?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type PluginsBrowseOut = {
+  plugins: Array<{
+      marketplaceId: string;
+      marketplace: string;
+      name: string;
+      description?: string;
+      version?: string;
+      category?: string;
+      source: string;
+      allowed: boolean;
+      installed: Array<{
+          pluginId: string;
+          scope: "space" | "agent";
+          agentId?: string;
+        }>;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type PluginsCommandRenderIn = {
+  name: string;
+  args?: string;
+  agentId?: string;
+};
+export type PluginsCommandRenderOut = {
+  prompt: string;
+  description: string;
+  allowedTools: Array<string>;
+  model?: string;
+  pluginId: string;
+};
+export type PluginsCommandsListIn = {
+  agentId?: string;
+};
+export type PluginsCommandsListOut = {
+  commands: Array<{
+      name: string;
+      description: string;
+      argumentHint?: string;
+      plugin: string;
+      pluginId: string;
+    }>;
+};
+export type PluginsConfigSetIn = {
+  pluginId: string;
+  config: Record<string, string>;
+  idempotencyKey: string;
+};
+export type PluginsConfigSetOut = {
+  plugin: {
+    pluginId: string;
+    name: string;
+    marketplace: string;
+    marketplaceId: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    version?: string;
+    description?: string;
+    enabled: boolean;
+    parts: {
+      skills: Array<string>;
+      commands: Array<string>;
+      agents: Array<string>;
+      hooks: number;
+      mcpServers: Array<string>;
+    };
+    userConfig: Array<{
+        key: string;
+        type: string;
+        title: string;
+        description: string;
+        required: boolean;
+        sensitive: boolean;
+      }>;
+    config: Record<string, string>;
+    configured: boolean;
+    warnings: Array<string>;
+    installedAt: number;
+  };
+};
+export type PluginsConnectionAddIn = {
+  name: string;
+  scope: "space" | "agent";
+  agentId?: string;
+  url?: string;
+  command?: string;
+  args?: Array<string>;
+  env?: Record<string, string>;
+  headers?: Record<string, string>;
+  idempotencyKey: string;
+};
+export type PluginsConnectionAddOut = {
+  connection: {
+    connectionId: string;
+    name: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    transport: "stdio" | "http";
+    url?: string;
+    command?: string;
+    args: Array<string>;
+    env: Record<string, string>;
+    headers: Record<string, string>;
+    enabled: boolean;
+    createdAt: number;
+  };
+};
+export type PluginsConnectionRemoveIn = {
+  connectionId?: string;
+  name?: string;
+  scope?: "space" | "agent";
+  agentId?: string;
+  idempotencyKey: string;
+};
+export type PluginsConnectionRemoveOut = {
+  removed: boolean;
+};
+export type PluginsConnectionsListIn = {
+  agentId?: string;
+};
+export type PluginsConnectionsListOut = {
+  connections: Array<{
+      connectionId: string;
+      name: string;
+      scope: "space" | "agent";
+      agentId?: string;
+      transport: "stdio" | "http";
+      url?: string;
+      command?: string;
+      args: Array<string>;
+      env: Record<string, string>;
+      headers: Record<string, string>;
+      enabled: boolean;
+      createdAt: number;
+    }>;
+};
+export type PluginsFilesIn = {
+  pluginId: string;
+};
+export type PluginsFilesOut = {
+  files: Record<string, string>;
+};
+export type PluginsGetIn = {
+  pluginId: string;
+};
+export type PluginsGetOut = {
+  plugin: {
+    pluginId: string;
+    name: string;
+    marketplace: string;
+    marketplaceId: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    version?: string;
+    description?: string;
+    enabled: boolean;
+    parts: {
+      skills: Array<string>;
+      commands: Array<string>;
+      agents: Array<string>;
+      hooks: number;
+      mcpServers: Array<string>;
+    };
+    userConfig: Array<{
+        key: string;
+        type: string;
+        title: string;
+        description: string;
+        required: boolean;
+        sensitive: boolean;
+      }>;
+    config: Record<string, string>;
+    configured: boolean;
+    warnings: Array<string>;
+    installedAt: number;
+  };
+};
+export type PluginsHooksListIn = {
+  agentId?: string;
+};
+export type PluginsHooksListOut = {
+  hooks: Array<{
+      pluginId: string;
+      plugin: string;
+      event: string;
+      matcher: string;
+      command: string;
+      args: Array<string>;
+      timeoutSec?: number;
+    }>;
+};
+export type PluginsInstallIn = {
+  marketplaceId?: string;
+  marketplace?: string;
+  plugin: string;
+  scope: "space" | "agent";
+  agentId?: string;
+  config?: Record<string, string>;
+  idempotencyKey: string;
+};
+export type PluginsInstallOut = {
+  plugin: {
+    pluginId: string;
+    name: string;
+    marketplace: string;
+    marketplaceId: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    version?: string;
+    description?: string;
+    enabled: boolean;
+    parts: {
+      skills: Array<string>;
+      commands: Array<string>;
+      agents: Array<string>;
+      hooks: number;
+      mcpServers: Array<string>;
+    };
+    userConfig: Array<{
+        key: string;
+        type: string;
+        title: string;
+        description: string;
+        required: boolean;
+        sensitive: boolean;
+      }>;
+    config: Record<string, string>;
+    configured: boolean;
+    warnings: Array<string>;
+    installedAt: number;
+  };
+};
+export type PluginsListIn = {
+  agentId?: string;
+};
+export type PluginsListOut = {
+  plugins: Array<{
+      pluginId: string;
+      name: string;
+      marketplace: string;
+      marketplaceId: string;
+      scope: "space" | "agent";
+      agentId?: string;
+      version?: string;
+      description?: string;
+      enabled: boolean;
+      parts: {
+        skills: Array<string>;
+        commands: Array<string>;
+        agents: Array<string>;
+        hooks: number;
+        mcpServers: Array<string>;
+      };
+      userConfig: Array<{
+          key: string;
+          type: string;
+          title: string;
+          description: string;
+          required: boolean;
+          sensitive: boolean;
+        }>;
+      config: Record<string, string>;
+      configured: boolean;
+      warnings: Array<string>;
+      installedAt: number;
+    }>;
+};
+export type PluginsMarketplaceAddIn = {
+  source: string;
+  ref?: string;
+  idempotencyKey: string;
+};
+export type PluginsMarketplaceAddOut = {
+  marketplace: {
+    marketplaceId: string;
+    name: string;
+    kind: "git" | "local";
+    source: string;
+    ref?: string;
+    owner: string;
+    description?: string;
+    plugins: number;
+    allowed: boolean;
+    warnings: Array<string>;
+    revision?: string;
+    updatedAt: number;
+  };
+};
+export type PluginsMarketplaceRefreshIn = {
+  marketplaceId: string;
+  idempotencyKey: string;
+};
+export type PluginsMarketplaceRefreshOut = {
+  marketplace: {
+    marketplaceId: string;
+    name: string;
+    kind: "git" | "local";
+    source: string;
+    ref?: string;
+    owner: string;
+    description?: string;
+    plugins: number;
+    allowed: boolean;
+    warnings: Array<string>;
+    revision?: string;
+    updatedAt: number;
+  };
+};
+export type PluginsMarketplaceRemoveIn = {
+  marketplaceId?: string;
+  name?: string;
+  idempotencyKey: string;
+};
+export type PluginsMarketplaceRemoveOut = {
+  removed: boolean;
+};
+export type PluginsMarketplacesListIn = Record<string, unknown>;
+export type PluginsMarketplacesListOut = {
+  marketplaces: Array<{
+      marketplaceId: string;
+      name: string;
+      kind: "git" | "local";
+      source: string;
+      ref?: string;
+      owner: string;
+      description?: string;
+      plugins: number;
+      allowed: boolean;
+      warnings: Array<string>;
+      revision?: string;
+      updatedAt: number;
+    }>;
+};
+export type PluginsMcpServersIn = {
+  agentId?: string;
+};
+export type PluginsMcpServersOut = {
+  servers: Array<{
+      key: string;
+      name: string;
+      from: "plugin" | "connection";
+      pluginId?: string;
+      transport: "stdio" | "http" | "sse" | "ws";
+      command?: string;
+      args: Array<string>;
+      env: Record<string, string>;
+      url?: string;
+      headers: Record<string, string>;
+      files?: string;
+      needs: Array<string>;
+    }>;
+};
+export type PluginsSetEnabledIn = {
+  pluginId: string;
+  enabled: boolean;
+  idempotencyKey: string;
+};
+export type PluginsSetEnabledOut = {
+  plugin: {
+    pluginId: string;
+    name: string;
+    marketplace: string;
+    marketplaceId: string;
+    scope: "space" | "agent";
+    agentId?: string;
+    version?: string;
+    description?: string;
+    enabled: boolean;
+    parts: {
+      skills: Array<string>;
+      commands: Array<string>;
+      agents: Array<string>;
+      hooks: number;
+      mcpServers: Array<string>;
+    };
+    userConfig: Array<{
+        key: string;
+        type: string;
+        title: string;
+        description: string;
+        required: boolean;
+        sensitive: boolean;
+      }>;
+    config: Record<string, string>;
+    configured: boolean;
+    warnings: Array<string>;
+    installedAt: number;
+  };
+};
+export type PluginsUninstallIn = {
+  pluginId?: string;
+  name?: string;
+  scope?: "space" | "agent";
+  agentId?: string;
+  idempotencyKey: string;
+};
+export type PluginsUninstallOut = {
+  removed: boolean;
+};
 export type PortalAccountCreateIn = {
   siteId: string;
   email: string;
@@ -18582,6 +19514,45 @@ export type ProjectsStagesSetOut = {
       title: string;
       order: number;
     }>;
+};
+export type ProjectsTeammatesCreateIn = {
+  projectId: string;
+  name: string;
+  role: "lead" | "member" | "reviewer";
+  brief?: string;
+  idempotencyKey: string;
+};
+export type ProjectsTeammatesCreateOut = {
+  teammate: {
+    agentId: string;
+    name: string;
+    role: "lead" | "member" | "reviewer" | "guest";
+    roleLine?: string;
+    status: "awake" | "working" | "asleep" | "paused";
+    madeForProject: boolean;
+  };
+};
+export type ProjectsTeammatesListIn = {
+  projectId: string;
+};
+export type ProjectsTeammatesListOut = {
+  teammates: Array<{
+      agentId: string;
+      name: string;
+      role: "lead" | "member" | "reviewer" | "guest";
+      roleLine?: string;
+      status: "awake" | "working" | "asleep" | "paused";
+      madeForProject: boolean;
+    }>;
+  leadAgentId?: string;
+};
+export type ProjectsTeammatesRemoveIn = {
+  projectId: string;
+  agentId: string;
+  idempotencyKey: string;
+};
+export type ProjectsTeammatesRemoveOut = {
+  removed: boolean;
 };
 export type ProjectsTemplatesListIn = Record<string, unknown>;
 export type ProjectsTemplatesListOut = {
@@ -21661,6 +22632,88 @@ export type SitesUpdateOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+  };
+};
+export type SkillsAddIn = {
+  text: string;
+  name?: string;
+  agentId?: string;
+  source?: string;
+  files?: Record<string, string>;
+  idempotencyKey: string;
+};
+export type SkillsAddOut = {
+  skill: {
+    name: string;
+    description: string;
+    tier: "builtin" | "space" | "agent";
+    source: string;
+    agentId?: string;
+    system: boolean;
+    enabled: boolean;
+    bytes: number;
+    updatedAt?: number;
+  };
+};
+export type SkillsListIn = {
+  agentId?: string;
+  includeOff?: boolean;
+};
+export type SkillsListOut = {
+  skills: Array<{
+      name: string;
+      description: string;
+      tier: "builtin" | "space" | "agent";
+      source: string;
+      agentId?: string;
+      system: boolean;
+      enabled: boolean;
+      bytes: number;
+      updatedAt?: number;
+    }>;
+};
+export type SkillsLoadIn = {
+  name: string;
+  agentId?: string;
+};
+export type SkillsLoadOut = {
+  skill: {
+    name: string;
+    description: string;
+    tier: "builtin" | "space" | "agent";
+    source: string;
+    body: string;
+    files: Array<{
+        path: string;
+        text: string;
+      }>;
+  };
+};
+export type SkillsRemoveIn = {
+  name: string;
+  agentId?: string;
+  idempotencyKey: string;
+};
+export type SkillsRemoveOut = {
+  removed: boolean;
+};
+export type SkillsSetEnabledIn = {
+  name: string;
+  agentId?: string;
+  enabled: boolean;
+  idempotencyKey: string;
+};
+export type SkillsSetEnabledOut = {
+  skill: {
+    name: string;
+    description: string;
+    tier: "builtin" | "space" | "agent";
+    source: string;
+    agentId?: string;
+    system: boolean;
+    enabled: boolean;
+    bytes: number;
+    updatedAt?: number;
   };
 };
 export type SourceRulesListIn = Record<string, unknown>;
@@ -27535,11 +28588,23 @@ export interface CapMap {
   "automations.account_picks": { in: AutomationsAccountPicksIn; out: AutomationsAccountPicksOut };
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
+  "automations.connector.get": { in: AutomationsConnectorGetIn; out: AutomationsConnectorGetOut };
+  "automations.connector.info": { in: AutomationsConnectorInfoIn; out: AutomationsConnectorInfoOut };
+  "automations.connector.poll": { in: AutomationsConnectorPollIn; out: AutomationsConnectorPollOut };
+  "automations.connector.publish": { in: AutomationsConnectorPublishIn; out: AutomationsConnectorPublishOut };
+  "automations.connector.read": { in: AutomationsConnectorReadIn; out: AutomationsConnectorReadOut };
+  "automations.connector.remove": { in: AutomationsConnectorRemoveIn; out: AutomationsConnectorRemoveOut };
+  "automations.connector.save": { in: AutomationsConnectorSaveIn; out: AutomationsConnectorSaveOut };
+  "automations.connector.send": { in: AutomationsConnectorSendIn; out: AutomationsConnectorSendOut };
+  "automations.connector.trust_host": { in: AutomationsConnectorTrustHostIn; out: AutomationsConnectorTrustHostOut };
+  "automations.connector.webhook_url.get": { in: AutomationsConnectorWebhookUrlGetIn; out: AutomationsConnectorWebhookUrlGetOut };
+  "automations.connector.webhook_url.rotate": { in: AutomationsConnectorWebhookUrlRotateIn; out: AutomationsConnectorWebhookUrlRotateOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
   "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
   "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
   "automations.connector_share": { in: AutomationsConnectorShareIn; out: AutomationsConnectorShareOut };
   "automations.connector_shares": { in: AutomationsConnectorSharesIn; out: AutomationsConnectorSharesOut };
+  "automations.connectors.list": { in: AutomationsConnectorsListIn; out: AutomationsConnectorsListOut };
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };
   "automations.delete": { in: AutomationsDeleteIn; out: AutomationsDeleteOut };
   "automations.draft_connector": { in: AutomationsDraftConnectorIn; out: AutomationsDraftConnectorOut };
@@ -27563,6 +28628,7 @@ export interface CapMap {
   "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
+  "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -27889,6 +28955,9 @@ export interface CapMap {
   "engine.lease.acquire": { in: EngineLeaseAcquireIn; out: EngineLeaseAcquireOut };
   "engine.lease.heartbeat": { in: EngineLeaseHeartbeatIn; out: EngineLeaseHeartbeatOut };
   "engine.lease.release": { in: EngineLeaseReleaseIn; out: EngineLeaseReleaseOut };
+  "engine.mcp.call": { in: EngineMcpCallIn; out: EngineMcpCallOut };
+  "engine.mcp.read": { in: EngineMcpReadIn; out: EngineMcpReadOut };
+  "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
   "engine.policy.get": { in: EnginePolicyGetIn; out: EnginePolicyGetOut };
@@ -28024,6 +29093,7 @@ export interface CapMap {
   "gate.holds.list": { in: GateHoldsListIn; out: GateHoldsListOut };
   "gate.park": { in: GateParkIn; out: GateParkOut };
   "gate.release": { in: GateReleaseIn; out: GateReleaseOut };
+  "gate.result.take": { in: GateResultTakeIn; out: GateResultTakeOut };
   "gate.rules.list": { in: GateRulesListIn; out: GateRulesListOut };
   "gate.rules.set": { in: GateRulesSetIn; out: GateRulesSetOut };
   "git.branch": { in: GitBranchIn; out: GitBranchOut };
@@ -28493,6 +29563,29 @@ export interface CapMap {
   "notifications.rules.get": { in: NotificationsRulesGetIn; out: NotificationsRulesGetOut };
   "notifications.rules.set": { in: NotificationsRulesSetIn; out: NotificationsRulesSetOut };
   "notifications.send": { in: NotificationsSendIn; out: NotificationsSendOut };
+  "plugins.agent_template.use": { in: PluginsAgentTemplateUseIn; out: PluginsAgentTemplateUseOut };
+  "plugins.agent_templates.list": { in: PluginsAgentTemplatesListIn; out: PluginsAgentTemplatesListOut };
+  "plugins.allow.list": { in: PluginsAllowListIn; out: PluginsAllowListOut };
+  "plugins.allow.set": { in: PluginsAllowSetIn; out: PluginsAllowSetOut };
+  "plugins.browse": { in: PluginsBrowseIn; out: PluginsBrowseOut };
+  "plugins.command.render": { in: PluginsCommandRenderIn; out: PluginsCommandRenderOut };
+  "plugins.commands.list": { in: PluginsCommandsListIn; out: PluginsCommandsListOut };
+  "plugins.config.set": { in: PluginsConfigSetIn; out: PluginsConfigSetOut };
+  "plugins.connection.add": { in: PluginsConnectionAddIn; out: PluginsConnectionAddOut };
+  "plugins.connection.remove": { in: PluginsConnectionRemoveIn; out: PluginsConnectionRemoveOut };
+  "plugins.connections.list": { in: PluginsConnectionsListIn; out: PluginsConnectionsListOut };
+  "plugins.files": { in: PluginsFilesIn; out: PluginsFilesOut };
+  "plugins.get": { in: PluginsGetIn; out: PluginsGetOut };
+  "plugins.hooks.list": { in: PluginsHooksListIn; out: PluginsHooksListOut };
+  "plugins.install": { in: PluginsInstallIn; out: PluginsInstallOut };
+  "plugins.list": { in: PluginsListIn; out: PluginsListOut };
+  "plugins.marketplace.add": { in: PluginsMarketplaceAddIn; out: PluginsMarketplaceAddOut };
+  "plugins.marketplace.refresh": { in: PluginsMarketplaceRefreshIn; out: PluginsMarketplaceRefreshOut };
+  "plugins.marketplace.remove": { in: PluginsMarketplaceRemoveIn; out: PluginsMarketplaceRemoveOut };
+  "plugins.marketplaces.list": { in: PluginsMarketplacesListIn; out: PluginsMarketplacesListOut };
+  "plugins.mcp.servers": { in: PluginsMcpServersIn; out: PluginsMcpServersOut };
+  "plugins.set_enabled": { in: PluginsSetEnabledIn; out: PluginsSetEnabledOut };
+  "plugins.uninstall": { in: PluginsUninstallIn; out: PluginsUninstallOut };
   "portal.account_create": { in: PortalAccountCreateIn; out: PortalAccountCreateOut };
   "portal.account_disable": { in: PortalAccountDisableIn; out: PortalAccountDisableOut };
   "portal.accounts": { in: PortalAccountsIn; out: PortalAccountsOut };
@@ -28527,6 +29620,9 @@ export interface CapMap {
   "projects.share_out": { in: ProjectsShareOutIn; out: ProjectsShareOutOut };
   "projects.shared_view": { in: ProjectsSharedViewIn; out: ProjectsSharedViewOut };
   "projects.stages.set": { in: ProjectsStagesSetIn; out: ProjectsStagesSetOut };
+  "projects.teammates.create": { in: ProjectsTeammatesCreateIn; out: ProjectsTeammatesCreateOut };
+  "projects.teammates.list": { in: ProjectsTeammatesListIn; out: ProjectsTeammatesListOut };
+  "projects.teammates.remove": { in: ProjectsTeammatesRemoveIn; out: ProjectsTeammatesRemoveOut };
   "projects.templates.list": { in: ProjectsTemplatesListIn; out: ProjectsTemplatesListOut };
   "projects.unlink_tasks": { in: ProjectsUnlinkTasksIn; out: ProjectsUnlinkTasksOut };
   "projects.unpin_file": { in: ProjectsUnpinFileIn; out: ProjectsUnpinFileOut };
@@ -28716,6 +29812,11 @@ export interface CapMap {
   "sites.table_promote": { in: SitesTablePromoteIn; out: SitesTablePromoteOut };
   "sites.tables": { in: SitesTablesIn; out: SitesTablesOut };
   "sites.update": { in: SitesUpdateIn; out: SitesUpdateOut };
+  "skills.add": { in: SkillsAddIn; out: SkillsAddOut };
+  "skills.list": { in: SkillsListIn; out: SkillsListOut };
+  "skills.load": { in: SkillsLoadIn; out: SkillsLoadOut };
+  "skills.remove": { in: SkillsRemoveIn; out: SkillsRemoveOut };
+  "skills.set_enabled": { in: SkillsSetEnabledIn; out: SkillsSetEnabledOut };
   "source_rules.list": { in: SourceRulesListIn; out: SourceRulesListOut };
   "source_rules.set": { in: SourceRulesSetIn; out: SourceRulesSetOut };
   "sources.create": { in: SourcesCreateIn; out: SourcesCreateOut };
@@ -29176,6 +30277,14 @@ export type AgentTemplateAppliedPayload = {
   agents: number;
   suggestions: number;
   by: string;
+};
+export type AppEventReceivedPayload = {
+  app: string;
+  trigger: string;
+  itemId: string;
+  item: unknown;
+  source: "poll" | "webhook";
+  at: number;
 };
 export type AuditArchivedPayload = {
   year: number;
@@ -30955,6 +32064,60 @@ export type PlanStepDonePayload = {
   threadId: string;
   stepId: string;
 };
+export type PluginAllowlistChangedPayload = {
+  kind: "marketplace" | "plugin";
+  marketplace: string;
+  plugin?: string;
+  allowed: boolean;
+  by: string;
+};
+export type PluginChangedPayload = {
+  pluginId: string;
+  name: string;
+  by: string;
+};
+export type PluginConnectionAddedPayload = {
+  connectionId: string;
+  name: string;
+  scope: "space" | "agent";
+  agentId?: string;
+  by: string;
+};
+export type PluginConnectionRemovedPayload = {
+  connectionId: string;
+  name: string;
+  by: string;
+};
+export type PluginInstalledPayload = {
+  pluginId: string;
+  name: string;
+  marketplace: string;
+  scope: "space" | "agent";
+  agentId?: string;
+  by: string;
+};
+export type PluginMarketplaceAddedPayload = {
+  marketplaceId: string;
+  name: string;
+  source: string;
+  by: string;
+};
+export type PluginMarketplaceRefreshedPayload = {
+  marketplaceId: string;
+  name: string;
+  plugins: number;
+  by: string;
+};
+export type PluginMarketplaceRemovedPayload = {
+  marketplaceId: string;
+  name: string;
+  by: string;
+};
+export type PluginUninstalledPayload = {
+  pluginId: string;
+  name: string;
+  by: string;
+};
 export type PolicyChangedPayload = {
   key: string;
   scope: string;
@@ -31580,6 +32743,24 @@ export type SiteTableCreatedPayload = {
 export type SiteTablePromotedPayload = {
   siteId: string;
   type: string;
+};
+export type SkillAddedPayload = {
+  name: string;
+  tier: "space" | "agent";
+  agentId?: string;
+  source: string;
+  by: string;
+};
+export type SkillChangedPayload = {
+  name: string;
+  agentId?: string;
+  enabled: boolean;
+  by: string;
+};
+export type SkillRemovedPayload = {
+  name: string;
+  agentId?: string;
+  by: string;
 };
 export type SmsErasedPayload = {
   smsId: string;
@@ -32395,6 +33576,7 @@ export interface EventMap {
   "agent.suggestion_resolved": AgentSuggestionResolvedPayload;
   "agent.task_finished": AgentTaskFinishedPayload;
   "agent.template_applied": AgentTemplateAppliedPayload;
+  "app_event.received": AppEventReceivedPayload;
   "audit.archived": AuditArchivedPayload;
   "audit.checkpointed": AuditCheckpointedPayload;
   "audit.exported": AuditExportedPayload;
@@ -32736,6 +33918,15 @@ export interface EventMap {
   "plan.proposed": PlanProposedPayload;
   "plan.rejected": PlanRejectedPayload;
   "plan.step_done": PlanStepDonePayload;
+  "plugin.allowlist_changed": PluginAllowlistChangedPayload;
+  "plugin.changed": PluginChangedPayload;
+  "plugin.connection_added": PluginConnectionAddedPayload;
+  "plugin.connection_removed": PluginConnectionRemovedPayload;
+  "plugin.installed": PluginInstalledPayload;
+  "plugin.marketplace_added": PluginMarketplaceAddedPayload;
+  "plugin.marketplace_refreshed": PluginMarketplaceRefreshedPayload;
+  "plugin.marketplace_removed": PluginMarketplaceRemovedPayload;
+  "plugin.uninstalled": PluginUninstalledPayload;
   "policy.changed": PolicyChangedPayload;
   "portal.account_created": PortalAccountCreatedPayload;
   "portal.message_posted": PortalMessagePostedPayload;
@@ -32851,6 +34042,9 @@ export interface EventMap {
   "site.rolled_back": SiteRolledBackPayload;
   "site.table_created": SiteTableCreatedPayload;
   "site.table_promoted": SiteTablePromotedPayload;
+  "skill.added": SkillAddedPayload;
+  "skill.changed": SkillChangedPayload;
+  "skill.removed": SkillRemovedPayload;
   "sms.erased": SmsErasedPayload;
   "sms.received": SmsReceivedPayload;
   "source.created": SourceCreatedPayload;

@@ -24,6 +24,8 @@ import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
 import { ApiKeysPage, ConnectorsPage, ConnectionsPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
 import { GoogleWorkspacePage } from "../../console/pages/suite/GoogleWorkspace.tsx";
 import { Microsoft365Page } from "../../console/pages/suite/Microsoft365.tsx";
+import { SkillsPage } from "../../console/pages/Skills.tsx";
+import { PluginsPage } from "../../console/pages/Plugins.tsx";
 import { Models } from "../../console/pages/Models.tsx";
 import { Spend } from "../../console/pages/Spend.tsx";
 import { Logging, ReviewSampling } from "../../console/pages/AiSettings.tsx";
@@ -66,6 +68,8 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "actors") return <OutsideActors key={args.actorId??"actors-list"} {...(args.actorId?{initialActorId:args.actorId}:{})} />;
   if (id === "computers") return <AgentComputers />;
   if (id === "template") return <AgentTemplate />;
+  if (id === "skills") return <SkillsPage />;
+  if (id === "plugins") return <PluginsPage />;
   if (id === "schema") return <SchemaPage />;
   if (id === "labels") return <LabelsPage />;
   if (id === "domains") return <DomainsPage {...(args["domainId"]?{initialId:args["domainId"]}:{})} />;

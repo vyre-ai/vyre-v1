@@ -15,6 +15,10 @@ HTTP 422. Retryable: no.
 - agents.routine.delegate
 - agents.routine.run_now
 - agents.suggestion.accept
+- automations.connector.publish
+- automations.connector.read
+- automations.connector.remove
+- automations.connector.send
 - automations.migrate_runs
 - automations.promote
 - automations.replay
@@ -27,7 +31,3 @@ HTTP 422. Retryable: no.
 - computers.record_start
 - computers.sleep
 - computers.take_over
-- conflicts.confirm
-- conflicts.redo
-- conflicts.resolve
-- conflicts.undo
