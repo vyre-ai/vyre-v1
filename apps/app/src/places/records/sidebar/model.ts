@@ -83,3 +83,12 @@ export function effectiveType(s: RecordsState, groups: readonly TypeGroup[]): st
   if (s.type && all.some((i) => i.key === s.type)) return s.type;
   return all[0]?.key ?? null;
 }
+
+/** A phone has no sidebar beside the table: the type name in the header opens this menu to switch record types. Every shown type, then Agents when it is not already in a group. */
+export function typeMenuEntries(types: readonly TypeRow[], current: string, open: (key: string) => void): { label: string; checked: boolean; onSelect: () => void }[] {
+  const all = typeGroups(types).flatMap((g) => g.items);
+  const out = all.map((t) => ({ label: t.label, checked: t.key === current, onSelect: () => open(t.key) }));
+  const agent = types.find((t) => t.key === "agent");
+  if (agent !== undefined && !all.some((t) => t.key === "agent")) out.push({ label: agent.plural, checked: current === "agent", onSelect: () => open("agent") });
+  return out;
+}

@@ -11,7 +11,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useLive, useOnline, useOptionalRecordsData, useRecordsData, useScreenQuery } from "../sidebar/data.tsx";
-import { SCREENS, effectiveType, typeGroups } from "../sidebar/model.ts";
+import { SCREENS, effectiveType, typeGroups, typeMenuEntries } from "../sidebar/model.ts";
 import type { ViewRow as SavedView } from "../sidebar/model.ts";
 import { Face, Glyph, HeadButton, pointOf, typeIcon } from "../sidebar/parts.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
@@ -680,10 +680,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
           {slim && typeList.status === "ready" ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`${def.plural}, change record type`} testID="records-type-pick" onPress={(e) => {
               const p = pointOf(e);
-              const all = typeGroups(typeList.data.types).flatMap((g) => g.items);
-              const agent = typeList.data.types.find((t) => t.key === "agent");
-              const entries: MenuEntry[] = all.map((t) => ({ label: t.label, checked: t.key === type, onSelect: () => dispatch({ type: "open", key: t.key }) }));
-              if (agent !== undefined && !all.some((t) => t.key === "agent")) entries.push({ label: agent.plural, checked: type === "agent", onSelect: () => dispatch({ type: "open", key: "agent" }) });
+              const entries: MenuEntry[] = typeMenuEntries(typeList.data.types, type, (key) => dispatch({ type: "open", key }));
               menu.show(entries, p.x, p.y);
             }} style={styles.typePick}>
               <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>
