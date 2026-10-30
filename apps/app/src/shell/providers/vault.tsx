@@ -7,6 +7,7 @@ import type { VaultBrowsers, VaultData, VaultRoute } from "../../places/vault/la
 import { usePlaceHash } from "../hash/context.tsx";
 import type { HashTarget } from "../hash/hash.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
+import { openAsk } from "./ask.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function vaultRoute(target: HashTarget): VaultRoute {
@@ -15,6 +16,7 @@ export function vaultRoute(target: HashTarget): VaultRoute {
   if (target.args["share"]) return { surface: "share", itemId: target.args["share"] };
   if (target.args["export"]) return { surface: "export", folderId: target.args["export"] };
   if (target.args["advanced"] === "true") return { surface: "advanced" };
+  if (target.args["policy"] === "true") return { surface: "policy" };
   return { surface: "layout" };
 }
 
@@ -46,8 +48,10 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
       openBackups: () => rt.open({ screen: "console.backups" }),
       openDevices: () => rt.open({ screen: "devices.mine" }),
       openOutsideActors: () => rt.open({ screen: "console.outside-actors" }),
+      openPolicy: () => rt.open({ screen: "vault.layout", args: { policy: true } }),
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
+      ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
     },
     clock: () => ({ now: rt.clock().now }),
     ...(browsers ? { browsers } : {}),

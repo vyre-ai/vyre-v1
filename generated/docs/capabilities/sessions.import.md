@@ -1,6 +1,6 @@
 # sessions.import
 
-Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text
+Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply visible user and assistant text and, on assistant messages, the tool calls with their one-line summaries and the start of their results (credentials removed)
 
 | | |
 |---|---|
@@ -47,6 +47,13 @@ type In = {
           role: "user" | "assistant";
           text: string;
           at: number;
+          tools?: Array<{
+              id: string;
+              name: string;
+              summary: string;
+              ok?: boolean;
+              output?: string;
+            }>;
         }>;
     }>;
   idempotencyKey: string;
@@ -103,7 +110,16 @@ type Out = {
             "at": 1760000000000,
             "role": "user",
             "sourceMessageId": "example",
-            "text": "example"
+            "text": "example",
+            "tools": [
+              {
+                "id": "example",
+                "name": "example",
+                "ok": true,
+                "output": "example",
+                "summary": "example"
+              }
+            ]
           }
         ],
         "repo": {

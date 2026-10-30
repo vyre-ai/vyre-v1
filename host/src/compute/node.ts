@@ -5,7 +5,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 
-export type NodeFetch = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown> }>;
+export type NodeFetch = (url: string, init: { method: string; headers: Record<string, string>; body: string | Uint8Array; signal?: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown> }>;
 
 export interface NodeDeps {
   server: string;
@@ -20,10 +20,47 @@ export interface NodeDeps {
   signal: AbortSignal;
   /** how often an unapproved computer asks, and an admitted one reports, in milliseconds */
   pollMs?: number;
+  /** Opens a WebSocket (the live view). Default: the platform's WebSocket, which takes request headers on node. A test or another runtime passes its own. */
+  socket?(url: string, headers?: Record<string, string>): NodeSocket;
   /** Makes what runs a job on this machine (the agent computers module's Docker host, behind its host seam). It gets the one door into an agent's home that a job's token opens. Without it the node takes no jobs. */
   makeHost?(link: HomeLink): { run(kind: string, input: unknown): Promise<unknown> };
 }
 export type NodeEnd = "stopped" | "declined" | "removed";
+
+/** The part of a WebSocket the live view uses. */
+export interface NodeSocket {
+  send(data: string | Uint8Array): void;
+  close(): void;
+  readonly bufferedAmount: number;
+  onOpen(f: () => void): void;
+  onMessage(f: (data: string | Uint8Array) => void): void;
+  onClose(f: () => void): void;
+}
+
+interface PlatformSocket {
+  binaryType: string; readonly bufferedAmount: number;
+  send(data: string | Uint8Array): void; close(): void;
+  addEventListener(type: string, f: (ev: { data?: unknown }) => void): void;
+}
+function platformSocket(url: string, headers?: Record<string, string>): NodeSocket {
+  const WS = (globalThis as unknown as { WebSocket: new (url: string, opts?: unknown) => PlatformSocket }).WebSocket;
+  const ws = new WS(url, headers ? { headers } : undefined);
+  ws.binaryType = "arraybuffer";
+  return {
+    send: (data) => ws.send(data), close: () => { try { ws.close(); } catch { /* already closed */ } },
+    get bufferedAmount() { return ws.bufferedAmount; },
+    onOpen: (f) => ws.addEventListener("open", () => f()),
+    onMessage: (f) => ws.addEventListener("message", (ev) => f(typeof ev.data === "string" ? ev.data : new Uint8Array(ev.data as ArrayBuffer))),
+    onClose: (f) => { let done = false; const once = (): void => { if (!done) { done = true; f(); } }; ws.addEventListener("close", once); ws.addEventListener("error", once); },
+  };
+}
+
+/** Up to this many bytes a file goes up inside a JSON home call (base64 must stay under the route's 4 MB). */
+const INLINE_PUT = 2 * 1024 * 1024;
+const VIEW_ID = /^viw_[a-f0-9]{32}$/;
+const COMPUTER_ID = /^cmt_[a-z0-9]{1,64}$/;
+const MAX_LIVE_VIEWS = 8;
+const VIEW_BACKLOG = 2 * 1024 * 1024;
 
 /** A job in a poll answer. The token is the job's own: it reaches this computer's home, as this agent, for the length of the job. */
 export interface NodeJob { jobId: string; computerId: string; agentId: string; kind: string; input: unknown; token: string }
@@ -133,6 +170,13 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     },
     async put(url, bytes) {
       const at = door();
+      if (bytes.length > INLINE_PUT) {
+        // too big for a JSON home call: a recording's video goes raw to the recording route, which only a saveRecording job may use
+        const q = new URLSearchParams({ token: at.token, computerId: at.computerId, url });
+        const r = await d.fetch(`${server}/compute/recording?${q}`, { method: "POST", headers: { "content-type": "application/octet-stream", authorization: `Bearer ${credential}` }, body: bytes as never, signal: d.signal });
+        if (r.status !== 200) throw new Error(`the Space refused the upload (${r.status})`);
+        return;
+      }
       const r = await post("/compute/home", { token: at.token, computerId: at.computerId, cap: "put_upload", input: { url, base64: Buffer.from(bytes).toString("base64") } }, { authorization: `Bearer ${credential}` });
       if (r.status !== 200) throw new Error(String(r.data?.error?.message ?? `the Space refused the upload (${r.status})`));
     },
@@ -188,15 +232,74 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     void lane.finally(() => { if (lanes.get(job.computerId) === lane) lanes.delete(job.computerId); });
   }
 
-  for (;;) {
-    if (d.signal.aborted || removed) { if (removed) { d.log("This computer was removed from the Space. Its credential no longer works."); forgetAll(); return "removed"; } return "stopped"; }
-    for (const [id, rec] of records) if (rec.state !== "started" && !rec.reported && !inflight.has(id)) await report(id);
-    const f = d.facts();
-    const r = await post("/compute/poll", { docker: f.docker, version: f.version, running: [...inflight] }, { authorization: `Bearer ${credential}` }).catch(() => null);
-    if (r && r.status === 401) { d.log("This computer was removed from the Space. Its credential no longer works."); forgetAll(); return "removed"; }
-    const jobs = r && r.status === 200 && Array.isArray(r.data.jobs) ? (r.data.jobs as NodeJob[]) : [];
-    for (const job of jobs) if (job && typeof job.jobId === "string" && typeof job.computerId === "string" && typeof job.kind === "string" && typeof job.token === "string") take(job);
-    const busy = jobs.length > 0 || inflight.size > 0;
-    await d.sleep(busy ? Math.min(pollMs, 400) : pollMs, d.signal).catch(() => undefined);
+  // ---- the live view: one outbound socket to the Space, over which the Space asks for a computer's view and sends the person's input. The frames come from agentd's own stream server on this machine
+  // (its address stays here); they go up the one socket, tagged with the view the Space named. This machine hosts only the computers it made, so a view of any other is refused by its own host.
+  let ended = false;   // the node's loop has returned: the view socket goes with it
+  const openSocket = d.socket ?? platformSocket;
+  async function liveView(): Promise<void> {
+    const url = `${server.replace(/^http/, "ws")}/compute/stream`;
+    const up = openSocket(url, { authorization: `Bearer ${credential}` });
+    const local = new Map<string, NodeSocket>();
+    const send = (data: string | Uint8Array): void => { try { up.send(data); } catch { /* the socket is going away */ } };
+    const say = (m: Record<string, unknown>): void => send(JSON.stringify(m));
+    await new Promise<void>((resolve) => {
+      let hb: ReturnType<typeof setInterval> | undefined;
+      let watch: ReturnType<typeof setInterval> | undefined;
+      const end = (): void => { if (hb) clearInterval(hb); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
+      d.signal.addEventListener("abort", end, { once: true });
+      watch = setInterval(() => { if (removed || ended) end(); }, 500); watch.unref?.();
+      up.onOpen(() => { hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.(); });
+      up.onClose(end);
+      up.onMessage((data) => {
+        if (typeof data !== "string") return;
+        let m: { t?: unknown; view?: unknown; computerId?: unknown; data?: unknown };
+        try { m = JSON.parse(data) as typeof m; } catch { return; }
+        const view = typeof m.view === "string" && VIEW_ID.test(m.view) ? m.view : "";
+        if (m.t === "close" && view) { local.get(view)?.close(); local.delete(view); return; }
+        if (m.t === "input" && view && typeof m.data === "string" && m.data.length <= 4096) { local.get(view)?.send(m.data); return; }
+        if (m.t !== "open" || !view || typeof m.computerId !== "string" || !COMPUTER_ID.test(m.computerId) || local.has(view)) return;
+        if (local.size >= MAX_LIVE_VIEWS || !host) { say({ t: "failed", view, reason: "This computer cannot show another view right now." }); return; }
+        const computerId = m.computerId;
+        void (async () => {
+          try {
+            const target = (await host.run("stream", { computerId, ticket: view })) as { ws?: unknown } | null;
+            const wsUrl = typeof target?.ws === "string" ? target.ws : "";
+            if (!/^wss?:\/\//.test(wsUrl)) throw new Error("This computer has no live view to relay.");
+            const idBytes = Buffer.from(view, "latin1");
+            const prefix = Buffer.concat([Buffer.from([idBytes.length]), idBytes]);
+            const s = openSocket(wsUrl);
+            local.set(view, s);
+            s.onOpen(() => say({ t: "opened", view }));
+            s.onMessage((frame) => {
+              if (typeof frame === "string") { say({ t: "msg", view, data: frame }); return; }
+              if (up.bufferedAmount > VIEW_BACKLOG) return;   // the Space is behind: a viewer sees fewer frames, never old ones
+              send(Buffer.concat([prefix, frame]));
+            });
+            s.onClose(() => { if (local.get(view) === s) { local.delete(view); say({ t: "ended", view }); } });
+          } catch (e) { say({ t: "failed", view, reason: (e instanceof Error ? e.message : "The computer could not open its view.").slice(0, 200) }); }
+        })();
+      });
+    });
   }
+  void (async () => {
+    // Held open for as long as this computer is admitted; a dropped socket is dialled again after a pause.
+    while (host && !d.signal.aborted && !removed && !ended) {
+      await liveView().catch(() => undefined);
+      await d.sleep(Math.min(Math.max(pollMs, 500), 5_000), d.signal).catch(() => undefined);
+    }
+  })();
+
+  try {
+    for (;;) {
+      if (d.signal.aborted || removed) { if (removed) { d.log("This computer was removed from the Space. Its credential no longer works."); forgetAll(); return "removed"; } return "stopped"; }
+      for (const [id, rec] of records) if (rec.state !== "started" && !rec.reported && !inflight.has(id)) await report(id);
+      const f = d.facts();
+      const r = await post("/compute/poll", { docker: f.docker, version: f.version, running: [...inflight] }, { authorization: `Bearer ${credential}` }).catch(() => null);
+      if (r && r.status === 401) { d.log("This computer was removed from the Space. Its credential no longer works."); forgetAll(); return "removed"; }
+      const jobs = r && r.status === 200 && Array.isArray(r.data.jobs) ? (r.data.jobs as NodeJob[]) : [];
+      for (const job of jobs) if (job && typeof job.jobId === "string" && typeof job.computerId === "string" && typeof job.kind === "string" && typeof job.token === "string") take(job);
+      const busy = jobs.length > 0 || inflight.size > 0;
+      await d.sleep(busy ? Math.min(pollMs, 400) : pollMs, d.signal).catch(() => undefined);
+    }
+  } finally { ended = true; }
 }

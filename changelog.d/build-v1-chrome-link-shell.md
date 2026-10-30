@@ -1,0 +1,1 @@
+- The desktop shell hands the app's daemons the person's own signed-in session for each Team Space (`link_chrome_space`, `unlink_chrome_space`), over loopback with each daemon's own token, and again whenever a daemon starts, so Vyre for Chrome on this computer fills from a Team Space as that person. Kept in the shell's memory only.

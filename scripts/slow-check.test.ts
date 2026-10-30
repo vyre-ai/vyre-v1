@@ -29,3 +29,8 @@ test("perf entries are not counted against the cap", () => {
   const perf = Array.from({ length: 30 }, (_, i) => ({ file: `p${i}.perf.test.ts`, capSec: 120, owner: "t", reason: "t", perf: true }));
   assert.deepEqual(checkSlow([...list(MAX_ENTRIES), ...perf]), []);
 });
+
+test("the test runner's own cap is the same number, so the two cannot drift", () => {
+  const src = fs.readFileSync(new URL("./test-run.mjs", import.meta.url), "utf8");
+  assert.equal(Number(/^const MAX_SLOW = (\d+);/m.exec(src)?.[1]), MAX_ENTRIES);
+});

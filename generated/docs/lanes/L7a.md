@@ -6,7 +6,7 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 
 ### access
 
-Capabilities to implement: 58. Events to emit: 18. Contract tests that must go green: `generated/tests/access/`.
+Capabilities to implement: 60. Events to emit: 18. Contract tests that must go green: `generated/tests/access/`.
 
 Capabilities:
 - access.actors.create (write, access.manage, level view)
@@ -16,6 +16,7 @@ Capabilities:
 - access.actors.set_engineer_mcp (write, access.manage, level view)
 - access.actors.update (write, access.manage, level view)
 - access.check (read, access.manage, level view)
+- access.deciders (read, grant only, level view)
 - access.grants.list (read, access.manage, level view)
 - access.grants.update (write, grant only, level view)
 - access.groups.add_member (write, access.manage, level view)
@@ -38,6 +39,7 @@ Capabilities:
 - access.principals.list (read, grant only, level view)
 - access.projection_health (read, grant only, level view)
 - access.propose_change (write, grant only, level view)
+- access.provider_check (read, grant only, level view)
 - access.request (write, grant only, level member)
 - access.requests.approve (write, grant only, level view)
 - access.requests.decline (write, grant only, level view)
@@ -169,7 +171,7 @@ Events:
 
 ### identity
 
-Capabilities to implement: 28. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
+Capabilities to implement: 29. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
 
 Capabilities:
 - identity.change_password (write, grant only, level view)
@@ -189,6 +191,7 @@ Capabilities:
 - identity.reset_complete (write, grant only, level view)
 - identity.reset_preview (read, access.manage, level view)
 - identity.reset_start (write, access.manage, level view)
+- identity.security.get (read, grant only, level view)
 - identity.sign_in (write, grant only, level view)
 - identity.sign_in_options (read, grant only, level view)
 - identity.sign_out (write, grant only, level view)
@@ -215,7 +218,7 @@ Events:
 
 ### members
 
-Capabilities to implement: 17. Events to emit: 5. Contract tests that must go green: `generated/tests/members/`.
+Capabilities to implement: 20. Events to emit: 5. Contract tests that must go green: `generated/tests/members/`.
 
 Capabilities:
 - members.accept (write, grant only, level view)
@@ -228,6 +231,9 @@ Capabilities:
 - members.remove (write, members.remove, level view, gate delete)
 - members.remove_preview (read, members.remove, level view)
 - members.second_factor.report (read, policy.manage, level view)
+- members.sign_in_github.clear (write, policy.manage, level view, gate signin_change)
+- members.sign_in_github.get (read, policy.manage, level view)
+- members.sign_in_github.set (write, policy.manage, level view, gate signin_change)
 - members.sign_in_policy.get (read, policy.manage, level view)
 - members.sign_in_policy.set (write, policy.manage, level view)
 - members.sso.list (read, policy.manage, level view)

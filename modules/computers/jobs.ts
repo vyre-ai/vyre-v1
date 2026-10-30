@@ -7,7 +7,7 @@ import { mintId, rowsOf, sha256 } from "./projections.ts";
 import type { Db, Row } from "./projections.ts";
 
 /** Calls the Space may ask of a node. Anything else in a poll answer is ignored by the node. */
-export const JOB_KINDS = ["create", "start", "stop", "remove", "probe", "configure", "takeover", "giveBack", "screenshot", "sessions", "signOut", "tool", "sync"] as const;
+export const JOB_KINDS = ["create", "start", "stop", "remove", "probe", "configure", "takeover", "giveBack", "screenshot", "sessions", "signOut", "record", "saveRecording", "removeRecording", "tool", "sync"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 export const LEASE_MS = 45_000;

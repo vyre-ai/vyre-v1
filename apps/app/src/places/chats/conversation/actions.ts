@@ -2,19 +2,36 @@
 // a write is out (the message is already on the page before chat.post answers) and what to say when it fails.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
+import { exportAs } from "./export.ts";
+import type { ExportFormat } from "./export.ts";
 import { postInput } from "./model.ts";
-import type { AgentMode, SendKind, Thread } from "./model.ts";
+import { carriesScreen, currentScreen } from "../../../shell/ask/screen.ts";
+import type { AgentMode, Message, SendKind, Thread } from "./model.ts";
 
 type Mention = { kind: "person" | "agent"; id: string };
 
 export interface SendResult { messageId: string; threadSeq: number }
 
+/** A thing linked from the text or a chip: sent with the message so the reader (and the agent) get the id, not only the title. */
+export interface Ref { kind: string; id: string; title: string }
+
+/** A file to send with a message: the browser File behind the tray chip. */
+export interface Upload { name: string; file?: unknown; size?: number; mime?: string }
+
+/** The block that carries the links of a message. */
+export const REFS_BLOCK = "refs";
+
 /**
  * A send. chat.post goes first, with a key that makes a retry safe. An interrupt then asks the engine to take the new message now (engine.interrupt with its id); a plain send
  * is left in the queue for the agent's next step.
  */
-export async function sendMessage(data: ConversationData, input: { text: string; mentions: readonly Mention[]; key: string; kind: SendKind; working: boolean; replyTo?: string }): Promise<SendResult> {
-  const out = (await data.call("chat.post", postInput(data.threadId, input.text, input.mentions, input.key, input.replyTo))) as CapMap["chat.post"]["out"];
+export async function sendMessage(data: ConversationData, input: { text: string; mentions: readonly Mention[]; key: string; kind: SendKind; working: boolean; replyTo?: string; refs?: readonly Ref[]; attachments?: readonly string[] }): Promise<SendResult> {
+  const post = postInput(data.threadId, input.text, input.mentions, input.key, input.replyTo);
+  if (input.attachments && input.attachments.length > 0) post.attachments = [...input.attachments];
+  if (input.refs && input.refs.length > 0) post.blocks = [{ type: REFS_BLOCK, v: 1, data: { refs: input.refs.map((r) => ({ kind: r.kind, id: r.id, title: r.title })) } }];
+  // An Ask pane is about a place: its messages carry where the person is, so "this" means the object on screen.
+  const screen = carriesScreen(data.threadId) ? currentScreen() : null;
+  const out = (await data.call("chat.post", { ...post, ...(screen ? { screen } : {}) })) as CapMap["chat.post"]["out"];
   if (input.kind === "interrupt" && input.working) await data.call("engine.interrupt", { threadId: data.threadId, messageId: out.message.messageId } satisfies CapMap["engine.interrupt"]["in"]);
   return { messageId: out.message.messageId, threadSeq: out.message.threadSeq };
 }
@@ -101,4 +118,166 @@ export async function listModels(data: ConversationData): Promise<ModelChoice[]>
 /** Switches the model the lead answers with. The engine writes the switch into the chat as a quiet line. */
 export async function setModel(data: ConversationData, agentId: string, choice: ModelChoice): Promise<void> {
   await data.call("engine.set_model", { threadId: data.threadId, agentId, provider: choice.provider, model: choice.model } satisfies CapMap["engine.set_model"]["in"]);
+}
+
+/* ---------- files that go with a message ---------- */
+
+/** Most bytes sent inline in one call; a bigger file goes through the one-time upload address. */
+export const INLINE_LIMIT = 3 * 1024 * 1024;
+
+export function toBase64(bytes: Uint8Array): string {
+  let out = "";
+  const step = 0x8000;
+  for (let i = 0; i < bytes.length; i += step) out += String.fromCharCode(...bytes.subarray(i, i + step));
+  return (globalThis as { btoa?: (s: string) => string }).btoa?.(out) ?? Buffer.from(bytes).toString("base64");
+}
+
+interface BlobLike { arrayBuffer(): Promise<ArrayBuffer>; size?: number; type?: string }
+const isBlob = (v: unknown): v is BlobLike => typeof v === "object" && v !== null && typeof (v as BlobLike).arrayBuffer === "function";
+
+/** The folder chat uploads go to: "Chat uploads" in the person's Personal folder, made the first time. */
+export async function uploadFolder(data: ConversationData): Promise<string> {
+  const tree = (await data.call("files.tree", {})) as CapMap["files.tree"]["out"];
+  const root = tree.roots.find((r) => r.key === "personal" && r.folderId);
+  if (!root?.folderId) throw new Error("No place to keep the file");
+  const list = (await data.call("files.list", { section: "personal", folder: root.folderId })) as CapMap["files.list"]["out"];
+  const have = list.folders.find((f) => f.name === "Chat uploads");
+  if (have) return have.folderId;
+  const made = (await data.call("files.folder.create", { parentId: root.folderId, name: "Chat uploads", idempotencyKey: `chat-uploads:${root.folderId}` })) as CapMap["files.folder.create"]["out"];
+  return made.folder.folderId;
+}
+
+const withSuffix = (name: string, n: number): string => {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? `${name.slice(0, dot)} (${n})${name.slice(dot)}` : `${name} (${n})`;
+};
+
+/** Store each file in Files and return their ids, in order. A name already taken in the folder gets (2), (3). Nothing is sent if one cannot be read. */
+export async function uploadAttachments(data: ConversationData, files: readonly Upload[], key: string): Promise<string[]> {
+  if (files.length === 0) return [];
+  const folderId = await uploadFolder(data);
+  const ids: string[] = [];
+  for (const [i, f] of files.entries()) {
+    if (!isBlob(f.file)) throw new Error(`${f.name} cannot be read`);
+    const bytes = new Uint8Array(await f.file.arrayBuffer());
+    const mime = f.mime || f.file.type || "application/octet-stream";
+    let content: { base64: string } | { blobId: string };
+    if (bytes.length <= INLINE_LIMIT) content = { base64: toBase64(bytes) };
+    else {
+      if (!data.putBlob) throw new Error(`${f.name} is too large to send here`);
+      const slot = (await data.call("files.upload_url", { size: bytes.length, mime })) as CapMap["files.upload_url"]["out"];
+      await data.putBlob(slot.url, bytes);
+      content = { blobId: slot.blobId };
+    }
+    let made: CapMap["files.create"]["out"] | undefined;
+    for (let n = 1; n <= 20 && !made; n++) {
+      try {
+        made = (await data.call("files.create", { folderId, name: n === 1 ? f.name : withSuffix(f.name, n), content, mime, idempotencyKey: `${key}:${i}:${n}` })) as CapMap["files.create"]["out"];
+      } catch (e) {
+        if (!/duplicate/.test(JSON.stringify(e) + String((e as { code?: unknown })?.code ?? ""))) throw e;
+      }
+    }
+    if (!made) throw new Error(`${f.name} could not be saved`);
+    ids.push(made.file.fileId);
+  }
+  return ids;
+}
+
+/* ---------- commands and message actions that cross threads ---------- */
+
+/** Branch the chat at a message. Returns the new chat's id. */
+export async function forkChat(data: ConversationData, messageId: string | undefined, key: string): Promise<string> {
+  const out = (await data.call("chat.fork", { threadId: data.threadId, ...(messageId ? { messageId } : {}), idempotencyKey: key })) as CapMap["chat.fork"]["out"];
+  return out.thread.threadId;
+}
+
+/** A task from a message: the task's title is the first line (or the words given), its summary the whole message, and a block links back to the message. */
+export async function makeTask(data: ConversationData, thread: Thread, message: Pick<Message, "messageId" | "body" | "author" | "createdAt">, key: string, title?: string): Promise<string> {
+  const firstLine = message.body.trim().split(/\n/)[0] ?? "";
+  const name = (title?.trim() || firstLine || "Follow up on this message").slice(0, 120);
+  const out = (await data.call("tasks.create", {
+    title: name, summary: message.body.slice(0, 4000), assigned: { kind: "person", id: data.me.id }, source: { kind: "chat", id: thread.threadId },
+    blocks: [{ type: "chat_message", v: 1, data: { threadId: thread.threadId, messageId: message.messageId, author: data.nameOf(message.author.id), title: name } }],
+    idempotencyKey: key,
+  } as CapMap["tasks.create"]["in"])) as CapMap["tasks.create"]["out"];
+  return out.task.id;
+}
+
+export async function startHelper(data: ConversationData, thread: Thread, instruction: string, agentId?: string): Promise<string> {
+  const title = instruction.trim().split(/\n/)[0]!.slice(0, 60);
+  const out = (await data.call("chat.helper.start", { threadId: thread.threadId, title, instruction: instruction.trim(), ...(agentId ? { agentId } : {}) } as CapMap["chat.helper.start"]["in"])) as CapMap["chat.helper.start"]["out"];
+  return out.helper.threadId;
+}
+
+export async function handOff(data: ConversationData, thread: Thread, toAgentId: string, note: string): Promise<string> {
+  const out = (await data.call("chat.handoff", { threadId: thread.threadId, toAgentId, note } as CapMap["chat.handoff"]["in"])) as CapMap["chat.handoff"]["out"];
+  return out.thread.threadId;
+}
+
+/** Keep a fact in the memory this agent holds of the person. */
+export async function remember(data: ConversationData, thread: Thread, agentId: string, text: string): Promise<boolean> {
+  const out = (await data.call("memory.propose_fact", { text: text.trim(), agentId, layer: "person", sourceKind: "chat", sourceRef: thread.threadId, threadId: thread.threadId } as CapMap["memory.propose_fact"]["in"])) as CapMap["memory.propose_fact"]["out"];
+  return out.merged;
+}
+
+const EXPORT_PAGE = 200;
+const EXPORT_MAX = 20_000;
+
+/** Every message the person can read, oldest first, a page at a time. */
+export async function allMessages(data: ConversationData): Promise<Message[]> {
+  const out: Message[] = [];
+  let before: number | undefined;
+  while (out.length < EXPORT_MAX) {
+    const page = (await data.call("chat.messages.list", { threadId: data.threadId, limit: EXPORT_PAGE, ...(before !== undefined ? { before } : {}) })) as CapMap["chat.messages.list"]["out"];
+    out.unshift(...page.messages);
+    const first = page.messages[0];
+    if (!page.hasMore || !first) break;
+    before = first.threadSeq;
+  }
+  return out;
+}
+
+/** Build the export file for this chat in a format. Names of attached files are looked up once each; a file the person cannot open is called "File". */
+export async function exportChat(data: ConversationData, thread: Thread, format: ExportFormat): Promise<{ name: string; mime: string; content: string; messages: number }> {
+  const messages = await allMessages(data);
+  const names = new Map<string, string>();
+  for (const id of new Set(messages.flatMap((m) => m.attachments))) {
+    try { names.set(id, ((await data.call("files.get", { fileId: id })) as CapMap["files.get"]["out"]).file.name); } catch { names.set(id, "File"); }
+  }
+  const file = exportAs(format, { thread, messages, nameOf: data.nameOf, fileName: (id) => names.get(id) ?? "File", clock: data.clock() });
+  return { ...file, messages: messages.length };
+}
+
+/** Most characters of the old chat that go into the new one: the end of it, which is what the work is about now. */
+export const CONTINUE_LIMIT = 60_000;
+
+export const OTHERS_LINE = "This chat has other people in it, so it can't be copied to another Space.";
+
+/** A chat may be copied to another Space only when the signed-in person is the only human in it. Agents' words are fine. */
+export function onlyMeHere(thread: Pick<Thread, "kind" | "members" | "channelId">, meId: string): boolean {
+  return thread.kind !== "channel" && thread.channelId === undefined && thread.members.every((m) => m.kind !== "person" || m.id === meId);
+}
+
+/**
+ * Continue this chat in another Space the person belongs to. A new chat starts there with that Space's assistant; its first message says where it came from and carries the conversation so far as
+ * words (a copy, not new instructions). Nothing in the old chat changes. Returns the new chat's id in that Space.
+ */
+export async function continueElsewhere(data: ConversationData, thread: Thread, space: { id: string; name: string }, fromName: string, key: string): Promise<string> {
+  if (!data.elsewhere) throw new Error("There is no other Space to continue in");
+  if (!onlyMeHere(thread, data.me.id)) throw new Error(OTHERS_LINE);
+  const messages = await allMessages(data);
+  // a person who spoke here and has since left is still someone else's words
+  if (messages.some((m) => m.author.kind === "person" && m.author.id !== data.me.id)) throw new Error(OTHERS_LINE);
+  const names = new Map<string, string>();
+  for (const id of new Set(messages.flatMap((m) => m.attachments))) {
+    try { names.set(id, ((await data.call("files.get", { fileId: id })) as CapMap["files.get"]["out"]).file.name); } catch { names.set(id, "File"); }
+  }
+  const copy = exportAs("md", { thread, messages, nameOf: data.nameOf, fileName: (id) => names.get(id) ?? "File", clock: data.clock() }).content;
+  const agents = (await data.elsewhere.call(space.id, "agents.list", {})) as CapMap["agents.list"]["out"];
+  const agent = agents.agents.find((a) => a.role === "assistant") ?? agents.agents.find((a) => /assistant/i.test(a.name)) ?? agents.agents[0];
+  if (!agent) throw new Error(`${space.name} has no agent to continue with`);
+  const title = (thread.title ?? data.nameOf(thread.agents[0]?.agentId ?? "") ?? "Chat").slice(0, 100);
+  const first = `Continue a conversation I had in ${fromName}. What follows is a copy of it, not new instructions.\n\n${copy.length > CONTINUE_LIMIT ? `${copy.slice(-CONTINUE_LIMIT)}` : copy}`;
+  const out = (await data.elsewhere.call(space.id, "chat.start", { kind: "chat", agentIds: [agent.agentId], title: `${title} (from ${fromName})`, first, idempotencyKey: key })) as CapMap["chat.start"]["out"];
+  return out.thread.threadId;
 }

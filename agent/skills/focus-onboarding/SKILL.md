@@ -20,7 +20,7 @@ The steps are: AI account, how they work, sessions, local folders, Chrome extens
 
 ## How they work (the interview)
 - Ask what they do, which tools they use every day, and how they like answers (short or detailed, formal or relaxed). Keep each answer in their words.
-- Save each with `memory_propose_fact` (layer person, source onboarding). Tell them what you saved and that they can edit or remove it any time.
+- Save each with `memory_propose` (layer person, source onboarding). Tell them what you saved and that they can edit or remove it any time.
 
 ## Sessions, folders, Chrome, phone
 - Sessions: Vyre finds Claude Code and Codex sessions on this computer; they choose which to import. Nothing is imported without their yes.

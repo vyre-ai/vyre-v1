@@ -6,6 +6,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "calendar.availability": Handler<"calendar.availability", X>;
+  "calendar.connect_provider": Handler<"calendar.connect_provider", X>;
   "calendar.create_calendar": Handler<"calendar.create_calendar", X>;
   "calendar.create_event": Handler<"calendar.create_event", X>;
   "calendar.delete_calendar": Handler<"calendar.delete_calendar", X>;

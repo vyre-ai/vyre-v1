@@ -1,7 +1,7 @@
 // Inbox in the shell (spec 3.3): the sidebar (inboxes, numbers, channels, calendars) on the left; in the middle the contact list, a contact's conversation once one is opened, or the
 // Calendar when the sidebar asks for it. The Inbox's own UI state (view, scope, filters, selection) is one reducer shared by the sidebar and the list. Before the Space's runtime
 // exists the place draws its loading frame.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
 import { useMissing } from "../hash/useMissing.ts";
@@ -10,7 +10,9 @@ import { StyleSheet, View } from "react-native";
 import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
 import { Calendar } from "../../places/inbox/calendar/Calendar.tsx";
 import { ContactList, ListLoading } from "../../places/inbox/contactlist/ContactList.tsx";
-import { ContactTab } from "../../places/inbox/contacttab/ContactTab.tsx";
+import { CallConversation } from "../../places/inbox/callpane/index.ts";
+import type { OpenTask } from "../../places/inbox/callpane/index.ts";
+import { InboxUnmatched } from "../../places/inbox/unmatched/index.ts";
 import { InboxDataProvider } from "../../places/inbox/sidebar/data.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { InboxSidebar, SidebarLoading } from "../../places/inbox/sidebar/InboxSidebar.tsx";
@@ -18,6 +20,7 @@ import { InboxStateProvider, useInboxState } from "../../places/inbox/sidebar/st
 import { InboxPhoneDock } from "../../places/inbox/softphone/phone.tsx";
 import { CallTitlePill } from "../../places/inbox/softphone/pill.tsx";
 import { inboxData } from "./inbox-data.ts";
+import { capLive } from "./records-live.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -41,15 +44,41 @@ export function InboxLoading(): ReactElement {
   );
 }
 
+/** The people the Calendar can shade as busy and add to an event: the Space's people. calendar.availability takes a member id where it takes an address, so the id is what the menu keys on. */
+export function calendarTeam(people: readonly { id: string; name: string; kind: string }[]): { email: string; name: string }[] {
+  return people.filter((p) => p.kind === "person").map((p) => ({ email: p.id, name: p.name }));
+}
+
+/** The person's open tasks for the Call tab ("Open tasks"). */
+function useOpenTasks(rt: ShellRuntime): readonly OpenTask[] {
+  const q = useMemo(() => capLive<{ tasks: Array<{ title: string; due?: number }> }>(rt, "tasks.list", { scope: "mine", states: ["todo", "doing"], limit: 5 }), [rt]);
+  const s = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
+  return useMemo(() => (s.status === "ready" ? s.data.tasks.map((t) => ({ title: t.title, ...(t.due ? { due: new Date(t.due).toLocaleDateString(undefined, { weekday: "short" }) } : {}) })) : []), [s]);
+}
+
 function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; close: () => void }): ReactElement {
   const missing = useMissing(rt.screens, "inbox.contact-tab", "thread", openId ? { conversationId: openId } : null);
-  const { state } = useInboxState();
+  const { state, dispatch } = useInboxState();
+  const { target, opened } = usePlaceHash();
+  const people = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot);
+  const team = useMemo(() => calendarTeam(people.status === "ready" ? people.data : []), [people]);
+  const tasks = useOpenTasks(rt);
   // Choosing another inbox, view, filter or the Calendar in the sidebar leaves the open conversation and shows the list again.
   const first = useRef(true);
-  useEffect(() => { if (first.current) { first.current = false; return; } close(); }, [state.scope, state.view, state.main, state.channels, state.inboxes, state.needsMatch]); // eslint-disable-line react-hooks/exhaustive-deps -- close is stable in effect
-  if (state.main === "calendar") return <Calendar me={rt.me.id} team={[]} />;
+  useEffect(() => { if (first.current) { first.current = false; return; } close(); if (target.screen === "inbox.unmatched") opened({}); }, [state.scope, state.view, state.main, state.channels, state.inboxes, state.needsMatch]); // eslint-disable-line react-hooks/exhaustive-deps -- close and the hash are read when the sidebar changes, not the other way round
+  if (state.main === "calendar") return <Calendar me={rt.me.id} team={team} />;
+  // Match to a record (the list's menu and its row) opens the Unmatched screen: every sender or caller with no record, and the Match menu on each
+  if (target.screen === "inbox.unmatched" && !openId) {
+    return (
+      <InboxUnmatched
+        onShowAll={() => { dispatch({ type: "showAll" }); opened({}); }}
+        onSearchRecords={(who) => rt.open({ screen: "shell.cmdk", args: { q: who.displayName || who.address } })}
+      />
+    );
+  }
   if (openId && missing) return <NotFound what="conversation" />;
-  if (openId) return <ContactTab key={openId} conversationId={openId} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
+  // the conversation with the call bar and, after a call, the ended strip when the phone is on this contact
+  if (openId) return <CallConversation key={openId} conversationId={openId} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
   return <ContactList />;
 }
 

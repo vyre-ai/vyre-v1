@@ -61,12 +61,15 @@ export default defineManifest({
     write('identity.github_sign_in', 'Sign in with GitHub once the Space is named', {
       ...V, caller: 'anonymous', in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
     }),
-    write('identity.sso_sign_in', 'Finish an OIDC sign-in (Google, Microsoft, Okta) with the provider code; reserved until SSO config lands in members', {
+    write('identity.sso_sign_in', 'Finish an OIDC sign-in (Google, Microsoft, Okta) with the one-use ticket the Space leaves in the address after the provider approves (through the sign-in app the firm made in Google or Microsoft, OpenID Connect)', {
       ...V, caller: 'anonymous', in: { provider: t.str({ examples: ['google'] }), code: t.str(), state: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
     }),
     write('identity.sign_out', 'End this session; the device keeps nothing it should not', { ...V, in: { sessionId: t.opt(id.session) }, out: ok, offline: 'online', tool: 'meta' }),
     read('identity.whoami', 'Who the caller is here: person, roles, clearance, device, epoch', {
       ...V, out: { principal: principalRef, name: t.str(), roles: t.arr(id.role), groups: t.arr(id.group), deviceId: t.opt(id.device), epoch: t.int({ minimum: 0 }), spaceId: id.space, deferred: t.opt(t.arr(t.str())) }, tool: 'meta',
+    }),
+    read('identity.security.get', 'My sign-in in this Space: when the password last changed, the linked GitHub account, whether an authenticator app is set and the passkeys (Settings > Sign-in and devices)', {
+      ...V, out: { passwordChangedAt: t.ts(), github: t.opt(t.str({ description: 'The linked GitHub login', examples: ['maya-chen'] })), totp: t.bool(), passkeys: t.arr(t.str()) }, tool: 'meta',
     }),
 
     // ---- pairing (one stack for the app, the extension and the daemon)

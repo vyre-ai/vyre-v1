@@ -6,7 +6,7 @@
 import { defineManifest, ev, gateAct, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, principalRef, risk } from './_common.ts';
 
-const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'push_protected', 'campaign_launch', 'secret_export', 'site_promote', 'signature_send', 'spend_raise');
+const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'campaign_launch', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change');
 const holdState = t.enm('held', 'approved', 'denied', 'expired');
 const approverRule = t.str({ description: "role:<name>, owner or asker", examples: ['role:admin'] });
 const ruleRow = t.obj({
@@ -31,12 +31,14 @@ export default defineManifest({
     gateAct('delete', 'Delete', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
     gateAct('transfer', 'Hand over ownership', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
     gateAct('enroll_node', 'Admit a computer to the Space', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
+    gateAct('connection_change', 'Change a company-wide connection', 'high', 'table', { approvers: { default: 'asker', peopleOnly: true } }),
     gateAct('push_protected', 'Push to a protected branch', 'high', 'diff', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
     gateAct('campaign_launch', 'Launch a campaign', 'high', 'table', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
     gateAct('secret_export', 'Export secrets', 'high', 'table', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
     gateAct('site_promote', 'Promote a site to production', 'high', 'deploy', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
     gateAct('signature_send', 'Send a document for signature', 'high', 'file'),
     gateAct('spend_raise', 'Raise a spend cap', 'medium', 'table'),
+    gateAct('signin_change', 'Change how people sign in to the Space', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
   ],
   events: [
     ev('gate.requested', 'A gated act stopped and became an Approve task with the exact preview', { p: { holdId, act: actKey, capName: t.str(), taskId: id.task, principal: principalRef, actingFor: t.opt(t.str()), runId: t.opt(id.run), expiresAt: t.ts() }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
@@ -62,9 +64,9 @@ export default defineManifest({
       in: { holdId }, out: { outcome: t.enm('dropped', 'escalated'), escalatedTo: t.opt(t.str()) }, emits: ['gate.expired'], audit: 'always',
     }),
     read('gate.effective_rule', 'The effective rule for a principal and act: the strictest of Space policy, owner floor and agent.toml', {
-      in: { principal: principalRef, act: actKey },
+      in: { principal: principalRef, act: actKey, adminOnly: t.opt(t.bool()) },
       out: {
-        hold: t.bool(), reason: t.str(), approvers: approverRule, peopleOnly: t.bool(), afterHours: t.int(), onTimeout: t.enm('drop', 'escalate'),
+        hold: t.bool(), adminRule: t.bool(), reason: t.str(), approvers: approverRule, peopleOnly: t.bool(), afterHours: t.int(), onTimeout: t.enm('drop', 'escalate'),
         sources: t.obj({ space: t.enm('hold', 'allow'), floor: t.opt(t.enm('hold', 'allow')), agent: t.opt(t.enm('hold', 'allow')) }),
       },
       tool: 'meta', agent: true,
@@ -85,6 +87,9 @@ export default defineManifest({
     }),
     read('gate.holds.list', 'List holds with their state, act and task', {
       in: { states: t.opt(t.arr(holdState)), act: t.opt(actKey), runId: t.opt(id.run), ...pageIn }, out: { holds: t.arr(holdRow), ...pageOut }, tool: 'meta', label: 'filter',
+    }),
+    write('gate.result.take', 'System: hand the engine the answer of an approved call for a chat turn parked on it, once, and clear it. Only the server may call it; a requester or approver never reads the answer here.', {
+      in: { holdId }, out: { found: t.bool(), result: t.opt(t.json()) }, perm: null, level: 'view', idem: 'natural',
     }),
     read('gate.holds.get', 'Read one hold', { in: { holdId }, out: { hold: holdRow }, tool: 'meta', label: 'check' }),
   ],

@@ -8,10 +8,15 @@
 // DECISION: `engine.probe_account` is declared as a read: it sends the provider a model-list call with no Space data.
 // DECISION: the three hop and loop limits (agent_hops, review_loops, ci_fix_loops) are declared here; route() reads agent_hops and
 //   tasks.transition reads the other two.
-import { create, defineManifest, ev, health, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, label, pageIn, pageOut } from './_common.ts';
 
 const effort = t.enm('low', 'medium', 'high', 'max');
+// Outside tools (CHAT-DESIGN ruling 6): the MCP servers of plugins and connections, run in the sandbox. A call is one capability, so access, the Gate and the audit trail apply to it like any other.
+const mcpTool = t.obj({ name: t.str(), description: t.str(), inputSchema: t.json(), readOnly: t.bool() });
+const mcpServerRow = t.obj({ key: t.str({ examples: ['greeter/echo'] }), name: t.str(), from: t.enm('plugin', 'connection'), ok: t.bool(), error: t.opt(t.str()), tools: t.arr(mcpTool) });
+const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'] }), tool: t.str(), input: t.opt(t.json()) };
+const mcpCallOut = { isError: t.bool(), text: t.str(), structured: t.opt(t.json()) };
 const agentMode = t.enm('lead', 'listen');
 const turnState = t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled');
 const driverId = t.enm('anthropic', 'openai', 'openrouter', 'google', 'xai', 'opencode_go', 'local', 'custom', 'claude_code', 'codex', 'grok');
@@ -49,6 +54,15 @@ export default defineManifest({
   title: 'Engine',
   owner: 'L2',
   capabilities: [
+    read('engine.mcp.tools', 'The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)', {
+      in: { agentId: id.agent, server: t.opt(t.str()) }, out: { servers: t.arr(mcpServerRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'mcp_tools', agent: { planMode: 'allowed' },
+    }),
+    read('engine.mcp.read', 'Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server', {
+      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant'],
+    }),
+    outward('engine.mcp.call', 'Call an outside MCP tool that may change things; an agent\'s call goes through the Gate', {
+      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', risk: 'medium', gate: { act: 'send', when: "actor.kind != 'person'" }, errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant', 'validation.precondition_failed'],
+    }),
     // ---- control of a running thread (K list)
     write('engine.interrupt', 'Interrupt now: cancel the current turn and queue the message at top priority ("stop and send")', {
       in: { ...threadT, messageId: t.opt(id.message) }, out: { queued: t.bool() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled', 'turn.queued'],
@@ -64,6 +78,13 @@ export default defineManifest({
     write('engine.set_mode', 'Set an agent to Leading or Listening in a thread; exactly one lead per thread', {
       in: { ...threadT, agentId: id.agent, mode: agentMode }, out: { mode: agentMode, leadAgentId: t.nullable(id.agent) }, on: ['thread', '/threadId'], level: 'use',
       emits: ['agent.mode_changed'], tool: 'chats', offline: 'queue', idem: 'natural',
+    }),
+    write('engine.reviewer.set', 'Give a chat a reviewer, an agent or a person, who checks the lead agent\'s work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn ("Asking Reviewer to check this"), a person gets a Review task', {
+      in: { ...threadT, reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str({ examples: ['agt_a1b2c3'] }) })) }, out: { reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str() })) },
+      on: ['thread', '/threadId'], level: 'use', emits: ['thread.reviewer_changed'], tool: 'chats', offline: 'online', idem: 'natural', errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    read('engine.reviewer.get', 'The reviewer of a chat, if one is set', {
+      in: threadT, out: { reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str() })) }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
     write('engine.set_model', 'Set the model, provider, effort and paying account of an agent in a thread', {
       in: { ...threadT, agentId: id.agent, model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), accountRef: t.opt(accountRef) },
@@ -143,8 +164,16 @@ export default defineManifest({
       out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })) }, on: ['thread', '/threadId'],
     }),
     read('engine.account.resolve', 'Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock', {
-      in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()) },
+      in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })) },
       out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem) }, on: ['thread', '/threadId'],
+    }),
+    write('engine.step_turn', 'Run one AI turn for an automation step: on the owner\'s own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.', {
+      in: {
+        prompt: t.str({ minLength: 1 }), agentId: t.opt(id.agent), keyId: t.opt(accountRef), backupKeyId: t.opt(accountRef), timeoutMinutes: t.opt(t.int({ minimum: 1, maximum: 30 })), recordIds: t.opt(t.arr(id.record, { maxItems: 200 })), runId: id.run, stepId: t.str(),
+      },
+      out: { text: t.str(), keyUsed: accountRef, modelUsed: t.str(), tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), agentName: t.opt(t.str()) },
+      level: 'view', idem: 'key', risk: 'medium', audit: 'sensitive', agent: false,
+      errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.unavailable', 'provider.overloaded', 'permission.limit', 'permission.provider_label', 'timeout.deadline', 'internal.unavailable'],
     }),
     // ---- accounts and models
     read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status', {
@@ -241,6 +270,10 @@ export default defineManifest({
     read('engine.use_policy.export', 'Export the AI use policy (models, providers, label rules, limits, accounts) as a file', {
       out: { fileId: id.file }, perm: 'policy.manage', level: 'manage', audit: 'always', risk: 'medium', tool: 'meta',
     }),
+    write('engine.complete', 'One request and one answer on an account the caller can run on, for work that is not a chat (memory upkeep); returns the text and the token counts and posts nothing', {
+      in: { accountRef: t.str(), prompt: t.str(), system: t.opt(t.str()), model: t.opt(t.str()) }, out: { text: t.str(), tokensIn: t.int(), tokensOut: t.int() },
+      perm: null, level: 'use', idem: 'none', risk: 'low', errors: ['validation.not_found', 'internal.unavailable'],
+    }),
     read('engine.pool.status', 'Warm engine pool: sessions per driver, warm hits, evictions', {
       out: { sessions: t.arr(t.obj({ driver: driverId, warm: t.int(), max: t.int(), hits: t.int(), misses: t.int() })), totalWarm: t.int() }, perm: null, level: 'manage', tool: 'engineer',
     }),
@@ -288,6 +321,7 @@ export default defineManifest({
     ev('agent.blocked', 'An agent is blocked (login, key, site down) and asks for what would unblock it', {
       p: { agentId: id.agent, threadId: id.thread, turnId: t.opt(id.turn), taskId: id.task, what: t.str() }, subject: ['thread', '/threadId'], vis: 'participants', notify: 'agent.blocked',
     }),
+    ev('thread.reviewer_changed', 'A chat got a reviewer, or lost it', { p: { threadId: id.thread, reviewer: t.nullable(t.obj({ kind: t.enm('agent', 'person'), id: t.str() })), by: t.str() }, subject: ['thread', '/threadId'] }),
     ev('agent.mode_changed', 'An agent switched between Leading and Listening in a thread', {
       p: { threadId: id.thread, agentId: id.agent, mode: t.str(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
     }),

@@ -11,7 +11,7 @@ Exclude a member from the connection, or include them again (excluded members ne
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
@@ -43,6 +43,7 @@ type Out = {
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant
+- permission.on_hold
 - permission.role_lacks_permission
 - validation.bad_input
 

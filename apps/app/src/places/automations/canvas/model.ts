@@ -9,12 +9,13 @@ export type Automation = CapMap["automations.get"]["out"]["automation"];
 export type Definition = Automation["definition"];
 export type DefNode = Definition["nodes"][number];
 export type DefTrigger = Definition["triggers"][number];
-export interface KeyChoice { id: string; name: string; kind: "subscription" | "api" }
+/** A sign-in or an API key the person can use. `shared` is true when it is shared with the Space and false when it is one person's own; a Space automation can run only on a shared key. */
+export interface KeyChoice { id: string; name: string; kind: "subscription" | "api"; shared?: boolean }
 export type Issue = CapMap["automations.validate"]["out"]["issues"][number];
 
 // ---------------------------------------------------------------- step kinds
 
-export type StepKind = "plain" | "ai" | "paths" | "parallel" | "wait" | "loop" | "approval" | "stop";
+export type StepKind = "plain" | "ai" | "http" | "code" | "paths" | "parallel" | "wait" | "loop" | "approval" | "stop";
 export type IconKey =
   | "bolt" | "clock" | "hook" | "inbox" | "mail" | "chat" | "sheet" | "ci" | "meeting" | "stage" | "reply" | "button" | "hand" | "record"
   | "search" | "plus" | "edit" | "task" | "send" | "phone" | "ai" | "journey" | "hourglass" | "branch" | "parallel" | "loop" | "stop" | "shield" | "sign" | "code";
@@ -46,6 +47,7 @@ export const STEP_PALETTE: readonly { key: string; title: string; group: string;
   { key: "sheet.update_rows", title: "Update rows", group: "Spreadsheets", icon: "edit" },
   { key: "sign", title: "Send for signature", group: "Documents", icon: "sign" },
   { key: "connector_request", title: "Authenticated request", group: "Data", icon: "hook" },
+  { key: "http_request", title: "HTTP request", group: "Data", icon: "hook" },
   { key: "code", title: "Run code", group: "Advanced", icon: "code" },
 ];
 
@@ -74,6 +76,8 @@ export function kindOfKey(key: string): StepKind {
     case "approval": return "approval";
     case "stop": return "stop";
     case "ai": return "ai";
+    case "http_request": return "http";
+    case "code": return "code";
     default: return "plain";
   }
 }
@@ -251,11 +255,26 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
     if (!connector && !action) return "Name a connector action. The step does not take a secret.";
     return `${connector || "Connector"} · ${action || "choose an action"}`;
   }
+  if (k === "http") {
+    const method = str(inp["method"]) || "GET";
+    const url = str(inp["url"]);
+    if (!url) return "Name the address to call";
+    const read = method === "GET" || method === "HEAD";
+    const asks = (n as { askBeforeSending?: boolean }).askBeforeSending === true;
+    return `${method} ${url.replace(/^https:\/\//, "")}${read ? "" : asks ? ", asks before sending" : ""}`;
+  }
+  if (k === "code") {
+    const lines = str(inp["source"]).split("\n").filter((line) => line.trim() !== "" && !line.trim().startsWith("//")).length;
+    const hosts = Array.isArray(inp["hosts"]) ? (inp["hosts"] as unknown[]).filter((h): h is string => typeof h === "string") : [];
+    const reach = hosts.length === 0 ? "no network" : hosts.length <= 2 ? `reaches ${hosts.join(", ")}` : `reaches ${hosts.length} hosts`;
+    return `${lines === 0 ? "Write the code" : `Runs ${lines} ${lines === 1 ? "line" : "lines"} of code`}, ${reach}`;
+  }
   if (k === "ai") {
+    const prompt = str(inp["prompt"]).replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
     const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? n.ai.keyId) : "";
     const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? n.ai.backupKeyId) : "";
-    if (!key) return "Pick a key for this step";
-    return back ? `${key}, then ${back}` : key;
+    const on = key ? (back ? `${key}, then ${back}` : key) : "your own AI account";
+    return prompt ? `${prompt.length > 70 ? `${prompt.slice(0, 70)}...` : prompt}. ${on}` : "Write what the AI should do";
   }
   const bits: string[] = [];
   for (const [name, v] of Object.entries(inp)) {
@@ -491,6 +510,9 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
   "forms.create": [{ field: "name", label: "a name" }, { field: "recordType", label: "a record type" }],
   "forms.publish": [{ field: "formId", label: "a form" }],
   loop: [{ field: "items", label: "the list to go through" }],
+  http_request: [{ field: "url", label: "the address" }],
+  code: [{ field: "source", label: "the code" }],
+  ai: [{ field: "prompt", label: "what to ask" }],
   approval: [{ field: "title", label: "what needs approval" }, { field: "approver", label: "who approves" }],
 };
 
@@ -519,8 +541,19 @@ export function check(def: Definition, kind: "personal" | "space" = "space"): Is
     }
     if (k === "parallel" && (n.branches?.length ?? 0) < 2) out.push({ nodeId: n.id, severity: "error", message: `${label} needs at least two lanes` });
     if (k === "loop" && !n.branches?.[0]) out.push({ nodeId: n.id, severity: "warning", message: `${label} has nothing inside it` });
-    if (k === "ai" && !n.ai?.keyId) out.push({ nodeId: n.id, severity: "warning", message: `${label}: pick the key this step runs on` });
+    // a Personal AI step runs on its owner's own account; a Space one runs as itself and needs a key shared with the Space
+    if (k === "ai" && kind === "space" && !n.ai?.keyId) out.push({ nodeId: n.id, severity: "error", message: `${label}: a Space automation needs a key shared with the Space, pick one` });
     if (k === "ai" && n.ai?.keyId && !n.ai.backupKeyId) out.push({ nodeId: n.id, severity: "warning", message: `${label}: add a backup key so a lost key never stops the run` });
+    if (k === "http") {
+      const url = typeof n.input?.["url"] === "string" ? n.input["url"].trim() : "";
+      if (url !== "" && !url.includes("{{") && !/^https:\/\//i.test(url)) out.push({ nodeId: n.id, severity: "error", message: `${label}: the address must start with https://` });
+      const auth = n.input?.["auth"] as { kind?: string; handle?: string; username?: string; header?: string } | undefined;
+      if (auth && typeof auth === "object") {
+        if (!auth.handle) out.push({ nodeId: n.id, severity: "error", message: `${label}: pick the Vault key to sign the request with` });
+        if (auth.kind === "basic" && !auth.username) out.push({ nodeId: n.id, severity: "error", message: `${label}: basic sign-in needs a user name` });
+        if (auth.kind === "header" && !auth.header) out.push({ nodeId: n.id, severity: "error", message: `${label}: name the header the key goes in` });
+      }
+    }
     if (n.onError?.mode === "route" && !(n.onError.route && by.has(n.onError.route))) out.push({ nodeId: n.id, severity: "error", message: `${label}: choose the step an error goes to` });
     if (!reachable.has(n.id)) out.push({ nodeId: n.id, severity: "warning", message: `${label} is not connected to the start` });
   }
@@ -574,7 +607,14 @@ export function blankStep(def: Definition, key: string): DefNode[] {
   const k = kindOfKey(key);
   if (k === "paths") return [{ id, key, input: {}, branches: [{ label: "Path 1", to: "", when: "" }, { label: "Otherwise", to: "" }] }];
   if (k === "parallel") return [{ id, key, input: { waitFor: "all" }, branches: [{ label: "Lane 1", to: "" }, { label: "Lane 2", to: "" }] }];
-  return [{ id, key, input: {} }];
+  return [{ id, key, input: startingInput(key) }];
+}
+
+/** What a new step of this kind starts with, so its form opens with a choice made rather than empty. */
+function startingInput(key: string): Record<string, unknown> {
+  if (key === "http_request") return { method: "GET" };
+  if (key === "code") return { language: "javascript", source: "// input holds this step's mapped data. Return JSON.\nreturn { ok: true };" };
+  return {};
 }
 
 /** Insert a new step after `afterId` (or first, after the trigger, when null). The step that came next now follows the new one. */
@@ -663,7 +703,7 @@ export function moveStep(def: Definition, id: string, by: -1 | 1): Definition {
   return d;
 }
 
-export function updateStep(def: Definition, id: string, patch: Partial<Pick<DefNode, "title" | "input" | "onError" | "ai" | "branches">>): Definition {
+export function updateStep(def: Definition, id: string, patch: Partial<Pick<DefNode, "title" | "input" | "onError" | "ai" | "branches" | "askBeforeSending">>): Definition {
   const d = clone(def);
   const n = d.nodes.find((x) => x.id === id);
   if (!n) throw new Error("no such step");
@@ -672,6 +712,7 @@ export function updateStep(def: Definition, id: string, patch: Partial<Pick<DefN
   if (patch.onError !== undefined) n.onError = patch.onError;
   if (patch.ai !== undefined) n.ai = patch.ai;
   if (patch.branches !== undefined) n.branches = patch.branches;
+  if (patch.askBeforeSending !== undefined) { if (patch.askBeforeSending) n.askBeforeSending = true; else delete n.askBeforeSending; }
   return d;
 }
 

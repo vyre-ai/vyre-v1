@@ -54,6 +54,7 @@ export async function changePassword(ctx: IdentityCtx, input: { currentPassword:
   checkNewSecret(ctx, input.newPassword);
   const verifier = await makeVerifier(input.newPassword);
   ctx.db.run(`UPDATE identity_accounts SET verifier = ? WHERE person_id = ?`, verifier, a.person_id);
+  ctx.db.run(`INSERT OR REPLACE INTO identity_password_changed (person_id, changed_at) VALUES (?, ?)`, a.person_id, ctx.now());
   setKeys(ctx, a.person_id, input.keys, "password_change");
   revokeSessions(ctx, a.person_id, currentSessionId(ctx, a.person_id));
   ctx.emit("password.changed", a.person_id, { personId: a.person_id });

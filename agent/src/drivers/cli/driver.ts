@@ -12,7 +12,7 @@ import { LaunchError } from "./launcher.ts";
 import { lines } from "./lines.ts";
 import { createCliSession } from "./session.ts";
 import type { CliSession, CliSessionDeps } from "./session.ts";
-import type { CliAdapter, CliId, Launcher, McpEndpoint } from "./types.ts";
+import type { CliAdapter, CliId, Launcher, McpEndpoint, NativePlugins } from "./types.ts";
 
 export const CLI_ADAPTERS: Readonly<Record<CliId, CliAdapter>> = Object.freeze({ claude_code: claudeCode, codex, grok });
 
@@ -27,6 +27,8 @@ export interface CliDriverDeps {
   system?(spec: SessionSpec): string | null;
   workFolder?(spec: SessionSpec): string | null;
   env?(spec: SessionSpec): Record<string, string>;
+  /** Plugins installed on this agent, already written into the work folder (see modules/engine/plugin-native.ts). */
+  plugins?(spec: SessionSpec): NativePlugins | null;
   planMode?(spec: SessionSpec): boolean;
   prompt?: CliSessionDeps["prompt"];
   /** Models an account can reach, when the host knows better than the built-in list (a subscription's plan). */
@@ -74,7 +76,9 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
       }
     },
     async open(spec) {
-      const endpoint = await deps.mcp(spec);
+      // a session without tools reaches nothing of Vyre: no MCP session is minted for it
+      const noTools = spec.tools === "none";
+      const endpoint = noTools ? { url: "", token: "" } : await deps.mcp(spec);
       const session = createCliSession({
         adapter, launcher: deps.launcher, endpoint,
         model: spec.agent.model ? spec.agent.model.replace(PREFIX, "") : null,
@@ -82,11 +86,13 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
         system: deps.system?.(spec) ?? null,
         workFolder: deps.workFolder?.(spec) ?? null,
         env: deps.env?.(spec) ?? {},
+        ...(deps.plugins?.(spec) ? { plugins: deps.plugins(spec)! } : {}),
+        ...(noTools ? { noTools: true } : {}),
         ...(deps.planMode ? { planMode: () => deps.planMode?.(spec) ?? false } : {}),
         ...(deps.prompt ? { prompt: deps.prompt } : {}),
         ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
         ...(deps.graceMs !== undefined ? { graceMs: deps.graceMs } : {}),
-        onClose: async () => { await deps.mcpClose?.(spec, endpoint); },
+        onClose: async () => { if (!noTools) await deps.mcpClose?.(spec, endpoint); },
       }, spec);
       if (deps.prewarm !== false) {
         try { await session.prewarm(); }

@@ -53,7 +53,7 @@ function refusal(e: unknown): unknown {
   if (reason === undefined || !DENIED.has(reason)) return e;
   const why: Record<string, string> = {
     not_a_member: "The person this run acts as is no longer a member of this Space, so the run stopped.",
-    suspended: "The person this run acts as is suspended, so the run stopped.",
+    suspended: "The person this run acts as is suspended or no longer a member of this Space, so the run stopped.",
     revoked: "The person this run acts as has lost access, so the run stopped.",
   };
   return { error: { code: codeForReason(reason), message: why[reason], retryable: false, details: { reason } } };
@@ -286,13 +286,15 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
     const ids = new Set(ordered.map((n) => n.id));
     return ordered.map((n) => {
       const kind = STEPS.get(n.key);
+      // an HTTP request step whose method is written as GET or HEAD reads: a sandbox runs it for real. A method taken from earlier data stays outward, as every other method does.
+      const effects = n.key === "http_request" && typeof n.input?.["method"] === "string" && /^(GET|HEAD)$/i.test(n.input["method"]) ? "read" as const : kind?.effects ?? "write";
       const requested = n.onError?.max;
       const retry = n.onError?.mode === "retry"
         ? { max: clampRetry(typeof requested === "number" && Number.isFinite(requested) ? requested : 3), backoff: "exp" as const, baseMs: 1000 }
         : undefined;
       const next = clippedNext(by, n, ids);
       return {
-        id: n.id, key: n.key, input: n.input, effects: kind?.effects ?? "write",
+        id: n.id, key: n.key, input: n.input, effects,
         ...(next !== undefined ? { next } : {}),
         ...(kind?.sample !== undefined ? { sample: kind.sample } : {}),
         ...(retry ? { retry } : {}),

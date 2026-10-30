@@ -15,6 +15,7 @@ import { addSendingDomain, createCampaign, createForm } from "../src/places/apps
 import { ShellRuntimeProvider } from "../src/shell/providers/runtime.tsx";
 import { PlaceHashProvider } from "../src/shell/hash/context.tsx";
 import { sampleRuntime } from "../src/shell/providers/misc-test-runtime.tsx";
+import { stepOf } from "../src/places/apps/shell/EmailDesigner.tsx";
 import type { SampleApps } from "../src/places/apps/shell/sample.ts";
 
 const size = (width: number): void => Dimensions.set({ window: { width, height: 800, scale: 1, fontScale: 1 }, screen: { width, height: 800, scale: 1, fontScale: 1 } });
@@ -255,4 +256,26 @@ test("deferred Sites creates no subscription while real Forms and Campaigns stay
   sample.data.screens = { query(screen, name, state) { asked.push(screen); return original.query(screen, name, state); } };
   const out = html(sample);
   assert.equal(asked.includes("apps.sites"), false); assert.match(out, /Client intake form/);
+});
+
+test("one email design opens on its own: the hash names it, a new one has none, and the Apps door and the New menu reach it", () => {
+  assert.deepEqual(appsRoute({ screen: "apps.email-builder", args: { emailId: "eml_welcome" } }), { kind: "email", group: "campaigns", id: "eml_welcome" });
+  assert.deepEqual(appsRoute({ screen: "apps.email-builder", args: {} }), { kind: "email", group: "campaigns" });
+  const opened: Array<{ screen?: string; args?: unknown }> = [];
+  const rt = { ...sampleRuntime({ screens: createSampleApps().data.screens, call: createSampleApps().data.call }), open: (t: { screen?: string; args?: unknown }) => void opened.push(t) };
+  appsData(rt as never).nav.openEmailDesign?.("eml_welcome");
+  appsData(rt as never).nav.openEmailDesign?.();
+  assert.deepEqual(opened, [{ screen: "apps.email-builder", args: { emailId: "eml_welcome" } }, { screen: "apps.email-builder" }]);
+});
+
+test("the email design page mounts for its route, and hands the builder the design it loaded", () => {
+  const s = createSampleApps();
+  const out = renderToStaticMarkup(<ShellRuntimeProvider value={sampleRuntime({ screens: s.data.screens, call: s.data.call })}><PlaceHashProvider hash="screen=apps.email-builder" opened={() => undefined}><AppsPlace place="apps" /></PlaceHashProvider></ShellRuntimeProvider>).replaceAll("<!-- -->", "");
+  assert.ok(has(out, 'data-testid="apps-email-designer"'), "the page is the body");
+  assert.ok(has(out, "New email design"));
+  const step = stepOf({ emailId: "eml_welcome", name: "Welcome", mode: "blocks", subject: "Welcome, {first}", plain: "", html: "", blocks: [{ type: "text", props: { text: "Hello" } }] } as never, "eml_welcome");
+  assert.equal(step.key, "eml_welcome");
+  assert.deepEqual([step.config["emailId"], step.config["subject"], step.config["designMode"]], ["eml_welcome", "Welcome, {first}", "visual"]);
+  assert.equal(((step.config["designBlocks"] as unknown[]) ?? []).length, 1);
+  assert.deepEqual(stepOf(null, undefined).config, {}, "a new design starts empty");
 });

@@ -117,11 +117,16 @@ export const codex: CliAdapter = {
     return [
       "codex", "exec", "--json", "--skip-git-repo-check",
       // Codex's own sandbox stays on inside ours: read-only unless a work folder was granted and the chat is not in plan mode.
-      "-c", `sandbox_mode=${toml(o.workFolder !== null && !o.planMode ? "workspace-write" : "read-only")}`,
-      // Key names are the documented config.toml ones; passing them as -c overrides is unproven (see top).
-      ...(o.mcpStdio
+      "-c", `sandbox_mode=${toml(o.workFolder !== null && !o.planMode && o.noTools !== true ? "workspace-write" : "read-only")}`,
+      // ASSUMED until the live recording: Codex's stdio server block takes command, args and env_vars (names of variables to pass on), as its HTTP block takes bearer_token_env_var.
+      ...(o.noTools === true ? [] : o.mcpStdio
         ? ["-c", `mcp_servers.vyre.command=${toml(o.mcpStdio.command)}`, "-c", `mcp_servers.vyre.args=[${o.mcpStdio.args.map(toml).join(", ")}]`, "-c", `mcp_servers.vyre.env_vars=[${toml(TOKEN_ENV)}]`]
         : ["-c", `mcp_servers.vyre.url=${toml(o.mcpUrl)}`, "-c", `mcp_servers.vyre.bearer_token_env_var=${toml(TOKEN_ENV)}`]),
+      // installed plugin MCP servers (same unproven -c form as vyre's); a secret is passed by variable name, the host fills it from the Vault
+      ...Object.entries(o.plugins?.mcpServers ?? {}).flatMap(([n, m]) => [
+        "-c", `mcp_servers.plugin_${n}.command=${toml(m.command)}`, "-c", `mcp_servers.plugin_${n}.args=[${m.args.map(toml).join(", ")}]`,
+        ...(Object.keys(m.env).length ? ["-c", `mcp_servers.plugin_${n}.env_vars=[${Object.keys(m.env).map(toml).join(", ")}]`] : []),
+      ]),
       ...(o.model !== null ? ["-m", o.model] : []),
       ...(o.resume !== null ? ["resume", o.resume] : []),
       // The prompt comes on stdin.

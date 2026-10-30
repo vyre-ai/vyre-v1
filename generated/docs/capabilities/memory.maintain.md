@@ -1,6 +1,6 @@
 # memory.maintain
 
-Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent
+Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent
 
 | | |
 |---|---|
@@ -19,13 +19,14 @@ Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200
 | HTTP | POST /v1/memory/maintain |
 | MCP tool | none |
 | CLI | none |
-| Emits | memory.map_rewritten |
+| Emits | memory.map_rewritten, memory.upkeep_ran, memory.fact_corrected, memory.learned |
 
 ## Input
 
 ```ts
 type In = {
   agentId?: string;
+  rulesOnly?: boolean;
 };
 ```
 
@@ -36,6 +37,18 @@ type Out = {
   merged: number;
   closed: number;
   maps: number;
+  runId?: string;
+  flagged?: number;
+  stale?: number;
+  created?: number;
+  corrected?: number;
+  deleted?: number;
+  tidied?: number;
+  modelUsed?: boolean;
+  costMicros?: number;
+  tokensIn?: number;
+  tokensOut?: number;
+  stopped?: "cap" | "no_key";
 };
 ```
 
@@ -52,12 +65,25 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "agentId": "agt_a1b2c3"
+    "agentId": "agt_a1b2c3",
+    "rulesOnly": true
   },
   "output": {
     "closed": 1,
+    "corrected": 1,
+    "costMicros": 1,
+    "created": 1,
+    "deleted": 1,
+    "flagged": 1,
     "maps": 1,
-    "merged": 1
+    "merged": 1,
+    "modelUsed": true,
+    "runId": "example",
+    "stale": 1,
+    "stopped": "cap",
+    "tidied": 1,
+    "tokensIn": 1,
+    "tokensOut": 1
   }
 }
 ```

@@ -6,11 +6,13 @@ HTTP 404. Retryable: no.
 
 ## Raised by
 
+- agents.builtin_skill.get
 - agents.config.get
 - agents.config.validate
 - agents.delete
 - agents.get
 - agents.limits.get
+- agents.memory_key.get
 - agents.pause
 - agents.restore
 - agents.restore_version
@@ -29,5 +31,3 @@ HTTP 404. Retryable: no.
 - automations.alerts.get
 - automations.alerts.set
 - automations.delete
-- automations.fire
-- automations.followers.add

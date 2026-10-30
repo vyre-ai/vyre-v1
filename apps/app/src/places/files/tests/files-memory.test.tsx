@@ -25,8 +25,9 @@ function bigGraph(): { nodes: GNode[]; edges: { from: string; to: string; kind: 
 }
 
 const wrap = (s: SampleMemory, child: ReactElement): string => renderToStaticMarkup(<MemoryDataProvider value={s.data}>{child}</MemoryDataProvider>).replaceAll("<!-- -->", "");
-const graph = (props: { scope?: "agent" | "space"; selected?: string; step?: number; find?: string; agentId?: string } = {}, s: SampleMemory = createSampleMemory()): string =>
-  wrap(s, <MemoryGraph agentId={props.agentId ?? "agt_intake"} {...(props.scope ? { scope: props.scope } : {})} {...(props.selected ? { selected: props.selected } : {})} {...(props.step !== undefined ? { step: props.step } : {})} {...(props.find ? { find: props.find } : {})} />);
+/** The graph over the old Space sample, drawn as the Whole Space (no subject), which is how the older mounts and these tests ask for it. */
+const graph = (props: { selected?: string; step?: number; find?: string; around?: boolean } = {}, s: SampleMemory = createSampleMemory()): string =>
+  wrap(s, <MemoryGraph around={props.around ?? false} {...(props.selected ? { selected: props.selected } : {})} {...(props.step !== undefined ? { step: props.step } : {})} {...(props.find ? { find: props.find } : {})} />);
 const proposed = (s: SampleMemory = createSampleMemory()): string => wrap(s, <MemoryProposed agentId="agt_intake" />);
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const count = (s: string, needle: string): number => s.split(needle).length - 1;
@@ -146,70 +147,58 @@ test("clusters are counted from what is drawn and named after their hub", () => 
 
 // ---------------------------------------------------------------- the graph screen
 
-test("screen: Intake's graph draws its notes without the personal one, each in its kind's colour, with the count in the foot", () => {
+test("screen: the Whole Space draws its notes without the personal one, each in its kind's colour, with the count at the top left", () => {
   const out = graph();
-  assert.ok(has(out, 'data-testid="memory-graph"') && has(out, 'data-testid="graph-surface"') && has(out, 'aria-label="Memory graph. Tab walks the notes, Enter opens one, plus and minus zoom."'));
-  assert.equal(count(out, 'data-testid="gnode-'), 12, "Intake's notes and the Space's, none of Docs' or Billing's");
-  for (const id of ["vyre", "script", "hours", "elena", "rivera", "consult", "prep", "widget", "maya", "omar", "fees", "flat"]) assert.ok(has(out, `data-testid="gnode-${id}"`), id);
+  assert.ok(has(out, 'data-testid="memory-graph"') && has(out, 'data-testid="graph-surface"') && has(out, 'data-testid="graph-canvas"') && has(out, 'aria-label="Knowledge graph. Tab walks the nodes, Enter opens one, plus and minus zoom, the arrow keys pan."'));
+  assert.equal(count(out, 'data-testid="gnode-'), 17, "every note of the Space, one list entry each");
+  for (const id of ["vyre", "script", "hours", "elena", "rivera", "consult", "prep", "widget", "maya", "omar", "fees", "flat", "letter", "inv", "trust"]) assert.ok(has(out, `data-testid="gnode-${id}"`), id);
   assert.ok(!has(out, 'data-testid="gnode-private"') && !has(out, "private notes"), "a personal layer is never drawn");
-  assert.ok(!has(out, 'data-testid="gnode-letter"'), "another agent's notes stay out of this agent's graph");
-  assert.ok(has(out, 'data-kind="client"') && has(out, 'role="listbox"') && has(out, 'aria-label="Notes in the graph"'), "the notes are also a listbox, because a WebGL canvas cannot be read aloud");
-  assert.ok(has(out, `data-testid="legend-client"`) && has(out, `background:${kindColor("client")}`), "one colour per kind, in the legend");
-  assert.ok(has(out, 'data-testid="graph-legend"') && has(out, 'role="group"') && has(out, 'aria-label="Clients, '), "the legend is a card of toggle rows, each with its count");
-  assert.equal(count(out, 'data-testid="legend-'), KINDS.length, "one legend row per kind");
-  assert.ok(has(out, ">12 notes, 13 links, 2 clusters<") && has(out, 'data-testid="cluster-Firm"') && has(out, ">Firm 8<"));
-  assert.ok(has(out, ">Graph<") && has(out, ">Intake<") && has(out, 'data-testid="scope-agent"') && has(out, ">Whole Space<"));
-  for (const id of ["graph-find", "graph-layers", "graph-kinds", "graph-export", "graph-slider", "zoom-in", "zoom-out", "zoom-fit"]) assert.ok(has(out, `data-testid="${id}"`), id);
-  assert.ok(has(out, ">Now<") && !has(out, 'data-testid="graph-now"'), "the slider rests on Now");
+  assert.ok(has(out, 'data-kind="client"') && has(out, 'role="listbox"') && has(out, 'aria-label="Nodes in the graph"'), "the nodes are also a listbox, because a canvas cannot be read aloud");
+  const dot = (k: string): string => out.slice(at(out, `data-testid="legend-${k}"`)).match(/background-color:([^"]+)"/)![1]!;
+  assert.ok(dot("client").startsWith("rgba(") && dot("client") !== dot("project") && dot("person") !== dot("client"), "one colour per kind, in the legend");
+  assert.ok(has(out, 'data-testid="graph-legend"') && has(out, 'aria-label="Clients, '), "the legend is a card of toggle rows, each with its count");
+  assert.equal(count(out, 'data-testid="legend-'), KINDS.filter((k) => out.includes(`data-kind="${k}"`)).length, "one legend row per kind the Space has");
+  assert.ok(has(out, ">17 nodes · 21 links · the whole Space<") && has(out, 'data-testid="graph-stat"'));
+  assert.ok(has(out, ">Knowledge<") && has(out, ">Graph<") && has(out, 'data-testid="scope-around"') && has(out, 'data-testid="scope-space"') && has(out, ">Whole Space<") && has(out, 'data-testid="know-search"'));
+  for (const id of ["graph-layers", "graph-kinds", "graph-more", "graph-slider", "zoom-in", "zoom-out", "zoom-fit"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(!has(out, 'data-testid="graph-find"'), "Find is the Search knowledge field now");
+  assert.ok(has(out, ">What we know now<") && !has(out, 'data-testid="graph-now"'), "the slider rests on now");
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 
-test("the whole Space draws every agent's notes, still not the personal one", () => {
-  const out = graph({ scope: "space" });
-  assert.equal(count(out, 'data-testid="gnode-'), 17);
-  assert.ok(has(out, ">17 notes,") && !has(out, 'data-testid="gnode-private"'));
-  assert.ok(!has(out, 'data-testid="graph-agent"'), "no agent picker in the Space scope");
-  assert.ok(has(graph(), 'data-testid="graph-agent"'));
-});
-
-test("selecting a node marks it and the notes it links to, for the screen and for a screen reader, and opens its note in the side pane beside the graph", () => {
-  const out = graph({ scope: "space", selected: "elena" });
-  const listbox = (html: string): string => html.slice(at(html, 'data-testid="graph-notes"'), html.includes('data-testid="graph-selected"') ? at(html, 'data-testid="graph-selected"') : undefined);
+test("selecting a node marks it and the notes it links to, for the screen and for a screen reader, and shows its card", () => {
+  const out = graph({ selected: "elena" });
+  const listbox = (html: string): string => html.slice(at(html, 'data-testid="graph-notes"'), at(html, 'data-testid="graph-links"'));
   assert.equal(count(listbox(out), 'aria-selected="true"'), 1, "exactly the selected note says so");
   assert.ok(has(out, 'data-testid="gnode-elena"') && has(out, 'aria-label="Elena Rivera, Clients, 2 links"'));
   assert.equal(count(out, 'data-linked="true"'), 2, "elena links to rivera and prep");
-  assert.ok(has(out, 'data-testid="graph-selected"') && has(out, 'data-testid="side-pane"') && has(out, 'data-testid="viewer"') && has(out, 'data-pane="side"'), "the note is the shared Viewer in the shared SidePane");
-  assert.ok(!has(out, "Open beside") && !has(out, 'data-testid="graph-open"'), "no small card with Open beside any more");
-  assert.ok(has(out, 'data-testid="vw-block-props"') && has(out, ">Client<") && has(out, ">Rivera engagement<") && has(out, "Prefers email over phone calls"), "the property block and the text of the note");
-  assert.ok(has(out, ">Links · 2<") && has(out, "Rivera engagement") && has(out, "Consult prep chat"), "what the note links to");
-  const into = graph({ scope: "space", selected: "rivera" });
-  assert.ok(has(into, 'data-testid="vw-linkedfrom"') && has(into, "Linked from · 1") && has(into, "Elena Rivera"), "and what links to it");
-  const none = graph({ scope: "space" });
+  assert.ok(has(out, 'data-testid="graph-selected"') && has(out, ">Client<") && has(out, ">2 links<"), "the card of the node: its kind and its links");
+  const none = graph();
   assert.equal(count(listbox(none), 'aria-selected="true"'), 0);
   assert.equal(count(none, 'data-linked="true"'), 0);
   assert.ok(!has(none, 'data-testid="graph-selected"'));
 });
 
-test("what the agent believed on a day: the nodes that did not exist yet are gone, and Back to now is offered", () => {
-  const out = graph({ scope: "space", step: 18 });
+test("what the Space knew on a day: the nodes that did not exist yet are gone, and Back to now is offered", () => {
+  const out = graph({ step: 18 });
   assert.equal(count(out, 'data-testid="gnode-'), 12);
   for (const id of ["flat", "letter", "prep", "inv", "trust"]) assert.ok(!has(out, `data-testid="gnode-${id}"`), `${id} came later`);
-  assert.ok(has(out, ">Oct 12<") && has(out, 'data-testid="graph-now"') && has(out, ">12 notes, 12 links, 3 clusters<"));
+  assert.ok(has(out, ">What we knew on Oct 12<") && has(out, 'data-testid="graph-now"') && has(out, ">Back to now<") && has(out, ">12 nodes · 12 links · the whole Space<"));
   const s = createSampleMemory();
   const live = read(s, "memory.graph", { scope: "space", asOf: asOfOf(18, SAMPLE_NOW) as number });
   assert.equal(live.nodes.filter((n) => n.layer !== "person").length, 12, "the capability is asked for that day");
 });
 
-test("Find lights notes and the rest stay; an empty graph says so; a graph filtered to nothing offers to show everything", () => {
-  const out = graph({ scope: "space", find: "rivera" });
+test("Find lights notes and the rest stay; an empty graph says so", () => {
+  const out = graph({ find: "rivera" });
   assert.equal(count(out, 'data-testid="gnode-'), 17);
   assert.equal(count(out, 'data-lit="true"'), 3, "elena, rivera and the consult match");
   const empty = createSampleMemory({ ...harbor, nodes: [], edges: [] });
-  const e = graph({ agentId: "agt_scout" }, empty);
-  assert.ok(has(e, "No notes to draw yet") && !has(e, 'data-testid="graph-surface"'));
+  const e = graph({}, empty);
+  assert.ok(has(e, "Nothing to draw yet") && !has(e, 'data-testid="graph-surface"'));
 });
 
-test("the graph opens offline-ready from the kept copy and a loading frame draws before the data arrives", () => {
+test("the graph draws a loading frame before the shell gives it data", () => {
   assert.ok(has(renderToStaticMarkup(<MemoryGraph />), "memory-graph-loading"));
   assert.ok(has(renderToStaticMarkup(<MemoryProposed />), "memory-proposed-loading"));
 });

@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (20)
+## Capabilities (21)
 
 - [runs.count](../capabilities/runs.count.md): Count Runs by status for badges (failed runs in Needs you, running now)
 - [runs.erase](../capabilities/runs.erase.md): Erase one Run for good with its steps, waits and alerts (governance erase)
@@ -22,6 +22,7 @@ Requires: nothing.
 - [runs.retry](../capabilities/runs.retry.md): Retry a failed or stopped Run from the start or from a step
 - [runs.start](../capabilities/runs.start.md): Create a Run record (engine, Gate and other modules call this for any long-lived work)
 - [runs.status](../capabilities/runs.status.md): Cheap health probe of the Run engine: queue depth, oldest queued Run, stuck Runs
+- [runs.step_io](../capabilities/runs.step_io.md): What one step of a Run was given and what it answered, as the step log holds them, with anything that looks like a key hidden
 - [runs.steps](../capabilities/runs.steps.md): The durable step log of a Run
 - [runs.stop](../capabilities/runs.stop.md): Stop a Run (owner or Manage holder); stoppable work halts at the next safe point
 - [runs.undo](../capabilities/runs.undo.md): Undo this run: replay the inverse of its writes for events still at the Run version and report the rest

@@ -23,6 +23,7 @@ export function appsData(rt: ShellRuntime): AppsData {
       open: (group, id) => rt.open({ screen: SCREEN[group] ?? "apps.forms", args: { selected: id } }),
       create: (group, kind) => rt.open({ screen: group === "forms" ? "apps.forms" : group === "campaigns" ? "apps.campaigns" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms", args: { create: true, ...(kind ? { kind } : {}) } }),
       show: (group) => rt.open({ screen: group === "forms" ? "apps.forms" : group === "campaigns" ? "apps.campaigns" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms" }),
+      openEmailDesign: (emailId) => rt.open({ screen: "apps.email-builder", ...(emailId ? { args: { emailId } } : {}) }),
       joinTeam: () => rt.open({ screen: "settings.page", args: { page: "spaces" } }),
       openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),
       openThread: (threadId) => rt.open({ subject: { type: "thread", id: threadId } }),

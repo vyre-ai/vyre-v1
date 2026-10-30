@@ -82,6 +82,27 @@ function say(text) {
   out(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: text, session_id: session, usage: { input_tokens: 1, output_tokens: 1 } }));
 }
 
+/** What the CLI finds of the plugins written for it: the commands and skills in each --plugin-dir (Claude Code), the skills under the work folder (Codex) and the MCP servers it was given. */
+function pluginsSeen() {
+  const seen = [];
+  const ls = (d) => { try { return fs.readdirSync(d).sort(); } catch { return []; } };
+  if (bin === "codex") {
+    for (const n of ls(path.join(process.cwd(), ".agents", "skills"))) seen.push(`skill:${n}:${fs.readFileSync(path.join(process.cwd(), ".agents", "skills", n, "SKILL.md"), "utf8").split("\n").find((l) => l.startsWith("description:"))}`);
+    for (const o of argv.filter((_, i) => argv[i - 1] === "-c")) { const m = /^mcp_servers\.(plugin_[a-z0-9_]+)\.command=/.exec(o); if (m) seen.push(`mcp:${m[1]}`); }
+  } else {
+    argv.forEach((a, i) => {
+      if (a !== "--plugin-dir") return;
+      const dir = argv[i + 1];
+      for (const c of ls(path.join(dir, "commands"))) seen.push(`command:${c.replace(/\.md$/, "")}`);
+      for (const n of ls(path.join(dir, "skills"))) seen.push(`skill:${n}:${fs.readFileSync(path.join(dir, "skills", n, "SKILL.md"), "utf8").split("\n").find((l) => l.startsWith("description:"))}`);
+    });
+    const servers = JSON.parse(flag("--mcp-config") ?? "{}").mcpServers ?? {};
+    for (const k of Object.keys(servers)) if (k.startsWith("plugin_")) seen.push(`mcp:${k}:${JSON.stringify(servers[k].env)}`);
+  }
+  seen.push(`token:${process.env.VYRE_PLUGIN_1 ?? "none"}`);
+  return seen.join("|");
+}
+
 async function run(prompt) {
   const words = prompt.trim().split(/\s+/);
   switch (words[0]) {
@@ -98,6 +119,7 @@ async function run(prompt) {
       await new Promise(() => undefined);
       break;
     case "die": process.stderr.write("boom: the engine crashed\n"); process.exit(3); break;
+    case "plugins": say(pluginsSeen()); break;
     case "env": say(Object.keys(process.env).sort().join(",")); break;
     default: say(prompt);
   }

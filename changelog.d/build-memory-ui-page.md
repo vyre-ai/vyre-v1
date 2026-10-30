@@ -1,0 +1,1 @@
+- Knowledge pages are living pages: a header with the layer and who can see the page (changeable from a menu), facts you edit in place with a history popover on the age and Restore this version, one question card for two facts that disagree, Notes with [[links]] and an autocomplete, mentions, a one-hop map, and a menu to move the page to Trash, export it or open it in the graph.

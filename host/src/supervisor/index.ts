@@ -103,18 +103,19 @@ export class Supervisor {
   }
 
   /** Start a service that is not running. Resolves when the first start has finished (or failed into backoff). */
-  async start(name: string): Promise<void> {
+  async start(name: string, o: { once?: boolean } = {}): Promise<void> {
     const e = this.get(name);
     if (e.phase === "running" || e.phase === "starting") return;
     e.crashes = [];
-    await this.launch(e);
+    await this.launch(e, o.once === true);
   }
 
-  async startAll(): Promise<void> {
-    for (const name of this.entries.keys()) await this.start(name);
+  /** `once`: services that are not retried when their first start fails. They end in "failed" at once with the cause in lastExit, so a boot that cannot go on says so without waiting out the backoff. */
+  async startAll(o: { once?: readonly string[] } = {}): Promise<void> {
+    for (const name of this.entries.keys()) await this.start(name, { once: o.once?.includes(name) === true });
   }
 
-  private async launch(e: Entry): Promise<void> {
+  private async launch(e: Entry, once = false): Promise<void> {
     const gen = ++e.gen;
     this.set(e, "starting");
     let unit: RunningUnit;
@@ -122,6 +123,7 @@ export class Supervisor {
       unit = await e.spec.start();
     } catch (err) {
       if (e.gen !== gen) return;
+      if (once) { e.unit = null; e.lastExit = { error: err instanceof Error ? err.message : String(err) }; e.gen++; this.log?.warn("supervisor.exit", { service: e.spec.name, code: null, error: e.lastExit.error ?? null, crashes: 1 }); this.set(e, "failed"); return; }
       await this.onExit(e, gen, { error: err instanceof Error ? err.message : String(err) });
       return;
     }

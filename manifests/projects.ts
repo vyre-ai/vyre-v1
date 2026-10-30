@@ -18,6 +18,10 @@ const projectRow = t.obj({
 });
 
 const member = t.obj({ principal, role, kind: t.enm('person', 'agent', 'group'), since: t.ts() });
+// A teammate is an agent with a role on one project (owner ruling 20 Oct): made by asking any agent with one yes, listed on the project's Teammates tab, and not on the Agents page.
+const teammate = t.obj({
+  agentId: id.agent, name: t.str(), role, roleLine: t.opt(t.str()), status: t.enm('awake', 'working', 'asleep', 'paused'), madeForProject: t.bool(),
+});
 
 const planTask = t.obj({
   taskId: id.task, title: t.str(), stage: t.opt(stageKey), start: t.opt(t.ts()), due: t.opt(t.ts()), milestone: t.bool(),
@@ -142,6 +146,17 @@ export default defineManifest({
     }),
     write('projects.members.remove', 'Remove a project role and revoke its grants by source', {
       in: { projectId: id.project, principal }, out: { removed: t.bool() }, on: ['project', '/projectId'], level: 'manage', audit: 'always', emits: ['project.member_removed'], tool: 'records',
+    }),
+    // ---- teammates (project-scoped actors)
+    read('projects.teammates.list', 'The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.', {
+      in: { projectId: id.project }, out: { teammates: t.arr(teammate), leadAgentId: t.opt(id.agent) }, on: ['project', '/projectId'], tool: 'records',
+    }),
+    create('projects.teammates.create', 'Make a teammate for this project: an agent with no computer and a project role (Lead, Member or Reviewer), by one yes; it shows on the Teammates tab, not on the Agents page', {
+      in: { projectId: id.project, name: t.str({ examples: ['Security reviewer'] }), role: t.enm('lead', 'member', 'reviewer'), brief: t.opt(t.str({ description: 'The use-me-when line' })) },
+      out: { teammate }, on: ['project', '/projectId'], level: 'manage', audit: 'always', emits: ['project.member_set', 'agent.created'], tool: 'records', errors: ['validation.duplicate', 'permission.not_contained'],
+    }),
+    write('projects.teammates.remove', 'Take a teammate off the project; one made for this project moves to Trash with it', {
+      in: { projectId: id.project, agentId: id.agent }, out: { removed: t.bool() }, on: ['project', '/projectId'], level: 'manage', idem: 'key', audit: 'always', emits: ['project.member_removed', 'agent.deleted'], tool: 'records',
     }),
     // ---- plan
     read('projects.plan', 'The plan: stages, tasks, milestones, dependency links and a today marker; one payload for Timeline, Board, List and Calendar', {

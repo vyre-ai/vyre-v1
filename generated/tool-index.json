@@ -38,6 +38,12 @@
     },
     {
       "deferred": false,
+      "name": "access_deciders",
+      "summary": "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_grants_list",
       "summary": "List grants by resource, subject or source (Console Grants)",
       "toolset": "engineer"
@@ -296,6 +302,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_builtin_skill_get",
+      "summary": "Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_builtin_skills_list",
       "summary": "Skills every agent carries, led by \"Working in Vyre\": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces",
       "toolset": "agents"
@@ -548,6 +560,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_analytics",
+      "summary": "Outcomes from runs: totals, success rate, a daily series, the busiest automations and where failures stop",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_connector_offer_accept",
       "summary": "Accept a connector setup offer. Accepting is final for that Vault item.",
       "toolset": "automations"
@@ -586,6 +604,12 @@
       "deferred": false,
       "name": "automations_delete",
       "summary": "Move an Automation to Trash",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_dependencies",
+      "summary": "What every visible automation names: other automations, connections, mailboxes, forms and more, with who uses each and what is missing or off",
       "toolset": "automations"
     },
     {
@@ -681,13 +705,13 @@
     {
       "deferred": false,
       "name": "automations_packages_export",
-      "summary": "Save a portable copy of an Automation definition",
+      "summary": "Save a portable copy of an Automation definition; connections become slots and no secret, Vault value or run data is carried",
       "toolset": "automations"
     },
     {
       "deferred": false,
       "name": "automations_packages_import",
-      "summary": "Create a draft Automation from a package this person exported",
+      "summary": "Create a Personal draft from a package this person exported, put their own connections in its slots and list what is left to connect",
       "toolset": "automations"
     },
     {
@@ -754,6 +778,18 @@
       "deferred": false,
       "name": "automations_stop",
       "summary": "Stop one run of an Automation, or all its running runs and pause it",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_templates_list",
+      "summary": "The starter templates: what each one does, what starts it and what to set up",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_templates_use",
+      "summary": "Make a Personal draft from a starter template",
       "toolset": "automations"
     },
     {
@@ -881,6 +917,12 @@
       "name": "calendar_availability",
       "summary": "Busy blocks for people over a range (the shaded stripes while adding people)",
       "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "calendar_connect_provider",
+      "summary": "Put a member's Google or Microsoft calendar in Calendar, owned by them and read as their account; connected false (an excluded member) removes it",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -1262,6 +1304,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_ask_level",
+      "summary": "The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_ask_suggest",
       "summary": "Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used",
       "toolset": "chats"
@@ -1288,6 +1336,12 @@
       "deferred": false,
       "name": "chat_edit",
       "summary": "Edit the text of a message you wrote",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_fork",
+      "summary": "Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back",
       "toolset": "chats"
     },
     {
@@ -1354,6 +1408,18 @@
       "deferred": false,
       "name": "chat_recent",
       "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_screen_get",
+      "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_search",
+      "summary": "Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it",
       "toolset": "chats"
     },
     {
@@ -2336,6 +2402,18 @@
     },
     {
       "deferred": false,
+      "name": "engine_reviewer_get",
+      "summary": "The reviewer of a chat, if one is set",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_reviewer_set",
+      "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_route_preview",
       "summary": "Who will answer a draft message (\"Intake will reply\" or \"No agent will reply, type @ to ask one\"); same route() the client runs locally",
       "toolset": "chats"
@@ -3265,6 +3343,18 @@
       "toolset": "inbox"
     },
     {
+      "deferred": false,
+      "name": "google_directory_import",
+      "summary": "Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_directory_list",
+      "summary": "The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+      "toolset": "engineer"
+    },
+    {
       "deferred": true,
       "name": "google_docs_batch_update",
       "summary": "Edit a Google Doc with a list of requests",
@@ -3350,6 +3440,12 @@
     },
     {
       "deferred": false,
+      "name": "google_dwd_map_member",
+      "summary": "Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "google_dwd_members",
       "summary": "Workspace users mapped to Space members by email, with exclusion and mailbox state",
       "toolset": "engineer"
@@ -3382,6 +3478,12 @@
       "deferred": false,
       "name": "google_dwd_status",
       "summary": "State of domain-wide delegation: key stored, scopes, last probe, mapped members",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_dwd_sync_members",
+      "summary": "Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar",
       "toolset": "engineer"
     },
     {
@@ -3707,6 +3809,12 @@
       "name": "identity_reset_start",
       "summary": "Admin: start a password reset and get a one-time link for the person (valid 24 hours); their other devices are signed out",
       "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "identity_security_get",
+      "summary": "My sign-in in this Space: when the password last changed, the linked GitHub account, whether an authenticator app is set and the passkeys (Settings > Sign-in and devices)",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -4076,6 +4184,12 @@
     },
     {
       "deferred": false,
+      "name": "load_skill",
+      "summary": "Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "logs_export",
       "summary": "Export a log search as a file",
       "toolset": "engineer"
@@ -4340,6 +4454,12 @@
     },
     {
       "deferred": false,
+      "name": "mcp_tools",
+      "summary": "The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "mcp_tools_list",
       "summary": "Tools listed for this caller: about 60 by default; the rest are deferred and found with tool_search",
       "toolset": "meta"
@@ -4466,6 +4586,24 @@
     },
     {
       "deferred": false,
+      "name": "members_sign_in_github_clear",
+      "summary": "Forget the GitHub sign-in app set in the app (a server environment setting stays)",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "members_sign_in_github_get",
+      "summary": "The GitHub sign-in app: the client id, whether the secret is set (never the secret), where it comes from, and the callback address to register at GitHub",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "members_sign_in_github_set",
+      "summary": "Turn on GitHub sign-in: the OAuth app client id and secret; the secret goes into the Vault as a Space item and is never shown again",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "members_sign_in_policy_get",
       "summary": "The Space sign-in policy: second-factor floor, SSO required, allowed methods",
       "toolset": "engineer"
@@ -4508,6 +4646,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_backlinks",
+      "summary": "Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_counts",
       "summary": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
       "toolset": "memory"
@@ -4516,6 +4660,12 @@
       "deferred": false,
       "name": "memory_erase",
       "summary": "Erase completely: delete facts from history; open to the source person or an admin; the audit entry records who and when, never what",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_export_markdown",
+      "summary": "The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader's own",
       "toolset": "memory"
     },
     {
@@ -4556,6 +4706,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_forget",
+      "summary": "Forget facts by id: they stop being recalled and stay in history",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_graph",
       "summary": "The memory graph for an agent or the Space, built per viewer through access checks; agent, project and Space layers only",
       "toolset": "memory"
@@ -4570,6 +4726,18 @@
       "deferred": false,
       "name": "memory_graph_export",
       "summary": "Export a graph as a file; personal layers are never included",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_key_set",
+      "summary": "Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space's or a project's; null clears it and upkeep stays rule-based",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_keys_get",
+      "summary": "The account that pays for memory upkeep: yours for personal memory, and for an admin the Space's with the accounts it can be picked from and the keys picked for projects",
       "toolset": "memory"
     },
     {
@@ -4592,14 +4760,68 @@
     },
     {
       "deferred": false,
+      "name": "memory_learned",
+      "summary": "The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_map_get",
       "summary": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
       "toolset": "memory"
     },
     {
       "deferred": false,
+      "name": "memory_meaning_rank",
+      "summary": "Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; a score is 0 when unrelated and 0.5 to 1 when related, and the list is empty when the model is not ready",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_meaning_status",
+      "summary": "Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_notes_list",
       "summary": "List memory notes of an agent, project or the Space, including proposed/ and recipes/",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_open_page",
+      "summary": "Open a page by id or title: its facts, its Notes, the [[links]] it makes and the chats, runs, records and pages that link to it",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_page_delete",
+      "summary": "Move a page to Trash; memory.restore brings it back",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_page_list",
+      "summary": "List the pages the reader can see, by words in the title or Notes, layer, kind, agent or project",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_page_restore_version",
+      "summary": "Write an earlier version of the Notes back as a new version (the versions in between stay)",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_page_set_visibility",
+      "summary": "Change who can see a page: move it to the Space, a project, an agent or the caller's own personal layer; its Notes, versions and links go with it",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_page_versions",
+      "summary": "Every version of the Notes of a page, newest first, with who wrote it and when",
       "toolset": "memory"
     },
     {
@@ -4634,6 +4856,36 @@
     },
     {
       "deferred": false,
+      "name": "memory_question_resolve",
+      "summary": "Answer an upkeep question with one click: keep one of two facts (the other goes to Trash), keep both, confirm an old fact, or drop it",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_questions",
+      "summary": "Questions upkeep could not settle: two values for one subject and field, or a fact that looks old",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_quote",
+      "summary": "Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_remember",
+      "summary": "Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_restore",
+      "summary": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_restore_version",
       "summary": "Restore a shared memory note to an earlier version (owners and admins)",
       "toolset": "memory"
@@ -4646,8 +4898,44 @@
     },
     {
       "deferred": false,
+      "name": "memory_search_trash",
+      "summary": "Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_trail",
+      "summary": "The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_undo",
+      "summary": "Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_upkeep_status",
+      "summary": "Upkeep spend: this month against the monthly cap, and the recent runs with what each did and cost",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_used",
+      "summary": "What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the \"Used N memories\" line and \"Show what the agent knew here\"",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_versions",
       "summary": "List versions of a shared memory note (One History)",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_write_page",
+      "summary": "Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in",
       "toolset": "memory"
     },
     {
@@ -4772,6 +5060,12 @@
     },
     {
       "deferred": false,
+      "name": "ms_consent_map_member",
+      "summary": "Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "ms_consent_members",
       "summary": "Tenant users mapped to Space members by email, with exclusion and mailbox state",
       "toolset": "engineer"
@@ -4802,8 +5096,26 @@
     },
     {
       "deferred": false,
+      "name": "ms_consent_sync_members",
+      "summary": "Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "ms_consent_verify",
       "summary": "Call GET /organization and check consent and the access policy for a probe member",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_directory_import",
+      "summary": "Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_directory_list",
+      "summary": "The people in the Microsoft 365 directory (admin only), with the Space member each is matched to, for choosing who to bring in",
       "toolset": "engineer"
     },
     {
@@ -5126,6 +5438,132 @@
     },
     {
       "deferred": false,
+      "name": "plugins_agent_template_use",
+      "summary": "Make an agent from a sub-agent a plugin brought (its description becomes the role line and its prompt the start of AGENT.md)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_agent_templates",
+      "summary": "Sub-agents that installed plugins bring, as templates a new agent can start from",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_allow",
+      "summary": "Allow or stop allowing a whole marketplace, or one plugin of it",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_allowlist",
+      "summary": "The marketplaces and plugins the admin allows",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_browse",
+      "summary": "Plugins the marketplaces offer, with whether each is on the allowlist and where it is installed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_command",
+      "summary": "The prompt a plugin command stands for, with its arguments filled in; the chat sends it as the person's message",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_commands",
+      "summary": "The / commands that plugins add for a chat with this agent (or the Space when no agent)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_config",
+      "summary": "Set the options a plugin asks for; a secret option takes a Vault handle, never a value",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connection_add",
+      "summary": "Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connection_remove",
+      "summary": "Disconnect an MCP server made by hand",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connections",
+      "summary": "MCP connections made by hand (a URL or a command)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_get",
+      "summary": "One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_install",
+      "summary": "Install a plugin from a marketplace into the whole Space (admin) or into one agent: its skills, commands, sub-agents, hooks and MCP servers become available",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_list",
+      "summary": "Installed plugins: in the whole Space, and in one agent when agentId is given",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_marketplace_add",
+      "summary": "Add a marketplace by git URL (https) or a folder on this server; reads its marketplace.json and puts it on the allowlist",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_marketplace_refresh",
+      "summary": "Fetch a marketplace again and update its list",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_marketplace_remove",
+      "summary": "Remove a marketplace; the plugins installed from it stay until they are removed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_marketplaces",
+      "summary": "Marketplaces added to this Space",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_mcp_servers",
+      "summary": "The MCP servers a chat with this agent connects to: from plugins in the Space, plugins in the agent and connections made by hand. Secrets are Vault handles.",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_set_enabled",
+      "summary": "Turn an installed plugin off or on without removing it",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_uninstall",
+      "summary": "Remove an installed plugin and what it brought",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "portal_account_create",
       "summary": "Create an outside account for a site (magic link or password, per site)",
       "toolset": "sites"
@@ -5303,6 +5741,24 @@
       "name": "projects_stages_set",
       "summary": "Create, rename, reorder or remove the stages of a plan",
       "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "projects_teammates_create",
+      "summary": "Make a teammate for this project: an agent with no computer and a project role (Lead, Member or Reviewer), by one yes; it shows on the Teammates tab, not on the Agents page",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_teammates_list",
+      "summary": "The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_teammates_remove",
+      "summary": "Take a teammate off the project; one made for this project moves to Trash with it",
+      "toolset": "records"
     },
     {
       "deferred": false,
@@ -5672,6 +6128,12 @@
     },
     {
       "deferred": false,
+      "name": "runs_step_io",
+      "summary": "What one step of a Run was given and what it answered, as the step log holds them, with anything that looks like a key hidden",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "runs_steps",
       "summary": "The durable step log of a Run",
       "toolset": "automations"
@@ -5967,7 +6429,7 @@
     {
       "deferred": false,
       "name": "sessions_import",
-      "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply only visible user and assistant text",
+      "summary": "Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply visible user and assistant text and, on assistant messages, the tool calls with their one-line summaries and the start of their results (credentials removed)",
       "toolset": "chats"
     },
     {
@@ -6245,6 +6707,30 @@
       "name": "sites_update",
       "summary": "Rename a site or change its settings",
       "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "skills_add",
+      "summary": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_list",
+      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_remove",
+      "summary": "Remove a skill from the Space library, or from one agent",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_set_enabled",
+      "summary": "Turn a Space or agent skill off or on without removing it",
+      "toolset": "agents"
     },
     {
       "deferred": false,

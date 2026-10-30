@@ -21,7 +21,7 @@ type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-ex
 // ---- the shapes shared with the Run engine (structural: modules do not import each other) ----
 
 export interface Branch { label: string; to: string }
-export interface StepNode { id: string; key: string; input: Record<string, unknown>; branches?: Branch[]; next?: string[]; ai?: Record<string, unknown> }
+export interface StepNode { id: string; key: string; input: Record<string, unknown>; branches?: Branch[]; next?: string[]; ai?: Record<string, unknown>; askBeforeSending?: boolean }
 export interface WaitSpec {
   reason: "approval" | "background" | "key";
   taskId?: string;
@@ -406,6 +406,17 @@ const holdsSecret = (value: unknown): boolean => {
   return Object.entries(value as Record<string, unknown>).some(([key, item]) => SECRET_KEY.test(key) || holdsSecret(item));
 };
 
+/** An HTTP request step reads when its method is GET or HEAD; anything else sends. */
+const isRead = (i: In): boolean => { const m = String(i.method ?? "GET").toUpperCase(); return m === "GET" || m === "HEAD"; };
+const pick = (i: In, keys: string[], extra: Record<string, unknown>): Record<string, unknown> => {
+  const out: Record<string, unknown> = { ...extra };
+  for (const k of keys) if (i[k] !== undefined && i[k] !== null) out[k] = i[k];
+  return out;
+};
+/** A sandbox answers a step with its sample unless it only reads. An HTTP request step is a read for GET and HEAD. */
+const sandboxStubs = (def: { effects: string; kind: string; key: string }, i: In): boolean =>
+  def.key === "http_request" ? !isRead(i) : def.effects !== "read" || def.kind === "wait" || def.key === "approval";
+
 const ADAPTERS: Record<string, Adapter> = {
   "records.create": { cap: "records.create", output: (o) => ({ recordId: o?.record?.id ?? o?.recordId }) },
   "records.find": { cap: "records.query", output: (o) => ({ rows: o?.rows ?? [], count: o?.total ?? (o?.rows ?? []).length }) },
@@ -445,6 +456,14 @@ const ADAPTERS: Record<string, Adapter> = {
       return { key: connector, action, connectionId, input: body, ...(i.dryRun === true ? { dryRun: true } : {}) };
     },
     output: (o) => ({ output: o?.output ?? null, dryRun: o?.dryRun === true }),
+  },
+  http_request: {
+    cap: (i) => (isRead(i) ? "automations.http_read" : "automations.http_send"),
+    input: (i) => {
+      const method = String(i.method ?? "GET").toUpperCase();
+      if (method === "GET" || method === "HEAD") return pick(i, ["url", "headers", "query", "auth"], { method });
+      return pick(i, ["url", "headers", "query", "json", "text", "auth"], { method });
+    },
   },
   send_sms: {
     cap: "telephony.send_sms",
@@ -495,7 +514,8 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
   // every capability that takes a key gets the step's own, so a retry of the same attempt is the same act
   if (!("idempotencyKey" in input) && "idempotencyKey" in ((CAPS.get(cap)?.input as { properties?: object } | undefined)?.properties ?? {})) input = { ...input, idempotencyKey: call.key };
   try {
-    const out = await env.ctx.call(cap, input);
+    // Ask before sending is Off unless the step says On: the Gate then holds only when a Space admin rule requires approval for this act
+    const out = await env.ctx.call(cap, input, def.effects === "outward" && node.askBeforeSending !== true ? { gate: "admin_only" } : undefined);
     return { output: ad?.output ? ad.output(out, i) : out };
   } catch (e) {
     const held = gateHold(e);
@@ -512,8 +532,7 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   if (!def) throw stepError("validation.bad_input", `There is no step called ${node.key}.`, false);
   const scope = scopeOf(env, call);
   const input = render(node.input, scope) as In;
-  const parks = def.kind === "wait" || node.key === "approval";
-  if (call.sandbox && (def.effects !== "read" || parks)) return { output: def.sample };
+  if (call.sandbox && sandboxStubs(def, input)) return { output: def.sample };
   switch (node.key) {
     case "if": return ifStep(node, input, scope);
     case "paths": return pathsStep(node, input, scope);
@@ -553,7 +572,7 @@ export async function stepsTest(ctx: StepsCtx, input: In): Promise<unknown> {
   if (!def) raise(ctx, "validation.bad_input", `There is no step called ${input.key}.`);
   const env: StepEnv = { ctx, run: { id: "run_test", label: "Test" } };
   const call: StepCall = { attempt: 1, key: "run_test:test:1", outputs: {}, sandbox: true, resumed: false, trigger: input.sample ?? {} };
-  const stubbed = def.effects !== "read" || def.kind === "wait" || def.key === "approval";
+  const stubbed = sandboxStubs(def, (input.input ?? {}) as In);
   try {
     // a step that only reads runs for real; loops and lanes have nothing to run in a test
     const r = await runStep(env, { id: "test", key: input.key, input: input.input ?? {} }, call);

@@ -6,10 +6,12 @@ import { FormEditor } from "./FormEditor.tsx";
 import { CampaignEditor } from "./CampaignEditor.tsx";
 import { TemplateEditor } from "./TemplateEditor.tsx";
 import { DomainEditor } from "./DomainEditor.tsx";
+import { EmailDesigner } from "./EmailDesigner.tsx";
 export function AppsSurface({ route }: { route: Exclude<AppsRoute, { kind: "list" }> }): ReactElement {
   const d = useAppsData();
-  const target = { group: route.group, ...(route.kind === "detail" ? { id: route.id } : { create: true }) };
   const back = (): void => d.nav.show(route.group);
+  if (route.kind === "email") return <EmailDesigner id={route.id} back={back} />;
+  const target = { group: route.group, ...(route.kind === "detail" ? { id: route.id } : { create: true }) };
   switch (route.group) {
     case "forms": return <FormEditor route={target} back={back} />;
     case "campaigns": return <CampaignEditor route={target} back={back} />;

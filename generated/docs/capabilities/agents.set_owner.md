@@ -48,6 +48,8 @@ type Out = {
     fallbackModel?: string;
     accountPolicy: "asker" | "key";
     accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -59,11 +61,12 @@ type Out = {
       minutesPerRun?: number;
       tokensPerDay?: number;
     };
-    captureMode: "propose" | "auto_low_risk" | "off";
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
     hasComputer: boolean;
     templateVersion: number;
     createdAt: number;
     lastActiveAt?: number;
+    teammateOf?: string;
   };
 };
 ```
@@ -87,10 +90,13 @@ type Out = {
   },
   "output": {
     "agent": {
+      "accountFallback": [
+        "example"
+      ],
       "accountKey": "#Team_Anthropic_Key",
       "accountPolicy": "asker",
       "agentId": "agt_a1b2c3",
-      "captureMode": "propose",
+      "captureMode": "auto",
       "createdAt": 1760000000000,
       "face": "intake",
       "fallbackModel": "example",
@@ -105,6 +111,7 @@ type Out = {
         "tokensPerDay": 1,
         "turnsPerDay": 1
       },
+      "memoryKey": "#Team_Anthropic_Key",
       "model": "example",
       "name": "example",
       "ownerId": "usr_a1b2c3",
@@ -112,6 +119,7 @@ type Out = {
       "pausedReason": "example",
       "role": "example",
       "status": "awake",
+      "teammateOf": "prj_a1b2c3",
       "templateVersion": 1,
       "toolsAllowed": [
         "example"

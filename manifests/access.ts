@@ -122,6 +122,7 @@ export default defineManifest({
     }),
     write('access.unshare', 'Remove a grant, or every grant of one source on a resource', { ...V, in: { grantId: t.opt(id.grant), resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()) }, out: { revoked: t.int({ minimum: 0 }) }, emits: ['grant.revoked', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', team: true }),
     read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })) }, tool: 'meta' }),
+    read('access.deciders', 'The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else', { ...V, in: { resource: resourceRef }, out: { people: t.arr(id.user) }, tool: 'meta' }),
     read('access.grants.list', 'List grants by resource, subject or source (Console Grants)', { ...V, in: { resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()), ...pageIn }, out: { grants: t.arr(grantRow), ...pageOut }, perm: 'access.manage', tool: 'engineer' }),
     write('access.grants.update', 'Change the level, conditions or expiry of a grant', { ...V, in: { grantId: id.grant, level: t.opt(level), conditions: t.opt(conditions) }, out: { grant: grantRow }, emits: ['grant.updated', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained'] }),
     read('access.lists', 'Items of one type in a section (Personal, Shared with me, Space, Starred, Following) with folder counts', {
@@ -144,6 +145,10 @@ export default defineManifest({
     }),
 
     // ---- Access checker and View as
+    read('access.provider_check', 'Which of these resources may not go to an AI provider, by the same label-against-provider rule a chat turn is held to', {
+      ...V, space: true, in: { resources: t.arr(resourceRef, { maxItems: 200 }), provider: t.str({ examples: ['openai'] }) },
+      out: { blocked: t.arr(t.obj({ id: t.str(), label: t.opt(label) })) }, agent: false,
+    }),
     read('access.check', 'Access checker: can principal P do action A on resource R, with each step in plain words', {
       ...V, space: true, in: { principal: principalRef, actingFor: t.opt(principalRef), action: t.obj({ perm: t.opt(t.str()), level }), resource: resourceRef, fields: t.opt(t.arr(t.str())), provider: t.opt(t.str()) },
       out: { decision }, perm: 'access.manage', tool: 'engineer', team: true,

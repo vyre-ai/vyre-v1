@@ -99,6 +99,7 @@ Example: `send`.
 | Key | Title | Risk | Human too | Example preview |
 |---|---|---|---|---|
 | campaign_launch | Launch a campaign | high | yes | table |
+| connection_change | Change a company-wide connection | high | no | table |
 | delete | Delete | high | no | record_card |
 | enroll_node | Admit a computer to the Space | high | no | record_card |
 | pay | Send money or submit a card | high | no | table |
@@ -109,6 +110,7 @@ Example: `send`.
 | signature_send | Send a document for signature | high | no | file |
 | site_promote | Promote a site to production | high | yes | deploy |
 | spend_raise | Raise a spend cap | medium | no | table |
+| signin_change | Change how people sign in to the Space | high | no | record_card |
 | transfer | Hand over ownership | high | no | record_card |
 
 ## Task kinds

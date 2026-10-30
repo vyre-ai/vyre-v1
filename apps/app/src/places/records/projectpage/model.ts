@@ -8,9 +8,9 @@ export type PlanOut = CapMap["projects.plan"]["out"];
 export type PlanRow = PlanOut["tasks"][number];
 export type Member = CapMap["projects.members.list"]["out"]["members"][number];
 
-export const TABS = [{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Files" }, { key: "chat", title: "Chat" }] as const;
+export const TABS = [{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Files" }, { key: "chat", title: "Chat" }, { key: "teammates", title: "Teammates" }] as const;
 export type TabKey = (typeof TABS)[number]["key"];
-export const TAB_SPECS: readonly { key: string; title: string }[] = [{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Files" }, { key: "chat", title: "Chat" }];
+export const TAB_SPECS: readonly { key: string; title: string }[] = [{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Files" }, { key: "chat", title: "Chat" }, { key: "teammates", title: "Teammates" }];
 
 const DAY = 86_400_000;
 /** An epoch time as the ISO day the Plan draws (UTC, so every machine agrees). */

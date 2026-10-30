@@ -123,6 +123,7 @@ test("every module trust of kind service is reviewed: the sites below are the wh
     "chat/handlers/private.ts",           // the engine runtime opens a private chat only for its owner (asker equals owner, and only an agent or the host)
     "devices/handlers/register.ts",       // devices.register: kind service AND id svc_host
     "forms/handlers/submit.ts",           // a public form submits as its own svc_form_<id> and may not use another form's
+    "engine/step-turn.ts",                // an AI step run by a service caller may use only the Space's shared accounts, never a person's own (a restriction, not a power)
     "git/handlers/ops.ts",                // a label in a log line, not a decision
     "telephony/projections.ts",           // classifies who started a call for the log, not a decision
   ].sort());

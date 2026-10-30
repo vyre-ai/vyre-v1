@@ -107,3 +107,21 @@ const s = StyleSheet.create({
   lineDot: { width: 5, height: 5, borderRadius: 99, backgroundColor: "var(--ok)" as string },
   lineText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });
+
+/** An On or Off switch with its state in words beside it. Hover lifts the track, Space or Enter flips it, and a screen reader hears a switch with its state. */
+export function Toggle({ on, onChange, label, testID }: { on: boolean; onChange(next: boolean): void; label: string; testID?: string }): ReactElement {
+  const [over, setOver] = useState(false);
+  const flip = (e: { key?: string; preventDefault?: () => void }): void => { if (e.key === " " || e.key === "Enter") { e.preventDefault?.(); onChange(!on); } };
+  return (
+    <Pressable
+      accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on }} aria-checked={on} testID={testID}
+      onPress={() => onChange(!on)} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} {...({ onKeyDown: flip } as object)}
+      style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+    >
+      <Text style={{ fontSize: 12.5, color: "var(--ink-3)" as string }}>{on ? "On" : "Off"}</Text>
+      <View style={{ width: 34, height: 20, borderRadius: 10, justifyContent: "center", backgroundColor: (on ? "var(--accent)" : "var(--press)") as string, opacity: over ? 0.85 : 1 }}>
+        <View style={{ position: "absolute", top: 2, left: on ? 17 : 2, width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff" }} />
+      </View>
+    </Pressable>
+  );
+}

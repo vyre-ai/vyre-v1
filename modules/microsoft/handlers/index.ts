@@ -6,7 +6,8 @@ export {
   recordingGet, recordings, schedule, transcriptGet, transcripts,
 } from "./graph.ts";
 export {
-  calendarSubscribe, calendarUnsubscribe, consentDisable, consentExclude, consentLink, consentMembers, consentSetup, consentSnippet, consentStatus, consentVerify, health,
+  calendarSubscribe, calendarUnsubscribe, consentDisable, consentExclude, consentMapMember, consentLink, consentMembers, consentMyAccount, consentSetup, consentSnippet, consentStatus, consentVerify, health,
   mailSubscribe, mailUnsubscribe, receiveNotification, renew, teamsSubscribe,
 } from "./subscriptions.ts";
 export { acceptHook, sameState } from "./hook.ts";
+export { directoryImport, directoryList, syncMembers } from "./directory.ts";

@@ -9,11 +9,13 @@ HTTP 502. Retryable: no.
 - connections.complete_auth
 - connectors.push
 - engine.probe_account
+- engine.step_turn
 - engine.switch
 - git.pull
 - git.push
 - git.sync
 - github.app.complete
+- google.directory.list
 - google.dwd.probe
 - google.dwd.setup
 - google.gmail.send_message
@@ -29,5 +31,3 @@ HTTP 502. Retryable: no.
 - mounts.add
 - mounts.browse
 - ms.consent.setup
-- ms.consent.verify
-- ms.mail.send_message

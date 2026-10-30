@@ -21,6 +21,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.retry": Handler<"runs.retry", X>;
   "runs.start": Handler<"runs.start", X>;
   "runs.status": Handler<"runs.status", X>;
+  "runs.step_io": Handler<"runs.step_io", X>;
   "runs.steps": Handler<"runs.steps", X>;
   "runs.stop": Handler<"runs.stop", X>;
   "runs.undo": Handler<"runs.undo", X>;

@@ -30,6 +30,8 @@ export interface EngineSessionHostDeps {
   space: string;
 }
 
+/** The agent id of an automation AI step that runs as no agent in particular (the same word as modules/engine/step-turn.ts STEP_AGENT; host never imports a module). */
+const STEP_AGENT = "step";
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
 const TRACE_ID = /^[0-9a-f]{32}$/;
 
@@ -51,15 +53,21 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
         if (!HANDLE.test(handle)) return { kind: "unknown" };
         const [item = "", field] = handle.slice(1).split(".");
         try {
+          // A chat turn is an agent acting for a person. An automation's AI step that names no agent has none in the chat sense: it is the person's own Run, or a Space automation's own service,
+          // so the key is asked for as that principal (the step's marker is "step", as in modules/engine/step-turn.ts). A service reads Shared items only.
+          const agentic = who.agentId !== STEP_AGENT;
+          const service = !agentic && who.asker.startsWith("svc_");
           const r = await d.invoke(
             "vault.use",
             { item, ...(field === undefined ? {} : { fields: [field] }), purpose: "engine account" },
-            { space: d.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "engine" },
+            agentic
+              ? { space: d.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "engine" }
+              : { space: d.space, principal: { kind: service ? "service" : "person", id: who.asker }, origin: "engine" },
           );
           if (r.status !== "ok") return { kind: "denied", reason: "no_access" };
           const itemId = (r.output as { itemId?: unknown } | null)?.itemId;
           if (typeof itemId !== "string") return { kind: "unknown" };
-          const value = await d.vault.secret(handle, d.space, who.asker);
+          const value = await d.vault.secret(handle, d.space, service ? undefined : who.asker);
           return { kind: "value", itemId, value, spaceOnly: false, injectIntoDeployments: false };
         } catch (e) {
           const code = codeOf(e);

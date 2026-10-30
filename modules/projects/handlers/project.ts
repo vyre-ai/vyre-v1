@@ -47,7 +47,7 @@ async function tasksOrNone(ctx: ProjectsCtx, p: Project): Promise<TaskView[]> {
 // ---- people ----
 
 /** Give a principal a role: the previous grants of that source go, the new ones are written on the project, its folder and its channel. */
-async function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce = true, deferProject = false): Promise<{ member: Member; previous?: Role }> {
+export async function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce = true, deferProject = false): Promise<{ member: Member; previous?: Role }> {
   const kind = kindOfPrincipal(principal);
   if (!kind) raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal });
   const before = memberOf(ctx.db, p.projectId, principal);
@@ -84,11 +84,8 @@ export async function membersSet(ctx: ProjectsCtx, input: In): Promise<unknown> 
   return res;
 }
 
-export async function membersRemove(ctx: ProjectsCtx, input: In): Promise<unknown> {
-  ensure(ctx.db);
-  const p = visible(ctx, input.projectId, "manage");
-  const m = memberOf(ctx.db, p.projectId, input.principal);
-  if (!m) return { removed: false };
+/** Take a principal off a project: its grants of this project go, the lead field is cleared if it was the lead, and the project says so. */
+export async function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Promise<void> {
   for (const r of resourcesOf(p)) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(m), source: sourceTag(p.projectId) });
   dropMember(ctx.db, p.projectId, m.principal);
   if (m.role === "lead") {
@@ -96,6 +93,14 @@ export async function membersRemove(ctx: ProjectsCtx, input: In): Promise<unknow
     if (fields["lead"] === m.principal) await writeRecord(ctx, p, { lead: null });
   }
   emitP(ctx, "project.member_removed", p.projectId, { principal: m.principal });
+}
+
+export async function membersRemove(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "manage");
+  const m = memberOf(ctx.db, p.projectId, input.principal);
+  if (!m) return { removed: false };
+  await removeMember(ctx, p, m);
   return { removed: true };
 }
 

@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, members.
 
-## Capabilities (28)
+## Capabilities (29)
 
 - [identity.change_password](../capabilities/identity.change_password.md): Change my own password; keys are re-wrapped on the device first
 - [identity.claim_owner](../capabilities/identity.claim_owner.md): Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in
@@ -23,10 +23,11 @@ Requires: access, members.
 - [identity.reset_complete](../capabilities/identity.reset_complete.md): The person sets a new password from the reset link and makes fresh keys
 - [identity.reset_preview](../capabilities/identity.reset_preview.md): Admin: what a password reset would lose for this person (Mine items, private chats, personal memory) and whether a recovery code exists
 - [identity.reset_start](../capabilities/identity.reset_start.md): Admin: start a password reset and get a one-time link for the person (valid 24 hours); their other devices are signed out
+- [identity.security.get](../capabilities/identity.security.get.md): My sign-in in this Space: when the password last changed, the linked GitHub account, whether an authenticator app is set and the passkeys (Settings > Sign-in and devices)
 - [identity.sign_in](../capabilities/identity.sign_in.md): Sign in with Space, username and password; asks for the second factor when one is set
 - [identity.sign_in_options](../capabilities/identity.sign_in_options.md): What the sign-in page offers for this Space: name, logo, key fingerprint, password, GitHub, SSO providers, second factor floor
 - [identity.sign_out](../capabilities/identity.sign_out.md): End this session; the device keeps nothing it should not
-- [identity.sso_sign_in](../capabilities/identity.sso_sign_in.md): Finish an OIDC sign-in (Google, Microsoft, Okta) with the provider code; reserved until SSO config lands in members
+- [identity.sso_sign_in](../capabilities/identity.sso_sign_in.md): Finish an OIDC sign-in (Google, Microsoft, Okta) with the one-use ticket the Space leaves in the address after the provider approves (through the sign-in app the firm made in Google or Microsoft, OpenID Connect)
 - [identity.totp_begin](../capabilities/identity.totp_begin.md): Start a TOTP enrolment; returns the shared secret once as a setup URI
 - [identity.totp_confirm](../capabilities/identity.totp_confirm.md): Confirm a TOTP enrolment with the first code
 - [identity.totp_remove](../capabilities/identity.totp_remove.md): Remove my TOTP factor (refused when the Space requires a second factor)

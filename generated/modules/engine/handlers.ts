@@ -7,6 +7,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.account.resolve": Handler<"engine.account.resolve", X>;
   "engine.accounts.list": Handler<"engine.accounts.list", X>;
+  "engine.complete": Handler<"engine.complete", X>;
   "engine.defaults.get": Handler<"engine.defaults.get", X>;
   "engine.defaults.set": Handler<"engine.defaults.set", X>;
   "engine.health": Handler<"engine.health", X>;
@@ -20,6 +21,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.lease.acquire": Handler<"engine.lease.acquire", X>;
   "engine.lease.heartbeat": Handler<"engine.lease.heartbeat", X>;
   "engine.lease.release": Handler<"engine.lease.release", X>;
+  "engine.mcp.call": Handler<"engine.mcp.call", X>;
+  "engine.mcp.read": Handler<"engine.mcp.read", X>;
+  "engine.mcp.tools": Handler<"engine.mcp.tools", X>;
   "engine.models.list": Handler<"engine.models.list", X>;
   "engine.placement.decide": Handler<"engine.placement.decide", X>;
   "engine.policy.get": Handler<"engine.policy.get", X>;
@@ -31,6 +35,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.queue.peek": Handler<"engine.queue.peek", X>;
   "engine.review.list": Handler<"engine.review.list", X>;
   "engine.review.mark": Handler<"engine.review.mark", X>;
+  "engine.reviewer.get": Handler<"engine.reviewer.get", X>;
+  "engine.reviewer.set": Handler<"engine.reviewer.set", X>;
   "engine.route.preview": Handler<"engine.route.preview", X>;
   "engine.runtime.opt_in": Handler<"engine.runtime.opt_in", X>;
   "engine.set_mode": Handler<"engine.set_mode", X>;
@@ -40,6 +46,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.spend.pause_all": Handler<"engine.spend.pause_all", X>;
   "engine.spend.raise": Handler<"engine.spend.raise", X>;
   "engine.spend.resume_all": Handler<"engine.spend.resume_all", X>;
+  "engine.step_turn": Handler<"engine.step_turn", X>;
   "engine.stop": Handler<"engine.stop", X>;
   "engine.stop_all": Handler<"engine.stop_all", X>;
   "engine.subscription_share.set": Handler<"engine.subscription_share.set", X>;

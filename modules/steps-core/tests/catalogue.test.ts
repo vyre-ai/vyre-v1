@@ -6,7 +6,7 @@ import { callOf, node, HOUR } from "../fixtures/seed.ts";
 import { callAutomation, runStep } from "../handlers/control.ts";
 import { collectItems, groupItems, transformValue } from "../handlers/data-steps.ts";
 import { nextOpen } from "../handlers/hours.ts";
-import { runUserCode } from "../handlers/code-run.ts";
+import { codeAvailability, runInSandbox, setCodeHost } from "../code-sandbox.ts";
 
 const hours = { timezone: "America/New_York", days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" };
 
@@ -55,20 +55,43 @@ test("a milestone wait does not move to open hours", async () => {
   assert.equal(r.wait?.at, at);
 });
 
-test("run code returns JSON and refuses the process object, a throw, and a timeout", () => {
-  assert.deepEqual(runUserCode("return input.n + 1", { n: 2 }), { result: 3, logs: [] });
-  assert.throws(() => runUserCode("return process.pid", {}), (e) => codeOf(e) === "validation.bad_input");
-  assert.throws(() => runUserCode("throw new Error('nope')", {}), (e) => codeOf(e) === "validation.bad_input");
-  assert.throws(() => runUserCode("while (true) {}", {}, 200), (e) => codeOf(e) === "timeout.deadline");
+test("run code never runs in the daemon: with no sandbox host, or a platform that cannot sandbox, it is refused with a reason", async () => {
+  setCodeHost(null);
+  assert.match(codeAvailability() ?? "", /agent runtime/);
+  await assert.rejects(runInSandbox("return 1", {}), (e) => codeOf(e) === "run.no_code");
+  setCodeHost({ dataDir: "/nonexistent", platform: "darwin" });
+  assert.match(codeAvailability() ?? "", /Linux server with bubblewrap/);
+  setCodeHost({ dataDir: "/nonexistent", platform: "linux", bwrapPaths: ["/nonexistent/bwrap"] });
+  assert.match(codeAvailability() ?? "", /bubblewrap \(bwrap\)/);
+  setCodeHost({ dataDir: "/nonexistent", unavailable: "The host says no." });
+  await assert.rejects(runInSandbox("return 1", {}), (e) => codeOf(e) === "run.no_code" && /host says no/.test((e as Error).message));
+  setCodeHost(null);
+});
+
+test("run code checks its own input before it starts anything", async () => {
+  setCodeHost({ dataDir: "/nonexistent", platform: "linux", bwrapPaths: [process.execPath] });
+  try {
+    await assert.rejects(runInSandbox("", {}), (e) => codeOf(e) === "validation.bad_input");
+    await assert.rejects(runInSandbox("x".repeat(20_001), {}), (e) => codeOf(e) === "validation.bad_input");
+    await assert.rejects(runInSandbox("return 1", {}, ["10.0.0.1"]), (e) => codeOf(e) === "validation.bad_input");
+    await assert.rejects(runInSandbox("return 1", {}, ["*.com.*"]), (e) => codeOf(e) === "validation.bad_input");
+    await assert.rejects(runInSandbox("return 1", {}, "api.example.com"), (e) => codeOf(e) === "validation.bad_input");
+    await assert.rejects(runInSandbox("return 1", {}, Array.from({ length: 11 }, (_, i) => `h${i}.example.com`)), (e) => codeOf(e) === "validation.bad_input");
+  } finally { setCodeHost(null); }
 });
 
 test("the code step uses the sandbox when the host provides one", async () => {
   const h = harness();
   const r = await runStep({
     ...h.env,
-    code: async (_node, input) => ({ output: runUserCode(String(input.source ?? ""), input.input) }),
+    code: async (_node, input) => ({ output: { result: (input.input as { n: number }).n + 1, logs: [] } }),
   }, node("c", "code", { language: "javascript", source: "return input.n + 1", input: { n: 2 } }), callOf());
   assert.deepEqual(r.output, { result: 3, logs: [] });
+});
+
+test("a code step with no sandbox connected fails by name and does not run", async () => {
+  const h = harness();
+  await assert.rejects(runStep(h.env, node("c", "code", { language: "javascript", source: "return 1" }), callOf()), (e) => codeOf(e) === "run.no_code");
 });
 
 test("transform, collect, and group by run through the step catalogue", async () => {

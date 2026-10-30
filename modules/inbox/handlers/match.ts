@@ -154,6 +154,10 @@ export interface LinkIn {
   numberId?: string;
   campaignId?: string;
   preview?: string;
+  /** what mail already knows of an email: its thread key, subject and the people on it */
+  threadId?: string;
+  subject?: string;
+  participants?: string[];
 }
 
 /** The thread, subject and people of an email, from mail. A message mail will not show (private to another inbox) still gets a thread of its own. */
@@ -232,8 +236,11 @@ export async function linkMessage(
   }
 
   // the item
+  const given = typeof input.threadId === "string" && input.threadId !== "" && typeof input.subject === "string"
+    ? { threadId: input.threadId, subject: input.subject, participants: Array.isArray(input.participants) && input.participants.length ? input.participants.map((p) => String(p).toLowerCase()) : [address] }
+    : null;
   const facts = input.channel === "email"
-    ? await emailFacts(ctx, input.ref.id, address)
+    ? given ?? await emailFacts(ctx, input.ref.id, address)
     : { threadId: `${input.channel}:${input.numberId ?? "-"}:${address}`, subject: "", participants: [address] };
   const priorOut = first(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ? AND direction = ?`, id, "out")) !== null;
   ctx.db.run(

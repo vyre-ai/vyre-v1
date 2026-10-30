@@ -21,6 +21,8 @@ export interface MountRec {
   folderId: string;
   kind: MountKind;
   connectionId?: string;
+  /** the work address the mount syncs as (the person who made it) */
+  account?: string;
   ref?: string;
   path?: string;
   branch?: string;
@@ -100,7 +102,8 @@ function whole(v: unknown): number | undefined {
   return typeof v === "number" && Number.isFinite(v) ? v : undefined;
 }
 
-const withConnection = (m: { connectionId?: string }): Row => (m.connectionId !== undefined ? { connectionId: m.connectionId } : {});
+/** The connection and the person the call is for: Drive and Graph calls act as the mount's own account, never as whoever happens to run the pass. */
+const withConnection = (m: { connectionId?: string; account?: string }): Row => ({ ...(m.connectionId !== undefined ? { connectionId: m.connectionId } : {}), ...(m.account !== undefined ? { as: m.account } : {}) });
 
 /** Most pages one pass reads, so a runaway feed cannot hold the pass forever. */
 export const MAX_PAGES = 200;
@@ -140,6 +143,9 @@ function driveItem(f: Row, parentId?: string): RemoteItem | undefined {
 async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
   const root = m.ref;
   if (root === undefined) return { items: [], removed: [], full: true };
+  // The feed's start token is taken before the listing, so a change made while the listing runs is read by the next pass. Without one the mount rescans every time.
+  let cursor: string | undefined;
+  try { cursor = text(obj(await ctx.call("google.drive.changes_start_token", withConnection(m)))["startPageToken"]); } catch { /* no token: the next pass scans again */ }
   const items: RemoteItem[] = [];
   const queue: string[] = [root];
   let pages = 0;
@@ -157,7 +163,7 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
       pages += 1;
     } while (pageToken !== undefined && pages < MAX_PAGES);
   }
-  return { items, removed: [], full: true };
+  return { items, removed: [], full: true, ...(cursor !== undefined ? { cursor } : {}) };
 }
 
 async function driveFeed(ctx: Ctx, m: MountRec, cursor: string): Promise<PullBatch> {

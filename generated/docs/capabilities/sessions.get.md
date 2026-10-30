@@ -49,6 +49,13 @@ type Out = {
       role: "user" | "assistant";
       text: string;
       at: number;
+      tools?: Array<{
+          id: string;
+          name: string;
+          summary: string;
+          ok?: boolean;
+          output?: string;
+        }>;
     }>;
 };
 ```
@@ -76,7 +83,16 @@ type Out = {
         "at": 1760000000000,
         "role": "user",
         "sourceMessageId": "example",
-        "text": "example"
+        "text": "example",
+        "tools": [
+          {
+            "id": "example",
+            "name": "example",
+            "ok": true,
+            "output": "example",
+            "summary": "example"
+          }
+        ]
       }
     ],
     "session": {

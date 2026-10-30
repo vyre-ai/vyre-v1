@@ -8,7 +8,9 @@ import { useSettingsData } from "./data.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Section, SmallButton } from "./ui.tsx";
 interface Archive { conversationId: string; title: string; provider: string; projectId?: string }
-interface Transcript { session: Archive; messages: { role: string; text: string }[] }
+interface Tool { name: string; summary: string; ok?: boolean }
+interface Transcript { session: Archive; messages: { role: string; text: string; tools?: Tool[] }[] }
+const toolLine = (t: Tool): string => `${t.summary || t.name}${t.ok === false ? " (failed)" : ""}`;
 export function SessionImport(): ReactElement | null {
   const data = useSettingsData();
   const personal = data.spaces.some((s) => s.current && s.kind === "personal");
@@ -34,9 +36,9 @@ export function SessionImport(): ReactElement | null {
     {preview ? <View testID="sessions-preview">
       <Text accessibilityRole="header">{preview.session.title}</Text>
       <Text>{preview.session.repo?.root && preview.session.repo?.remote ? `Personal project: ${preview.session.repo.root}` : "Personal imported sessions"}</Text>
-      <Text>{`${preview.session.messages.length} visible messages will be copied`}</Text>
+      <Text>{`${preview.session.messages.length} messages will be copied${preview.session.messages.reduce((n, m) => n + (m.tools?.length ?? 0), 0) > 0 ? `, with ${preview.session.messages.reduce((n, m) => n + (m.tools?.length ?? 0), 0)} tool calls (what each did and the start of what it returned, with secrets removed)` : ""}`}</Text>
       {/* ui-rows-lint: not a list (transcript paragraphs preserve complete visible messages) */}
-      {preview.session.messages.map((m) => <View key={m.sourceMessageId}><Text>{m.role}</Text><Text selectable>{m.text}</Text></View>)}
+      {preview.session.messages.map((m) => <View key={m.sourceMessageId}><Text>{m.role}</Text>{m.text ? <Text selectable>{m.text}</Text> : null}{(m.tools ?? []).map((t) => <Text key={t.id} selectable>{`Tool: ${toolLine(t)}`}</Text>)}</View>)}
       <SmallButton label="Cancel preview" disabled={busy} onPress={() => setPreview(null)} />
       <SmallButton label="Confirm import into Personal" testID="sessions-confirm" disabled={busy || !preview.session.messages.length} onPress={() => void run(async () => {
         await data.call("sessions.import", confirmedSessionInput(preview, data.clock().now));
@@ -50,7 +52,7 @@ export function SessionImport(): ReactElement | null {
     {next ? <SmallButton label="More sessions" disabled={busy} onPress={() => void run(() => load(next))} /> : null}
     {transcript ? <View testID="sessions-transcript"><Text accessibilityRole="header">{transcript.session.title}</Text>
       {/* ui-rows-lint: not a list (immutable transcript paragraphs preserve message bodies) */}
-      {transcript.messages.map((m, i) => <View key={i}><Text>{m.role}</Text><Text selectable>{m.text}</Text></View>)}
+      {transcript.messages.map((m, i) => <View key={i}><Text>{m.role}</Text>{m.text ? <Text selectable>{m.text}</Text> : null}{(m.tools ?? []).map((t, j) => <Text key={j} selectable>{`Tool: ${toolLine(t)}`}</Text>)}</View>)}
       <SmallButton label="Close archive" onPress={() => setTranscript(null)} />
       {data.continueSession ? <SmallButton label="Continue with your assistant" disabled={busy} testID="sessions-continue" onPress={() => void run(() => data.continueSession!(transcript.session.conversationId))} /> : null}
     </View> : null}

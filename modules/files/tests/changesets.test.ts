@@ -9,6 +9,7 @@ import { aesUnwrap, aesWrap } from "../../../kernel/src/seal/box.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx, Sealed } from "../../../packages/contracts/src/ctx.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
+import { createCtxSeal } from "../../../host/src/ctx/seal.ts";
 import { handlers } from "../impl.ts";
 import { merge3 } from "../handlers/changesets.ts";
 
@@ -139,7 +140,7 @@ function spaceSeal(key: Uint8Array): Ctx["seal"] {
   };
 }
 
-function open(answers: Record<string, unknown> = {}): { ctx: Ctx; events: { name: string; payload: unknown }[]; db: ReturnType<typeof memoryDb>; calls: { cap: string; input: unknown }[] } {
+function open(answers: Record<string, unknown> = {}, o: { space?: string; realSeal?: boolean } = {}): { ctx: Ctx; events: { name: string; payload: unknown }[]; db: ReturnType<typeof memoryDb>; calls: { cap: string; input: unknown }[] } {
   const db = memoryDb();
   const calls: { cap: string; input: unknown }[] = [];
   const events: { name: string; payload: unknown }[] = [];
@@ -147,7 +148,7 @@ function open(answers: Record<string, unknown> = {}): { ctx: Ctx; events: { name
   const key = new Uint8Array(32);
   for (let i = 0; i < key.length; i++) key[i] = (i * 17 + 3) & 0xff;
   const ctx: Ctx = {
-    space: "spc_test",
+    space: o.space ?? "spc_test",
     principal: { kind: "person", id: "per_maya" },
     trace: { traceId: "a".repeat(32), spanId: "b".repeat(16) },
     origin: "user",
@@ -188,7 +189,7 @@ function open(answers: Record<string, unknown> = {}): { ctx: Ctx; events: { name
     http: async () => ({ status: 0, text: async () => "" }),
     log: { debug() {}, info() {}, warn() {}, error() {} },
     schedule: async () => "sch_test",
-    seal: spaceSeal(key),
+    seal: o.realSeal ? createCtxSeal({ key, keyId: "space-key" }) : spaceSeal(key),
   };
   return { ctx, events, db, calls };
 }
@@ -215,8 +216,8 @@ const agentOf = (ctx: Ctx, id = "agt_intake"): Ctx => ({ ...ctx, principal: { ki
 const personOf = (ctx: Ctx, id: string): Ctx => ({ ...ctx, principal: { kind: "person", id } });
 const eventsOf = (events: { name: string; payload: unknown }[], name: string): unknown[] => events.filter((e) => e.name === name).map((e) => e.payload);
 
-async function setup(answers: Record<string, unknown> = {}) {
-  const k = open(answers);
+async function setup(answers: Record<string, unknown> = {}, o: { space?: string; realSeal?: boolean } = {}) {
+  const k = open(answers, o);
   const tree = await handlers["files.tree"](k.ctx, {});
   const personal = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
   const docs = (await handlers["files.folder.create"](k.ctx, { parentId: personal, name: "Docs", reviewChanges: true })).folder.folderId;
@@ -604,3 +605,17 @@ test("edit: a caller without edit access, an agent, a bad range, a closed change
   await expectCode("validation.precondition_failed", () => edit(ctx));
 });
 // P-CC_21: changesets.edit is covered by the last two tests above.
+
+test("files and change sets seal under the real seal on a Space id of the shape a desktop makes (spc_ and 32 hex), and on the longest one the Personal Space allows", async () => {
+  for (const space of [`spc_${"0123456789abcdef".repeat(2)}`, `spc_${"a".repeat(195)}`]) {
+    const { k, ctx, agent, docs, plan } = await setup({}, { space, realSeal: true });
+    assert.equal(await textOf(ctx, plan), lines(10), "a file created and read back");
+    const w = await handlers["files.write"](agent, { fileId: plan, content: { text: lines(10, { 2: "LINE 2" }) }, baseVersion: 1 });
+    assert.match(w.changesetId ?? "", /^chg_/, "a staged change set is sealed");
+    const res = await handlers["changesets.approve"](ctx, { changesetId: w.changesetId! });
+    assert.equal(res.approved, true);
+    assert.equal(await textOf(ctx, plan), lines(10, { 2: "LINE 2" }));
+    for (const row of k.db.rows("files_blob")) assert.match(String(row["scope"]), /^files\.blob:[0-9a-f]{24}$/, "the stored scope is the bounded one");
+    assert.ok(docs.length > 0);
+  }
+});

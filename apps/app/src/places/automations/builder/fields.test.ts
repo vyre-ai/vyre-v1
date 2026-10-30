@@ -35,3 +35,13 @@ test("the shelf names type, presence, and the fixture version", () => {
   assert.equal(lines.length, 2);
   assert.equal(fixtureNote(4, "records.find"), "Fixture for records.find on definition version 4. Reads may run live. Writes and sends stay stubbed.");
 });
+
+test("a shelf row becomes the expression that maps it, and an expression is added after what a field holds", async () => {
+  const { mappingExpression, withExpression } = await import("./fields.ts");
+  assert.equal(mappingExpression("trigger.email"), "{{ trigger.email }}");
+  assert.equal(mappingExpression("lookup.rows"), "{{ steps.lookup.out.rows }}");
+  assert.equal(mappingExpression("lookup"), "{{ steps.lookup.out }}");
+  assert.equal(withExpression("", "{{ a }}"), "{{ a }}");
+  assert.equal(withExpression("Hello", "{{ a }}"), "Hello {{ a }}");
+  assert.equal(withExpression("Hello ", "{{ a }}"), "Hello {{ a }}");
+});

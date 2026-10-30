@@ -5,11 +5,14 @@ import http from "node:http";
 export async function vendor() {
   const script: Array<{ status?: number; text?: string; hold?: boolean }> = [];
   const requests: string[] = [];
+  /** The Authorization header of each request, so a test can prove the key reached the vendor (and only there). */
+  const auth: string[] = [];
   const server = http.createServer((req, res) => {
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       requests.push(body);
+      auth.push(String(req.headers.authorization ?? ""));
       const next = script.shift() ?? { text: "{}" };
       if (next.status && next.status !== 200) { res.writeHead(next.status, { "content-type": "application/json" }); res.end(JSON.stringify({ error: { message: "vendor says no", type: "invalid_request_error" } })); return; }
       res.writeHead(200, { "content-type": "text/event-stream" });
@@ -22,6 +25,6 @@ export async function vendor() {
     });
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  return { script, requests, base: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => { server.close(); server.closeAllConnections(); } };
+  return { script, requests, auth, base: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => { server.close(); server.closeAllConnections(); } };
 }
 

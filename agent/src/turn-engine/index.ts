@@ -10,6 +10,8 @@ export { createMemoryLeases, LEASE_TTL_MS, HEARTBEAT_MS } from "./lease.ts";
 export type { LeaseStore, LeaseRow } from "./lease.ts";
 export { defaultMode, assignDefaults, withMode, preview } from "./lead.ts";
 export { recallText } from "./recall.ts";
+export { SECTION_ORDER, contextBlocks, contextPrompt, nameOf, ordered, parseScreen, screenText, sectionHash, speaker } from "./context.ts";
+export type { ContextSection, ScreenContext, ScreenObject, SectionId, TurnContext } from "./context.ts";
 export { scriptedProvider } from "./scripted-session.ts";
 export type { ScriptedOptions, ScriptedSession, ScriptedProvider } from "./scripted-session.ts";
 export type {

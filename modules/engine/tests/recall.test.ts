@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { withRecall, recallFor } from "../recall.ts";
 import { roleBlocks } from "../session.ts";
+import { recallText } from "../../../agent/src/turn-engine/recall.ts";
 import { defaultPrompt } from "../../../agent/src/drivers/cli/prompt.ts";
 import type { EngineSession, StoredMessage, TurnInput } from "../../../agent/src/turn-engine/types.ts";
 
@@ -17,7 +18,34 @@ test("recall asks memory.pointer as the asker with the message text, and keeps i
   const calls: Array<{ cap: string; input: unknown; as?: string | undefined }> = [];
   const lines = await recallFor(async (cap, i, as) => { calls.push({ cap, input: i, as }); return { lines: [LINE] }; }, input());
   assert.deepEqual(lines, [LINE]);
-  assert.deepEqual(calls, [{ cap: "memory.pointer", input: { threadId: "thr_two", agentId: "agt_intake", text: "how long should answers be?" }, as: "usr_dana" }]);
+  assert.deepEqual(calls.map((c) => [c.cap, c.as]), [["memory.pointer", "usr_dana"], ["memory.quote", "usr_dana"]], "nothing to record when nothing carried a source id");
+  assert.deepEqual(calls[0]!.input, { threadId: "thr_two", agentId: "agt_intake", text: "how long should answers be?" });
+  // the quote lookup leaves out the chat the asker is in: the model already has it
+  assert.deepEqual(calls[1]!.input, { q: "how long should answers be?", excludeThreadId: "thr_two", limit: 3, minCoverage: 0.6 });
+});
+
+test("quotes join the recall as exact words with their source id, who said them and when; a long one is cut and says so", async () => {
+  const long = "x".repeat(400);
+  const lines = await recallFor(async (cap) => (cap === "memory.pointer" ? { lines: [] } : {
+    quotes: [
+      { ref: "msg_9", text: "The retainer cap is 4,500 a month.", author: { id: "usr_maya", name: "Maya Cole" }, at: Date.UTC(2026, 9, 12), threadTitle: "Retainers", threadId: "thr_one", link: "vyre://thread/thr_one?m=msg_9" },
+      { ref: "thr_two#7", text: `${long}\nnext line`, author: { id: "usr_dana" }, at: Date.UTC(2026, 9, 13), threadId: "thr_two", link: "vyre://thread/thr_two?step=7" },
+    ],
+  }), input());
+  assert.equal(lines.length, 2);
+  assert.deepEqual(lines[0], { kind: "quote", ref: "msg_9", title: "\"Retainers\"", fact: "The retainer cap is 4,500 a month.", path: "vyre://thread/thr_one?m=msg_9", sourceLink: "vyre://thread/thr_one?m=msg_9", by: "Maya Cole", at: Date.UTC(2026, 9, 12) });
+  assert.equal(lines[1]!.cut, true);
+  assert.equal(lines[1]!.by, "you", "the asker's own words are credited to you");
+  assert.ok(!lines[1]!.fact!.includes("\n"), "a quote is one line of the block");
+  const text = recallText(lines);
+  assert.match(text, /- Quote \[msg_9\] Maya Cole, 2026-10-12, in "Retainers": "The retainer cap is 4,500 a month\." \(open: vyre:\/\/thread\/thr_one\?m=msg_9\)/);
+  assert.match(text, /\(cut: memory_quote with the ref gives the whole line\)/);
+});
+
+test("a failing quote lookup leaves the facts, and a failing pointer leaves the quotes", async () => {
+  const q = { quotes: [{ ref: "msg_9", text: "hello there", author: { id: "usr_dana" }, at: 1, threadId: "thr_one", link: "vyre://thread/thr_one?m=msg_9" }] };
+  assert.deepEqual(await recallFor(async (cap) => { if (cap === "memory.quote") throw new Error("x"); return { lines: [LINE] }; }, input()), [LINE]);
+  assert.equal((await recallFor(async (cap) => { if (cap === "memory.pointer") throw new Error("x"); return q; }, input())).length, 1);
 });
 
 test("no recall for a wake, a resumed call or a message an agent wrote, and a failing memory gives none", async () => {
@@ -58,4 +86,20 @@ test("a CLI engine's prompt carries the recalled lines with their source, before
   assert.match(p, /\(source: \/chats\/thr_one/);
   assert.ok(p.indexOf("From memory") < p.indexOf("how long should answers be?"));
   assert.doesNotMatch(defaultPrompt(input(), true), /From memory/);
+});
+
+test("what recall handed the model is recorded by source id, as the asker, for the message that caused the turn", async () => {
+  const calls: Array<{ cap: string; input: unknown; as?: string | undefined }> = [];
+  await recallFor(async (cap, i, as) => {
+    calls.push({ cap, input: i, as });
+    if (cap === "memory.pointer") return { lines: [{ ...LINE, ref: "fct_1" }] };
+    if (cap === "memory.quote") return { quotes: [{ ref: "msg_9", text: "hi there", author: { id: "usr_maya" }, at: 1, threadId: "thr_one", link: "vyre://thread/thr_one?m=msg_9" }] };
+    return {};
+  }, input());
+  const rec = calls.find((c) => c.cap === "memory.recall.record")!;
+  assert.equal(rec.as, "usr_dana");
+  assert.deepEqual(rec.input, { threadId: "thr_two", messageId: "msg_1", agentId: "agt_intake", lines: [{ kind: "fact", ref: "fct_1" }, { kind: "quote", ref: "msg_9" }] });
+  // a record that fails never holds the turn up
+  const lines = await recallFor(async (cap) => { if (cap === "memory.recall.record") throw new Error("down"); return cap === "memory.pointer" ? { lines: [{ ...LINE, ref: "fct_1" }] } : {}; }, input());
+  assert.equal(lines.length, 1);
 });

@@ -8,10 +8,20 @@ import type { IncomingMessage } from "node:http";
 import net from "node:net";
 import { Readable } from "node:stream";
 
+export interface PinnedRequest {
+  url: URL;
+  addresses: readonly string[];
+  signal: AbortSignal;
+  /** Absent means GET with no body (a document). A request step sets all three. */
+  method?: string;
+  headers?: Readonly<Record<string, string>>;
+  body?: string;
+}
+
 export interface DocumentFetch {
   fetch: typeof fetch;
   lookup: (host: string) => Promise<string[]>;
-  connect: (req: { url: URL; addresses: readonly string[]; signal: AbortSignal }) => Promise<Response>;
+  connect: (req: PinnedRequest) => Promise<Response>;
 }
 
 function socketLookup(addresses: readonly string[]): net.LookupFunction {
@@ -45,10 +55,11 @@ function responseHeaders(message: IncomingMessage): Headers {
   return headers;
 }
 
-function connectPinned(req: { url: URL; addresses: readonly string[]; signal: AbortSignal }): Promise<Response> {
+function connectPinned(req: PinnedRequest): Promise<Response> {
   const addresses = req.addresses.filter((address) => net.isIP(address) !== 0);
   if (addresses.length === 0) return Promise.reject(new Error("No address to dial."));
   const dial = addresses[0]!;
+  const method = req.method ?? "GET";
   const name = tlsName(req.url);
   const port = req.url.port === "" ? 443 : Number(req.url.port);
   return new Promise((resolve, reject) => {
@@ -62,9 +73,9 @@ function connectPinned(req: { url: URL; addresses: readonly string[]; signal: Ab
         host: dial,
         family: net.isIPv6(dial) ? 6 : 4,
         port,
-        method: "GET",
+        method,
         path: `${req.url.pathname || "/"}${req.url.search}`,
-        headers: { host: req.url.host, accept: "*/*" },
+        headers: { accept: "*/*", ...(req.headers ?? {}), host: req.url.host, ...(req.body !== undefined ? { "content-length": String(Buffer.byteLength(req.body)) } : {}) },
         lookup: socketLookup(addresses),
         autoSelectFamily: false,
         agent: false,
@@ -88,7 +99,7 @@ function connectPinned(req: { url: URL; addresses: readonly string[]; signal: Ab
       return;
     }
     request.on("error", reject);
-    request.end();
+    request.end(req.body);
   });
 }
 

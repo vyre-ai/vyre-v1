@@ -10,7 +10,7 @@ import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { Principal } from "../../home/sections-a/data.tsx";
 import type { ChatsSidebarData } from "../sidebar/data.tsx";
-import type { ConversationData } from "../conversation/data.tsx";
+import type { ComposerFill, ConversationData } from "../conversation/data.tsx";
 import type { ChatRightPaneData } from "../rightpane/data.tsx";
 import { LOCAL_PREFIX } from "../sidebar/model.ts";
 import { openSession } from "../terminal/session.ts";
@@ -38,6 +38,11 @@ export const newKey = (): string => `k_${Date.now().toString(36)}_${(keySeq++).t
 /** The place's doors. Every click that opens something in the Chats place goes through one of these. */
 export interface Go {
   chat(threadId: string): void;
+  /** A chat opened on one message, which is marked. */
+  message(threadId: string, messageId: string): void;
+  /** Search every chat; the words start the box. */
+  search(query?: string): void;
+  closeSearch(): void;
   /** A thread of any kind: a helper opens as the helper chat, anything else as a chat. */
   thread(threadId: string): void;
   agent(agentId: string, tab?: TabKey): void;
@@ -58,6 +63,8 @@ export interface Go {
   closeLayer(): void;
   closeTerminal(): void;
   togglePane(): void;
+  /** Opens the pane (leaves it open when it already is). */
+  openPane(): void;
   /** A line the place shows for a moment. */
   say(text: string): void;
 }
@@ -80,7 +87,7 @@ export function titleFrom(rt: ShellRuntime, kind: string, id: string): string | 
   return undefined;
 }
 
-export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; canEdit: boolean; nameOf: (id: string) => string }): AgentPageData {
+export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; canEdit: boolean; nameOf: (id: string) => string; fill?: ComposerFill }): AgentPageData {
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, agent: o.agent, me: { id: rt.me.id, name: rt.me.name }, nameOf: o.nameOf, canEdit: o.canEdit,
     space: { name: rt.space.name, personal: rt.space.kind === "personal" },
@@ -90,7 +97,8 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openComputer: (computerId) => go.computer(computerId),
       openTerminal: (computerId) => go.terminalOfComputer(computerId),
       openFile: (fileId) => rt.open({ subject: { type: "file", id: fileId } }),
-      fillComposer: () => undefined,
+      // from the agent's page the text waits for the chat that opens next, with this agent
+      fillComposer: (text) => { o.fill?.set(text); go.agentChat(o.agent.agentId); },
       openSource: (kind, ref) => rt.open({ subject: { type: kind, id: ref } }),
       openAgentPage: (agentId) => go.agent(agentId),
       openRoutineFile: (agentId) => go.agent(agentId, "settings"),
@@ -147,7 +155,7 @@ export function countingCall(call: ShellRuntime["call"], counter: CaptureCounter
 
 export function popupData(rt: ShellRuntime, go: Go, o: { computerId: string; agent: { agentId: string; name: string }; counter: CaptureCounter; renderChat?: ComputerPopupData["renderChat"] }): ComputerPopupData {
   return {
-    screens: rt.screens, call: countingCall(rt.call, o.counter), connection: rt.connection, computerId: o.computerId, agent: o.agent, capture: o.counter.store,
+    screens: rt.screens, call: countingCall(rt.call, o.counter), connection: rt.connection, computerId: o.computerId, agent: o.agent, capture: o.counter.store, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
     ...(o.renderChat ? { renderChat: o.renderChat } : {}), nav: { close: () => go.closeLayer() }, clock: rt.clock,
   };
 }
@@ -181,10 +189,45 @@ export async function chatWith(rt: Pick<ShellRuntime, "call">, agentId: string):
   }
 }
 
+/**
+ * The Ask thread to open for an agent about an object (Ask Vyre): the person's newest Ask thread on it with that agent, else a new one. "Bring this conversation": a new one starts with the person's own
+ * first message carrying a summary of the chat they were in, so switching agent does not start from nothing. Null when neither could be had.
+ */
+export async function askWith(rt: Pick<ShellRuntime, "call">, agentId: string, scopeType: string, scopeId: string, bringFrom: string | null): Promise<string | null> {
+  try {
+    const out = (await rt.call("chat.asks_of", { resourceType: scopeType, resourceId: scopeId, limit: 20 })) as CapMap["chat.asks_of"]["out"];
+    const mine = out.threads.filter((t) => t.closedAt === undefined && t.agents.some((a) => a.agentId === agentId))[0];
+    if (mine) return mine.threadId;
+  } catch {
+    // no history to read, or the object is not visible: a start below says why
+  }
+  const first = bringFrom ? await broughtSummary(rt, bringFrom) : null;
+  try {
+    const out = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType, scopeId, ...(first ? { first } : {}), idempotencyKey: newKey() })) as { thread?: { threadId?: string } } | null;
+    return out?.thread?.threadId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** What the person brings into an Ask from the chat they were in: its rolling summary and its last few messages, as one message. Null when there is nothing to bring. */
+export async function broughtSummary(rt: Pick<ShellRuntime, "call">, threadId: string): Promise<string | null> {
+  try {
+    const sum = (await rt.call("chat.transcript.summary", { threadId })) as { summary?: string };
+    const msgs = (await rt.call("chat.messages.list", { threadId })) as { messages?: Array<{ body: string; author: { kind: string } }> };
+    const last = (msgs.messages ?? []).filter((m) => m.body.trim() !== "").slice(-6).map((m) => `${m.author.kind === "agent" ? "Agent" : "Me"}: ${m.body.replace(/\s+/g, " ").slice(0, 400)}`);
+    const parts = [sum.summary?.trim() ? `Summary so far:\n${sum.summary.trim()}` : "", last.length > 0 ? `The last messages:\n${last.join("\n")}` : ""].filter((x) => x !== "");
+    return parts.length === 0 ? null : `I am bringing this conversation with me, so you can carry on from it.\n\n${parts.join("\n\n")}`;
+  } catch { return null; }
+}
+
 /** The place's doors over `act`. A thread that is a helper opens as the helper chat; a computer is found from its agent; a terminal on a computer is the open one or a new one. */
 export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: string) => string, say: (text: string) => void): Go {
   return {
     chat: (threadId) => act({ t: "chat", threadId }),
+    message: (threadId, messageId) => act({ t: "chat", threadId, focus: messageId }),
+    search: (query) => act({ t: "search", ...(query ? { q: query } : {}) }),
+    closeSearch: () => act({ t: "search-close" }),
     thread: (threadId) => {
       if (threadId.startsWith(LOCAL_PREFIX)) return;
       void rt.call("threads.get", { threadId }).then(
@@ -226,37 +269,40 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
     closeLayer: () => act({ t: "layer-close" }),
     closeTerminal: () => act({ t: "terminal-close" }),
     togglePane: () => act({ t: "pane" }),
+    openPane: () => act({ t: "pane-open" }),
     say,
   };
 }
 
 /** What the sidebar and the chat ask the place for. */
-export const chatsActions = (go: Go): ChatsActions => ({ openThread: go.chat, togglePane: go.togglePane, openAgentChat: go.agentChat, fillComposer: () => undefined });
+export const chatsActions = (go: Go, fill?: ComposerFill): ChatsActions => ({ openThread: go.chat, togglePane: go.togglePane, openPane: go.openPane, openAgentChat: go.agentChat, fillComposer: (text) => fill?.set(text) });
 
 /** The sidebar: its rows open in this place; Needs you and All agents are this place's own pages. */
 export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void): ChatsSidebarData {
   const base = sidebarData(rt, chatsActions(go));
-  return { ...base, nav: { ...base.nav, openNeedsYou: (taskId?: string) => go.needs(taskId), openAllAgents: () => go.allAgents(), ...(toggleSidebar ? { toggleSidebar } : {}) } };
+  return { ...base, nav: { ...base.nav, openNeedsYou: (taskId?: string) => go.needs(taskId), openAllAgents: () => go.allAgents(), openSearch: () => go.search(), ...(toggleSidebar ? { toggleSidebar } : {}) } };
 }
 
 /** The open chat: a face's page, a helper, the Computer chip, a channel's Connect sheet and the Waiting on line are all this place's doors. */
-export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string }): ConversationData {
-  const base = conversationData(rt, chatsActions(go), o.threadId, o.list);
+export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; fill?: ComposerFill; focus?: string }): ConversationData {
+  const base = conversationData(rt, chatsActions(go, o.fill), o.threadId, o.list, o.fill);
   return {
     ...base,
+    ...(o.focus ? { focus: o.focus } : {}),
     nav: {
-      ...base.nav, openAgent: (id: string) => go.agent(id), openThread: (id: string) => go.thread(id), togglePane: () => go.togglePane(),
+      ...base.nav, openAgent: (id: string) => go.agent(id), openThread: (id: string, messageId?: string) => (messageId ? go.message(id, messageId) : go.thread(id)), openSearch: (q: string) => go.search(q), togglePane: () => go.togglePane(),
       openBeside: (kind: string, id: string) => (kind === "computer" ? go.computerOfAgent(id) : base.nav.openBeside(kind, id)),
       openConnectOutsideAgent: (channelId: string) => go.connect(channelId),
     },
     toast: (text: string) => go.say(text),
+    ...(o.focus ? { focus: o.focus } : {}),
     waitingLine: createElement(WaitingLine, { screens: rt.screens, call: rt.call, threadId: o.threadId, agent: o.nameOf(o.leadId) }),
   };
 }
 
 /** The agent's pane: its Computer tab pops the computer out and opens a terminal on it, its Threads tab opens a helper as the helper chat. */
-export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent): ChatRightPaneData {
-  const base = paneData(rt, chatsActions(go), threadId, agent);
+export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent, fill?: ComposerFill): ChatRightPaneData {
+  const base = paneData(rt, chatsActions(go, fill), threadId, agent);
   return {
     ...base,
     agent,

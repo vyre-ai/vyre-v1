@@ -5,6 +5,7 @@
 // with the mode, model and engine this module saved for its agents. Events are the manifest's, with the caller as `by`.
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
+import { noteHandoff } from "../context.ts";
 import { actorOf, boundEngine, ensure, mintId, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 
@@ -193,6 +194,13 @@ export async function switchEngine(
   const from = saved?.engine ?? agent.model ?? "default";
   engine.setAgent(input.threadId, agentId, { model: input.model, ...(accountRef === undefined ? {} : { accountRef }) });
   saveState(ctx, input.threadId, agentId, { model: input.model, provider, engine: input.driver, effort: input.effort ?? saved?.effort ?? null, accountRef: accountRef ?? null });
+  // A real handoff: bring the rolling summary up to date, then tell the new engine's first turn where it is taking over from.
+  let summary = "";
+  try {
+    await ctx.call("chat.transcript.summarize", { threadId: input.threadId, idempotencyKey: `switch:${ctx.trace.traceId}` });
+    summary = String(((await ctx.call("chat.transcript.summary", { threadId: input.threadId })) as { summary?: string }).summary ?? "");
+  } catch { /* a switch without a summary still carries the recent turns */ }
+  noteHandoff(input.threadId, `This chat was running on ${from} and moved to ${to}. Carry on as the same agent and do not mention the move unless asked.${summary ? `\nSummary of the chat so far:\n${summary}` : ""}\nThe latest turns follow word for word.`);
   const by = actorOf(ctx);
   ctx.emit("turn.engine_switched", input.threadId, { threadId: input.threadId, agentId, from, to: input.driver, handoffTurns, by });
   ctx.emit("agent.model_changed", input.threadId, { threadId: input.threadId, agentId, model: input.model, provider, by });

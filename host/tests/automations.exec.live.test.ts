@@ -150,7 +150,7 @@ test("a step is authorized when it runs: a person suspended while their Run wait
 
 // members.remove cannot remove a person of the seeded Space yet: it unassigns the roles by the names the seed stores, and access.roles.unassign wants rol_ ids (reported to the lead). The refusal of a removed
 // person is proven below on the executor itself (runs.queue.test.ts) until then; this is the booted version, a todo that runs and prints.
-test("a step is authorized when it runs: a person removed while their Run waits has the Run fail by name", { todo: "members.remove refuses a seeded person (access.roles.unassign roleId pattern)" }, () =>
+test("a step is authorized when it runs: a person removed while their Run waits has the Run fail by name", () =>
   lostAccessMidRun("removed", async (d) => {
     const preview = await ok(d, "/v1/members/remove_preview", { personId: "usr_noah" });
     const items = preview["items"] as { kind: string; defaultAction: string; options: string[] }[];

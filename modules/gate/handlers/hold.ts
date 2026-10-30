@@ -55,6 +55,7 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   if (input.actingFor) hold.actingFor = input.actingFor;
   if (input.runId) hold.runId = input.runId;
   if (input.threadId) hold.threadId = input.threadId;
+  ctx.db.run("UPDATE gate_holds SET result = NULL WHERE result IS NOT NULL AND expires_at < ?", ctx.now());   // an answer nobody collected is not kept past its hold
   insertHold(ctx.db, hold);
 
   let taskId: string;
@@ -96,8 +97,8 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
 // ---- reads ----
 
 export async function effectiveRuleOf(ctx: GateCtx, input: In): Promise<unknown> {
-  const e = effectiveRule(ctx.db, input.principal as PrincipalRef, input.act);
-  return { hold: e.hold, reason: e.reason, approvers: e.approvers, peopleOnly: e.peopleOnly, afterHours: e.afterHours, onTimeout: e.onTimeout, sources: e.sources };
+  const e = effectiveRule(ctx.db, input.principal as PrincipalRef, input.act, undefined, input.adminOnly === true);
+  return { hold: e.hold, adminRule: e.adminRule, reason: e.reason, approvers: e.approvers, peopleOnly: e.peopleOnly, afterHours: e.afterHours, onTimeout: e.onTimeout, sources: e.sources };
 }
 
 export async function actsList(_ctx: GateCtx, _input: In): Promise<unknown> {
@@ -119,6 +120,15 @@ export async function holdsList(ctx: GateCtx, input: In): Promise<unknown> {
     (!input.states || (input.states as string[]).includes(h.state)) && (!input.act || h.act === input.act) && (!input.runId || h.runId === input.runId) && mayHandle(ctx, h));
   const p = page(all, input.cursor, input.limit);
   return clean({ holds: p.rows.map(holdOut), next: p.next, total: p.total });
+}
+
+/** System: the answer of an approved call, handed to the engine once and cleared. A hold past its expiry keeps nothing. */
+export async function resultTake(ctx: GateCtx, input: In): Promise<unknown> {
+  if (!isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "Only the server reads this.", { reason: "system_only" });
+  const h = getHold(ctx, input.holdId);
+  const result = ctx.now() <= h.expiresAt ? h.result : undefined;
+  if (h.result !== undefined) ctx.db.run("UPDATE gate_holds SET result = NULL WHERE id = ?", h.id);
+  return result === undefined ? { found: false } : { found: true, result };
 }
 
 export async function holdsGet(ctx: GateCtx, input: In): Promise<unknown> {

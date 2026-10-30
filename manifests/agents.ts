@@ -11,9 +11,10 @@
 //   CapabilityDef has no such field, so the computers and terminal capabilities do not carry it.
 import { atool, create, defineManifest, ev, field, list, read, rtype, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, versionRow } from './_common.ts';
+import { pluginCapabilities, pluginEvents, pluginScreens } from './_agents-plugins.ts';
 
 const agentStatus = t.enm('awake', 'working', 'asleep', 'paused');
-const captureMode = t.enm('propose', 'auto_low_risk', 'off');
+const captureMode = t.enm('auto', 'propose', 'auto_low_risk', 'off');
 const limits = t.obj({
   runCostMicros: t.opt(t.int()), dayCostMicros: t.opt(t.int()), monthCostMicros: t.opt(t.int()), turnsPerDay: t.opt(t.int()), minutesPerRun: t.opt(t.int()), tokensPerDay: t.opt(t.int()),
 });
@@ -21,8 +22,11 @@ const agentRow = t.obj({
   agentId: id.agent, name: t.str(), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
   status: agentStatus, pausedReason: t.opt(t.str()), pausedBy: t.opt(t.str()), ownerId: id.user, folderId: id.folder,
   model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
+  accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
+  memoryKey: t.opt(t.str({ description: 'Vault handle that pays for this agent memory upkeep; never a value', examples: ['#Team_Anthropic_Key'] })),
   toolsAllowed: t.arr(t.str()), toolsDenied: t.arr(t.str()), vaultKeys: t.arr(t.str()), limits, captureMode, hasComputer: t.bool(), templateVersion: t.int(),
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
+  teammateOf: t.opt(id.project),
 });
 const routineRow = t.obj({
   routineId: t.id('rtn'), agentId: id.agent, title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'], description: 'The schedule of a schedule routine; a watcher has none' })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.bool(),
@@ -37,8 +41,17 @@ const suggestionRow = t.obj({
 });
 const agentFile = t.enm('AGENT.md', 'agent.toml');
 const target = { agentId: id.agent };
-const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), status: t.opt(t.arr(agentStatus)), ...pageIn };
+// A teammate is an agent made for one project (owner ruling 20 Oct): the Agents page leaves it out unless asked, and the project's Teammates tab lists it.
+const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), status: t.opt(t.arr(agentStatus)), teammates: t.opt(t.enm('hide', 'include', 'only')), projectId: t.opt(id.project), ...pageIn };
 const effort = t.enm('low', 'medium', 'high', 'max');
+// Skills (CHAT-DESIGN ruling 4): SKILL.md files in three tiers. builtin ships with Vyre (agent/skills), space is the Space library an admin keeps, agent is the agent's own skills/ folder
+// (and what a plugin installed into one agent brings). The turn shows an index of name and one line; load_skill returns the full text.
+const skillRow = t.obj({
+  name: t.str({ examples: ['deploy-checks'] }), description: t.str(), tier: t.enm('builtin', 'space', 'agent'),
+  source: t.str({ description: 'vyre, upload, agent, plugin:<name> or kit:<key>', examples: ['upload'] }), agentId: t.opt(id.agent),
+  system: t.bool(), enabled: t.bool(), bytes: t.int({ minimum: 0 }), updatedAt: t.opt(t.ts()),
+});
+const skillFiles = t.rec(t.str());
 
 export default defineManifest({
   id: 'agents',
@@ -81,6 +94,9 @@ export default defineManifest({
     read('agents.get', 'Read one agent: record, status, limits and the effective configuration', {
       in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], tool: 'agents', label: 'check', errors: ['validation.not_found'],
     }),
+    read('agents.memory_key.get', 'The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)', {
+      in: target, out: { memoryKey: t.opt(t.str({ description: 'Vault handle, never a value' })), ownerId: id.user }, on: ['agent', '/agentId'], label: 'check', errors: ['validation.not_found'],
+    }),
     read('agents.status', 'Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who', {
       in: target, out: { status: agentStatus, since: t.ts(), reason: t.opt(t.str()), by: t.opt(t.str()) }, on: ['agent', '/agentId'], tool: 'agents',
     }),
@@ -97,6 +113,7 @@ export default defineManifest({
       in: {
         name: t.str({ examples: ['Intake'] }), role: t.opt(t.str()), face: t.opt(t.str()), model: t.opt(t.str()), ownerId: t.opt(id.user), computer: t.opt(t.bool()),
         templateKey: t.opt(t.str()), tools: t.opt(t.obj({ allowed: t.arr(t.str()), denied: t.arr(t.str()) })), limits: t.opt(limits),
+        projectId: t.opt(id.project),
       },
       out: { agent: agentRow }, perm: 'agents.create', emits: ['agent.created'], tool: 'agents', offline: 'queue', cli: 'vyre agents create',
       errors: ['validation.duplicate'],
@@ -198,11 +215,41 @@ export default defineManifest({
     read('agents.guide.get', 'The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md', {
       out: { version: t.str({ examples: ['1.0.0'] }), path: t.lit('.vyre/guide.md'), body: t.str() }, perm: null, level: 'view', tool: 'agents',
     }),
+    read('agents.builtin_skill.get', 'Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer', {
+      in: { name: t.str({ examples: ['focus-records'], pattern: '^[a-z][a-z0-9-]{0,63}$' }) }, out: { name: t.str(), description: t.str(), body: t.str() },
+      perm: null, level: 'view', tool: 'agents', errors: ['validation.not_found'],
+    }),
     read('agents.builtin_skills.list', 'Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces', {
       out: { skills: t.arr(t.obj({ key: t.str({ examples: ['working_in_vyre'] }), title: t.str(), version: t.str({ examples: ['1.0.0'] }), summary: t.str() })) }, perm: null, level: 'view', tool: 'agents',
     }),
+    read('skills.list', 'Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones', {
+      in: { agentId: t.opt(id.agent), includeOff: t.opt(t.bool()) }, out: { skills: t.arr(skillRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'skills_list', agent: { planMode: 'allowed' },
+    }),
+    read('skills.load', 'Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in', {
+      in: { name: t.str({ examples: ['deploy-checks'] }), agentId: t.opt(id.agent) },
+      out: { skill: t.obj({ name: t.str(), description: t.str(), tier: t.enm('builtin', 'space', 'agent'), source: t.str(), body: t.str(), files: t.arr(t.obj({ path: t.str(), text: t.str() })) }) },
+      perm: null, level: 'view', tool: 'meta', mcpName: 'load_skill', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
+    }),
+    write('skills.add', 'Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)', {
+      in: {
+        text: t.str({ description: 'The SKILL.md text' }), name: t.opt(t.str({ description: 'Used when the front matter has no name' })), agentId: t.opt(id.agent),
+        source: t.opt(t.str({ description: 'upload (default), plugin:<name> or kit:<key>' })), files: t.opt(skillFiles),
+      },
+      out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', risk: 'medium', idem: 'key', emits: ['skill.added'], audit: 'always', tool: 'agents', mcpName: 'skills_add', errors: ['validation.too_large'],
+    }),
+    write('skills.remove', 'Remove a skill from the Space library, or from one agent', {
+      in: { name: t.str(), agentId: t.opt(id.agent) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.removed'], audit: 'always', tool: 'agents', mcpName: 'skills_remove',
+    }),
+    ...pluginCapabilities,
+    write('skills.set_enabled', 'Turn a Space or agent skill off or on without removing it', {
+      in: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool() }, out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.changed'], audit: 'always', tool: 'agents', mcpName: 'skills_set_enabled', errors: ['validation.not_found'],
+    }),
   ],
   events: [
+    ev('skill.added', 'A skill was added to the Space library or to one agent', { p: { name: t.str(), tier: t.enm('space', 'agent'), agentId: t.opt(id.agent), source: t.str(), by: t.str() }, subject: ['entity', '/name'] }),
+    ev('skill.removed', 'A skill was removed from the Space library or from one agent', { p: { name: t.str(), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/name'] }),
+    ...pluginEvents,
+    ev('skill.changed', 'A skill was turned off or on', { p: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool(), by: t.str() }, subject: ['entity', '/name'] }),
     ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, folderId: t.str(), templateVersion: t.int() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),
     ev('agent.paused', 'An agent was paused', { p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is paused' } }),
     ev('agent.resumed', 'An agent was resumed', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
@@ -274,7 +321,7 @@ export default defineManifest({
       q: {
         agent: ['agents.get', { agentId: '/state/agentId' }, true], summary: ['agents.summary', { agentId: '/state/agentId' }, true],
         routines: ['agents.routines.list', { agentId: '/state/agentId' }, true], suggestions: ['agents.suggestions.list', { agentId: '/state/agentId' }, true],
-        config: ['agents.config.get', { agentId: '/state/agentId' }, true], chats: ['threads.list', {}, true],
+        config: ['agents.config.get', { agentId: '/state/agentId' }, true], chats: ['threads.list', {}, true], accounts: ['engine.accounts.list', {}, true],
       },
       a: {
         chat: ['chat.start', {}], setRoleLine: ['agents.role_line.set', { agentId: '/state/agentId' }], update: ['agents.update', { agentId: '/state/agentId' }],
@@ -296,6 +343,7 @@ export default defineManifest({
       },
       empty: 'No agents yet', primary: 'New agent', needs: ['console.access'],
     }),
+    ...pluginScreens,
     screen('console.agent-template', 'console', 'ui:ConsoleAgentTemplate', {
       q: { template: ['agents.template.get', {}, true], preview: ['agents.template.preview', { scope: '/state/scope', agentId: '/state/agentId' }, false], suggestions: ['agents.suggestions.list', { kind: '/state/kind' }, true] },
       a: { apply: ['agents.template.apply', { scope: '/state/scope', agentId: '/state/agentId' }, 'Apply the template?'], accept: ['agents.suggestion.accept', { suggestionId: '/state/suggestionId' }], dismiss: ['agents.suggestion.dismiss', { suggestionId: '/state/suggestionId' }] },

@@ -3,7 +3,7 @@
 // DECISION: members.accept creates the person and session, then stores the wrapped keys by calling identity.keys_put; it emits member.joined and principal.created itself.
 // DECISION: sign-in policy (second-factor floor, SSO required, allowed methods) is written as policies of kind sign_in through members.sign_in_policy.set, which emits policy.changed; the settings rows below mirror the values for Cmd-F search.
 import { defineManifest, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, email, ok, pageIn, pageOut, principalRef, url } from './_common.ts';
+import { id, email, ok, pageIn, pageOut, principalRef } from './_common.ts';
 
 const V = { level: 'view' } as const;
 const deviceClass = t.enm('desktop', 'phone', 'web', 'extension', 'daemon');
@@ -19,7 +19,8 @@ const inviteRow = t.obj({
 });
 const removalKind = t.enm('routines', 'automations', 'agents', 'records', 'files', 'channels', 'projects', 'mailbox_connections', 'vault_mine', 'private_chats', 'memory_from_you');
 const removalAction = t.enm('pause', 'reassign', 'revoke', 'export', 'retain', 'keep', 'delete');
-const ssoRow = t.obj({ key: t.enm('google', 'microsoft', 'okta'), title: t.str(), issuer: url, clientId: t.str(), clientSecretHandle: id.handle, enabled: t.bool(), domainHint: t.opt(t.str()) });
+const ssoRow = t.obj({ key: t.enm('google', 'microsoft', 'okta'), title: t.str(), issuer: t.str({ maxLength: 300 }), clientId: t.str(), clientSecretHandle: id.handle, enabled: t.bool(), domainHint: t.opt(t.str()) });
+const githubApp = t.obj({ clientId: t.opt(t.str()), secretSet: t.bool(), source: t.enm('env', 'space', 'none'), callbackUrl: t.str(), createUrl: t.str() });
 const policy = t.obj({ secondFactor: t.enm('off', 'required'), requireSso: t.bool(), allowPassword: t.bool(), allowGithub: t.bool() });
 
 export default defineManifest({
@@ -73,6 +74,9 @@ export default defineManifest({
     read('members.second_factor.report', 'Who has a second factor and who does not (when the floor is on, the ones locked out soon)', {
       ...V, in: { ...pageIn }, out: { people: t.arr(t.obj({ person: principalRef, name: t.str(), factors: t.arr(t.enm('totp', 'passkey')) })), ...pageOut }, perm: 'policy.manage', tool: 'engineer', team: true,
     }),
+    read('members.sign_in_github.get', 'The GitHub sign-in app: the client id, whether the secret is set (never the secret), where it comes from, and the callback address to register at GitHub', { ...V, in: {}, out: { github: githubApp }, perm: 'policy.manage' , tool: 'engineer', team: true }),
+    write('members.sign_in_github.set', 'Turn on GitHub sign-in: the OAuth app client id and secret; the secret goes into the Vault as a Space item and is never shown again', { ...V, in: { clientId: t.str(), clientSecret: t.opt(t.str()) }, out: { github: githubApp }, perm: 'policy.manage', gate: { act: 'signin_change', when: "actor.kind != 'person'" }, emits: ['policy.changed'], audit: 'always', risk: 'high' , tool: 'engineer', team: true }),
+    write('members.sign_in_github.clear', 'Forget the GitHub sign-in app set in the app (a server environment setting stays)', { ...V, in: {}, out: { github: githubApp }, perm: 'policy.manage', gate: { act: 'signin_change', when: "actor.kind != 'person'" }, emits: ['policy.changed'], audit: 'always', risk: 'high' , tool: 'engineer', team: true }),
     read('members.sso.list', 'List SSO providers set for this Space', { ...V, in: {}, out: { providers: t.arr(ssoRow) }, perm: 'policy.manage', tool: 'engineer', team: true }),
     write('members.sso.set', 'Add or change an OIDC provider (Google, Microsoft, Okta); the client secret is a Vault item named by handle', { ...V, in: { provider: ssoRow }, out: { provider: ssoRow }, perm: 'policy.manage', emits: ['policy.changed'], audit: 'always', tool: 'engineer', team: true }),
     write('members.sso.remove', 'Remove an SSO provider', { ...V, in: { key: t.enm('google', 'microsoft', 'okta') }, out: ok, perm: 'policy.manage', emits: ['policy.changed'], audit: 'always', tool: 'engineer', team: true }),
@@ -88,7 +92,7 @@ export default defineManifest({
     screen('join.checklist', 'join', 'ui:JoinChecklist', { q: { checklist: ['home.checklist', {}, true] }, a: { dismiss: ['home.dismiss_checklist', {}] }, empty: 'All set' }),
     screen('members.invite_sheet', 'console', 'ui:InviteSheet', { slot: 'sheet', needs: ['members.invite'], q: { invites: ['members.invites.list', { state: '/state/state' }] }, a: { create: ['members.invites.create', { role: '/state/role', email: '/state/email', groups: '/state/groups', agents: '/state/agents', projects: '/state/projects', channels: '/state/channels', expiresInDays: '/state/expiresInDays' }], revoke: ['members.invites.revoke', { inviteId: '/state/inviteId' }, 'Revoke this invite?'] }, empty: 'No open invites', primary: 'Invite a person' }),
     screen('members.remove_wizard', 'console', 'ui:RemoveWizard', { slot: 'sheet', needs: ['members.remove'], q: { preview: ['members.remove_preview', { personId: '/state/personId' }] }, a: { remove: ['members.remove', { personId: '/state/personId', plan: '/state/plan', reason: '/state/reason' }, 'Remove this person and apply the plan?'], suspend: ['members.suspend', { personId: '/state/personId' }] } }),
-    screen('members.sign_in_policy', 'console', 'ui:ConsoleSignInPolicy', { needs: ['policy.manage'], q: { policy: ['members.sign_in_policy.get'], sso: ['members.sso.list'], report: ['members.second_factor.report'] }, a: { set: ['members.sign_in_policy.set', { policy: '/state/policy' }], save_sso: ['members.sso.set', { provider: '/state/provider' }], remove_sso: ['members.sso.remove', { key: '/state/key' }, 'Remove this provider?'], test_sso: ['members.sso.test', { key: '/state/key' }] } }),
+    screen('members.sign_in_policy', 'console', 'ui:ConsoleSignInPolicy', { needs: ['policy.manage'], q: { policy: ['members.sign_in_policy.get'], github: ['members.sign_in_github.get'], sso: ['members.sso.list'], report: ['members.second_factor.report'] }, a: { set: ['members.sign_in_policy.set', { policy: '/state/policy' }], save_github: ['members.sign_in_github.set', { clientId: '/state/clientId', clientSecret: '/state/clientSecret' }], clear_github: ['members.sign_in_github.clear', {}, 'Forget the GitHub app?'], save_sso: ['members.sso.set', { provider: '/state/provider' }], remove_sso: ['members.sso.remove', { key: '/state/key' }, 'Remove this provider?'], test_sso: ['members.sso.test', { key: '/state/key' }] } }),
   ],
 
   settings: [

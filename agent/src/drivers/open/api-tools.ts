@@ -16,6 +16,10 @@ export interface ApiToolsDeps {
   system(spec: SessionSpec, input: TurnInput): SystemBlock[] | Promise<SystemBlock[]>;
   /** The agent's allow and deny lists. */
   rules?(agentId: string): AgentRules | undefined;
+  /** Read what decides a turn's tool set (the agent's lists, the thread, the asker's level on an Ask pane's object) before the set is built or a tool runs. Called once per turn. */
+  prepare?(turn: { threadId: string; agentId: string; asker: string; turnId: string }): Promise<void>;
+  /** Tools this turn has besides the catalog (an agent's plugin MCP tools). Listed to the model after the catalog's own; the tool session finds them again by name. */
+  extra?(ctx: ToolCtx): Promise<readonly ToolDef[]>;
   /** What the thread is (kind, Ask scope, plan mode). Default: a plain chat. */
   thread?(threadId: string): Omit<ThreadFacts, "threadId">;
 }
@@ -44,12 +48,16 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
     async context(spec, input) {
       const account = (spec as SessionSpec & { account?: { provider?: string } }).account;
       if (account?.provider) providerOf.set(input.threadId, account.provider);
+      // The system prompt first: building it may read what decides the tool set (the agent's lists, the thread, the asker's level on an Ask pane's object).
+      await d.prepare?.({ threadId: input.threadId, agentId: input.agent.id, asker: input.asker, turnId: input.turnId });
+      const system = await d.system(spec, input);
       const c = ctxFor(input.threadId, input.agent.id, input.asker, input.turnId);
       const set = d.session.toolsFor(c);
       const loaded = d.session.loaded(input.threadId);
-      const tools = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name))].map(view);
-      return { system: await d.system(spec, input), tools };
+      const extra = d.extra ? await d.extra(c).catch(() => []) : [];
+      const tools = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name)), ...extra].map(view);
+      return { system, tools };
     },
-    runner: toolRunnerFrom((call, ctx) => d.session.call(ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), call.name, call.input)),
+    runner: toolRunnerFrom(async (call, ctx) => { await d.prepare?.(ctx); return d.session.call(ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), call.name, call.input); }),
   };
 }

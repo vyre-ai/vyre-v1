@@ -118,6 +118,7 @@ export function instructionsLine(lines: number): string {
 }
 
 export const CAPTURE_WORDS: Record<AgentRow["captureMode"], string> = {
+  auto: "Learns on its own, you can undo",
   propose: "Proposes facts for you to accept",
   auto_low_risk: "Saves low-risk facts on its own",
   off: "Does not capture memory",
@@ -125,6 +126,42 @@ export const CAPTURE_WORDS: Record<AgentRow["captureMode"], string> = {
 
 export function accountLine(a: AgentRow): string {
   return a.accountPolicy === "key" ? `Runs on the key ${a.accountKey ?? "set for it"}` : "Runs on the account of whoever asks";
+}
+
+/* ---------- AI accounts: the chat key, the ordered fallback list and the memory key ---------- */
+
+export type AccountChoice = CapMap["engine.accounts.list"]["out"]["accounts"][number];
+
+/** The words for an account in a list: its title, and "yours" or "shared" so two keys of one provider can be told apart. */
+export function accountName(accounts: readonly AccountChoice[], ref: string): string {
+  const a = accounts.find((x) => x.ref === ref);
+  return a ? `${a.title}${a.mine ? " (yours)" : " (shared)"}` : `${ref} (not available)`;
+}
+
+/** Accounts an agent may be pinned to: every account that works or can be tried; one that is signed out says so in its name. */
+export function accountOptions(accounts: readonly AccountChoice[], taken: readonly string[] = []): AccountChoice[] {
+  return accounts.filter((a) => !taken.includes(a.ref));
+}
+
+export const STATUS_NOTE: Readonly<Record<AccountChoice["status"], string>> = { ok: "", untested: "", expired: "Sign in again", failed: "Failing" };
+
+/** One step in the ordered fallback list: move the entry at `i` up (-1) or down (+1). Out of range leaves the list as it was. */
+export function moveRef(list: readonly string[], i: number, by: -1 | 1): string[] {
+  const j = i + by;
+  if (i < 0 || i >= list.length || j < 0 || j >= list.length) return [...list];
+  const out = [...list];
+  const x = out[i] as string;
+  out[i] = out[j] as string;
+  out[j] = x;
+  return out;
+}
+
+export function chatKeyNote(a: Pick<AgentRow, "accountPolicy" | "accountKey">, accounts: readonly AccountChoice[]): string {
+  return a.accountPolicy === "key" && a.accountKey ? `Always ${accountName(accounts, a.accountKey)}` : "The account of whoever asks, then the fallbacks below";
+}
+
+export function memoryKeyNote(a: Pick<AgentRow, "memoryKey">, accounts: readonly AccountChoice[]): string {
+  return a.memoryKey ? `${accountName(accounts, a.memoryKey)} pays for this agent's memory upkeep` : "The Space memory key; with none, upkeep follows rules only";
 }
 
 export interface LimitRow { key: string; label: string; value: string }

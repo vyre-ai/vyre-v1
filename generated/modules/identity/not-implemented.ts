@@ -22,6 +22,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "identity.reset_complete": async (ctx) => { throw new VyreErr(notImplemented("identity.reset_complete", ctx.trace)); },
   "identity.reset_preview": async (ctx) => { throw new VyreErr(notImplemented("identity.reset_preview", ctx.trace)); },
   "identity.reset_start": async (ctx) => { throw new VyreErr(notImplemented("identity.reset_start", ctx.trace)); },
+  "identity.security.get": async (ctx) => { throw new VyreErr(notImplemented("identity.security.get", ctx.trace)); },
   "identity.sign_in": async (ctx) => { throw new VyreErr(notImplemented("identity.sign_in", ctx.trace)); },
   "identity.sign_in_options": async (ctx) => { throw new VyreErr(notImplemented("identity.sign_in_options", ctx.trace)); },
   "identity.sign_out": async (ctx) => { throw new VyreErr(notImplemented("identity.sign_out", ctx.trace)); },

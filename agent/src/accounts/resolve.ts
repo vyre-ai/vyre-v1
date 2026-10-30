@@ -40,6 +40,8 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
       for (const a of [...own.filter((a) => a.kind === "subscription"), ...own.filter((a) => a.kind === "api_key")]) add(a.ref, payerReason);
     }
   }
+  // The agent's own ordered fallback list comes before the Space's backups; a task keeps to its step key and the Space backups.
+  if (req.trigger !== "task") for (const f of req.agent.accountFallback ?? []) add(f, "backup_key");
   for (const b of req.backupRefs) add(b, "backup_key");
   return out;
 }

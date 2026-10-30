@@ -10,10 +10,23 @@ export type ComposerSymbol = (typeof COMPOSER_SYMBOLS)[number];
 export interface ComposerChip {
   kind: string;
   name: string;
+  /** What the chip points at (a record, file, folder or channel id), when the list that offered it knew. */
+  id?: string;
 }
 
+/** A file in the tray. `file` is the browser File (or any Blob-like) behind it, so the sender can read the bytes; a name alone is a file the caller already holds. */
 export interface ComposerAttachment {
   name: string;
+  file?: unknown;
+  size?: number;
+  mime?: string;
+}
+
+/** Something linked from the text with [[ ]] : what it is, which one, and the words shown. */
+export interface ComposerRef {
+  kind: string;
+  id: string;
+  title: string;
 }
 
 export interface ComposerShellProps {

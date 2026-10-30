@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 const runtime = path.resolve(process.argv[2] ?? "");
 const need = [
   "host/src/daemon/main.ts", "sandbox/src/seatbelt.ts", "sandbox/src/index.ts", "modules/engine/sandbox.ts", "modules/engine/sandbox-default.ts", "modules/engine/mcp-bridge.ts", "modules/engine/session.ts",
-  "agent/src/drivers/cli/launcher.ts", "agent/src/drivers/cli/claude.ts", "agent/src/drivers/cli/codex.ts", "package.json", "node_modules",
+  "agent/src/drivers/cli/launcher.ts", "agent/src/drivers/cli/claude.ts", "agent/src/drivers/cli/codex.ts", "docs/frozen/agent-tools.md", "perf/budgets.json", "images/agent-computer/seccomp.json", "package.json", "node_modules",
 ];
 const missing = need.filter((f) => !fs.existsSync(path.join(runtime, f)));
 if (missing.length) { console.error(`missing from the bundle: ${missing.join(", ")}`); process.exit(1); }

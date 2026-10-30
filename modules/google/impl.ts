@@ -18,7 +18,12 @@ export const handlers: Record<string, Handler> = {
   "google.dwd.setup": (ctx, i) => h.dwdSetup(ctx, i),
   "google.dwd.probe": (ctx, i) => h.dwdProbe(ctx, i),
   "google.dwd.members": (ctx, i) => h.dwdMembers(ctx, i),
+  "google.dwd.my_account": (ctx) => h.dwdMyAccount(ctx),
   "google.dwd.set_excluded": (ctx, i) => h.dwdSetExcluded(ctx, i),
+  "google.directory.list": (ctx, i) => h.directoryList(ctx, i),
+  "google.directory.import": (ctx, i) => h.directoryImport(ctx, i),
+  "google.dwd.sync_members": (ctx, i) => h.syncMembers(ctx, i),
+  "google.dwd.map_member": (ctx, i) => h.dwdMapMember(ctx, i),
   "google.dwd.disable": (ctx) => h.dwdDisable(ctx),
   "google.health": (ctx, i) => h.health(ctx, i),
   "google.receive_push": async (ctx, i) => { internalOnly(ctx, "google.receive_push"); return h.receivePush(ctx, i); },
@@ -75,8 +80,21 @@ export const handlers: Record<string, Handler> = {
   "google.meet.subscribe": (ctx, i) => h.meetSubscribe(ctx, i),
 };
 
-export const projections = { inline, consumers };
-export { codecs, inline, consumers };
+/** A person who has just joined is matched to their own mailbox by the address they were invited at, so their mail and calendar show with no admin step. Not set up, or no match: nothing happens, and the admin's "Match to..." line stays. */
+const joinConsumers = {
+  "google.match_on_join": {
+    on: ["member.joined"],
+    async run(ctx: Ctx, _event: unknown): Promise<string[]> {
+      try { await h.syncMembers(ctx as never, {}); } catch { /* not connected yet: the admin matches later */ }
+      return [];
+    },
+  },
+};
+
+const consumersAll = { ...consumers, ...joinConsumers };
+export const projections = { inline, consumers: consumersAll };
+export { codecs, inline };
+export { consumersAll as consumers };
 
 /** Where the host registers its Google seam at boot (ruling 31): the loader reads this export. */
 export const hostSeams: SeamSetters = { setGoogleHost };

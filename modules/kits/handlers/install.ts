@@ -13,6 +13,7 @@ import { mintUuid } from "../../../lib/ids.ts";
 import { fail as hostFail } from "../../../host/src/routes/errors.ts";
 import { registry } from "../../../generated/registry.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
+import { parseSkill } from "../../../lib/skill-md.ts";
 
 export type KitChannel = "stable" | "beta";
 export type ContentType = "ui" | "structure" | "steps" | "tools";
@@ -21,6 +22,17 @@ export interface KitStep {
   cap: string;
   input: Record<string, unknown>;
 }
+
+/**
+ * Shorthand an item may carry instead of an apply step (ruling 5: a Kit is a way of working, so it brings skills, plugins, outside tools and agents in one install). checkKit turns each into the
+ * ordinary apply and undo steps, so install, update, rollback, the install sheet and the sheet check treat them like any other step. At most one per item, and not with an explicit apply.
+ *   skill        { text, files? }                                  a SKILL.md for the Space library
+ *   marketplace  { name, source, ref? }                            a plugin marketplace, added and allowed
+ *   plugin       { marketplace, name, scope?, agentId?, config? }  a plugin from a marketplace; a secret option is a Vault handle
+ *   connection   { name, url? | command? args? , headers?, env? }  an MCP server by URL or by command (runs in the sandbox)
+ *   agent        { name, role? }                                   an agent (a rollback leaves it, as it may hold work)
+ */
+export const SHORTHANDS = ["skill", "marketplace", "plugin", "connection", "agent"] as const;
 
 export interface KitItem {
   /** unique inside the Kit; the same key in a later version means the same item */
@@ -212,6 +224,52 @@ export const MAX_ITEMS = 500;
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
+const txt = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
+const strMap = (v: unknown): v is Record<string, string> => isObj(v) && Object.values(v).every((x) => typeof x === "string");
+
+/** The apply and undo steps one shorthand stands for. Idempotency keys come from the Kit and the item, so installing twice or rolling back and installing again is the same call. */
+function shorthand(kind: (typeof SHORTHANDS)[number], v: unknown, kit: string, item: string, at: string, bad: (path: string, message: string) => void): { apply: KitStep; undo?: KitStep } | null {
+  const key = `kit.${kit}.${item}`;
+  if (!isObj(v)) { bad(at, `${kind} is an object`); return null; }
+  if (kind === "skill") {
+    if (!txt(v.text)) { bad(`${at}.text`, "the SKILL.md text"); return null; }
+    const parsed = parseSkill(v.text);
+    if (!parsed.ok) { bad(`${at}.text`, parsed.problem); return null; }
+    if (v.files !== undefined && !strMap(v.files)) { bad(`${at}.files`, "a map of path to text"); return null; }
+    return {
+      apply: { cap: "skills.add", input: { text: v.text, ...(v.files ? { files: v.files } : {}), source: `kit:${kit}`, idempotencyKey: key } },
+      undo: { cap: "skills.remove", input: { name: parsed.skill.name, idempotencyKey: `${key}.undo` } },
+    };
+  }
+  if (kind === "marketplace") {
+    if (!txt(v.name) || !txt(v.source)) { bad(at, "a marketplace has a name and a source (an https git address or a folder on the server)"); return null; }
+    return {
+      apply: { cap: "plugins.marketplace.add", input: { source: v.source, ...(txt(v.ref) ? { ref: v.ref } : {}), idempotencyKey: key } },
+      undo: { cap: "plugins.marketplace.remove", input: { name: v.name, idempotencyKey: `${key}.undo` } },
+    };
+  }
+  if (kind === "plugin") {
+    const scope = v.scope === undefined ? "space" : v.scope;
+    if (!txt(v.marketplace) || !txt(v.name) || (scope !== "space" && scope !== "agent")) { bad(at, "a plugin has a marketplace, a name and a scope of space or agent"); return null; }
+    if (v.config !== undefined && !strMap(v.config)) { bad(`${at}.config`, "a map of option to value, where a secret is a Vault handle"); return null; }
+    if (scope === "agent" && !txt(v.agentId)) { bad(`${at}.agentId`, "the agent the plugin goes in"); return null; }
+    return {
+      apply: { cap: "plugins.install", input: { marketplace: v.marketplace, plugin: v.name, scope, ...(scope === "agent" ? { agentId: v.agentId } : {}), ...(v.config ? { config: v.config } : {}), idempotencyKey: key } },
+      undo: { cap: "plugins.uninstall", input: { name: v.name, scope, ...(scope === "agent" ? { agentId: v.agentId } : {}), idempotencyKey: `${key}.undo` } },
+    };
+  }
+  if (kind === "connection") {
+    if (!txt(v.name) || (txt(v.url) ? 1 : 0) + (txt(v.command) ? 1 : 0) !== 1) { bad(at, "a connection has a name and either a url or a command"); return null; }
+    if ((v.args !== undefined && !(Array.isArray(v.args) && v.args.every((a) => typeof a === "string"))) || (v.headers !== undefined && !strMap(v.headers)) || (v.env !== undefined && !strMap(v.env))) { bad(at, "args are a list of text, headers and env maps of text"); return null; }
+    return {
+      apply: { cap: "plugins.connection.add", input: { name: v.name, scope: "space", ...(txt(v.url) ? { url: v.url } : {}), ...(txt(v.command) ? { command: v.command } : {}), ...(v.args ? { args: v.args } : {}), ...(v.headers ? { headers: v.headers } : {}), ...(v.env ? { env: v.env } : {}), idempotencyKey: key } },
+      undo: { cap: "plugins.connection.remove", input: { name: v.name, scope: "space", idempotencyKey: `${key}.undo` } },
+    };
+  }
+  if (!txt(v.name)) { bad(at, "an agent has a name"); return null; }
+  return { apply: { cap: "agents.create", input: { name: v.name, ...(txt(v.role) ? { role: v.role } : {}), idempotencyKey: key } } };
+}
+
 export function forbiddenCap(cap: string): boolean {
   return FORBIDDEN.some((re) => re.test(cap));
 }
@@ -253,7 +311,13 @@ export function checkKit(raw: unknown): { kit: KitManifest; problems: [] } | { k
       if (!CONTENT.includes(it.content as ContentType)) bad(`${at}.content`, "ui, structure, steps or tools");
       if (typeof it.type !== "string" || !/^[a-z][a-z0-9_]{0,39}$/.test(it.type)) bad(`${at}.type`, "a type such as record_type or automation");
       if (typeof it.title !== "string" || it.title.trim() === "" || it.title.length > 120) bad(`${at}.title`, "a title of 1 to 120 characters");
-      const apply = stepOf(it.apply, `${at}.apply`), undo = stepOf(it.undo, `${at}.undo`);
+      let apply = stepOf(it.apply, `${at}.apply`), undo = stepOf(it.undo, `${at}.undo`);
+      const used = SHORTHANDS.filter((k) => it[k] !== undefined);
+      if (used.length > 1 || (used.length === 1 && it.apply !== undefined)) bad(at, `carries ${used.join(" and ")}${it.apply !== undefined ? " and an apply step" : ""}; use one`);
+      else if (used.length === 1) {
+        const made = shorthand(used[0]!, it[used[0]!], String(raw.key), key, `${at}.${used[0]}`, bad);
+        if (made) { apply = made.apply; if (made.undo) undo = made.undo; }
+      }
       if (it.recordType !== undefined && (typeof it.recordType !== "string" || !/^[a-z][a-z0-9_]*$/.test(it.recordType))) bad(`${at}.recordType`, "a record type name such as contact");
       const tools = strings(it.tools, `${at}.tools`, (s) => CAP.test(s) && !forbiddenCap(s), "capability names a Kit may use");
       const networkDomains = strings(it.networkDomains, `${at}.networkDomains`, (s) => HOST.test(s), "host names");
@@ -315,6 +379,12 @@ export interface InstallSheet {
   networkDomains: string[];
   vaultNames: string[];
   scripts: number;
+  /** What the Kit brings for agents, named so the person sees it before Install (ruling 5). */
+  skills: string[];
+  marketplaces: string[];
+  plugins: string[];
+  connections: string[];
+  agents: string[];
   problems: SheetProblem[];
 }
 
@@ -323,7 +393,15 @@ export interface SheetProblem { item: string; step: "apply" | "undo"; cap: strin
 /** Everything the Kit will touch, from its own manifest. Sorted, so the sheet is the same every time. */
 export function sheetOf(kit: KitManifest): InstallSheet {
   const tools = new Set<string>(), types = new Set<string>(), domains = new Set<string>(), vault = new Set<string>();
+  const skills = new Set<string>(), marketplaces = new Set<string>(), plugins = new Set<string>(), connections = new Set<string>(), agents = new Set<string>();
   for (const it of kit.items) {
+    const a = it.apply, i = a?.input ?? {};
+    if (a?.cap === "skills.add" && typeof i["text"] === "string") { const p = parseSkill(i["text"]); if (p.ok) skills.add(p.skill.name); }
+    if (a?.cap === "plugins.marketplace.add") marketplaces.add(String(i["source"]));
+    if (a?.cap === "plugins.install") plugins.add(`${String(i["plugin"])} from ${String(i["marketplace"] ?? i["marketplaceId"])}`);
+    if (a?.cap === "plugins.connection.add") connections.add(String(i["name"]));
+    if (a?.cap === "agents.create") agents.add(String(i["name"]));
+    for (const c of Object.values((i["config"] as Record<string, string> | undefined) ?? {})) if (/^#[A-Za-z0-9_]+/.test(c)) vault.add(c.split(".")[0]!);
     for (const t of it.tools ?? []) tools.add(t);
     if (it.apply) tools.add(it.apply.cap);
     if (it.undo) tools.add(it.undo.cap);
@@ -333,7 +411,8 @@ export function sheetOf(kit: KitManifest): InstallSheet {
   }
   for (const s of kit.scripts ?? []) for (const c of s.caps) tools.add(c);
   const sort = (s: Set<string>): string[] => [...s].sort();
-  return { tools: sort(tools), recordTypes: sort(types), networkDomains: sort(domains), vaultNames: sort(vault), scripts: (kit.scripts ?? []).length, problems: [] };
+  return { tools: sort(tools), recordTypes: sort(types), networkDomains: sort(domains), vaultNames: sort(vault), scripts: (kit.scripts ?? []).length,
+    skills: sort(skills), marketplaces: sort(marketplaces), plugins: sort(plugins), connections: sort(connections), agents: sort(agents), problems: [] };
 }
 
 export function contentsOf(kit: KitManifest): ContentType[] {

@@ -14,6 +14,53 @@ pub const HOST_NAME: &str = "run.vyre.bridge";
 /// The extension's own template; the two places to fill are __HOST_PATH__ and __EXTENSION_ID__.
 const HOST_TEMPLATE: &str = include_str!("../../../chrome/src/worker/native/run.vyre.bridge.json");
 
+/// The Team Spaces the person is signed in to, as the page handed them over: id and the JSON the daemons are given. In the shell's memory only, so a daemon that restarts can be given them again.
+static LINKED: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+
+fn space_id_ok(id: &str) -> bool {
+    id.starts_with("spc_") && id.len() > 4 && id.len() <= 124 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+}
+
+/// Give a daemon every Team Space session held. Each daemon of the app can be the one the extension's native host reaches, so each is given the list.
+pub(crate) fn relink(shared: &crate::sidecar::Shared) {
+    let held = LINKED.lock().map(|l| l.clone()).unwrap_or_default();
+    for (_, body) in held {
+        crate::sidecar::local_request(shared, "POST", "/local/chrome/spaces", &body);
+    }
+}
+
+/// The page hands over the person's own session for a Team Space (src/shell/session/chrome-link.ts). The daemon checks the address and keeps it in memory only.
+#[tauri::command]
+pub fn link_chrome_space(state: tauri::State<'_, crate::commands::AppState>, id: String, name: String, address: String, token: String) -> Result<(), String> {
+    if !space_id_ok(&id) {
+        return Err("That is not a Space id".to_string());
+    }
+    let body = serde_json::json!({ "id": id, "name": name, "address": address, "token": token }).to_string();
+    if let Ok(mut held) = LINKED.lock() {
+        held.retain(|(k, _)| *k != id);
+        held.push((id, body.clone()));
+    }
+    let mut any = false;
+    for shared in [&state.sidecar, &state.personal] {
+        any |= crate::sidecar::local_request(shared, "POST", "/local/chrome/spaces", &body);
+    }
+    if any { Ok(()) } else { Err("Vyre for Chrome is not running on this computer yet".to_string()) }
+}
+
+#[tauri::command]
+pub fn unlink_chrome_space(state: tauri::State<'_, crate::commands::AppState>, id: String) -> Result<(), String> {
+    if !space_id_ok(&id) {
+        return Err("That is not a Space id".to_string());
+    }
+    if let Ok(mut held) = LINKED.lock() {
+        held.retain(|(k, _)| *k != id);
+    }
+    for shared in [&state.sidecar, &state.personal] {
+        crate::sidecar::local_request(shared, "DELETE", &format!("/local/chrome/spaces?id={id}"), "");
+    }
+    Ok(())
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChromeInstall {
@@ -224,6 +271,14 @@ mod tests {
         }
         assert!(fill_host_manifest("{\"path\":\"__HOST_PATH__\",\"x\":\"__EXTENSION_ID__\"", "/x").is_err(), "not JSON");
         assert!(fill_host_manifest("{\"path\":\"fixed\",\"y\":1}", "/x").is_err(), "the path did not land");
+    }
+
+    #[test]
+    fn only_a_space_id_is_passed_on_to_a_daemon() {
+        assert!(space_id_ok("spc_01a189d72bde4bc8"));
+        for bad in ["", "spc_", "usr_abc", "spc_a/../b", "spc_a?x=1", "spc_a b", "spc_\u{e9}"] {
+            assert!(!space_id_ok(bad), "{bad}");
+        }
     }
 
     #[test]

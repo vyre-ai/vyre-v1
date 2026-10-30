@@ -197,13 +197,15 @@
       "testMayImportOutside": [
         "manifests/",
         "tools/gen/",
-        "fixtures/"
+        "fixtures/",
+        "images/agent-computer/agentd/"
       ]
     },
     "B8": {
       "text": "named exceptions to the layer rule"
     },
     "dynamicOk": [
+      "modules/memory/local-embedder.ts",
       "ui/src/theme/theme.firstframe.test.ts",
       "host/src/loader.ts",
       "agent/tests/sandbox.heavy.test.ts",
@@ -234,7 +236,8 @@
       "from": [
         "modules/computers",
         "modules/terminal",
-        "modules/engine"
+        "modules/engine",
+        "modules/steps-core"
       ],
       "to": [
         "sandbox"
@@ -307,6 +310,13 @@
       "file": "client/tests/crypto/recovery.test.ts",
       "spec": "../../../kernel/src/seal/box.ts",
       "reason": "test-only interop proof: it must use the other side's real implementation to show both speak the same bytes; no production code crosses this edge",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "host/tests/onboarding.assistant.live.test.ts",
+      "spec": "../../apps/app/src/onboarding/screen-context.ts",
+      "reason": "test-only: the live test must send the Assistant the exact screen description the onboarding screen builds, from the one shared function",
       "until": "2027-01-31"
     },
     {

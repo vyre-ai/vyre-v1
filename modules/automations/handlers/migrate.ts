@@ -38,7 +38,7 @@ function editable(ctx: AutoCtx, a: Automation): Automation {
 interface ListedRun { id?: unknown; status?: unknown; definitionVersion?: unknown }
 interface StepRow { step?: unknown; state?: unknown }
 
-function currentOf(steps: readonly StepRow[]): { currentStepId: string | null; succeededStepIds: string[] } {
+function currentOf(steps: readonly StepRow[]): { currentStepId: string | null; succeededStepIds: string[]; stepInFlight: boolean } {
   const newest = new Map<string, string>();
   for (const row of steps) {
     if (typeof row.step !== "string" || typeof row.state !== "string") continue;
@@ -46,11 +46,15 @@ function currentOf(steps: readonly StepRow[]): { currentStepId: string | null; s
   }
   const succeeded: string[] = [];
   let current: string | null = null;
+  let inFlight = false;
   for (const [step, state] of newest) {
     if (state === "succeeded") succeeded.push(step);
-    if (state === "running" || state === "waiting" || state === "failed" || state === "pending") current = step;
+    if (state === "running" || state === "waiting" || state === "failed" || state === "pending") {
+      current = step;
+      inFlight = state === "running";
+    }
   }
-  return { currentStepId: current, succeededStepIds: succeeded };
+  return { currentStepId: current, succeededStepIds: succeeded, stepInFlight: inFlight };
 }
 
 async function loadRuns(ctx: AutoCtx, a: Automation): Promise<MigrationRun[]> {
@@ -82,8 +86,8 @@ async function loadRuns(ctx: AutoCtx, a: Automation): Promise<MigrationRun[]> {
       const got = await ctx.call("runs.steps", { runId: row.id }) as { steps?: StepRow[] };
       steps = got?.steps ?? [];
     } catch { steps = []; }
-    const { currentStepId, succeededStepIds } = currentOf(steps);
-    runs.push({ id: row.id, definitionVersion: version, status: row.status as MigrationRun["status"], currentStepId, succeededStepIds });
+    const { currentStepId, succeededStepIds, stepInFlight } = currentOf(steps);
+    runs.push({ id: row.id, definitionVersion: version, status: row.status as MigrationRun["status"], currentStepId, succeededStepIds, stepInFlight });
   }
   return runs;
 }
@@ -116,12 +120,7 @@ function cohortsFor(ctx: AutoCtx, a: Automation, runs: readonly MigrationRun[], 
   return cohorts;
 }
 
-function cohortsOpen(): boolean {
-  return false;
-}
-
 export async function migrationPreview(ctx: AutoCtx, input: In): Promise<unknown> {
-  if (!cohortsOpen()) raise(ctx, "internal.unavailable", "Moving runs onto a new version is not available yet.");
   const a = getAutomation(ctx, input.automationId);
   if (!canView(ctx, a)) raise(ctx, "permission.not_found", "That automation is not available.");
   const toVersion = input.toVersion;
@@ -129,13 +128,8 @@ export async function migrationPreview(ctx: AutoCtx, input: In): Promise<unknown
   return { cohorts: cohortsFor(ctx, a, await loadRuns(ctx, a), toVersion) };
 }
 
+/** Apply a reviewed move. Runs move only between steps and only inside a safe group. */
 export async function migrateRuns(ctx: AutoCtx, input: In): Promise<unknown> {
-  if (!cohortsOpen()) raise(ctx, "internal.unavailable", "Moving runs onto a new version is not available yet.");
-  return migrateRunsBody(ctx, input);
-}
-
-/** The reviewed move. The public route stays closed until that review. */
-export async function migrateRunsBody(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = editable(ctx, getAutomation(ctx, input.automationId));
   const toVersion = input.toVersion;
   if (typeof toVersion !== "number" || !Number.isInteger(toVersion) || toVersion < 1) raise(ctx, "validation.bad_input", "A definition version is a whole number.");
@@ -146,6 +140,7 @@ export async function migrateRunsBody(ctx: AutoCtx, input: In): Promise<unknown>
   const plan = planMigration(cohortsFor(ctx, a, runs, toVersion), requested, toVersion);
   if (!plan.ok) raise(ctx, "validation.precondition_failed", plan.reason, { reason: "unsafe_cohort" });
   if (!ctx.call) raise(ctx, "internal.unavailable", "Runs are not available right now.");
+  const held: string[] = [];
   const moved: { runId: string; fromVersion: number; toVersion: number; atStepId: string }[] = [];
   const say = (): void => {
     if (moved.length === 0) return;
@@ -159,6 +154,9 @@ export async function migrateRunsBody(ctx: AutoCtx, input: In): Promise<unknown>
         const row = runs.find((run) => run.id === runId);
         const fromVersion = link?.version ?? row?.definitionVersion ?? a.version;
         if (fromVersion === toVersion) continue;
+        // Look again right before the pin: a step that started since the preview keeps its run where it is.
+        const fresh = currentOf(((await ctx.call("runs.steps", { runId }).catch(() => ({ steps: [] }))) as { steps?: StepRow[] })?.steps ?? []);
+        if (fresh.stepInFlight || fresh.currentStepId !== item.atStepId) { held.push(runId); continue; }
         await ctx.call("runs.pin_version", { runId, definitionVersion: toVersion });
         if (link) saveRunLink(ctx.db, { ...link, version: toVersion });
         moved.push({ runId, fromVersion, toVersion, atStepId: item.atStepId });
@@ -169,5 +167,5 @@ export async function migrateRunsBody(ctx: AutoCtx, input: In): Promise<unknown>
     throw e;
   }
   say();
-  return { moved };
+  return { moved, held };
 }

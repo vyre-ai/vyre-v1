@@ -12,13 +12,15 @@ import { AddAnything, EditSheet, ItemEnv, NoItem } from "../itemenv/index.ts";
 import { VaultDataProvider, copyText, retryVaultQueries, useOnline, useOptionalVaultData, usePrincipals, useScreenQuery, useVaultData } from "./data.tsx";
 import type { VaultData } from "./data.tsx";
 import { ItemList } from "./ItemList.tsx";
-import { ALL, countItems, sameSelection, visibleItems } from "./model.ts";
+import { ALL, EXPIRY_CHOICES, countItems, expiryLabel, sameSelection, visibleItems } from "./model.ts";
+import type { Expiry } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
 import { Sheet } from "./Sheet.tsx";
+import { PolicyView } from "./PolicyView.tsx";
 import { ChromeSheet } from "./ChromeSheet.tsx";
-import { declineVaultRequest, fulfilVaultRequest, requestFields, revokeVaultExport } from "./routed-actions.ts";
+import { declineVaultRequest, exportVaultFolder, fulfilVaultRequest, requestFields, revokeVaultExport } from "./routed-actions.ts";
 import { HealthView } from "../health/index.ts";
 import { ImportSheet } from "../import/index.ts";
 import type { Source } from "../import/index.ts";
@@ -53,6 +55,7 @@ export type VaultRoute =
   | { surface: "share"; itemId: string }
   | { surface: "export"; folderId: string }
   | { surface: "advanced" }
+  | { surface: "policy" }
   | { surface: "requests" };
 
 function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void }): ReactElement {
@@ -240,6 +243,8 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
 
   const routed = route.surface === "advanced"
     ? <AdvancedView onClose={onRouteClose} />
+    : route.surface === "policy"
+      ? <PolicyView onClose={onRouteClose} />
     : route.surface === "requests"
       ? <RequestsView requests={requests} items={all} onClose={onRouteClose} />
       : null;
@@ -334,6 +339,7 @@ function AdvancedView({ onClose }: { onClose(): void }): ReactElement {
     ["Backups", "Review, verify, restore, or run encrypted Space backups", nav.openBackups],
     ["Devices", "See and revoke the computers that can open this Vault", nav.openDevices],
     ["Outside agents", "Create, scope, or revoke access for Claude Code, Codex, and other tools", nav.openOutsideActors],
+    ["Policy", "Who may export a folder, the longest a download link lasts, and whether a reveal asks why", nav.openPolicy],
     ...(browsers ? [["Browsers", "Fill and save logins in Chrome with Vyre for Chrome", () => setChrome(true)] as const] : []),
   ] as const;
   return (
@@ -351,17 +357,26 @@ function ExportSheet({ folderId, folderName, onClose }: { folderId: string; fold
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ pullUrl: string; expiresAt: number } | null>(null);
   const [failure, setFailure] = useState("");
+  const [expiry, setExpiry] = useState<Expiry>("1h");
+  const menu = useMenu();
+  const chooseExpiry = (e: unknown): void => {
+    const t = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget;
+    const r = t?.getBoundingClientRect?.();
+    menu.show(EXPIRY_CHOICES.map((c) => ({ label: c.label, checked: expiry === c.key, onSelect: () => { setExpiry(c.key); setResult(null); } })), r ? r.left : 0, r ? r.bottom + 4 : 0);
+  };
   const exportFolder = async (): Promise<void> => {
     setBusy(true); setFailure("");
     try {
-      const out = await data.call("vault.export_env", { folderId, expiresIn: "1h", idempotencyKey: `vault-export:${folderId}:${Date.now()}` }) as { pullUrl: string; expiresAt: number };
+      const out = await exportVaultFolder(data, folderId, expiry, `vault-export:${folderId}:${expiry}:${Date.now()}`);
       setResult(out);
     } catch (error) { setFailure(error instanceof Error ? error.message : "Couldn't export this folder"); }
     finally { setBusy(false); }
   };
   return (
     <Sheet title={`Export ${folderName} as .env`} onClose={onClose} testID="vault-export-sheet" footer={<><View style={{ flex: 1 }} /><Btn label="Cancel" onPress={onClose} /><Btn label={busy ? "Exporting…" : "Create export"} primary disabled={busy} onPress={() => { void exportFolder(); }} testID="vault-export-create" /></>}>
-      <Text style={s.routedIntro}>Creates a one-hour, logged download. Values stay hidden in the Vault.</Text>
+      {menu.element}
+      <Text style={s.routedIntro}>{`Creates a ${EXPIRY_CHOICES.find((c) => c.key === expiry)?.sentence ?? "one-hour"}, logged download. Values stay hidden in the Vault.`}</Text>
+      <Row id="vault-export-expiry" title="Link lasts" note={`${expiryLabel(expiry)}, up to the longest your Space's policy allows`} onPress={chooseExpiry} trailing={<Text style={s.routedSub}>Change</Text>} />
       {result ? <View style={{ gap: 8 }}><Text style={s.routedName}>Export ready</Text><Btn label="Copy download link" icon="copy" onPress={() => { void copyText(data, result.pullUrl); }} testID="vault-export-copy" /></View> : null}
       <View style={{ gap: 6 }} testID="vault-active-exports">
         <Text style={s.routedName}>Active exports</Text>

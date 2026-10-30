@@ -15,6 +15,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.calendar.stop_watch": Handler<"google.calendar.stop_watch", X>;
   "google.calendar.update_event": Handler<"google.calendar.update_event", X>;
   "google.calendar.watch": Handler<"google.calendar.watch", X>;
+  "google.directory.import": Handler<"google.directory.import", X>;
+  "google.directory.list": Handler<"google.directory.list", X>;
   "google.docs.batch_update": Handler<"google.docs.batch_update", X>;
   "google.docs.create_document": Handler<"google.docs.create_document", X>;
   "google.docs.get_document": Handler<"google.docs.get_document", X>;
@@ -33,12 +35,15 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.drive.upload_file": Handler<"google.drive.upload_file", X>;
   "google.drive.watch_changes": Handler<"google.drive.watch_changes", X>;
   "google.dwd.disable": Handler<"google.dwd.disable", X>;
+  "google.dwd.map_member": Handler<"google.dwd.map_member", X>;
   "google.dwd.members": Handler<"google.dwd.members", X>;
+  "google.dwd.my_account": Handler<"google.dwd.my_account", X>;
   "google.dwd.probe": Handler<"google.dwd.probe", X>;
   "google.dwd.scopes": Handler<"google.dwd.scopes", X>;
   "google.dwd.set_excluded": Handler<"google.dwd.set_excluded", X>;
   "google.dwd.setup": Handler<"google.dwd.setup", X>;
   "google.dwd.status": Handler<"google.dwd.status", X>;
+  "google.dwd.sync_members": Handler<"google.dwd.sync_members", X>;
   "google.gmail.create_draft": Handler<"google.gmail.create_draft", X>;
   "google.gmail.get_attachment": Handler<"google.gmail.get_attachment", X>;
   "google.gmail.get_message": Handler<"google.gmail.get_message", X>;

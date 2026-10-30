@@ -15,7 +15,8 @@ export interface EmitOpts { idempotencyKey?: string; vis?: EventEnvelope['vis'];
  * approvalToken: the Gate's token for a held act; the host lets the call through the hold it names, once (gate.release resume path).
  * onBehalfOf: the principal id of the original caller; the host runs the call as that principal, only for a call carrying a valid approvalToken.
  */
-export interface CallOpts { idempotencyKey?: string; traceId?: string; approvalToken?: string; onBehalfOf?: string }
+/** `gate: 'admin_only'` lets a call through the Gate unless a Space, owner or agent rule asks for approval; without it the Gate's default (hold) applies. */
+export interface CallOpts { idempotencyKey?: string; traceId?: string; approvalToken?: string; onBehalfOf?: string; gate?: "admin_only" }
 export interface Logger { debug(msg: string, attrs?: Record<string, unknown>): void; info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void }
 /** What the host knows about one stored blob. `id` is opaque; `sha256` is the hex digest of the plain bytes. */
 export interface BlobMeta { id: string; contentType: string; size: number; sha256: string; createdAt: number }

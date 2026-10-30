@@ -11,8 +11,15 @@ import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
+import { LearnedLines } from "../memory/Learned.tsx";
+import type { MenuMessage, ShowMenu } from "../memory/menu.tsx";
+import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
+import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
+import { AttachmentChips, LinkedText, refsOf } from "./attachments.tsx";
+import { unnamed } from "../names.ts";
+import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
 import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, planSteps, questionOptions, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
@@ -33,6 +40,18 @@ export interface MessageActions {
   retrySend(messageId: string): void;
   discardSend(messageId: string): void;
   showMenu(items: readonly MenuEntry[], x: number, y: number, label: string): void;
+  /** The memory items of the message menu (Remember This, Add to a Page, Show What the Agent Knew Here, Forget This); absent where the chat has no memory. */
+  memoryEntries?: (m: MenuMessage, x: number, y: number, show: ShowMenu) => MenuEntry[];
+  /** Branch the chat into a new one at this message. */
+  fork?(messageId: string): void;
+  /** Make a task from this message, linked back to it. */
+  makeTask?(messageId: string): void;
+  /** A person's or agent's name for an id; a plain word where there is none. */
+  nameOf?(id: string): string;
+  /** Open another chat on a message (the line a fork starts with). */
+  openMessage?(threadId: string, messageId: string): void;
+  /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
+  files?: Pick<ConversationData, "call" | "nav" | "copy">;
   /** What the shared native blocks (changeset, plan, question, terminal, deploy) call: capabilities as the person, and tabs beside the chat. */
   host: BlockHost;
 }
@@ -53,10 +72,31 @@ export interface MessageViewProps {
   mark?: "match" | "active" | undefined;
 }
 
+/** Where a forked chat came from: the first line of a fork carries the chat, the message and the chat's title. */
+export function forkOrigin(m: Pick<Message, "blocks">): { threadId: string; messageId: string; title: string } | null {
+  const b = m.blocks.find((x) => x.type === "fork_origin");
+  const d = b && typeof b.data === "object" && b.data !== null ? (b.data as Record<string, unknown>) : null;
+  return d && typeof d["threadId"] === "string" && typeof d["messageId"] === "string" ? { threadId: d["threadId"], messageId: d["messageId"], title: typeof d["title"] === "string" ? d["title"] : "another chat" } : null;
+}
+
 export const MessageView = memo(function MessageView(props: MessageViewProps): ReactElement | null {
   const { item } = props;
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
   if (item.kind === "event") {
+    const origin = forkOrigin(item.message);
+    if (origin && props.actions.openMessage) {
+      const go = props.actions.openMessage;
+      return (
+        <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
+          <Glyph name="fork" size={13} color="var(--ink-4)" />
+          <Text style={st.eventText}>
+            {"Forked from "}
+            <Text testID={`fork-origin-${item.key}`} accessibilityRole="link" onPress={() => go(origin.threadId, origin.messageId)} style={st.eventLink}>{origin.title}</Text>
+          </Text>
+          <Text style={st.eventTime}>{item.time}</Text>
+        </View>
+      );
+    }
     return (
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
@@ -70,12 +110,15 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
 
 /* ---------- the hover bar and the menu: the same list in both ---------- */
 
-function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => void): MenuEntry[] {
+export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => void, at: { x: number; y: number } = { x: 0, y: 0 }): MenuEntry[] {
   const items: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
   if (mine && m.kind === "text") items.push({ label: "Edit", onSelect: onEdit });
   items.push({ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) });
+  if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
+  if (a.fork && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
   items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
   items.push({ label: "Add Reaction", onSelect: () => a.react(m.messageId, "👍", false) });
+  if (m.kind !== "quiet" && a.memoryEntries) items.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
   if (mine) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) });
   return items;
 }
@@ -85,10 +128,12 @@ export function HoverBar({ m, mine, a, onEdit, visible }: { m: Message; mine: bo
   const bar: { icon: GlyphName; label: string; run: () => void }[] = [{ icon: "copy", label: "Copy", run: () => a.copy(m.body) }];
   if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
   bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+  if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") bar.push({ icon: "task", label: "Make a task", run: () => a.makeTask!(m.messageId) });
+  if (a.fork && m.kind !== "system" && m.kind !== "quiet") bar.push({ icon: "fork", label: "Fork from here", run: () => a.fork!(m.messageId) });
   return (
     <View testID={`hover-${m.messageId}`} accessibilityRole="toolbar" accessibilityLabel="Message actions" style={[st.hover, mine ? st.hoverMine : st.hoverTheirs, { opacity: visible ? 1 : 0 }, !visible && { width: 0, borderWidth: 0 }]}>
       {visible ? collect(bar, (b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={() => b.run()} />) : null}
-      {visible ? <IconButton icon="more" label="More" size={24} testID={`act-more-${m.messageId}`} onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit), x, y, "Message")} /> : null}
+      {visible ? <IconButton icon="more" label="More" size={24} testID={`act-more-${m.messageId}`} onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit, { x, y }), x, y, "Message")} /> : null}
     </View>
   );
 }
@@ -118,7 +163,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
     if (body !== "" && body !== m.body) actions.edit(m.messageId, body);
   };
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
       <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />
       <Text style={st.when}>{item.time}</Text>
       {editing ? (
@@ -134,11 +179,14 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
           />
           <View style={st.editRow}><TextButton label="Cancel" onPress={() => setEditing(false)} testID={`edit-cancel-${m.messageId}`} /><TextButton label="Save" primary onPress={save} testID={`edit-save-${m.messageId}`} /></View>
         </View>
-      ) : (
+      ) : m.body.trim() === "" && m.attachments.length > 0 ? null : (
         <View style={[st.bubble, sending === "sending" && { opacity: 0.7 }]}>
-          <Text selectable style={st.bubbleText}>{m.body}</Text>
+          {actions.files && refsOf(m).length > 0 ? <LinkedText body={m.body} refs={refsOf(m)} data={actions.files} textStyle={st.bubbleText} /> : <SubjectText text={m.body} style={st.bubbleText} />}
         </View>
       )}
+      {!editing && actions.files && m.attachments.length > 0 ? (
+        <View style={st.mineFiles}><AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /></View>
+      ) : null}
       {m.editedAt !== undefined ? <Text style={st.edited}>edited</Text> : null}
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
       {sending === "sending" ? <Text testID={`sending-${m.messageId}`} style={st.edited}>Sending</Text> : null}
@@ -150,13 +198,14 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
         </View>
       ) : null}
       <Reactions m={m} a={actions} mine />
+      <LearnedLines messageId={m.messageId} />
     </View>
   );
 }
 
 /* ---------- anyone else's ---------- */
 
-function Theirs({ item, actions, stream, openWork, mark }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
+function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
   const m = item.message;
   const h = useHover();
   const work = workOf(m);
@@ -165,8 +214,9 @@ function Theirs({ item, actions, stream, openWork, mark }: MessageViewProps & { 
   const errors = m.blocks.filter(isErrorBlock);
   const person = item.who.kind === "person";
   const blocks = stream ? null : bodyBlocks(m.messageId, m.body);
+  const subjects = useSubjectBlocks(blocks);
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
       <HoverBar m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />
       {item.newgroup ? (
         <View style={st.by}>
@@ -177,7 +227,7 @@ function Theirs({ item, actions, stream, openWork, mark }: MessageViewProps & { 
           <Text style={st.time}>{item.time}</Text>
         </View>
       ) : <Text style={st.whenLeft}>{item.time}</Text>}
-      {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner} set`}</Text> : null}
+      {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
       {work ? (
         <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>
           {collect(work.steps, (l) => (
@@ -189,7 +239,9 @@ function Theirs({ item, actions, stream, openWork, mark }: MessageViewProps & { 
           ))}
         </Fold>
       ) : null}
-      {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={blocks ?? []} /></View> : null}
+      {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink ? { renderLink: subjects.renderLink } : {})} /></View> : null}
+      {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} />}
+      {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
       {collect(cards, (b) => {
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
@@ -198,6 +250,7 @@ function Theirs({ item, actions, stream, openWork, mark }: MessageViewProps & { 
       })}
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
       <Reactions m={m} a={actions} mine={false} />
+      <LearnedLines messageId={m.messageId} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
     </View>
   );
@@ -290,6 +343,7 @@ export const st = StyleSheet.create({
   event: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
+  eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
   eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
   gapTop: { marginTop: 18 },
   found: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 8 },
@@ -298,6 +352,7 @@ export const st = StyleSheet.create({
   when: { position: "absolute", left: 0, top: 10, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
   whenLeft: { position: "absolute", left: -44, top: 4, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
   bubble: { maxWidth: "85%", backgroundColor: "var(--me)" as string, borderRadius: 18, paddingHorizontal: 15, paddingVertical: 9 },
+  mineFiles: { alignSelf: "flex-end", maxWidth: "85%" },
   bubbleText: { color: "var(--ink)" as string, fontSize: 15, lineHeight: 23 },
   edited: { marginTop: 2, fontSize: 11.5, color: "var(--ink-4)" as string },
   editBox: { width: "85%", gap: 6, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: 12, padding: 8, backgroundColor: "var(--win)" as string },

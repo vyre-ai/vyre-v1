@@ -1,6 +1,7 @@
 // P-L2_26: the limits the P-L2_24 groups reported. Unread counts and the unread filter in chat.recent, the / table of the composer, chat.open_tab respecting the person's setting and devices, and the
 // messages the server writes in plain text (question, plan, helper, handoff) refused in a sealed thread, all against the frozen contract.
 // @reads /generated/registry.json
+import { CHAT_COMMANDS } from "../../../lib/chat-commands.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { g26Handlers, sealedThread } from "../handlers/g26.ts";
@@ -49,7 +50,7 @@ test("the composer / table lists the commands chat runs, filtered by what was ty
   const hn = harness();
   const all = await h["chat.composer.suggest"]!(hn.ctx, { symbol: "/", q: "" });
   assert.deepEqual(contractErrors("chat.composer.suggest", "out", all), []);
-  assert.deepEqual(all.items.map((i: { id: string }) => i.id), ["plan", "helper", "handoff", "pin"]);
+  assert.deepEqual(all.items.map((i: { id: string }) => i.id), CHAT_COMMANDS.map((c) => c.id));
   assert.ok(all.items.every((i: { kind: string; group: string }) => i.kind === "command" && i.group === "Commands"));
   const some = await h["chat.composer.suggest"]!(hn.ctx, { symbol: "/", q: "/pl" });
   assert.deepEqual(some.items.map((i: { id: string }) => i.id), ["plan"]);

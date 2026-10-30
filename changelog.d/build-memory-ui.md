@@ -1,0 +1,1 @@
+- Files > Knowledge is the memory home: Learned, People, Clients, Projects, Topics, Graph, History, Trash and Archive, with one Search knowledge field in every header. The sidebar rows replace Memory and Proposed; what agents propose still waits at the top of Learned for the Spaces that ask for review.

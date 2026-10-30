@@ -88,6 +88,20 @@ test("change password re-wraps keys, signs out the other devices, and keeps this
   assert.ok(h.events.some((e) => e.name === "password.changed"));
 });
 
+test("security.get says when the password last changed (the day they joined until it has), and that no authenticator, passkey or GitHub link is set", async () => {
+  const h = await world();
+  const { ctx } = await signedIn(h);
+  const before = await handlers["identity.security.get"](ctx, {});
+  assert.deepEqual([before.totp, before.passkeys, before.github], [false, [], undefined]);
+  assert.equal(typeof before.passwordChangedAt, "number");
+  await handlers["identity.keys_put"](ctx, { keys: KEYS, reason: "first_device" });
+  h.advance(3 * 24 * 3_600_000);
+  await handlers["identity.change_password"](ctx, { currentPassword: P.secret, newPassword: NEW_PASSWORD, keys: { ...KEYS, personKeyByPassword: "cmV3cmFwcGVkLWJ5LW5ldy1wYXNzd29yZA==" } });
+  const after = await handlers["identity.security.get"](ctx, {});
+  assert.equal(after.passwordChangedAt - before.passwordChangedAt, 3 * 24 * 3_600_000, "the change is stamped with its own time");
+  await assert.rejects(handlers["identity.security.get"](h.anon, {}), (e) => codeOf(e) === "auth.unauthenticated");
+});
+
 test("a saved recovery code restores access without a session", async () => {
   const h = await world(),pair=x25519Pair(),savedKeys={...KEYS,publicKey:Buffer.from(pair.pub,"base64url").toString("base64")};
   const { ctx, out } = await signedIn(h);

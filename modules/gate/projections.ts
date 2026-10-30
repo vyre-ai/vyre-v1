@@ -6,7 +6,7 @@ import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { canonical } from "../../lib/canonical.ts";
 
-export type ActKey = "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+export type ActKey = "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
 export type Risk = "low" | "medium" | "high";
 export type Mode = "hold" | "allow";
 export type Scope = "space" | "floor" | "agent";
@@ -28,12 +28,14 @@ export const ACTS: readonly ActDef[] = [
   act("delete", "Delete", "high", "record_card", "asker"),
   act("transfer", "Hand over ownership", "high", "record_card", "asker"),
   act("enroll_node", "Admit a computer to the Space", "high", "record_card", "asker"),
+  act("connection_change", "Change a company-wide connection", "high", "table", "asker"),
   act("push_protected", "Push to a protected branch", "high", "diff", "role:admin", { humanToo: true }),
   act("campaign_launch", "Launch a campaign", "high", "table", "role:admin", { humanToo: true }),
   act("secret_export", "Export secrets", "high", "table", "role:admin", { humanToo: true }),
   act("site_promote", "Promote a site to production", "high", "deploy", "role:admin", { humanToo: true }),
   act("signature_send", "Send a document for signature", "high", "file", "role:admin"),
   act("spend_raise", "Raise a spend cap", "medium", "table", "role:admin"),
+  act("signin_change", "Change how people sign in to the Space", "high", "record_card", "asker"),
 ];
 export const actOf = (k: string): ActDef => ACTS.find((a) => a.key === k) ?? ACTS[0]!;
 
@@ -144,11 +146,13 @@ const minRisk = (a: Risk | undefined, b: Risk | undefined): Risk | undefined => 
 export interface Effective {
   hold: boolean; reason: string; approvers: string; peopleOnly: boolean; agentOkFor?: Risk; afterHours: number; onTimeout: "drop" | "escalate"; escalateTo: "delegate" | "role";
   emailBackstopHours: number; sources: { space: Mode; floor?: Mode; agent?: Mode };
+  /** a rule somebody wrote (not the default) asks for approval of this act */
+  adminRule: boolean;
 }
 
 /** The effective rule for a principal and an act: the strictest of the Space policy, the owner floor and the agent's own rule. An agent rule can only tighten; an `allow` anywhere cannot
  *  loosen a `hold` elsewhere; nothing here reads a local tool-prompt mode, so Auto cannot suppress a Gate hold (spec 2.14). A person's own act skips the Gate unless the act is a human-too kind. */
-export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: Policy = readPolicy(db)): Effective {
+export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: Policy = readPolicy(db), adminOnly = false): Effective {
   const a = actOf(actKey);
   const rows = allRules(db).filter((r) => r.act === a.key);
   const space = rows.find((r) => r.scope === "space");
@@ -156,7 +160,8 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
   const agent = p.kind === "agent" ? rows.find((r) => r.scope === "agent" && r.agentId === p.id) : undefined;
   const sSpace: Mode = space?.mode ?? "hold";
   const sources: Effective["sources"] = { space: sSpace, ...(floor ? { floor: floor.mode } : {}), ...(agent ? { agent: agent.mode } : {}) };
-  const wants = sSpace === "hold" || floor?.mode === "hold" || agent?.mode === "hold";
+  // adminOnly: the default rule (no row) does not ask; only a rule an admin or the owner wrote does
+  const wants = (sSpace === "hold" && (!adminOnly || space !== undefined)) || floor?.mode === "hold" || agent?.mode === "hold";
   const applies = p.kind !== "person" || a.humanToo;
   const hold = wants && applies;
   const reason = !applies ? "A person's own act does not wait for approval."
@@ -178,6 +183,7 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
   const e: Effective = {
     hold, reason, approvers, peopleOnly, afterHours, onTimeout: dropped ? "drop" : "escalate",
     escalateTo: space?.escalateTo ?? agent?.escalateTo ?? a.escalateTo, emailBackstopHours: Math.min(policy.emailBackstopHours, a.emailBackstopHours), sources,
+    adminRule: space?.mode === "hold" || floor?.mode === "hold" || agent?.mode === "hold",
   };
   if (okFor !== undefined) e.agentOkFor = okFor;
   return e;
@@ -189,7 +195,10 @@ export interface Hold {
   id: string; act: ActKey; capName: string; capVersion: number; input: unknown; inputHash: string; payloadHash: string; principal: PrincipalRef; actingFor?: string; decisionId: string;
   runId?: string; threadId?: string; taskId: string; state: HoldState; summary: string; approver: Assignee; rule: Effective; createdAt: number; expiresAt: number;
   backstopAt?: number; backstopSchedule?: string; expireSchedule?: string; escalatedAt?: number; sendingAt?: number; decidedAt?: number; decidedBy?: string; possiblySent: boolean; error?: string;
+  /** What the approved call answered, for a chat turn that waited on it. */
+  result?: unknown;
 }
+const HOLD_SELECT_EXTRA = ", result";
 const HOLD_COLS = `id, act, cap_name, cap_version, input, input_hash, payload_hash, principal_kind, principal_id, acting_for, decision_id, run_id, thread_id, task_id, state, summary, approver, rule,
   created_at, expires_at, backstop_at, backstop_schedule, expire_schedule, escalated_at, sending_at, decided_at, decided_by, possibly_sent, error`;
 
@@ -204,6 +213,7 @@ function holdFrom(r: Raw): Hold {
     taskId: (r.task_id as string) ?? "", state: r.state as HoldState, summary: r.summary as string, approver: parse<Assignee>(r.approver, { kind: "role", id: "rol_admin" }),
     rule: parse<Effective>(r.rule, effectiveFallback()), createdAt: r.created_at as number, expiresAt: r.expires_at as number, possiblySent: num(r.possibly_sent) === 1,
   };
+  const res = str(r.result); if (res) h.result = parse<unknown>(res, null);
   const af = str(r.acting_for); if (af) h.actingFor = af;
   const run = str(r.run_id); if (run) h.runId = run;
   const th = str(r.thread_id); if (th) h.threadId = th;
@@ -217,10 +227,10 @@ function holdFrom(r: Raw): Hold {
   const er = str(r.error); if (er) h.error = er;
   return h;
 }
-const effectiveFallback = (): Effective => ({ hold: true, reason: "", approvers: "role:admin", peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, sources: { space: "hold" } });
+const effectiveFallback = (): Effective => ({ hold: true, reason: "", approvers: "role:admin", peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, sources: { space: "hold" }, adminRule: false });
 
 export function findHold(db: Db, id: string): Hold | undefined {
-  const rows = db.all(`SELECT ${HOLD_COLS} FROM gate_holds WHERE id = ?`, id) as Raw[];
+  const rows = db.all(`SELECT ${HOLD_COLS}${HOLD_SELECT_EXTRA} FROM gate_holds WHERE id = ?`, id) as Raw[];
   return rows[0] ? holdFrom(rows[0]) : undefined;
 }
 export function getHold(ctx: GateCtx, id: string): Hold {
@@ -229,7 +239,7 @@ export function getHold(ctx: GateCtx, id: string): Hold {
   return h;
 }
 export function holdsWhere(db: Db, where = "", ...args: unknown[]): Hold[] {
-  return (db.all(`SELECT ${HOLD_COLS} FROM gate_holds${where ? ` WHERE ${where}` : ""} ORDER BY created_at DESC, id DESC`, ...args) as Raw[]).map(holdFrom);
+  return (db.all(`SELECT ${HOLD_COLS}${HOLD_SELECT_EXTRA} FROM gate_holds${where ? ` WHERE ${where}` : ""} ORDER BY created_at DESC, id DESC`, ...args) as Raw[]).map(holdFrom);
 }
 const n = (v: unknown): unknown => (v === undefined ? null : v);
 export function insertHold(db: Db, h: Hold): void {
@@ -244,9 +254,9 @@ export function insertHold(db: Db, h: Hold): void {
 export function saveHold(db: Db, h: Hold): void {
   db.run(
     `UPDATE gate_holds SET task_id = ?, state = ?, approver = ?, rule = ?, expires_at = ?, backstop_at = ?, backstop_schedule = ?, expire_schedule = ?, escalated_at = ?, sending_at = ?,
-       decided_at = ?, decided_by = ?, possibly_sent = ?, error = ? WHERE id = ?`,
+       decided_at = ?, decided_by = ?, possibly_sent = ?, error = ?, result = ? WHERE id = ?`,
     h.taskId, h.state, JSON.stringify(h.approver), JSON.stringify(h.rule), h.expiresAt, n(h.backstopAt), n(h.backstopSchedule), n(h.expireSchedule), n(h.escalatedAt), n(h.sendingAt),
-    n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.id,
+    n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.result === undefined ? null : JSON.stringify(h.result), h.id,
   );
 }
 

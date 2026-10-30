@@ -31,7 +31,7 @@ export interface WorldOptions {
   secrets: Record<string, string>;
   sign?: (data: string) => string;
   /** every Space member with a work address (what the seams map by email) */
-  members: { userId: string; email: string }[];
+  members?: { userId: string; email: string }[];
   prefix: string;
   /** boot over an existing data directory (a restart) instead of a fresh seeded one */
   dir?: string;
@@ -83,12 +83,12 @@ export async function bootWorld(o: WorldOptions) {
         seen.push({ method: init?.method ?? "GET", url });
         return reply(await o.seam({ method: init?.method ?? "GET", url, headers: init?.headers ?? {}, body: init?.body }));
       },
-      members: { emails: async () => o.members },
+      ...(o.members ? { members: { emails: async () => o.members! } } : {}),   // omitted: the Space's own list, from accepted invitations
       drivers: { setVaultKeyPort: () => ({ personKey: async (person: string) => (person === "usr_olivia" ? Buffer.alloc(32, 7) : null) }) },
     },
     session: (h) => {
       const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] ?? "";
-      const who = WHO[t];
+      const who = WHO[t] ?? (t.startsWith("tok-") ? t.slice(4) : undefined);   // a person who joined during the test signs in as tok-<their id>
       return who === undefined ? null : { space: CORE_SPACE, principal: { kind: "person", id: who }, device: `${o.prefix}-live` };
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
@@ -111,10 +111,15 @@ export async function bootWorld(o: WorldOptions) {
     }
     return r.data;
   };
+  /** Server log lines (message and attributes) that match, for a test that wants to say why something did not happen. */
+  const logsLike = (re: RegExp): string[] => {
+    d.sink.flush();
+    return (d.sink.db.prepare("SELECT msg, attrs FROM logs").all() as { msg: string; attrs: string }[]).filter((l) => re.test(`${l.msg} ${l.attrs}`)).map((l) => `${l.msg} ${l.attrs}`);
+  };
   let key = 0;
   const idem = (): string => `${o.prefix}-${++key}`;
   return {
-    d, dir: dataDir, seen, call, ok, idem,
+    d, dir: dataDir, seen, call, ok, idem, logsLike,
     async stop(keep = false) { await d.stop(); if (!keep) fs.rmSync(dataDir, { recursive: true, force: true }); },
   };
 }

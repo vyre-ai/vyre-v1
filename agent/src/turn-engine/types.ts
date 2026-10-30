@@ -2,6 +2,7 @@
 // The session types mirror ARCH 6.6 (agent/src/driver.ts is lead-owned and not on main yet); when it lands, adapt `OpenSession` to it in one place.
 import type { RouteMention, RouteReason } from "../../../lib/route.ts";
 import type { AccountKind, ResolveReason } from "../accounts/types.ts";
+import type { TurnContext } from "./context.ts";
 
 export type ThreadKind = "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
 export type AgentMode = "lead" | "listen";
@@ -121,7 +122,18 @@ export type DriverEvent =
 export interface ToolResult { ok: boolean; content: unknown }
 
 /** One line the memory module recalled for a message: a fact (or note title) with where it is kept and the link to the chat, task or record it came from. */
-export interface RecallLine { title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string }
+export interface RecallLine {
+  title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string;
+  /** "quote" is the exact words of a past chat message or run step (title = where it was said); anything else is a fact or note. */
+  kind?: "fact" | "quote";
+  /** The source id: a fact id for a fact, a message id or <thread>#<index> for a quote. A model passes it to memory_quote or memory_forget. */
+  ref?: string;
+  /** Who said a quote, and when. */
+  by?: string;
+  at?: number;
+  /** A quote cut for the prompt: the rest is memory_quote with its ref. */
+  cut?: boolean;
+}
 
 export interface TurnInput {
   threadId: string;
@@ -137,6 +149,8 @@ export interface TurnInput {
   resumed?: ResumedCall;
   /** What memory recalled for the message that caused this turn (memory.pointer, as the asker). Absent when nothing matched or memory is not available. */
   recall?: readonly RecallLine[];
+  /** The ordered turn context (identity, where, skills, what the agent can do here, screen, time ...), built by the engine module as the asker; drivers render it (agent/src/turn-engine/context.ts). */
+  context?: TurnContext;
 }
 
 export interface ResumedCall { taskId: string; callId: string; toolName: string; approved: boolean; result: ToolResult }
@@ -160,8 +174,12 @@ export interface EngineSession {
 export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string;
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
-export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string }
-export interface SessionSpec { threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount }
+export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[] }
+export interface SessionSpec {
+  threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
+  /** "none": the session has no Vyre tools and no tools of its own (an automation's AI step answers in words and sends nothing). Absent: the agent's tools. */
+  tools?: "none";
+}
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 
 export interface ReceiveResult { responders: string[]; reason: RouteReason; qseqs: number[]; messageId: string }

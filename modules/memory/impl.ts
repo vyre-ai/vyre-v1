@@ -5,6 +5,8 @@
 // pass with setCaptureExtractor at boot, which is where permission.provider_label comes from when a chat's label forbids sending it to a provider.
 import { handlers as table } from "./handlers/index.ts";
 import { setCaptureExtractor, heuristicExtract } from "./handlers/facts.ts";
+import { configureMeaning } from "./meaning.ts";
+import type { MeaningHost } from "./meaning.ts";
 import type { Candidate, CaptureMessage, Extractor } from "./handlers/facts.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 
@@ -13,6 +15,10 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 export { setCaptureExtractor, heuristicExtract };
 export type { Candidate, CaptureMessage, Extractor };
 export { ensure } from "./projections.ts";
+export { setEmbedder, configureMeaning } from "./meaning.ts";
+export type { Embedder, MeaningHost } from "./meaning.ts";
+export { setUpkeepModel } from "./handlers/upkeep.ts";
+export type { UpkeepAction, UpkeepModel, UpkeepRequest, UpkeepResult, UpkeepScope } from "./handlers/upkeep.ts";
 export { periodic } from "./hooks.ts";
 
 /**
@@ -42,3 +48,6 @@ export const hostCalls = {
     } catch { return 0; }
   },
 };
+
+/** The host binds what it runs locally for meaning search (a small embedding model on this server) through this one setter; the daemon wires it by name at boot. */
+export const hostSeams = { setMemoryMeaningHost: (host: MeaningHost | null): void => configureMeaning(host) };

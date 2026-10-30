@@ -85,7 +85,7 @@ export function world(o: { policy?: string; name?: string } = {}): World {
       if (!w.settings.has(key)) throw fail("internal.not_implemented", TRACE, { details: { cap } });
       return { row: { key, value: w.settings.get(key) } };
     }
-    if (cap === "settings.set") { const i = input as { key: string; value: unknown }; w.settings.set(i.key, i.value); return { row: { key: i.key, value: i.value }, previous: null }; }
+    if (cap === "settings.set_space") { const i = input as { key: string; value: unknown }; w.settings.set(i.key, i.value); return { row: { key: i.key, value: i.value }, previous: null }; }
     if (cap === "reports.send_to_vyre") {
       const child = { ...ctx, emit: ((name: string, subject: string, payload: unknown) => { const e = { name, subject, payload }; w.events.push(e); w.nested.push(e); return {} as never; }) as unknown as Ctx["emit"] } as ReportsCtx;
       return send_to_vyre(child, input as { reportId: string });

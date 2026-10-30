@@ -13,6 +13,7 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
+import { boundedScope } from "../../../kernel/src/seal/scope.ts";
 import { MAX_INLINE, treeHandlers } from "./tree.ts";
 import { addMarks, hunksOf, lcsPairs, lineOps, splitLines, splitParagraphs, versionHandlers } from "./versions.ts";
 import type { Hunk } from "./versions.ts";
@@ -177,7 +178,7 @@ async function currentBytes(ctx: Ctx, fileId: string, version?: number): Promise
 }
 
 function seal(ctx: Ctx, csId: string, bytes: Uint8Array): string {
-  return JSON.stringify(ctx.seal.seal(bytes, `files.changeset:${ctx.space}:${csId}`));
+  return JSON.stringify(ctx.seal.seal(bytes, boundedScope("files.changeset", ctx.space, csId)));
 }
 function unseal(ctx: Ctx, stored: unknown): Uint8Array {
   if (typeof stored !== "string") return new Uint8Array();

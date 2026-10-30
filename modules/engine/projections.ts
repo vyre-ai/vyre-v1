@@ -1,6 +1,8 @@
 // @reads /modules/engine/migrations/0001_init.sql
 // @reads /modules/engine/migrations/0002_usage_item.sql
 // @reads /modules/engine/migrations/0003_unblock.sql
+// @reads /modules/engine/migrations/0004_capture_state.sql
+// @reads /modules/engine/migrations/0005_step_turns.sql
 // Durable rows of the engine module: the SQL behind the turn engine's ports (messages, thread queue, thread lease, parked tool calls),
 // plus the id minting and the period keys the handlers share. Every statement names an engine_* table, which is all ctx.db lets a module touch.
 // The migration file is the one source of the schema: ensure() runs it statement by statement (all IF NOT EXISTS), so a handler call on a fresh database works.
@@ -12,7 +14,7 @@ import { LEASE_TTL_MS } from "../../agent/src/turn-engine/lease.ts";
 import type { LeaseRow, LeaseStore } from "../../agent/src/turn-engine/lease.ts";
 import type { NewItem, QueueStore } from "../../agent/src/turn-engine/queue.ts";
 import type { MessageStore, WaitRow, WaitStore } from "../../agent/src/turn-engine/stores.ts";
-import type { Author, QueueItem, QueueKind, QueueState, SessionSpec, StoredMessage } from "../../agent/src/turn-engine/types.ts";
+import type { Author, EngineSession, QueueItem, QueueKind, QueueState, SessionSpec, StoredMessage } from "../../agent/src/turn-engine/types.ts";
 import type { RouteMention } from "../../lib/route.ts";
 
 /** What the module needs of ctx.db (the host's ScopedDb has this shape). */
@@ -54,12 +56,18 @@ export interface BoundOpener { warm(spec: SessionSpec): void; pool: { status(): 
 let boundOpener: BoundOpener | null = null;
 export function bindOpener(o: BoundOpener | null): void { boundOpener = o; }
 export const openerOf = (): BoundOpener | null => boundOpener;
+
+/** The way an automation's AI step opens a session: the same opener the chat engine uses (null where the engine has none). */
+export type StepOpen = (spec: SessionSpec) => Promise<EngineSession>;
+let boundStepOpen: StepOpen | null = null;
+export function bindStepOpen(o: StepOpen | null): void { boundStepOpen = o; }
+export const stepOpenOf = (): StepOpen | null => boundStepOpen;
 export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   if (!bound) raise(ctx, "internal.unavailable", "The engine is not running on this host.");
   return bound;
 }
 
-const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql", "0005_step_turns.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 
@@ -73,6 +81,7 @@ export function ensure(db: Db): void {
     db.all("SELECT item_id FROM engine_usage_item WHERE turn_id = ?", "probe");
     db.all("SELECT task_id FROM engine_unblock WHERE task_id = ?", "probe");
     db.all("SELECT person FROM engine_capture_state WHERE thread_id = ?", "probe");
+    db.all("SELECT key FROM engine_step_turns WHERE key = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
   }

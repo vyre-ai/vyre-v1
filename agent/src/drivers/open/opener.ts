@@ -20,7 +20,7 @@ import type { ApiId, Clock, Fetch } from "../api/types.ts";
 import { CLI_ADAPTERS, createCliDriver } from "../cli/driver.ts";
 import type { CliDriverDeps } from "../cli/driver.ts";
 import { CLI_IDS } from "../cli/types.ts";
-import type { CliId, Launcher, McpEndpoint } from "../cli/types.ts";
+import type { CliId, Launcher, McpEndpoint, NativePlugins } from "../cli/types.ts";
 import { cliCredential } from "./credentials.ts";
 import type { CredentialKind } from "./credentials.ts";
 import { createFillAuthorizer } from "./fill-authorizer.ts";
@@ -51,6 +51,10 @@ export interface SessionOpenerDeps {
    * sandbox) and how to close the bridge. The token stays in the process environment (VYRE_MCP_TOKEN); the shim sends it on each request. Omitted: the engine uses the loopback URL.
    */
   mcpBridge?(m: { url: string; token: string }, spec: OpenerSpec): Promise<{ stdio: { command: string; args: string[] }; close(): Promise<void> }>;
+  /** Before a CLI engine starts: put what it reads from its folder in place (the memory guide as CLAUDE.md and AGENTS.md). A failure never stops the session. */
+  prepare?(spec: OpenerSpec): Promise<void>;
+  /** Plugins installed on the agent, written into a Claude Code or Codex engine's own config in its work folder (modules/engine/plugin-native.ts). A secret goes by Vault handle through the fill. */
+  nativePlugins?(spec: OpenerSpec, driver: CliId): Promise<NativePlugins | null>;
   /** The system prompt and tool list an API driver sends for a turn. */
   apiContext: SessionDeps["context"];
   /** Where the process runs, for the Vault's place rules. Default "host". */
@@ -115,8 +119,10 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
       const spec = need(spec0);
       const cred = cliCredential(id, spec.account.kind, spec.account.ref);
       if (!cred) throw new DriverError("engine.account_unsupported", `${id} cannot run on this kind of account yet. Use an API key for it.`);
-      const launcher = createFillLauncher({ inner: d.launcher, source: d.source, reportMiss: d.reportMiss, who: whoOf(spec), env: { [cred.env]: cred.handle }, onUsed: used(spec) });
-      const driver = createCliDriver(CLI_ADAPTERS[id], { ...d.cli, launcher, mcp: () => mcpFor(spec), mcpClose: (_s, endpoint) => mcpRevoke(endpoint) });
+      try { await d.prepare?.(spec); } catch { /* the engine runs without the guide */ }
+      const native = id === "claude_code" || id === "codex" ? (await d.nativePlugins?.(spec, id)) ?? null : null;
+      const launcher = createFillLauncher({ inner: d.launcher, source: d.source, reportMiss: d.reportMiss, who: whoOf(spec), env: { [cred.env]: cred.handle, ...(native?.secrets ?? {}) }, onUsed: used(spec) });
+      const driver = createCliDriver(CLI_ADAPTERS[id], { ...d.cli, launcher, ...(native ? { plugins: () => native } : {}), mcp: () => mcpFor(spec), mcpClose: (_s, endpoint) => mcpRevoke(endpoint) });
       return driver.open(spec);
     },
   });
@@ -144,7 +150,7 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
     const s = need(spec);
     if (!known.has(s.account.driver)) throw new DriverError("engine.unknown_driver", `There is no engine called ${s.account.driver}.`);
     return {
-      key: { driver: s.account.driver, accountRef: s.account.ref, model: s.agent.model ?? "", sandboxId: null, mcpProfile: `${s.agent.id}|${s.asker}` },
+      key: { driver: s.account.driver, accountRef: s.account.ref, model: s.agent.model ?? "", sandboxId: null, mcpProfile: `${s.agent.id}|${s.asker}${s.tools === "none" ? "|none" : ""}` },
       threadId: s.threadId, person: s.asker, session: spec,
     };
   };

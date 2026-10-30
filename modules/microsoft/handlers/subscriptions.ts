@@ -13,6 +13,8 @@ import {
 } from "../projections.ts";
 import type { MsCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./graph.ts";
+import { pullTeams } from "./teams.ts";
+import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./graph.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 
@@ -217,6 +219,9 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
     ctx.log.warn("microsoft pull failed", { mailbox: email, code: codeOf(e), cause });
     delay = pollInterval(now, null, false);
   }
+  // Teams transcripts ride on the same pass; a Teams failure never fails the mailbox pull
+  await syncCalendar(ctx, { connectionId, email });
+  await pullTeams(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("microsoft teams pull failed", { mailbox: email, code: codeOf(e) }));
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a notice or a manual sync does not start a second chain
@@ -275,6 +280,11 @@ export async function consentSnippet(ctx: MsCtx) {
     `# Check one mapped member (should say Granted) and one who is not mapped (should say Denied):`,
     `Test-ApplicationAccessPolicy -AppId "${clientId}" -Identity ${mapped[0] ? `"${mapped[0]}"` : `"first.member@${domain}"`}`,
     `Test-ApplicationAccessPolicy -AppId "${clientId}" -Identity "someone.else@${domain}"`,
+    "",
+    "# Run in Microsoft Teams PowerShell (Install-Module MicrosoftTeams; Connect-MicrosoftTeams) as a tenant administrator.",
+    "# Teams transcripts need their own policy, granted to each mapped member one by one, so a meeting organized by anyone else stays out of reach.",
+    `New-CsApplicationAccessPolicy -Identity "${GROUP_NAME}" -AppIds "${clientId}" -Description "Vyre: transcripts of the mapped members' meetings"`,
+    ...(mapped.length ? mapped : [`first.member@${domain}`]).map((e) => `Grant-CsApplicationAccessPolicy -PolicyName "${GROUP_NAME}" -Identity "${e}"`),
   ].join("\n");
   return { language: "powershell" as const, snippet, groupName: GROUP_NAME };
 }
@@ -311,18 +321,34 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
   const now = ctx.now();
   const autoConnect = await autoConnectPolicy(ctx);
   forgetTokens();
-  await host.mintToken(ctx, { connectionId });   // proves the client id and secret before anything is mapped; consent itself is checked by verify
+  // The host finds the Vault handle of a connection in this row, so it is written before the token is asked for; it stays as configured as it was until the credentials are proved.
+  const wasConfigured = cfg ? num(cfg, "configured") : 0;
   if (cfg) {
     ctx.db.run(
       `UPDATE microsoft_config SET "connectionId" = ?, "vaultItem" = ?, "tenantId" = ?, domain = ?, "clientId" = ?, configured = ?, "autoConnect" = ?, updated_at = ? WHERE id = ?`,
-      connectionId, input.vaultItem, input.tenantId, domain, app.clientId, 1, autoConnect ? 1 : 0, now, CONFIG_ID,
+      connectionId, input.vaultItem, input.tenantId, domain, app.clientId, wasConfigured, autoConnect ? 1 : 0, now, CONFIG_ID,
     );
   } else {
     ctx.db.run(
       `INSERT INTO microsoft_config (id, "connectionId", "vaultItem", "tenantId", domain, "clientId", configured, "consentGiven", "policyConfirmed", "autoConnect", "lastVerifyAt", "nextRenewAt", updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      CONFIG_ID, connectionId, input.vaultItem, input.tenantId, domain, app.clientId, 1, 0, 0, autoConnect ? 1 : 0, null, null, now,
+      CONFIG_ID, connectionId, input.vaultItem, input.tenantId, domain, app.clientId, 0, 0, 0, autoConnect ? 1 : 0, null, null, now,
     );
   }
+  try {
+    await host.mintToken(ctx, { connectionId });   // proves the client id and secret before anything is mapped; consent itself is checked by verify
+  } catch (e) {
+    // a registration Microsoft will not sign in with configures nothing: the row goes back to what it was (or away, when there was none)
+    if (!cfg) ctx.db.run(`DELETE FROM microsoft_config WHERE id = ?`, CONFIG_ID);
+    else {
+      ctx.db.run(
+        `UPDATE microsoft_config SET "vaultItem" = ?, "tenantId" = ?, domain = ?, "clientId" = ?, "autoConnect" = ?, updated_at = ? WHERE id = ?`,
+        strOrNull(cfg, "vaultItem"), strOrNull(cfg, "tenantId"), strOrNull(cfg, "domain"), strOrNull(cfg, "clientId"), num(cfg, "autoConnect"), num(cfg, "updated_at"), CONFIG_ID,
+      );
+    }
+    forgetTokens();
+    throw e;
+  }
+  ctx.db.run(`UPDATE microsoft_config SET configured = ?, updated_at = ? WHERE id = ?`, 1, now, CONFIG_ID);
 
   const mapped: { userId: string; email: string }[] = [];
   for (const m of await host.memberEmails(ctx)) {
@@ -338,6 +364,7 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
     const out = obj(await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
     connected = int(out.created) ?? 0;
     for (const m of mapped) ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
+    for (const m of mapped) await connectCalendar(ctx, { connectionId, userId: m.userId, email: m.email });   // their calendars come in with their mail
   }
   ctx.emit("microsoft.consent_configured", "connector/microsoft", { connector: "microsoft", tenantId: input.tenantId, mappedMembers: mapped.length, autoConnect });
   // Subscriptions live about three days: queue the first renewal Run now.
@@ -366,6 +393,7 @@ export async function consentVerify(ctx: MsCtx, input: { as?: string; policyConf
   const cfg = config(ctx);
   const connectionId = strOrNull(cfg, "connectionId");
   if (!cfg || !connectionId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft 365 is not set up." });
+  forgetTokens();   // the permissions a token carries are fixed when it is issued: asking again is how a consent given a minute ago shows up
   const org = await apiRaw(ctx, { cap: "ms.consent.verify", connectionId, tenant: true, url: `${GRAPH}/organization`, query: { $select: "id" } });
   const token = org.token;
   const roles = rolesOf(token);
@@ -423,7 +451,53 @@ export async function consentExclude(ctx: MsCtx, input: { email: string; exclude
   } else {
     ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, null, 0, input.excluded ? 1 : 0, null, now);
   }
+  // An excluded member's calendar leaves Calendar; including them again brings a fresh one in.
+  const member = first(ctx.db.all(`SELECT "userId", mapped FROM microsoft_member WHERE email = ?`, email));
+  const connectionId = strOrNull(config(ctx), "connectionId");
+  const userId = strOrNull(member, "userId");
+  if (connectionId && userId && num(member, "mapped") === 1 && (input.excluded || num(config(ctx), "autoConnect") === 1)) {
+    await connectCalendar(ctx, { connectionId, userId, email, connected: !input.excluded });
+  }
   return { excluded: rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
+}
+
+/**
+ * Match a Microsoft address to a person in the Space, or take the match away (no person). Setup matches people by the email their invitation went to; this is for the rest: the owner, someone
+ * whose work address differs from their invitation. An address belongs to one person and a person to one address, so a clash is refused until the first match is taken away.
+ */
+export async function consentMapMember(ctx: MicrosoftCtx, input: { email: string; userId?: string; idempotencyKey: string }) {
+  ensure(ctx);
+  const email = normalizeEmail(input.email ?? "");
+  if (!EMAIL.test(email)) bad(ctx, "The address is not an email.");
+  const cfg = config(ctx);
+  const connectionId = strOrNull(cfg, "connectionId");
+  const domain = strOrNull(cfg, "domain");
+  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft delegation is not set up." });
+  if (domain && !email.endsWith(`@${domain}`)) bad(ctx, `Only addresses at ${domain} can be matched.`);
+  const now = ctx.now();
+  const have = first(ctx.db.all(`SELECT "userId", mapped, excluded FROM microsoft_member WHERE email = ?`, email));
+  if (input.userId === undefined) {
+    const was = strOrNull(have, "userId");
+    if (have) ctx.db.run(`UPDATE microsoft_member SET "userId" = ?, mapped = ?, "mailboxState" = ?, updated_at = ? WHERE email = ?`, null, 0, null, now, email);
+    if (was) await connectCalendar(ctx, { connectionId, userId: was, email, connected: false });
+    return { email, mapped: false, connected: false };
+  }
+  if (!/^usr_[a-z0-9]+$/.test(input.userId)) bad(ctx, "The person is a member id.");
+  const holder = strOrNull(have, "userId");
+  if (holder && holder !== input.userId && num(have, "mapped") === 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "That address is already matched to someone else. Take that match away first." });
+  const other = rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, input.userId, 1)).find((r) => str(r, "email") !== email);
+  if (other) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: `That person is already matched to ${str(other, "email")}. Take that match away first.` });
+  if (have) ctx.db.run(`UPDATE microsoft_member SET "userId" = ?, mapped = ?, updated_at = ? WHERE email = ?`, input.userId, 1, now, email);
+  else ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, input.userId, 1, 0, null, now);
+  const excluded = num(have, "excluded") === 1;
+  let connected = false;
+  if (!excluded && num(cfg, "autoConnect") === 1) {
+    const out = obj(await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: [{ userId: input.userId, email }], idempotencyKey: `map:${email}:${input.userId}` }));
+    ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ? WHERE email = ?`, "pending", email);
+    await connectCalendar(ctx, { connectionId, userId: input.userId, email });
+    connected = (int(out.created) ?? 0) > 0 || (int(out.skipped) ?? 0) > 0;
+  }
+  return { email, userId: input.userId, mapped: true, connected };
 }
 
 export async function consentDisable(ctx: MsCtx) {
@@ -456,3 +530,12 @@ export async function health(ctx: MsCtx) {
 }
 
 
+
+/** The address the caller is matched to, if they are matched and not excluded. A mount names it so it syncs as the person who made it. */
+export async function consentMyAccount(ctx: MsCtx) {
+  const person = ctx.actingFor ?? ctx.principal.id;
+  const row = first(ctx.db.all(`SELECT email, excluded FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1));
+  const out: { email?: string } = {};
+  if (row && num(row, "excluded") !== 1) out.email = str(row, "email");
+  return out;
+}

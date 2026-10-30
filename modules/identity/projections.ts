@@ -13,6 +13,7 @@ export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
 }
+export interface Sso { providers(): { key: string; title: string }[]; resolve(key: string, ticket: string): string | null }
 export interface Github { resolve(code: string): Promise<{ id: string; login: string }> }
 export interface IdentityCtx {
   recoveryCommit?:RecoveryCommit;
@@ -34,6 +35,8 @@ export interface IdentityCtx {
   call?(name: string, input: unknown): Promise<unknown>;
   /** GitHub OAuth code exchange, built by the host from ctx.http (egress github.com). */
   github?: Github;
+  /** Sign in with the firm's own Google or Microsoft app, built by the host: the providers that are on, and a finished sign-in's ticket traded for the person it names. */
+  sso?: Sso;
   /** Roles and groups of a person, read through the access projection by the host. */
   /** The person key this node holds for the signed-in person (ruling 62, 63). Absent: nothing to clear. */
   keyring?: Keyring;

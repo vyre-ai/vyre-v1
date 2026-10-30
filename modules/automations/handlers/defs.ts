@@ -125,6 +125,27 @@ function connectorLevel(n: Node, db?: Db): "draft" | "tested" | undefined {
   return undefined;
 }
 
+const VAULT_HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
+/** The HTTP request step: an https address (a template is checked when it runs), a method that fits its body, and a key that is a Vault handle, never a value. */
+function httpIssues(id: string, have: Record<string, unknown>): Issue[] {
+  const out: Issue[] = [];
+  const method = typeof have["method"] === "string" ? have["method"].toUpperCase() : "";
+  const url = have["url"];
+  if (method !== "" && !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method)) out.push(issue("error", `${method} is not an HTTP request method this step sends.`, id));
+  if (typeof url === "string" && !url.includes("{{") && !/^https:\/\//i.test(url.trim())) out.push(issue("error", "An HTTP request address must start with https://.", id));
+  if ((method === "GET" || method === "HEAD") && (present(have["json"]) || present(have["text"]))) out.push(issue("error", `${method} cannot carry a body.`, id));
+  if (present(have["json"]) && present(have["text"])) out.push(issue("error", "An HTTP request carries a JSON body or a text body, not both.", id));
+  const auth = have["auth"];
+  if (auth !== undefined && auth !== null) {
+    const a = (typeof auth === "object" && !Array.isArray(auth) ? auth : {}) as Record<string, unknown>;
+    if (a["kind"] !== "bearer" && a["kind"] !== "basic" && a["kind"] !== "header") out.push(issue("error", "Auth is bearer, basic or a named header.", id));
+    if (typeof a["handle"] !== "string" || !VAULT_HANDLE.test(a["handle"])) out.push(issue("error", "Auth needs a Vault handle such as #Acme_API. Pick the key in the Vault; do not paste it.", id));
+    if (a["kind"] === "basic" && !present(a["username"])) out.push(issue("error", "Basic auth needs a user name.", id));
+    if (a["kind"] === "header" && !present(a["header"])) out.push(issue("error", "Auth by header needs the header name.", id));
+  }
+  return out;
+}
+
 /** The structural problems that make a definition unreadable: duplicate ids, references to nodes that do not exist, steps and triggers that are not in the catalogue. */
 export function structuralIssues(def: Definition): Issue[] {
   const out: Issue[] = [];
@@ -162,11 +183,12 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (n.key === "connector_request" && !present(have["action"])) out.push(issue("error", "An authenticated request needs an action.", n.id));
     if (n.key === "connector_request" && !present(have["connectionId"])) out.push(issue("error", "An authenticated request needs a connection.", n.id));
     if (n.key === "connector_request" && containsSecret(have["input"])) out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
-    if (s.kind === "ai" && !n.ai?.agentId && !n.ai?.keyId && !present(have.agentId) && !present(have.keyId)) out.push(issue("error", `${s.title} needs an agent or a key.`, n.id));
+    if (n.key === "http_request") out.push(...httpIssues(n.id, have));
     if (n.key === "loop") {
       const max = have["maxIterations"];
       if (typeof max === "number" && max > 1000) out.push(issue("error", "A loop allows at most 1000 iterations.", n.id));
     }
+    if (n.askBeforeSending !== undefined && s.effects !== "outward") out.push(issue("error", "Ask before sending applies only to a step that sends.", n.id));
     if (n.onError?.mode === "route" && !n.onError.route) out.push(issue("error", "On error: route needs a step to go to.", n.id));
   }
   const nested = new Set<string>();
@@ -234,29 +256,91 @@ function refuseSecret(ctx: AutoCtx, def: Definition): void {
 }
 const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.severity === "error");
 
-// AI and Code stay off the live path. The host has no agent port and no sandbox port for them.
-// A draft may contain either step. Turning the Automation on may not. A schedule can be turned on.
-const PREVIEW_STEPS = new Set(["ai", "code"]);
-const HIDDEN_STEPS = new Set(["ai", "code"]);
-function previewMessage(key: string): string {
-  if (key === "code") return "Code steps run in the sandbox, which is not connected here.";
-  return "AI step is a preview and cannot be turned on.";
+// AI and Code are live steps. A draft may hold either. Turning the Automation on checks that this server can run them and that the AI step has an account to pay for it.
+//   Run code needs the sandbox (steps.support says whether this server has it), and is refused with the reason where it does not.
+//   An AI step in a Personal automation runs on its owner's own account (keyId may pick one); in a Space automation it needs a Space-shared key in keyId. The message names what to add.
+interface Support { code: { available: boolean; reason?: string }; ai: { available: boolean; reason?: string } }
+interface ProviderLite { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string }
+
+async function supportOf(ctx: AutoCtx): Promise<Support> {
+  const none = { available: false, reason: "This server has not started the part that runs it." };
+  if (!ctx.call) return { code: none, ai: none };
+  try {
+    const r = (await ctx.call("steps.support", {})) as Partial<Support> | null;
+    return { code: r?.code ?? none, ai: r?.ai ?? none };
+  } catch {
+    return { code: none, ai: none };
+  }
 }
-export function previewLiveIssues(def: Definition): Issue[] {
+
+/** The steps this server cannot run, hidden from the catalogue. A step that is here but not yet usable is not hidden: its problem shows when it is turned on. */
+async function hiddenSteps(ctx: AutoCtx): Promise<Set<string>> {
+  const s = await supportOf(ctx);
+  return new Set([...(s.code.available ? [] : ["code"]), ...(s.ai.available ? [] : ["ai"])]);
+}
+
+async function providersOf(ctx: AutoCtx): Promise<ProviderLite[] | null> {
+  if (!ctx.call) return null;
+  try {
+    const r = (await ctx.call("providers.list", {})) as { providers?: ProviderLite[] } | null;
+    return Array.isArray(r?.providers) ? r!.providers : [];
+  } catch {
+    return null;
+  }
+}
+
+const refOf = (p: ProviderLite): string[] => [p.handle, p.itemId, p.id, p.name].filter((x): x is string => typeof x === "string" && x !== "");
+const works = (p: ProviderLite): boolean => p.state === "ok" && (p.connection !== "subscription" || p.spaceMayUse);
+
+/** Why the AI steps of this definition cannot pay for their turns when it goes live, one issue per step. */
+async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
+  const nodes = def.nodes.filter((n) => n.key === "ai");
+  if (nodes.length === 0) return [];
+  const providers = await providersOf(ctx);
   const out: Issue[] = [];
-  for (const n of def.nodes) {
-    if (!PREVIEW_STEPS.has(n.key)) continue;
-    out.push(issue("error", previewMessage(n.key), n.id));
+  for (const n of nodes) {
+    const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
+    const key = typeof have["keyId"] === "string" && have["keyId"] !== "" ? have["keyId"] : undefined;
+    const backup = typeof have["backupKeyId"] === "string" && have["backupKeyId"] !== "" ? have["backupKeyId"] : undefined;
+    const pick = (ref: string): ProviderLite | undefined => providers?.find((p) => refOf(p).includes(ref));
+    if (providers === null) { out.push(issue("error", "AI steps run on the agent runtime, which this server has not started.", n.id)); continue; }
+    if (kind === "space") {
+      if (!key) { out.push(issue("error", "A Space AI step needs a Space-shared AI key. Add one in the Vault under AI providers (Shared), then choose it in this step.", n.id)); continue; }
+      for (const ref of [key, ...(backup ? [backup] : [])]) {
+        const p = pick(ref);
+        if (!p) out.push(issue("error", `The AI key ${ref} is not in the Vault. Add a Space-shared AI key and choose it in this step.`, n.id));
+        else if (p.scope !== "shared") out.push(issue("error", `The AI key ${p.name} belongs to one person. A Space automation needs a Space-shared AI key: share it with the Space in the Vault, or add one.`, n.id));
+        else if (!works(p)) out.push(issue("error", `The AI key ${p.name} does not work right now (${p.state === "ok" ? "it needs a sign-in" : p.state.replace("_", " ")}). Fix it in AI settings or choose another.`, n.id));
+      }
+      continue;
+    }
+    if (key) {
+      const p = pick(key);
+      if (!p) { out.push(issue("error", `The AI key ${key} is not in the Vault. Pick one of your AI accounts, or clear the choice to use your default.`, n.id)); continue; }
+      if (!works(p)) out.push(issue("error", p.connection === "subscription" && p.state === "ok" ? `${p.name} is your subscription, and the Space may not use it yet. Turn on Let the Space run work on my subscription in AI settings.` : `${p.name} does not work right now. Fix it in AI settings or choose another.`, n.id));
+      continue;
+    }
+    if (!providers.some(works)) out.push(issue("error", "This AI step runs on your own AI account and you have none that works on the server. Add an API key, or sign in with Claude or Codex and turn on Let the Space run work on my subscription, in AI settings.", n.id));
   }
   return out;
 }
 
-/** Live publish runs admit() on every catalogue step. Preview wording stays in previewLiveIssues. */
+/** What stops this definition going live because of the live steps in it. */
+export async function liveStepIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
+  const out: Issue[] = [];
+  if (def.nodes.some((n) => n.key === "code")) {
+    const code = (await supportOf(ctx)).code;
+    if (!code.available) for (const n of def.nodes) if (n.key === "code") out.push(issue("error", `Run code cannot be turned on here. ${code.reason ?? "This server has no sandbox."}`, n.id));
+  }
+  return [...out, ...(await aiAccountIssues(ctx, kind, def))];
+}
+
+/** Live publish runs admit() on every catalogue step. */
 export function admissionIssues(def: Definition): Issue[] {
   const out: Issue[] = [];
   for (const n of def.nodes) {
     const step = STEPS.get(n.key);
-    if (!step || PREVIEW_STEPS.has(n.key)) continue;
+    if (!step) continue;
     const verdict = admit(contractOf(step));
     if (verdict.stable) continue;
     for (const item of verdict.issues) out.push(issue("error", item.message, n.id));
@@ -275,8 +359,8 @@ function draftedActionIssues(def: Definition, db: Db): Issue[] {
   return out;
 }
 
-function blocksGoingLive(def: Definition, policy: Policy, db: Db): Issue[] {
-  return [...validateDefinition(def, policy), ...previewLiveIssues(def), ...admissionIssues(def), ...draftedActionIssues(def, db)];
+async function blocksGoingLive(ctx: AutoCtx, kind: Automation["kind"], def: Definition, policy: Policy): Promise<Issue[]> {
+  return [...validateDefinition(def, policy), ...admissionIssues(def), ...draftedActionIssues(def, ctx.db), ...(await liveStepIssues(ctx, kind, def))];
 }
 
 // ---- reads ----
@@ -335,8 +419,9 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
 export async function triggersList(): Promise<unknown> {
   return { triggers: registry.triggers.map((t) => ({ key: t.key, title: t.title, payload: t.payload, sample: t.sample, personalOk: t.personalOk, allowSelfTrigger: t.allowSelfTrigger })) };
 }
-export async function stepsList(_ctx: AutoCtx, input: In): Promise<unknown> {
-  const steps = registry.steps.filter((s) => !HIDDEN_STEPS.has(s.key) && (!input.category || s.category === input.category));
+export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
+  const hidden = await hiddenSteps(ctx);
+  const steps = registry.steps.filter((s) => !hidden.has(s.key) && (!input.category || s.category === input.category));
   return { steps: steps.map((s) => clean({ key: s.key, title: s.title, category: s.category, kind: s.kind, input: s.input, output: s.output, effects: s.effects, gateAct: s.gateAct })) };
 }
 
@@ -384,7 +469,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
     const policy = readPolicy(ctx.db);
-    const blocking = a.status === "on" ? blocksGoingLive(input.definition, policy, ctx.db) : validateDefinition(input.definition, policy);
+    const blocking = a.status === "on" ? await blocksGoingLive(ctx, a.kind, input.definition, policy) : validateDefinition(input.definition, policy);
     if (a.status === "on" && hasErrors(blocking)) {
       raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
     }
@@ -407,11 +492,11 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   if (input.enabled) {
     if (a.status === "on") return { automation: out(a) };
-    const issues = blocksGoingLive(a.definition, readPolicy(ctx.db), ctx.db);
+    const issues = await blocksGoingLive(ctx, a.kind, a.definition, readPolicy(ctx.db));
     if (hasErrors(issues)) {
-      const preview = previewLiveIssues(a.definition);
+      const live = await liveStepIssues(ctx, a.kind, a.definition);
       const drafted = draftedActionIssues(a.definition, ctx.db);
-      const reason = preview.length > 0 ? "preview" : drafted.length > 0 ? "draft" : "invalid_definition";
+      const reason = live.length > 0 ? "live_step" : drafted.length > 0 ? "draft" : "invalid_definition";
       raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason, issues });
     }
     a.status = "on";
@@ -457,7 +542,7 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
   refuseSecret(ctx, v.definition);
-  const restored = a.status === "on" ? blocksGoingLive(v.definition, readPolicy(ctx.db), ctx.db) : validateDefinition(v.definition, readPolicy(ctx.db));
+  const restored = a.status === "on" ? await blocksGoingLive(ctx, a.kind, v.definition, readPolicy(ctx.db)) : validateDefinition(v.definition, readPolicy(ctx.db));
   if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
   }
@@ -609,13 +694,22 @@ export async function accessDiff(ctx: AutoCtx, a: Automation): Promise<Diff> {
   for (const n of a.definition.nodes) {
     const effects = STEPS.get(n.key)?.effects ?? "read";
     const lvl = effects === "write" ? 2 : effects === "outward" ? 1 : 0;
-    walk(n.input, (s) => {
+    walk({ input: n.input, ai: n.ai }, (s) => {
       for (const m of s.match(HANDLE) ?? []) vault.add(m);
       if (/^con_[a-z0-9]+$/.test(s)) connections.add(s);
       const m = /^([a-z]{3})_[a-z0-9]+$/.exec(s);
       const type = m ? RESOURCE_PREFIX[m[1]!] : undefined;
       if (type) { const k = `${type}/${s}`; need.set(k, Math.max(need.get(k) ?? 0, lvl)); }
     });
+  }
+  // the AI step's key is named by provider id; the Vault item behind it is what the Space automation must be allowed to use
+  const providers = await providersOf(ctx);
+  for (const n of a.definition.nodes) {
+    if (n.key !== "ai") continue;
+    for (const k of [n.ai?.keyId, n.ai?.backupKeyId]) {
+      const p = k ? providers?.find((x) => refOf(x).includes(k)) : undefined;
+      if (p?.handle) vault.add(p.handle);
+    }
   }
   const grants: Grant[] = [...need.entries()].sort(([x], [y]) => (x < y ? -1 : 1)).map(([resource, l]) => {
     const level = LEVELS[l]!;
@@ -629,6 +723,9 @@ export async function accessDiff(ctx: AutoCtx, a: Automation): Promise<Diff> {
     for (const k of [n.ai?.keyId, n.ai?.backupKeyId]) {
       if (k && subs.has(k)) keysToReplace.push({ stepId: n.id, keyId: k, reason: "A subscription belongs to one person. A Space automation needs a shared API key." });
     }
+    // an AI step that used its owner's own account has no key to carry over: the Space automation needs one
+    const picked = (n.ai?.keyId ?? (n.input as Record<string, unknown>)["keyId"]) as unknown;
+    if (n.key === "ai" && (typeof picked !== "string" || picked === "")) keysToReplace.push({ stepId: n.id, keyId: "", reason: "This AI step ran on your own account. A Space automation needs a Space-shared AI key." });
   }
   return { grants, vaultNames: [...vault].sort(), connections: [...connections].sort(), keysToReplace };
 }
@@ -666,9 +763,11 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
     const def = JSON.parse(JSON.stringify(a.definition)) as Definition;
     for (const n of def.nodes) {
       const k = replace.get(n.id);
-      if (!k || !n.ai) continue;
+      if (!k) continue;
+      if (!n.ai) n.ai = {};
       const wasSub = new Set(diff.keysToReplace.filter((x) => x.stepId === n.id).map((x) => x.keyId));
       if (n.ai.keyId && wasSub.has(n.ai.keyId)) { n.ai.keyId = k; replaced += 1; }
+      else if (!n.ai.keyId && wasSub.has("")) { n.ai.keyId = k; replaced += 1; }
       if (n.ai.backupKeyId && wasSub.has(n.ai.backupKeyId)) { n.ai.backupKeyId = k; replaced += 1; }
     }
     a.definition = def;

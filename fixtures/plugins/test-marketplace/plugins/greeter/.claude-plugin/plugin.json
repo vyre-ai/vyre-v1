@@ -1,0 +1,8 @@
+{
+  "name": "greeter",
+  "version": "1.0.0",
+  "description": "Greets people warmly.",
+  "userConfig": {
+    "echo_token": { "type": "string", "title": "Echo token", "description": "A token the echo server reports back", "sensitive": true }
+  }
+}

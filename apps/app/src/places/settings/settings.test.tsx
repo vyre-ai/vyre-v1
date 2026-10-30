@@ -12,6 +12,7 @@ import { SavedProvider } from "./saved.tsx";
 import { PAGES, bytesLabel, clock, controlFor, hoursSummary, moneyLabel, pageOfRow, rowLabel, searchRows, sectionsFor, splitList, summaryOf, timeIn } from "./model.ts";
 import type { PageKey, SettingRow } from "./model.ts";
 import { whenLabel } from "./pages-b.tsx";
+import { dollars, monthNote } from "./MemorySpend.tsx";
 import { ROWS, createSampleSettings, harbor, northwind } from "./sample.ts";
 import type { SampleSettings } from "./sample.ts";
 
@@ -304,4 +305,33 @@ test("sections: every row of a page lands in a section, and a row no section nam
 test("no em dash in any copy on any page", () => {
   const s = createSampleSettings(northwind);
   for (const p of PAGES) assert.ok(!html(s, { initialPage: p.key }).includes(String.fromCharCode(0x2014)), p.key);
+});
+
+test("Memory and privacy > Who pays for memory: your own picker, the Space and project pickers for an admin, each saving through memory.key.set with Undo; no account reads as rules only", async () => {
+  const s = createSampleSettings(northwind);
+  const out = html(s, { initialPage: "privacy" });
+  for (const t of ["Who pays for memory", "Your memory", "None (rules only)", "Space memory", "Project memory", "Rivera matter", "Probate GTM", "The Space&#x27;s account", 'data-testid="ctl-memory-key-person"', 'data-testid="ctl-memory-key-space"', 'data-testid="ctl-memory-key-project-prj_rivera"']) assert.ok(out.includes(t) || out.replaceAll("&#x27;", "'").includes(t.replaceAll("&#x27;", "'")), t);
+  await s.data.call("memory.key.set", { layer: "person", accountRef: "#Team_OpenAI_Key" });
+  await s.data.call("memory.key.set", { layer: "project", projectId: "prj_rivera", accountRef: "#Team_Anthropic_Key" });
+  const after = html(s, { initialPage: "privacy" });
+  assert.ok(after.includes("OpenAI team key (shared)") && after.includes("Anthropic team key (shared)"), "the chosen accounts are on the pickers");
+  assert.ok(after.includes("Its own account"), "a project with its own account says so");
+  assert.deepEqual(s.calls.map((c) => c.cap), ["memory.key.set", "memory.key.set"]);
+  // a person who is not an admin has their own picker only, and the Space one is refused
+  const harborOut = html(createSampleSettings(harbor), { initialPage: "privacy" });
+  assert.ok(harborOut.includes("Your memory") && !harborOut.includes("Space memory") && !harborOut.includes("Project memory"));
+  await assert.rejects(() => createSampleSettings(harbor).data.call("memory.key.set", { layer: "space", accountRef: "#Team_OpenAI_Key" }), /Only a Space admin/);
+});
+
+test("Memory and privacy > Memory spend: last night, this month and the monthly cap for an admin, the cap saving through settings.set_space; a member sees none", async () => {
+  const s = createSampleSettings(northwind);
+  const out = html(s, { initialPage: "privacy" });
+  for (const tx of ["Memory spend", "Last night", "$0.04", "This month", "$1.24", "25% of the cap", "Monthly cap", 'data-testid="ctl-memory-spend-cap"']) assert.ok(out.includes(tx), tx);
+  await s.data.call("settings.set_space", { key: "memory.upkeep_monthly_cap", value: 8 });
+  assert.equal(((s.data.peek?.("memory.upkeep.status", {}) as { capMicros: number }).capMicros), 8_000_000);
+  assert.ok(!html(createSampleSettings(harbor), { initialPage: "privacy" }).includes("Memory spend"));
+  assert.equal(dollars(0), "$0.00");
+  assert.equal(dollars(2_500_000), "$2.50");
+  assert.match(monthNote({ spentMicros: 5_000_000, capMicros: 5_000_000, capReached: true, modelAvailable: true }), /cap is reached/);
+  assert.match(monthNote({ spentMicros: 0, capMicros: 5_000_000, capReached: false, modelAvailable: false }), /rules only/);
 });

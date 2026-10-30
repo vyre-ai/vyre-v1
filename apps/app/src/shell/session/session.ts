@@ -15,6 +15,7 @@ import type { CapCall, RouteRow } from "./caps.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
 import { createTurnStreams } from "./turn-streams.ts";
+import { readStoredSessions } from "./stored.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
 import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
@@ -254,6 +255,21 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     screens: hooks,
     turns,
     call: (cap, input) => call(cap, input),
+    callIn: async (spaceId, cap, input) => {
+      // another Space this device is signed in to: its own address and its own token, never this Space's
+      const other = readStoredSessions().find((x) => x.def.spaceId === spaceId);
+      if (!other || other.def.spaceId === space.id) throw new Error("This device is not signed in to that Space");
+      const caller = createCapCaller({ baseUrl: other.baseUrl, token: () => other.token, ...(o.fetch ? { fetch: o.fetch } : {}), ...(o.routes ? { routes: o.routes } : {}) });
+      return caller(cap, input);
+    },
+    putBlob: async (path, bytes) => {
+      // the upload address files.upload_url hands out: the bytes go there with the person's own token, one time
+      if (token === null) throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
+      const send = o.fetch ?? (globalThis as { fetch?: typeof fetch }).fetch;
+      if (!send) throw new Error("This device cannot upload");
+      const r = await send(new URL(path, o.baseUrl).toString(), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes as unknown as BodyInit });
+      if (!r.ok) throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
+    },
     connection: {
       get: () => (reachable && !(everLive && live === "offline") ? "online" : "offline"),
       subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
@@ -263,6 +279,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     me,
     clock: () => ({ now: (o.now ?? Date.now)(), offsetMin: -new Date().getTimezoneOffset() }),
     space: { id: space.id, kind: space.kind, name: space.name },
+    baseUrl: o.baseUrl,
     ...(o.spaceCards?{knownSpaces:o.spaceCards}:{}),
     get assistant() { return assistant(); },
     get aiConnected() { return connected(AI_CONNECTORS); },

@@ -6,8 +6,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { Glyph } from "./icons.tsx";
 import { cardLabel, moreLabel, runStateText, triggerLabel } from "../a11y.ts";
-import { PreviewMark } from "../builder/marks.tsx";
-import { isPreviewKey } from "../catalog/model.ts";
 import { CARD_H, CARD_W, TRIG_HEAD, TRIG_ROW, messages, triggerMeta } from "./model.ts";
 import type { CardNode, DefTrigger, IconKey, Issue, RunState } from "./model.ts";
 import { Face, IconButton, pointer, shadow, webOnly } from "./parts.tsx";
@@ -88,7 +86,6 @@ export function StepCard({ card, selected, hovered, focused = false, handlers, a
         </View>
       ) : null}
       {runWord ? <Text testID={`state-${card.id}`} style={c.statusText}>{runWord}</Text> : null}
-      {card.node && isPreviewKey(card.node.key) ? <PreviewMark testID={`preview-${card.node.key}`} /> : null}
       {card.kind === "ai" && agent ? <Face name={agent} kind="agent" size={18} /> : null}
       {tools ? (
         <View style={c.more}>
@@ -121,7 +118,7 @@ export function TriggerCard({ card, triggers, selected, hovered, onHover, handle
     rows.push(
       <TriggerRow
         key={`${t.key}-${i}`} index={i} title={meta.title} sub={describe(t)} icon={meta.icon} selected={selectedIndex === i}
-        onPress={() => onSelectTrigger(i)} onOpen={() => onOpenTrigger(i)} onMenu={(x, y) => onTriggerMenu(i, x, y)} hovered={hovered} preview={isPreviewKey(t.key, "trigger")}
+        onPress={() => onSelectTrigger(i)} onOpen={() => onOpenTrigger(i)} onMenu={(x, y) => onTriggerMenu(i, x, y)} hovered={hovered}
       />,
     );
   }
@@ -149,7 +146,7 @@ export function TriggerCard({ card, triggers, selected, hovered, onHover, handle
   );
 }
 
-function TriggerRow({ index, title, sub, icon, selected, onPress, onOpen, onMenu, hovered, preview = false }: { index: number; title: string; sub: string; icon: IconKey; selected: boolean; onPress(): void; onOpen(): void; onMenu(x: number, y: number): void; hovered: boolean; preview?: boolean }): ReactElement {
+function TriggerRow({ index, title, sub, icon, selected, onPress, onOpen, onMenu, hovered }: { index: number; title: string; sub: string; icon: IconKey; selected: boolean; onPress(): void; onOpen(): void; onMenu(x: number, y: number): void; hovered: boolean }): ReactElement {
   const [over, setOver] = useState(false);
   const last = useRef(0);
   const trig = menuTrigger(onMenu);
@@ -170,7 +167,6 @@ function TriggerRow({ index, title, sub, icon, selected, onPress, onOpen, onMenu
         <Text numberOfLines={1} style={c.title}>{title}</Text>
         <Text numberOfLines={1} style={c.sub}>{sub}</Text>
       </View>
-      {preview ? <PreviewMark testID={`preview-trigger-${index}`} /> : null}
       {over || selected || hovered ? <IconButton icon="more" label={moreLabel(title)} size={22} onPress={() => onMenu(-1, -1)} /> : null}
     </Pressable>
   );

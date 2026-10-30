@@ -7,7 +7,7 @@ export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "computer", title: "Computer" },
   { key: "threads", title: "Threads" },
   { key: "files", title: "Files" },
-  { key: "memory", title: "Memory" },
+  { key: "memory", title: "Knows" },
   { key: "routines", title: "Routines" },
 ];
 export const DEFAULT_TAB: TabKey = "computer";

@@ -16,6 +16,7 @@ import { ROUTINE_STARTS, changeByAsking, cronWords, isWatcher, lastRunLine, next
 import type { Routine } from "./model.ts";
 import { Face, LeadIcon, PaneList, Switch, TextButton, Tool } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
+import { nameOr } from "../names.ts";
 
 type RoutinesOut = CapMap["agents.routines.list"]["out"];
 
@@ -47,7 +48,7 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
     setRunning((x) => [...x, r.routineId]);
     void runNow(deps, r).then(() => setRunning((x) => x.filter((id) => id !== r.routineId)));
   };
-  const personName = (id: string): string => data.people?.find((p) => p.id === id)?.name ?? id;
+  const personName = (id: string): string => nameOr(data.people?.find((p) => p.id === id)?.name, id);
 
   const menuFor = (r: Routine): MenuEntry[] => [
     { label: "Open", onSelect: () => { setOpenId(r.routineId); setMode("view"); } },

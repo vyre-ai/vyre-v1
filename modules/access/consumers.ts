@@ -7,13 +7,13 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../../host/src/routes/errors.ts";
-import { AccessStore, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
+import { AccessStore, CURSOR_KEY, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, GrantRec, Label, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
 
 /** fieldLabels key without a dot: the snapshot skips it, so it carries the cursor without becoming a field label */
-const CURSOR = "seed_cursor";
+const CURSOR = CURSOR_KEY;
 
 /** the event names access.sync folds; the host sends only these */
 export const ACCESS_EVENTS = [
@@ -89,8 +89,10 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       return true;
     }
     case "principal.role_set": {
-      const holder = str(p["holder"]), role = str(p["role"]);
-      if (!holder || !role) return false;
+      const holder = str(p["holder"]), given = str(p["role"]);
+      if (!holder || !given) return false;
+      // older events name the built-in role ("member"); every later call (unassign, removal) wants the role id
+      const role = LEGACY_ROLE[given] ?? given;
       const have = store.assignments.get(holder) ?? [];
       if (have.includes(role)) return false;
       store.assignments.set(holder, [...have, role]);
@@ -174,13 +176,17 @@ function apply(ctx: AccessCtx, store: AccessStore, events: readonly LogEvent[]):
     ctx.db.run("INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)", r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null);
   }
   if (moved) {
-    ctx.db.run("DELETE FROM access_fields WHERE k = ?", CURSOR);
-    ctx.db.run("INSERT INTO access_fields (k,rank) VALUES (?,?)", CURSOR, cursor);
+    ctx.db.run("INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)", CURSOR, cursor);
   }
   return { cursor, changed };
 }
 
 const GRANTED = new WeakSet<AccessSnapshot>();
+/**
+ * The rol_* role an older event names by its old built-in name, for the roles a person can be removed from. Not "owner": the Space owner is never removed, and a Space seeded with the old
+ * names keeps the owner's grants under "owner".
+ */
+const LEGACY_ROLE: Readonly<Record<string, string>> = { admin: "rol_admin", manager: "rol_developer", member: "rol_member", temp: "rol_guest" };
 /** the Space level each built-in role carries in a Space nothing was seeded in, the same as the seeded roles. Guest (and Temp) get nothing Space-wide: they only hold per-resource grants. */
 const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = { rol_owner: "manage", rol_admin: "manage", rol_developer: "edit", rol_member: "edit" };
 

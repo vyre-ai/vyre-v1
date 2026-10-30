@@ -170,7 +170,9 @@ pub fn run() {
             native::set_badge,
             chrome::install_chrome_extension,
             chrome::open_chrome_extensions,
-            chrome::reveal_chrome_extension
+            chrome::reveal_chrome_extension,
+            chrome::link_chrome_space,
+            chrome::unlink_chrome_space
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

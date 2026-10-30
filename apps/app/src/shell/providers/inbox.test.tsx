@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { LiveQuery } from "../../../../../client/src/index.ts";
 import { createSampleInbox } from "../../places/inbox/contactlist/sample.ts";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
-import InboxPlace, { inboxData } from "./inbox.tsx";
+import InboxPlace, { calendarTeam, inboxData } from "./inbox.tsx";
+import { PlaceHashProvider } from "../hash/context.tsx";
 import { ShellRuntimeProvider } from "./runtime.tsx";
 import type { ShellRuntime, ShellTarget } from "./runtime.tsx";
 
@@ -46,4 +47,26 @@ test("inbox: opening a contact reaches the place, and the sidebar's other doors 
   data.nav.compose();
   assert.deepEqual(picked, ["elena"]);
   assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }, { screen: "mail.message-detail" }]);
+});
+
+test("inbox: Match to a record opens the Unmatched screen in the Inbox body, not the contact list", () => {
+  const { rt, opened } = runtime();
+  inboxData(rt, () => undefined).nav.openMatch("elena");
+  assert.deepEqual(opened, [{ screen: "inbox.unmatched", args: { conversationId: "elena" } }], "the row's Match writes the screen id");
+  const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><PlaceHashProvider hash="screen=inbox.unmatched&conversationId=elena" opened={() => undefined}><InboxPlace /></PlaceHashProvider></ShellRuntimeProvider>).replaceAll("<!-- -->", "");
+  assert.ok(out.includes('data-testid="inbox-place"'));
+  assert.ok(!out.includes("Marcus Pruitt"), "the contact list is not the body");
+});
+
+test("inbox: an open conversation is the conversation with the call bar, so a call to this contact shows its bar and its ended strip", () => {
+  const { rt } = runtime();
+  const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><PlaceHashProvider hash="subject=conversation:elena" opened={() => undefined}><InboxPlace /></PlaceHashProvider></ShellRuntimeProvider>).replaceAll("<!-- -->", "");
+  assert.ok(out.includes('data-testid="call-conversation"'), "the call conversation wraps the contact tab");
+});
+
+test("inbox: the Calendar's free and busy menu lists the Space's people, as ids the availability capability takes", () => {
+  assert.deepEqual(calendarTeam([
+    { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }, { id: "usr_maya", name: "Maya Chen", kind: "person" }, { id: "agt_intake", name: "Intake", kind: "agent" },
+  ]), [{ email: "usr_irfad", name: "Irfad Imtiaz" }, { email: "usr_maya", name: "Maya Chen" }], "people only: an agent has no calendar");
+  assert.deepEqual(calendarTeam([]), []);
 });

@@ -68,7 +68,7 @@ export function needHost(ctx: Pick<GoogleCtx, "trace">): GoogleHost {
 // ---- constants
 
 export const SCOPE = "https://www.googleapis.com/auth/";
-export const SCOPES = ["gmail.modify", "calendar", "drive", "spreadsheets", "documents", "meetings.space.readonly"].map((s) => SCOPE + s);
+export const SCOPES = ["gmail.modify", "calendar", "drive", "spreadsheets", "documents", "meetings.space.readonly", "admin.directory.user.readonly"].map((s) => SCOPE + s);
 export const ADMIN_CONSOLE_URL = "https://admin.google.com/ac/owl/domainwidedelegation";
 export const CONFIG_ID = "google";
 
@@ -111,7 +111,7 @@ export function bad(ctx: Pick<GoogleCtx, "trace">, message: string): never {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_google_core.sql", "0002_google_push.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_google_core.sql", "0002_google_push.sql", "0003_google_meet.sql", "0004_google_calendar.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];

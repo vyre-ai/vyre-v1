@@ -29,6 +29,7 @@ type In = {
   agentId: string;
   askerId?: string;
   stepKey?: string;
+  unavailable?: Array<string>;
 };
 ```
 
@@ -61,7 +62,10 @@ type Out = {
     "agentId": "agt_a1b2c3",
     "askerId": "usr_a1b2c3",
     "stepKey": "example",
-    "threadId": "thr_a1b2c3"
+    "threadId": "thr_a1b2c3",
+    "unavailable": [
+      "example"
+    ]
   },
   "output": {
     "accountRef": "#Team_Anthropic_Key",

@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -44,6 +45,12 @@ function setup(): void {
   for (const d of ["projects", "projects-archive"]) fs.cpSync(path.join(FIXTURES, "claude", d), path.join(claude, d), { recursive: true });
   fs.cpSync(path.join(FIXTURES, "claude", "Library"), path.join(home, "Library"), { recursive: true });
   fs.cpSync(path.join(FIXTURES, "codex"), path.join(home, ".codex"), { recursive: true });
+  // Codex keeps its thread index in ~/.codex/state_5.sqlite (a `threads` table whose rollout_path names the transcript); the shell lists a Codex session from that index, never by scanning the folder.
+  // The fixture is the rollout file only, so the index is made here, the way Codex writes a row.
+  const index = new DatabaseSync(path.join(home, ".codex", "state_5.sqlite"));
+  index.exec("CREATE TABLE threads(id TEXT, rollout_path TEXT, cwd TEXT, created_at INTEGER, updated_at INTEGER, git_branch TEXT, git_origin_url TEXT)");
+  index.prepare("INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?)").run("11111111-1111-4111-8111-111111111111", "sessions/2026/10/25/rollout-11111111-1111-4111-8111-111111111111.jsonl", "/workspace/vyre", 1761382800, 1761382802, "main", null);
+  index.close();
   // The model vendor stand-in: `claude` on the PATH the sidecar builds for a Finder launch. The packaged Node (the sidecar binary beside the app's executable) runs the fake.
   const share = path.join(home, ".local", "share", "vyre-proof");
   const bin = path.join(home, ".local", "bin");
@@ -95,7 +102,47 @@ async function post(url: string, token: string | null, cap: string, body: unknow
   const text = await r.text();
   return { status: r.status, body: text ? JSON.parse(text) : {} };
 }
-const ok = (r: Reply, what: string): any => { assert.equal(r.status, 200, `${what}: ${r.status} ${JSON.stringify(r.body.error ?? r.body).slice(0, 400)}`); return r.body.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
+/**
+ * The Personal daemon's own log (its logs.db under the data dir), for a failure message: a 500 answers only a trace id, and the handler's stack is in the log. The daemon writes its log in the
+ * background, so the row for a call that has just failed is not there yet: this waits up to six seconds for an error row (level 40 or more, or a row that names the trace id), then falls back to the
+ * newest rows of any level, and says plainly when the file could not be read or held nothing, so an empty tail is never silent.
+ */
+function daemonLogTail(traceId?: string): string {
+  const path_ = path.join(data, "logs.db");
+  type Row = { level: number; cap: string | null; msg: string; attrs: string | null };
+  const show = (rows: Row[]): string => rows.map((r) => `  ${r.level} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 1200)}`).join("\n");
+  try {
+    if (!fs.existsSync(path_)) return `\ndaemon log: ${path_} does not exist (the daemon wrote none)`;
+    const deadline = Date.now() + 6_000;
+    for (;;) {
+      const db = new DatabaseSync(path_, { readOnly: true });
+      try {
+        const rows = (traceId
+          ? db.prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 OR attrs LIKE ? ORDER BY id DESC LIMIT 6").all(`%${traceId}%`)
+          : db.prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 ORDER BY id DESC LIMIT 6").all()) as Row[];
+        if (rows.length) return `\ndaemon log (errors, newest first):\n${show(rows)}`;
+        if (Date.now() > deadline) {
+          const any = db.prepare("SELECT level, cap, msg, attrs FROM logs ORDER BY id DESC LIMIT 8").all() as Row[];
+          return `\ndaemon log: no error row after 6 s; the newest ${any.length} rows of any level:\n${show(any)}`;
+        }
+      } finally { db.close(); }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+    }
+  } catch (e) { return `\ndaemon log: could not be read (${String(e).slice(0, 200)})`; }
+}
+const ok = (r: Reply, what: string): any => { assert.equal(r.status, 200, `${what}: ${r.status} ${JSON.stringify(r.body.error ?? r.body).slice(0, 400)}${r.status === 200 ? "" : daemonLogTail((r.body.error as { traceId?: string } | undefined)?.traceId)}`); return r.body.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** What the sidecar left behind, for a failure message: the app's own output (the sidecar's stderr is in it) and the tail of every file the Personal daemon wrote under its logs folder. */
+function diagnostics(appOut: string): string {
+  const parts = [`app output (tail):\n${appOut.slice(-3500)}`];
+  try {
+    const walk = (dir: string, depth = 0): string[] => (depth > 3 ? [] : fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name), depth + 1) : [path.join(dir, e.name)])));
+    const files = fs.existsSync(data) ? walk(data).filter((f) => !/\.(db|sqlite|wal|shm)(-\w+)?$/.test(f)) : [];
+    parts.push(`personal data dir ${data}:\n${files.map((f) => `${path.relative(data, f)} ${fs.statSync(f).size}`).join("\n") || "(missing)"}`);
+    for (const f of files.filter((x) => /(logs\/|vyred\.json)/.test(x) && !/claim-link/.test(x)).slice(0, 6)) parts.push(`--- ${path.relative(data, f)}\n${fs.readFileSync(f, "utf8").slice(-1500)}`);
+  } catch (e) { parts.push(`(could not read the data dir: ${String(e)})`); }
+  return parts.join("\n");
+}
 
 function quit(app: ChildProcess): Promise<void> {
   const exited = new Promise<void>((r) => app.once("exit", () => r()));
@@ -117,7 +164,7 @@ test("the built app starts Personal, claims over HTTP, imports fixture sessions 
   const first = launch(c.url);
   try {
     const proof = await Promise.race([c.got, new Promise((_, bad) => setTimeout(() => bad(new Error(`the page never reported over the IPC:\n${first.out().slice(-2500)}`)), 90_000))]) as any;   // eslint-disable-line @typescript-eslint/no-explicit-any
-    assert.deepEqual(proof.errors, [], "every command the page called over the IPC answered");
+    assert.deepEqual(proof.errors, [], `every command the page called over the IPC answered\n${proof.errors.length ? diagnostics(first.out()) : ""}`);
 
     // ---- 1. Personal, started by the app as the UI starts it, claimed over HTTP
     const p = proof.personal;
@@ -138,8 +185,10 @@ test("the built app starts Personal, claims over HTTP, imports fixture sessions 
     state.sources = proof.sources;
     const keys = (proof.sources as { sessionKey: string }[]).map((s) => s.sessionKey).sort();
     assert.deepEqual(keys, [
-      "claude:22222222-2222-4222-8222-222222222222", "claude:33333333-3333-4333-8333-333333333333", "claude:44444444-4444-4444-8444-444444444444", "codex:11111111-1111-4111-8111-111111111111",
-    ].sort(), "the shell found the fixture Claude Code and Codex sessions under the app's HOME");
+      "claude:22222222-2222-4222-8222-222222222222", "claude:44444444-4444-4444-8444-444444444444", "codex:11111111-1111-4111-8111-111111111111",
+    ].sort(), "the shell found the fixture Claude Code and Codex sessions under the app's HOME (a Claude subagent transcript is not a session of its own: it travels with its parent)");
+    const parentRead = (proof.reads as { source: { sessionKey: string }; documents: { namespace: string }[] }[]).find((r) => r.source.sessionKey === "claude:22222222-2222-4222-8222-222222222222");
+    assert.ok(parentRead?.documents.some((d) => d.namespace === "subagent:33333333-3333-4333-8333-333333333333"), "the parent's read carries its subagent transcript");
     assert.ok(proof.sources.every((s: Record<string, unknown>) => !("transcriptPath" in s)), "the native transcript path never reaches the page");
     const { desktopSessionImporter } = await import("../../../client/src/session-import/desktop.ts");
     const reads = new Map<string, unknown>((proof.reads as { source: { sessionKey: string } }[]).map((r) => [r.source.sessionKey, r]));
@@ -176,8 +225,13 @@ test("the built app starts Personal, claims over HTTP, imports fixture sessions 
       const msgs = ok(await post(state.url, state.token, "chat.messages.list", { threadId: state.chatThread }), "chat.messages.list").messages as { author?: { kind?: string }; body?: string }[];
       return msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine."));
     }, 60_000, first.out);
-    const turns = ok(await post(state.url, state.token, "engine.turns.list", { threadId: state.chatThread }), "engine.turns.list").turns as { state: string; tokensIn: number; tokensOut: number }[];
-    assert.ok(turns.some((t) => t.state === "completed" && t.tokensIn > 0 && t.tokensOut > 0), `a completed turn holds the usage: ${JSON.stringify(turns)}`);
+    // The turn's usage is what a CLI turn leaves behind that the spend caps and the usage page read: engine_usage, written through engine.turn.record_usage when the turn ends, which can be just after the
+    // reply is posted, so wait for it. (engine.turns.list reads engine_turns, which only the worker capabilities engine.turn.start and finish write; the in-process turn engine that runs a chat turn does not.)
+    const usage = await until("the CLI turn's usage in engine.usage.query", async () => {
+      const u = ok(await post(state.url, state.token, "engine.usage.query", { by: "agent", agentId: agent }), "engine.usage.query").rows as { key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }[];
+      return u.find((r) => r.key === agent && r.totals.turns >= 1 && r.totals.tokensIn > 0 && r.totals.tokensOut > 0) ?? null;
+    }, 20_000, first.out);
+    assert.ok(usage, "a completed turn holds the usage");
   } finally {
     c.close();
     if (first.app.exitCode === null) await quit(first.app).catch(() => first.app.kill("SIGKILL"));

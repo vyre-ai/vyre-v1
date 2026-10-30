@@ -24,6 +24,7 @@ export const handlers: Record<string, Handler> = {
   "calendar.find_time": (ctx, i) => h.findTime(ctx, i),
   "calendar.sync_now": (ctx, i) => h.syncNow(ctx, i),
   "calendar.ingest_event": (ctx, i) => h.ingestEvent(ctx, i),
+  "calendar.connect_provider": (ctx, i) => h.connectProvider(ctx, i),
   "calendar.health": (ctx) => h.health(ctx),
 };
 

@@ -38,7 +38,19 @@ export interface McpEndpoint {
   stdio?: { command: string; args: readonly string[] };
 }
 
+/**
+ * Plugins installed on the agent, written into the CLI's own configuration inside its sandbox work folder (ruling 6): the plugin folders (Claude Code reads commands, skills and agents from them), and
+ * the plugin MCP servers as stdio commands. A value that is a secret is never here: the environment variable the CLI expands is named, and the host fills it from the Vault at launch.
+ */
+export interface NativePlugins {
+  dirs: readonly string[];
+  mcpServers: Readonly<Record<string, { command: string; args: readonly string[]; env: Readonly<Record<string, string>> }>>;
+  /** Environment variable name to the Vault handle whose value goes there (the existing fill). */
+  secrets: Readonly<Record<string, string>>;
+}
+
 export interface CommandOptions {
+  plugins?: NativePlugins;
   model: string | null;
   /** The engine's own session id to continue, from a checkpoint. */
   resume: string | null;
@@ -46,6 +58,8 @@ export interface CommandOptions {
   /** Set when the engine reaches Vyre through a stdio shim (sandbox socket) instead of the URL. */
   mcpStdio?: { command: string; args: readonly string[] };
   planMode: boolean;
+  /** The session has no Vyre tools and none of the CLI's own: no MCP server is named and the CLI's tools are off, whatever folder it works in. */
+  noTools?: boolean;
   /** A granted work folder: the CLI's own file tools come on and it works there. Null on a chat that runs Vyre tools only. */
   workFolder: string | null;
   /** Vyre's guide for this agent (AGENT.md and the rest), for engines that take it as a flag. */

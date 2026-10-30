@@ -29,6 +29,9 @@ type In = {
   agentId?: string;
   asOf?: number;
   kinds?: Array<string>;
+  layers?: Array<"person" | "agent" | "project" | "space">;
+  focus?: string;
+  hops?: number;
 };
 ```
 
@@ -38,8 +41,9 @@ type In = {
 type Out = {
   nodes: Array<{
       nodeId: string;
-      kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat";
+      kind: "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat" | "agent" | "topic";
       title: string;
+      pageId?: string;
       layer?: "person" | "agent" | "project" | "space";
       cluster?: string;
       x?: number;
@@ -49,7 +53,15 @@ type Out = {
   edges: Array<{
       from: string;
       to: string;
-      kind: "link" | "relation" | "came_from";
+      kind: "link" | "relation" | "came_from" | "mention";
+      label?: string;
+      evidence?: string;
+      at?: number;
+      source?: {
+        title: string;
+        kind: string;
+        link?: string;
+      };
     }>;
   clusters: Array<{
       name: string;
@@ -74,8 +86,13 @@ type Out = {
   "input": {
     "agentId": "agt_a1b2c3",
     "asOf": 1760000000000,
+    "focus": "example",
+    "hops": 1,
     "kinds": [
       "example"
+    ],
+    "layers": [
+      "person"
     ],
     "scope": "agent"
   },
@@ -89,8 +106,16 @@ type Out = {
     ],
     "edges": [
       {
+        "at": 1760000000000,
+        "evidence": "example",
         "from": "example",
         "kind": "link",
+        "label": "example",
+        "source": {
+          "kind": "example",
+          "link": "example",
+          "title": "example"
+        },
         "to": "example"
       }
     ],
@@ -101,6 +126,7 @@ type Out = {
         "layer": "person",
         "link": "example",
         "nodeId": "example",
+        "pageId": "example",
         "title": "example",
         "x": 1,
         "y": 1

@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (60)
+## Capabilities (65)
 
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
 - [google.calendar.delete_event](../capabilities/google.calendar.delete_event.md): Delete an event; Google tells the attendees
@@ -16,6 +16,8 @@ Requires: mail.
 - [google.calendar.stop_watch](../capabilities/google.calendar.stop_watch.md): Close an events.watch channel
 - [google.calendar.update_event](../capabilities/google.calendar.update_event.md): Change an event; Google updates the attendees
 - [google.calendar.watch](../capabilities/google.calendar.watch.md): Open an events.watch channel for a calendar
+- [google.directory.import](../capabilities/google.directory.import.md): Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves
+- [google.directory.list](../capabilities/google.directory.list.md): The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in
 - [google.docs.batch_update](../capabilities/google.docs.batch_update.md): Edit a Google Doc with a list of requests
 - [google.docs.create_document](../capabilities/google.docs.create_document.md): Create a Google Doc
 - [google.docs.get_document](../capabilities/google.docs.get_document.md): Read a Google Doc as structured content
@@ -34,12 +36,15 @@ Requires: mail.
 - [google.drive.upload_file](../capabilities/google.drive.upload_file.md): Upload a Space file into Drive
 - [google.drive.watch_changes](../capabilities/google.drive.watch_changes.md): Open a Drive changes.watch channel
 - [google.dwd.disable](../capabilities/google.dwd.disable.md): Turn delegation off and stop every member sync
+- [google.dwd.map_member](../capabilities/google.dwd.map_member.md): Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in
 - [google.dwd.members](../capabilities/google.dwd.members.md): Workspace users mapped to Space members by email, with exclusion and mailbox state
+- [google.dwd.my_account](../capabilities/google.dwd.my_account.md): The Workspace address the caller is matched to, if any (a Drive mount names it so it syncs as the person, not as an admin)
 - [google.dwd.probe](../capabilities/google.dwd.probe.md): Mint a token for a probe user and call users.getProfile to prove the delegation and scopes
 - [google.dwd.scopes](../capabilities/google.dwd.scopes.md): The scope list and client id to paste into the Google Admin console
 - [google.dwd.set_excluded](../capabilities/google.dwd.set_excluded.md): Exclude a member from delegation, or include them again (excluded members never get a connection)
 - [google.dwd.setup](../capabilities/google.dwd.setup.md): Store the service account JSON (Vault item Google_DWD), map members by email and, with auto-connect on, create their Pending mail and calendar connections
 - [google.dwd.status](../capabilities/google.dwd.status.md): State of domain-wide delegation: key stored, scopes, last probe, mapped members
+- [google.dwd.sync_members](../capabilities/google.dwd.sync_members.md): Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar
 - [google.gmail.create_draft](../capabilities/google.gmail.create_draft.md): Create a draft in the member mailbox
 - [google.gmail.get_attachment](../capabilities/google.gmail.get_attachment.md): Download an attachment into a blob
 - [google.gmail.get_message](../capabilities/google.gmail.get_message.md): Read one Gmail message

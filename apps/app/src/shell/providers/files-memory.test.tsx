@@ -1,4 +1,4 @@
-// Files > Knowledge in the shell (spec 2.15): Proposed and Graph are mounted over the Space's runtime, the sidebar rows open them, and any other row gives the body back to the list.
+// Files > Knowledge in the shell (spec 2.15): the Knowledge screens are mounted over the Space's runtime, the sidebar rows open them, and any other row gives the body back to the list.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -21,17 +21,18 @@ function rig() {
 }
 const html = (el: React.ReactElement): string => renderToStaticMarkup(el).replaceAll("<!-- -->", "");
 
-test("Proposed mounts over the runtime and lists the facts agents suggested", () => {
+const noGo = (): void => undefined;
+
+test("Learned mounts over the runtime and holds the facts waiting for review", () => {
   const { rt } = rig();
-  const out = html(<ShellRuntimeProvider value={rt}><MemoryMount rt={rt} view="proposed" /></ShellRuntimeProvider>);
-  assert.ok(out.includes('data-testid="memory-proposed"'), "the Proposed screen");
-  assert.ok(out.includes("Accept") && out.includes("Reject"), "each fact can be accepted or rejected");
-  assert.ok(!out.includes("memory-proposed-loading"));
+  const out = html(<ShellRuntimeProvider value={rt}><MemoryMount rt={rt} route={{ v: "learned" }} go={noGo} /></ShellRuntimeProvider>);
+  assert.ok(out.includes('data-testid="know-learned"'), "the Learned screen");
+  assert.ok(!out.includes("know-loading"));
 });
 
 test("Graph mounts over the runtime on the first agent the person can see", () => {
   const { rt } = rig();
-  const out = html(<MemoryMount rt={rt} view="graph" />);
+  const out = html(<MemoryMount rt={rt} route={{ v: "graph" }} go={noGo} />);
   assert.ok(out.includes('data-testid="memory-graph"'), "the Graph screen");
   assert.ok(!out.includes("memory-graph-loading"));
 });
@@ -45,18 +46,20 @@ test("a fact's source and a linked note open through the shell; a note without a
   assert.deepEqual(urls, ["/chats/thr_one", "/records/rec_1"]);
 });
 
-test("the sidebar rows ask for Proposed and Graph, and the notes row or a folder gives the list back", () => {
+test("the sidebar rows ask for Learned, Graph and any Knowledge screen, and the notes row or a folder gives the list back", () => {
   const { rt } = rig();
   const seen: Array<MemoryView["view"]> = [];
-  const data = filesData(rt, { view: "graph", open: (v) => void seen.push(v) });
-  assert.equal(data.memoryView, "graph");
+  const data = filesData(rt, { view: { v: "graph" }, open: (v) => void seen.push(v) });
+  assert.deepEqual(data.memoryView, { v: "graph" });
   data.nav.openMemory();
   data.nav.openGraph();
+  data.nav.openKnow({ v: "list", kind: "client" });
   data.nav.leaveMemory?.();
-  assert.deepEqual(seen, ["proposed", "graph", null]);
+  assert.deepEqual(seen, [{ v: "learned" }, { v: "graph" }, { v: "list", kind: "client" }, null]);
   const bare = filesData(rt);
   assert.equal(bare.memoryView, undefined);
   assert.equal(bare.nav.leaveMemory, undefined, "without a place to hold the view, the rows fall back to the shell's screen ids");
   bare.nav.openMemory();
   bare.nav.openGraph();
+  bare.nav.openKnow({ v: "page", pageId: "pg_ian" });
 });

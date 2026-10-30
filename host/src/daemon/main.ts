@@ -56,7 +56,12 @@ async function main(): Promise<number> {
   const stopped=new Promise<void>(resolve=>{resolveStopped=resolve;});
   let d: Daemon;
   try { d = await startDaemon({ config, onStopped:resolveStopped }); }
-  catch (e) { process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`); return 1; }
+  catch (e) {
+    // A daemon that could not start ends here, at once and non-zero, with the reason on stderr: the services it had begun (the scheduler, the stores) would otherwise keep the process alive and the
+    // shell that started it would wait out its timeout instead of showing this line.
+    process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`, () => process.exit(1));
+    return 1;
+  }
   process.stdout.write(`vyred ${version} ${d.roles.join(",")} ${d.space ?? "-"} listening on ${d.url}\n`);
   if (d.claim) process.stdout.write(`Claim this Space as its owner (one time, valid 24 hours): ${d.claim.url}\n`);
   await Promise.race([stopped,new Promise<void>((resolve) => {

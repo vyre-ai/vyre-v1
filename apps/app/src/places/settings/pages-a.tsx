@@ -6,6 +6,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
+import { MemoryKeys } from "./MemoryKeys.tsx";
 import { CONNECTIONS, MODELS, NOTIFICATIONS, useSettingsData, useScreenQuery } from "./data.tsx";
 import { labelOf, moneyLabel, sectionsFor } from "./model.ts";
 import type { SettingRow } from "./model.ts";
@@ -234,6 +235,7 @@ export function PrivacyPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <RegistrySections page="privacy" rows={rows} found={found} />
+      <MemoryKeys />
     </>
   );
 }

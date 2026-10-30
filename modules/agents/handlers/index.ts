@@ -1,13 +1,48 @@
 // Handler table of the agents module: all 33 capabilities of manifests/agents.ts. The record, lifecycle, configuration and versions are in crud.ts; routines, suggestions, the Agent template and
 // Vyre's own text are in routines.ts.
 import {
-  configGet, configValidate, create, get, limitsGet, list, pause, remove, restore, setOwner, restoreVersion, resume, roleLineSet, snapshotTake, status, summary, update, versions, visibilitySet,
+  configGet, configValidate, create, get, limitsGet, list, memoryKeyGet, pause, remove, restore, setOwner, restoreVersion, resume, roleLineSet, snapshotTake, status, summary, update, versions, visibilitySet,
 } from "./crud.ts";
-import { builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRunNow, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
+import { builtinSkillGet, builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRunNow, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
+
+import {
+  agentTemplateUse, agentTemplates, allowList, allowSet, browse, commandRender, commandsList, configSet, connectionAdd, connectionRemove, connectionsList, hooksList, install, marketplaceAdd, marketplaceRefresh, marketplaceRemove,
+  marketplacesList, mcpServers, pluginFiles, pluginGet, pluginsList, setEnabled, uninstall,
+} from "./plugins.ts";
+import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
 
 export const handlers = {
+  "plugins.marketplaces.list": marketplacesList,
+  "plugins.browse": browse,
+  "plugins.list": pluginsList,
+  "plugins.get": pluginGet,
+  "plugins.commands.list": commandsList,
+  "plugins.command.render": commandRender,
+  "plugins.agent_templates.list": agentTemplates,
+  "plugins.allow.list": allowList,
+  "plugins.mcp.servers": mcpServers,
+  "plugins.hooks.list": hooksList,
+  "plugins.connections.list": connectionsList,
+  "plugins.files": pluginFiles,
+  "plugins.marketplace.add": marketplaceAdd,
+  "plugins.marketplace.refresh": marketplaceRefresh,
+  "plugins.marketplace.remove": marketplaceRemove,
+  "plugins.allow.set": allowSet,
+  "plugins.install": install,
+  "plugins.uninstall": uninstall,
+  "plugins.set_enabled": setEnabled,
+  "plugins.config.set": configSet,
+  "plugins.agent_template.use": agentTemplateUse,
+  "plugins.connection.add": connectionAdd,
+  "plugins.connection.remove": connectionRemove,
+  "skills.list": skillsList,
+  "skills.load": skillsLoad,
+  "skills.add": skillsAdd,
+  "skills.remove": skillsRemove,
+  "skills.set_enabled": skillsSetEnabled,
   "agents.list": list,
   "agents.get": get,
+  "agents.memory_key.get": memoryKeyGet,
   "agents.status": status,
   "agents.summary": summary,
   "agents.create": create,
@@ -39,4 +74,5 @@ export const handlers = {
   "agents.template.apply": templateApply,
   "agents.guide.get": guideGet,
   "agents.builtin_skills.list": builtinSkillsList,
+  "agents.builtin_skill.get": builtinSkillGet,
 };

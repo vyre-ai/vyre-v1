@@ -173,8 +173,13 @@ fn set(app: &AppHandle, shared: &Shared, status: Status) {
     if let Ok(mut s) = shared.status.lock() {
         *s = Some(status.clone());
     }
+    let ready = status.phase == Phase::Ready;
     let event = if shared.server { SERVER_EVENT } else if shared.personal { "vyre://personal-sidecar" } else { EVENT };
     let _ = app.emit(event, status);
+    // a daemon that has just started holds none of the Team Space sessions the app handed over; give them again
+    if ready {
+        crate::chrome::relink(shared);
+    }
 }
 
 fn may_start(shared: &Shared) -> bool {
@@ -307,6 +312,35 @@ fn wait_ready(app: &AppHandle, shared: &Shared, url: String, version: Option<Str
     st.restarts = restarts;
     st.error = Some("the background service did not answer in time".to_string());
     set(app, shared, st);
+}
+
+/// One loopback request to a running daemon with its admin token. True when it answers 2xx. Used to hand the daemon things only the shell may (chrome.rs).
+pub(crate) fn local_request(shared: &Shared, method: &str, path: &str, body: &str) -> bool {
+    let url = match current(shared).url {
+        Some(u) => u,
+        None => return false,
+    };
+    let token = match shared.admin_token.lock().ok().and_then(|t| t.clone()) {
+        Some(t) => t,
+        None => return false,
+    };
+    let addr = match host_port(&url) {
+        Some(a) => a,
+        None => return false,
+    };
+    let mut s = match TcpStream::connect_timeout(&addr, Duration::from_millis(800)) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let _ = s.set_read_timeout(Some(Duration::from_millis(1500)));
+    let _ = s.set_write_timeout(Some(Duration::from_millis(1500)));
+    let request = format!("{method} {path} HTTP/1.1\r\nHost: {addr}\r\nAuthorization: Bearer {token}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+    if s.write_all(request.as_bytes()).is_err() {
+        return false;
+    }
+    let mut text = String::new();
+    let _ = s.read_to_string(&mut text);
+    text.starts_with("HTTP/1.1 2")
 }
 
 pub fn current(shared: &Shared) -> Status {

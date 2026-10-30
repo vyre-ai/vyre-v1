@@ -12,6 +12,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.actors.set_engineer_mcp": Handler<"access.actors.set_engineer_mcp", X>;
   "access.actors.update": Handler<"access.actors.update", X>;
   "access.check": Handler<"access.check", X>;
+  "access.deciders": Handler<"access.deciders", X>;
   "access.grants.list": Handler<"access.grants.list", X>;
   "access.grants.update": Handler<"access.grants.update", X>;
   "access.groups.add_member": Handler<"access.groups.add_member", X>;
@@ -34,6 +35,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.principals.list": Handler<"access.principals.list", X>;
   "access.projection_health": Handler<"access.projection_health", X>;
   "access.propose_change": Handler<"access.propose_change", X>;
+  "access.provider_check": Handler<"access.provider_check", X>;
   "access.request": Handler<"access.request", X>;
   "access.requests.approve": Handler<"access.requests.approve", X>;
   "access.requests.decline": Handler<"access.requests.decline", X>;

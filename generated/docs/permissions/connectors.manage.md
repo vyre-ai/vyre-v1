@@ -14,6 +14,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 
 ## Capabilities that need it
 
+- calendar.connect_provider
 - connections.create
 - connectors.build
 - connectors.diff
@@ -40,24 +41,32 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - github.app.create_manifest
 - github.app.get
 - github.installations.list
+- google.directory.import
+- google.directory.list
 - google.dwd.disable
+- google.dwd.map_member
 - google.dwd.members
 - google.dwd.probe
 - google.dwd.scopes
 - google.dwd.set_excluded
 - google.dwd.setup
 - google.dwd.status
+- google.dwd.sync_members
 - hubspot.push_object
 - mail.auto_connect_members
 - mail.mailbox.create
 - ms.consent.disable
 - ms.consent.link
+- ms.consent.map_member
 - ms.consent.members
 - ms.consent.policy_snippet
 - ms.consent.set_excluded
 - ms.consent.setup
 - ms.consent.status
+- ms.consent.sync_members
 - ms.consent.verify
+- ms.directory.import
+- ms.directory.list
 - ms.subscriptions.renew
 - sources.create
 - sources.delete

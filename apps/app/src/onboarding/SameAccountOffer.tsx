@@ -7,7 +7,7 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { copyAccount } from "./same-account.ts";
 import type { CopyableAccount } from "./same-account.ts";
 
-export function SameAccountOffer({ personal, team, accounts, onCopied }: { personal: CapCall; team: CapCall; accounts: readonly CopyableAccount[]; onCopied(providerId: string): void }): ReactElement | null {
+export function SameAccountOffer({ personal, team, accounts, onCopied, onDeclined }: { personal: CapCall; team: CapCall; accounts: readonly CopyableAccount[]; onCopied(providerId: string): void; onDeclined?(): void }): ReactElement | null {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
   const [declined, setDeclined] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -25,7 +25,7 @@ export function SameAccountOffer({ personal, team, accounts, onCopied }: { perso
       {error ? <Text testID="same-account-error" style={s.err}>{error}</Text> : null}
       <View style={s.row}>
         <Pressable testID="same-account-yes" accessibilityRole="button" disabled={busy} onPress={() => void yes()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{busy ? "Copying" : "Use the same account"}</Text></Pressable>
-        <Pressable testID="same-account-no" accessibilityRole="button" onPress={() => setDeclined(true)} style={s.ghost}><Text style={s.ghostText}>No, add a different one</Text></Pressable>
+        <Pressable testID="same-account-no" accessibilityRole="button" onPress={() => { setDeclined(true); onDeclined?.(); }} style={s.ghost}><Text style={s.ghostText}>No, add a different one</Text></Pressable>
       </View>
     </View>
   );

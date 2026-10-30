@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "agents.builtin_skill.get": Handler<"agents.builtin_skill.get", X>;
   "agents.builtin_skills.list": Handler<"agents.builtin_skills.list", X>;
   "agents.config.get": Handler<"agents.config.get", X>;
   "agents.config.validate": Handler<"agents.config.validate", X>;
@@ -14,6 +15,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.guide.get": Handler<"agents.guide.get", X>;
   "agents.limits.get": Handler<"agents.limits.get", X>;
   "agents.list": Handler<"agents.list", X>;
+  "agents.memory_key.get": Handler<"agents.memory_key.get", X>;
   "agents.pause": Handler<"agents.pause", X>;
   "agents.restore": Handler<"agents.restore", X>;
   "agents.restore_version": Handler<"agents.restore_version", X>;
@@ -38,4 +40,32 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.update": Handler<"agents.update", X>;
   "agents.versions": Handler<"agents.versions", X>;
   "agents.visibility.set": Handler<"agents.visibility.set", X>;
+  "plugins.agent_template.use": Handler<"plugins.agent_template.use", X>;
+  "plugins.agent_templates.list": Handler<"plugins.agent_templates.list", X>;
+  "plugins.allow.list": Handler<"plugins.allow.list", X>;
+  "plugins.allow.set": Handler<"plugins.allow.set", X>;
+  "plugins.browse": Handler<"plugins.browse", X>;
+  "plugins.command.render": Handler<"plugins.command.render", X>;
+  "plugins.commands.list": Handler<"plugins.commands.list", X>;
+  "plugins.config.set": Handler<"plugins.config.set", X>;
+  "plugins.connection.add": Handler<"plugins.connection.add", X>;
+  "plugins.connection.remove": Handler<"plugins.connection.remove", X>;
+  "plugins.connections.list": Handler<"plugins.connections.list", X>;
+  "plugins.files": Handler<"plugins.files", X>;
+  "plugins.get": Handler<"plugins.get", X>;
+  "plugins.hooks.list": Handler<"plugins.hooks.list", X>;
+  "plugins.install": Handler<"plugins.install", X>;
+  "plugins.list": Handler<"plugins.list", X>;
+  "plugins.marketplace.add": Handler<"plugins.marketplace.add", X>;
+  "plugins.marketplace.refresh": Handler<"plugins.marketplace.refresh", X>;
+  "plugins.marketplace.remove": Handler<"plugins.marketplace.remove", X>;
+  "plugins.marketplaces.list": Handler<"plugins.marketplaces.list", X>;
+  "plugins.mcp.servers": Handler<"plugins.mcp.servers", X>;
+  "plugins.set_enabled": Handler<"plugins.set_enabled", X>;
+  "plugins.uninstall": Handler<"plugins.uninstall", X>;
+  "skills.add": Handler<"skills.add", X>;
+  "skills.list": Handler<"skills.list", X>;
+  "skills.load": Handler<"skills.load", X>;
+  "skills.remove": Handler<"skills.remove", X>;
+  "skills.set_enabled": Handler<"skills.set_enabled", X>;
 }

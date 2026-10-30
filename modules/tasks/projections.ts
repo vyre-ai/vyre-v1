@@ -1,7 +1,7 @@
 // Tasks projections (ARCH 4.7). The task row (tasks_core + tasks_meta), its history, the Space policy and the read queries behind
 // tasks.get, tasks.list, tasks.needs_you, tasks.count_needs_you, tasks.my_work and tasks.history.
 // Durable tables: migrations/0001_tasks_state.sql. Every statement names only tasks_* tables (ctx.db refuses anything else, ARCH B2).
-import { isTrustedService } from "../../lib/trust.ts";
+import { isHostService, isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
 
@@ -311,6 +311,8 @@ export function involved(t: Task, who: Who): boolean {
 /** Group and role slots: the caller sees the task when the kernel grants view on it (the grant follows the group or role). */
 export function visibleTo(ctx: TasksCtx, t: Task): boolean {
   const who = whoIs(ctx);
+  // only the server itself (a hook such as a Journey advancing a record on a finished task); no other service, and never a tenant's svc_ principal
+  if (isHostService(who)) return true;
   if (involved(t, who) || t.createdBy === who.id || t.followers.includes(who.id)) return true;
   if (!ctx.authorize) return false;
   return ctx.authorize({ perm: null, level: "view" }, { type: "task", id: t.id }).effect === "allow";

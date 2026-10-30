@@ -363,7 +363,11 @@ async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row, 
       at: p.receivedAt,
       mailboxId: str(box, "id"),
       preview: snippetOf(p.text, p.subject),
+      subject: p.subject,
+      participants: [p.from.address, ...p.to.map((x) => x.address), ...p.cc.map((x) => x.address)],
     };
+    const threadId = strOrNull(first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE id = ?`, messageId)), "threadId");
+    if (threadId) input.threadId = threadId;
     if (campaignId) input.campaignId = campaignId;
     answer = parseLink(await ctx.call("inbox.link_message", input));
   } catch (e) {
@@ -482,8 +486,9 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
     if (ownerId) logRead(ctx, id, ownerId, "login");
   }
   ctx.db.run(`INSERT INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`, input.idempotencyKey, "connect", id);
-  const payload: { mailboxId: string; provider: string; auto: boolean; memberId?: string } = { mailboxId: id, provider: input.provider, auto: false };
+  const payload: { mailboxId: string; provider: string; auto: boolean; memberId?: string; private?: boolean } = { mailboxId: id, provider: input.provider, auto: false };
   if (ownerId && isId("usr", ownerId)) payload.memberId = ownerId;
+  if (privacy === "private") payload.private = true;   // a private mailbox does not inherit the Space's access
   ctx.emit("mailbox.connected", `mailbox/${id}`, payload, { vis: "participants" });
   const row = loadMailbox(ctx, id);
   if (!row) bad(ctx, "Mailbox does not exist.");

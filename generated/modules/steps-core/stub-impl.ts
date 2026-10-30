@@ -4,5 +4,6 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "steps.support": async () => ({"ai":{"available":true,"reason":"example"},"code":{"available":true,"reason":"example"}} as unknown) as never,
   "steps.test": async () => ({"error":{"code":"example","message":"example"},"output":{},"stubbed":true} as unknown) as never,
 };

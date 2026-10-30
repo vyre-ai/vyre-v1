@@ -73,6 +73,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.apps.email-builder",
+      "place": "apps",
+      "screen": "apps.email-builder"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.apps.form-settings",
       "place": "apps",
       "screen": "apps.form-settings"
@@ -409,6 +416,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.plugins",
+      "place": "console",
+      "screen": "console.plugins"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.schema",
       "place": "console",
       "screen": "console.schema"
@@ -426,6 +440,13 @@
       "id": "screen.console.server-updates",
       "place": "console",
       "screen": "console.server-updates"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.skills",
+      "place": "console",
+      "screen": "console.skills"
     },
     {
       "completeMs": 100,
@@ -1042,6 +1063,13 @@
       "id": "screen.settings.kit-choice",
       "place": "settings",
       "screen": "settings.kit-choice"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.settings.memory-keys",
+      "place": "settings",
+      "screen": "settings.memory-keys"
     },
     {
       "completeMs": 100,

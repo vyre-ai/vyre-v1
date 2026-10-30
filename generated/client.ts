@@ -21,6 +21,7 @@ export function createClient(transport: Transport) {
         update: call("access.actors.update", 1),
       },
       check: call("access.check", 1),
+      deciders: call("access.deciders", 1),
       grants: {
         list: call("access.grants.list", 1),
         update: call("access.grants.update", 1),
@@ -53,6 +54,7 @@ export function createClient(transport: Transport) {
       },
       projection_health: call("access.projection_health", 1),
       propose_change: call("access.propose_change", 1),
+      provider_check: call("access.provider_check", 1),
       request: call("access.request", 1),
       requests: {
         approve: call("access.requests.approve", 1),
@@ -83,6 +85,9 @@ export function createClient(transport: Transport) {
       view_as: call("access.view_as", 1),
     },
     agents: {
+      builtin_skill: {
+        get: call("agents.builtin_skill.get", 1),
+      },
       builtin_skills: {
         list: call("agents.builtin_skills.list", 1),
       },
@@ -100,6 +105,9 @@ export function createClient(transport: Transport) {
         get: call("agents.limits.get", 1),
       },
       list: call("agents.list", 1),
+      memory_key: {
+        get: call("agents.memory_key.get", 1),
+      },
       pause: call("agents.pause", 1),
       restore: call("agents.restore", 1),
       restore_version: call("agents.restore_version", 1),
@@ -163,6 +171,7 @@ export function createClient(transport: Transport) {
         get: call("automations.alerts.get", 1),
         set: call("automations.alerts.set", 1),
       },
+      analytics: call("automations.analytics", 1),
       connector_offer: {
         accept: call("automations.connector_offer.accept", 1),
         decline: call("automations.connector_offer.decline", 1),
@@ -172,6 +181,7 @@ export function createClient(transport: Transport) {
       connector_shares: call("automations.connector_shares", 1),
       create: call("automations.create", 1),
       delete: call("automations.delete", 1),
+      dependencies: call("automations.dependencies", 1),
       draft_connector: call("automations.draft_connector", 1),
       fire: call("automations.fire", 1),
       followers: {
@@ -185,6 +195,8 @@ export function createClient(transport: Transport) {
         list: call("automations.groups.list", 1),
         rename: call("automations.groups.rename", 1),
       },
+      http_read: call("automations.http_read", 1),
+      http_send: call("automations.http_send", 1),
       list: call("automations.list", 1),
       make_personal_copy: call("automations.make_personal_copy", 1),
       migrate_runs: call("automations.migrate_runs", 1),
@@ -209,6 +221,10 @@ export function createClient(transport: Transport) {
         list: call("automations.steps.list", 1),
       },
       stop: call("automations.stop", 1),
+      templates: {
+        list: call("automations.templates.list", 1),
+        use: call("automations.templates.use", 1),
+      },
       test: call("automations.test", 1),
       triggers: {
         list: call("automations.triggers.list", 1),
@@ -245,6 +261,7 @@ export function createClient(transport: Transport) {
     },
     calendar: {
       availability: call("calendar.availability", 1),
+      connect_provider: call("calendar.connect_provider", 1),
       create_calendar: call("calendar.create_calendar", 1),
       create_event: call("calendar.create_event", 1),
       delete_calendar: call("calendar.delete_calendar", 1),
@@ -330,6 +347,7 @@ export function createClient(transport: Transport) {
     chat: {
       answer_block: call("chat.answer_block", 1),
       approve_plan: call("chat.approve_plan", 1),
+      ask_level: call("chat.ask_level", 1),
       ask_suggest: call("chat.ask_suggest", 1),
       asks_of: call("chat.asks_of", 1),
       composer: {
@@ -337,12 +355,16 @@ export function createClient(transport: Transport) {
       },
       delete_message: call("chat.delete_message", 1),
       edit: call("chat.edit", 1),
+      fork: call("chat.fork", 1),
       handoff: call("chat.handoff", 1),
       helper: {
         start: call("chat.helper.start", 1),
       },
       helpers: {
         list: call("chat.helpers.list", 1),
+      },
+      history: {
+        search: call("chat.history.search", 1),
       },
       message: {
         get: call("chat.message.get", 1),
@@ -367,6 +389,10 @@ export function createClient(transport: Transport) {
       },
       react: call("chat.react", 1),
       recent: call("chat.recent", 1),
+      screen: {
+        get: call("chat.screen.get", 1),
+      },
+      search: call("chat.search", 1),
       start: call("chat.start", 1),
       thread: call("chat.thread", 1),
       transcript: {
@@ -622,6 +648,7 @@ export function createClient(transport: Transport) {
       accounts: {
         list: call("engine.accounts.list", 1),
       },
+      complete: call("engine.complete", 1),
       defaults: {
         get: call("engine.defaults.get", 1),
         set: call("engine.defaults.set", 1),
@@ -642,6 +669,11 @@ export function createClient(transport: Transport) {
         acquire: call("engine.lease.acquire", 1),
         heartbeat: call("engine.lease.heartbeat", 1),
         release: call("engine.lease.release", 1),
+      },
+      mcp: {
+        call: call("engine.mcp.call", 1),
+        read: call("engine.mcp.read", 1),
+        tools: call("engine.mcp.tools", 1),
       },
       models: {
         list: call("engine.models.list", 1),
@@ -668,6 +700,10 @@ export function createClient(transport: Transport) {
         list: call("engine.review.list", 1),
         mark: call("engine.review.mark", 1),
       },
+      reviewer: {
+        get: call("engine.reviewer.get", 1),
+        set: call("engine.reviewer.set", 1),
+      },
       route: {
         preview: call("engine.route.preview", 1),
       },
@@ -685,6 +721,7 @@ export function createClient(transport: Transport) {
         raise: call("engine.spend.raise", 1),
         resume_all: call("engine.spend.resume_all", 1),
       },
+      step_turn: call("engine.step_turn", 1),
       stop: call("engine.stop", 1),
       stop_all: call("engine.stop_all", 1),
       subscription_share: {
@@ -836,6 +873,9 @@ export function createClient(transport: Transport) {
       },
       park: call("gate.park", 1),
       release: call("gate.release", 1),
+      result: {
+        take: call("gate.result.take", 1),
+      },
       rules: {
         list: call("gate.rules.list", 1),
         set: call("gate.rules.set", 1),
@@ -915,6 +955,10 @@ export function createClient(transport: Transport) {
         update_event: call("google.calendar.update_event", 1),
         watch: call("google.calendar.watch", 1),
       },
+      directory: {
+        import: call("google.directory.import", 1),
+        list: call("google.directory.list", 1),
+      },
       docs: {
         batch_update: call("google.docs.batch_update", 1),
         create_document: call("google.docs.create_document", 1),
@@ -938,12 +982,15 @@ export function createClient(transport: Transport) {
       },
       dwd: {
         disable: call("google.dwd.disable", 1),
+        map_member: call("google.dwd.map_member", 1),
         members: call("google.dwd.members", 1),
+        my_account: call("google.dwd.my_account", 1),
         probe: call("google.dwd.probe", 1),
         scopes: call("google.dwd.scopes", 1),
         set_excluded: call("google.dwd.set_excluded", 1),
         setup: call("google.dwd.setup", 1),
         status: call("google.dwd.status", 1),
+        sync_members: call("google.dwd.sync_members", 1),
       },
       gmail: {
         create_draft: call("google.gmail.create_draft", 1),
@@ -1058,6 +1105,9 @@ export function createClient(transport: Transport) {
       reset_complete: call("identity.reset_complete", 1),
       reset_preview: call("identity.reset_preview", 1),
       reset_start: call("identity.reset_start", 1),
+      security: {
+        get: call("identity.security.get", 1),
+      },
       sign_in: call("identity.sign_in", 1),
       sign_in_options: call("identity.sign_in_options", 1),
       sign_out: call("identity.sign_out", 1),
@@ -1288,6 +1338,11 @@ export function createClient(transport: Transport) {
       second_factor: {
         report: call("members.second_factor.report", 1),
       },
+      sign_in_github: {
+        clear: call("members.sign_in_github.clear", 1),
+        get: call("members.sign_in_github.get", 1),
+        set: call("members.sign_in_github.set", 1),
+      },
       sign_in_policy: {
         get: call("members.sign_in_policy.get", 1),
         set: call("members.sign_in_policy.set", 1),
@@ -1301,9 +1356,12 @@ export function createClient(transport: Transport) {
       suspend: call("members.suspend", 1),
     },
     memory: {
+      archive_sweep: call("memory.archive_sweep", 1),
+      backlinks: call("memory.backlinks", 1),
       capture: call("memory.capture", 1),
       counts: call("memory.counts", 1),
       erase: call("memory.erase", 1),
+      export_markdown: call("memory.export_markdown", 1),
       fact: {
         accept: call("memory.fact.accept", 1),
         correct: call("memory.fact.correct", 1),
@@ -1316,10 +1374,18 @@ export function createClient(transport: Transport) {
       },
       facts_as_of: call("memory.facts_as_of", 1),
       find_by_subject: call("memory.find_by_subject", 1),
+      forget: call("memory.forget", 1),
       graph: call("memory.graph", 1),
       graph_everything: call("memory.graph_everything", 1),
       graph_export: call("memory.graph_export", 1),
       index_graph: call("memory.index_graph", 1),
+      key: {
+        resolve: call("memory.key.resolve", 1),
+        set: call("memory.key.set", 1),
+      },
+      keys: {
+        get: call("memory.keys.get", 1),
+      },
       layers: {
         list: call("memory.layers.list", 1),
       },
@@ -1327,13 +1393,27 @@ export function createClient(transport: Transport) {
         get: call("memory.layout.get", 1),
         save: call("memory.layout.save", 1),
       },
+      learned: call("memory.learned", 1),
       maintain: call("memory.maintain", 1),
       map: {
         get: call("memory.map.get", 1),
       },
+      meaning: {
+        rank: call("memory.meaning.rank", 1),
+        status: call("memory.meaning.status", 1),
+      },
       notes: {
         erase: call("memory.notes.erase", 1),
         list: call("memory.notes.list", 1),
+      },
+      page: {
+        delete: call("memory.page.delete", 1),
+        get: call("memory.page.get", 1),
+        list: call("memory.page.list", 1),
+        put: call("memory.page.put", 1),
+        restore_version: call("memory.page.restore_version", 1),
+        set_visibility: call("memory.page.set_visibility", 1),
+        versions: call("memory.page.versions", 1),
       },
       pointer: call("memory.pointer", 1),
       promote: call("memory.promote", 1),
@@ -1343,9 +1423,30 @@ export function createClient(transport: Transport) {
         undo: call("memory.promotion.undo", 1),
       },
       propose_fact: call("memory.propose_fact", 1),
+      question: {
+        resolve: call("memory.question.resolve", 1),
+      },
+      questions: {
+        list: call("memory.questions.list", 1),
+      },
+      quote: call("memory.quote", 1),
       read_note: call("memory.read_note", 1),
+      recall: {
+        record: call("memory.recall.record", 1),
+      },
+      remember: call("memory.remember", 1),
+      restore: call("memory.restore", 1),
       restore_version: call("memory.restore_version", 1),
       search: call("memory.search", 1),
+      trail: call("memory.trail", 1),
+      trash: {
+        search: call("memory.trash.search", 1),
+      },
+      undo: call("memory.undo", 1),
+      upkeep: {
+        status: call("memory.upkeep.status", 1),
+      },
+      used: call("memory.used", 1),
       versions: call("memory.versions", 1),
     },
     mounts: {
@@ -1379,12 +1480,19 @@ export function createClient(transport: Transport) {
       consent: {
         disable: call("ms.consent.disable", 1),
         link: call("ms.consent.link", 1),
+        map_member: call("ms.consent.map_member", 1),
         members: call("ms.consent.members", 1),
+        my_account: call("ms.consent.my_account", 1),
         policy_snippet: call("ms.consent.policy_snippet", 1),
         set_excluded: call("ms.consent.set_excluded", 1),
         setup: call("ms.consent.setup", 1),
         status: call("ms.consent.status", 1),
+        sync_members: call("ms.consent.sync_members", 1),
         verify: call("ms.consent.verify", 1),
+      },
+      directory: {
+        import: call("ms.directory.import", 1),
+        list: call("ms.directory.list", 1),
       },
       drive: {
         create_folder: call("ms.drive.create_folder", 1),
@@ -1484,6 +1592,55 @@ export function createClient(transport: Transport) {
       },
       send: call("notifications.send", 1),
     },
+    plugins: {
+      agent_template: {
+        use: call("plugins.agent_template.use", 1),
+      },
+      agent_templates: {
+        list: call("plugins.agent_templates.list", 1),
+      },
+      allow: {
+        list: call("plugins.allow.list", 1),
+        set: call("plugins.allow.set", 1),
+      },
+      browse: call("plugins.browse", 1),
+      command: {
+        render: call("plugins.command.render", 1),
+      },
+      commands: {
+        list: call("plugins.commands.list", 1),
+      },
+      config: {
+        set: call("plugins.config.set", 1),
+      },
+      connection: {
+        add: call("plugins.connection.add", 1),
+        remove: call("plugins.connection.remove", 1),
+      },
+      connections: {
+        list: call("plugins.connections.list", 1),
+      },
+      files: call("plugins.files", 1),
+      get: call("plugins.get", 1),
+      hooks: {
+        list: call("plugins.hooks.list", 1),
+      },
+      install: call("plugins.install", 1),
+      list: call("plugins.list", 1),
+      marketplace: {
+        add: call("plugins.marketplace.add", 1),
+        refresh: call("plugins.marketplace.refresh", 1),
+        remove: call("plugins.marketplace.remove", 1),
+      },
+      marketplaces: {
+        list: call("plugins.marketplaces.list", 1),
+      },
+      mcp: {
+        servers: call("plugins.mcp.servers", 1),
+      },
+      set_enabled: call("plugins.set_enabled", 1),
+      uninstall: call("plugins.uninstall", 1),
+    },
     portal: {
       account_create: call("portal.account_create", 1),
       account_disable: call("portal.account_disable", 1),
@@ -1526,6 +1683,11 @@ export function createClient(transport: Transport) {
       shared_view: call("projects.shared_view", 1),
       stages: {
         set: call("projects.stages.set", 1),
+      },
+      teammates: {
+        create: call("projects.teammates.create", 1),
+        list: call("projects.teammates.list", 1),
+        remove: call("projects.teammates.remove", 1),
       },
       templates: {
         list: call("projects.templates.list", 1),
@@ -1640,6 +1802,7 @@ export function createClient(transport: Transport) {
       retry: call("runs.retry", 1),
       start: call("runs.start", 1),
       status: call("runs.status", 1),
+      step_io: call("runs.step_io", 1),
       steps: call("runs.steps", 1),
       stop: call("runs.stop", 1),
       undo: call("runs.undo", 1),
@@ -1779,6 +1942,13 @@ export function createClient(transport: Transport) {
       tables: call("sites.tables", 1),
       update: call("sites.update", 1),
     },
+    skills: {
+      add: call("skills.add", 1),
+      list: call("skills.list", 1),
+      load: call("skills.load", 1),
+      remove: call("skills.remove", 1),
+      set_enabled: call("skills.set_enabled", 1),
+    },
     source_rules: {
       list: call("source_rules.list", 1),
       set: call("source_rules.set", 1),
@@ -1830,6 +2000,7 @@ export function createClient(transport: Transport) {
       toggle: call("stars.toggle", 1),
     },
     steps: {
+      support: call("steps.support", 1),
       test: call("steps.test", 1),
     },
     stripe: {

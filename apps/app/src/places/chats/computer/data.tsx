@@ -21,6 +21,8 @@ export interface ComputerPopupData {
   agent: { agentId: string; name: string };
   /** The display's size in the pixels the screen tools use. Defaults to 1280 by 800. */
   display?: Display;
+  /** Where the Space is served from. A live view of a computer on a node is a path on the Space (`/computers/<id>/stream`); this puts the Space in front of it. Omitted, the path is used as given. */
+  spaceUrl?: string;
   /** Clicks, pages and network calls while a recording runs, fed by the stream. */
   capture: CaptureStore;
   /** The chat with this agent, drawn beside the screen when the chat icon is on. The shell supplies the conversation. */

@@ -9,6 +9,8 @@ import {
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
+import { pullMeet } from "./meet.ts";
+import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./gmail.ts";
 
 const g = (ctx: GoogleCtx, a: Act, cap: string, scope: string, c: Omit<Call, "cap" | "connectionId" | "as" | "scope">): Promise<Record<string, unknown>> =>
@@ -122,11 +124,25 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
     if (!prior || num(prior, "excluded") === 0) mapped.push({ userId: m.userId, email });
   }
 
+  // The person setting this up is a member too, and the one whose address Vyre was just given: an owner has no invitation email on record, so without this the admin's own mail,
+  // calendar and Meet would be the only ones that never arrive.
+  const self = ctx.actingFor ?? ctx.principal.id;
+  if (/^usr_[a-z0-9]+$/.test(self) && admin.endsWith(`@${domain}`) && !mapped.some((m) => m.userId === self || m.email === admin)) {
+    const known = first(ctx.db.all(`SELECT "userId", excluded FROM google_member WHERE email = ?`, admin));
+    const takenBy = strOrNull(known, "userId");
+    if (!takenBy || takenBy === self) {
+      if (known) ctx.db.run(`UPDATE google_member SET "userId" = ?, mapped = ?, updated_at = ? WHERE email = ?`, self, 1, now, admin);
+      else ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, admin, self, 1, 0, null, now);
+      if (num(known, "excluded") !== 1) mapped.push({ userId: self, email: admin });
+    }
+  }
+
   let connected = 0;
   if (autoConnect && mapped.length > 0) {
     const out = obj(await ctx.call("mail.auto_connect_members", { provider: "google", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
     connected = int(out.created) ?? 0;
     for (const m of mapped) ctx.db.run(`UPDATE google_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
+    for (const m of mapped) await connectCalendar(ctx, { connectionId, userId: m.userId, email: m.email });   // their calendars come in with their mail
   }
   ctx.db.run(`UPDATE google_config SET configured = ?, updated_at = ? WHERE id = ?`, 1, now, CONFIG_ID);
   ctx.emit("google.dwd_configured", "connector/google", { connector: "google", adminEmail: admin, mappedMembers: mapped.length, autoConnect });
@@ -201,7 +217,53 @@ export async function dwdSetExcluded(ctx: GoogleCtx, input: { email: string; exc
     ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, null, 0, input.excluded ? 1 : 0, null, now);
   }
   forgetTokens();
+  // An excluded member's calendar leaves Calendar; including them again brings a fresh one in.
+  const member = first(ctx.db.all(`SELECT "userId", mapped FROM google_member WHERE email = ?`, email));
+  const connectionId = strOrNull(config(ctx), "connectionId");
+  const userId = strOrNull(member, "userId");
+  if (connectionId && userId && num(member, "mapped") === 1 && (input.excluded || num(config(ctx), "autoConnect") === 1)) {
+    await connectCalendar(ctx, { connectionId, userId, email, connected: !input.excluded });
+  }
   return { excluded: rowsOf(ctx.db.all(`SELECT email FROM google_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
+}
+
+/**
+ * Match a Google address to a person in the Space, or take the match away (no person). Setup matches people by the email their invitation went to; this is for the rest: the owner, someone
+ * whose work address differs from their invitation. An address belongs to one person and a person to one address, so a clash is refused until the first match is taken away.
+ */
+export async function dwdMapMember(ctx: GoogleCtx, input: { email: string; userId?: string; idempotencyKey: string }) {
+  ensure(ctx);
+  const email = normalizeEmail(input.email ?? "");
+  if (!EMAIL.test(email)) bad(ctx, "The address is not an email.");
+  const cfg = config(ctx);
+  const connectionId = strOrNull(cfg, "connectionId");
+  const domain = strOrNull(cfg, "domain");
+  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Google delegation is not set up." });
+  if (domain && !email.endsWith(`@${domain}`)) bad(ctx, `Only addresses at ${domain} can be matched.`);
+  const now = ctx.now();
+  const have = first(ctx.db.all(`SELECT "userId", mapped, excluded FROM google_member WHERE email = ?`, email));
+  if (input.userId === undefined) {
+    const was = strOrNull(have, "userId");
+    if (have) ctx.db.run(`UPDATE google_member SET "userId" = ?, mapped = ?, "mailboxState" = ?, updated_at = ? WHERE email = ?`, null, 0, null, now, email);
+    if (was) await connectCalendar(ctx, { connectionId, userId: was, email, connected: false });
+    return { email, mapped: false, connected: false };
+  }
+  if (!/^usr_[a-z0-9]+$/.test(input.userId)) bad(ctx, "The person is a member id.");
+  const holder = strOrNull(have, "userId");
+  if (holder && holder !== input.userId && num(have, "mapped") === 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "That address is already matched to someone else. Take that match away first." });
+  const other = rowsOf(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, input.userId, 1)).find((r) => str(r, "email") !== email);
+  if (other) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: `That person is already matched to ${str(other, "email")}. Take that match away first.` });
+  if (have) ctx.db.run(`UPDATE google_member SET "userId" = ?, mapped = ?, updated_at = ? WHERE email = ?`, input.userId, 1, now, email);
+  else ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, input.userId, 1, 0, null, now);
+  const excluded = num(have, "excluded") === 1;
+  let connected = false;
+  if (!excluded && num(cfg, "autoConnect") === 1) {
+    const out = obj(await ctx.call("mail.auto_connect_members", { provider: "google", members: [{ userId: input.userId, email }], idempotencyKey: `map:${email}:${input.userId}` }));
+    ctx.db.run(`UPDATE google_member SET "mailboxState" = ? WHERE email = ?`, "pending", email);
+    await connectCalendar(ctx, { connectionId, userId: input.userId, email });
+    connected = (int(out.created) ?? 0) > 0 || (int(out.skipped) ?? 0) > 0;
+  }
+  return { email, userId: input.userId, mapped: true, connected };
 }
 
 export async function dwdDisable(ctx: GoogleCtx) {
@@ -268,6 +330,9 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
     ctx.log.warn("google pull failed", { mailbox: email, code: codeOf(e), cause });
     delay = pollInterval(now, null, false);
   }
+  // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull
+  await syncCalendar(ctx, { connectionId, email });
+  await pullMeet(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("google meet pull failed", { mailbox: email, code: codeOf(e) }));
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a push or a manual sync does not start a second chain
@@ -711,3 +776,12 @@ export async function meetSubscribe(ctx: GoogleCtx, a: Act & { target: string; e
   return out;
 }
 
+
+/** The address the caller is matched to, if they are matched and not excluded. A mount names it so it syncs as the person who made it. */
+export async function dwdMyAccount(ctx: GoogleCtx) {
+  const person = ctx.actingFor ?? ctx.principal.id;
+  const row = first(ctx.db.all(`SELECT email, excluded FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1));
+  const out: { email?: string } = {};
+  if (row && num(row, "excluded") !== 1) out.email = str(row, "email");
+  return out;
+}

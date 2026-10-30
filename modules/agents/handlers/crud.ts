@@ -6,19 +6,20 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, AWAKE_MS, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
+  AGENT_MD_DEFAULT, AWAKE_MS, agentView, markTeammate, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
   writeConfig,
 } from "../projections.ts";
 import type { AgentConfig, AgentRec, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
 import { readTemplate, templateVersion } from "./routines.ts";
+import { isHostService } from "../../../lib/trust.ts";
 
 type Row = Record<string, unknown>;
 const by = (ctx: AgentsCtx): string => ctx.actingFor ?? ctx.principal.id;
 
 // ---- reads ---------------------------------------------------------------------------------------------------------------------------------------------
 
-export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shared" | "space"; folderId?: string; status?: string[]; cursor?: string; limit?: number }) {
+export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shared" | "space"; folderId?: string; status?: string[]; teammates?: "hide" | "include" | "only"; projectId?: string; cursor?: string; limit?: number }) {
   ensure(ctx.db);
   const asker = askerOf(ctx);
   const now = ctx.now();
@@ -28,14 +29,26 @@ export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shar
   else if (input.section === "shared") rows = rows.filter((a) => a.ownerId !== asker);
   if (input.folderId !== undefined && input.folderId !== root) rows = rows.filter((a) => a.folderId === input.folderId);
   if (input.status && input.status.length > 0) rows = rows.filter((a) => input.status!.includes(statusOf(a, now)));
+  // teammates belong to a project: the Agents page does not list them unless asked
+  const mode = input.projectId !== undefined ? "only" : input.teammates ?? "hide";
+  if (mode === "hide") rows = rows.filter((a) => teammateOf(ctx.db, a.id) === undefined);
+  else if (mode === "only") rows = rows.filter((a) => { const p = teammateOf(ctx.db, a.id); return p !== undefined && (input.projectId === undefined || p === input.projectId); });
   const offset = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
   const limit = input.limit ?? 100;
   const page = rows.slice(offset, offset + limit);
-  return { agents: page.map((a) => agentOut(a, now)), ...(offset + limit < rows.length ? { next: String(offset + limit) } : {}), total: rows.length };
+  return { agents: page.map((a) => agentView(ctx.db, a, now)), ...(offset + limit < rows.length ? { next: String(offset + limit) } : {}), total: rows.length };
 }
 
 export async function get(ctx: AgentsCtx, input: { agentId: string }) {
-  return { agent: agentOut(visible(ctx, input.agentId), ctx.now()) };
+  return { agent: agentView(ctx.db, visible(ctx, input.agentId), ctx.now()) };
+}
+
+/** The keys that pay for an agent's memory upkeep and its chat fallbacks. The server reads them for the nightly job, which runs as itself and sees no agents; a person needs to be able to see the agent. */
+export async function memoryKeyGet(ctx: AgentsCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const a = isHostService(ctx.principal) ? agentBy(ctx.db, input.agentId) : visible(ctx, input.agentId);
+  if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
+  return { ...(a.config.memoryKey !== undefined ? { memoryKey: a.config.memoryKey } : {}), ownerId: a.ownerId };
 }
 
 export async function status(ctx: AgentsCtx, input: { agentId: string }) {
@@ -155,7 +168,7 @@ async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlTex
 }
 
 export async function create(ctx: AgentsCtx, input: {
-  name: string; role?: string; face?: string; model?: string; ownerId?: string; computer?: boolean; templateKey?: string; tools?: { allowed: string[]; denied: string[] }; limits?: Limits; idempotencyKey?: string;
+  name: string; role?: string; face?: string; model?: string; ownerId?: string; computer?: boolean; templateKey?: string; tools?: { allowed: string[]; denied: string[] }; limits?: Limits; projectId?: string; idempotencyKey?: string;
 }) {
   ensure(ctx.db);
   const name = input.name.trim().replace(/\s+/g, " ");
@@ -185,8 +198,9 @@ export async function create(ctx: AgentsCtx, input: {
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
+  if (input.projectId !== undefined) markTeammate(ctx.db, id, input.projectId);
   ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion });
-  return { agent: agentOut(rec, now) };
+  return { agent: agentView(ctx.db, rec, now) };
 }
 
 // ---- update ------------------------------------------------------------------------------------------------------------------------------------------------
@@ -457,7 +471,7 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
   const out: string[] = [];
   const diff = (k: string, x: unknown, y: unknown): void => { if (JSON.stringify(x) !== JSON.stringify(y)) out.push(k); };
   diff("name", a.name, b.name); diff("role", a.description, b.description); diff("model", a.model, b.model); diff("fallbackModel", a.fallbackModel, b.fallbackModel);
-  diff("accountPolicy", a.accountPolicy, b.accountPolicy); diff("accountKey", a.accountKey, b.accountKey); diff("handoffs", a.handoffs, b.handoffs);
+  diff("accountPolicy", a.accountPolicy, b.accountPolicy); diff("accountKey", a.accountKey, b.accountKey); diff("accountFallback", (a.accountFallback ?? []).join(", "), (b.accountFallback ?? []).join(", ")); diff("memoryKey", a.memoryKey, b.memoryKey); diff("handoffs", a.handoffs, b.handoffs);
   diff("toolsAllowed", a.toolsAllowed, b.toolsAllowed); diff("toolsDenied", a.toolsDenied, b.toolsDenied); diff("vaultKeys", a.vaultKeys, b.vaultKeys);
   diff("limits", a.limits, b.limits); diff("captureMode", a.captureMode, b.captureMode);
   return out.length > 0 ? out : ["agent.toml"];

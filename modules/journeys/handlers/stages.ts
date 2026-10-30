@@ -223,6 +223,19 @@ async function onEnter(ctx: JourneysCtx, j: Journey, rec: JRecord, stage: Stage,
       const taskId = made?.task?.id;
       if (!taskId) continue;
       saveTaskLink(ctx.db, rec.recordId, { stage: stage.key, taskKey: t.key, enteredAt: rec.enteredAt, taskId, required: t.required });
+      // "done by an Automation": the Automation starts now, and the task is done when its Run succeeds (the consumer in impl.ts). A Run that fails or cannot start leaves the task for a person.
+      if (t.doneByAutomation) {
+        try {
+          const fired = (await ctx.call("automations.fire", clean({
+            automationId: t.doneByAutomation, trigger: "journey_stage_entered", eventId, depth: 0, origin: `journey:${j.id}`,
+            payload: clean({ journeyId: j.id, recordId: rec.recordId, stage: stage.key, previousStage: previous, manual, taskKey: t.key, taskId }),
+            idempotencyKey: `jrn-done:${rec.recordId}:${stage.key}:${t.key}:${rec.enteredAt}`,
+          }))) as { runId?: string } | null;
+          if (fired?.runId) saveTaskLink(ctx.db, rec.recordId, { stage: stage.key, taskKey: t.key, enteredAt: rec.enteredAt, taskId, required: t.required, doneRunId: fired.runId });
+        } catch (e) {
+          ctx.log?.warn("journeys: the Automation that completes a task could not start", { journeyId: j.id, recordId: rec.recordId, task: t.key, automationId: t.doneByAutomation, reason: (e as { error?: { message?: string } } | null)?.error?.message ?? "it failed" });
+        }
+      }
       // a task for an agent keeps the key and the backup key it should use
       if (t.assigned.kind === "agent") {
         if (t.keyId) await ctx.call("tasks.working_notes.set", { taskId, key: "key_id", value: t.keyId });

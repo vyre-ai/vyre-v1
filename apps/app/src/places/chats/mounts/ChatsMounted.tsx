@@ -18,6 +18,8 @@ import { AgentPage, AgentPageLoading } from "../agentpage/AgentPage.tsx";
 import { ComputerPopup, ComputerPopupLoading } from "../computer/ComputerPopup.tsx";
 import { NO_CAPTURE } from "../computer/model.ts";
 import { Conversation, ConversationLoading } from "../conversation/Conversation.tsx";
+import { createComposerFill } from "../conversation/data.tsx";
+import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
 import { AGENT_PANE_W, AgentPane } from "../AgentPane.tsx";
@@ -27,11 +29,16 @@ import { TerminalRules } from "../terminal/TerminalRules.tsx";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { AllAgents } from "./AllAgents.tsx";
 import { ConnectOutsideAgent } from "./ConnectOutsideAgent.tsx";
-import { agentPageData, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
+import { SearchPage } from "../search/SearchPage.tsx";
+import type { SearchData } from "../search/SearchPage.tsx";
+import { copy, agentPageData, askWith, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
 import type { CaptureCounter, Go } from "./data.ts";
 import { useLive } from "./live.ts";
-import { START, fromHash, newestThread, step } from "./route.ts";
+import { noteThreadKind } from "../../../shell/ask/screen.ts";
+import { START, fromHash, newestThread, step, workOf } from "./route.ts";
+import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
 import type { Act, Shown } from "./route.ts";
+import { nameOr } from "../names.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type RecentOut = CapMap["chat.recent"]["out"];
@@ -65,11 +72,13 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLine] = useState<string | null>(null);
   const [counter] = useState<CaptureCounter>(createCapture);
+  // what a pane or the agent's page asks the composer to hold (Ask about this file, Change by Asking)
+  const [fill] = useState<ComposerFill>(createComposerFill);
 
   const live = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot);
   const list = live.status === "ready" ? live.data : NO_PEOPLE;
   const byId = useMemo(() => new Map(list.map((p) => [p.id, p] as const)), [list]);
-  const nameOf = useCallback((id: string): string => (id === rt.assistant.id ? rt.assistant.name : byId.get(id)?.name ?? id), [byId, rt.assistant.id, rt.assistant.name]);
+  const nameOf = useCallback((id: string): string => (id === rt.assistant.id ? rt.assistant.name : nameOr(byId.get(id)?.name, id)), [byId, rt.assistant.id, rt.assistant.name]);
 
   useEffect(() => {
     if (line === null) return undefined;
@@ -78,8 +87,31 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   }, [line]);
 
   const act = useCallback((a: Act): void => setShown((s) => step(s, a)), []);
+  // An Ask link names an agent and an object; the thread it opens is found or made, then shown as a chat.
+  const asking = shown.route.view === "ask" ? shown.route : null;
+  useEffect(() => {
+    if (asking === null) return undefined;
+    let live = true;
+    const who = asking.agentId === "assistant" ? rt.assistant.id : asking.agentId;
+    const found = asking.scopeType === "" ? chatWith(rt, who) : askWith(rt, who, asking.scopeType, asking.scopeId, asking.bringFrom);
+    void found.then((id) => {
+      if (!live) return;
+      if (id) act({ t: "chat", threadId: id, pane: true });
+      else { setLine("Could not open the Ask. You may not see that yet."); act({ t: "agent", agentId: who, tab: "chats" }); }
+    });
+    return () => { live = false; };
+  }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, rt, act]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   const route = shown.route;
+  // Cmd/Ctrl+Shift+F searches every chat, from anywhere in the place
+  useEffect(() => {
+    const g = globalThis as unknown as { addEventListener?: (t: string, f: (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault: () => void }) => void) => void; removeEventListener?: (t: string, f: unknown) => void };
+    const onKey = (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault: () => void }): void => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") { e.preventDefault(); go.search(); }
+    };
+    g.addEventListener?.("keydown", onKey);
+    return () => g.removeEventListener?.("keydown", onKey);
+  }, [go]);
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < WIDE;
 
@@ -90,6 +122,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
   const threadId = route.view === "chat" ? (route.threadId ?? newestThread(recent.status === "ready" ? recent.data : undefined)) : null;
   const thread = useLive<ThreadOut>(rt.screens, "chats.conversation", "thread", threadId === null ? null : { threadId });
+  if (thread.status === "ready" && threadId !== null) noteThreadKind(threadId, thread.data.thread.kind);
   const lead = thread.status === "ready" && threadId !== null ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
   const leadId = lead?.agentId ?? rt.assistant.id;
   const computers = useLive<ComputersOut>(rt.screens, "console.agent-computers", "computers", {});
@@ -97,11 +130,16 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const leadComputer = computerOf(leadId);
   const leadAgent = useMemo(() => ({ agentId: leadId, name: nameOf(leadId), ...(leadComputer ? { computerId: leadComputer } : {}) }), [leadId, nameOf, leadComputer]);
 
+  const focus = route.view === "chat" ? route.focus : undefined;
   const conv = useMemo(
-    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId })),
-    [rt, go, threadId, list, nameOf, leadId],
+    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}) })),
+    [rt, go, threadId, list, nameOf, leadId, fill, focus],
   );
-  const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent)), [rt, go, threadId, leadAgent]);
+  const searchData = useMemo<SearchData>(() => ({
+    call: rt.call, me: { id: rt.me.id, name: rt.me.name }, nameOf, kindOf: (id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person"), clock: rt.clock,
+    query: route.view === "search" ? route.q : "", openMessage: go.message, openThread: go.chat, close: go.closeSearch, copy,
+  }), [rt, nameOf, byId, route, go]);
+  const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent, fill)), [rt, go, threadId, leadAgent, fill]);
 
   /* ---------- the other pages ---------- */
   const needs = useMemo(() => needsData(rt, go, nameOf), [rt, go, nameOf]);
@@ -112,17 +150,21 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const agentRow = agentQ.status === "ready" && agentId !== "" ? agentQ.data.agent : null;
   const agentComputer = computerOf(agentId);
   const agentPage = useMemo(
-    () => agentPageData(rt, go, { agent: { agentId, name: agentRow?.name ?? nameOf(agentId), ...(agentComputer ? { computerId: agentComputer } : {}) }, canEdit: agentRow !== null && agentRow.ownerId === rt.me.id, nameOf }),
-    [rt, go, agentId, agentRow, agentComputer, nameOf],
+    () => agentPageData(rt, go, { agent: { agentId, name: agentRow?.name ?? nameOf(agentId), ...(agentComputer ? { computerId: agentComputer } : {}) }, canEdit: agentRow !== null && agentRow.ownerId === rt.me.id, nameOf, fill }),
+    [rt, go, agentId, agentRow, agentComputer, nameOf, fill],
   );
   const terminal = useMemo(() => terminalData(rt, go, { agent: leadAgent, newKey }), [rt, go, leadAgent]);
 
   /* ---------- the middle ---------- */
   let main: ReactElement;
-  if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
+  if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
+  else if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
-  else if (conv) main = <Conversation key={conv.threadId} data={conv} />;
+  else if (conv) {
+    const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
+    main = work && width >= WORKSPACE_MIN_W ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={conv} /></Workspace> : <Conversation key={conv.threadId} data={conv} />;
+  }
   else if (threadId === null && recent.status === "ready") {
     // A Space with no chats yet: the shared empty state with the way to start one, not a skeleton for ever.
     main = <States kind="empty" title="No chats yet. Start one with your assistant." icon="chat" action={{ label: "New chat", onPress: () => go.agentChat(rt.assistant.id) }} />;

@@ -1,6 +1,6 @@
 # automations.packages.import
 
-Create a draft Automation from a package this person exported
+Create a Personal draft from a package this person exported, put their own connections in its slots and list what is left to connect
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ Create a draft Automation from a package this person exported
 type In = {
   packageId: string;
   name?: string;
+  connections?: Record<string, string>;
 };
 ```
 
@@ -91,6 +92,7 @@ type Out = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -121,6 +123,15 @@ type Out = {
     createdAt: number;
     updatedAt: number;
   };
+  needs: {
+    connections: Array<{
+        slot: string;
+        label: string;
+        stepIds: Array<string>;
+      }>;
+    vault: Array<string>;
+    keys: Array<string>;
+  };
 };
 ```
 
@@ -138,6 +149,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "connections": {},
     "name": "example",
     "packageId": "example"
   },
@@ -197,6 +209,7 @@ type Out = {
               },
               "timeoutMinutes": 1
             },
+            "askBeforeSending": true,
             "branches": [
               {
                 "label": "example",
@@ -246,6 +259,23 @@ type Out = {
       "status": "on",
       "updatedAt": 1760000000000,
       "version": 1
+    },
+    "needs": {
+      "connections": [
+        {
+          "label": "example",
+          "slot": "example",
+          "stepIds": [
+            "example"
+          ]
+        }
+      ],
+      "keys": [
+        "example"
+      ],
+      "vault": [
+        "example"
+      ]
     }
   }
 }

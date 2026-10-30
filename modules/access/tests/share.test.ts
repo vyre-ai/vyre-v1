@@ -8,45 +8,18 @@ import { handlers } from "../impl.ts";
 import { putPrincipal } from "../handlers/roles.ts";
 import {
   dropShare, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
-  myAccess, share, shareOf, sharesOf, unshare,
+  deciders, myAccess, share, shareOf, sharesOf, unshare,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
+import { MemoryDb } from "../fixtures/db.ts";
 import type { Db } from "../projections.ts";
 import { dropStore, EVERYONE, pkey, storeOf } from "../projections.ts";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Enough SQL for the access tables: CREATE, INSERT, DELETE (all or by id) and SELECT *. */
-class SqlDb implements Db {
-  tables = new Map<string, Record<string, unknown>[]>();
-  all(sql: string): unknown[] {
-    const name = /\bFROM\s+([A-Za-z0-9_]+)/i.exec(sql)?.[1] ?? "";
-    const rows = this.tables.get(name);
-    if (!rows) throw new Error(`no table ${name}`);
-    return rows.map((r) => ({ ...r }));
-  }
-  run(sql: string, ...args: unknown[]): { changes: number } {
-    if (/^CREATE\s+/i.test(sql)) return { changes: 0 };
-    const del = /^DELETE\s+FROM\s+([A-Za-z0-9_]+)(\s+WHERE\s+id\s*=\s*\?)?/i.exec(sql);
-    if (del) {
-      const name = del[1]!;
-      const rows = this.tables.get(name) ?? [];
-      const keep = del[2] ? rows.filter((r) => r["id"] !== args[0]) : [];
-      this.tables.set(name, keep);
-      return { changes: rows.length - keep.length };
-    }
-    const ins = /^INSERT\s+INTO\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)\s*VALUES\s*\(([^)]*)\)/i.exec(sql);
-    if (!ins) throw new Error(`unsupported sql: ${sql}`);
-    const cols = ins[2]!.split(",").map((c) => c.trim());
-    const row: Record<string, unknown> = {};
-    cols.forEach((c, i) => { row[c] = args[i] ?? null; });
-    const list = this.tables.get(ins[1]!) ?? [];
-    list.push(row);
-    this.tables.set(ins[1]!, list);
-    return { changes: 1 };
-  }
-}
+/** The access tables' in-memory SQL (modules/access/fixtures/db.ts). */
+class SqlDb extends MemoryDb {}
 
 function rig() {
   const db = new SqlDb();
@@ -302,6 +275,19 @@ test("shares_of names who has access and through what", async () => {
   assert.equal(await code(sharesOf(r.as("usr_b"), { resource: { type: "site", id: "sit_x" } })), "no error", "a viewer may look");
   r.item("sit_y", "usr_a");
   assert.equal(await code(sharesOf(r.as("usr_b"), { resource: { type: "site", id: "sit_y" } })), "permission.no_grant");
+});
+
+test("deciders names the people who hold Manage, and shows a caller who cannot see the resource nothing but those ids", async () => {
+  const r = rig();
+  r.item("sit_x", "usr_a");
+  const a = r.as("usr_a");
+  await share(a, { resource: { type: "site", id: "sit_x" }, subject: { kind: "person", id: "usr_b" }, level: "manage" });
+  await share(a, { resource: { type: "site", id: "sit_x" }, subject: { kind: "person", id: "usr_c" }, level: "view" });
+  assert.deepEqual(await deciders(r.as("usr_a"), { resource: { type: "site", id: "sit_x" } }), { people: ["usr_a", "usr_b"] });
+  // usr_c may not list the shares, but can still find who decides
+  assert.equal(await code(sharesOf(r.as("usr_d"), { resource: { type: "site", id: "sit_x" } })), "permission.no_grant");
+  assert.deepEqual(await deciders(r.as("usr_d"), { resource: { type: "site", id: "sit_x" } }), { people: ["usr_a", "usr_b"] });
+  assert.equal(await code(deciders(r.as("usr_a"), { resource: { type: "site", id: "sit_none" } })), "validation.not_found");
 });
 
 test("folders: names are unique among siblings, a folder cannot move into itself or across scopes, counts follow the items", async () => {

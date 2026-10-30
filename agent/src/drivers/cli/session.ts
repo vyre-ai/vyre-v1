@@ -13,7 +13,7 @@ import { classifyCli } from "./errors.ts";
 import { channel, lines } from "./lines.ts";
 import type { Channel } from "./lines.ts";
 import { defaultPrompt } from "./prompt.ts";
-import type { CliAdapter, CliCheckpoint, CliDecoder, CliEvent, CliProcess, Launcher, McpEndpoint } from "./types.ts";
+import type { CliAdapter, CliCheckpoint, CliDecoder, CliEvent, CliProcess, Launcher, McpEndpoint, NativePlugins } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
 
 export interface CliSessionDeps {
@@ -30,6 +30,10 @@ export interface CliSessionDeps {
   /** Extra environment from the sandbox (proxy variables). */
   env: Readonly<Record<string, string>>;
   planMode?: () => boolean;
+  /** Plugins installed on the agent, for the CLI's own config. */
+  plugins?: NativePlugins;
+  /** No Vyre tools and none of the CLI's own (SessionSpec.tools "none"). */
+  noTools?: boolean;
   prompt?: (input: TurnInput, ctx: { fresh: boolean }) => string;
   /** No output for this long ends the turn. Default 10 minutes. */
   idleMs?: number;
@@ -78,6 +82,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   let outstanding = 0;
   let systemSent = deps.resume !== null;
   const steer: StoredMessage[] = [];
+  /** The turn-context sections this engine session already holds (id to hash), so a resumed turn is sent only what changed. */
+  const sentContext = new Map<string, string>();
 
   const secrets = (): string[] => [deps.endpoint.token];
   const clean = (text: string): string => scrub(text, secrets());
@@ -93,7 +99,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
 
   async function start(): Promise<Run> {
     const argv = a.command({
-      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), planMode: deps.planMode?.() ?? false,
+      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), ...(deps.plugins ? { plugins: deps.plugins } : {}), planMode: deps.planMode?.() ?? false, ...(deps.noTools ? { noTools: true } : {}),
       workFolder: deps.workFolder, system: a.systemFlag ? deps.system : null,
     });
     const proc = await deps.launcher.spawn({
@@ -200,7 +206,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     turns += 1;
     try {
       const fresh = sessionId === null;
-      const build = (steered: readonly StoredMessage[]): string => (deps.prompt && steered.length === 0 ? deps.prompt(input, { fresh }) : defaultPrompt(input, fresh, steered));
+      const build = (steered: readonly StoredMessage[]): string => (deps.prompt && steered.length === 0 ? deps.prompt(input, { fresh }) : defaultPrompt(input, fresh, steered, sentContext));
       let prompt = build(steer.splice(0, steer.length));
       for (;;) {
         const outcome = yield* turn(prompt, input.asker, ac.signal);

@@ -10,6 +10,8 @@ const MAX_BODY = 16 * 1024;
 /** A job answer can carry a screenshot; a home call can carry a file of up to a few hundred kilobytes in base64. */
 const MAX_RESULT = 8 * 1024 * 1024;
 const MAX_HOME = 4 * 1024 * 1024;
+/** A recording's video, raw: the Files blob store holds no more than this in one blob (MAX_UPLOAD in modules/files), so nothing larger could be kept. Only this route takes it; the JSON home calls keep MAX_HOME. */
+const MAX_RECORDING = 25 * 1024 * 1024;
 const PER_MINUTE: Record<"poll" | "result" | "home", number> = { poll: 240, result: 600, home: 3000 };
 
 export interface ComputeRouteDeps {
@@ -21,6 +23,8 @@ export interface ComputeRouteDeps {
   result?(nodeId: string, a: { jobId: string; ok: boolean; result?: unknown; error?: string }): Promise<{ status: string }>;
   /** One call on an agent's home for a job's computer, as that agent, if the token allows it. Null when it does not. */
   home?(nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }): Promise<{ ok: true; output: unknown } | null>;
+  /** Bytes of a recording's video for an upload slot, from a job that saves a recording on a computer of this node. False when the token is not such a job. */
+  recording?(nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }): Promise<boolean>;
   now?: () => number;
 }
 
@@ -74,10 +78,35 @@ export function createComputeRoute(deps: ComputeRouteDeps): { handle(req: http.I
     if (!out.ok) return send(res, 422, { error: makeError("validation.precondition_failed" as never, TRACE, { message: (out as { message?: string }).message ?? "The Space refused that." }) });
     send(res, 200, { ok: true, output: out.output });
   }
+  /** POST /compute/recording?computerId=&token=&url= with the video as the body. The computer's credential, a live saveRecording job token for a computer of that node, and a slot address: nothing else opens it. */
+  async function recording(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const source = sourceOf({ "x-vyre-remote": req.socket.remoteAddress ?? "", ...(typeof req.headers["x-forwarded-for"] === "string" ? { "x-forwarded-for": req.headers["x-forwarded-for"] } : {}) });
+    if (limited(`recording:${source}`, 60)) { res.setHeader("retry-after", "60"); return send(res, 429, { error: makeError("rate_limit.exceeded" as never, TRACE, { message: "Too many requests from this address." }) }); }
+    const auth = req.headers["authorization"];
+    const credential = typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+    const who = credential.startsWith("vcc_") ? await deps.poll(credential, {}).catch(() => null) : null;
+    if (!who) return send(res, 401, { error: makeError("auth.unauthenticated" as never, TRACE, { message: "This computer is not admitted." }) });   // before any of the body is read
+    const q = new URL(req.url ?? "/", "http://x").searchParams;
+    const token = q.get("token") ?? "", computerId = q.get("computerId") ?? "", url = q.get("url") ?? "";
+    if (!deps.recording || !token || !computerId || !url) return send(res, 400, { error: makeError("validation.bad_input" as never, TRACE, { message: "Say which job, computer and upload slot." }) });
+    const declared = Number(req.headers["content-length"] ?? NaN);
+    if (!Number.isFinite(declared) || declared > MAX_RECORDING) return send(res, 413, { error: makeError("validation.too_large" as never, TRACE, { message: "That recording is too large." }) });
+    const chunks: Buffer[] = []; let size = 0;
+    for await (const c of req) { size += (c as Buffer).length; if (size > MAX_RECORDING) return send(res, 413, { error: makeError("validation.too_large" as never, TRACE, { message: "That recording is too large." }) }); chunks.push(c as Buffer); }
+    const done = await deps.recording(who.serverId, { token, computerId, url, bytes: Buffer.concat(chunks) }).catch(() => null);
+    if (done === null) return send(res, 422, { error: makeError("validation.precondition_failed" as never, TRACE, { message: "The Space refused that upload." }) });
+    if (!done) return send(res, 403, { error: makeError("permission.no_grant" as never, TRACE, { message: "That job may not do that." }) });
+    send(res, 200, { ok: true });
+  }
   const ROUTES: Record<string, "poll" | "result" | "home"> = { "/compute/poll": "poll", "/compute/result": "result", "/compute/home": "home" };
   return {
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://x");
+      if (url.pathname === "/compute/recording") {
+        if (req.method !== "POST") { send(res, 405, { error: makeError("validation.bad_input" as never, TRACE, { message: "Use POST." }) }); return true; }
+        void recording(req, res).catch(() => { if (!res.headersSent) send(res, 500, { error: makeError("internal.unexpected" as never, TRACE) }); });
+        return true;
+      }
       const which = ROUTES[url.pathname];
       if (!which) return false;
       if (req.method !== "POST") { send(res, 405, { error: makeError("validation.bad_input" as never, TRACE, { message: "Use POST." }) }); return true; }

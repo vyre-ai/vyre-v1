@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { Conversation, ConversationLoading } from "./Conversation.tsx";
+import { createComposerFill } from "./data.tsx";
 import { HoverBar, MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
 import {
@@ -344,4 +345,29 @@ test("the hover bar draws Copy, Edit (yours only), Reply and More while the row 
   const idle = bar(m3, true, false);
   assert.ok(has(idle, 'data-testid="hover-m3"') && !has(idle, "act-copy-m3") && !has(idle, "<svg"));
   assert.ok(!has(html(s), 'data-testid="act-copy-m3"'), "a resting page draws no bar buttons");
+});
+
+test("a conversation opened with a waiting ask (Ask about this) holds that text in its composer, and takes it once", () => {
+  const s = createSample("idle");
+  const fill = createComposerFill();
+  fill.set("About rivera-engagement-letter.docx: ");
+  const out = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, fill }} />));
+  assert.ok(out.includes("About rivera-engagement-letter.docx: "), "the text is in the composer");
+  assert.equal(fill.take(), undefined, "taken: another conversation does not get it again");
+  assert.ok(!html(createSample("idle")).includes("About rivera-engagement-letter.docx: "), "a conversation with nothing waiting starts empty");
+});
+
+test("a link from memory opens the chat at one message: the route carries it, the page marks it, and a message the page does not hold is no mark", async () => {
+  const { fromHash, step, START } = await import("../mounts/route.ts");
+  assert.deepEqual(fromHash("screen=chats.conversation&threadId=thr_1&m=msg_9").route, { view: "chat", threadId: "thr_1", focus: "msg_9" });
+  assert.deepEqual(fromHash("screen=chats.conversation&threadId=thr_1").route, { view: "chat", threadId: "thr_1" });
+  assert.deepEqual(step(START, { t: "chat", threadId: "thr_2", focus: "msg_3" }).route, { view: "chat", threadId: "thr_2", focus: "msg_3" });
+  assert.deepEqual(step(START, { t: "chat", threadId: "thr_2" }).route, { view: "chat", threadId: "thr_2" }, "a click on a chat carries no focus");
+  const s = createSample("idle");
+  const plain = html(s);
+  const marked = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, focus: "m2" }} />));
+  assert.ok(has(marked, 'data-testid="msg-m2"'));
+  assert.notEqual(marked, plain, "the focused message is drawn marked");
+  const missing = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, focus: "msg_nowhere" }} />));
+  assert.equal(missing, plain, "a message that is not in the chat marks nothing");
 });

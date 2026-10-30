@@ -50,20 +50,39 @@ const capabilities = [
   }),
   write('ms.consent.setup', 'Store the app registration (Vault item Microsoft_App), map members by email and, with auto-connect on, create their Pending mail and calendar connections', {
     in: { vaultItem: id.handle, tenantId: t.str(), domain: t.opt(t.str()) }, out: { configured: t.bool(), mappedMembers: t.int(), connected: t.int() },
-    perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_configured'], idem: 'key', audit: 'always', tool: 'engineer', errors: ['provider.auth_failed', 'validation.precondition_failed'],
+    perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_configured'], idem: 'key', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['provider.auth_failed', 'validation.precondition_failed', 'permission.on_hold'],
   }),
   write('ms.consent.verify', 'Call GET /organization and check consent and the access policy for a probe member', {
     in: { as: t.opt(email), policyConfirmed: t.opt(t.bool()) }, out: { ok: t.bool(), missingPermissions: t.arr(t.str()), detail: t.opt(t.str()) },
     perm: 'connectors.manage', emits: ['microsoft.consent_verified'], audit: 'always', tool: 'engineer', errors: ['provider.auth_failed'],
   }),
+  read('ms.consent.my_account', 'The Microsoft 365 address the caller is matched to, if any (a OneDrive or SharePoint mount names it so it syncs as the person, not as an admin)', {
+    in: {}, out: { email: t.opt(email) },
+  }),
   read('ms.consent.members', 'Tenant users mapped to Space members by email, with exclusion and mailbox state', {
     in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
   }),
   write('ms.consent.set_excluded', 'Exclude a member from the connection, or include them again (excluded members never get a connection)', {
-    in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer',
+    in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['permission.on_hold'],
+  }),
+  read('ms.directory.list', 'The people in the Microsoft 365 directory (admin only), with the Space member each is matched to, for choosing who to bring in', {
+    in: { skipToken: t.opt(t.str()), query: t.opt(t.str()) }, out: { people: t.arr(t.obj({ email, name: t.opt(t.str()), suspended: t.bool(), userId: t.opt(id.user) })), nextSkipToken: t.opt(t.str()) },
+    perm: 'connectors.manage', tool: 'engineer', errors: ['provider.auth_failed', 'validation.precondition_failed'],
+  }),
+  write('ms.directory.import', 'Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves', {
+    in: { people: t.arr(t.obj({ email, role: id.role }), { minItems: 1, maxItems: 100 }) },
+    out: { invited: t.arr(t.obj({ email, inviteId: id.invite, link: t.str() })), skipped: t.arr(t.obj({ email, reason: t.str() })) },
+    perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', errors: ['validation.precondition_failed'],
+  }),
+  write('ms.consent.sync_members', 'Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar', {
+    in: {}, out: { matched: t.int(), connected: t.int() }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
+  }),
+  write('ms.consent.map_member', 'Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in', {
+    in: { email, userId: t.opt(id.user) }, out: { email, userId: t.opt(id.user), mapped: t.bool(), connected: t.bool() },
+    perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
   }),
   write('ms.consent.disable', 'Turn the Microsoft connection off and stop every member sync', {
-    in: {}, out: { disabled: t.bool() }, perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_revoked'], audit: 'always', tool: 'engineer', gate: { act: 'delete', when: "actor.kind != 'person'" },
+    in: {}, out: { disabled: t.bool() }, perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_revoked'], audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" },
   }),
   read('ms.health', 'Health probe: GET /organization', { in: {}, out: healthOut }),
   write('ms.receive_notification', 'Record a verified Graph change notification (answers the validationToken handshake) after dedupe', {

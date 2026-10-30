@@ -39,6 +39,11 @@ type Out = {
     networkDomains: Array<string>;
     vaultNames: Array<string>;
     scripts: number;
+    skills: Array<string>;
+    marketplaces: Array<string>;
+    plugins: Array<string>;
+    connections: Array<string>;
+    agents: Array<string>;
     problems: Array<{
         item: string;
         step: "apply" | "undo";
@@ -68,7 +73,19 @@ type Out = {
   },
   "output": {
     "sheet": {
+      "agents": [
+        "example"
+      ],
+      "connections": [
+        "example"
+      ],
+      "marketplaces": [
+        "example"
+      ],
       "networkDomains": [
+        "example"
+      ],
+      "plugins": [
         "example"
       ],
       "problems": [
@@ -84,6 +101,9 @@ type Out = {
         "example"
       ],
       "scripts": 1,
+      "skills": [
+        "example"
+      ],
       "tools": [
         "example"
       ],

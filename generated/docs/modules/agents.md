@@ -4,8 +4,9 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (33)
+## Capabilities (63)
 
+- [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
 - [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
 - [agents.config.get](../capabilities/agents.config.get.md): Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error
 - [agents.config.validate](../capabilities/agents.config.validate.md): Validate agent.toml text (app limits first, then precedence) without saving
@@ -15,6 +16,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.guide.get](../capabilities/agents.guide.get.md): The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md
 - [agents.limits.get](../capabilities/agents.limits.get.md): Effective limits of an agent: agent.toml capped by Space caps
 - [agents.list](../capabilities/agents.list.md): List agents you are in or that are shared with you (admins may toggle All in the Space)
+- [agents.memory_key.get](../capabilities/agents.memory_key.get.md): The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)
 - [agents.pause](../capabilities/agents.pause.md): Pause an agent with a reason; the status shows who paused it
 - [agents.restore](../capabilities/agents.restore.md): Restore an agent from Trash
 - [agents.restore_version](../capabilities/agents.restore_version.md): Restore AGENT.md or agent.toml to an earlier version
@@ -39,8 +41,36 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.update](../capabilities/agents.update.md): Change an agent: name, model, fallback, account, tools, vault key names, limits, memory capture, handoffs; a broken agent.toml keeps the last good version running
 - [agents.versions](../capabilities/agents.versions.md): List versions of an agent definition (AGENT.md, agent.toml) for rollback
 - [agents.visibility.set](../capabilities/agents.visibility.set.md): Admin toggle "All in the Space" for agent lists (logged)
+- [plugins.agent_template.use](../capabilities/plugins.agent_template.use.md): Make an agent from a sub-agent a plugin brought (its description becomes the role line and its prompt the start of AGENT.md)
+- [plugins.agent_templates.list](../capabilities/plugins.agent_templates.list.md): Sub-agents that installed plugins bring, as templates a new agent can start from
+- [plugins.allow.list](../capabilities/plugins.allow.list.md): The marketplaces and plugins the admin allows
+- [plugins.allow.set](../capabilities/plugins.allow.set.md): Allow or stop allowing a whole marketplace, or one plugin of it
+- [plugins.browse](../capabilities/plugins.browse.md): Plugins the marketplaces offer, with whether each is on the allowlist and where it is installed
+- [plugins.command.render](../capabilities/plugins.command.render.md): The prompt a plugin command stands for, with its arguments filled in; the chat sends it as the person's message
+- [plugins.commands.list](../capabilities/plugins.commands.list.md): The / commands that plugins add for a chat with this agent (or the Space when no agent)
+- [plugins.config.set](../capabilities/plugins.config.set.md): Set the options a plugin asks for; a secret option takes a Vault handle, never a value
+- [plugins.connection.add](../capabilities/plugins.connection.add.md): Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model
+- [plugins.connection.remove](../capabilities/plugins.connection.remove.md): Disconnect an MCP server made by hand
+- [plugins.connections.list](../capabilities/plugins.connections.list.md): MCP connections made by hand (a URL or a command)
+- [plugins.files](../capabilities/plugins.files.md): The text files of an installed plugin, for the sandbox to be given (its MCP servers and hooks run from them)
+- [plugins.get](../capabilities/plugins.get.md): One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought
+- [plugins.hooks.list](../capabilities/plugins.hooks.list.md): The hooks of the plugins that apply to this agent. They run only in the sandbox.
+- [plugins.install](../capabilities/plugins.install.md): Install a plugin from a marketplace into the whole Space (admin) or into one agent: its skills, commands, sub-agents, hooks and MCP servers become available
+- [plugins.list](../capabilities/plugins.list.md): Installed plugins: in the whole Space, and in one agent when agentId is given
+- [plugins.marketplace.add](../capabilities/plugins.marketplace.add.md): Add a marketplace by git URL (https) or a folder on this server; reads its marketplace.json and puts it on the allowlist
+- [plugins.marketplace.refresh](../capabilities/plugins.marketplace.refresh.md): Fetch a marketplace again and update its list
+- [plugins.marketplace.remove](../capabilities/plugins.marketplace.remove.md): Remove a marketplace; the plugins installed from it stay until they are removed
+- [plugins.marketplaces.list](../capabilities/plugins.marketplaces.list.md): Marketplaces added to this Space
+- [plugins.mcp.servers](../capabilities/plugins.mcp.servers.md): The MCP servers a chat with this agent connects to: from plugins in the Space, plugins in the agent and connections made by hand. Secrets are Vault handles.
+- [plugins.set_enabled](../capabilities/plugins.set_enabled.md): Turn an installed plugin off or on without removing it
+- [plugins.uninstall](../capabilities/plugins.uninstall.md): Remove an installed plugin and what it brought
+- [skills.add](../capabilities/skills.add.md): Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)
+- [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones
+- [skills.load](../capabilities/skills.load.md): Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in
+- [skills.remove](../capabilities/skills.remove.md): Remove a skill from the Space library, or from one agent
+- [skills.set_enabled](../capabilities/skills.set_enabled.md): Turn a Space or agent skill off or on without removing it
 
-## Events (14)
+## Events (26)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
@@ -56,3 +86,15 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agent.suggestion_proposed](../events/agent.suggestion_proposed.md): A change to an agent was suggested
 - [agent.suggestion_resolved](../events/agent.suggestion_resolved.md): A suggestion was accepted or dismissed
 - [agent.template_applied](../events/agent.template_applied.md): The Agent template was applied
+- [plugin.allowlist_changed](../events/plugin.allowlist_changed.md): The plugin allowlist changed
+- [plugin.changed](../events/plugin.changed.md): A plugin was turned on or off, configured, or used to make an agent
+- [plugin.connection_added](../events/plugin.connection_added.md): An MCP server was connected
+- [plugin.connection_removed](../events/plugin.connection_removed.md): An MCP connection was removed
+- [plugin.installed](../events/plugin.installed.md): A plugin was installed
+- [plugin.marketplace_added](../events/plugin.marketplace_added.md): A marketplace was added
+- [plugin.marketplace_refreshed](../events/plugin.marketplace_refreshed.md): A marketplace was fetched again
+- [plugin.marketplace_removed](../events/plugin.marketplace_removed.md): A marketplace was removed
+- [plugin.uninstalled](../events/plugin.uninstalled.md): A plugin was removed
+- [skill.added](../events/skill.added.md): A skill was added to the Space library or to one agent
+- [skill.changed](../events/skill.changed.md): A skill was turned off or on
+- [skill.removed](../events/skill.removed.md): A skill was removed from the Space library or from one agent

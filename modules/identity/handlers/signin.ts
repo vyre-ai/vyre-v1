@@ -19,7 +19,7 @@ export async function signInOptions(ctx: IdentityCtx, _input: Record<string, nev
     fingerprint: row.fingerprint,
     password: policy.allowPassword&&!policy.requireSso,
     github: !!ctx.github&&policy.allowGithub&&!policy.requireSso,
-    sso: [],
+    sso: ctx.sso ? ctx.sso.providers() : [],
     secondFactorRequired: policy.secondFactor === "required",
   };
 }
@@ -30,7 +30,7 @@ export async function usernameAvailable(ctx: IdentityCtx, input: { username: str
 }
 
 /** After the first factor: a second factor is owed when the person has TOTP set. */
-async function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "password" | "github"): Promise<SignInOut> {
+async function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "password" | "github" | "sso"): Promise<SignInOut> {
   assertSignInPolicy(ctx,a,method);
   if (a.totp_secret) return { status: "second_factor_required", challengeId: newChallenge(ctx, a.person_id, method) };
   return await issueSession(ctx, a, dev, method);
@@ -74,7 +74,7 @@ export async function signIn(ctx: IdentityCtx, input: Device & { username: strin
 
 export async function verifySecondFactor(ctx: IdentityCtx, input: Device & { challengeId: string; code: string }): Promise<SignInOut> {
   const c = ctx.db.all(`SELECT id, person_id, method, expires_at, used_at, tries FROM identity_challenges WHERE id = ?`, input.challengeId)[0] as
-    { id: string; person_id: string; method: "password" | "github"; expires_at: number; used_at: number | null; tries: number } | undefined;
+    { id: string; person_id: string; method: "password" | "github" | "sso"; expires_at: number; used_at: number | null; tries: number } | undefined;
   if (!c || c.used_at !== null) raise(ctx.trace.traceId, "auth.invalid_code");
   if (c.expires_at <= ctx.now()) raise(ctx.trace.traceId, "auth.expired");
   const a = accountById(ctx, c.person_id);
@@ -113,8 +113,20 @@ export async function githubSignIn(ctx: IdentityCtx, input: Device & { code: str
   return await afterFirstFactor(ctx, a, input, "github");
 }
 
-export async function ssoSignIn(ctx: IdentityCtx, _input: Device & { provider: string; code: string; state: string }): Promise<SignInOut> {
-  raise(ctx.trace.traceId, "validation.unsupported", "SSO sign-in is reserved until the Space has an SSO configuration");
+export async function ssoSignIn(ctx: IdentityCtx, input: Device & { provider: string; code: string; state: string }): Promise<SignInOut> {
+  if (!ctx.sso || !ctx.sso.providers().some((p) => p.key === input.provider)) raise(ctx.trace.traceId, "validation.unsupported", "That sign-in is not set up for this Space");
+  // the ticket names a verified address at the firm's domain; who it is, and whether they have an account here, is decided now
+  const person = ctx.sso.resolve(input.provider, input.code);
+  const a = person ? (ctx.db.all(`SELECT * FROM identity_accounts WHERE person_id = ?`, person)[0] as Account | undefined) : undefined;
+  if (!a) {
+    noteFail(ctx, undefined, input.provider, "bad_credentials");
+    raise(ctx.trace.traceId, "auth.bad_credentials");
+  }
+  if (lockedFor(a, ctx.now()) > 0) {
+    noteFail(ctx, a, a.username, "locked");
+    raise(ctx.trace.traceId, "auth.bad_credentials");
+  }
+  return await afterFirstFactor(ctx, a, input, "sso");
 }
 
 export async function signOut(ctx: IdentityCtx, input: { sessionId?: string }) {
@@ -138,6 +150,13 @@ export async function whoami(ctx: IdentityCtx, _input: Record<string, never>) {
     epoch: a.epoch,
     spaceId: ctx.space,
   };
+}
+
+/** My sign-in here: when the password last changed (the day I joined, until it has), the linked GitHub account, the authenticator app and the passkeys (none until they ship). */
+export async function securityGet(ctx: IdentityCtx, _input: Record<string, never>) {
+  const a = me(ctx);
+  const changed = ctx.db.all(`SELECT changed_at FROM identity_password_changed WHERE person_id = ?`, a.person_id)[0] as { changed_at: number } | undefined;
+  return { passwordChangedAt: changed?.changed_at ?? a.created_at, ...(a.github_id && a.github_login ? { github: a.github_login } : {}), totp: !!a.totp_secret, passkeys: [] as string[] };
 }
 
 // ---- pairing: one stack for the app, the extension and the daemon

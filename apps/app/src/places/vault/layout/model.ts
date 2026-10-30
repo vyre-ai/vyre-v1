@@ -199,3 +199,12 @@ export function stepIndex(current: number, count: number, dir: 1 | -1): number {
   if (current < 0) return dir === 1 ? 0 : count - 1;
   return Math.max(0, Math.min(count - 1, current + dir));
 }
+
+/** How long a download link made from a folder or the Space lasts. The Space's policy sets the longest. */
+export type Expiry = "1h" | "1d" | "7d";
+export const EXPIRY_CHOICES: ReadonlyArray<{ key: Expiry; label: string; sentence: string }> = [
+  { key: "1h", label: "1 hour", sentence: "one-hour" },
+  { key: "1d", label: "1 day", sentence: "one-day" },
+  { key: "7d", label: "7 days", sentence: "seven-day" },
+];
+export const expiryLabel = (e: Expiry): string => EXPIRY_CHOICES.find((c) => c.key === e)?.label ?? e;

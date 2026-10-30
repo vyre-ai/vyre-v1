@@ -6,22 +6,30 @@ import {
 import { accountPicks } from "./accounts.ts";
 import { draftConnector } from "./draft-connector.ts";
 import { acceptConnectorOffer, connectorOffers, declineConnectorOffer } from "./connector-offer.ts";
+import { httpRead, httpSend } from "./http-step.ts";
 import { openDocument } from "./open-document.ts";
 import { openMcp } from "./open-mcp.ts";
 import { connectorShares, shareConnector } from "./connector-share.ts";
 import { tryConnectorRead } from "./try-read.ts";
 import { migrateRuns, migrationPreview } from "./migrate.ts";
 import { exportPackage, importPackage, packagesList } from "./packages.ts";
+import { analytics, dependencies, templatesList, templatesUse } from "./studio.ts";
 import { scheduleChoose } from "./schedule.ts";
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
 export const handlers = {
   "automations.account_picks": accountPicks,
+  "automations.analytics": analytics,
+  "automations.dependencies": dependencies,
+  "automations.templates.list": templatesList,
+  "automations.templates.use": templatesUse,
   "automations.alerts.get": alertsGet,
   "automations.alerts.set": alertsSet,
   "automations.create": create,
   "automations.delete": remove,
   "automations.draft_connector": draftConnector,
+  "automations.http_read": httpRead,
+  "automations.http_send": httpSend,
   "automations.open_document": openDocument,
   "automations.connector_offers": connectorOffers,
   "automations.connector_offer.decline": declineConnectorOffer,

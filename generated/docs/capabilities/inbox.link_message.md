@@ -37,6 +37,9 @@ type In = {
   numberId?: string;
   campaignId?: string;
   preview?: string;
+  threadId?: string;
+  subject?: string;
+  participants?: Array<string>;
 };
 ```
 
@@ -71,11 +74,16 @@ type Out = {
     "direction": "in",
     "mailboxId": "mbx_a1b2c3",
     "numberId": "num_a1b2c3",
+    "participants": [
+      "example"
+    ],
     "preview": "example",
     "ref": {
       "id": "example",
       "kind": "mail_message"
-    }
+    },
+    "subject": "example",
+    "threadId": "example"
   },
   "output": {
     "contactId": "rec_a1b2c3",

@@ -15,6 +15,8 @@ HTTP 422. Retryable: no.
 - agents.routine.delegate
 - agents.routine.run_now
 - agents.suggestion.accept
+- automations.http_read
+- automations.http_send
 - automations.migrate_runs
 - automations.promote
 - automations.replay
@@ -23,11 +25,9 @@ HTTP 422. Retryable: no.
 - changesets.edit
 - chat.answer_block
 - chat.approve_plan
+- chat.fork
 - chat.handoff
 - computers.record_start
 - computers.sleep
 - computers.take_over
 - conflicts.confirm
-- conflicts.redo
-- conflicts.resolve
-- conflicts.undo

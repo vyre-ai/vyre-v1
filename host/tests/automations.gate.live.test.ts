@@ -84,7 +84,7 @@ test("an outward send held for approval resumes with the same attempt key", asyn
       definition: {
         triggers: [{ key: "manual" }],
         nodes: [
-          { id: "letter", key: "send_email", input: { mailboxId, to: [TO], subject: "Held", body: "This waits for approval." } },
+          { id: "letter", key: "send_email", askBeforeSending: true, input: { mailboxId, to: [TO], subject: "Held", body: "This waits for approval." } },
         ],
       },
     });
@@ -131,5 +131,71 @@ test("an outward send held for approval resumes with the same attempt key", asyn
     assert.deepEqual(sends.map((s) => ({ attempt: s.attempt, state: s.state, inputRef: s.inputRef, outputRef: s.outputRef })), [
       { attempt: 1, state: "succeeded", inputRef: key, outputRef: `out:${runId}:letter:1` },
     ], `the send resumed on the same attempt key: ${JSON.stringify(sends)}`);
+  } finally { await d.stop(); }
+});
+
+/** A Space automation with one send step, ready to run: the service principal holds the Space and the mailbox. */
+async function sendAutomation(d: Daemon, name: string, askBeforeSending: boolean | undefined): Promise<string> {
+  await ok(d, "/v1/contacts/suppression/add", { channel: "email", addresses: [TO], reason: "manual" });
+  const box = await ok(d, "/v1/mail/mailbox/create", { idempotencyKey: `${name}-mbx`, kind: "service", address: `${name}@example.com`, title: name, provider: "inbound_only" });
+  const mailboxId = String((box["mailbox"] as { id?: string } | undefined)?.id);
+  const made = await ok(d, "/v1/automations/create", { idempotencyKey: `${name}-make`, name });
+  const id = String((made["automation"] as { id?: string } | undefined)?.id);
+  await ok(d, "/v1/automations/update", {
+    automationId: id,
+    definition: { triggers: [{ key: "manual" }], nodes: [{ id: "letter", key: "send_email", ...(askBeforeSending === undefined ? {} : { askBeforeSending }), input: { mailboxId, to: [TO], subject: name, body: "Body." } }] },
+  });
+  await ok(d, "/v1/automations/promote", { automationId: id, confirm: true });
+  const serviceId = `svc_${id.slice(4)}`;
+  await ok(d, "/v1/access/share", { idempotencyKey: `${name}-s1`, resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: serviceId }, level: "view" });
+  await ok(d, "/v1/access/share", { idempotencyKey: `${name}-s2`, resource: { type: "mailbox", id: mailboxId }, subject: { kind: "service", id: serviceId }, level: "use" });
+  return id;
+}
+
+/** "sent" when the run finishes with no hold, "held" when it waits on the Gate. */
+async function outcome(d: Daemon, id: string, key: string): Promise<"sent" | "held"> {
+  const runId = String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: key }))["runId"]);
+  return until("the run to send or hold", 15_000, async () => {
+    const run = (await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string };
+    if (run.status === "succeeded") return "sent" as const;
+    if (run.status === "waiting") {
+      const holds = (await ok(d, "/v1/gate/holds/list", { states: ["held"], runId }))["holds"] as HoldRow[];
+      return holds.length > 0 ? "held" as const : undefined;
+    }
+    if (run.status === "failed" || run.status === "stopped") assert.fail(`the run ${run.status}: ${JSON.stringify(await ok(d, "/v1/runs/steps", { runId }))}`);
+    return undefined;
+  });
+}
+
+test("Ask before sending Off sends at once, with no hold", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await sendAutomation(d, "ask-off", false);
+    assert.equal(await outcome(d, id, "ask-off-run"), "sent");
+  } finally { await d.stop(); }
+});
+
+test("a send with no setting is Off too", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await sendAutomation(d, "ask-unset", undefined);
+    assert.equal(await outcome(d, id, "ask-unset-run"), "sent");
+  } finally { await d.stop(); }
+});
+
+test("Ask before sending On holds the send for approval", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await sendAutomation(d, "ask-on", true);
+    assert.equal(await outcome(d, id, "ask-on-run"), "held");
+  } finally { await d.stop(); }
+});
+
+test("a Space rule that requires approval for sends holds even when the step is Off", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await sendAutomation(d, "ask-rule", false);
+    await ok(d, "/v1/gate/rules/set", { act: "send", scope: "space", mode: "hold" });
+    assert.equal(await outcome(d, id, "ask-rule-run"), "held");
   } finally { await d.stop(); }
 });

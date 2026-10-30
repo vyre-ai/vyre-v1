@@ -1,25 +1,16 @@
-// Preview is a product mark, not a catalog flag. AI and code stay visibly unfinished.
+// Marks of the step panel: its Configure, Data and Test tabs, the data shelf, and the typed edits a field makes.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { filterShelf, shelfRows } from "./fields.ts";
+import { filterShelf, mappingExpression, shelfRows, withExpression } from "./fields.ts";
 import { keyNeighbour, mappingLabel, tabLabel } from "../a11y.ts";
 import { ABSENCE, DATA_SHELF_NAME, INSPECTOR_TABS, SHELF_SEARCH } from "../chrome.ts";
-import { PREVIEW_NOTE } from "../catalog/model.ts";
 import { COMPACT_REGIONS, COMPACT_SECTION } from "../canvas/frame.ts";
 import { webOnly } from "../canvas/parts.tsx";
 import type { KeyEventLike } from "../canvas/parts.tsx";
 import { literalFromEditor, mappingIssues, presenceOf, refValue, typeOf } from "../values/typed.ts";
 import type { Presence, TypeRef } from "../values/typed.ts";
 import type { Definition } from "../canvas/model.ts";
-
-export function PreviewMark({ testID }: { testID: string }): ReactElement {
-  return (
-    <View testID={testID} accessibilityLabel={PREVIEW_NOTE} style={m.badge}>
-      <Text style={m.badgeText}>Preview</Text>
-    </View>
-  );
-}
 
 export function SectionRow({ section, onSection, ordered = false }: { section: "configure" | "data" | "test"; onSection(next: "configure" | "data" | "test"): void; ordered?: boolean }): ReactElement {
   const items = INSPECTOR_TABS.map((label) => ({ key: label.toLowerCase() as "configure" | "data" | "test", label }));
@@ -120,14 +111,29 @@ export function MappingFix({ nodeIds, value }: { nodeIds: ReadonlySet<string>; v
   return <Text testID="fix-mapping" style={m.fix}>{`Fix this mapping. ${why}.`}</Text>;
 }
 
-export function DataShelf({ triggerSample, steps }: { triggerSample: unknown; steps: readonly { id: string; title: string; output: unknown }[] }): ReactElement {
+export function DataShelf({ triggerSample, steps, target, onPick }: {
+  triggerSample: unknown; steps: readonly { id: string; title: string; output: unknown }[];
+  /** The field the data goes into: the one the person last had in hand on Configure. */
+  target?: { label: string; value: string } | null;
+  /** A row was picked (click, Enter or Space): its expression is to be put in the target. */
+  onPick?(rowId: string, expression: string, next: string): void;
+}): ReactElement {
   const [query, setQuery] = useState("");
+  const [done, setDone] = useState<string | null>(null);
+  const pick = (id: string): void => {
+    if (!onPick || !target) return;
+    const expression = mappingExpression(id);
+    onPick(id, expression, withExpression(target.value, expression));
+    setDone(`Put ${expression} in ${target.label}.`);
+  };
   const rows = filterShelf(shelfRows(triggerSample, steps), query);
   const empty = shelfRows(triggerSample, steps).length === 0;
   return (
     <View testID="data-shelf" style={m.shelf}>
       <Text style={m.label}>{DATA_SHELF_NAME}</Text>
       <TextInput accessibilityLabel={SHELF_SEARCH} placeholder={SHELF_SEARCH} value={query} onChangeText={setQuery} testID="data-shelf-search" style={m.input} />
+      {onPick ? <Text testID="data-shelf-target" style={m.hint}>{target ? `Picking puts the data in ${target.label}.` : "Click a field on Configure, then pick data here to put it in."}</Text> : null}
+      {done ? <Text testID="data-shelf-done" accessibilityRole="alert" style={m.hint}>{done}</Text> : null}
       {empty ? <Text testID="data-shelf-empty" style={m.hint}>No sample yet. Test a step or run to fill this shelf.</Text> : null}
       {!empty && rows.length === 0 ? <Text style={m.hint}>No fields match.</Text> : null}
       {/* ui-rows-lint: not a list (data shelf field lines, two sentences each) */}
@@ -140,7 +146,9 @@ export function DataShelf({ triggerSample, steps }: { triggerSample: unknown; st
           {...webOnly({
             tabIndex: 0,
             dataSet: { mapping: row.id, vyreFocus: "1" },
+            onClick: () => pick(row.id),
             onKeyDown: (e: KeyEventLike) => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault?.(); pick(row.id); return; }
               const next = keyNeighbour(rows.map((item) => item.id), row.id, e.key ?? "");
               if (!next) return;
               e.preventDefault?.();

@@ -17,5 +17,9 @@ Area: kits. Risk: high. Applies to: kit.
 - kits.install
 - kits.rollback
 - kits.update
+- plugins.allow.set
+- plugins.marketplace.add
+- plugins.marketplace.refresh
+- plugins.marketplace.remove
 - settings.kit.set_space
 - templates.install
