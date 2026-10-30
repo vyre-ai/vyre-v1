@@ -88,9 +88,18 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
       <View testID="onboarding-chat" style={s.chat}>
         <ScrollView style={s.flex} contentContainerStyle={s.chatBody}>
           {finished ? <Text testID="onboarding-finished" style={s.title}>You are all set.</Text> : <Text style={s.title}>{def!.title}</Text>}
-          {chat.map((l) => <Bubble key={l.id} line={l} />)}
-          {!p.live && !finished && def?.card !== "connect_ai" ? <Text style={s.dim} testID="scripted-note">Connect an AI account to talk to me. The steps work without it.</Text> : null}
-          {card ? <View testID="onboarding-card" style={s.card}>{card}</View> : null}
+          {p.live && p.liveChat ? (
+            <>
+              {card ? <View testID="onboarding-card" style={s.card}>{card}</View> : null}
+              <View testID="onboarding-live" style={s.live}>{p.liveChat}</View>
+            </>
+          ) : (
+            <>
+              {chat.map((l) => <Bubble key={l.id} line={l} />)}
+              {!p.live && !finished && def?.card !== "connect_ai" ? <Text style={s.dim} testID="scripted-note">Connect an AI account to talk to me. The steps work without it.</Text> : null}
+              {card ? <View testID="onboarding-card" style={s.card}>{card}</View> : null}
+            </>
+          )}
         </ScrollView>
         <View style={s.actions}>
           {def && ctx ? <>
@@ -128,6 +137,7 @@ const s = StyleSheet.create({
   bubbleMine: { alignSelf: "flex-end", backgroundColor: "var(--accent)" as string },
   bubbleText: { fontSize: 14.5, lineHeight: 21, color: "var(--ink)" as string },
   bubbleTextMine: { color: "#fff" },
+  live: { minHeight: 320, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
   card: { padding: 16, borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, gap: 10 },
   actions: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },

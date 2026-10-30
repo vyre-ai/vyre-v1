@@ -12,6 +12,8 @@ import { OPEN_TARGETS, OpenCard } from "./OpenCard.tsx";
 import { PairPhoneCard } from "./PairPhoneCard.tsx";
 import { KitPickCard } from "./KitPickCard.tsx";
 import { SpaceAiCard } from "./SpaceAiCard.tsx";
+import { AssistantThread } from "./AssistantThread.tsx";
+import type { ShellRuntime } from "../shell/providers/runtime.tsx";
 import { DirectoryCard, InvitesCard, SignInDomainCard, WorkspaceCard } from "./SuiteCards.tsx";
 import { shouldAutoOpen } from "./flow.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
@@ -26,6 +28,9 @@ export interface OnboardingHostProps {
   children: ReactNode;
   /** opens the Space entry to create or join another Space */
   onAddSpace?: () => void;
+  /** the session runtime and the person, for the live Assistant (an Ask thread); without them the scripted words stay */
+  runtime?: ShellRuntime | null;
+  person?: string | null;
   /** a caller for the Personal Space on this device, when there is one (for "use the same AI account") */
   personalCall?: CapCall | null;
   /** the Space address, for a pairing link */
@@ -38,12 +43,20 @@ export interface OnboardingHostProps {
   cards?: Partial<Record<CardKind, (ctx: CardContext) => ReactNode>>;
 }
 
-export function OnboardingHost({ call, space, children, cards, onAddSpace, mac = false, address, onGo, personalCall = null }: OnboardingHostProps): ReactElement {
+export function OnboardingHost({ call, space, children, cards, onAddSpace, mac = false, address, onGo, personalCall = null, runtime = null, person = null }: OnboardingHostProps): ReactElement {
   const [flow, setFlow] = useState<FlowKind | null>(null);
   const [progress, setProgress] = useState<Progress>({});
   const [shown, setShown] = useState(false);
   const [step, setStep] = useState<string | null>(null);
   const [aiProvider, setAiProvider] = useState<string | null>(null);
+  const [hasAi, setHasAi] = useState(false);
+  // the Assistant is live once an AI account of the person's exists here
+  useEffect(() => {
+    if (!call) return undefined;
+    let off = false;
+    void (call("providers.list", {}) as Promise<{ providers: unknown[] }>).then((r) => { if (!off) setHasAi(r.providers.length > 0); }).catch(() => undefined);
+    return () => { off = true; };
+  }, [call, aiProvider]);
 
   useEffect(() => {
     if (!call) return undefined;
@@ -103,7 +116,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
       {children}
       {shown && flow ? (
         <View style={s.fill}>
-          <OnboardingScreen flow={flow} spaceName={space.name} progress={progress} stepKey={step} onOpenStep={setStep} onStep={onStep} onClose={() => { setShown(false); setStep(null); }} renderCard={renderCard} />
+          <OnboardingScreen flow={flow} spaceName={space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} onClose={() => { setShown(false); setStep(null); }} renderCard={renderCard} />
         </View>
       ) : null}
     </>

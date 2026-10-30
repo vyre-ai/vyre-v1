@@ -113,3 +113,13 @@ test("the suite cards draw their first frame with the buttons the owner needs", 
   const inv = renderToStaticMarkup(<InvitesCard call={call} onDone={noop} />);
   assert.ok(inv.includes('data-testid="invite-make"') && inv.includes("Nothing is sent until you share it or approve it."));
 });
+
+test("with an AI account the person's own Ask thread replaces the scripted words, and the card stays above it", async () => {
+  const { findAssistant } = await import("./AssistantThread.tsx");
+  const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Personal" progress={{}} stepKey="interview" live liveChat={<span data-thread="1">thread</span>} onStep={noop} renderCard={() => <span data-card="1">card</span>} />);
+  assert.ok(out.includes('data-testid="onboarding-live"') && out.includes('data-thread="1"') && !out.includes("scripted-note") && !out.includes("line-hello"));
+  assert.ok(out.indexOf('data-card="1"') < out.indexOf('data-thread="1"'));
+  const rt = { call: async () => ({ agents: [{ agentId: "agt_other", ownerId: "usr_b", role: "assistant" }, { agentId: "agt_mine", ownerId: "usr_a", role: "assistant" }] }) };
+  assert.equal(await findAssistant(rt as never, "usr_a"), "agt_mine");
+  assert.equal(await findAssistant(rt as never, "usr_zzz"), null);
+});
