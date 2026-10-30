@@ -89,7 +89,7 @@ function google() {
       return { json: { files: (files[who.sub] ?? []).filter((f) => !parent || f.parents.includes(parent)) } };
     }
     if (u.hostname === "meet.googleapis.com") {
-      if (u.pathname === "/v2/conferenceRecords") return { json: { conferenceRecords: conferences } };
+      if (u.pathname === "/v2/conferenceRecords") return { json: { conferenceRecords: who.sub === NOAH ? conferences : [] } };
       if (u.pathname === "/v2/spaces/s1") return { json: { name: "spaces/s1", meetingUri: "https://meet.google.com/abc-defg-hij" } };
       if (u.pathname.endsWith("/transcripts")) return { json: { transcripts: [{ name: "conferenceRecords/c1/transcripts/t1", state: "ENDED" }] } };
       if (u.pathname.endsWith("/participants")) return { json: { participants: [{ name: "conferenceRecords/c1/participants/p1", signedinUser: { displayName: "Noah Park" } }] } };
@@ -194,6 +194,9 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     assert.equal(meetings.meetings.length, 1, JSON.stringify(meetings));
     const transcript = await w.ok(MEMBER, "meetings.transcript.get", { meetingId: meetings.meetings[0].meetingId ?? meetings.meetings[0].id });
     assert.deepEqual(transcript.segments.map((s: { speaker?: string; text: string }) => [s.speaker, s.text]), [["Noah Park", "Thanks for joining the intake call."], ["Noah Park", "Let us start with the deed."]]);
+
+    const sanaMeetings = await w.ok(OTHER, "meetings.list", {});
+    assert.equal(sanaMeetings.meetings.length, 0, "Sana does not see Noah's meeting");
 
     // 7 Drive: Noah mounts a Drive folder in Files; a file of the folder arrives, and a change in Drive reaches the mount
     const tree = await w.ok(MEMBER, "files.tree", {});
