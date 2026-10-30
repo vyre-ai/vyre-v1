@@ -92,7 +92,7 @@ export interface WiredSeams {
   unwire(): void;
 }
 
-const defaultFetch: SeamFetch = async (url, init) => {
+export const defaultFetch: SeamFetch = async (url, init) => {
   // a token request or a bearer download never follows a redirect off the listed host, so redirects are errors here
   const r = await globalThis.fetch(url, {
     ...(init?.method ? { method: init.method } : {}), ...(init?.headers ? { headers: init.headers } : {}),

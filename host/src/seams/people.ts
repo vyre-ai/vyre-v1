@@ -14,6 +14,8 @@ import {DEFAULT_SIGN_IN_POLICY,parseSignInPolicy} from "../../../lib/sign-in-pol
 //   spaces.attention    Needs you from tasks (tasks.attention) and unread from chat (chat.attention), asked as the person
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import type { Keyring } from "./keyring.ts";
+import type { SsoTickets } from "../routes/sso-signin.ts";
+import type { SsoProvider } from "./oidc.ts";
 import type {RecoveryCommit} from "../../../packages/contracts/src/identity-recovery.ts";
 
 export interface PeopleDeps {
@@ -24,6 +26,8 @@ export interface PeopleDeps {
   call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
   /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
   github?: GithubOAuth | null;
+  /** Sign in with the firm's own Google or Microsoft app: the tickets a finished sign-in leaves; omitted: SSO is not offered */
+  sso?: { tickets: SsoTickets };
   /** true while the access snapshot cannot be vouched for and this person is not the owner (ruling 70): sessions are not opened */
   stale?(principalId: string): boolean;
   /** the person key this node holds (ruling 62, 63); identity clears it at sign-out */
@@ -59,9 +63,36 @@ export function createGithub(o: GithubOAuth): { resolve(code: string): Promise<{
   };
 }
 
+/** The SSO providers that are on and complete (a client, a secret handle and the firm's domain), from the members policy. */
+export function ssoProvidersIn(db: PeopleDeps["db"]): SsoProvider[] {
+  const out: SsoProvider[] = [];
+  for (const key of ["google", "microsoft", "okta"]) {
+    let row: { value: string } | undefined;
+    try { row = db.all("SELECT value FROM members_policy WHERE key = ?", `sso:${key}`)[0] as { value: string } | undefined; } catch { return out; }
+    if (!row) continue;
+    const p = JSON.parse(row.value) as SsoProvider;
+    if (p.enabled && p.clientId && p.clientSecretHandle && p.domainHint) out.push(p);
+  }
+  return out;
+}
+
+/** The person a verified work address belongs to: the invitation it went to, or a Google or Microsoft address matched by hand, and only when they are active. */
+export function personForEmail(db: PeopleDeps["db"], active: (id: string) => boolean, email: string): string | null {
+  const queries = [
+    "SELECT accepted_by AS id FROM members_invites WHERE state = 'accepted' AND lower(email) = ? AND accepted_by IS NOT NULL",
+    "SELECT \"userId\" AS id FROM google_member WHERE email = ? AND mapped = 1 AND excluded = 0 AND \"userId\" IS NOT NULL",
+    "SELECT \"userId\" AS id FROM microsoft_member WHERE email = ? AND mapped = 1 AND excluded = 0 AND \"userId\" IS NOT NULL",
+  ];
+  const found = new Set<string>();
+  for (const q of queries) {
+    try { for (const r of db.all(q, email.toLowerCase()) as { id?: unknown }[]) if (typeof r.id === "string" && active(r.id)) found.add(r.id); } catch { /* that module has no table yet */ }
+  }
+  return found.size === 1 ? [...found][0]! : null;   // an address that points at two people signs no one in
+}
+
 export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { device?: string; principal?: { kind: string; id: string } }) => Record<string, unknown> | null {
   const spaceOwner=():string|null=>{const roots=[...d.access().allResources()].filter(row=>row.type==='space');return roots.length===1?roots[0]!.owner_id:null;};
-  const signInMethods={github:!!d.github,sso:[] as readonly string[],newMemberMfaEnrollment:false};
+  const signInMethods={github:!!d.github,get sso():readonly string[]{return d.sso?ssoProvidersIn(d.db).map(x=>x.key):[];},newMemberMfaEnrollment:false};
   const currentSignInPolicy=()=>{
     let row:{value:string}|undefined;
     try {row=d.db.all('SELECT value FROM members_policy WHERE key = ?','sign_in')[0] as {value:string}|undefined;} catch(error){if(!String(error).includes('no such table: members_policy'))throw error;}
@@ -136,6 +167,11 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
         },
       },
       ...(d.github ? { github: createGithub(d.github) } : {}),
+      ...(d.sso ? { sso: {
+        providers: () => ssoProvidersIn(d.db).map((x) => ({ key: x.key, title: x.title })),
+        // spend a ticket from a finished sign-in: the person it names, or null
+        resolve: (key: string, ticket: string): string | null => { const t = d.sso!.tickets.take(key, ticket); return t ? personForEmail(d.db, (id) => d.access().principal(id)?.status === "active", t.email) : null; },
+      } } : {}),
       ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
       invites: {
         peek: (code: string) => d.call("members.invite_peek", { code }),

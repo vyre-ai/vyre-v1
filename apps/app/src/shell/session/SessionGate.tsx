@@ -31,6 +31,7 @@ import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, phaseForStoredAddress, readStored, readStoredSpace, openVerifiedSession, signInAndVerify, spaceAddress, spaceEndpoint } from "./stored.ts";
 import type { SignInOptions, StoredSession } from "./stored.ts";
+import { SSO_FAILED_LINE, SSO_SECOND_FACTOR_LINE, ssoStartUrl, takeSsoReturn } from "./sso.ts";
 import { GITHUB_FAILED_LINE, GITHUB_SECOND_FACTOR_LINE, githubStartUrl, takeGithubReturn } from "./github.ts";
 
 const RecoveryAccount=lazy(()=>import("../../join/RecoveryAccount.tsx").then(m=>({default:m.RecoveryAccount})));
@@ -61,10 +62,10 @@ async function unlockOwnKey(baseUrl: string, token: string, password: string, ke
 export const SIGNED_OUT_LINE = "You were signed out. Sign in again to continue.";
 
 /** `github` is true only for a caller that wires the GitHub button (the sign-in screen below); a bare invite never lists a control with nothing behind it. */
-export function signInInvite(baseUrl: string, options: SignInOptions | null, github = false): JoinInvite {
+export function signInInvite(baseUrl: string, options: SignInOptions | null, github = false, sso = false): JoinInvite {
   return {
     space: options?.name ?? hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", ...(options?.fingerprint?{fingerprint:options.fingerprint}:{}),
-    sso: [], github: github && options?.github === true, adminKey: false,   // sso stays empty: identity.sso_sign_in answers validation.unsupported, so no provider is offered
+    sso: sso ? (options?.sso ?? []).map((p) => p.title) : [], github: github && options?.github === true, adminKey: false,   // a provider is offered only to a caller that wires its button, and only when the Space has it on
   };
 }
 
@@ -83,7 +84,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
     void (anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>).then((found) => { if (active) setDiscovery({ address: baseUrl, options: found }); }).catch(() => undefined);
     return () => { active = false; };
   }, [anonymous, baseUrl]);
-  const invite = useMemo(() => signInInvite(baseUrl, options, true), [baseUrl, options]);
+  const invite = useMemo(() => signInInvite(baseUrl, options, true, true), [baseUrl, options]);
   const [githubLine, setGithubLine] = useState<string | null>(null);
   useEffect(() => {
     const browser = globalThis as { location?: { hash: string; pathname: string; search: string }; history?: { replaceState(d: unknown, u: string, url: string): void } };
@@ -110,6 +111,37 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
     }).catch(() => { if (currentAddress.current === baseUrl) setGithubLine(GITHUB_FAILED_LINE); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const [ssoLine, setSsoLine] = useState<string | null>(null);
+  useEffect(() => {
+    const browser = globalThis as { location?: { hash: string; pathname: string; search: string }; history?: { replaceState(d: unknown, u: string, url: string): void } };
+    const back = takeSsoReturn(browser.location, (url) => browser.history?.replaceState(null, "", url));
+    if (!back) return;
+    if ("error" in back) { setSsoLine(SSO_FAILED_LINE); return; }
+    let token: string | null = null;
+    void signInAndVerify({
+      baseUrl,
+      discover: async () => options ?? (await anonymous("identity.sign_in_options", {}) as SignInOptions),
+      signIn: async () => {
+        const out = (await anonymous("identity.sso_sign_in", { provider: back.provider, code: back.code, state: "-", deviceName: "Web browser", deviceClass: desktopBridge() ? "desktop" : "web" })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
+        token = out.session?.token ?? null;
+        return out;
+      },
+      open: () => open({ baseUrl, token: token ?? "" }),
+      getSpace: async () => {
+        const space = ((await createCapCaller({ baseUrl, token: () => token })("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
+        return { id: space.id, marker: space.fingerprint };
+      },
+    }).then((result) => {
+      if (currentAddress.current !== baseUrl) return;
+      if (result.status === "second_factor_required") setSsoLine(SSO_SECOND_FACTOR_LINE); else onSignedIn(result.stored);
+    }).catch(() => { if (currentAddress.current === baseUrl) setSsoLine(SSO_FAILED_LINE); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const startSso = useCallback((title: string) => {
+    const key = options?.sso?.find((p) => p.title === title)?.key;
+    const browser = globalThis as { location?: { origin: string; pathname: string; assign(url: string): void } };
+    if (key && browser.location) browser.location.assign(ssoStartUrl(baseUrl, key, browser.location.origin + browser.location.pathname));
+  }, [baseUrl, options]);
   const startGithub = useCallback(() => {
     const browser = globalThis as { location?: { origin: string; pathname: string; assign(url: string): void } };
     if (browser.location) browser.location.assign(githubStartUrl(baseUrl, browser.location.origin + browser.location.pathname));
@@ -143,7 +175,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
   }, [anonymous, baseUrl, onSignedIn, open, options]);
   if(resetting)return <Suspense fallback={null}><ResetAccount space={invite.space} address={baseUrl} onBack={()=>{setResetting(false);setRecoveryHelp(false);}} onReset={async input=>{const keys=await loadCryptoKeys();const stored=await completeReset({call:anonymous,makeBundle:(pw,rc)=>keys.makeBundle(pw,rc),verify:token=>openVerifiedSession({baseUrl,token,open:()=>open({baseUrl,token}),getSpace:()=>authenticatedSpace(baseUrl,token)}),holdKey:(token,key)=>holdKeyOnOwnNode(baseUrl,token,key),wipe:keys.wipe},{...input,deviceClass:desktopBridge()?'desktop':'web'});onSignedIn(stored);}}/></Suspense>;
   if (recoveryHelp) return <Suspense fallback={null}><RecoveryAccount space={invite.space} address={baseUrl} onBack={()=>setRecoveryHelp(false)} onAdminReset={()=>setResetting(true)} onRecover={async input=>{const [crypto,keys]=await Promise.all([loadRecoveryCrypto(),loadCryptoKeys()]);const stored=await completeRecovery({call:anonymous,recover:crypto.recoverAccountKeys,verify:token=>openVerifiedSession({baseUrl,token,open:()=>open({baseUrl,token}),getSpace:()=>authenticatedSpace(baseUrl,token)}),holdKey:(token,key)=>holdKeyOnOwnNode(baseUrl,token,key),wipe:keys.wipe},{...input,deviceClass:desktopBridge()?'desktop':'web'});if(currentAddress.current!==baseUrl)throw new Error("The Space address changed. Sign in again.");onSignedIn(stored);}}/></Suspense>;
-  return <JoinFlow key={`${baseUrl}|${githubLine ?? ""}`} invite={invite} initial={{ stage: "signin", ...(githubLine ? { error: githubLine } : notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} onGithub={startGithub} onRecoveryCode={() => setRecoveryHelp(true)} {...(onBack?{onBackFromSignIn:onBack}:{})} {...(unlock?{unlock:true}:{})} />;
+  return <JoinFlow key={`${baseUrl}|${githubLine ?? ""}|${ssoLine ?? ""}`} invite={invite} initial={{ stage: "signin", ...(githubLine ?? ssoLine ? { error: (githubLine ?? ssoLine) as string } : notice ? { error: SIGNED_OUT_LINE } : {}) }} onSignIn={signIn} onGithub={startGithub} onSso={startSso} onRecoveryCode={() => setRecoveryHelp(true)} {...(onBack?{onBackFromSignIn:onBack}:{})} {...(unlock?{unlock:true}:{})} />;
 }
 
 export function ConnectSpaceWelcome({ onConnect, onGetStarted }: { onConnect: (address: string) => void; onGetStarted?:()=>void }): ReactElement {
