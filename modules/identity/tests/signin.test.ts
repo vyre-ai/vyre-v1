@@ -208,3 +208,15 @@ test("sessions: sign out ends one, expiry ends the rest, whoami reports the call
   h.advance(31 * 24 * 3_600_000);
   assert.equal(sessionOfToken(h.anon, b.session!.token), undefined);
 });
+
+test("a pair code opens only the kind of device it was made for, and a refusal leaves it good for the right one", async () => {
+  const h = await world();
+  const phone = await handlers["identity.pair_create"](h.as(P.personId), { purpose: "phone" });
+  for (const deviceClass of ["desktop", "web", "extension", "daemon"] as const) {
+    await assert.rejects(handlers["identity.pair_redeem"](h.anon, { code: phone.code, deviceName: "x", deviceClass }), (e) => codeOf(e) === "auth.invalid_code", `a phone code is not a ${deviceClass}`);
+  }
+  assert.equal((await handlers["identity.pair_redeem"](h.anon, { code: phone.code, deviceName: "Phone", deviceClass: "phone" })).status, "ok");
+  const ext = await handlers["identity.pair_create"](h.as(P.personId), { purpose: "extension" });
+  await assert.rejects(handlers["identity.pair_redeem"](h.anon, { code: ext.code, deviceName: "x", deviceClass: "phone" }), (e) => codeOf(e) === "auth.invalid_code");
+  assert.equal((await handlers["identity.pair_redeem"](h.anon, { code: ext.code, deviceName: "Chrome", deviceClass: "extension" })).status, "ok");
+});

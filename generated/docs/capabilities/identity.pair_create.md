@@ -25,7 +25,7 @@ A signed-in device makes a short pair code for another device, the extension or 
 
 ```ts
 type In = {
-  purpose: "app" | "extension" | "daemon";
+  purpose: "app" | "phone" | "extension" | "daemon";
   idempotencyKey: string;
 };
 ```

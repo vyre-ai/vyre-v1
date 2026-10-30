@@ -8,7 +8,7 @@
     "identity.github_unlink@1": "f3026e99170c4af0c4a4c135880b7f006b6c55ad5cfdc992b7a986813a75cc22",
     "identity.keys_get@1": "3de01d8010434d5d2ae4a085f9c0424edba5e675df9315f6886324ae3b59af7f",
     "identity.keys_put@1": "bd1445603d2b68aea9f624d8d61e21a70da41e2d44fe3d39592e02639a43fc9c",
-    "identity.pair_create@1": "8505801e564696a074fd11d0b49f458ca9e7579cdc90769d592d409bc6ad552b",
+    "identity.pair_create@1": "6d1d4f3470e9c608c1d268c23a463bc2faba1b8d298a827ced25e8128354f191",
     "identity.pair_redeem@1": "f67a379f5d6e877629d0cdbe192797acf8073fa026a781020282619901caa12f",
     "identity.passkey_register@1": "7d4bfc5a7993d6960446748c3884fb1094cdad3641aa64010a67c6cf0041798c",
     "identity.passkey_remove@1": "6d5c0535bdee82a51fc4a359cd2c90e75ed7a0ce11ae7aad113a1a977a16358a",

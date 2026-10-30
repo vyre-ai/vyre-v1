@@ -3,7 +3,7 @@ import {currentSignInPolicy,assertSignInPolicy} from "../policy.ts";
 import type { Account, Device, IdentityCtx, SignInOut } from "../projections.ts";
 import {
   ENROL_TTL_MS, PAIR_TTL_MS, accountById, accountByName, burnVerify, checkVerifier, currentSessionId, endSessionRow, issueSession, lockedFor, matchTotp, me, newChallenge,
-  newTotpSecret, nid, noteFail, normCode, pairCode, putCode, raise, spendCode, USERNAME,
+  newTotpSecret, nid, noteFail, normCode, pairCode, peekCode, putCode, raise, spendCode, USERNAME,
 } from "../projections.ts";
 
 type SpaceRow = { name: string; logo_file_id: string | null; fingerprint: string; github: number; second_factor_required: number; sso_json: string };
@@ -148,7 +148,10 @@ export async function securityGet(ctx: IdentityCtx, _input: Record<string, never
 }
 
 // ---- pairing: one stack for the app, the extension and the daemon
-export async function pairCreate(ctx: IdentityCtx, input: { purpose: "app" | "extension" | "daemon" }) {
+/** What a pair code may become: a code made for the phone redeems only as a phone, one for the extension only as the extension, one for the local daemon only as a daemon. "app" keeps the three app classes. */
+const PAIR_CLASSES: Record<string, readonly string[]> = { phone: ["phone"], extension: ["extension"], daemon: ["daemon"], app: ["desktop", "web", "phone"] };
+
+export async function pairCreate(ctx: IdentityCtx, input: { purpose: "app" | "phone" | "extension" | "daemon" }) {
   const a = me(ctx);
   const code = pairCode();
   const expiresAt = putCode(ctx, "pair", a.person_id, normCode(code), PAIR_TTL_MS, input.purpose);
@@ -158,6 +161,9 @@ export async function pairCreate(ctx: IdentityCtx, input: { purpose: "app" | "ex
 export async function pairRedeem(ctx: IdentityCtx, input: Device & { code: string }): Promise<SignInOut> {
   let spent: { personId: string; purpose: string | null };
   try {
+    // the purpose is checked before the code is spent: a code for one kind of device is refused for another, and stays good for the right one
+    const peeked = peekCode(ctx, "pair", normCode(input.code));
+    if (peeked.purpose !== null && !(PAIR_CLASSES[peeked.purpose] ?? []).includes(input.deviceClass)) raise(ctx.trace.traceId, "auth.invalid_code");
     spent = spendCode(ctx, "pair", normCode(input.code));
   } catch (e) {
     noteFail(ctx, undefined, "pair", "bad_code");

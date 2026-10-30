@@ -74,7 +74,7 @@ export default defineManifest({
 
     // ---- pairing (one stack for the app, the extension and the daemon)
     write('identity.pair_create', 'A signed-in device makes a short pair code for another device, the extension or the local daemon (valid 10 minutes)', {
-      ...V, idem: 'key', in: { purpose: t.enm('app', 'extension', 'daemon') }, out: { code: t.str({ examples: ['K7P2-9QXA'] }), expiresAt: t.ts() }, offline: 'online', audit: 'sensitive',
+      ...V, idem: 'key', in: { purpose: t.enm('app', 'phone', 'extension', 'daemon') }, out: { code: t.str({ examples: ['K7P2-9QXA'] }), expiresAt: t.ts() }, offline: 'online', audit: 'sensitive',
     }),
     write('identity.pair_redeem', 'Trade a pair code or invite code for a session on a new device', {
       ...V, caller: 'anonymous', in: { code: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 5, perSeconds: 60, scope: 'principal' }, errors: ['auth.invalid_code', 'auth.expired'],

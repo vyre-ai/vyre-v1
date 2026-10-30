@@ -13,7 +13,7 @@ const ASSISTANT = "agt_asst";
 async function seeded(allow: string[] = ALL_PERMS, more: Record<string, unknown> = {}) {
   const h = harness({
     "agents.list": { agents: [{ agentId: ASSISTANT, ownerId: BOSS, role: "assistant" }] },
-    "chat.start": { threadId: "thr_console1" },
+    "chat.start": { thread: { threadId: "thr_console1" } },   // the shape chat.start really answers
     "threads.update": { threadId: "thr_console1" },
     "settings.set_space": { key: "x" },
     "audit.append": { auditId: "aud_a1b2c3" },

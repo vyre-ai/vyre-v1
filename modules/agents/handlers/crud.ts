@@ -6,7 +6,7 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, AWAKE_MS, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
+  AGENT_MD_DEFAULT, AWAKE_MS, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
   writeConfig,
 } from "../projections.ts";
@@ -464,6 +464,32 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
 }
 
 // ---- what the engine and Files tell this module --------------------------------------------------------------------------------------------------------
+
+export interface PrincipalEvent { payload: { principalId?: string; kind?: string; name?: string } }
+
+/**
+ * Every person has a private assistant from the moment their account exists (the owner at claim, a member at join), whether or not an AI account is connected yet.
+ * Without one the assistant is still there and answers with "Connect an AI account to talk to me"; the scripted onboarding cards work either way. It is owned by that person alone.
+ * The consumer is at-least-once, so a second delivery finds the assistant and does nothing.
+ */
+export async function onPersonCreated(ctx: AgentsCtx, event: PrincipalEvent): Promise<string[]> {
+  ensure(ctx.db);
+  const person = event.payload.principalId;
+  if (event.payload.kind !== "person" || typeof person !== "string" || !person.startsWith("usr_")) return [];
+  // the role line is the agent's description in its config; the console assistant finds the assistant by the same word
+  const have = allAgents(ctx.db).find((a) => a.ownerId === person && isAssistant(a));
+  if (have) return [have.id];
+  const base = (event.payload.name ?? "").trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").replace(/^\.+/, "").slice(0, MAX_NAME - 12);
+  const first = base.split(" ")[0] ?? "";
+  const names = [first === "" ? "Assistant" : `${first} Assistant`, base === "" ? "My Assistant" : `${base} Assistant`, `Assistant ${person.slice(4, 10)}`];
+  for (const name of names) {
+    if (agentByName(ctx.db, name)) continue;
+    // the person is the asker, so the maker and the owner are the same and no one is asked to manage access
+    const made = await create({ ...ctx, actingFor: person }, { name, role: "assistant", ownerId: person, idempotencyKey: `assistant-${person}` });
+    return [made.agent.agentId];
+  }
+  return [];
+}
 
 export interface FileVersionEvent { payload: { fileId: string; versionId: string; n?: number; by?: string } }
 export interface TurnEvent { payload: { agentId: string } }
