@@ -241,7 +241,7 @@ export async function autoConnectMembers(ctx: MailCtx, input: AutoConnectIn): Pr
       `INSERT INTO mail_mailbox (
         id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, "personal", address, address.split("@")[0] || address, m.userId, null, input.provider, "private", "pending", null, null, 0, 1, now, null,
+      id, "personal", address, address.split("@")[0] || address, m.userId, null, input.provider, "space", "pending", null, null, 0, 1, now, null,
     );
     out.created += 1;
     ctx.emit("mailbox.connected", `mailbox/${id}`, { mailboxId: id, memberId: m.userId, provider: input.provider, auto: true, private: true }, { vis: "participants" });
