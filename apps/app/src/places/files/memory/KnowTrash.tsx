@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 import { View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { restoreFact, restorePage, trashPage, undoFact } from "./actions.ts";
+import { errorText, restoreFact, restorePage, trashPage, undoFact } from "./actions.ts";
 import { useLive, useMemoryData } from "./data.tsx";
 import { Empty, Flash, KnowColumn, KnowHeader, frame } from "./KnowFrame.tsx";
 import { ErrorLine, FilterBanner, TrashPageRow, TrashRow, copyText, isDenied, openSourceOf, readError, removedBy, useDoing, useLiveSafe, whoOf } from "./KnowRows.tsx";
@@ -55,7 +55,7 @@ export function KnowTrash({ pageId }: { pageId?: string }): ReactElement {
   ];
   const keepEntries = (): MenuEntry[] => [
     { head: "Keep in Trash for" },
-    ...each(KEEP_CHOICES, (d): MenuEntry => ({ label: `${d} days${d === 60 ? " (default)" : ""}`, checked: keep === d, onSelect: () => { setKeep(d); doing.setFlash({ text: `Facts now stay in Trash ${d} days before they move to Archive.` }); } })),
+    ...each(KEEP_CHOICES, (d): MenuEntry => ({ label: `${d} days${d === 60 ? " (default)" : ""}`, checked: keep === d, onSelect: () => { const before = keep; setKeep(d); data.call("settings.set_space", { key: "memory.trash_days", value: d, idempotencyKey: `trash-days-${d}-${data.now()}` }).then(() => doing.setFlash({ text: `Facts now stay in Trash ${d} days before they move to Archive.` })).catch((e: unknown) => { setKeep(before); doing.setFlash({ text: errorText(e, "Could not change the days") }); }); } })),
   ];
   const right = admin ? <QuietButton icon="clock" label={`Keep ${keep} days`} testID="trash-keep" onPress={(x, y) => menu.show(keepEntries(), x, y, "other")} /> : null;
 

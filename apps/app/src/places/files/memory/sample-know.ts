@@ -513,6 +513,7 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
       const markdown = pages.map((p) => `# ${p.title}\n\n${s.notes[p.pageId]?.text ?? ""}\n\n${live(s).filter((f) => f.subject?.pageId === p.pageId).map((f) => `- ${f.text}`).join("\n")}\n`).join("\n");
       return { markdown, pages: pages.length, facts: live(s).length, bytes: markdown.length };
     },
+    "settings.set_space": (i: { key: string; value: number }) => { if (i.key === "memory.trash_days") { const s = st(); s.keep = i.value; save(s); } return { ok: true }; },
     "memory.layout.save": () => ({ ok: true }),
     "memory.graph_export": () => ({ fileId: "fil_export_1" }),
   };
