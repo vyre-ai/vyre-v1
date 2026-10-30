@@ -368,6 +368,8 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     const p = rect(e);
     show([
       ...(a.kind === "space" ? [{ label: "Make a personal copy", onSelect: () => void data.call("automations.make_personal_copy", { automationId: a.id, name: `${a.name} (mine)` }).then(() => flash("A personal copy is in your Automations")).catch((x: unknown) => flash(x instanceof Error ? x.message : "No copy was made")) }] : [{ label: "Promote to the Space", onSelect: () => setPromoteOpen(true) }]),
+      { label: "Analytics", onSelect: () => setTab("analytics") },
+      ...(tight && !phone ? [{ label: "Events", onSelect: () => setEventsOpen(true) }] : []),
       { label: "Undo last edit", onSelect: undoEdit },
       { separator: true },
       { label: "Move to Trash", danger: true, onSelect: () => void data.call("automations.delete", { automationId: a.id }).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not move")) },
@@ -397,10 +399,11 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const tabs: SubTab[] = [
     { key: "steps", label: "Build" },
     { key: "runs", label: "Runs", ...(failedRuns > 0 ? { note: `${failedRuns} failed`, tone: "danger" as const } : {}) },
-    { key: "analytics", label: "Analytics" },
     { key: "versions", label: "Versions", note: `v${a.version}` },
     { key: "settings", label: "Settings" },
-    { key: "ask", label: "Ask" },
+    // Analytics and Ask live under the more menu (Ask also has its header button); the tab shows while one of them is open.
+    ...(tab === "analytics" ? [{ key: "analytics", label: "Analytics" }] : []),
+    ...(tab === "ask" ? [{ key: "ask", label: "Ask" }] : []),
   ];
   const askBundle = (issue: { nodeId?: string; message: string }): AskBundle => ({ resource: a.id, message: issue.message, ...(issue.nodeId ? { nodeId: issue.nodeId } : {}), definitionVersion: a.version });
   const trigSel = sel?.id === "trigger";
@@ -486,7 +489,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         </View>}
         {connectTarget ? <TextButton label={`Connect ${connectTarget.service}`} icon="key" testID="connect" onPress={() => data.nav.connect(connectTarget)} /> : null}
         {!connectTarget && blockedIssue?.setup.blocked ? <Text testID="blocked-step" style={s.needsText}>{blockedIssue.setup.blocked}</Text> : null}
-        {phone ? null : <TextButton label="Events" icon="bolt" bare={tight} testID="events" onPress={() => setEventsOpen(true)} />}
+        {phone || tight ? null : <TextButton label="Events" icon="bolt" bare={tight} testID="events" onPress={() => setEventsOpen(true)} />}
         {hasManual ? <TextButton label="Run now" icon="bolt" bare={tight} testID="run-now" onPress={() => void runNow()} /> : null}
         <TextButton label="Test" icon="flask" bare={tight} testID="test-run" onPress={() => void test()} />
         {dirty ? <TextButton label={saving ? "Saving" : "Save"} primary disabled={saving || errors.length > 0} testID="save" onPress={() => void save()} /> : null}

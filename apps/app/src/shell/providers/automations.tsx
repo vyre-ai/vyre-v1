@@ -118,7 +118,13 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const winW = useWindowDimensions().width;
   const phone = winW > 0 && winW < 720;   // the phone has no sidebar beside the body: the list is the first screen
   const canvas = openId ? (
-    <View style={s.withSide}>
+    phone && sideRun ? (
+      // on the phone a run takes the whole screen; Close goes back to the editor
+      <View style={s.main}>
+        <View style={s.sideHead}><TextButton label="Back" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View>
+        <RunView runId={sideRun} />
+      </View>
+    ) : <View style={s.withSide}>
       <View style={s.main}>
         <AutomationCanvas
           key={`${openId}:${step ?? ""}`} automationId={openId}
