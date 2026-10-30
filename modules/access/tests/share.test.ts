@@ -11,42 +11,15 @@ import {
   deciders, myAccess, share, shareOf, sharesOf, unshare,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
+import { MemoryDb } from "../fixtures/db.ts";
 import type { Db } from "../projections.ts";
 import { dropStore, EVERYONE, pkey, storeOf } from "../projections.ts";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Enough SQL for the access tables: CREATE, INSERT, DELETE (all or by id) and SELECT *. */
-class SqlDb implements Db {
-  tables = new Map<string, Record<string, unknown>[]>();
-  all(sql: string): unknown[] {
-    const name = /\bFROM\s+([A-Za-z0-9_]+)/i.exec(sql)?.[1] ?? "";
-    const rows = this.tables.get(name);
-    if (!rows) throw new Error(`no table ${name}`);
-    return rows.map((r) => ({ ...r }));
-  }
-  run(sql: string, ...args: unknown[]): { changes: number } {
-    if (/^CREATE\s+/i.test(sql)) return { changes: 0 };
-    const del = /^DELETE\s+FROM\s+([A-Za-z0-9_]+)(\s+WHERE\s+id\s*=\s*\?)?/i.exec(sql);
-    if (del) {
-      const name = del[1]!;
-      const rows = this.tables.get(name) ?? [];
-      const keep = del[2] ? rows.filter((r) => r["id"] !== args[0]) : [];
-      this.tables.set(name, keep);
-      return { changes: rows.length - keep.length };
-    }
-    const ins = /^INSERT\s+INTO\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)\s*VALUES\s*\(([^)]*)\)/i.exec(sql);
-    if (!ins) throw new Error(`unsupported sql: ${sql}`);
-    const cols = ins[2]!.split(",").map((c) => c.trim());
-    const row: Record<string, unknown> = {};
-    cols.forEach((c, i) => { row[c] = args[i] ?? null; });
-    const list = this.tables.get(ins[1]!) ?? [];
-    list.push(row);
-    this.tables.set(ins[1]!, list);
-    return { changes: 1 };
-  }
-}
+/** The access tables' in-memory SQL (modules/access/fixtures/db.ts). */
+class SqlDb extends MemoryDb {}
 
 function rig() {
   const db = new SqlDb();

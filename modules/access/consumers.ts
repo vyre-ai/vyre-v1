@@ -7,13 +7,13 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../../host/src/routes/errors.ts";
-import { AccessStore, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
+import { AccessStore, CURSOR_KEY, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, GrantRec, Label, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
 
 /** fieldLabels key without a dot: the snapshot skips it, so it carries the cursor without becoming a field label */
-const CURSOR = "seed_cursor";
+const CURSOR = CURSOR_KEY;
 
 /** the event names access.sync folds; the host sends only these */
 export const ACCESS_EVENTS = [
@@ -176,8 +176,7 @@ function apply(ctx: AccessCtx, store: AccessStore, events: readonly LogEvent[]):
     ctx.db.run("INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)", r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null);
   }
   if (moved) {
-    ctx.db.run("DELETE FROM access_fields WHERE k = ?", CURSOR);
-    ctx.db.run("INSERT INTO access_fields (k,rank) VALUES (?,?)", CURSOR, cursor);
+    ctx.db.run("INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)", CURSOR, cursor);
   }
   return { cursor, changed };
 }
