@@ -49652,7 +49652,8 @@
         "message.received",
         "message.mentioned",
         "message.direct",
-        "thread.replied"
+        "thread.replied",
+        "thread.updated"
       ],
       "errors": [
         "internal.unexpected",

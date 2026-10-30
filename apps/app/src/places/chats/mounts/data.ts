@@ -125,6 +125,7 @@ export function needsData(rt: ShellRuntime, go: Go, nameOf: (id: string) => stri
       openSource: (kind, id) => { if (kind === "chat" || kind === "thread" || kind === "channel") go.thread(id); else rt.open({ subject: { type: kind, id } }); },
       openFile: (fileId) => rt.open({ subject: { type: "file", id: fileId } }),
       openComputer: (agentId) => go.computerOfAgent(agentId),
+      openSignIn: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),
     },
     clock: rt.clock,
   };
@@ -309,6 +310,7 @@ export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: Pane
     nav: {
       ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),
       openTerminal: (id: string) => go.terminalOfComputer(id), openAgentPage: (id: string) => go.agent(id),
+      setUpTeam: () => rt.open({ screen: "settings.page", args: { page: "spaces" } }),
     },
   };
 }

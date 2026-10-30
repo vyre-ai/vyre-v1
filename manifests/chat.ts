@@ -180,7 +180,7 @@ export default defineManifest({
         screen: t.opt(screenContext),
       },
       out: { message: messageRow }, on: ['thread', '/threadId'], level: 'use', idem: 'key',
-      emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',
+      emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied', 'thread.updated'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',
       rate: { n: 120, perSeconds: 60, scope: 'principal' }, errors: ['permission.plan_mode', 'permission.limit'],
     }),
     read('chat.screen.get', 'The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows', {

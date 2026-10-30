@@ -23,7 +23,7 @@ test("a post returns the stored message and announces it once with ids and count
   assert.equal(out.message.kind, "text");
   assert.deepEqual(out.message.attachments, ["fil_a1", "fil_b2"]);
   assert.equal(out.message.enc, 2, "a private chat is an enc=2 thread");
-  assert.deepEqual(hn.names(), ["message.received"]);
+  assert.deepEqual(hn.names(), ["thread.updated", "message.received"], "the first message also names the unnamed chat");
   const ev = hn.named("message.received")[0]!;
   assert.deepEqual(ev.payload["mentions"], [{ kind: "agent", id: INTAKE }]);
   assert.equal(ev.payload["hasBlocks"], false);

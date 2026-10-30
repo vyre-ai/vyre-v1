@@ -103,6 +103,15 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
   }
 }
 
+/** A short name for a chat from what its first message says: the first line, without mentions or markup, cut at a word. Null when nothing readable is left. */
+export function titleFrom(body: string): string | null {
+  const line = body.split("\n").map((l) => l.replace(/[`*_>#~]|\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/@\w[\w.-]*/g, "").replace(/\s+/g, " ").trim()).find((l) => l !== "") ?? "";
+  if (line.length < 2) return null;
+  if (line.length <= 48) return line.replace(/[.:;,]+$/, "");
+  const cut = line.slice(0, 48), at = cut.lastIndexOf(" ");
+  return `${(at > 24 ? cut.slice(0, at) : cut).replace(/[.:;,\s]+$/, "")}…`;
+}
+
 export async function post(ctx: ChatCtx, input: PostInput) {
   ensure(ctx.db);
   const thread = threadBy(ctx.db, input.threadId);
@@ -152,6 +161,14 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}), ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}), depth, attachments,
   });
   saveScreen(ctx, thread.id, m.id, input.screen);
+  // A chat nobody named takes its name from the first thing a person says in it, so the list never fills with "New chat". A chat between people keeps the other person's name. A name given at the start, or later, is left alone; a sealed body (an envelope) says nothing readable.
+  if (author.kind === "person" && (thread.kind === "chat" || thread.kind === "ask") && thread.title === undefined && thread.channelId === undefined && agentsOf(ctx.db, thread.id).length > 0 && !/^enc\d+\./.test(body)) {
+    const name = titleFrom(body);
+    if (name) {
+      ctx.db.run("UPDATE chat_thread SET title = ?, version = version + 1, updated_at = ? WHERE id = ? AND title IS NULL", name, ctx.now(), thread.id);
+      ctx.emit("thread.updated", thread.id, { threadId: thread.id, fields: ["title"] });
+    }
+  }
   deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id });
   return { message: messageOut(m, encOf(ctx.db, thread)) };
 }

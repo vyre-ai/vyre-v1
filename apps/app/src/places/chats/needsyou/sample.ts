@@ -123,6 +123,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     openSource: (kind, id) => void opened.push(`source:${kind}:${id}`),
     openFile: (id) => void opened.push(`file:${id}`),
     openComputer: (id) => void opened.push(`computer:${id}`),
+    openSignIn: () => void opened.push("sign-in"),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
   const data: NeedsYouData = {
