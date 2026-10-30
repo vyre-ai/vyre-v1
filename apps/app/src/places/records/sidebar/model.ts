@@ -9,6 +9,9 @@ export const SCREENS = { types: "records.types", views: "records.saved-views" } 
 export const DEFAULT_GROUP = "Records";
 export const SITES_GROUP = "Sites";
 
+/** Types a connector or the system writes into. The sidebar hides them while they are empty (Envelopes until e-sign, Issues and Pull requests until GitHub, Problem reports, Agents); they stay in Record types and show as soon as they hold a record. */
+export const HIDDEN_WHEN_EMPTY: ReadonlySet<string> = new Set(["agent", "envelope", "issue", "pull_request", "report"]);
+
 export interface TypeGroup { key: string; label: string; items: TypeItem[] }
 export interface TypeItem { key: string; label: string; icon: string; count: number; synced: boolean; syncedFrom?: string; system: boolean }
 
@@ -31,6 +34,7 @@ export function typeGroups(types: readonly TypeRow[]): TypeGroup[] {
     g.items.push(item);
   };
   for (const t of types) {
+    if (HIDDEN_WHEN_EMPTY.has(t.key) && t.rowCount === 0) continue;
     const site = isSiteTable(t);
     put(site ? SITES_GROUP : t.group ?? DEFAULT_GROUP, {
       key: t.key, label: site && t.scope ? `${siteName(t.scope)} › ${t.plural}` : t.plural, icon: t.icon, count: t.rowCount, synced: t.syncedFrom !== undefined, ...(t.syncedFrom !== undefined ? { syncedFrom: t.syncedFrom } : {}), system: t.system,
