@@ -91,6 +91,15 @@ test("while an agent works a plain send queues; Interrupt sends it now with the 
   assert.equal(queueNote(2, "Intake"), "2 messages queued for Intake's next step");
 });
 
+test("one chat.post gives one message and one bubble on the page, never two", async () => {
+  const s = createSample("streaming");
+  const body = "Draft the welcome email for the new clients";
+  await act.sendMessage(s.data, { text: body, mentions: [], key: "once-1", kind: "queue", working: false });
+  assert.deepEqual(s.calls.map((c) => c.cap), ["chat.post"], "one send is one call");
+  assert.equal(msgs(s).filter((m) => m.body === body).length, 1, "one message in the thread");
+  assert.equal(html(s).split(body).length - 1, 1, "one bubble on the page");
+});
+
 test("stop and stop all: the header says which, and each calls its capability; the steps are kept", async () => {
   const s = createSample("busy");
   const out = html(s);

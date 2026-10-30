@@ -62,6 +62,8 @@ test("the assistant name is possessive with a typographic apostrophe, and a name
   assert.deepEqual(assistantNames("usr_abcdefgh", undefined), ["Assistant", "My Assistant", "Assistant abcdef"]);
   assert.deepEqual(assistantNames("usr_abcdefgh", "  "), ["Assistant", "My Assistant", "Assistant abcdef"]);
   assert.equal(assistantNames("usr_abcdefgh", "Irfad")[0], "Irfad’s Assistant");
+  assert.deepEqual(assistantNames("usr_abcdefgh", "olivia reyes"), ["Olivia’s Assistant", "Olivia reyes’ Assistant", "Assistant abcdef"], "only the first letter is capitalised, the rest stays as typed");
+  assert.equal(assistantNames("usr_abcdefgh", "olivia", false)[0], "olivia’s Assistant");
 });
 
 test("on boot an assistant still called by the old default is renamed with its folder; one the person renamed is not", async () => {

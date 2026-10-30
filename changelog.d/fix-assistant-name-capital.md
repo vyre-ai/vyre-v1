@@ -1,0 +1,1 @@
+- Fixed the assistant's default name: the first letter of the person's name is capitalised, so "olivia" gets "Olivia’s Assistant" and the rest of the name stays as typed. An assistant still called "olivia’s Assistant" is renamed at boot.
