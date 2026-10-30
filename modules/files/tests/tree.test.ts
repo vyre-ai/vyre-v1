@@ -3,7 +3,7 @@
 // @reads /modules/files/migrations/0001_files_tree.sql
 // @reads /generated/modules/files/schema.sql
 
-import { boundedScope } from "../../../lib/seal-scope.ts";
+import { boundedScope } from "../../../kernel/src/seal/scope.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

@@ -8,7 +8,7 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { Ctx, Sealed } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
-import { boundedScope } from "../../../lib/seal-scope.ts";
+import { boundedScope } from "../../../kernel/src/seal/scope.ts";
 import { dropRecent, touchRecent } from "../projections.ts";
 import { sharedCount } from "./lists.ts";
 import { setFolderLabel } from "./host.ts";

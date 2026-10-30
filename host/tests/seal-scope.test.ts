@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boundedScope } from "../seal-scope.ts";
-import { createCtxSeal } from "../../host/src/ctx/seal.ts";
+import { boundedScope } from "../../kernel/src/seal/scope.ts";
+import { createCtxSeal } from "../src/ctx/seal.ts";
 
 test("a scope stays short and valid whatever the ids are, and still tells the ids apart", () => {
   const longSpace = `spc_${"a".repeat(195)}`;   // the longest id the Personal Space allows (199 characters)

@@ -13,7 +13,7 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
-import { boundedScope } from "../../../lib/seal-scope.ts";
+import { boundedScope } from "../../../kernel/src/seal/scope.ts";
 import { MAX_INLINE, treeHandlers } from "./tree.ts";
 import { addMarks, hunksOf, lcsPairs, lineOps, splitLines, splitParagraphs, versionHandlers } from "./versions.ts";
 import type { Hunk } from "./versions.ts";
