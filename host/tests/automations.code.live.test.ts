@@ -35,7 +35,7 @@ async function boot(dir: string, code: CodeHostOpts | null): Promise<Daemon> {
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"), codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "code-live", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } } }),
     fetch: caddyFetch, intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    ...(code ? { seams: { drivers: { setCodeHost: () => ({ dataDir: dir, ...code }) } } } : {}),
+    ...(code ? { seams: { drivers: { setCodeHost: () => ({ dataDir: dir, diagnose: true, ...code }) } } } : {}),
   });
 }
 

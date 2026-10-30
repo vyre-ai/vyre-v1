@@ -26,6 +26,8 @@ export interface CodeHost {
   programRead?: readonly string[];
   cpuSeconds?: number;
   wallMs?: number;
+  /** Tests only: when the sandbox ends without a result, the exit status, signal and the sandbox's own stderr go into the error message. Never set by a host that serves people. */
+  diagnose?: boolean;
   heapMb?: number;
   /** The kernel limit on the process's data (RLIMIT_DATA: heap, Buffers and ArrayBuffers). Default 192 MB: 128 MB for the code plus the runtime's own. */
   dataMb?: number;
@@ -162,7 +164,7 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
       p.on("error", (err) => { clearTimeout(t); resolve({ code: null, signal: null, stderr: `${stderr}${err.message}`, timedOut }); });
       p.on("close", (code, signal) => { clearTimeout(t); resolve({ code, signal, stderr, timedOut }); });
     });
-    return readResult(dir, outcome, cpu, heap, 128);
+    return readResult(dir, outcome, cpu, heap, 128, h.diagnose === true);
   } finally {
     await net?.close().catch(() => undefined);
     fs.rmSync(dir, { recursive: true, force: true });
@@ -170,7 +172,7 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
   }
 }
 
-export function readResult(dir: string, o: { code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean }, cpu: number, heap: number, memoryMb = heap): CodeResult {
+export function readResult(dir: string, o: { code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean }, cpu: number, heap: number, memoryMb = heap, diagnose = false): CodeResult {
   const file = path.join(dir, "result.json");
   let raw: string | null = null;
   try {
@@ -184,7 +186,7 @@ export function readResult(dir: string, o: { code: number | null; signal: NodeJS
     if (o.timedOut) throw stepError("timeout.deadline", "Run code took too long.", false);
     if (o.signal === "SIGKILL" || o.signal === "SIGXCPU" || o.code === 137 || o.code === 152) throw stepError("timeout.deadline", `Run code used more than ${cpu} seconds of processor time.`, false);
     if (/heap out of memory|allocation failed|ERR_WORKER_OUT_OF_MEMORY/i.test(o.stderr) || o.signal === "SIGABRT" || o.code === 134) throw stepError("validation.bad_input", `Run code used more than ${heap} MB of memory.`, false);
-    throw stepError("validation.bad_input", "The code did not finish.", false);
+    throw stepError("validation.bad_input", `The code did not finish.${diagnose ? ` [exit ${String(o.code)} signal ${String(o.signal)} stderr ${JSON.stringify(o.stderr.slice(0, 1500))}]` : ""}`, false);
   }
   let parsed: { ok?: boolean; text?: string; name?: string; message?: string; logs?: unknown };
   try { parsed = JSON.parse(raw) as typeof parsed; } catch { throw stepError("validation.bad_input", "Run code must return JSON.", false); }
