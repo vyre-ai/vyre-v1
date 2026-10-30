@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (59)
+## Capabilities (60)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
@@ -57,6 +57,7 @@ Requires: nothing.
 - [engine.turn.fallback](../capabilities/engine.turn.fallback.md): Record a fallback during a turn error: another model or the backup key
 - [engine.turn.finish](../capabilities/engine.turn.finish.md): End a turn as completed, failed or cancelled; always releases the lease
 - [engine.turn.get](../capabilities/engine.turn.get.md): What happened: steps, durations, machine, model, key used and denials of one turn
+- [engine.turn.record](../capabilities/engine.turn.record.md): Record a turn the in-process engine ran for a chat (started, then completed, failed or cancelled) under the engine's own turn id, so the turn list, review sampling and the agent's Working status see it; a repeat answers with what is already recorded
 - [engine.turn.record_usage](../capabilities/engine.turn.record_usage.md): Meter usage during a turn; over an agent.toml or Space limit it stops the turn and raises agent.limit_hit
 - [engine.turn.retry](../capabilities/engine.turn.retry.md): Retry a failed turn, optionally on another model or backup key (the next step on a turn error)
 - [engine.turn.start](../capabilities/engine.turn.start.md): Start a queued turn on the placement chosen (host or device); records account, engine and model

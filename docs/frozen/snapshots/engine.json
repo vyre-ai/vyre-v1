@@ -52,6 +52,7 @@
     "engine.turn.fallback@1": "c88b4ae7fc5e80325267c79468d5a49265f92c384ba037f62995c1c514f2bbf1",
     "engine.turn.finish@1": "070b0fe71f95bf71145bb8719bdad4c3b7a0fd1395cbb3387fc71c29057ca48f",
     "engine.turn.get@1": "9c4e180f9d9598fdd184b6699e911f1ffd41344ff57f88d0d03d19a81853d20b",
+    "engine.turn.record@1": "b2d9aabf8ce49f65429127bc8ed3600a8358351781db03eac4f0d20346798578",
     "engine.turn.record_usage@1": "29e8d2e47c23469514e2d97f2963f41ef95723a3afb30f7675cd780ababad0d8",
     "engine.turn.retry@1": "a4e08f20bd8d87234985ade9c5d4f168c60bddb03853753c7dbe22d536474dd8",
     "engine.turn.start@1": "218636874b19bc2ab462586b7e2a992c5adc961fe75e1ff7d04cd4125c4adde5",

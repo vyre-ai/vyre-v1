@@ -72542,6 +72542,163 @@
     {
       "effects": "write",
       "emits": [
+        "turn.started",
+        "turn.completed",
+        "turn.failed",
+        "turn.cancelled",
+        "agent.task_finished"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountRef": "#Team_Anthropic_Key",
+            "agentId": "agt_a1b2c3",
+            "asker": "example",
+            "code": "example",
+            "costMicros": 1,
+            "engine": "example",
+            "model": "example",
+            "phase": "started",
+            "qseq": 1,
+            "threadId": "thr_a1b2c3",
+            "tokensIn": 1,
+            "tokensOut": 1,
+            "turnId": "trn_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "turn": {
+              "accountRef": "#Team_Anthropic_Key",
+              "agentId": "agt_a1b2c3",
+              "asker": "example",
+              "costMicros": 1,
+              "endedAt": 1760000000000,
+              "engine": "example",
+              "error": {
+                "code": "example",
+                "message": "example",
+                "next": [
+                  {
+                    "kind": "example",
+                    "label": "example"
+                  }
+                ],
+                "traceId": "0123456789abcdef0123456789abcdef"
+              },
+              "model": "example",
+              "runId": "run_a1b2c3",
+              "startedAt": 1760000000000,
+              "state": "queued",
+              "threadId": "thr_a1b2c3",
+              "tokensIn": 1,
+              "tokensOut": 1,
+              "traceId": "0123456789abcdef0123456789abcdef",
+              "turnId": "trn_a1b2c3"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "accountRef": {
+            "description": "Vault handle or subscription account reference; never a secret value",
+            "examples": [
+              "#Team_Anthropic_Key"
+            ],
+            "type": "string"
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "asker": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "costMicros": {
+            "type": "integer"
+          },
+          "engine": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "phase": {
+            "enum": [
+              "started",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "qseq": {
+            "type": "integer"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "tokensIn": {
+            "type": "integer"
+          },
+          "tokensOut": {
+            "type": "integer"
+          },
+          "turnId": {
+            "examples": [
+              "trn_a1b2c3"
+            ],
+            "pattern": "^trn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "turnId",
+          "agentId",
+          "phase",
+          "qseq"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "engine",
+      "name": "engine.turn.record",
+      "output": {
+        "$ref": "#/$defs/s_d9a7c83bfd"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Record a turn the in-process engine ran for a chat (started, then completed, failed or cancelled) under the engine's own turn id, so the turn list, review sampling and the agent's Working status see it; a repeat answers with what is already recorded",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "agent.limit_hit"
       ],
       "errors": [

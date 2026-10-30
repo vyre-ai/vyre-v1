@@ -9300,6 +9300,49 @@ export type EngineTurnGetOut = {
       }>;
   };
 };
+export type EngineTurnRecordIn = {
+  threadId: string;
+  turnId: string;
+  agentId: string;
+  phase: "started" | "completed" | "failed" | "cancelled";
+  qseq: number;
+  asker?: string;
+  engine?: string;
+  model?: string;
+  accountRef?: string;
+  tokensIn?: number;
+  tokensOut?: number;
+  costMicros?: number;
+  code?: string;
+};
+export type EngineTurnRecordOut = {
+  turn: {
+    turnId: string;
+    threadId: string;
+    agentId: string;
+    asker: string;
+    accountRef?: string;
+    engine: string;
+    model: string;
+    state: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
+    traceId: string;
+    runId?: string;
+    startedAt: number;
+    endedAt?: number;
+    tokensIn: number;
+    tokensOut: number;
+    costMicros: number;
+    error?: {
+      code: string;
+      message: string;
+      next: Array<{
+          kind: string;
+          label: string;
+        }>;
+      traceId: string;
+    };
+  };
+};
 export type EngineTurnRecordUsageIn = {
   turnId: string;
   tokensIn: number;
@@ -30325,6 +30368,7 @@ export interface CapMap {
   "engine.turn.fallback": { in: EngineTurnFallbackIn; out: EngineTurnFallbackOut };
   "engine.turn.finish": { in: EngineTurnFinishIn; out: EngineTurnFinishOut };
   "engine.turn.get": { in: EngineTurnGetIn; out: EngineTurnGetOut };
+  "engine.turn.record": { in: EngineTurnRecordIn; out: EngineTurnRecordOut };
   "engine.turn.record_usage": { in: EngineTurnRecordUsageIn; out: EngineTurnRecordUsageOut };
   "engine.turn.retry": { in: EngineTurnRetryIn; out: EngineTurnRetryOut };
   "engine.turn.start": { in: EngineTurnStartIn; out: EngineTurnStartOut };
