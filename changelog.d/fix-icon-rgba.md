@@ -1,1 +1,1 @@
-- fix(desktop): the four restored app icon PNGs (32x32, 128x128, 128x128@2x, icon) are RGBA with full alpha, so the Tauri build accepts them on macOS; the pixels are unchanged.
+- Fixed the desktop build on macOS. The four restored app icon images (32x32, 128x128, 128x128@2x and icon) had no alpha channel, which the Tauri build refuses. They now carry one, and the pixels are unchanged.
