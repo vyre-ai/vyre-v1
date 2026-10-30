@@ -840,3 +840,8 @@ export function describeTrigger(t: DefTrigger): string {
   for (const [k, v] of Object.entries(cfg)) if (k !== "label" && (typeof v === "string" || typeof v === "number")) parts.push(`${k} ${String(v)}`);
   return parts.length ? parts.join(" · ") : "Every time";
 }
+
+/** Whether a person can start it themselves (a Run by hand trigger): the editor offers Run now only then. */
+export function startsByHand(def: Definition): boolean {
+  return def.triggers.some((t) => t.key === "manual");
+}

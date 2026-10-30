@@ -38,6 +38,7 @@ import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "./data.tsx";
 import {
   addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, titleOfKey,
+  startsByHand,
 } from "./model.ts";
 import type { CardNode, DefTrigger, Definition, Issue, RunState } from "./model.ts";
 import { Dot, IconButton, SubTabs, TextButton, pointer, webOnly } from "./parts.tsx";
@@ -335,6 +336,13 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     try { await data.call("automations.test", { automationId: a.id, sample: true }); flash("Test run started with sample data"); }
     catch (e) { flash(e instanceof Error ? e.message : "The test did not start."); }
   };
+  const hasManual = startsByHand(def);
+  const runNow = async (): Promise<void> => {
+    if (errors.length > 0) { flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} first.`); setTab("steps"); return; }
+    if (a.status !== "on") { flash("Turn it on first, then run it."); return; }
+    try { await data.call("automations.run", { automationId: a.id, payload: {} }); flash("Started a run"); }
+    catch (e) { flash(e instanceof Error ? e.message : "The run did not start."); }
+  };
   const blockerId = liveBlockerStep(errors);
   const goToBlocker = (): void => {
     if (!blockerId) return;
@@ -478,6 +486,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         {connectTarget ? <TextButton label={`Connect ${connectTarget.service}`} icon="key" testID="connect" onPress={() => data.nav.connect(connectTarget)} /> : null}
         {!connectTarget && blockedIssue?.setup.blocked ? <Text testID="blocked-step" style={s.needsText}>{blockedIssue.setup.blocked}</Text> : null}
         <TextButton label="Events" icon="bolt" bare={tight} testID="events" onPress={() => setEventsOpen(true)} />
+        {hasManual ? <TextButton label="Run now" icon="bolt" bare={tight} testID="run-now" onPress={() => void runNow()} /> : null}
         <TextButton label="Test" icon="flask" bare={tight} testID="test-run" onPress={() => void test()} />
         {dirty ? <TextButton label={saving ? "Saving" : "Save"} primary disabled={saving || errors.length > 0} testID="save" onPress={() => void save()} /> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${statusLabel}`} testID="status" onPress={openStatus} style={[s.status, pointer]}>

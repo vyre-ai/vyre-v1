@@ -303,3 +303,9 @@ test("a schedule trigger reads in words, and a cron line it does not know is lef
   assert.equal(cronWords("5 4 * 2 *"), null);
   assert.equal(describeTrigger({ key: "schedule", config: { cron: "0 9 * * 1", timezone: "UTC", missed: "skip" } } as never), "Every Monday at 9:00");
 });
+
+test("only an Automation with a Run by hand trigger offers Run now", async () => {
+  const { startsByHand } = await import("./model.ts");
+  assert.equal(startsByHand({ triggers: [{ key: "manual" }], nodes: [] } as never), true);
+  assert.equal(startsByHand({ triggers: [{ key: "schedule" }], nodes: [] } as never), false);
+});
