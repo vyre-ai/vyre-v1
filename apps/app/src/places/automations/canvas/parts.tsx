@@ -37,7 +37,7 @@ export function IconButton({ icon, label, onPress, on = false, size = 26, testID
 }
 
 /** A text button in the prototype's header style: quiet by default, accent when primary. */
-export function TextButton({ label, icon, onPress, primary = false, disabled = false, testID, trailing }: { label: string; icon?: GlyphName | IconKey; onPress?: () => void; primary?: boolean; disabled?: boolean; testID?: string; trailing?: ReactNode }): ReactElement {
+export function TextButton({ label, icon, onPress, primary = false, disabled = false, testID, trailing, bare = false }: { label: string; /** Icon only (the label stays as its accessible name): a narrow window keeps the room for the title. */ bare?: boolean; icon?: GlyphName | IconKey; onPress?: () => void; primary?: boolean; disabled?: boolean; testID?: string; trailing?: ReactNode }): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
@@ -52,7 +52,7 @@ export function TextButton({ label, icon, onPress, primary = false, disabled = f
       style={[s.textBtn, primary && s.textBtnPrimary, over && !primary && { backgroundColor: "var(--hover)" }, over && primary && { opacity: 0.9 }, disabled && { opacity: 0.45 }, pointer]}
     >
       {icon ? <Glyph name={icon} size={14} color={primary ? "var(--accent-ink)" : "var(--ink-2)"} /> : null}
-      <Text style={[s.textBtnLabel, primary && { color: "var(--accent-ink)" as string }]} numberOfLines={1}>{label}</Text>
+      {bare && icon ? null : <Text style={[s.textBtnLabel, primary && { color: "var(--accent-ink)" as string }]} numberOfLines={1}>{label}</Text>}
       {trailing}
     </Pressable>
   );

@@ -3,7 +3,7 @@
 // and in a line under the tabs while someone builds. Edits are a draft: Save (or Cmd-S) writes one version; Undo (Cmd-Z) takes back the latest edit.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { LayoutChangeEvent } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -125,6 +125,8 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   initialPromote: boolean;
   data: ReturnType<typeof useAutomationsData>;
 }): ReactElement {
+  const winW = useWindowDimensions().width;
+  const tight = winW > 0 && winW < 1180;   // beside the sidebar a 1024 window has no room for labelled buttons: icons only
   const { element, show } = useMenu();
   const [draft, setDraft] = useState<Definition | null>(null);
   const undo = useRef<Definition[]>([]);
@@ -475,15 +477,15 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         </View>
         {connectTarget ? <TextButton label={`Connect ${connectTarget.service}`} icon="key" testID="connect" onPress={() => data.nav.connect(connectTarget)} /> : null}
         {!connectTarget && blockedIssue?.setup.blocked ? <Text testID="blocked-step" style={s.needsText}>{blockedIssue.setup.blocked}</Text> : null}
-        <TextButton label="Events" icon="bolt" testID="events" onPress={() => setEventsOpen(true)} />
-        <TextButton label="Test" icon="flask" testID="test-run" onPress={() => void test()} />
+        <TextButton label="Events" icon="bolt" bare={tight} testID="events" onPress={() => setEventsOpen(true)} />
+        <TextButton label="Test" icon="flask" bare={tight} testID="test-run" onPress={() => void test()} />
         {dirty ? <TextButton label={saving ? "Saving" : "Save"} primary disabled={saving || errors.length > 0} testID="save" onPress={() => void save()} /> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${statusLabel}`} testID="status" onPress={openStatus} style={[s.status, pointer]}>
           <Dot tone={a.status === "on" ? "ok" : a.status === "paused" ? "warn" : "muted"} />
           <Text style={s.statusText}>{statusLabel}</Text>
           <Glyph name="chevD" size={11} color="var(--ink-3)" />
         </Pressable>
-        <TextButton label="Ask" icon="sparkle" testID="ask" onPress={() => setTab("ask")} />
+        <TextButton label="Ask" icon="sparkle" bare={tight} testID="ask" onPress={() => setTab("ask")} />
         <IconButton icon="panel" label={paneOpen ? "Hide the side pane" : "Show the side pane"} on={paneOpen} testID="toggle-pane" onPress={onTogglePane} />
         <IconButton icon="more" label={moreLabel(a.name)} testID="more" onPress={openMore} />
       </View>
