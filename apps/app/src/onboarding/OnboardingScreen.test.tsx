@@ -109,7 +109,38 @@ test("the suite cards draw their first frame with the buttons the owner needs", 
   const w = renderToStaticMarkup(<WorkspaceCard call={call} onOpenConsole={noop} onDone={noop} />);
   assert.ok(w.includes('data-testid="workspace-open"') && w.includes("Open the setup in the Console"));
   assert.ok(renderToStaticMarkup(<SignInDomainCard call={call} onOpenConsole={noop} onDone={noop} />).includes('data-testid="signin-open"'));
-  assert.ok(renderToStaticMarkup(<DirectoryCard call={call} onOpenConsole={noop} onDone={noop} />).includes('data-testid="directory-open"'));
+  assert.ok(renderToStaticMarkup(<DirectoryCard call={call} by="Dana" space="Northwind" onOpenConsole={noop} onDone={noop} />).includes('data-testid="directory-open"'));
   const inv = renderToStaticMarkup(<InvitesCard call={call} onDone={noop} />);
   assert.ok(inv.includes('data-testid="invite-make"') && inv.includes("Nothing is sent until you share it or approve it."));
+});
+
+test("with an AI account the person's own Ask thread replaces the scripted words, and the card stays above it", async () => {
+  const { findAssistant } = await import("./AssistantThread.tsx");
+  const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Personal" progress={{}} stepKey="interview" live liveChat={<span data-thread="1">thread</span>} onStep={noop} renderCard={() => <span data-card="1">card</span>} />);
+  assert.ok(out.includes('data-testid="onboarding-live"') && out.includes('data-thread="1"') && !out.includes("scripted-note") && !out.includes("line-hello"));
+  assert.ok(out.indexOf('data-card="1"') < out.indexOf('data-thread="1"'));
+  const rt = { call: async () => ({ agents: [{ agentId: "agt_other", ownerId: "usr_b", role: "assistant" }, { agentId: "agt_mine", ownerId: "usr_a", role: "assistant" }] }) };
+  assert.equal(await findAssistant(rt as never, "usr_a"), "agt_mine");
+  assert.equal(await findAssistant(rt as never, "usr_zzz"), null);
+});
+
+test("the bottom bar is Skip for now, Next (Done on the last step) and a quiet Finish later; no Continue to Home", () => {
+  const out = html({ stepKey: "ai", onClose: noop });
+  assert.ok(out.includes("Skip for now") && out.includes('data-testid="step-next"') && out.includes(">Next<") && out.includes("Finish later"));
+  assert.ok(!out.includes("Continue to Home") && !out.includes("Not now"));
+  assert.ok(html({ stepKey: "team", onClose: noop }).includes(">Done<"), "the last step says Done");
+});
+
+test("the preview pane shows chips, or Not yet with its hint", async () => {
+  const { PreviewView } = await import("./PreviewPane.tsx");
+  const full = renderToStaticMarkup(<PreviewView preview={{ heading: "Your AI account", items: [{ id: "1", label: "Claude · subscription · in your Vault" }], hint: "x" }} fallback="f" />);
+  assert.ok(full.includes('data-testid="preview-item"') && full.includes("in your Vault"));
+  const empty = renderToStaticMarkup(<PreviewView preview={{ heading: "h", items: [], hint: "Not yet. Something appears here." }} fallback="f" />);
+  assert.ok(empty.includes('data-testid="preview-empty"') && empty.includes("Not yet."));
+});
+
+test("Team AI shows only the offer first, and the sign-in tiles after No", async () => {
+  const { SpaceAiCard } = await import("./SpaceAiCard.tsx");
+  const call = (async () => ({ providers: [] })) as never;
+  assert.ok(renderToStaticMarkup(<SpaceAiCard team={call} personal={null} onConnected={noop} />).includes('data-testid="ai-tiles"'), "no Personal key to copy: the tiles are the card");
 });
