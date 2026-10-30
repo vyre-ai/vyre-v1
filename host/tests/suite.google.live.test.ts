@@ -5,8 +5,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createPublicKey, createSign, createVerify, generateKeyPairSync } from "node:crypto";
-import { bootWorld, MEMBER, OTHER, OWNER } from "./support/suite-world.ts";
-import type { Answer, ProviderApi, SeamApi } from "./support/suite-world.ts";
+import { bootWorld, MEMBER, OTHER, OWNER } from "../../fixtures/suite/world.ts";
+import type { Answer, ProviderApi, SeamApi } from "../../fixtures/suite/world.ts";
 
 const DOMAIN = "firm.test";
 const ADMIN = `olivia@${DOMAIN}`;

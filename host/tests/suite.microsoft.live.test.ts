@@ -4,8 +4,8 @@
 // are ours. Microsoft is a stand-in: a scripted fetch behind the module's egress and a token endpoint behind the seam that checks the client id and secret.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bootWorld, MEMBER, OTHER, OWNER } from "./support/suite-world.ts";
-import type { ProviderApi, SeamApi } from "./support/suite-world.ts";
+import { bootWorld, MEMBER, OTHER, OWNER } from "../../fixtures/suite/world.ts";
+import type { ProviderApi, SeamApi } from "../../fixtures/suite/world.ts";
 
 const DOMAIN = "firm.test";
 const NOAH = `noah@${DOMAIN}`;
