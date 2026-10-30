@@ -487,11 +487,12 @@ export const possessive = (name: string): string => (/s$/i.test(name) ? `${name}
 
 const cleanName = (raw: string | undefined): string => (raw ?? "").trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").replace(/^\.+/, "").slice(0, MAX_NAME - 12);
 
-/** The names a person's assistant may take, in order: "<First>’s Assistant", then "<Full name>’s Assistant", then "Assistant <id>". No name at all gives "Assistant", "My Assistant", then the id form. */
-export function assistantNames(person: string, rawName: string | undefined): string[] {
+/** The names a person's assistant may take, in order (the first letter of the name is capitalised, the rest stays as typed): "<First>’s Assistant", then "<Full name>’s Assistant", then "Assistant <id>". No name at all gives "Assistant", "My Assistant", then the id form. */
+export function assistantNames(person: string, rawName: string | undefined, capitalise = true): string[] {
   const base = cleanName(rawName);
   const first = base.split(" ")[0] ?? "";
-  return [first === "" ? "Assistant" : `${possessive(first)} Assistant`, base === "" ? "My Assistant" : `${possessive(base)} Assistant`, `Assistant ${person.slice(4, 10)}`];
+  const cap = (n: string): string => (capitalise ? n.charAt(0).toUpperCase() + n.slice(1) : n);
+  return [first === "" ? "Assistant" : `${possessive(cap(first))} Assistant`, base === "" ? "My Assistant" : `${possessive(cap(base))} Assistant`, `Assistant ${person.slice(4, 10)}`];
 }
 
 /** The names the assistant had before the possessive rule, for the same person: "<First> Assistant" and "<Full name> Assistant". Index i here is replaced by index i in assistantNames. */
@@ -506,7 +507,8 @@ const defaultsOf = (raw: string | undefined): Array<{ slot: 0 | 1; name: string 
   const old = oldAssistantNames(raw);
   const out: Array<{ slot: 0 | 1; name: string }> = [];
   old.forEach((n, i) => { if (n !== null) out.push({ slot: i as 0 | 1, name: n }); });
-  assistantNames("usr_000000", raw).slice(0, 2).forEach((n, i) => out.push({ slot: i as 0 | 1, name: n }));
+  // both spellings of the possessive default count: the first letter as typed (before it was capitalised) and capitalised
+  for (const cap of [false, true]) assistantNames("usr_000000", raw, cap).slice(0, 2).forEach((n, i) => { if (!out.some((d) => d.slot === i && d.name === n)) out.push({ slot: i as 0 | 1, name: n }); });
   return out;
 };
 
