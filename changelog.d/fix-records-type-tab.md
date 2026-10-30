@@ -1,0 +1,1 @@
+- Fixed Records tab names for a tab opened on a record type from a link: it reads the type's name, such as "Companies". Pressing New in an empty type has a click test.
