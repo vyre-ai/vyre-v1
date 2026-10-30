@@ -1,5 +1,6 @@
 // resolveAccount (ARCH 6.4). Who pays: the steerer for the turn their message causes, the starter for everything else (wake-ups included), a routine's setter for a routine.
 // Which account: the thread pin, the agent's team key, the payer's own, then the backups. A task uses the step key, then a backup, else it waits in Needs you.
+import { sameProviderFamily } from "./provider.ts";
 import type { AccountRow, Attempt, NeedsYou, ResolveReason, ResolveRequest, Resolution, SkipWhy } from "./types.ts";
 
 interface Candidate { ref: string; reason: ResolveReason }
@@ -36,7 +37,7 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
     if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason);
     else {
       // The payer's own accounts: subscription sign-ins before keys (already paid for). A shared key is used only when the agent points at it, the thread pins it, or it is a backup.
-      const own = req.accounts.filter((a) => a.mine && a.ownerId === payer && (req.agent.provider === undefined || a.provider === req.agent.provider));
+      const own = req.accounts.filter((a) => a.mine && a.ownerId === payer && (req.agent.provider === undefined || sameProviderFamily(a.provider, req.agent.provider)));
       for (const a of [...own.filter((a) => a.kind === "subscription"), ...own.filter((a) => a.kind === "api_key")]) add(a.ref, payerReason);
     }
   }

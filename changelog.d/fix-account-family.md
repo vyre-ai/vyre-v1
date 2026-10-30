@@ -1,0 +1,1 @@
+- A Claude, ChatGPT or Grok sign-in now serves an agent whose model is named for the maker. The sign-in is kept under the tool's key (claude-code, codex, grok) and the model under the maker (anthropic, openai, xai); the two were compared as different, so every agent with a Claude model answered `no_account` for a person who had signed in with Claude.
