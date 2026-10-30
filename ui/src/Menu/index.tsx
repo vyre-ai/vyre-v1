@@ -356,9 +356,9 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
   nodeRef: (node: unknown) => void;
 }): ReactElement {
   const report = isReportItem(entry);
-  // the approved prototype highlight: the hovered row fills with the accent (danger rows with the danger colour) and its ink turns white
+  // the approved prototype highlight: the hovered row fills with the accent (danger rows with the danger colour) and its ink turns to the accent ink
   const base = entry.danger === true ? "var(--danger)" : "var(--ink)";
-  const ink = lit ? "#fff" : base;
+  const ink = lit ? "var(--accent-ink)" : base;
   const wash = lit ? { backgroundColor: entry.danger === true ? "var(--danger)" : "var(--accent)" } : null;
   return (
     <Pressable

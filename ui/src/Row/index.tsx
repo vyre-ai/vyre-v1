@@ -51,7 +51,7 @@ const h = createElement;
 function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, accentLit = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
   ensureRowCss();
   const filled = accentLit && hovered && !selected;
-  const inkOn = filled ? { color: "#fff" } : null;
+  const inkOn = filled ? { color: "var(--accent-ink)" } : null;
   const tid = (suffix: string): string | undefined => (id ? `row-${id}${suffix}` : undefined);
   const { style: extra, ...dom } = (domProps ?? {}) as { style?: Record<string, unknown> } & Record<string, unknown>;
   const titleEl = h("span", { style: { ...(emphasis ? { ...TITLE_S, ...BOLD } : TITLE_S), ...inkOn } }, title);
@@ -72,7 +72,7 @@ function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "
       titleSuffix || titleMarks
         ? h("div", { style: TLINE_S }, h("span", { style: emphasis ? { ...TITLE_IN_LINE_S, ...BOLD } : TITLE_IN_LINE_S }, title), titleSuffix ? h("span", { style: SUFFIX_S, "data-testid": tid("-suffix") }, titleSuffix) : null, titleMarks ? h("div", { style: MARKS_S, "data-testid": tid("-marks") }, titleMarks) : null)
         : titleEl,
-      note ? h("div", { style: { ...(tall ? NOTE2_S : NOTE_S), ...(filled ? { color: "rgba(255,255,255,.82)" } : null) } }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
+      note ? h("div", { style: { ...(tall ? NOTE2_S : NOTE_S), ...(filled ? { color: "var(--accent-ink)", opacity: 0.8 } : null) } }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
     ),
     trailing ? h("div", { style: TRAIL_S, "data-testid": tid("-trailing") }, trailing) : null,
   );
