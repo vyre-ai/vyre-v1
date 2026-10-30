@@ -149,7 +149,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    return async()=>{
     seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};
     const rows=originals.flatMap((original,index)=>{const row=stored[index];if(!row||!decision(seed,row))return[];const visible=fields(seed,row,object(original["fields"]),trace);
-     if(cap==="records.query"){const touched=[...references(value["filter"]),...references(value["sort"]),...(typeof value["group"]==="string"?[value["group"]]:[])].map(field=>field.split(".")[0]!);const complete=fields(seed,row,row.data,trace);if(touched.some(field=>!["id","version","created_at","updated_at"].includes(field)&&!Object.hasOwn(complete,field)))throw fail("permission.no_grant",trace);}
+     if(cap==="records.query"){const touched=[...references(value["filter"]),...references(value["sort"]),...(typeof value["group"]==="string"?[value["group"]]:[])].map(field=>field.split(".")[0]!);const complete=fields(seed,row,row.data,trace);if(touched.some(field=>!["id","version","created_at","updated_at"].includes(field)&&Object.hasOwn(row.data,field)&&!Object.hasOwn(complete,field)))throw fail("permission.no_grant",trace);}
      if(cap==="records.search"){const words=String(value["q"]??"").toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu)??[];const body=Object.values(visible).filter(item=>typeof item==="string").join(" ").toLocaleLowerCase();const actual=body.match(/[\p{L}\p{N}_]+/gu)??[];if(!words.length||!words.every(word=>actual.some(item=>item.startsWith(word))))return[];}
      return[{...original,fields:visible}];});
     if(cap==="records.get"){if(!rows[0])throw fail("permission.no_grant",trace);return{...result,record:rows[0]};}
