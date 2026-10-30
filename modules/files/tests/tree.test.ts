@@ -3,6 +3,7 @@
 // @reads /modules/files/migrations/0001_files_tree.sql
 // @reads /generated/modules/files/schema.sql
 
+import { boundedScope } from "../../../lib/seal-scope.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -410,7 +411,7 @@ test("blobs are sealed, deduped, rejected when tampered, and kept while a versio
   assert.equal(blob.refs, 2);
   assert.equal(blob.hash, await sha256(plain));
   assert.equal(String(blob.bytes).includes("sealed notes"), false);
-  assert.equal(blob.scope, `files.blob:${ctx.space}:${String(blob.id)}`);
+  assert.equal(blob.scope, boundedScope("files.blob", ctx.space, String(blob.id)), "bound to the Space and the blob through a digest, so it stays a short name");
   const readA = await handlers["files.read"](ctx, { fileId: first.file.fileId });
   const readB = await handlers["files.read"](ctx, { fileId: second.file.fileId });
   assert.equal(readA.text, "sealed notes");
