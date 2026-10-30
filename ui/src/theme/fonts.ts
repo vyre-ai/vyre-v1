@@ -1,6 +1,7 @@
 // One root font (P-UI_08). The document sets the skin's sans (--ui) and mono (--mono) stacks on the app root, the overlay roots
 // (menus, popovers, dialogs, tooltips, toasts, anything portalled to body) and the canvas label hosts (SVG text, canvas label layers),
 // so no screen falls back to the browser serif. Components never set a sans family themselves; only mono-by-meaning (code, keys, ids).
+import { injectCss } from "./css.ts";
 import { typeTokens } from "../tokens/skins.ts";
 
 export const SANS = typeTokens["--ui"];
@@ -32,9 +33,5 @@ export function rootFontCss(): string {
 export function installRootFont(doc: { head?: { appendChild(n: unknown): unknown } | null; getElementById?(id: string): unknown; createElement?(t: string): { id: string; textContent: string | null } } | undefined): boolean {
   if (!doc || !doc.head || !doc.createElement || !doc.getElementById) return false;
   if (doc.getElementById("vyre-root-font")) return false;
-  const el = doc.createElement("style");
-  el.id = "vyre-root-font";
-  el.textContent = rootFontCss();
-  doc.head.appendChild(el);
-  return true;
+  return injectCss(doc as never, "vyre-root-font", rootFontCss());
 }

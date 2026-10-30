@@ -1,12 +1,14 @@
 // ui/Row: the one list item. Hover and selection paint the whole row, edge to edge (spec UI rows).
-// Fixed height (28 with one line, 44 with a note, 62 for the two-line variant) so a list can skip measuring. The note sits under the title.
-// Optional leading and trailing slots sit inside the Pressable, so the hover and selection paint stays whole-row (ruling 36).
+// Least height 28 with one line, 44 with a note, 62 for the two-line variant: a list can lay rows out without measuring, because the text never wraps (one line, or two clamped), and a row
+// whose content is taller (a button in the trailing slot, a note that wraps in a card) simply grows, so nothing paints over the next row. The note sits under the title.
+// Optional leading and trailing slots sit inside the Pressable, so the hover and selection paint stays whole-row (ruling 36): leading and trailing are centred to the text column.
 // Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 
 import { createElement, memo, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { RowProps } from "./props.ts";
+import { injectCss } from "../theme/css.ts";
 
 export type { RowProps } from "./props.ts";
 
@@ -22,57 +24,55 @@ export function rowHeight(note?: string, tall = false): number {
 // On the web a row is plain elements, not React Native views: a list scrolls by mounting a few rows a frame, and what one row costs is what a scroll costs (the Records table and the Files list
 // were over the frame budget on the views alone). The styles come from one stylesheet set once; only what changes per row (height, hover and selection tokens) is inline. Every list gets this, and
 // the test ids, heights, tokens and keys are the ones the views drew. Off the web the Pressable below draws the row.
+// The layout is set inline (element styles from script are always allowed, so a page that drops injected <style> text still lays a row out); the sheet only adds what inline cannot, the hover paint.
 let cssDone = false;
 function ensureRowCss(): void {
   if (cssDone) return;
-  const d = (globalThis as { document?: { getElementById(id: string): unknown; createElement(t: string): { id: string; textContent: string }; head?: { appendChild(n: unknown): void } } }).document;
+  const d = (globalThis as { document?: Parameters<typeof injectCss>[0] }).document;
   if (!d || !d.head) return;
-  if (!d.getElementById("vyre-ui-row")) {
-    const el = d.createElement("style");
-    el.id = "vyre-ui-row";
-    el.textContent = ".vyre-row{display:flex;flex-direction:row;align-items:center;flex-shrink:0;position:relative;box-sizing:border-box;width:100%;padding:0 8px;border-radius:6px;cursor:pointer;outline-offset:-2px}"
-      + ".vyre-row:hover{background-color:var(--hover)}"
-      + ".vr-l{flex:none;display:flex;flex-direction:row;align-items:center;justify-content:center}"
-      + ".vr-r{flex:none;display:flex;flex-direction:row;align-items:center;margin-left:8px}"
-      + ".vr-x{flex:1 1 0%;min-width:0;display:flex;flex-direction:column;justify-content:center}"
-      + ".vr-t{color:var(--ink);font-size:13px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-      + ".vr-tl{display:flex;flex-direction:row;align-items:baseline;min-width:0;gap:6px}.vr-tl>.vr-t{flex:none;max-width:70%}"
-      + ".vr-s{flex:0 1 auto;min-width:0;color:var(--ink-3);font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-      + ".vr-m{flex:none;display:flex;flex-direction:row;align-items:center;gap:4px}"
-      + ".vr-n{color:var(--ink-3);font-size:11.5px;line-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-      + ".vr-n2{color:var(--ink-3);font-size:11.5px;line-height:16px;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}";
-    d.head.appendChild(el);
-  }
+  injectCss(d, "vyre-ui-row", ".vyre-row:hover{background-color:var(--hover)}.vyre-row{outline-offset:-2px;cursor:pointer}");
   cssDone = true;
 }
 ensureRowCss();
+
+const ROW_S = { display: "flex", flexDirection: "row", alignItems: "center", flexShrink: 0, position: "relative", boxSizing: "border-box", width: "100%", padding: "0 8px", borderRadius: 6 } as const;
+const LEAD_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" } as const;
+const TRAIL_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", marginLeft: 8 } as const;
+const TEXT_S = { flex: "1 1 0%", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" } as const;
+const TITLE_S = { color: "var(--ink)", fontSize: 13, lineHeight: "18px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+const TLINE_S = { display: "flex", flexDirection: "row", alignItems: "baseline", minWidth: 0, gap: 6 } as const;
+const TITLE_IN_LINE_S = { ...TITLE_S, flex: "none", maxWidth: "70%" } as const;
+const SUFFIX_S = { flex: "0 1 auto", minWidth: 0, color: "var(--ink-3)", fontSize: 12, lineHeight: "18px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+const MARKS_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", gap: 4 } as const;
+const NOTE_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+const NOTE2_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 } as const;
 
 const h = createElement;
 function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
   ensureRowCss();
   const tid = (suffix: string): string | undefined => (id ? `row-${id}${suffix}` : undefined);
   const { style: extra, ...dom } = (domProps ?? {}) as { style?: Record<string, unknown> } & Record<string, unknown>;
-  const titleEl = h("span", { className: "vr-t", ...(emphasis ? { style: BOLD } : {}) }, title);
+  const titleEl = h("span", { style: emphasis ? { ...TITLE_S, ...BOLD } : TITLE_S }, title);
   return h(
     "div",
     {
       role: "button", tabIndex: 0, "aria-label": title, "aria-selected": selected, "data-testid": tid(""), className: "vyre-row",
-      style: { width: "100%", height: rowHeight(note, tall), ...(selected ? SELECTED : hovered ? HOVER : null), ...extra },
+      style: { ...ROW_S, minHeight: rowHeight(note, tall), ...(onPress ? { cursor: "pointer" } : null), ...(selected ? SELECTED : hovered ? HOVER : null), ...extra },
       ...(onPress ? {
         onClick: (e: unknown) => onPress(e as never),
         onKeyDown: (e: { key?: string; preventDefault?: () => void }) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault?.(); onPress(e as never); } },
       } : {}),
       ...dom,
     },
-    leading ? h("div", { className: "vr-l", "data-testid": tid("-leading") }, leading) : null,
+    leading ? h("div", { style: LEAD_S, "data-testid": tid("-leading") }, leading) : null,
     h(
-      "div", { className: "vr-x" },
+      "div", { style: TEXT_S },
       titleSuffix || titleMarks
-        ? h("div", { className: "vr-tl" }, h("span", { className: "vr-t", ...(emphasis ? { style: BOLD } : {}) }, title), titleSuffix ? h("span", { className: "vr-s", "data-testid": tid("-suffix") }, titleSuffix) : null, titleMarks ? h("div", { className: "vr-m", "data-testid": tid("-marks") }, titleMarks) : null)
+        ? h("div", { style: TLINE_S }, h("span", { style: emphasis ? { ...TITLE_IN_LINE_S, ...BOLD } : TITLE_IN_LINE_S }, title), titleSuffix ? h("span", { style: SUFFIX_S, "data-testid": tid("-suffix") }, titleSuffix) : null, titleMarks ? h("div", { style: MARKS_S, "data-testid": tid("-marks") }, titleMarks) : null)
         : titleEl,
-      note ? h("div", { className: tall ? "vr-n2" : "vr-n" }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
+      note ? h("div", { style: tall ? NOTE2_S : NOTE_S }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
     ),
-    trailing ? h("div", { className: "vr-r", "data-testid": tid("-trailing") }, trailing) : null,
+    trailing ? h("div", { style: TRAIL_S, "data-testid": tid("-trailing") }, trailing) : null,
   );
 }
 
@@ -92,7 +92,7 @@ const NativeRow = memo(function NativeRow({ id, title, titleSuffix, titleMarks, 
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       testID={id ? `row-${id}` : undefined}
-      style={[styles.row, { height: rowHeight(note, tall) }, lit && HOVER, selected && SELECTED]}
+      style={[styles.row, { minHeight: rowHeight(note, tall) }, lit && HOVER, selected && SELECTED]}
     >
       {leading ? <View testID={id ? `row-${id}-leading` : undefined} style={styles.leading}>{leading}</View> : null}
       <View style={styles.text}>

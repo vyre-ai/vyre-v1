@@ -8,13 +8,17 @@ import { installComposerForTests } from "../../../../../../ui/src/Composer/Defer
 import { screensById } from "../../../../../../generated/screens.ts";
 import Home from "../index.tsx";
 import { homeBSlots } from "./index.ts";
-import { dismissChecklist, startAsk, unstar } from "./actions.ts";
+import { startAsk, unstar } from "./actions.ts";
+import { setSetupHidden } from "./Checklist.tsx";
+import { publishProgress } from "../../../onboarding/store.ts";
 import type { ActionDeps } from "./actions.ts";
 import { createSampleHomeB } from "./sample.ts";
 import type { SampleHomeB } from "./sample.ts";
 
 installComposerForTests(Composer);
 
+// The setup card is the person's onboarding steps, read from the onboarding host's published progress (a Space whose host has not published draws none).
+const setup = (flow: "personal" | "team" | "member" | null, progress: Record<string, "done" | "later"> = {}): void => { publishProgress(flow ? { flow, progress } : null); setSetupHidden(false); };
 const html = (h: SampleHomeB): string => {
   const { top, bottom } = homeBSlots(h.extras);
   return renderToStaticMarkup(<Home data={h.data} top={top} bottom={bottom} personal={h.extras.space.kind === "personal"} />).replaceAll("<!-- -->", "");
@@ -31,21 +35,27 @@ const deps = (h: SampleHomeB): { d: ActionDeps; notes: { text: string; undo: () 
 };
 
 test("the sections run: checklist on top, then Needs you down to Routines, then Today, Starred and the Ask box", () => {
+  setup("member");
   const out = html(createSampleHomeB("firstrun"));
   const ids = ["s-first", "s-needs", "s-work", "s-away", "s-routines", "s-today", "s-starred", "s-ask"].map((id) => at(out, `data-testid="${id}"`));
   assert.deepEqual([...ids].sort((a, b) => a - b), ids);
+  setup("member", { mine: "done", ai: "done", apps: "done", interview: "done", agents: "done", personal: "done" });
   const done = html(createSampleHomeB("northwind"));
   assert.ok(!has(done, 'data-testid="s-first"'), "a finished checklist leaves the page");
   assert.ok(at(done, 'data-testid="s-routines"') < at(done, 'data-testid="s-today"') && at(done, 'data-testid="s-today"') < at(done, 'data-testid="s-starred"') && at(done, 'data-testid="s-starred"') < at(done, 'data-testid="s-ask"'));
 });
 
-test("the production Home checklist is driven by its server projection, not a timer", () => {
-  assert.equal(screensById.get("home.checklist")?.queries["checklist"]?.cap, "home.checklist");
-  assert.equal(screensById.get("spaces.onboarding")?.queries["checklist"]?.cap, "spaces.onboarding.get");
-  const h = createSampleHomeB("firstrun", { aiConnected: true });
-  assert.ok(has(html(h), ">1 of 6<"));
-  h.setDone("photo_and_title", true);
-  assert.ok(has(html(h), ">2 of 6<"), "the rendered Home card reflects its refreshed server-backed checklist data");
+test("Home draws the person's onboarding steps and the count follows their progress", () => {
+  setup("personal");
+  const h = createSampleHomeB("personal");
+  assert.ok(has(html(h), ">0 of 8<"));
+  setup("personal", { ai: "done" });
+  const out = html(h);
+  assert.ok(has(out, ">1 of 8<"));
+  assert.ok(has(out, 'data-testid="first-setup-interview"') && has(out, 'data-testid="first-go-setup-interview"'));
+  assert.ok(!has(out, 'data-testid="first-go-setup-ai"'), "a done step has no button");
+  setup("personal", { ai: "done", interview: "later" });
+  assert.ok(has(html(h), "Skipped") && has(html(h), ">Resume<"), "a step put off says so and offers Resume");
 });
 
 test("Today shows the day in order with Now, Next and Join, and the past event is quiet without a Join", () => {
@@ -108,34 +118,37 @@ test("a failed unstar becomes a quiet line, not a thrown error", async () => {
   assert.equal(notes.at(-1)?.text, "Could not remove that star. Try again.");
 });
 
-test("the first-run checklist counts, locks the assistant until an AI account is connected, and unlocks", () => {
-  const h = createSampleHomeB("firstrun");
-  const out = html(h);
-  assert.ok(has(out, ">Get started<") && has(out, ">0 of 6<"));
-  assert.ok(has(out, "Connect an AI account") && has(out, "Your assistant stays locked until you do"));
-  assert.ok(has(out, "Connect an AI account first") && has(out, ">Locked<"));
-  assert.ok(has(out, "Next to your name in Northwind"));
-  h.setAi(true);
-  const unlocked = html(h);
-  assert.ok(has(unlocked, ">1 of 6<"));
-  assert.ok(!has(unlocked, ">Locked<") && has(unlocked, 'data-testid="first-go-meet_assistant"'));
+test("there is one setup card: the onboarding steps, with no separate Get started list", () => {
+  setup("member");
+  const out = html(createSampleHomeB("firstrun"));
+  assert.ok(has(out, ">Set up<") && has(out, ">0 of 6<"));
+  assert.ok(!has(out, ">Get started<") && !has(out, "Add a photo and title") && !has(out, "Connect your mailbox and calendar") && !has(out, "Meet your assistant"));
+  assert.equal(out.split('data-testid="s-first"').length - 1, 1, "one card");
+  for (const k of ["mine", "ai", "apps", "interview", "agents", "personal"]) assert.ok(has(out, `data-testid="first-go-setup-${k}"`), k);
 });
 
-test("each checklist row finishes when its work is done and the card goes once all are done", () => {
-  const h = createSampleHomeB("firstrun", { aiConnected: true });
-  h.setDone("photo_and_title", true);
-  assert.ok(has(html(h), ">2 of 6<"));
-  for (const k of ["connect_mailbox_and_calendar", "meet_assistant", "open_first_project", "import"]) h.setDone(k, true);
-  assert.ok(!has(html(h), 'data-testid="s-first"'));
+test("each setup row is a ui/Row that grows with its content and lays out by itself: icon tile, title and note stacked, button on the right", () => {
+  setup("personal");
+  const out = html(createSampleHomeB("personal"));
+  const row = out.slice(at(out, 'data-testid="row-first-setup-ai"'));
+  assert.match(row.slice(0, 400), /min-height:44px/);
+  assert.doesNotMatch(row.slice(0, 400), /[;"]height:44px/);
+  assert.ok(at(row, 'data-testid="row-first-setup-ai-leading"') < at(row, ">Connect your AI<") && at(row, ">Connect your AI<") < at(row, 'data-testid="row-first-setup-ai-trailing"'));
 });
 
-test("hiding the checklist calls the capability and the card leaves", async () => {
-  const h = createSampleHomeB("firstrun");
-  const { d } = deps(h);
-  assert.ok(has(html(h), 'data-testid="s-first"'));
-  assert.equal(await dismissChecklist(d), true);
-  assert.ok(!has(html(h), 'data-testid="s-first"'));
-  assert.deepEqual(h.calls.map((c) => c.cap), ["home.dismiss_checklist"]);
+test("the card goes once every step is done", () => {
+  setup("personal", { ai: "done", interview: "done", sessions: "done", folders: "done", chrome: "done", phone: "done", win: "done", team: "done" });
+  assert.ok(!has(html(createSampleHomeB("personal")), 'data-testid="s-first"'));
+});
+
+test("hiding the setup card leaves an Undo line, and Undo brings it back", () => {
+  setup("personal");
+  const h = createSampleHomeB("personal");
+  assert.ok(has(html(h), 'data-testid="first-hide"'));
+  setSetupHidden(true);
+  assert.ok(has(html(h), "Setup hidden") && has(html(h), 'data-testid="first-undo"') && !has(html(h), 'data-testid="first-go-setup-ai"'));
+  setSetupHidden(false);
+  assert.ok(has(html(h), 'data-testid="first-go-setup-ai"'));
 });
 
 test("the Ask box starts a chat with the assistant and returns the thread to open", async () => {
@@ -172,12 +185,12 @@ test("the Ask box is a composer for the assistant; without an AI account it is l
 });
 
 test("Personal Space: no Today without a calendar, no project row, and the assistant stays locked until an account is connected", () => {
+  setup("personal");
   const out = html(createSampleHomeB("personal"));
   assert.ok(!has(out, 'data-testid="s-today"'), "Today needs a connected calendar");
   assert.ok(has(out, 'data-testid="s-first"') && !has(out, "Open your first project"));
-  assert.ok(has(out, ">0 of 4<"));
+  assert.ok(has(out, ">0 of 8<"));
   assert.ok(has(out, 'data-testid="ask-locked"'));
-  assert.ok(has(out, "Next to your name in Personal"));
 });
 
 test("Personal Space with a calendar connected draws Today again", () => {
@@ -213,6 +226,7 @@ test("Harbor Studio draws its own day and stars", () => {
 });
 
 test("the sections draw from the kept copy: offline changes nothing in Today, Starred or the checklist", () => {
+  setup("member");
   const h = createSampleHomeB("firstrun", { online: false });
   const out = html(h);
   assert.ok(has(out, "Offline, showing your saved copy"));

@@ -3,12 +3,17 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { registry } from "../../../../../../generated/registry.ts";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { MenuButton } from "../operations/parts.tsx";
 import { useOptionalAutomationsData } from "./data.tsx";
 
-const OUTWARD = new Set(registry.steps.filter((s) => s.effects === "outward").map((s) => s.key));
+// The steps that reach people or other systems. This is a list, not a read of generated/registry.json: generated/registry.ts loads that file with readFileSync at module load, which has no
+// file to read in the web bundle or in the static export. The test next to this file checks the list against the registry, so a new outward step fails it until it is added here.
+export const OUTWARD_STEPS: readonly string[] = [
+  "connector_request", "github.issue.comment", "github.issue.create", "google.calendar.create_event", "google.docs.create_document", "google.drive.create_folder", "google.gmail.send_message",
+  "google.sheets.append_values", "http_request", "ms.calendar.create_event", "ms.drive.create_folder", "ms.mail.send_message", "post_message", "send_email", "send_sms", "sign",
+];
+const OUTWARD = new Set(OUTWARD_STEPS);
 
 /** A step that reaches people or other systems. Only these carry the setting. */
 export const sendsOutward = (key: string): boolean => OUTWARD.has(key);

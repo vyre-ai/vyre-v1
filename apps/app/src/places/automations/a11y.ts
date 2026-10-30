@@ -1,3 +1,4 @@
+import { injectCss } from "../../../../../ui/src/theme/css.ts";
 // Names and key order for the builder. Screens import these. An empty list stays empty.
 
 /** Skin token already used for focus. Not a new colour. */
@@ -12,10 +13,7 @@ export function focusRingCss(): string {
 export function installFocusRing(): void {
   const doc = (globalThis as { document?: { getElementById(id: string): unknown; head?: { appendChild(node: unknown): void }; createElement(tag: string): { id: string; textContent: string } } }).document;
   if (!doc?.head || !doc.createElement || doc.getElementById("vyre-auto-focus")) return;
-  const el = doc.createElement("style");
-  el.id = "vyre-auto-focus";
-  el.textContent = focusRingCss();
-  doc.head.appendChild(el);
+  injectCss(doc as never, "vyre-auto-focus", focusRingCss());
 }
 
 export function cardLabel(input: { title: string; sub: string; issues: number; chip?: string | null; state?: string | null }): string {

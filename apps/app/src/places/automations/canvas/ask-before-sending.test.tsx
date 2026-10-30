@@ -3,7 +3,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
-import { AskBeforeSending, approvalChoices, approvalNote, sendsOutward } from "./AskBeforeSending.tsx";
+import { registry } from "../../../../../../generated/registry.ts";
+import { AskBeforeSending, OUTWARD_STEPS, approvalChoices, approvalNote, sendsOutward } from "./AskBeforeSending.tsx";
 import { updateStep } from "./model.ts";
 
 const def = { triggers: [{ key: "manual" }], nodes: [{ id: "mail", key: "send_email", input: {} }] } as never;
@@ -11,6 +12,10 @@ const def = { triggers: [{ key: "manual" }], nodes: [{ id: "mail", key: "send_em
 test("only steps that reach people or other systems carry the setting", () => {
   for (const k of ["send_email", "send_sms", "post_message", "connector_request", "google.gmail.send_message"]) assert.equal(sendsOutward(k), true, k);
   for (const k of ["records.update", "wait", "if", "records.find", "approval"]) assert.equal(sendsOutward(k), false, k);
+});
+
+test("the list of outward steps is the registry's: a new outward step fails here until it is added", () => {
+  assert.deepEqual([...OUTWARD_STEPS].sort(), registry.steps.filter((s) => s.effects === "outward").map((s) => s.key).sort());
 });
 
 test("choosing On stores it on the step and choosing Off removes it", () => {
