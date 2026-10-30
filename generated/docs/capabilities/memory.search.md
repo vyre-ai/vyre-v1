@@ -39,9 +39,10 @@ type In = {
 ```ts
 type Out = {
   hits: Array<{
-      kind: "note" | "fact";
+      kind: "note" | "fact" | "page";
       noteId?: string;
       factId?: string;
+      pageId?: string;
       title: string;
       text: string;
       path?: string;
@@ -49,8 +50,22 @@ type Out = {
       layer: "person" | "agent" | "project" | "space";
       sourceLink?: string;
       score: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
   tookMs: number;
+  meaning?: {
+    state: "on" | "loading" | "not_set_up" | "degraded" | "off";
+    model?: string;
+    hint?: string;
+  };
 };
 ```
 
@@ -79,18 +94,33 @@ type Out = {
   "output": {
     "hits": [
       {
+        "by": "example",
+        "byKind": "person",
         "factId": "fct_a1b2c3",
         "kind": "note",
         "layer": "person",
         "noteId": "not_a1b2c3",
+        "pageId": "example",
         "path": "example",
         "score": 1,
         "sourceLink": "example",
+        "sourceTitle": "example",
+        "subject": {
+          "kind": "example",
+          "pageId": "example",
+          "title": "example"
+        },
         "text": "example",
         "title": "example",
-        "trueSince": 1760000000000
+        "trueSince": 1760000000000,
+        "versions": 1
       }
     ],
+    "meaning": {
+      "hint": "example",
+      "model": "example",
+      "state": "on"
+    },
     "tookMs": 1
   }
 }

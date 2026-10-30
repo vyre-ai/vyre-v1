@@ -630,6 +630,7 @@ export function createClient(transport: Transport) {
       accounts: {
         list: call("engine.accounts.list", 1),
       },
+      complete: call("engine.complete", 1),
       defaults: {
         get: call("engine.defaults.get", 1),
         set: call("engine.defaults.set", 1),
@@ -1317,9 +1318,12 @@ export function createClient(transport: Transport) {
       suspend: call("members.suspend", 1),
     },
     memory: {
+      archive_sweep: call("memory.archive_sweep", 1),
+      backlinks: call("memory.backlinks", 1),
       capture: call("memory.capture", 1),
       counts: call("memory.counts", 1),
       erase: call("memory.erase", 1),
+      export_markdown: call("memory.export_markdown", 1),
       fact: {
         accept: call("memory.fact.accept", 1),
         correct: call("memory.fact.correct", 1),
@@ -1343,13 +1347,27 @@ export function createClient(transport: Transport) {
         get: call("memory.layout.get", 1),
         save: call("memory.layout.save", 1),
       },
+      learned: call("memory.learned", 1),
       maintain: call("memory.maintain", 1),
       map: {
         get: call("memory.map.get", 1),
       },
+      meaning: {
+        rank: call("memory.meaning.rank", 1),
+        status: call("memory.meaning.status", 1),
+      },
       notes: {
         erase: call("memory.notes.erase", 1),
         list: call("memory.notes.list", 1),
+      },
+      page: {
+        delete: call("memory.page.delete", 1),
+        get: call("memory.page.get", 1),
+        list: call("memory.page.list", 1),
+        put: call("memory.page.put", 1),
+        restore_version: call("memory.page.restore_version", 1),
+        set_visibility: call("memory.page.set_visibility", 1),
+        versions: call("memory.page.versions", 1),
       },
       pointer: call("memory.pointer", 1),
       promote: call("memory.promote", 1),
@@ -1359,9 +1377,24 @@ export function createClient(transport: Transport) {
         undo: call("memory.promotion.undo", 1),
       },
       propose_fact: call("memory.propose_fact", 1),
+      question: {
+        resolve: call("memory.question.resolve", 1),
+      },
+      questions: {
+        list: call("memory.questions.list", 1),
+      },
       read_note: call("memory.read_note", 1),
+      restore: call("memory.restore", 1),
       restore_version: call("memory.restore_version", 1),
       search: call("memory.search", 1),
+      trail: call("memory.trail", 1),
+      trash: {
+        search: call("memory.trash.search", 1),
+      },
+      undo: call("memory.undo", 1),
+      upkeep: {
+        status: call("memory.upkeep.status", 1),
+      },
       versions: call("memory.versions", 1),
     },
     mounts: {

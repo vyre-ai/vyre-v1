@@ -26,6 +26,7 @@ Erase completely: delete facts from history; open to the source person or an adm
 ```ts
 type In = {
   factIds?: Array<string>;
+  pageIds?: Array<string>;
   scope?: {
     layer: "person" | "agent" | "project" | "space";
     agentId?: string;
@@ -60,6 +61,9 @@ type Out = {
   "input": {
     "factIds": [
       "fct_a1b2c3"
+    ],
+    "pageIds": [
+      "example"
     ],
     "reason": "example",
     "scope": {

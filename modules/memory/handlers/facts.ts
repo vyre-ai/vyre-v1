@@ -4,7 +4,15 @@
 // DECISION: where a fact lands follows "who accepts what" in spec 2.15: channel facts go straight to the project layer, run and Journey facts wait in proposed for the agent owner,
 //   everything from a chat goes to the asker's own layer and merges on its own only for a kind in the setting memory.auto_merge_kinds (default preference), or when the person typed it themselves.
 // DECISION: search is local and has no model call: BM25 over words, character trigrams for the "semantic" side, a small recency lift. The vector table of ARCH 6.10 is the same call shape and slots in later.
-import { excerpt } from "../../../lib/md.ts";
+import { extrasFor, factRows } from "../enrich.ts";
+import { meaningScores } from "../meaning.ts";
+import { reviewRequired } from "../policy.ts";
+import { trail, whoIs } from "../trail.ts";
+import type { Who } from "../trail.ts";
+import { emitAccepted, emitLearned, emitProposed, insertFact, normal } from "../factcore.ts";
+import { loadPage, readPage } from "../pages.ts";
+import { touchIfTrashed, trashFact } from "./lifecycle.ts";
+import { erasePage } from "./pages.ts";
 import {
   actorOf, autoMergeKinds, bm25, ensure, factOut, liveNow, loadFact, makeAccess, mintId, num, orNull, ownerOfLayer, pageOf, raise, readFact, recencyBoost, rowsOf, sealText, snippet, sourceLinkOf,
   str, tokens, trigramSim,
@@ -16,34 +24,6 @@ const LAYERS: readonly Layer[] = ["person", "agent", "project", "space"];
 type Page = { cursor?: string; limit?: number };
 
 // ---- shared pieces
-
-interface NewFact {
-  layer: Layer; ownerRef: string; agentId: string | null; projectId: string | null; noteId?: string | null; kind: string | null; text: string; validFrom: number;
-  sourceKind: SourceKind; sourceRef: string; sourcePerson: string; proposedBy: string; status: FactStatus; lowRisk: boolean; replaces?: string | null;
-  promotedFrom?: string | null; promotedBy?: string | null; promotedAt?: number | null; links?: Array<[string, string]>;
-}
-
-/** Insert one fact row (sealed when it is a person-layer fact) and its source links. */
-function insertFact(ctx: MemCtx, n: NewFact): Fact {
-  const id = mintId("fct", ctx.now());
-  const sealed = n.layer === "person";
-  const link = sourceLinkOf(n.sourceKind, n.sourceRef);
-  const subject = n.sourceKind === "record" ? n.sourceRef : null;
-  ctx.db.run(
-    "INSERT INTO memory_facts (id, layer, owner_ref, agent_id, project_id, note_id, kind, text, sealed, enc, valid_from, valid_to, learned_at, closed_at, source_kind, source_ref, source_link, source_person, proposed_by, status, low_risk, subject, replaces, promoted_from, promoted_by, promoted_at) " +
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, n.layer, n.ownerRef, n.agentId, n.projectId, n.noteId ?? null, n.kind, sealed ? "" : n.text, sealed ? sealText(ctx, n.ownerRef, n.text) : null, sealed ? 2 : 0, n.validFrom,
-    ctx.now(), n.sourceKind, n.sourceRef, link, n.sourcePerson, n.proposedBy, n.status, n.lowRisk ? 1 : 0, subject, n.replaces ?? null, n.promotedFrom ?? null, n.promotedBy ?? null, n.promotedAt ?? null,
-  );
-  ctx.db.run("INSERT OR IGNORE INTO memory_fact_links (fact_id, kind, ref) VALUES (?, 'came_from', ?)", id, n.sourceRef);
-  for (const [k, ref] of n.links ?? []) ctx.db.run("INSERT OR IGNORE INTO memory_fact_links (fact_id, kind, ref) VALUES (?, ?, ?)", id, k, ref);
-  const f = loadFact(ctx, id);
-  if (!f) raise(ctx, "internal.unexpected", "The fact was not saved.");
-  f.text = n.text;
-  return f;
-}
-
-const normal = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
 
 /** A live or waiting fact with the same text in the same place, so saving it twice does nothing. */
 function duplicateOf(ctx: MemCtx, layer: Layer, owner: string, agentId: string | null, projectId: string | null, text: string): Fact | null {
@@ -58,16 +38,6 @@ function duplicateOf(ctx: MemCtx, layer: Layer, owner: string, agentId: string |
     if (f.text !== "" && normal(f.text) === want) return f;
   }
   return null;
-}
-
-function emitProposed(ctx: MemCtx, f: Fact): void {
-  ctx.emit("memory.fact_proposed", f.id, {
-    factId: f.id, layer: f.layer, ownerRef: f.ownerRef, ...(f.agentId ? { agentId: f.agentId } : {}), sourceKind: f.sourceKind, sourceRef: f.sourceRef,
-  });
-}
-
-function emitAccepted(ctx: MemCtx, f: Fact, auto: boolean): void {
-  ctx.emit("memory.fact_accepted", f.id, { factId: f.id, layer: f.layer, auto });
 }
 
 /** Who may change this fact: a person layer only its owner, a shared layer anyone with edit on it. */
@@ -121,19 +91,29 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   if (dup) return { fact: factOut(dup), merged: dup.status === "current" };
 
   const low = input.kind !== undefined && (await autoMergeKinds(ctx)).includes(input.kind);
+  // An agent that saves a fact follows its own capture mode: auto saves it (and it shows in the Learned feed with Undo), propose waits for a person.
+  const modeAgent = ctx.principal.kind === "agent" ? ctx.principal.id : agentId;
+  const mode = modeAgent ? await captureModeOf(ctx, modeAgent) : null;
+  const byAgent = ctx.principal.kind === "agent";
+  const autoSave = mode === "auto" && byAgent;
   let status: FactStatus = "proposed";
-  if (input.sourceKind === "run" || input.sourceKind === "journey") status = "proposed";
+  if (autoSave) status = layer === "person" || (await access.can(layer, owner, agentId, projectId, "edit")) ? "current" : "proposed";
+  else if (input.sourceKind === "run" || input.sourceKind === "journey") status = "proposed";
   else if (layer === "project" && input.sourceKind === "channel") status = "current";
   else if (layer === "person") status = low || (input.sourceKind === "manual" && ctx.principal.kind === "person") ? "current" : "proposed";
   else if (low && (await access.can(layer, owner, agentId, projectId, "edit"))) status = "current";
+  // "Require review for shared memory": what an agent learns for the Space or a project waits in Proposed. A person typing a fact in themselves is not held back.
+  if (status === "current" && byAgent && (await reviewRequired(ctx, layer, layer === "project" ? projectId : null))) status = "proposed";
 
   const f = insertFact(ctx, {
     layer, ownerRef: owner, agentId: layer === "project" ? null : agentId, projectId: layer === "project" ? projectId : null, kind: input.kind ?? null, text,
     validFrom: input.validFrom ?? ctx.now(), sourceKind: input.sourceKind, sourceRef: input.sourceRef, sourcePerson: actor, proposedBy: ctx.principal.id, status, lowRisk: low,
     ...(input.threadId ? { links: [["thread", input.threadId]] as Array<[string, string]> } : {}),
+    ...(byAgent ? { how: "learn" as const } : {}),
   });
   emitProposed(ctx, f);
   if (status === "current") emitAccepted(ctx, f, true);
+  if (byAgent) emitLearned(ctx, f, status === "current");
   return { fact: factOut(f), merged: status === "current" };
 }
 
@@ -145,6 +125,7 @@ export async function factAccept(ctx: MemCtx, input: { factId: string }) {
   await needEdit(ctx, makeAccess(ctx), f);
   if (f.status !== "proposed") raise(ctx, "validation.precondition_failed", "Only a proposed fact can be accepted.", { status: f.status });
   ctx.db.run("UPDATE memory_facts SET status = 'current' WHERE id = ?", f.id);
+  trail(ctx, { action: "accept", factId: f.id, layer: f.layer, ownerRef: f.ownerRef, agentId: f.agentId, projectId: f.projectId });
   emitAccepted(ctx, f, false);
   return { fact: factOut({ ...f, status: "current" }) };
 }
@@ -154,7 +135,7 @@ export async function factReject(ctx: MemCtx, input: { factId: string }) {
   const f = needFact(ctx, input.factId);
   await needEdit(ctx, makeAccess(ctx), f);
   if (f.status !== "proposed") raise(ctx, "validation.bad_input", "Only a proposed fact can be rejected.", { status: f.status });
-  ctx.db.run("UPDATE memory_facts SET status = 'removed', closed_at = ? WHERE id = ?", ctx.now(), f.id);
+  trashFact(ctx, f, { reason: "rejected", action: "reject" });
   ctx.emit("memory.fact_rejected", f.id, { factId: f.id, by: actorOf(ctx) });
   return { fact: factOut({ ...f, status: "removed", closedAt: ctx.now() }) };
 }
@@ -171,6 +152,7 @@ export async function factCorrect(ctx: MemCtx, input: { factId: string; text: st
   const fresh = insertFact(ctx, {
     layer: old.layer, ownerRef: old.ownerRef, agentId: old.agentId, projectId: old.projectId, noteId: old.noteId, kind: old.kind, text, validFrom: input.validFrom ?? now,
     sourceKind: "manual", sourceRef: old.id, sourcePerson: actorOf(ctx), proposedBy: ctx.principal.id, status: "current", lowRisk: false, replaces: old.id,
+    how: "edit", why: "corrected",
   });
   ctx.emit("memory.fact_corrected", fresh.id, { factId: fresh.id, closedFactId: old.id, by: actorOf(ctx) });
   return { fact: factOut(fresh), closed: factOut({ ...old, status: "closed", validTo: now, closedAt: now }) };
@@ -192,7 +174,6 @@ export async function factsRemove(ctx: MemCtx, input: { factIds?: string[]; scop
     if (s.fromMe) { sql += " AND source_person = ?"; args.push(me); }
     rows = rowsOf(ctx.db, sql, ...args);
   } else raise(ctx, "validation.bad_input", "Name the facts to remove, or a layer.");
-  const now = ctx.now();
   const removed: string[] = [];
   for (const r of rows) {
     const f = readFact(ctx, r);
@@ -201,17 +182,30 @@ export async function factsRemove(ctx: MemCtx, input: { factIds?: string[]; scop
       if (input.factIds) raise(ctx, "permission.no_grant", "You cannot change this memory.");
       continue;
     }
-    ctx.db.run("UPDATE memory_facts SET status = 'removed', closed_at = ?, valid_to = COALESCE(valid_to, ?) WHERE id = ?", now, now, f.id);
+    if (!trashFact(ctx, f, { reason: "removed" })) continue;
     removed.push(f.id);
   }
   if (removed.length > 0) ctx.emit("memory.removed", me, { factIds: removed, by: me });
   return { removed: removed.length };
 }
 
-export async function erase(ctx: MemCtx, input: { factIds?: string[]; scope?: { layer: Layer; agentId?: string; sourceRef?: string; subject?: string }; reason?: string }) {
+export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: string[]; scope?: { layer: Layer; agentId?: string; sourceRef?: string; subject?: string }; reason?: string }) {
   ensure(ctx.db);
   const me = actorOf(ctx);
   const access = makeAccess(ctx);
+  // Pages named here are erased with their versions, links and mentions; open to a personal page's owner or an admin. Their trail line holds no words.
+  let pagesErased = 0;
+  for (const id of input.pageIds ?? []) {
+    const page = loadPage(ctx, id);
+    if (!page) continue;
+    if (!(access.isAdmin() || (page.layer === "person" && page.ownerRef === me))) raise(ctx, "permission.no_grant", "Only an admin, or the owner of a personal page, can erase it.");
+    erasePage(ctx, page, input.reason);
+    pagesErased++;
+  }
+  if (pagesErased > 0 && !(input.factIds && input.factIds.length > 0) && !input.scope) {
+    ctx.emit("memory.erased", me, { count: pagesErased, by: me, scope: "page" });
+    return { erased: pagesErased };
+  }
   let rows: Row[] = [];
   if (input.factIds && input.factIds.length > 0) {
     for (const id of input.factIds) rows.push(...rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE id = ?", id));
@@ -243,12 +237,20 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; scope?: { 
     }
   }
   for (const id of all) {
+    // The line the trail keeps says that a fact was erased, by whom, when and where it lived. It never holds the words.
+    const r = rowsOf(ctx.db, "SELECT layer, owner_ref, agent_id, project_id FROM memory_facts WHERE id = ?", id)[0];
+    trail(ctx, {
+      action: "erase", factId: id, ...(r ? { layer: str(r["layer"]) as Layer, ownerRef: str(r["owner_ref"]), agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]) } : {}),
+      ...(input.reason ? { reason: input.reason } : {}),
+    });
     ctx.db.run("DELETE FROM memory_fact_links WHERE fact_id = ?", id);
     ctx.db.run("DELETE FROM memory_promotions WHERE fact_id = ?", id);
+    ctx.db.run("DELETE FROM memory_vectors WHERE doc_kind = 'fact' AND doc_id = ?", id);
+    ctx.db.run("DELETE FROM memory_questions WHERE fact_a = ? OR fact_b = ?", id, id);
     ctx.db.run("DELETE FROM memory_facts WHERE id = ?", id);
   }
-  ctx.emit("memory.erased", me, { count: all.size, by: me, ...(input.scope ? { scope: input.scope.layer } : {}) });
-  return { erased: all.size };
+  ctx.emit("memory.erased", me, { count: all.size + pagesErased, by: me, ...(input.scope ? { scope: input.scope.layer } : {}) });
+  return { erased: all.size + pagesErased };
 }
 
 // ---- reads
@@ -260,6 +262,7 @@ export async function factGet(ctx: MemCtx, input: { factId: string }) {
   if (f.layer === "person" ? f.ownerRef !== actorOf(ctx) : !(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"))) {
     raise(ctx, "validation.not_found", "There is no such fact.", { factId: input.factId });
   }
+  touchIfTrashed(ctx, f);
   const history: Fact[] = [];
   const seen = new Set<string>([f.id]);
   for (let cur = f.replaces; cur && !seen.has(cur);) {
@@ -269,7 +272,7 @@ export async function factGet(ctx: MemCtx, input: { factId: string }) {
     history.push(prev);
     cur = prev.replaces;
   }
-  return { fact: factOut(f), history: history.map(factOut) };
+  return { fact: factRows(ctx, [f])[0]!, history: history.map(factOut) };
 }
 
 export async function factsList(
@@ -293,7 +296,7 @@ export async function factsList(
     facts = facts.filter((f) => f.text.toLowerCase().includes(needle));
   }
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: p.page.map(factOut), ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 export async function factsAsOf(ctx: MemCtx, input: Page & { date: number; agentId?: string; layer?: Layer; q?: string }) {
@@ -310,7 +313,7 @@ export async function factsAsOf(ctx: MemCtx, input: Page & { date: number; agent
     facts = facts.filter((f) => f.text.toLowerCase().includes(needle));
   }
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: p.page.map(factOut), ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 export async function layersList(ctx: MemCtx, input: { agentId?: string; projectId?: string }) {
@@ -361,7 +364,7 @@ export async function mapGet(ctx: MemCtx, input: { agentId: string }) {
 
 // ---- search
 
-interface Doc { kind: "fact" | "note"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number; shared: boolean }
+interface Doc { kind: "fact" | "note" | "page"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number; shared: boolean }
 
 /** The notes the caller may read, as documents. Person-layer notes are indexed by sealed title only. */
 async function noteDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Array<Doc & { noteId: string }>> {
@@ -389,6 +392,26 @@ async function noteDocs(ctx: MemCtx, access: Access, agentId: string | undefined
 
 function readTitle(ctx: MemCtx, sealed: string): string {
   return readFact(ctx, { layer: "person", owner_ref: actorOf(ctx), enc: 2, sealed, text: "" }).text;
+}
+
+/** The pages the caller may read, as documents: the title and the Notes. A personal page is the owner's alone and is indexed by its opened Notes only for them. */
+async function pageDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Doc[]> {
+  const me = actorOf(ctx);
+  const args: unknown[] = [me];
+  let sql = "SELECT * FROM memory_pages WHERE trashed_at IS NULL AND (layer != 'person' OR owner_ref = ?)";
+  if (agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(agentId); }
+  if (projectId) { sql += " AND (project_id = ? OR layer != 'project')"; args.push(projectId); }
+  const out: Doc[] = [];
+  const memo = new Map<string, boolean>();
+  for (const r of rowsOf(ctx.db, sql, ...args)) {
+    const p = readPage(ctx, r);
+    const key = `${p.layer}|${p.ownerRef}|${p.agentId ?? ""}|${p.projectId ?? ""}`;
+    let ok = memo.get(key);
+    if (ok === undefined) { ok = p.layer === "person" ? p.ownerRef === me : await access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "view"); memo.set(key, ok); }
+    if (!ok) continue;
+    out.push({ kind: "page", id: p.id, title: p.title, text: p.notes, layer: p.layer, path: null, since: null, link: `/memory/pages/${p.id}`, learnedAt: p.updatedAt, shared: p.layer !== "person" });
+  }
+  return out;
 }
 
 async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Doc[]> {
@@ -441,32 +464,42 @@ export async function search(
   if (q === "") raise(ctx, "validation.bad_input", "Ask for something to look up.");
   const access = makeAccess(ctx);
   const layers = new Set<Layer>(input.layers && input.layers.length > 0 ? input.layers : LAYERS);
-  const docs = [...(await factDocs(ctx, access, input.agentId, input.projectId)), ...(await noteDocs(ctx, access, input.agentId, input.projectId))].filter((d) => layers.has(d.layer));
+  const docs = [...(await factDocs(ctx, access, input.agentId, input.projectId)), ...(await noteDocs(ctx, access, input.agentId, input.projectId)), ...(await pageDocs(ctx, access, input.agentId, input.projectId))].filter((d) => layers.has(d.layer));
   const mode = input.mode ?? "hybrid";
   const ranked = bm25(docs, q);
   const top = Math.max(0, ...ranked.map((r) => r.score));
   const now = ctx.now();
+  // Meaning: the question against each document by a small embedding model, when one is ready. Keyword mode never asks for it.
+  const meaning = mode === "keyword" ? null : await meaningScores(ctx, docs.map((d) => ({ kind: d.kind, id: d.id, text: `${d.title} ${d.text}`, shared: d.shared })), q);
+  const cos = (d: Doc): number | undefined => meaning?.scores?.get(`${d.kind}:${d.id}`);
   const hits: Array<{ doc: Doc; score: number }> = [];
   docs.forEach((d, i) => {
     const r = ranked[i]!;
     const sim = trigramSim(q, `${d.title} ${d.text}`);
+    const mean = cos(d);
     let score = 0;
     if (mode === "keyword") score = r.matched > 0 ? r.score : 0;
-    else if (mode === "semantic") score = sim >= 0.12 ? sim : 0;
-    else if (r.matched > 0 || sim >= 0.25) score = (top > 0 ? 0.65 * (r.score / top) : 0) + 0.35 * sim;
+    else if (mode === "semantic") score = mean !== undefined ? mean : sim >= 0.12 ? sim : 0;
+    else if (mean !== undefined) {
+      // blend: BM25 (words), trigrams (spelling) and meaning; a word match or a close meaning admits a document
+      if (r.matched > 0 || sim >= 0.25 || mean > 0) score = (top > 0 ? 0.45 * (r.score / top) : 0) + 0.15 * sim + 0.4 * mean;
+    } else if (r.matched > 0 || sim >= 0.25) score = (top > 0 ? 0.65 * (r.score / top) : 0) + 0.35 * sim;
     if (score > 0 && d.kind === "fact") score += recencyBoost(d.learnedAt, now) * (mode === "keyword" ? top / 10 : 0.1);
     if (score > 0) hits.push({ doc: d, score });
   });
   hits.sort((a, b) => b.score - a.score || a.doc.id.localeCompare(b.doc.id));
   const limit = input.limit ?? 10;
+  const shown = hits.slice(0, limit);
+  const extra = extrasFor(ctx, shown.filter((h) => h.doc.kind === "fact").map((h) => loadFact(ctx, h.doc.id)).filter((f): f is Fact => f !== null).map((f) => (f.text === "" ? { ...f, text: shown.find((h) => h.doc.id === f.id)?.doc.text ?? "" } : f)));
   return {
-    hits: hits.slice(0, limit).map(({ doc, score }) => ({
+    hits: shown.map(({ doc, score }) => ({
       kind: doc.kind,
-      ...(doc.kind === "fact" ? { factId: doc.id } : { noteId: doc.id }),
+      ...(doc.kind === "fact" ? { factId: doc.id } : doc.kind === "page" ? { pageId: doc.id } : { noteId: doc.id }),
       title: doc.title, text: snippet(doc.text || doc.title, q), ...(doc.path ? { path: doc.path } : {}), ...(doc.since !== null ? { trueSince: doc.since } : {}), layer: doc.layer,
-      ...(doc.link ? { sourceLink: doc.link } : {}), score: Math.round(score * 10_000) / 10_000,
+      ...(doc.link ? { sourceLink: doc.link } : {}), score: Math.round(score * 10_000) / 10_000, ...(doc.kind === "fact" ? extra.get(doc.id) ?? {} : {}),
     })),
     tookMs: Math.max(0, Math.round(performance.now() - t0)),
+    ...(meaning ? { meaning: { state: meaning.status.state, ...(meaning.status.model ? { model: meaning.status.model } : {}), ...(meaning.status.hint ? { hint: meaning.status.hint } : {}) } } : {}),
   };
 }
 
@@ -614,7 +647,7 @@ export async function findBySubject(ctx: MemCtx, input: Page & { subject: string
   const noteRows = rowsOf(ctx.db, "SELECT * FROM memory_notes WHERE layer != 'person' AND (LOWER(title) LIKE ? OR LOWER(body) LIKE ?) ORDER BY updated_at DESC", like, like);
   const notes = noteRows.map((r) => noteRowOut(ctx, r)).filter((n): n is NonNullable<typeof n> => n !== null);
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: p.page.map(factOut), notes, ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { facts: factRows(ctx, p.page), notes, ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 // ---- promotion
@@ -658,7 +691,7 @@ function applyPromotion(ctx: MemCtx, p: Promotion, by: string): Fact {
   const copy = insertFact(ctx, {
     layer: p.toLayer, ownerRef: ownerOfLayer(ctx, p.toLayer, by, p.agentId, p.projectId), agentId: p.toLayer === "agent" ? p.agentId : null, projectId: p.toLayer === "project" ? p.projectId : null,
     kind: src.kind, text, validFrom: src.validFrom, sourceKind: src.sourceKind, sourceRef: src.sourceRef, sourcePerson: src.sourcePerson, proposedBy: p.requestedBy, status: "current",
-    lowRisk: src.lowRisk, promotedFrom: src.id, promotedBy: by, promotedAt: ctx.now(), links: [["promoted_from", src.id]],
+    lowRisk: src.lowRisk, promotedFrom: src.id, promotedBy: by, promotedAt: ctx.now(), links: [["promoted_from", src.id]], how: "promote",
   });
   ctx.db.run("UPDATE memory_promotions SET status = 'approved', decided_by = ?, decided_at = ?, new_fact_id = ? WHERE id = ?", by, ctx.now(), copy.id, p.id);
   ctx.emit("memory.promoted", copy.id, { promotionId: p.id, factId: src.id, newFactId: copy.id, toLayer: p.toLayer, by });
@@ -757,6 +790,8 @@ export async function promotionUndo(ctx: MemCtx, input: { promotionId: string })
   if (!mayUndo) raise(ctx, "permission.no_grant", "Only the person who promoted it or someone who can edit this memory can undo it.");
   const now = ctx.now();
   ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ? AND status = 'current'", now, now, p.newFactId);
+  const copy = loadFact(ctx, p.newFactId);
+  trail(ctx, { action: "edit", factId: p.newFactId, ...(copy ? { layer: copy.layer, ownerRef: copy.ownerRef, agentId: copy.agentId, projectId: copy.projectId } : {}), reason: "promotion undone", detail: { promotionId: p.id } });
   ctx.db.run("UPDATE memory_promotions SET status = 'undone', decided_by = ?, decided_at = ? WHERE id = ?", me, now, p.id);
   ctx.emit("memory.promotion_undone", p.factId, { promotionId: p.id, factId: p.factId, by: me });
   return { ok: true };
@@ -801,11 +836,13 @@ export function setCaptureExtractor(fn: Extractor | null): void {
 
 interface ThreadOut { thread: { kind: string; starter?: string; scopeType?: string; scopeId?: string; agents: Array<{ agentId: string; mode: string }> } }
 
-async function captureModeOf(ctx: MemCtx, agentId: string): Promise<"propose" | "auto_low_risk" | "off" | null> {
+type CaptureMode = "auto" | "propose" | "auto_low_risk" | "off";
+
+async function captureModeOf(ctx: MemCtx, agentId: string): Promise<CaptureMode | null> {
   try {
     const out = (await ctx.call("agents.get", { agentId })) as { agent?: { captureMode?: string } };
     const m = out.agent?.captureMode;
-    return m === "off" || m === "propose" || m === "auto_low_risk" ? m : null;
+    return m === "off" || m === "propose" || m === "auto_low_risk" || m === "auto" ? m : null;
   } catch { return null; }
 }
 
@@ -817,27 +854,33 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   const shared = t.kind === "channel" || t.kind === "thread";
   const fromRun = t.kind === "run";
   const projectId = shared && t.scopeType === "project" && t.scopeId ? t.scopeId : null;
-  // The lead agent's captureMode decides what a chat may leave behind: off saves nothing, propose leaves every fact for a person to accept, auto_low_risk merges the low-risk kinds.
-  // An agent that cannot be read leaves the Space setting in charge, as before.
+  // The lead agent's captureMode decides what a chat may leave behind: auto (the default) saves everything it learns and shows it in the Learned feed with Undo, propose leaves every fact for a person
+  // to accept, auto_low_risk merges the low-risk kinds, off saves nothing. An agent that cannot be read leaves the Space setting in charge, as before.
   const mode = agentId ? await captureModeOf(ctx, agentId) : null;
   if (mode === "off") return { proposed: 0, merged: 0 };
+  const auto = mode === "auto";
   const kinds = mode === "propose" ? [] : await autoMergeKinds(ctx);
+  // Memory itself learned these: the actor on the trail is the lead agent when there is one, else whoever captured.
+  const who: Who = agentId ? { actor: agentId, kind: "agent" } : whoIs(ctx);
   let proposed = 0;
   let merged = 0;
   for (const c of await extractor(page.messages)) {
     const key = `${input.threadId}:${c.messageId}:${c.index}`;
     if (rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'capture' AND ref = ?", key)[0]) continue;
     let layer: Layer = "person";
-    let status: FactStatus = kinds.includes(c.kind) ? "current" : "proposed";
+    let status: FactStatus = auto || kinds.includes(c.kind) ? "current" : "proposed";
     let sourceKind: SourceKind = "chat";
-    if (fromRun) { layer = "agent"; status = "proposed"; sourceKind = "run"; }
-    else if (shared) { sourceKind = "channel"; if (projectId) { layer = "project"; status = "current"; } else { layer = agentId ? "agent" : "space"; status = "proposed"; } }
+    if (fromRun) { layer = "agent"; status = auto ? "current" : "proposed"; sourceKind = "run"; }
+    else if (shared) { sourceKind = "channel"; if (projectId) { layer = "project"; status = "current"; } else { layer = agentId ? "agent" : "space"; status = auto ? "current" : "proposed"; } }
+    // "Require review for shared memory": a Space or project fact waits in Proposed whatever the mode.
+    if (status === "current" && (await reviewRequired(ctx, layer, projectId))) status = "proposed";
     const owner = layer === "person" ? c.person : layer === "agent" ? agentId ?? "" : layer === "project" ? projectId ?? "" : ctx.space;
     const f = insertFact(ctx, {
       layer, ownerRef: owner, agentId: layer === "project" || layer === "space" ? null : agentId, projectId: layer === "project" ? projectId : null, kind: c.kind, text: c.text, validFrom: ctx.now(),
-      sourceKind, sourceRef: input.threadId, sourcePerson: c.person, proposedBy: ctx.principal.id, status, lowRisk: kinds.includes(c.kind), links: [["capture", key]],
+      sourceKind, sourceRef: input.threadId, sourcePerson: c.person, proposedBy: ctx.principal.id, status, lowRisk: kinds.includes(c.kind), links: [["capture", key]], how: "learn", who,
     });
     emitProposed(ctx, f);
+    emitLearned(ctx, f, status === "current", who);
     proposed++;
     if (status === "current") { emitAccepted(ctx, f, true); merged++; }
   }
@@ -845,71 +888,8 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   return { proposed, merged };
 }
 
-// ---- nightly job
-
-const MAP_LINES = 190;
-
-function mapBody(agentId: string, notes: Row[], facts: Fact[], at: number): string {
-  const head = [`# Memory map`, ``, `Agent: ${agentId}`, `Updated: ${new Date(at).toISOString().slice(0, 10)}`, ``];
-  const noteLines = notes.map((n) => `- ${str(n["title"])} (${str(n["path"])})`);
-  const factLines = facts.map((f) => `- ${excerpt(f.text, 140)} (since ${new Date(f.validFrom).toISOString().slice(0, 10)})`);
-  const room = Math.max(0, MAP_LINES - head.length - 4);
-  const noteShare = Math.min(noteLines.length, Math.ceil(room / 2));
-  const keptNotes = noteLines.slice(0, noteShare);
-  const keptFacts = factLines.slice(0, Math.max(0, room - keptNotes.length));
-  return [...head, `## Notes`, ...keptNotes, ``, `## Current facts`, ...keptFacts, ``].join("\n");
-}
-
-export async function maintain(ctx: MemCtx, input: { agentId?: string }) {
-  ensure(ctx.db);
-  const now = ctx.now();
-  const only = input.agentId ?? null;
-  // Close what ran past its end date.
-  const closedRes = ctx.db.run(
-    `UPDATE memory_facts SET status = 'closed', closed_at = ? WHERE status = 'current' AND valid_to IS NOT NULL AND valid_to <= ?${only ? " AND agent_id = ?" : ""}`,
-    ...(only ? [now, now, only] : [now, now]),
-  );
-  let closed = closedRes.changes;
-  // Merge accepted shared facts that say the same thing: the earliest stays, the copies are closed.
-  let merged = 0;
-  const rows = rowsOf(
-    ctx.db,
-    `SELECT * FROM memory_facts WHERE status = 'current' AND enc = 0${only ? " AND agent_id = ?" : ""} ORDER BY learned_at, id`,
-    ...(only ? [only] : []),
-  );
-  const keep = new Map<string, string>();
-  for (const r of rows) {
-    const k = `${str(r["layer"])}|${str(r["owner_ref"])}|${str(r["agent_id"])}|${str(r["project_id"])}|${normal(str(r["text"]))}`;
-    if (keep.has(k)) {
-      ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ?", now, now, str(r["id"]));
-      merged++;
-      closed++;
-    } else keep.set(k, str(r["id"]));
-  }
-  // MAP.md for each agent: its notes and current facts, under 200 lines. Personal layers never go in.
-  const agents = new Set<string>();
-  if (only) agents.add(only);
-  else {
-    for (const r of rowsOf(ctx.db, "SELECT DISTINCT agent_id FROM memory_facts WHERE layer = 'agent' AND agent_id IS NOT NULL")) agents.add(str(r["agent_id"]));
-    for (const r of rowsOf(ctx.db, "SELECT DISTINCT agent_id FROM memory_notes WHERE layer = 'agent' AND agent_id IS NOT NULL")) agents.add(str(r["agent_id"]));
-  }
-  let maps = 0;
-  for (const a of [...agents].sort()) {
-    const notes = rowsOf(ctx.db, "SELECT title, path, file_id FROM memory_notes WHERE layer = 'agent' AND agent_id = ? AND LOWER(path) NOT LIKE '%/map.md' ORDER BY title", a);
-    const facts = rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE layer = 'agent' AND agent_id = ? AND status = 'current' ORDER BY learned_at DESC, id", a).map((r) => readFact(ctx, r));
-    const body = mapBody(a, notes, facts, now);
-    const lines = body.split("\n").length;
-    const known = rowsOf(ctx.db, "SELECT file_id FROM memory_notes WHERE layer = 'agent' AND agent_id = ? AND LOWER(path) LIKE '%/map.md'", a)[0];
-    const fileId = known ? str(known["file_id"]) : null;
-    if (fileId) {
-      try { await ctx.call("files.write", { fileId, content: { text: body }, reason: "Nightly memory map" }); } catch { ctx.log.warn("MAP.md could not be written", { agentId: a }); }
-    }
-    ctx.db.run("INSERT OR REPLACE INTO memory_maps (agent_id, file_id, body, lines, updated_at) VALUES (?, ?, ?, ?, ?)", a, fileId, body, lines, now);
-    ctx.emit("memory.map_rewritten", a, { agentId: a, lines });
-    maps++;
-  }
-  return { merged, closed, maps };
-}
+// ---- nightly job: lives in upkeep.ts (rules, the model seam, spend and the cap); re-exported here for the callers that import it from the facts handlers
+export { maintain } from "./upkeep.ts";
 
 /** Used by tests and the pointer proof set: how many words a query has once stop words are gone. */
 export const queryTerms = (q: string): number => new Set(tokens(q)).size;

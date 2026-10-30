@@ -29,6 +29,9 @@ type In = {
   agentId?: string;
   asOf?: number;
   kinds?: Array<string>;
+  layers?: Array<"person" | "agent" | "project" | "space">;
+  focus?: string;
+  hops?: number;
 };
 ```
 
@@ -55,8 +58,13 @@ type Out = {
   "input": {
     "agentId": "agt_a1b2c3",
     "asOf": 1760000000000,
+    "focus": "example",
+    "hops": 1,
     "kinds": [
       "example"
+    ],
+    "layers": [
+      "person"
     ],
     "scope": "agent"
   },

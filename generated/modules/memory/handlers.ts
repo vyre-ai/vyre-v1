@@ -5,9 +5,12 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "memory.archive_sweep": Handler<"memory.archive_sweep", X>;
+  "memory.backlinks": Handler<"memory.backlinks", X>;
   "memory.capture": Handler<"memory.capture", X>;
   "memory.counts": Handler<"memory.counts", X>;
   "memory.erase": Handler<"memory.erase", X>;
+  "memory.export_markdown": Handler<"memory.export_markdown", X>;
   "memory.fact.accept": Handler<"memory.fact.accept", X>;
   "memory.fact.correct": Handler<"memory.fact.correct", X>;
   "memory.fact.get": Handler<"memory.fact.get", X>;
@@ -23,18 +26,35 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.layers.list": Handler<"memory.layers.list", X>;
   "memory.layout.get": Handler<"memory.layout.get", X>;
   "memory.layout.save": Handler<"memory.layout.save", X>;
+  "memory.learned": Handler<"memory.learned", X>;
   "memory.maintain": Handler<"memory.maintain", X>;
   "memory.map.get": Handler<"memory.map.get", X>;
+  "memory.meaning.rank": Handler<"memory.meaning.rank", X>;
+  "memory.meaning.status": Handler<"memory.meaning.status", X>;
   "memory.notes.erase": Handler<"memory.notes.erase", X>;
   "memory.notes.list": Handler<"memory.notes.list", X>;
+  "memory.page.delete": Handler<"memory.page.delete", X>;
+  "memory.page.get": Handler<"memory.page.get", X>;
+  "memory.page.list": Handler<"memory.page.list", X>;
+  "memory.page.put": Handler<"memory.page.put", X>;
+  "memory.page.restore_version": Handler<"memory.page.restore_version", X>;
+  "memory.page.set_visibility": Handler<"memory.page.set_visibility", X>;
+  "memory.page.versions": Handler<"memory.page.versions", X>;
   "memory.pointer": Handler<"memory.pointer", X>;
   "memory.promote": Handler<"memory.promote", X>;
   "memory.promotion.approve": Handler<"memory.promotion.approve", X>;
   "memory.promotion.reject": Handler<"memory.promotion.reject", X>;
   "memory.promotion.undo": Handler<"memory.promotion.undo", X>;
   "memory.propose_fact": Handler<"memory.propose_fact", X>;
+  "memory.question.resolve": Handler<"memory.question.resolve", X>;
+  "memory.questions.list": Handler<"memory.questions.list", X>;
   "memory.read_note": Handler<"memory.read_note", X>;
+  "memory.restore": Handler<"memory.restore", X>;
   "memory.restore_version": Handler<"memory.restore_version", X>;
   "memory.search": Handler<"memory.search", X>;
+  "memory.trail": Handler<"memory.trail", X>;
+  "memory.trash.search": Handler<"memory.trash.search", X>;
+  "memory.undo": Handler<"memory.undo", X>;
+  "memory.upkeep.status": Handler<"memory.upkeep.status", X>;
   "memory.versions": Handler<"memory.versions", X>;
 }

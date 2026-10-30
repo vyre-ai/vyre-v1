@@ -255,7 +255,7 @@ export interface Limits { runCostMicros?: number; dayCostMicros?: number; monthC
 export type LimitKey = keyof Limits;
 export interface AgentConfig {
   name: string; description?: string; model?: string; fallbackModel?: string; accountPolicy: "asker" | "key"; accountKey?: string; handoffs: string[];
-  toolsAllowed: string[]; toolsDenied: string[]; vaultKeys: string[]; limits: Limits; captureMode: "propose" | "auto_low_risk" | "off";
+  toolsAllowed: string[]; toolsDenied: string[]; vaultKeys: string[]; limits: Limits; captureMode: "auto" | "propose" | "auto_low_risk" | "off";
 }
 /** manifest limit name -> key in [limits] of agent.toml (the keys files.lint knows). */
 export const LIMIT_TOML: Readonly<Record<LimitKey, string>> = Object.freeze({
@@ -263,7 +263,7 @@ export const LIMIT_TOML: Readonly<Record<LimitKey, string>> = Object.freeze({
 });
 export const LIMIT_KEYS = Object.keys(LIMIT_TOML) as LimitKey[];
 const TOP_KEYS = new Set(["name", "description", "model", "fallback_model", "account_policy", "handoffs", "tools", "vault", "limits", "approvals", "memory", "routines"]);
-const CAPTURE = new Set(["propose", "auto_low_risk", "off"]);
+const CAPTURE = new Set(["auto", "propose", "auto_low_risk", "off"]);
 
 export interface Problem { line?: number; message: string }
 export interface Checked { ok: boolean; errors: Problem[]; warnings: Problem[]; config?: AgentConfig }
@@ -323,10 +323,10 @@ export function checkToml(text: string, o: { agentNames?: readonly string[]; sel
       else lim[key] = v;
     }
   }
-  let capture: AgentConfig["captureMode"] = "propose";
+  let capture: AgentConfig["captureMode"] = "auto";
   if (memory) {
     const c = memory["capture"];
-    if (c !== undefined) { if (typeof c !== "string" || !CAPTURE.has(c)) err("memory.capture", 'memory.capture is "propose", "auto_low_risk" or "off".'); else capture = c as AgentConfig["captureMode"]; }
+    if (c !== undefined) { if (typeof c !== "string" || !CAPTURE.has(c)) err("memory.capture", 'memory.capture is "auto", "propose", "auto_low_risk" or "off".'); else capture = c as AgentConfig["captureMode"]; }
   }
   const routines = d["routines"];
   if (routines !== undefined && (!Array.isArray(routines) || routines.some((r) => !isObj(r)))) err("routines", "routines is a list of [[routines]] tables.");
@@ -367,7 +367,7 @@ export const tomlFor = (doc: TomlDoc): string => dumpToml(doc, TOML_HEADER);
 /** The first agent.toml of an agent. */
 export function newConfig(a: { name: string; role?: string | undefined; model?: string | undefined; tools?: { allowed: string[]; denied: string[] } | undefined; limits?: Limits | undefined }): AgentConfig {
   const c: AgentConfig = {
-    name: a.name.trim(), accountPolicy: "asker", handoffs: [], toolsAllowed: a.tools?.allowed ?? [], toolsDenied: a.tools?.denied ?? [], vaultKeys: [], limits: { ...(a.limits ?? {}) }, captureMode: "propose",
+    name: a.name.trim(), accountPolicy: "asker", handoffs: [], toolsAllowed: a.tools?.allowed ?? [], toolsDenied: a.tools?.denied ?? [], vaultKeys: [], limits: { ...(a.limits ?? {}) }, captureMode: "auto",
   };
   if (a.role !== undefined && a.role.trim() !== "") c.description = a.role.trim();
   if (a.model !== undefined && a.model !== "") c.model = a.model;
@@ -423,7 +423,7 @@ export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<str
         break;
       }
       case "accountPolicy": if (v !== "asker" && v !== "key") return bad('accountPolicy is "asker" or "key".'); next.accountPolicy = v; break;
-      case "captureMode": if (typeof v !== "string" || !CAPTURE.has(v)) return bad('captureMode is "propose", "auto_low_risk" or "off".'); next.captureMode = v as AgentConfig["captureMode"]; break;
+      case "captureMode": if (typeof v !== "string" || !CAPTURE.has(v)) return bad('captureMode is "auto", "propose", "auto_low_risk" or "off".'); next.captureMode = v as AgentConfig["captureMode"]; break;
       case "toolsAllowed": { const l = list(); if (!Array.isArray(l)) return l; next.toolsAllowed = [...new Set(l)]; break; }
       case "toolsDenied": { const l = list(); if (!Array.isArray(l)) return l; next.toolsDenied = [...new Set(l)]; break; }
       case "vaultKeys": { const l = list(); if (!Array.isArray(l)) return l; next.vaultKeys = [...new Set(l)]; break; }

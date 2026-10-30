@@ -1,4 +1,4 @@
-// The nightly job of memory (spec 2.15, ARCH 6.10): memory.maintain merges accepted facts, closes old versions and rewrites each agent's MAP.md. Capture is not here: it needs a person in the chat,
+// The nightly job of memory (spec 2.15, ARCH 6.10): memory.maintain does the upkeep (merge, flag, learn, tidy) and rewrites each agent's MAP.md, then memory.archive_sweep moves facts untouched in Trash to Archive. Capture is not here: it needs a person in the chat,
 // so the engine module hands chats to memory.capture when they close or go quiet (modules/engine/handlers/capture.ts).
 import { rowsOf, num } from "./projections.ts";
 import type { Db } from "./projections.ts";
@@ -24,6 +24,7 @@ export async function nightly(ctx: HookCtx, hourOf: (t: number) => number = (t) 
   const hour = hourOf(now);
   if (!(age >= NIGHT_MAX_AGE || (age >= NIGHT_MIN_AGE && hour >= 1 && hour <= 5))) return [];
   await ctx.call("memory.maintain", {});
+  await ctx.call("memory.archive_sweep", {});
   ctx.db.run("INSERT INTO memory_job_state (name, at) VALUES ('nightly', ?) ON CONFLICT(name) DO UPDATE SET at = excluded.at", now);
   return ["nightly"];
 }

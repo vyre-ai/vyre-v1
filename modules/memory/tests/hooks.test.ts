@@ -42,7 +42,7 @@ test("captureMode auto_low_risk merges the low-risk kind and proposes the rest",
 });
 
 test("the nightly job runs maintain once in the small hours, or when a host was off for a day and a half", async () => {
-  const h = harness({ ...chat("propose"), respond: { ...chat("propose").respond, "memory.maintain": () => ({ merged: 0, closed: 0, maps: 0 }) } });
+  const h = harness({ ...chat("propose"), respond: { ...chat("propose").respond, "memory.maintain": () => ({ merged: 0, closed: 0, maps: 0 }), "memory.archive_sweep": () => ({ archived: 0, days: 60 }) } });
   const at = (hour: number) => () => hour;
   assert.deepEqual(await nightly(h.ctx as never, at(14)), ["nightly"], "never run: it runs");
   assert.deepEqual(await nightly(h.ctx as never, at(3)), [], "ran just now");
@@ -52,4 +52,5 @@ test("the nightly job runs maintain once in the small hours, or when a host was 
   h.advance(37 * 3_600_000);
   assert.deepEqual(await nightly(h.ctx as never, at(14)), ["nightly"], "37 hours: run whatever the hour");
   assert.equal(h.calls("memory.maintain").length, 3);
+  assert.equal(h.calls("memory.archive_sweep").length, 3, "Trash is swept to Archive each night, after upkeep");
 });

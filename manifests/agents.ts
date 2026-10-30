@@ -13,7 +13,7 @@ import { atool, create, defineManifest, ev, field, list, read, rtype, screen, se
 import { id, pageIn, pageOut, versionRow } from './_common.ts';
 
 const agentStatus = t.enm('awake', 'working', 'asleep', 'paused');
-const captureMode = t.enm('propose', 'auto_low_risk', 'off');
+const captureMode = t.enm('auto', 'propose', 'auto_low_risk', 'off');
 const limits = t.obj({
   runCostMicros: t.opt(t.int()), dayCostMicros: t.opt(t.int()), monthCostMicros: t.opt(t.int()), turnsPerDay: t.opt(t.int()), minutesPerRun: t.opt(t.int()), tokensPerDay: t.opt(t.int()),
 });

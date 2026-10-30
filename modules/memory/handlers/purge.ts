@@ -1,8 +1,9 @@
-// Erase one memory note for good (governance erase; P-CC_39): the note row with its body, the Markdown file in Files, its node in the memory graph with the edges and unresolved links that touch it, and
+// Erase one memory note for good (governance erase; P-CC_39; it leaves a contentless line on the trail): the note row with its body, the Markdown file in Files, its node in the memory graph with the edges and unresolved links that touch it, and
 // the pointer from any fact that cited it. Facts are erased by memory.erase; a fact that cited this note stays but no longer points at it.
 // DECISION: a note that is already gone answers `erased: false`. A file Files no longer has (not_found) is fine; any other refusal stops the erase before the note row is removed.
-import { ensure, rowsOf, str } from "../projections.ts";
-import type { MemCtx } from "../projections.ts";
+import { trail } from "../trail.ts";
+import { ensure, orNull, rowsOf, str } from "../projections.ts";
+import type { Layer, MemCtx } from "../projections.ts";
 
 const codeOf = (e: unknown): string => ((e as { error?: { code?: string } } | null)?.error?.code ?? "");
 
@@ -25,6 +26,8 @@ export async function noteErase(ctx: MemCtx, input: { noteId: string; idempotenc
   ctx.db.run("DELETE FROM memory_layouts WHERE node_id = ?", node);
   ctx.db.run("UPDATE memory_facts SET note_id = ? WHERE note_id = ?", null, input.noteId);
   ctx.db.run("DELETE FROM memory_notes WHERE note_id = ?", input.noteId);
+  // The trail keeps one contentless line: that this note was erased, by whom, when and where it lived. Never its title or words.
+  trail(ctx, { action: "erase", pageId: input.noteId, layer: str(note["layer"]) as Layer, ownerRef: str(note["owner_ref"]), agentId: orNull(note["agent_id"]), projectId: orNull(note["project_id"]), reason: "note erased" });
   ctx.emit("note.erased", `entity/${input.noteId}`, { noteId: input.noteId });
   return { erased: true };
 }

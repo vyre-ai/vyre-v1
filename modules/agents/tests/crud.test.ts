@@ -27,7 +27,7 @@ test("create makes the record, Agents/<name> with the decided tree, AGENT.md and
   const a = out.agent;
   assert.match(a.agentId, /^agt_[0-9a-z]+$/);
   assert.deepEqual({ name: a.name, role: a.role, face: a.face, status: a.status, ownerId: a.ownerId, model: a.model, hasComputer: a.hasComputer, accountPolicy: a.accountPolicy, captureMode: a.captureMode },
-    { name: "Intake", role: "Use me when a new client form arrives.", face: "intake-face", status: "awake", ownerId: DANA, model: "claude-sonnet-5-5", hasComputer: false, accountPolicy: "asker", captureMode: "propose" });
+    { name: "Intake", role: "Use me when a new client form arrives.", face: "intake-face", status: "awake", ownerId: DANA, model: "claude-sonnet-5-5", hasComputer: false, accountPolicy: "asker", captureMode: "auto" });
   assert.deepEqual([a.toolsAllowed, a.toolsDenied, a.limits], [["files", "records"], ["terminal"], { dayCostMicros: 5_000_000, turnsPerDay: 40 }]);
   assert.equal(a.templateVersion, 1);
 

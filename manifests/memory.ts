@@ -13,20 +13,65 @@ import { id, pageIn, pageOut, versionRow } from './_common.ts';
 const layer = t.enm('person', 'agent', 'project', 'space');
 const factStatus = t.enm('proposed', 'current', 'closed', 'removed');
 const sourceKind = t.enm('chat', 'channel', 'task', 'record', 'run', 'journey', 'manual');
+const factExtras = {
+  subject: t.opt(t.obj({ pageId: t.str(), title: t.str(), kind: t.str() }, { description: 'The page this fact is about' })),
+  sourceTitle: t.opt(t.str({ description: 'Title of the chat, run or record the fact came from, when the reader may open it' })),
+  by: t.opt(t.str({ description: 'Id of who wrote it: a person, an agent or upkeep' })), byKind: t.opt(t.enm('person', 'agent', 'upkeep', 'system')),
+  versions: t.opt(t.int({ minimum: 1, description: 'How many versions the fact has had, this one included' })),
+};
 const factRow = t.obj({
   factId: id.fact, layer, ownerRef: t.str({ description: 'Person, agent, project or Space the fact belongs to', examples: ['agt_a1b2c3'] }), agentId: t.opt(id.agent), noteId: t.opt(id.note),
   text: t.str(), validFrom: t.ts(), validTo: t.opt(t.ts()), learnedAt: t.ts(), closedAt: t.opt(t.ts()), sourceKind, sourceRef: t.str(),
   sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record' })), status: factStatus, lowRisk: t.opt(t.bool()),
+  trashedAt: t.opt(t.ts()), trashReason: t.opt(t.str({ description: 'Why the fact is in Trash, for example removed, duplicate, undone' })), archivedAt: t.opt(t.ts()),
+  ...factExtras,
+});
+const learnedRow = t.obj({
+  fact: factRow, at: t.ts(), actor: t.str({ description: 'Who learned it: the agent or person id, or upkeep' }), actorKind: t.enm('person', 'agent', 'upkeep', 'system'), sourceKind, sourceRef: t.str(),
+  sourceLink: t.opt(t.str()), from: t.opt(t.str({ description: 'The person the fact came from' })), undone: t.bool(),
+  what: t.enm('learned', 'merged', 'flagged'), note: t.opt(t.str({ description: 'For an upkeep line: what it did, in words' })), mergedInto: t.opt(id.fact), questionId: t.opt(t.str()),
+});
+const meaningInfo = t.obj({
+  state: t.enm('on', 'loading', 'not_set_up', 'degraded', 'off'), model: t.opt(t.str()), hint: t.opt(t.str({ description: 'Why search is keyword-only right now, in plain words' })),
+}, { description: 'How meaning search ran for this question. Anything but on means keyword search answered; not_set_up is healthy.' });
+const pageKind = t.enm('person', 'client', 'project', 'agent', 'record', 'topic', 'decision', 'site');
+const pageRow = t.obj({
+  pageId: t.str(), title: t.str(), kind: pageKind, layer, ownerRef: t.str(), agentId: t.opt(id.agent), projectId: t.opt(id.project), subjectRef: t.opt(t.str({ description: 'The record or person this page stands for' })),
+  version: t.int({ minimum: 1 }), createdAt: t.ts(), updatedAt: t.ts(), trashedAt: t.opt(t.ts()), archivedAt: t.opt(t.ts()),
+  subtitle: t.opt(t.str({ description: 'The line under the title, for example Client' })), blurb: t.opt(t.str({ description: 'A short description; the first line of the Notes when nobody wrote one' })),
+  visibleTo: t.opt(t.str({ description: 'Who can see the page, in words' })),
+});
+const pageLink = t.obj({ label: t.str(), title: t.str(), pageId: t.opt(t.str()), evidence: t.str() });
+const backlink = t.obj({ kind: t.enm('page', 'chat', 'run', 'record'), ref: t.str(), title: t.str(), quote: t.str(), link: t.opt(t.str()), at: t.ts(), label: t.opt(t.str()) });
+const upkeepRun = t.obj({
+  runId: t.str(), startedAt: t.ts(), finishedAt: t.opt(t.ts()), modelUsed: t.bool(), merged: t.int(), flagged: t.int(), stale: t.int(), created: t.int(), corrected: t.int(), deleted: t.int(), tidied: t.int(),
+  tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), stopped: t.opt(t.enm('cap', 'no_key')),
+});
+const upkeepNight = t.obj({ day: t.str({ description: 'The night, as a UTC date' }), runs: t.int(), costMicros: t.int(), tokensIn: t.int(), tokensOut: t.int() });
+const questionRow = t.obj({
+  questionId: t.str(), kind: t.enm('contradiction', 'stale'), status: t.enm('open', 'resolved'), createdAt: t.ts(), layer, facts: t.arr(factRow), resolution: t.opt(t.str()),
+});
+const trailRow = t.obj({
+  id: t.str(), at: t.ts(), action: t.enm('create', 'edit', 'merge', 'delete', 'restore', 'archive', 'erase', 'learn', 'undo', 'accept', 'reject', 'promote', 'flag', 'resolve'), actor: t.str(),
+  actorKind: t.enm('person', 'agent', 'upkeep', 'system'), actingFor: t.opt(t.str()), factId: t.opt(id.fact), pageId: t.opt(t.str()), layer: t.opt(layer), source: t.opt(t.str()), reason: t.opt(t.str()),
+  runId: t.opt(t.str()), detail: t.opt(t.rec(t.any())),
 });
 const noteRow = t.obj({ noteId: id.note, path: t.str({ examples: ['Agents/Intake/memory/notes/clients.md'] }), title: t.str(), layer, agentId: t.opt(id.agent), updatedAt: t.ts() });
-const hit = t.obj({ kind: t.enm('note', 'fact'), noteId: t.opt(id.note), factId: t.opt(id.fact), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num() });
+const hit = t.obj({ kind: t.enm('note', 'fact', 'page'), noteId: t.opt(id.note), factId: t.opt(id.fact), pageId: t.opt(t.str()), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num(), ...factExtras });
 const node = t.obj({
-  nodeId: t.str(), kind: t.enm('note', 'person', 'client', 'project', 'site', 'decision', 'record', 'chat'), title: t.str(), layer: t.opt(layer), cluster: t.opt(t.str({ description: 'Cluster named after its hub' })),
+  nodeId: t.str(), kind: t.enm('note', 'person', 'client', 'project', 'site', 'decision', 'record', 'chat', 'agent', 'topic'), title: t.str(), pageId: t.opt(t.str({ description: 'For a page node: the page to open' })), layer: t.opt(layer), cluster: t.opt(t.str({ description: 'Cluster named after its hub' })),
   x: t.opt(t.num()), y: t.opt(t.num()), link: t.opt(t.str()),
 });
-const edge = t.obj({ from: t.str(), to: t.str(), kind: t.enm('link', 'relation', 'came_from') });
+const edge = t.obj({
+  from: t.str(), to: t.str(), kind: t.enm('link', 'relation', 'came_from', 'mention'), label: t.opt(t.str({ description: 'What the link says, written before it as "works with:: [[Page]]"' })),
+  evidence: t.opt(t.str({ description: 'The line the link was written in, or the quote from the chat or record that names the page' })), at: t.opt(t.ts()),
+  source: t.opt(t.obj({ title: t.str(), kind: t.str(), link: t.opt(t.str({ description: 'Where the evidence is: a page, or vyre://thread/<id>?m=<message> for a chat' })) })),
+});
 const graphScope = t.enm('agent', 'space');
-const graphIn = { scope: graphScope, agentId: t.opt(id.agent), asOf: t.opt(t.ts()), kinds: t.opt(t.arr(t.str())) };
+const graphIn = {
+  scope: graphScope, agentId: t.opt(id.agent), asOf: t.opt(t.ts()), kinds: t.opt(t.arr(t.str({ description: 'Node types to show' }))), layers: t.opt(t.arr(layer)),
+  focus: t.opt(t.str({ description: 'A node id: draw only it and the nodes near it' })), hops: t.opt(t.int({ minimum: 1, maximum: 6, description: 'How far from the focus, two by default' })),
+};
 const graphOut = { nodes: t.arr(node), edges: t.arr(edge), clusters: t.arr(t.obj({ name: t.str(), hub: t.str(), size: t.int() })) };
 const factT = { factId: id.fact };
 const promotionId = t.id('prm');
@@ -47,7 +92,7 @@ export default defineManifest({
     // ---- read tools
     read('memory.search', 'Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link', {
       in: { q: t.str(), layers: t.opt(t.arr(layer)), agentId: t.opt(id.agent), projectId: t.opt(id.project), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
-      out: { hits: t.arr(hit), tookMs: t.int() }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
+      out: { hits: t.arr(hit), tookMs: t.int(), meaning: t.opt(meaningInfo) }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
     }),
     read('memory.read_note', 'Read one memory note as Markdown', {
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
@@ -88,7 +133,7 @@ export default defineManifest({
         layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), text: t.str(), validFrom: t.opt(t.ts()), sourceKind, sourceRef: t.str(), threadId: t.opt(id.thread),
         kind: t.opt(t.str({ description: 'Fact kind, for example preference', examples: ['preference'] })),
       },
-      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted'], tool: 'memory', mcpName: 'memory_propose', agent: { planMode: 'blocked', blocks: ['memory_saved'] }, errors: ['permission.provider_label'],
+      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], tool: 'memory', mcpName: 'memory_propose', agent: { planMode: 'blocked', blocks: ['memory_saved'] }, errors: ['permission.provider_label'],
     }),
     write('memory.fact.accept', 'Accept a proposed fact into current memory', {
       in: factT, out: { fact: factRow }, emits: ['memory.fact_accepted'], tool: 'memory', offline: 'queue', errors: ['validation.precondition_failed'],
@@ -104,7 +149,7 @@ export default defineManifest({
       out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', audit: 'sensitive', risk: 'medium',
     }),
     write('memory.erase', 'Erase completely: delete facts from history; open to the source person or an admin; the audit entry records who and when, never what', {
-      in: { factIds: t.opt(t.arr(id.fact)), scope: t.opt(t.obj({ layer, agentId: t.opt(id.agent), sourceRef: t.opt(t.str()), subject: t.opt(t.str()) })), reason: t.opt(t.str()) },
+      in: { factIds: t.opt(t.arr(id.fact)), pageIds: t.opt(t.arr(t.str())), scope: t.opt(t.obj({ layer, agentId: t.opt(id.agent), sourceRef: t.opt(t.str()), subject: t.opt(t.str()) })), reason: t.opt(t.str()) },
       out: { erased: t.int() }, perm: null, level: 'manage', emits: ['memory.erased'], gate: { act: 'delete', when: "actor.kind != 'person'" },
       tool: 'memory', audit: 'always', risk: 'high', errors: ['permission.on_hold'],
     }),
@@ -124,10 +169,16 @@ export default defineManifest({
     // ---- write: system
     write('memory.capture', 'Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/', {
       in: { threadId: id.thread, reason: t.enm('closed', 'idle') }, out: { proposed: t.int(), merged: t.int() },
-      emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted'], idem: 'natural', risk: 'low', errors: ['permission.provider_label'],
+      emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural', risk: 'low', errors: ['permission.provider_label'],
     }),
-    write('memory.maintain', 'Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent', {
-      in: { agentId: t.opt(id.agent) }, out: { merged: t.int(), closed: t.int(), maps: t.int() }, emits: ['memory.map_rewritten'], idem: 'natural', risk: 'low',
+    write('memory.maintain', 'Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent', {
+      in: { agentId: t.opt(id.agent), rulesOnly: t.opt(t.bool()) },
+      out: {
+        merged: t.int(), closed: t.int(), maps: t.int(), runId: t.opt(t.str()), flagged: t.opt(t.int()), stale: t.opt(t.int()), created: t.opt(t.int()), corrected: t.opt(t.int()), deleted: t.opt(t.int()), tidied: t.opt(t.int()),
+        modelUsed: t.opt(t.bool()), costMicros: t.opt(t.int({ minimum: 0, description: 'Estimated cost of the run in micro-dollars' })), tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()),
+        stopped: t.opt(t.enm('cap', 'no_key')),
+      },
+      emits: ['memory.map_rewritten', 'memory.upkeep_ran', 'memory.fact_corrected', 'memory.learned'], idem: 'natural', risk: 'low',
     }),
     write('memory.index_graph', 'Graph consumer: update graph nodes and edges for a changed note, record or chat (notes, links, relations, came-from)', {
       in: { entity: t.str(), id: t.str(), seq: t.int({ minimum: 0 }) }, out: { nodes: t.int(), edges: t.int() }, idem: 'natural', risk: 'low',
@@ -159,6 +210,94 @@ export default defineManifest({
       in: { subject: t.str({ description: 'Record id, person id or free text identifier' }), ...pageIn }, out: { facts: t.arr(factRow), notes: t.arr(noteRow), ...pageOut },
       perm: 'memory.admin', level: 'manage', audit: 'always', label: 'filter',
     }),
+    // ---- the Learned feed, Undo, Trash, Archive and the trail (owner design 30 Oct 2026, rulings 2 and 5)
+    read('memory.learned', 'The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone', {
+      in: {
+        layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), since: t.opt(t.ts()), threadId: t.opt(id.thread), sourceRef: t.opt(t.str()), actorKind: t.opt(t.enm('person', 'agent', 'upkeep', 'system')),
+        what: t.opt(t.arr(t.enm('learned', 'merged', 'flagged'))), ...pageIn,
+      },
+      out: { items: t.arr(learnedRow), ...pageOut }, label: 'filter', tool: 'memory', mcpName: 'memory_learned',
+      agent: { planMode: 'allowed' },
+    }),
+    write('memory.undo', 'Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back', {
+      in: factT, out: { fact: factRow, trashed: t.bool() }, emits: ['memory.removed'], tool: 'memory', offline: 'queue', errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
+    write('memory.restore', 'Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact', {
+      in: { factId: t.opt(id.fact), pageId: t.opt(t.str()) }, out: { fact: t.opt(factRow), page: t.opt(pageRow), restoredFrom: t.enm('trash', 'archive') }, emits: ['memory.restored', 'memory.page_restored'], tool: 'memory', mcpName: 'memory_restore', agent: { planMode: 'blocked' },
+      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.role_lacks_permission'],
+    }),
+    read('memory.trash.search', 'Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show', {
+      in: { q: t.opt(t.str()), area: t.opt(t.enm('trash', 'archive')), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), ...pageIn }, out: { facts: t.arr(factRow), pages: t.opt(t.arr(pageRow)), ...pageOut },
+      label: 'filter', tool: 'memory', mcpName: 'memory_search_trash', errors: ['permission.role_lacks_permission'],
+    }),
+    write('memory.archive_sweep', 'Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive', {
+      in: {}, out: { archived: t.int(), days: t.int() }, emits: ['memory.archived'], idem: 'natural', risk: 'low',
+    }),
+    read('memory.trail', 'The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content', {
+      in: { factId: t.opt(id.fact), pageId: t.opt(t.str()), action: t.opt(t.str()), actor: t.opt(t.str()), since: t.opt(t.ts()), ...pageIn }, out: { rows: t.arr(trailRow), ...pageOut }, label: 'filter', tool: 'memory',
+      mcpName: 'memory_trail', agent: { planMode: 'allowed' },
+    }),
+    read('memory.upkeep.status', 'Upkeep spend: this month against the monthly cap, and the recent runs with what each did and cost', {
+      in: { limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
+      out: {
+        month: t.str(), spentMicros: t.int({ minimum: 0 }), capMicros: t.int({ minimum: 0 }), capReached: t.bool(), modelAvailable: t.bool(), openQuestions: t.int({ minimum: 0 }),
+        runs: t.arr(upkeepRun), nights: t.arr(upkeepNight), lastNight: t.opt(upkeepNight),
+      },
+      perm: 'memory.admin', level: 'manage', label: 'filter', tool: 'memory', errors: ['permission.role_lacks_permission'],
+    }),
+    read('memory.meaning.status', 'Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)', {
+      in: {}, out: { mode: t.enm('local', 'key', 'off'), state: t.enm('on', 'loading', 'not_set_up', 'degraded', 'off'), model: t.opt(t.str()), hint: t.opt(t.str()), indexed: t.int({ minimum: 0 }) }, label: 'filter', tool: 'memory',
+      mcpName: 'memory_meaning_status', agent: { planMode: 'allowed' },
+    }),
+    read('memory.meaning.rank', 'Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; a score is 0 when unrelated and 0.5 to 1 when related, and the list is empty when the model is not ready', {
+      in: { query: t.str(), candidates: t.arr(t.obj({ id: t.str(), text: t.str() }), { maxItems: 200 }) }, out: { scores: t.arr(t.obj({ id: t.str(), score: t.num() })), meaning: meaningInfo }, label: 'filter', tool: 'memory',
+      mcpName: 'memory_meaning_rank', agent: { planMode: 'allowed' },
+    }),
+    read('memory.questions.list', 'Questions upkeep could not settle: two values for one subject and field, or a fact that looks old', {
+      in: { status: t.opt(t.enm('open', 'resolved')), kind: t.opt(t.enm('contradiction', 'stale')), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), ...pageIn },
+      out: { questions: t.arr(questionRow), ...pageOut }, label: 'filter', tool: 'memory', mcpName: 'memory_questions',
+    }),
+    write('memory.question.resolve', 'Answer an upkeep question with one click: keep one of two facts (the other goes to Trash), keep both, confirm an old fact, or drop it', {
+      in: { questionId: t.str(), resolution: t.enm('keep_a', 'keep_b', 'keep_both', 'drop') }, out: { ok: t.bool(), resolution: t.str() }, tool: 'memory', offline: 'queue',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
+    }),
+    // ---- living pages: facts on top, Notes below, [[links]] into one graph (owner design 30 Oct 2026, ruling 4)
+    read('memory.page.get', 'Open a page by id or title: its facts, its Notes, the [[links]] it makes and the chats, runs, records and pages that link to it', {
+      in: { pageId: t.opt(t.str()), title: t.opt(t.str()), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project) },
+      out: { page: pageRow, notes: t.str(), facts: t.arr(factRow), links: t.arr(pageLink), backlinks: t.arr(backlink), versions: t.int({ minimum: 1 }) },
+      label: 'check', tool: 'memory', mcpName: 'memory_open_page', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
+    }),
+    write('memory.page.put', 'Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in', {
+      in: {
+        pageId: t.opt(t.str()), title: t.opt(t.str()), kind: t.opt(pageKind), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), subjectRef: t.opt(t.str()), subtitle: t.opt(t.str()), blurb: t.opt(t.str()), notes: t.str(),
+        baseVersion: t.opt(t.int({ minimum: 1, description: 'The version the writer started from; a different current version refuses the write' })), reason: t.opt(t.str()),
+      },
+      out: { page: pageRow, created: t.bool(), links: t.int({ minimum: 0 }) }, tool: 'memory', mcpName: 'memory_write_page', agent: { planMode: 'blocked' }, offline: 'queue',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
+    }),
+    read('memory.page.list', 'List the pages the reader can see, by words in the title or Notes, layer, kind, agent or project', {
+      in: { q: t.opt(t.str()), layer: t.opt(layer), kind: t.opt(pageKind), agentId: t.opt(id.agent), projectId: t.opt(id.project), ...pageIn }, out: { pages: t.arr(pageRow), ...pageOut }, label: 'filter', tool: 'memory',
+    }),
+    read('memory.page.versions', 'Every version of the Notes of a page, newest first, with who wrote it and when', {
+      in: { pageId: t.str() }, out: { versions: t.arr(t.obj({ version: t.int({ minimum: 1 }), by: t.str(), actorKind: t.enm('person', 'agent', 'upkeep', 'system'), at: t.ts(), reason: t.opt(t.str()), notes: t.str() })) },
+      label: 'check', tool: 'memory', errors: ['validation.not_found'],
+    }),
+    write('memory.page.restore_version', 'Write an earlier version of the Notes back as a new version (the versions in between stay)', {
+      in: { pageId: t.str(), version: t.int({ minimum: 1 }) }, out: { page: pageRow }, tool: 'memory', offline: 'queue', errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
+    }),
+    write('memory.page.delete', 'Move a page to Trash; memory.restore brings it back', {
+      in: { pageId: t.str() }, out: { page: pageRow, trashed: t.bool() }, emits: ['memory.removed'], tool: 'memory', offline: 'queue', errors: ['validation.not_found', 'permission.no_grant'],
+    }),
+    write('memory.page.set_visibility', 'Change who can see a page: move it to the Space, a project, an agent or the caller\'s own personal layer; its Notes, versions and links go with it', {
+      in: { pageId: t.str(), layer, agentId: t.opt(id.agent), projectId: t.opt(id.project) }, out: { page: pageRow, moved: t.bool() }, tool: 'memory', offline: 'queue',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
+    }),
+    read('memory.backlinks', 'Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open', {
+      in: { pageId: t.str(), ...pageIn }, out: { backlinks: t.arr(backlink), ...pageOut }, label: 'filter', tool: 'memory', mcpName: 'memory_backlinks', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
+    }),
+    read('memory.export_markdown', 'The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader\'s own', {
+      in: { includePersonal: t.opt(t.bool()) }, out: { markdown: t.str(), pages: t.int({ minimum: 0 }), facts: t.int({ minimum: 0 }), bytes: t.int({ minimum: 0 }) }, label: 'filter', tool: 'memory',
+    }),
   ],
   events: [
     // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
@@ -184,6 +323,17 @@ export default defineManifest({
     ev('memory.captured', 'Capture ran for a thread', { p: { threadId: id.thread, proposed: t.int(), merged: t.int() }, subject: ['thread', '/threadId'], vis: 'participants', retention: 'memory' }),
     ev('memory.map_rewritten', 'MAP.md of an agent was rewritten by the nightly job', { p: { agentId: id.agent, lines: t.int() }, subject: ['agent', '/agentId'], retention: 'memory' }),
     ev('memory.note_restored', 'A shared memory note was restored to an earlier version', { p: { noteId: id.note, versionId: id.version, by: t.str() }, subject: ['note', '/noteId'], retention: 'memory' }),
+    ev('memory.learned', 'Memory learned a fact (ids and places only, never the text); the Learned feed reads this', {
+      p: { factId: id.fact, layer, ownerRef: t.str(), agentId: t.opt(id.agent), sourceKind: t.str(), sourceRef: t.str(), actor: t.str(), actorKind: t.str(), saved: t.bool(), from: t.str() },
+      subject: ['entity', '/factId'], vis: 'participants', label: 'subject', retention: 'memory',
+    }),
+    ev('memory.restored', 'A fact came back from Trash or Archive', { p: { factId: id.fact, from: t.str(), by: t.str() }, subject: ['entity', '/factId'], vis: 'participants', retention: 'memory' }),
+    ev('memory.page_restored', 'A page came back from Trash or Archive', { p: { pageId: t.str(), from: t.str(), by: t.str() }, subject: ['entity', '/pageId'], vis: 'participants', retention: 'memory' }),
+    ev('memory.archived', 'Facts untouched in Trash moved to Archive', { p: { count: t.int(), days: t.int() }, subject: ['entity', '/count'], retention: 'memory' }),
+    ev('memory.upkeep_ran', 'An upkeep run finished (counts and cost only)', {
+      p: { runId: t.str(), merged: t.int(), flagged: t.int(), stale: t.int(), created: t.int(), corrected: t.int(), deleted: t.int(), tidied: t.int(), modelUsed: t.bool(), costMicros: t.int(), stopped: t.opt(t.str()) },
+      subject: ['entity', '/runId'], retention: 'memory',
+    }),
     ev('memory.everything_viewed', 'An admin opened the everything graph view', { p: { by: t.str() }, subject: ['entity', '/by'], retention: 'audit' }),
   ],
   blocks: [
@@ -196,6 +346,11 @@ export default defineManifest({
   settings: [
     setting('memory.weekly_nudge', 'person', 'Memory and privacy', 'Weekly reminder about proposed facts', t.bool(), true),
     setting('memory.auto_merge_kinds', 'space', 'Policies', 'Fact kinds that merge without review', t.arr(t.str()), ['preference']),
+    setting('memory.require_review', 'space', 'Policies', 'Require review for shared memory', t.bool(), false),
+    setting('memory.review_projects', 'space', 'Policies', 'Projects whose memory needs review (project ids)', t.arr(t.str()), []),
+    setting('memory.trash_days', 'space', 'Policies', 'Days in Trash before Archive (30 to 90)', t.int({ minimum: 30, maximum: 90 }), 60),
+    setting('memory.upkeep_monthly_cap', 'space', 'Policies', 'Monthly spend cap for model upkeep, in US dollars', t.num({ minimum: 0 }), 5),
+    setting('memory.meaning_search', 'space', 'Policies', 'Meaning search: local model, the memory key, or off', t.enm('local', 'key', 'off'), 'local'),
   ],
   screens: [
     screen('chats.agent-memory', 'chats', 'ui:AgentMemory', {

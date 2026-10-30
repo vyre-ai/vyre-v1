@@ -630,6 +630,7 @@ export function stubs(ctx: CallCtx) {
       accounts: {
         list: call("engine.accounts.list"),
       },
+      complete: call("engine.complete"),
       defaults: {
         get: call("engine.defaults.get"),
         set: call("engine.defaults.set"),
@@ -1317,9 +1318,12 @@ export function stubs(ctx: CallCtx) {
       suspend: call("members.suspend"),
     },
     memory: {
+      archive_sweep: call("memory.archive_sweep"),
+      backlinks: call("memory.backlinks"),
       capture: call("memory.capture"),
       counts: call("memory.counts"),
       erase: call("memory.erase"),
+      export_markdown: call("memory.export_markdown"),
       fact: {
         accept: call("memory.fact.accept"),
         correct: call("memory.fact.correct"),
@@ -1343,13 +1347,27 @@ export function stubs(ctx: CallCtx) {
         get: call("memory.layout.get"),
         save: call("memory.layout.save"),
       },
+      learned: call("memory.learned"),
       maintain: call("memory.maintain"),
       map: {
         get: call("memory.map.get"),
       },
+      meaning: {
+        rank: call("memory.meaning.rank"),
+        status: call("memory.meaning.status"),
+      },
       notes: {
         erase: call("memory.notes.erase"),
         list: call("memory.notes.list"),
+      },
+      page: {
+        delete: call("memory.page.delete"),
+        get: call("memory.page.get"),
+        list: call("memory.page.list"),
+        put: call("memory.page.put"),
+        restore_version: call("memory.page.restore_version"),
+        set_visibility: call("memory.page.set_visibility"),
+        versions: call("memory.page.versions"),
       },
       pointer: call("memory.pointer"),
       promote: call("memory.promote"),
@@ -1359,9 +1377,24 @@ export function stubs(ctx: CallCtx) {
         undo: call("memory.promotion.undo"),
       },
       propose_fact: call("memory.propose_fact"),
+      question: {
+        resolve: call("memory.question.resolve"),
+      },
+      questions: {
+        list: call("memory.questions.list"),
+      },
       read_note: call("memory.read_note"),
+      restore: call("memory.restore"),
       restore_version: call("memory.restore_version"),
       search: call("memory.search"),
+      trail: call("memory.trail"),
+      trash: {
+        search: call("memory.trash.search"),
+      },
+      undo: call("memory.undo"),
+      upkeep: {
+        status: call("memory.upkeep.status"),
+      },
       versions: call("memory.versions"),
     },
     mounts: {

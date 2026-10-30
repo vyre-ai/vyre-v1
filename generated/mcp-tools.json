@@ -30586,6 +30586,36 @@
     },
     {
       "blocks": [],
+      "cap": "memory.backlinks",
+      "deferred": false,
+      "description": "Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_backlinks",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.counts",
       "deferred": false,
       "description": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
@@ -30628,6 +30658,12 @@
             },
             "type": "array"
           },
+          "pageIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "reason": {
             "type": "string"
           },
@@ -30666,6 +30702,25 @@
       },
       "name": "memory_erase",
       "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.export_markdown",
+      "deferred": false,
+      "description": "The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader's own",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "includePersonal": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_export_markdown",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -30926,8 +30981,31 @@
             "minimum": 0,
             "type": "integer"
           },
+          "focus": {
+            "description": "A node id: draw only it and the nodes near it",
+            "type": "string"
+          },
+          "hops": {
+            "description": "How far from the focus, two by default",
+            "maximum": 6,
+            "minimum": 1,
+            "type": "integer"
+          },
           "kinds": {
             "items": {
+              "description": "Node types to show",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "enum": [
+                "person",
+                "agent",
+                "project",
+                "space"
+              ],
               "type": "string"
             },
             "type": "array"
@@ -30997,8 +31075,31 @@
             "minimum": 0,
             "type": "integer"
           },
+          "focus": {
+            "description": "A node id: draw only it and the nodes near it",
+            "type": "string"
+          },
+          "hops": {
+            "description": "How far from the focus, two by default",
+            "maximum": 6,
+            "minimum": 1,
+            "type": "integer"
+          },
           "kinds": {
             "items": {
+              "description": "Node types to show",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "layers": {
+            "items": {
+              "enum": [
+                "person",
+                "agent",
+                "project",
+                "space"
+              ],
               "type": "string"
             },
             "type": "array"
@@ -31138,6 +31239,91 @@
     },
     {
       "blocks": [],
+      "cap": "memory.learned",
+      "deferred": false,
+      "description": "The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "actorKind": {
+            "enum": [
+              "person",
+              "agent",
+              "upkeep",
+              "system"
+            ],
+            "type": "string"
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sourceRef": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "what": {
+            "items": {
+              "enum": [
+                "learned",
+                "merged",
+                "flagged"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_learned",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.map.get",
       "deferred": false,
       "description": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
@@ -31158,6 +31344,63 @@
         "type": "object"
       },
       "name": "memory_map_get",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.meaning.rank",
+      "deferred": false,
+      "description": "Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; a score is 0 when unrelated and 0.5 to 1 when related, and the list is empty when the model is not ready",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "candidates"
+        ],
+        "type": "object"
+      },
+      "name": "memory_meaning_rank",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.meaning.status",
+      "deferred": false,
+      "description": "Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "memory_meaning_status",
       "planMode": "allowed",
       "toolset": "memory",
       "v": 1
@@ -31214,6 +31457,231 @@
         "type": "object"
       },
       "name": "memory_notes_list",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.get",
+      "deferred": false,
+      "description": "Open a page by id or title: its facts, its Notes, the [[links]] it makes and the chats, runs, records and pages that link to it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_open_page",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.delete",
+      "deferred": false,
+      "description": "Move a page to Trash; memory.restore brings it back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_page_delete",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.list",
+      "deferred": false,
+      "description": "List the pages the reader can see, by words in the title or Notes, layer, kind, agent or project",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "client",
+              "project",
+              "agent",
+              "record",
+              "topic",
+              "decision",
+              "site"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_page_list",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.restore_version",
+      "deferred": false,
+      "description": "Write an earlier version of the Notes back as a new version (the versions in between stay)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pageId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "name": "memory_page_restore_version",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.set_visibility",
+      "deferred": false,
+      "description": "Change who can see a page: move it to the Space, a project, an agent or the caller's own personal layer; its Notes, versions and links go with it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId",
+          "layer"
+        ],
+        "type": "object"
+      },
+      "name": "memory_page_set_visibility",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.versions",
+      "deferred": false,
+      "description": "Every version of the Notes of a page, newest first, with who wrote it and when",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_page_versions",
       "planMode": "allowed",
       "toolset": "memory",
       "v": 1
@@ -31449,6 +31917,125 @@
     },
     {
       "blocks": [],
+      "cap": "memory.question.resolve",
+      "deferred": false,
+      "description": "Answer an upkeep question with one click: keep one of two facts (the other goes to Trash), keep both, confirm an old fact, or drop it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "questionId": {
+            "type": "string"
+          },
+          "resolution": {
+            "enum": [
+              "keep_a",
+              "keep_b",
+              "keep_both",
+              "drop"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "questionId",
+          "resolution"
+        ],
+        "type": "object"
+      },
+      "name": "memory_question_resolve",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.questions.list",
+      "deferred": false,
+      "description": "Questions upkeep could not settle: two values for one subject and field, or a fact that looks old",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "contradiction",
+              "stale"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "resolved"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_questions",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.restore",
+      "deferred": false,
+      "description": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_restore",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.restore_version",
       "deferred": false,
       "description": "Restore a shared memory note to an earlier version (owners and admins)",
@@ -31544,6 +32131,158 @@
     },
     {
       "blocks": [],
+      "cap": "memory.trash.search",
+      "deferred": false,
+      "description": "Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "area": {
+            "enum": [
+              "trash",
+              "archive"
+            ],
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_search_trash",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.trail",
+      "deferred": false,
+      "description": "The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_trail",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.undo",
+      "deferred": false,
+      "description": "Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_undo",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.upkeep.status",
+      "deferred": false,
+      "description": "Upkeep spend: this month against the monthly cap, and the recent runs with what each did and cost",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_upkeep_status",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.versions",
       "deferred": false,
       "description": "List versions of a shared memory note (One History)",
@@ -31565,6 +32304,87 @@
       },
       "name": "memory_versions",
       "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.page.put",
+      "deferred": false,
+      "description": "Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "baseVersion": {
+            "description": "The version the writer started from; a different current version refuses the write",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "blurb": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "client",
+              "project",
+              "agent",
+              "record",
+              "topic",
+              "decision",
+              "site"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "subjectRef": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "notes"
+        ],
+        "type": "object"
+      },
+      "name": "memory_write_page",
+      "planMode": "blocked",
       "toolset": "memory",
       "v": 1
     },

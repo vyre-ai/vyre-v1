@@ -1900,6 +1900,85 @@
       ],
       "type": "string"
     },
+    "s_16f85f944f": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "asOf": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "focus": {
+          "description": "A node id: draw only it and the nodes near it",
+          "type": "string"
+        },
+        "hops": {
+          "description": "How far from the focus, two by default",
+          "maximum": 6,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "kinds": {
+          "items": {
+            "description": "Node types to show",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "layers": {
+          "items": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scope": {
+          "enum": [
+            "agent",
+            "space"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope"
+      ],
+      "type": "object"
+    },
+    "s_182344e02b": {
+      "description": "The page this fact is about",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "pageId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pageId",
+        "title",
+        "kind"
+      ],
+      "type": "object"
+    },
     "s_18a5df4b3d": {
       "items": {
         "properties": {
@@ -2740,125 +2819,6 @@
       ],
       "type": "object"
     },
-    "s_1ff9692f8d": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "closedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "factId": {
-          "examples": [
-            "fct_a1b2c3"
-          ],
-          "pattern": "^fct_[a-z0-9]+$",
-          "type": "string"
-        },
-        "layer": {
-          "enum": [
-            "person",
-            "agent",
-            "project",
-            "space"
-          ],
-          "type": "string"
-        },
-        "learnedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lowRisk": {
-          "type": "boolean"
-        },
-        "noteId": {
-          "examples": [
-            "not_a1b2c3"
-          ],
-          "pattern": "^not_[a-z0-9]+$",
-          "type": "string"
-        },
-        "ownerRef": {
-          "description": "Person, agent, project or Space the fact belongs to",
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "type": "string"
-        },
-        "sourceKind": {
-          "enum": [
-            "chat",
-            "channel",
-            "task",
-            "record",
-            "run",
-            "journey",
-            "manual"
-          ],
-          "type": "string"
-        },
-        "sourceLink": {
-          "description": "Link to the exact chat, task or record",
-          "type": "string"
-        },
-        "sourceRef": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "proposed",
-            "current",
-            "closed",
-            "removed"
-          ],
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "validFrom": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "validTo": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "factId",
-        "layer",
-        "ownerRef",
-        "text",
-        "validFrom",
-        "learnedAt",
-        "sourceKind",
-        "sourceRef",
-        "status"
-      ],
-      "type": "object"
-    },
     "s_1fff9c7146": {
       "properties": {
         "areaCode": {
@@ -3363,149 +3323,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_2819d08f97": {
-      "properties": {
-        "accountKey": {
-          "description": "Vault handle, never a value",
-          "examples": [
-            "#Team_Anthropic_Key"
-          ],
-          "type": "string"
-        },
-        "accountPolicy": {
-          "enum": [
-            "asker",
-            "key"
-          ],
-          "type": "string"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "captureMode": {
-          "enum": [
-            "propose",
-            "auto_low_risk",
-            "off"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "face": {
-          "description": "DiceBear Notionists seed tinted per Space",
-          "examples": [
-            "intake"
-          ],
-          "type": "string"
-        },
-        "fallbackModel": {
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "hasComputer": {
-          "type": "boolean"
-        },
-        "lastActiveAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "limits": {
-          "$ref": "#/$defs/s_dd54f66d0c"
-        },
-        "model": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "pausedBy": {
-          "type": "string"
-        },
-        "pausedReason": {
-          "type": "string"
-        },
-        "role": {
-          "description": "The \"use me when\" line",
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "awake",
-            "working",
-            "asleep",
-            "paused"
-          ],
-          "type": "string"
-        },
-        "templateVersion": {
-          "type": "integer"
-        },
-        "toolsAllowed": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "toolsDenied": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "vaultKeys": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "agentId",
-        "name",
-        "face",
-        "status",
-        "ownerId",
-        "folderId",
-        "accountPolicy",
-        "toolsAllowed",
-        "toolsDenied",
-        "vaultKeys",
-        "limits",
-        "captureMode",
-        "hasComputer",
-        "templateVersion",
-        "createdAt"
-      ],
-      "type": "object"
     },
     "s_2842806102": {
       "properties": {
@@ -7662,17 +7479,6 @@
       },
       "type": "array"
     },
-    "s_5b5fd6f127": {
-      "properties": {
-        "fact": {
-          "$ref": "#/$defs/s_1ff9692f8d"
-        }
-      },
-      "required": [
-        "fact"
-      ],
-      "type": "object"
-    },
     "s_5bf4042104": {
       "properties": {
         "durationMinutes": {
@@ -8412,24 +8218,6 @@
       ],
       "type": "object"
     },
-    "s_636b76aa38": {
-      "properties": {
-        "facts": {
-          "$ref": "#/$defs/s_6ddc87dad0"
-        },
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "facts"
-      ],
-      "type": "object"
-    },
     "s_63dc3a7fc4": {
       "properties": {
         "files": {
@@ -9044,6 +8832,34 @@
       ],
       "type": "object"
     },
+    "s_6b8ef74874": {
+      "properties": {
+        "costMicros": {
+          "type": "integer"
+        },
+        "day": {
+          "description": "The night, as a UTC date",
+          "type": "string"
+        },
+        "runs": {
+          "type": "integer"
+        },
+        "tokensIn": {
+          "type": "integer"
+        },
+        "tokensOut": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "day",
+        "runs",
+        "costMicros",
+        "tokensIn",
+        "tokensOut"
+      ],
+      "type": "object"
+    },
     "s_6c03f91bf6": {
       "properties": {
         "audienceCount": {
@@ -9192,12 +9008,6 @@
         "run"
       ],
       "type": "object"
-    },
-    "s_6ddc87dad0": {
-      "items": {
-        "$ref": "#/$defs/s_1ff9692f8d"
-      },
-      "type": "array"
     },
     "s_6fbfd139dc": {
       "properties": {
@@ -9827,6 +9637,17 @@
       "required": [
         "personId",
         "kind"
+      ],
+      "type": "object"
+    },
+    "s_7a66e93d1b": {
+      "properties": {
+        "fact": {
+          "$ref": "#/$defs/s_a8c0878262"
+        }
+      },
+      "required": [
+        "fact"
       ],
       "type": "object"
     },
@@ -11259,6 +11080,118 @@
       ],
       "type": "object"
     },
+    "s_8fbe9959c2": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "archivedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "blurb": {
+          "description": "A short description; the first line of the Notes when nobody wrote one",
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "person",
+            "client",
+            "project",
+            "agent",
+            "record",
+            "topic",
+            "decision",
+            "site"
+          ],
+          "type": "string"
+        },
+        "layer": {
+          "enum": [
+            "person",
+            "agent",
+            "project",
+            "space"
+          ],
+          "type": "string"
+        },
+        "ownerRef": {
+          "type": "string"
+        },
+        "pageId": {
+          "type": "string"
+        },
+        "projectId": {
+          "examples": [
+            "prj_a1b2c3"
+          ],
+          "pattern": "^prj_[a-z0-9]+$",
+          "type": "string"
+        },
+        "subjectRef": {
+          "description": "The record or person this page stands for",
+          "type": "string"
+        },
+        "subtitle": {
+          "description": "The line under the title, for example Client",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "trashedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "visibleTo": {
+          "description": "Who can see the page, in words",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pageId",
+        "title",
+        "kind",
+        "layer",
+        "ownerRef",
+        "version",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
     "s_90ff7d13ee": {
       "properties": {
         "branches": {
@@ -11278,6 +11211,17 @@
       "required": [
         "folderId",
         "branches"
+      ],
+      "type": "object"
+    },
+    "s_914c392665": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/s_b223d9e31a"
+        }
+      },
+      "required": [
+        "agent"
       ],
       "type": "object"
     },
@@ -12975,6 +12919,170 @@
       ],
       "type": "object"
     },
+    "s_a8c0878262": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "archivedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "by": {
+          "description": "Id of who wrote it: a person, an agent or upkeep",
+          "type": "string"
+        },
+        "byKind": {
+          "enum": [
+            "person",
+            "agent",
+            "upkeep",
+            "system"
+          ],
+          "type": "string"
+        },
+        "closedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "factId": {
+          "examples": [
+            "fct_a1b2c3"
+          ],
+          "pattern": "^fct_[a-z0-9]+$",
+          "type": "string"
+        },
+        "layer": {
+          "enum": [
+            "person",
+            "agent",
+            "project",
+            "space"
+          ],
+          "type": "string"
+        },
+        "learnedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lowRisk": {
+          "type": "boolean"
+        },
+        "noteId": {
+          "examples": [
+            "not_a1b2c3"
+          ],
+          "pattern": "^not_[a-z0-9]+$",
+          "type": "string"
+        },
+        "ownerRef": {
+          "description": "Person, agent, project or Space the fact belongs to",
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "sourceKind": {
+          "enum": [
+            "chat",
+            "channel",
+            "task",
+            "record",
+            "run",
+            "journey",
+            "manual"
+          ],
+          "type": "string"
+        },
+        "sourceLink": {
+          "description": "Link to the exact chat, task or record",
+          "type": "string"
+        },
+        "sourceRef": {
+          "type": "string"
+        },
+        "sourceTitle": {
+          "description": "Title of the chat, run or record the fact came from, when the reader may open it",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "current",
+            "closed",
+            "removed"
+          ],
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_182344e02b"
+        },
+        "text": {
+          "type": "string"
+        },
+        "trashReason": {
+          "description": "Why the fact is in Trash, for example removed, duplicate, undone",
+          "type": "string"
+        },
+        "trashedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "validFrom": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "validTo": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "versions": {
+          "description": "How many versions the fact has had, this one included",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "factId",
+        "layer",
+        "ownerRef",
+        "text",
+        "validFrom",
+        "learnedAt",
+        "sourceKind",
+        "sourceRef",
+        "status"
+      ],
+      "type": "object"
+    },
     "s_a8e0a730ee": {
       "items": {
         "properties": {
@@ -13502,6 +13610,150 @@
       ],
       "type": "object"
     },
+    "s_b223d9e31a": {
+      "properties": {
+        "accountKey": {
+          "description": "Vault handle, never a value",
+          "examples": [
+            "#Team_Anthropic_Key"
+          ],
+          "type": "string"
+        },
+        "accountPolicy": {
+          "enum": [
+            "asker",
+            "key"
+          ],
+          "type": "string"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "captureMode": {
+          "enum": [
+            "auto",
+            "propose",
+            "auto_low_risk",
+            "off"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "face": {
+          "description": "DiceBear Notionists seed tinted per Space",
+          "examples": [
+            "intake"
+          ],
+          "type": "string"
+        },
+        "fallbackModel": {
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "hasComputer": {
+          "type": "boolean"
+        },
+        "lastActiveAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limits": {
+          "$ref": "#/$defs/s_dd54f66d0c"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "pausedBy": {
+          "type": "string"
+        },
+        "pausedReason": {
+          "type": "string"
+        },
+        "role": {
+          "description": "The \"use me when\" line",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "awake",
+            "working",
+            "asleep",
+            "paused"
+          ],
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "toolsAllowed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "toolsDenied": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vaultKeys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agentId",
+        "name",
+        "face",
+        "status",
+        "ownerId",
+        "folderId",
+        "accountPolicy",
+        "toolsAllowed",
+        "toolsDenied",
+        "vaultKeys",
+        "limits",
+        "captureMode",
+        "hasComputer",
+        "templateVersion",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_b2a5d50757": {
       "properties": {
         "body": {
@@ -13819,42 +14071,6 @@
       },
       "type": "array"
     },
-    "s_b543221aaa": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "asOf": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "kinds": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "scope": {
-          "enum": [
-            "agent",
-            "space"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "scope"
-      ],
-      "type": "object"
-    },
     "s_b549e9e216": {
       "properties": {
         "id": {
@@ -14123,6 +14339,32 @@
         "localPart",
         "mailboxId",
         "provider"
+      ],
+      "type": "object"
+    },
+    "s_b7630fe556": {
+      "description": "How meaning search ran for this question. Anything but on means keyword search answered; not_set_up is healthy.",
+      "properties": {
+        "hint": {
+          "description": "Why search is keyword-only right now, in plain words",
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "on",
+            "loading",
+            "not_set_up",
+            "degraded",
+            "off"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "state"
       ],
       "type": "object"
     },
@@ -15244,6 +15486,12 @@
       ],
       "type": "object"
     },
+    "s_c709a4a1ec": {
+      "items": {
+        "$ref": "#/$defs/s_a8c0878262"
+      },
+      "type": "array"
+    },
     "s_c81f008ed8": {
       "properties": {
         "domain": {
@@ -15725,6 +15973,12 @@
         "isDefault"
       ],
       "type": "object"
+    },
+    "s_d03f18f311": {
+      "items": {
+        "$ref": "#/$defs/s_8fbe9959c2"
+      },
+      "type": "array"
     },
     "s_d06586147f": {
       "properties": {
@@ -16450,17 +16704,6 @@
       },
       "type": "object"
     },
-    "s_dd8211e1b7": {
-      "properties": {
-        "agent": {
-          "$ref": "#/$defs/s_2819d08f97"
-        }
-      },
-      "required": [
-        "agent"
-      ],
-      "type": "object"
-    },
     "s_de4eba3dc2": {
       "properties": {
         "agentId": {
@@ -16776,6 +17019,53 @@
         "status"
       ],
       "type": "object"
+    },
+    "s_e2700acfad": {
+      "items": {
+        "properties": {
+          "at": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "page",
+              "chat",
+              "run",
+              "record"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "title",
+          "quote",
+          "at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_e272d7475d": {
       "properties": {
@@ -17260,6 +17550,179 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "s_e81cbecfe2": {
+      "properties": {
+        "facts": {
+          "$ref": "#/$defs/s_c709a4a1ec"
+        },
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "facts"
+      ],
+      "type": "object"
+    },
+    "s_e88fa85a84": {
+      "properties": {
+        "clusters": {
+          "items": {
+            "properties": {
+              "hub": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "hub",
+              "size"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "edges": {
+          "items": {
+            "properties": {
+              "at": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "evidence": {
+                "description": "The line the link was written in, or the quote from the chat or record that names the page",
+                "type": "string"
+              },
+              "from": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "link",
+                  "relation",
+                  "came_from",
+                  "mention"
+                ],
+                "type": "string"
+              },
+              "label": {
+                "description": "What the link says, written before it as \"works with:: [[Page]]\"",
+                "type": "string"
+              },
+              "source": {
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "link": {
+                    "description": "Where the evidence is: a page, or vyre://thread/<id>?m=<message> for a chat",
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title",
+                  "kind"
+                ],
+                "type": "object"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "kind"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "properties": {
+              "cluster": {
+                "description": "Cluster named after its hub",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "note",
+                  "person",
+                  "client",
+                  "project",
+                  "site",
+                  "decision",
+                  "record",
+                  "chat",
+                  "agent",
+                  "topic"
+                ],
+                "type": "string"
+              },
+              "layer": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "project",
+                  "space"
+                ],
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "nodeId": {
+                "type": "string"
+              },
+              "pageId": {
+                "description": "For a page node: the page to open",
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "nodeId",
+              "kind",
+              "title"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "nodes",
+        "edges",
+        "clusters"
+      ],
+      "type": "object"
     },
     "s_e8b11a0a3a": {
       "properties": {
@@ -18674,119 +19137,6 @@
       },
       "required": [
         "until"
-      ],
-      "type": "object"
-    },
-    "s_ff7ef596c9": {
-      "properties": {
-        "clusters": {
-          "items": {
-            "properties": {
-              "hub": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "size": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "name",
-              "hub",
-              "size"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "edges": {
-          "items": {
-            "properties": {
-              "from": {
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "link",
-                  "relation",
-                  "came_from"
-                ],
-                "type": "string"
-              },
-              "to": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "from",
-              "to",
-              "kind"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "nodes": {
-          "items": {
-            "properties": {
-              "cluster": {
-                "description": "Cluster named after its hub",
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "note",
-                  "person",
-                  "client",
-                  "project",
-                  "site",
-                  "decision",
-                  "record",
-                  "chat"
-                ],
-                "type": "string"
-              },
-              "layer": {
-                "enum": [
-                  "person",
-                  "agent",
-                  "project",
-                  "space"
-                ],
-                "type": "string"
-              },
-              "link": {
-                "type": "string"
-              },
-              "nodeId": {
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              },
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "nodeId",
-              "kind",
-              "title"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "nodes",
-        "edges",
-        "clusters"
       ],
       "type": "object"
     }
@@ -26334,7 +26684,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -26444,7 +26794,7 @@
       "name": "agents.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": "agents.create",
       "resource": {
@@ -26558,7 +26908,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -26615,7 +26965,7 @@
       "module": "agents",
       "name": "agents.get",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -26813,7 +27163,7 @@
                 "accountKey": "#Team_Anthropic_Key",
                 "accountPolicy": "asker",
                 "agentId": "agt_a1b2c3",
-                "captureMode": "propose",
+                "captureMode": "auto",
                 "createdAt": 1760000000000,
                 "face": "intake",
                 "fallbackModel": "example",
@@ -26901,7 +27251,7 @@
         "properties": {
           "agents": {
             "items": {
-              "$ref": "#/$defs/s_2819d08f97"
+              "$ref": "#/$defs/s_b223d9e31a"
             },
             "type": "array"
           },
@@ -26958,7 +27308,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -27017,7 +27367,7 @@
       "module": "agents",
       "name": "agents.pause",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -27058,7 +27408,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -27114,7 +27464,7 @@
       "module": "agents",
       "name": "agents.restore",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -27157,7 +27507,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -27228,7 +27578,7 @@
       "module": "agents",
       "name": "agents.restore_version",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -27272,7 +27622,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -27328,7 +27678,7 @@
       "module": "agents",
       "name": "agents.resume",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -27370,7 +27720,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -27435,7 +27785,7 @@
       "output": {
         "properties": {
           "agent": {
-            "$ref": "#/$defs/s_2819d08f97"
+            "$ref": "#/$defs/s_b223d9e31a"
           },
           "undoVersionId": {
             "examples": [
@@ -28054,7 +28404,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -28122,7 +28472,7 @@
       "module": "agents",
       "name": "agents.set_owner",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -29053,7 +29403,7 @@
               "accountKey": "#Team_Anthropic_Key",
               "accountPolicy": "asker",
               "agentId": "agt_a1b2c3",
-              "captureMode": "propose",
+              "captureMode": "auto",
               "createdAt": 1760000000000,
               "face": "intake",
               "fallbackModel": "example",
@@ -29115,7 +29465,7 @@
       "name": "agents.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_dd8211e1b7"
+        "$ref": "#/$defs/s_914c392665"
       },
       "permission": null,
       "resource": {
@@ -64386,6 +64736,89 @@
         "mcp": {
           "toolset": "meta"
         }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unavailable",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountRef": "example",
+            "model": "example",
+            "prompt": "example",
+            "system": "example"
+          },
+          "name": "example",
+          "output": {
+            "text": "example",
+            "tokensIn": 1,
+            "tokensOut": 1
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "accountRef": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "system": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountRef",
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.complete",
+      "output": {
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "tokensIn": {
+            "type": "integer"
+          },
+          "tokensOut": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "text",
+          "tokensIn",
+          "tokensOut"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "One request and one answer on an account the caller can run on, for work that is not a chat (memory upkeep); returns the text and the token counts and posts nothing",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -112144,9 +112577,162 @@
     {
       "effects": "write",
       "emits": [
+        "memory.archived"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "archived": 1,
+            "days": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.archive_sweep",
+      "output": {
+        "properties": {
+          "archived": {
+            "type": "integer"
+          },
+          "days": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "archived",
+          "days"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "cursor": "example",
+            "limit": 1,
+            "pageId": "example"
+          },
+          "name": "example",
+          "output": {
+            "backlinks": [
+              {
+                "at": 1760000000000,
+                "kind": "page",
+                "label": "example",
+                "link": "example",
+                "quote": "example",
+                "ref": "example",
+                "title": "example"
+              }
+            ],
+            "next": "example",
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.backlinks",
+      "output": {
+        "properties": {
+          "backlinks": {
+            "$ref": "#/$defs/s_e2700acfad"
+          },
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "backlinks"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_backlinks",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "memory.captured",
         "memory.fact_proposed",
-        "memory.fact_accepted"
+        "memory.fact_accepted",
+        "memory.learned"
       ],
       "errors": [
         "internal.unexpected",
@@ -112323,6 +112909,9 @@
             "factIds": [
               "fct_a1b2c3"
             ],
+            "pageIds": [
+              "example"
+            ],
             "reason": "example",
             "scope": {
               "agentId": "agt_a1b2c3",
@@ -112350,6 +112939,12 @@
                 "fct_a1b2c3"
               ],
               "pattern": "^fct_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pageIds": {
+            "items": {
               "type": "string"
             },
             "type": "array"
@@ -112420,6 +113015,83 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "includePersonal": true
+          },
+          "name": "example",
+          "output": {
+            "bytes": 1,
+            "facts": 1,
+            "markdown": "example",
+            "pages": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "includePersonal": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.export_markdown",
+      "output": {
+        "properties": {
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "facts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "pages": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "markdown",
+          "pages",
+          "facts",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader's own",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "memory.fact_accepted"
@@ -112440,6 +113112,9 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "by": "example",
+              "byKind": "person",
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -112450,10 +113125,19 @@
               "sourceKind": "chat",
               "sourceLink": "example",
               "sourceRef": "example",
+              "sourceTitle": "example",
               "status": "proposed",
+              "subject": {
+                "kind": "example",
+                "pageId": "example",
+                "title": "example"
+              },
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
-              "validTo": 1760000000000
+              "validTo": 1760000000000,
+              "versions": 1
             }
           }
         }
@@ -112479,7 +113163,7 @@
       "name": "memory.fact.accept",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_5b5fd6f127"
+        "$ref": "#/$defs/s_7a66e93d1b"
       },
       "permission": null,
       "resource": {
@@ -112518,6 +113202,9 @@
           "output": {
             "closed": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "by": "example",
+              "byKind": "person",
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -112528,13 +113215,25 @@
               "sourceKind": "chat",
               "sourceLink": "example",
               "sourceRef": "example",
+              "sourceTitle": "example",
               "status": "proposed",
+              "subject": {
+                "kind": "example",
+                "pageId": "example",
+                "title": "example"
+              },
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
-              "validTo": 1760000000000
+              "validTo": 1760000000000,
+              "versions": 1
             },
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "by": "example",
+              "byKind": "person",
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -112545,10 +113244,19 @@
               "sourceKind": "chat",
               "sourceLink": "example",
               "sourceRef": "example",
+              "sourceTitle": "example",
               "status": "proposed",
+              "subject": {
+                "kind": "example",
+                "pageId": "example",
+                "title": "example"
+              },
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
-              "validTo": 1760000000000
+              "validTo": 1760000000000,
+              "versions": 1
             }
           }
         }
@@ -112588,10 +113296,10 @@
       "output": {
         "properties": {
           "closed": {
-            "$ref": "#/$defs/s_1ff9692f8d"
+            "$ref": "#/$defs/s_a8c0878262"
           },
           "fact": {
-            "$ref": "#/$defs/s_1ff9692f8d"
+            "$ref": "#/$defs/s_a8c0878262"
           }
         },
         "required": [
@@ -112634,6 +113342,9 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "by": "example",
+              "byKind": "person",
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -112644,14 +113355,26 @@
               "sourceKind": "chat",
               "sourceLink": "example",
               "sourceRef": "example",
+              "sourceTitle": "example",
               "status": "proposed",
+              "subject": {
+                "kind": "example",
+                "pageId": "example",
+                "title": "example"
+              },
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
-              "validTo": 1760000000000
+              "validTo": 1760000000000,
+              "versions": 1
             },
             "history": [
               {
                 "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "by": "example",
+                "byKind": "person",
                 "closedAt": 1760000000000,
                 "factId": "fct_a1b2c3",
                 "layer": "person",
@@ -112662,10 +113385,19 @@
                 "sourceKind": "chat",
                 "sourceLink": "example",
                 "sourceRef": "example",
+                "sourceTitle": "example",
                 "status": "proposed",
+                "subject": {
+                  "kind": "example",
+                  "pageId": "example",
+                  "title": "example"
+                },
                 "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
                 "validFrom": 1760000000000,
-                "validTo": 1760000000000
+                "validTo": 1760000000000,
+                "versions": 1
               }
             ]
           }
@@ -112694,10 +113426,10 @@
       "output": {
         "properties": {
           "fact": {
-            "$ref": "#/$defs/s_1ff9692f8d"
+            "$ref": "#/$defs/s_a8c0878262"
           },
           "history": {
-            "$ref": "#/$defs/s_6ddc87dad0"
+            "$ref": "#/$defs/s_c709a4a1ec"
           }
         },
         "required": [
@@ -112741,6 +113473,9 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "by": "example",
+              "byKind": "person",
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -112751,10 +113486,19 @@
               "sourceKind": "chat",
               "sourceLink": "example",
               "sourceRef": "example",
+              "sourceTitle": "example",
               "status": "proposed",
+              "subject": {
+                "kind": "example",
+                "pageId": "example",
+                "title": "example"
+              },
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
-              "validTo": 1760000000000
+              "validTo": 1760000000000,
+              "versions": 1
             }
           }
         }
@@ -112780,7 +113524,7 @@
       "name": "memory.fact.reject",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_5b5fd6f127"
+        "$ref": "#/$defs/s_7a66e93d1b"
       },
       "permission": null,
       "resource": {
@@ -112825,6 +113569,9 @@
             "facts": [
               {
                 "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "by": "example",
+                "byKind": "person",
                 "closedAt": 1760000000000,
                 "factId": "fct_a1b2c3",
                 "layer": "person",
@@ -112835,10 +113582,19 @@
                 "sourceKind": "chat",
                 "sourceLink": "example",
                 "sourceRef": "example",
+                "sourceTitle": "example",
                 "status": "proposed",
+                "subject": {
+                  "kind": "example",
+                  "pageId": "example",
+                  "title": "example"
+                },
                 "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
                 "validFrom": 1760000000000,
-                "validTo": 1760000000000
+                "validTo": 1760000000000,
+                "versions": 1
               }
             ],
             "next": "example",
@@ -112906,7 +113662,7 @@
       "module": "memory",
       "name": "memory.facts.list",
       "output": {
-        "$ref": "#/$defs/s_636b76aa38"
+        "$ref": "#/$defs/s_e81cbecfe2"
       },
       "permission": null,
       "resource": {
@@ -113049,6 +113805,9 @@
             "facts": [
               {
                 "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "by": "example",
+                "byKind": "person",
                 "closedAt": 1760000000000,
                 "factId": "fct_a1b2c3",
                 "layer": "person",
@@ -113059,10 +113818,19 @@
                 "sourceKind": "chat",
                 "sourceLink": "example",
                 "sourceRef": "example",
+                "sourceTitle": "example",
                 "status": "proposed",
+                "subject": {
+                  "kind": "example",
+                  "pageId": "example",
+                  "title": "example"
+                },
                 "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
                 "validFrom": 1760000000000,
-                "validTo": 1760000000000
+                "validTo": 1760000000000,
+                "versions": 1
               }
             ],
             "next": "example",
@@ -113119,7 +113887,7 @@
       "module": "memory",
       "name": "memory.facts_as_of",
       "output": {
-        "$ref": "#/$defs/s_636b76aa38"
+        "$ref": "#/$defs/s_e81cbecfe2"
       },
       "permission": null,
       "resource": {
@@ -113163,6 +113931,9 @@
             "facts": [
               {
                 "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "by": "example",
+                "byKind": "person",
                 "closedAt": 1760000000000,
                 "factId": "fct_a1b2c3",
                 "layer": "person",
@@ -113173,10 +113944,19 @@
                 "sourceKind": "chat",
                 "sourceLink": "example",
                 "sourceRef": "example",
+                "sourceTitle": "example",
                 "status": "proposed",
+                "subject": {
+                  "kind": "example",
+                  "pageId": "example",
+                  "title": "example"
+                },
                 "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
                 "validFrom": 1760000000000,
-                "validTo": 1760000000000
+                "validTo": 1760000000000,
+                "versions": 1
               }
             ],
             "next": "example",
@@ -113222,7 +114002,7 @@
       "output": {
         "properties": {
           "facts": {
-            "$ref": "#/$defs/s_6ddc87dad0"
+            "$ref": "#/$defs/s_c709a4a1ec"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -113267,8 +114047,13 @@
           "input": {
             "agentId": "agt_a1b2c3",
             "asOf": 1760000000000,
+            "focus": "example",
+            "hops": 1,
             "kinds": [
               "example"
+            ],
+            "layers": [
+              "person"
             ],
             "scope": "agent"
           },
@@ -113283,8 +114068,16 @@
             ],
             "edges": [
               {
+                "at": 1760000000000,
+                "evidence": "example",
                 "from": "example",
                 "kind": "link",
+                "label": "example",
+                "source": {
+                  "kind": "example",
+                  "link": "example",
+                  "title": "example"
+                },
                 "to": "example"
               }
             ],
@@ -113295,6 +114088,7 @@
                 "layer": "person",
                 "link": "example",
                 "nodeId": "example",
+                "pageId": "example",
                 "title": "example",
                 "x": 1,
                 "y": 1
@@ -113305,14 +114099,14 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_b543221aaa"
+        "$ref": "#/$defs/s_16f85f944f"
       },
       "label": "filter",
       "level": "view",
       "module": "memory",
       "name": "memory.graph",
       "output": {
-        "$ref": "#/$defs/s_ff7ef596c9"
+        "$ref": "#/$defs/s_e88fa85a84"
       },
       "permission": null,
       "resource": {
@@ -113359,8 +114153,16 @@
             ],
             "edges": [
               {
+                "at": 1760000000000,
+                "evidence": "example",
                 "from": "example",
                 "kind": "link",
+                "label": "example",
+                "source": {
+                  "kind": "example",
+                  "link": "example",
+                  "title": "example"
+                },
                 "to": "example"
               }
             ],
@@ -113371,6 +114173,7 @@
                 "layer": "person",
                 "link": "example",
                 "nodeId": "example",
+                "pageId": "example",
                 "title": "example",
                 "x": 1,
                 "y": 1
@@ -113398,7 +114201,7 @@
       "module": "memory",
       "name": "memory.graph_everything",
       "output": {
-        "$ref": "#/$defs/s_ff7ef596c9"
+        "$ref": "#/$defs/s_e88fa85a84"
       },
       "permission": "memory.admin",
       "resource": {
@@ -113430,8 +114233,13 @@
           "input": {
             "agentId": "agt_a1b2c3",
             "asOf": 1760000000000,
+            "focus": "example",
+            "hops": 1,
             "kinds": [
               "example"
+            ],
+            "layers": [
+              "person"
             ],
             "scope": "agent"
           },
@@ -113443,7 +114251,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_b543221aaa"
+        "$ref": "#/$defs/s_16f85f944f"
       },
       "level": "edit",
       "module": "memory",
@@ -113846,9 +114654,291 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "actorKind": "person",
+            "agentId": "agt_a1b2c3",
+            "cursor": "example",
+            "layer": "person",
+            "limit": 1,
+            "projectId": "prj_a1b2c3",
+            "since": 1760000000000,
+            "sourceRef": "example",
+            "threadId": "thr_a1b2c3",
+            "what": [
+              "learned"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "items": [
+              {
+                "actor": "example",
+                "actorKind": "person",
+                "at": 1760000000000,
+                "fact": {
+                  "agentId": "agt_a1b2c3",
+                  "archivedAt": 1760000000000,
+                  "by": "example",
+                  "byKind": "person",
+                  "closedAt": 1760000000000,
+                  "factId": "fct_a1b2c3",
+                  "layer": "person",
+                  "learnedAt": 1760000000000,
+                  "lowRisk": true,
+                  "noteId": "not_a1b2c3",
+                  "ownerRef": "agt_a1b2c3",
+                  "sourceKind": "chat",
+                  "sourceLink": "example",
+                  "sourceRef": "example",
+                  "sourceTitle": "example",
+                  "status": "proposed",
+                  "subject": {
+                    "kind": "example",
+                    "pageId": "example",
+                    "title": "example"
+                  },
+                  "text": "example",
+                  "trashReason": "example",
+                  "trashedAt": 1760000000000,
+                  "validFrom": 1760000000000,
+                  "validTo": 1760000000000,
+                  "versions": 1
+                },
+                "from": "example",
+                "mergedInto": "fct_a1b2c3",
+                "note": "example",
+                "questionId": "example",
+                "sourceKind": "chat",
+                "sourceLink": "example",
+                "sourceRef": "example",
+                "undone": true,
+                "what": "learned"
+              }
+            ],
+            "next": "example",
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "actorKind": {
+            "enum": [
+              "person",
+              "agent",
+              "upkeep",
+              "system"
+            ],
+            "type": "string"
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sourceRef": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "what": {
+            "items": {
+              "enum": [
+                "learned",
+                "merged",
+                "flagged"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.learned",
+      "output": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "actor": {
+                  "description": "Who learned it: the agent or person id, or upkeep",
+                  "type": "string"
+                },
+                "actorKind": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "upkeep",
+                    "system"
+                  ],
+                  "type": "string"
+                },
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "fact": {
+                  "$ref": "#/$defs/s_a8c0878262"
+                },
+                "from": {
+                  "description": "The person the fact came from",
+                  "type": "string"
+                },
+                "mergedInto": {
+                  "examples": [
+                    "fct_a1b2c3"
+                  ],
+                  "pattern": "^fct_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "note": {
+                  "description": "For an upkeep line: what it did, in words",
+                  "type": "string"
+                },
+                "questionId": {
+                  "type": "string"
+                },
+                "sourceKind": {
+                  "enum": [
+                    "chat",
+                    "channel",
+                    "task",
+                    "record",
+                    "run",
+                    "journey",
+                    "manual"
+                  ],
+                  "type": "string"
+                },
+                "sourceLink": {
+                  "type": "string"
+                },
+                "sourceRef": {
+                  "type": "string"
+                },
+                "undone": {
+                  "type": "boolean"
+                },
+                "what": {
+                  "enum": [
+                    "learned",
+                    "merged",
+                    "flagged"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fact",
+                "at",
+                "actor",
+                "actorKind",
+                "sourceKind",
+                "sourceRef",
+                "undone",
+                "what"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_learned",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
-        "memory.map_rewritten"
+        "memory.map_rewritten",
+        "memory.upkeep_ran",
+        "memory.fact_corrected",
+        "memory.learned"
       ],
       "errors": [
         "internal.unexpected",
@@ -113859,13 +114949,26 @@
       "examples": [
         {
           "input": {
-            "agentId": "agt_a1b2c3"
+            "agentId": "agt_a1b2c3",
+            "rulesOnly": true
           },
           "name": "example",
           "output": {
             "closed": 1,
+            "corrected": 1,
+            "costMicros": 1,
+            "created": 1,
+            "deleted": 1,
+            "flagged": 1,
             "maps": 1,
-            "merged": 1
+            "merged": 1,
+            "modelUsed": true,
+            "runId": "example",
+            "stale": 1,
+            "stopped": "cap",
+            "tidied": 1,
+            "tokensIn": 1,
+            "tokensOut": 1
           }
         }
       ],
@@ -113878,6 +114981,9 @@
             ],
             "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
+          },
+          "rulesOnly": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -113890,10 +114996,52 @@
           "closed": {
             "type": "integer"
           },
+          "corrected": {
+            "type": "integer"
+          },
+          "costMicros": {
+            "description": "Estimated cost of the run in micro-dollars",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "deleted": {
+            "type": "integer"
+          },
+          "flagged": {
+            "type": "integer"
+          },
           "maps": {
             "type": "integer"
           },
           "merged": {
+            "type": "integer"
+          },
+          "modelUsed": {
+            "type": "boolean"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "stale": {
+            "type": "integer"
+          },
+          "stopped": {
+            "enum": [
+              "cap",
+              "no_key"
+            ],
+            "type": "string"
+          },
+          "tidied": {
+            "type": "integer"
+          },
+          "tokensIn": {
+            "type": "integer"
+          },
+          "tokensOut": {
             "type": "integer"
           }
         },
@@ -113910,7 +115058,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Nightly job: merge accepted facts, close old versions, rewrite MAP.md (under 200 lines) for each agent",
+      "summary": "Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent",
       "surfaces": {
         "http": "auto"
       },
@@ -114000,6 +115148,215 @@
       "surfaces": {
         "http": "auto",
         "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "candidates": [
+              {
+                "id": "example",
+                "text": "example"
+              }
+            ],
+            "query": "example"
+          },
+          "name": "example",
+          "output": {
+            "meaning": {
+              "hint": "example",
+              "model": "example",
+              "state": "on"
+            },
+            "scores": [
+              {
+                "id": "example",
+                "score": 1
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "candidates"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.meaning.rank",
+      "output": {
+        "properties": {
+          "meaning": {
+            "$ref": "#/$defs/s_b7630fe556"
+          },
+          "scores": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "score"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "scores",
+          "meaning"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; a score is 0 when unrelated and 0.5 to 1 when related, and the list is empty when the model is not ready",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_meaning_rank",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "hint": "example",
+            "indexed": 1,
+            "mode": "local",
+            "model": "example",
+            "state": "on"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.meaning.status",
+      "output": {
+        "properties": {
+          "hint": {
+            "type": "string"
+          },
+          "indexed": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mode": {
+            "enum": [
+              "local",
+              "key",
+              "off"
+            ],
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "on",
+              "loading",
+              "not_set_up",
+              "degraded",
+              "off"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "state",
+          "indexed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_meaning_status",
           "toolset": "memory"
         }
       },
@@ -114191,6 +115548,916 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "List memory notes of an agent, project or the Space, including proposed/ and recipes/",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "memory.removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pageId": "example"
+          },
+          "name": "example",
+          "output": {
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "blurb": "example",
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "subtitle": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1,
+              "visibleTo": "example"
+            },
+            "trashed": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.page.delete",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "page": {
+            "$ref": "#/$defs/s_8fbe9959c2"
+          },
+          "trashed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "page",
+          "trashed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Move a page to Trash; memory.restore brings it back",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "layer": "person",
+            "pageId": "example",
+            "projectId": "prj_a1b2c3",
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "backlinks": [
+              {
+                "at": 1760000000000,
+                "kind": "page",
+                "label": "example",
+                "link": "example",
+                "quote": "example",
+                "ref": "example",
+                "title": "example"
+              }
+            ],
+            "facts": [
+              {
+                "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "by": "example",
+                "byKind": "person",
+                "closedAt": 1760000000000,
+                "factId": "fct_a1b2c3",
+                "layer": "person",
+                "learnedAt": 1760000000000,
+                "lowRisk": true,
+                "noteId": "not_a1b2c3",
+                "ownerRef": "agt_a1b2c3",
+                "sourceKind": "chat",
+                "sourceLink": "example",
+                "sourceRef": "example",
+                "sourceTitle": "example",
+                "status": "proposed",
+                "subject": {
+                  "kind": "example",
+                  "pageId": "example",
+                  "title": "example"
+                },
+                "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
+                "validFrom": 1760000000000,
+                "validTo": 1760000000000,
+                "versions": 1
+              }
+            ],
+            "links": [
+              {
+                "evidence": "example",
+                "label": "example",
+                "pageId": "example",
+                "title": "example"
+              }
+            ],
+            "notes": "example",
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "blurb": "example",
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "subtitle": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1,
+              "visibleTo": "example"
+            },
+            "versions": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.page.get",
+      "output": {
+        "properties": {
+          "backlinks": {
+            "$ref": "#/$defs/s_e2700acfad"
+          },
+          "facts": {
+            "$ref": "#/$defs/s_c709a4a1ec"
+          },
+          "links": {
+            "items": {
+              "properties": {
+                "evidence": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "pageId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "title",
+                "evidence"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "page": {
+            "$ref": "#/$defs/s_8fbe9959c2"
+          },
+          "versions": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "notes",
+          "facts",
+          "links",
+          "backlinks",
+          "versions"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Open a page by id or title: its facts, its Notes, the [[links]] it makes and the chats, runs, records and pages that link to it",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_open_page",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "cursor": "example",
+            "kind": "person",
+            "layer": "person",
+            "limit": 1,
+            "projectId": "prj_a1b2c3",
+            "q": "example"
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "pages": [
+              {
+                "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "blurb": "example",
+                "createdAt": 1760000000000,
+                "kind": "person",
+                "layer": "person",
+                "ownerRef": "example",
+                "pageId": "example",
+                "projectId": "prj_a1b2c3",
+                "subjectRef": "example",
+                "subtitle": "example",
+                "title": "example",
+                "trashedAt": 1760000000000,
+                "updatedAt": 1760000000000,
+                "version": 1,
+                "visibleTo": "example"
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "client",
+              "project",
+              "agent",
+              "record",
+              "topic",
+              "decision",
+              "site"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.page.list",
+      "output": {
+        "properties": {
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "pages": {
+            "$ref": "#/$defs/s_d03f18f311"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pages"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List the pages the reader can see, by words in the title or Notes, layer, kind, agent or project",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "baseVersion": 1,
+            "blurb": "example",
+            "kind": "person",
+            "layer": "person",
+            "notes": "example",
+            "pageId": "example",
+            "projectId": "prj_a1b2c3",
+            "reason": "example",
+            "subjectRef": "example",
+            "subtitle": "example",
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "created": true,
+            "links": 1,
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "blurb": "example",
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "subtitle": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1,
+              "visibleTo": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "baseVersion": {
+            "description": "The version the writer started from; a different current version refuses the write",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "blurb": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "person",
+              "client",
+              "project",
+              "agent",
+              "record",
+              "topic",
+              "decision",
+              "site"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "subjectRef": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "notes"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.page.put",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "created": {
+            "type": "boolean"
+          },
+          "links": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "page": {
+            "$ref": "#/$defs/s_8fbe9959c2"
+          }
+        },
+        "required": [
+          "page",
+          "created",
+          "links"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_write_page",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pageId": "example",
+            "version": 1
+          },
+          "name": "example",
+          "output": {
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "blurb": "example",
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "subtitle": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1,
+              "visibleTo": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pageId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.page.restore_version",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "page": {
+            "$ref": "#/$defs/s_8fbe9959c2"
+          }
+        },
+        "required": [
+          "page"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Write an earlier version of the Notes back as a new version (the versions in between stay)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "layer": "person",
+            "pageId": "example",
+            "projectId": "prj_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "moved": true,
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "blurb": "example",
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "subtitle": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1,
+              "visibleTo": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId",
+          "layer"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.page.set_visibility",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "moved": {
+            "type": "boolean"
+          },
+          "page": {
+            "$ref": "#/$defs/s_8fbe9959c2"
+          }
+        },
+        "required": [
+          "page",
+          "moved"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Change who can see a page: move it to the Space, a project, an agent or the caller's own personal layer; its Notes, versions and links go with it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pageId": "example"
+          },
+          "name": "example",
+          "output": {
+            "versions": [
+              {
+                "actorKind": "person",
+                "at": 1760000000000,
+                "by": "example",
+                "notes": "example",
+                "reason": "example",
+                "version": 1
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.page.versions",
+      "output": {
+        "properties": {
+          "versions": {
+            "items": {
+              "properties": {
+                "actorKind": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "upkeep",
+                    "system"
+                  ],
+                  "type": "string"
+                },
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "by": {
+                  "type": "string"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "version": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "version",
+                "by",
+                "actorKind",
+                "at",
+                "notes"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "versions"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Every version of the Notes of a page, newest first, with who wrote it and when",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -114476,6 +116743,9 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "by": "example",
+              "byKind": "person",
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -114486,10 +116756,19 @@
               "sourceKind": "chat",
               "sourceLink": "example",
               "sourceRef": "example",
+              "sourceTitle": "example",
               "status": "proposed",
+              "subject": {
+                "kind": "example",
+                "pageId": "example",
+                "title": "example"
+              },
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
-              "validTo": 1760000000000
+              "validTo": 1760000000000,
+              "versions": 1
             }
           }
         }
@@ -114514,7 +116793,7 @@
       "module": "memory",
       "name": "memory.promotion.approve",
       "output": {
-        "$ref": "#/$defs/s_5b5fd6f127"
+        "$ref": "#/$defs/s_7a66e93d1b"
       },
       "permission": null,
       "resource": {
@@ -114674,7 +116953,8 @@
       "effects": "write",
       "emits": [
         "memory.fact_proposed",
-        "memory.fact_accepted"
+        "memory.fact_accepted",
+        "memory.learned"
       ],
       "errors": [
         "internal.unexpected",
@@ -114701,6 +116981,9 @@
           "output": {
             "fact": {
               "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "by": "example",
+              "byKind": "person",
               "closedAt": 1760000000000,
               "factId": "fct_a1b2c3",
               "layer": "person",
@@ -114711,10 +116994,19 @@
               "sourceKind": "chat",
               "sourceLink": "example",
               "sourceRef": "example",
+              "sourceTitle": "example",
               "status": "proposed",
+              "subject": {
+                "kind": "example",
+                "pageId": "example",
+                "title": "example"
+              },
               "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
               "validFrom": 1760000000000,
-              "validTo": 1760000000000
+              "validTo": 1760000000000,
+              "versions": 1
             },
             "merged": true
           }
@@ -114808,7 +117100,7 @@
       "output": {
         "properties": {
           "fact": {
-            "$ref": "#/$defs/s_1ff9692f8d"
+            "$ref": "#/$defs/s_a8c0878262"
           },
           "merged": {
             "type": "boolean"
@@ -114837,6 +117129,296 @@
         "http": "auto",
         "mcp": {
           "name": "memory_propose",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "questionId": "example",
+            "resolution": "keep_a"
+          },
+          "name": "example",
+          "output": {
+            "ok": true,
+            "resolution": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "questionId": {
+            "type": "string"
+          },
+          "resolution": {
+            "enum": [
+              "keep_a",
+              "keep_b",
+              "keep_both",
+              "drop"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "questionId",
+          "resolution"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.question.resolve",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "resolution": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "resolution"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Answer an upkeep question with one click: keep one of two facts (the other goes to Trash), keep both, confirm an old fact, or drop it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "cursor": "example",
+            "kind": "contradiction",
+            "layer": "person",
+            "limit": 1,
+            "projectId": "prj_a1b2c3",
+            "status": "open"
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "questions": [
+              {
+                "createdAt": 1760000000000,
+                "facts": [
+                  {
+                    "agentId": "agt_a1b2c3",
+                    "archivedAt": 1760000000000,
+                    "by": "example",
+                    "byKind": "person",
+                    "closedAt": 1760000000000,
+                    "factId": "fct_a1b2c3",
+                    "layer": "person",
+                    "learnedAt": 1760000000000,
+                    "lowRisk": true,
+                    "noteId": "not_a1b2c3",
+                    "ownerRef": "agt_a1b2c3",
+                    "sourceKind": "chat",
+                    "sourceLink": "example",
+                    "sourceRef": "example",
+                    "sourceTitle": "example",
+                    "status": "proposed",
+                    "subject": {
+                      "kind": "example",
+                      "pageId": "example",
+                      "title": "example"
+                    },
+                    "text": "example",
+                    "trashReason": "example",
+                    "trashedAt": 1760000000000,
+                    "validFrom": 1760000000000,
+                    "validTo": 1760000000000,
+                    "versions": 1
+                  }
+                ],
+                "kind": "contradiction",
+                "layer": "person",
+                "questionId": "example",
+                "resolution": "example",
+                "status": "open"
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "contradiction",
+              "stale"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "resolved"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.questions.list",
+      "output": {
+        "properties": {
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "questions": {
+            "items": {
+              "properties": {
+                "createdAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "facts": {
+                  "$ref": "#/$defs/s_c709a4a1ec"
+                },
+                "kind": {
+                  "enum": [
+                    "contradiction",
+                    "stale"
+                  ],
+                  "type": "string"
+                },
+                "layer": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "project",
+                    "space"
+                  ],
+                  "type": "string"
+                },
+                "questionId": {
+                  "type": "string"
+                },
+                "resolution": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "open",
+                    "resolved"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "questionId",
+                "kind",
+                "status",
+                "createdAt",
+                "layer",
+                "facts"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "questions"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Questions upkeep could not settle: two values for one subject and field, or a fact that looks old",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "memory_questions",
           "toolset": "memory"
         }
       },
@@ -114921,6 +117503,139 @@
         "http": "auto",
         "mcp": {
           "name": "read_note",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "memory.restored",
+        "memory.page_restored"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "factId": "fct_a1b2c3",
+            "pageId": "example"
+          },
+          "name": "example",
+          "output": {
+            "fact": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "by": "example",
+              "byKind": "person",
+              "closedAt": 1760000000000,
+              "factId": "fct_a1b2c3",
+              "layer": "person",
+              "learnedAt": 1760000000000,
+              "lowRisk": true,
+              "noteId": "not_a1b2c3",
+              "ownerRef": "agt_a1b2c3",
+              "sourceKind": "chat",
+              "sourceLink": "example",
+              "sourceRef": "example",
+              "sourceTitle": "example",
+              "status": "proposed",
+              "subject": {
+                "kind": "example",
+                "pageId": "example",
+                "title": "example"
+              },
+              "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
+              "validFrom": 1760000000000,
+              "validTo": 1760000000000,
+              "versions": 1
+            },
+            "page": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "blurb": "example",
+              "createdAt": 1760000000000,
+              "kind": "person",
+              "layer": "person",
+              "ownerRef": "example",
+              "pageId": "example",
+              "projectId": "prj_a1b2c3",
+              "subjectRef": "example",
+              "subtitle": "example",
+              "title": "example",
+              "trashedAt": 1760000000000,
+              "updatedAt": 1760000000000,
+              "version": 1,
+              "visibleTo": "example"
+            },
+            "restoredFrom": "trash"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.restore",
+      "output": {
+        "properties": {
+          "fact": {
+            "$ref": "#/$defs/s_a8c0878262"
+          },
+          "page": {
+            "$ref": "#/$defs/s_8fbe9959c2"
+          },
+          "restoredFrom": {
+            "enum": [
+              "trash",
+              "archive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "restoredFrom"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_restore",
           "toolset": "memory"
         }
       },
@@ -115039,18 +117754,33 @@
           "output": {
             "hits": [
               {
+                "by": "example",
+                "byKind": "person",
                 "factId": "fct_a1b2c3",
                 "kind": "note",
                 "layer": "person",
                 "noteId": "not_a1b2c3",
+                "pageId": "example",
                 "path": "example",
                 "score": 1,
                 "sourceLink": "example",
+                "sourceTitle": "example",
+                "subject": {
+                  "kind": "example",
+                  "pageId": "example",
+                  "title": "example"
+                },
                 "text": "example",
                 "title": "example",
-                "trueSince": 1760000000000
+                "trueSince": 1760000000000,
+                "versions": 1
               }
             ],
+            "meaning": {
+              "hint": "example",
+              "model": "example",
+              "state": "on"
+            },
             "tookMs": 1
           }
         }
@@ -115115,6 +117845,19 @@
           "hits": {
             "items": {
               "properties": {
+                "by": {
+                  "description": "Id of who wrote it: a person, an agent or upkeep",
+                  "type": "string"
+                },
+                "byKind": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "upkeep",
+                    "system"
+                  ],
+                  "type": "string"
+                },
                 "factId": {
                   "examples": [
                     "fct_a1b2c3"
@@ -115125,7 +117868,8 @@
                 "kind": {
                   "enum": [
                     "note",
-                    "fact"
+                    "fact",
+                    "page"
                   ],
                   "type": "string"
                 },
@@ -115145,6 +117889,9 @@
                   "pattern": "^not_[a-z0-9]+$",
                   "type": "string"
                 },
+                "pageId": {
+                  "type": "string"
+                },
                 "path": {
                   "type": "string"
                 },
@@ -115153,6 +117900,13 @@
                 },
                 "sourceLink": {
                   "type": "string"
+                },
+                "sourceTitle": {
+                  "description": "Title of the chat, run or record the fact came from, when the reader may open it",
+                  "type": "string"
+                },
+                "subject": {
+                  "$ref": "#/$defs/s_182344e02b"
                 },
                 "text": {
                   "type": "string"
@@ -115167,6 +117921,11 @@
                   ],
                   "minimum": 0,
                   "type": "integer"
+                },
+                "versions": {
+                  "description": "How many versions the fact has had, this one included",
+                  "minimum": 1,
+                  "type": "integer"
                 }
               },
               "required": [
@@ -115179,6 +117938,9 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "meaning": {
+            "$ref": "#/$defs/s_b7630fe556"
           },
           "tookMs": {
             "type": "integer"
@@ -115205,6 +117967,708 @@
         "http": "auto",
         "mcp": {
           "name": "memory_search",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "action": "example",
+            "actor": "example",
+            "cursor": "example",
+            "factId": "fct_a1b2c3",
+            "limit": 1,
+            "pageId": "example",
+            "since": 1760000000000
+          },
+          "name": "example",
+          "output": {
+            "next": "example",
+            "rows": [
+              {
+                "actingFor": "example",
+                "action": "create",
+                "actor": "example",
+                "actorKind": "person",
+                "at": 1760000000000,
+                "detail": {},
+                "factId": "fct_a1b2c3",
+                "id": "example",
+                "layer": "person",
+                "pageId": "example",
+                "reason": "example",
+                "runId": "example",
+                "source": "example"
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.trail",
+      "output": {
+        "properties": {
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "properties": {
+                "actingFor": {
+                  "type": "string"
+                },
+                "action": {
+                  "enum": [
+                    "create",
+                    "edit",
+                    "merge",
+                    "delete",
+                    "restore",
+                    "archive",
+                    "erase",
+                    "learn",
+                    "undo",
+                    "accept",
+                    "reject",
+                    "promote",
+                    "flag",
+                    "resolve"
+                  ],
+                  "type": "string"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "actorKind": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "upkeep",
+                    "system"
+                  ],
+                  "type": "string"
+                },
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "detail": {
+                  "additionalProperties": {
+                    "description": "Any JSON value"
+                  },
+                  "type": "object"
+                },
+                "factId": {
+                  "examples": [
+                    "fct_a1b2c3"
+                  ],
+                  "pattern": "^fct_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "layer": {
+                  "enum": [
+                    "person",
+                    "agent",
+                    "project",
+                    "space"
+                  ],
+                  "type": "string"
+                },
+                "pageId": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "runId": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "at",
+                "action",
+                "actor",
+                "actorKind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_trail",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3",
+            "area": "trash",
+            "cursor": "example",
+            "layer": "person",
+            "limit": 1,
+            "projectId": "prj_a1b2c3",
+            "q": "example"
+          },
+          "name": "example",
+          "output": {
+            "facts": [
+              {
+                "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "by": "example",
+                "byKind": "person",
+                "closedAt": 1760000000000,
+                "factId": "fct_a1b2c3",
+                "layer": "person",
+                "learnedAt": 1760000000000,
+                "lowRisk": true,
+                "noteId": "not_a1b2c3",
+                "ownerRef": "agt_a1b2c3",
+                "sourceKind": "chat",
+                "sourceLink": "example",
+                "sourceRef": "example",
+                "sourceTitle": "example",
+                "status": "proposed",
+                "subject": {
+                  "kind": "example",
+                  "pageId": "example",
+                  "title": "example"
+                },
+                "text": "example",
+                "trashReason": "example",
+                "trashedAt": 1760000000000,
+                "validFrom": 1760000000000,
+                "validTo": 1760000000000,
+                "versions": 1
+              }
+            ],
+            "next": "example",
+            "pages": [
+              {
+                "agentId": "agt_a1b2c3",
+                "archivedAt": 1760000000000,
+                "blurb": "example",
+                "createdAt": 1760000000000,
+                "kind": "person",
+                "layer": "person",
+                "ownerRef": "example",
+                "pageId": "example",
+                "projectId": "prj_a1b2c3",
+                "subjectRef": "example",
+                "subtitle": "example",
+                "title": "example",
+                "trashedAt": 1760000000000,
+                "updatedAt": 1760000000000,
+                "version": 1,
+                "visibleTo": "example"
+              }
+            ],
+            "total": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "area": {
+            "enum": [
+              "trash",
+              "archive"
+            ],
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.trash.search",
+      "output": {
+        "properties": {
+          "facts": {
+            "$ref": "#/$defs/s_c709a4a1ec"
+          },
+          "next": {
+            "description": "Cursor for the next page; absent on the last page",
+            "type": "string"
+          },
+          "pages": {
+            "$ref": "#/$defs/s_d03f18f311"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "facts"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "memory_search_trash",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "memory.removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "factId": "fct_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "fact": {
+              "agentId": "agt_a1b2c3",
+              "archivedAt": 1760000000000,
+              "by": "example",
+              "byKind": "person",
+              "closedAt": 1760000000000,
+              "factId": "fct_a1b2c3",
+              "layer": "person",
+              "learnedAt": 1760000000000,
+              "lowRisk": true,
+              "noteId": "not_a1b2c3",
+              "ownerRef": "agt_a1b2c3",
+              "sourceKind": "chat",
+              "sourceLink": "example",
+              "sourceRef": "example",
+              "sourceTitle": "example",
+              "status": "proposed",
+              "subject": {
+                "kind": "example",
+                "pageId": "example",
+                "title": "example"
+              },
+              "text": "example",
+              "trashReason": "example",
+              "trashedAt": 1760000000000,
+              "validFrom": 1760000000000,
+              "validTo": 1760000000000,
+              "versions": 1
+            },
+            "trashed": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "memory",
+      "name": "memory.undo",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "fact": {
+            "$ref": "#/$defs/s_a8c0878262"
+          },
+          "trashed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fact",
+          "trashed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "limit": 1
+          },
+          "name": "example",
+          "output": {
+            "capMicros": 1,
+            "capReached": true,
+            "lastNight": {
+              "costMicros": 1,
+              "day": "example",
+              "runs": 1,
+              "tokensIn": 1,
+              "tokensOut": 1
+            },
+            "modelAvailable": true,
+            "month": "example",
+            "nights": [
+              {
+                "costMicros": 1,
+                "day": "example",
+                "runs": 1,
+                "tokensIn": 1,
+                "tokensOut": 1
+              }
+            ],
+            "openQuestions": 1,
+            "runs": [
+              {
+                "corrected": 1,
+                "costMicros": 1,
+                "created": 1,
+                "deleted": 1,
+                "finishedAt": 1760000000000,
+                "flagged": 1,
+                "merged": 1,
+                "modelUsed": true,
+                "runId": "example",
+                "stale": 1,
+                "startedAt": 1760000000000,
+                "stopped": "cap",
+                "tidied": 1,
+                "tokensIn": 1,
+                "tokensOut": 1
+              }
+            ],
+            "spentMicros": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "manage",
+      "module": "memory",
+      "name": "memory.upkeep.status",
+      "output": {
+        "properties": {
+          "capMicros": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "capReached": {
+            "type": "boolean"
+          },
+          "lastNight": {
+            "$ref": "#/$defs/s_6b8ef74874"
+          },
+          "modelAvailable": {
+            "type": "boolean"
+          },
+          "month": {
+            "type": "string"
+          },
+          "nights": {
+            "items": {
+              "$ref": "#/$defs/s_6b8ef74874"
+            },
+            "type": "array"
+          },
+          "openQuestions": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "runs": {
+            "items": {
+              "properties": {
+                "corrected": {
+                  "type": "integer"
+                },
+                "costMicros": {
+                  "type": "integer"
+                },
+                "created": {
+                  "type": "integer"
+                },
+                "deleted": {
+                  "type": "integer"
+                },
+                "finishedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "flagged": {
+                  "type": "integer"
+                },
+                "merged": {
+                  "type": "integer"
+                },
+                "modelUsed": {
+                  "type": "boolean"
+                },
+                "runId": {
+                  "type": "string"
+                },
+                "stale": {
+                  "type": "integer"
+                },
+                "startedAt": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "stopped": {
+                  "enum": [
+                    "cap",
+                    "no_key"
+                  ],
+                  "type": "string"
+                },
+                "tidied": {
+                  "type": "integer"
+                },
+                "tokensIn": {
+                  "type": "integer"
+                },
+                "tokensOut": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "runId",
+                "startedAt",
+                "modelUsed",
+                "merged",
+                "flagged",
+                "stale",
+                "created",
+                "corrected",
+                "deleted",
+                "tidied",
+                "tokensIn",
+                "tokensOut",
+                "costMicros"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "spentMicros": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "spentMicros",
+          "capMicros",
+          "capReached",
+          "modelAvailable",
+          "openQuestions",
+          "runs",
+          "nights"
+        ],
+        "type": "object"
+      },
+      "permission": "memory.admin",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Upkeep spend: this month against the monthly cap, and the recent runs with what each did and cost",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
           "toolset": "memory"
         }
       },
@@ -187851,6 +191315,34 @@
     },
     {
       "module": "memory",
+      "name": "memory.archived",
+      "payload": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "days": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "days"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/count",
+        "type": "entity"
+      },
+      "summary": "Facts untouched in Trash moved to Archive",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "memory",
       "name": "memory.captured",
       "payload": {
         "properties": {
@@ -188114,6 +191606,80 @@
       "vis": "participants"
     },
     {
+      "label": "subject",
+      "module": "memory",
+      "name": "memory.learned",
+      "payload": {
+        "properties": {
+          "actor": {
+            "type": "string"
+          },
+          "actorKind": {
+            "type": "string"
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "person",
+              "agent",
+              "project",
+              "space"
+            ],
+            "type": "string"
+          },
+          "ownerRef": {
+            "type": "string"
+          },
+          "saved": {
+            "type": "boolean"
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceRef": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId",
+          "layer",
+          "ownerRef",
+          "sourceKind",
+          "sourceRef",
+          "actor",
+          "actorKind",
+          "saved",
+          "from"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/factId",
+        "type": "entity"
+      },
+      "summary": "Memory learned a fact (ids and places only, never the text); the Learned feed reads this",
+      "sv": 1,
+      "vis": "participants"
+    },
+    {
       "module": "memory",
       "name": "memory.map_rewritten",
       "payload": {
@@ -188184,6 +191750,38 @@
       "summary": "A shared memory note was restored to an earlier version",
       "sv": 1,
       "vis": "space"
+    },
+    {
+      "module": "memory",
+      "name": "memory.page_restored",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "pageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pageId",
+          "from",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/pageId",
+        "type": "entity"
+      },
+      "summary": "A page came back from Trash or Archive",
+      "sv": 1,
+      "vis": "participants"
     },
     {
       "module": "memory",
@@ -188354,6 +191952,105 @@
       "summary": "Facts were removed from answers (kept in history)",
       "sv": 1,
       "vis": "participants"
+    },
+    {
+      "module": "memory",
+      "name": "memory.restored",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId",
+          "from",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/factId",
+        "type": "entity"
+      },
+      "summary": "A fact came back from Trash or Archive",
+      "sv": 1,
+      "vis": "participants"
+    },
+    {
+      "module": "memory",
+      "name": "memory.upkeep_ran",
+      "payload": {
+        "properties": {
+          "corrected": {
+            "type": "integer"
+          },
+          "costMicros": {
+            "type": "integer"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "deleted": {
+            "type": "integer"
+          },
+          "flagged": {
+            "type": "integer"
+          },
+          "merged": {
+            "type": "integer"
+          },
+          "modelUsed": {
+            "type": "boolean"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "stale": {
+            "type": "integer"
+          },
+          "stopped": {
+            "type": "string"
+          },
+          "tidied": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "runId",
+          "merged",
+          "flagged",
+          "stale",
+          "created",
+          "corrected",
+          "deleted",
+          "tidied",
+          "modelUsed",
+          "costMicros"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "retention": "memory",
+      "subject": {
+        "id": "/runId",
+        "type": "entity"
+      },
+      "summary": "An upkeep run finished (counts and cost only)",
+      "sv": 1,
+      "vis": "space"
     },
     {
       "module": "mail",
@@ -217632,6 +221329,72 @@
       },
       "scope": "space",
       "title": "Fact kinds that merge without review"
+    },
+    {
+      "default": "local",
+      "key": "memory.meaning_search",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "enum": [
+          "local",
+          "key",
+          "off"
+        ],
+        "type": "string"
+      },
+      "scope": "space",
+      "title": "Meaning search: local model, the memory key, or off"
+    },
+    {
+      "default": false,
+      "key": "memory.require_review",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "type": "boolean"
+      },
+      "scope": "space",
+      "title": "Require review for shared memory"
+    },
+    {
+      "default": [],
+      "key": "memory.review_projects",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "scope": "space",
+      "title": "Projects whose memory needs review (project ids)"
+    },
+    {
+      "default": 60,
+      "key": "memory.trash_days",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "maximum": 90,
+        "minimum": 30,
+        "type": "integer"
+      },
+      "scope": "space",
+      "title": "Days in Trash before Archive (30 to 90)"
+    },
+    {
+      "default": 5,
+      "key": "memory.upkeep_monthly_cap",
+      "module": "memory",
+      "page": "Policies",
+      "schema": {
+        "minimum": 0,
+        "type": "number"
+      },
+      "scope": "space",
+      "title": "Monthly spend cap for model upkeep, in US dollars"
     },
     {
       "default": true,
