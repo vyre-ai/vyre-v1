@@ -106,17 +106,17 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   useEffect(() => {
     if (!noMine || makingMine.current) return;
     makingMine.current = true;
-    data.call("vault.folders.create", { name: "Mine", scope: "mine" }).then((out) => { setMade((cur) => [...cur, (out as { folder: Folder }).folder]); }, () => { makingMine.current = false; setError("Could not make your Mine folder. Try again."); });
+    data.call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: "vault-mine-default" }).then((out) => { setMade((cur) => [...cur, (out as { folder: Folder }).folder]); }, (e: unknown) => { makingMine.current = false; setError(reasonOf(e, "Could not make your Mine folder. Try again.")); });
   }, [noMine]); // eslint-disable-line react-hooks/exhaustive-deps
   const createFolder = (): void => {
     if (creating === null || creating.busy) return;
     const name = creating.name.trim();
     if (name === "") { setCreating({ ...creating, error: "Give the folder a name." }); return; }
     setCreating({ name, busy: true });
-    data.call("vault.folders.create", { name, scope: "mine" }).then((out) => {
+    data.call("vault.folders.create", { name, scope: "mine", idempotencyKey: `vault-folder-${name}-${Date.now()}` }).then((out) => {
       const f = (out as { folder: Folder }).folder;
       setMade((cur) => [...cur, f]); setFolderId(f.id); setCreating(null);
-    }, (e: unknown) => setCreating({ name, busy: false, error: e instanceof Error && e.message ? e.message : "Could not make that folder." }));
+    }, (e: unknown) => setCreating({ name, busy: false, error: reasonOf(e, "Could not make that folder.") }));
   };
   const target = folderId && list.some((f) => f.id === folderId) ? folderId : (list.find((f) => f.scope === "mine") ?? list[0])?.id;
   const folder = list.find((f) => f.id === target);
@@ -267,6 +267,12 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
       {error ? <Text style={s.error} accessibilityRole="alert" testID="add-error">{error}</Text> : null}
     </Sheet>
   );
+}
+
+/** The reason a call was refused, in the daemon's own words, or the fallback. */
+function reasonOf(e: unknown, fallback: string): string {
+  const x = e as { error?: { message?: string }; message?: string };
+  return x?.error?.message ?? (x?.message ? x.message : fallback);
 }
 
 function rectOf(e: unknown): { x: number; y: number } {

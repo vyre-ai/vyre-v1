@@ -153,7 +153,10 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
     return () => doc.removeEventListener("keydown", onKey);
   }, [overlay, moveSelection, effectiveId, query, detailOpen, twoPane]);
 
-  const createFolder = useCallback(async (name: string) => { await data.call("vault.folders.create", { name, scope: "shared" }); showNote(`Made the folder ${name}`); }, [data, showNote]);
+  const createFolder = useCallback(async (name: string) => {
+    try { await data.call("vault.folders.create", { name, scope: "shared", idempotencyKey: `vault-folder-${name}-${Date.now()}` }); showNote(`Made the folder ${name}`); }
+    catch (e) { const x = e as { error?: { message?: string }; message?: string }; showNote(x?.error?.message ?? x?.message ?? `Could not make the folder ${name}.`); }
+  }, [data, showNote]);
 
   const sectionEntries = (): MenuEntry[] => {
     const entry = (s: Selection, label: string, n?: number): MenuEntry => ({ label: n === undefined ? label : `${label}  ${n}`, checked: sameSelection(s, selection), onSelect: () => select(s) });

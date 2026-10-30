@@ -1,0 +1,1 @@
+- Vault: Add makes the Mine folder when a person has none, so it can save in a Personal Space; the folder menu offers New folder; refusals show their reason. Settings > Profile: Name shows the name set at creation, the time zone starts as the computer's, a Personal Space shows no role label, Photo > Choose opens its picker in the desktop app and shows why it fails.

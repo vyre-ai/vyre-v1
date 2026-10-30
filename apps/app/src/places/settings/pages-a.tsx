@@ -27,14 +27,26 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const change = useChange();
   const [copy, setCopy] = useState(false);
+  const [photoNote, setPhotoNote] = useState<string | null>(null);
   const name = rowOf(rows, "profile.display_name");
   const handle = rowOf(rows, "profile.handle");
   const title = rowOf(rows, "profile.title");
   const contact = rowOf(rows, "profile.contact");
   const photo = rowOf(rows, "profile.photo");
   const who = str(name) || data.me.name;
+  // The time zone starts as the computer's, not the manifest's UTC: written once per person on this device while the setting still holds its default.
+  const tz = rowOf(rows, "profile.timezone");
+  useEffect(() => {
+    if (!tz || tz.value !== tz.default) return;
+    const zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ""; } })();
+    if (!zone || zone === tz.value) return;
+    const flag = `vyre.tz.seeded:${data.me.id}`;
+    try { if (globalThis.localStorage?.getItem(flag) === "1") return; globalThis.localStorage?.setItem(flag, "1"); } catch { return; }
+    void change(tz, zone);
+  }, [tz?.value]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = (contact?.value ?? {}) as { email?: string; phone?: string };
-  const role = data.spaces.find((sp) => sp.current)?.role ?? "";
+  const here = data.spaces.find((sp) => sp.current);
+  const role = here?.kind === "personal" ? "" : here?.role ?? "";   // no role labels in a Personal Space
   const line = [str(handle) ? `@${str(handle)}` : "", role, str(title)].filter(Boolean).join(" · ");
   const before: ReactElement[] = [];
   const after: ReactElement[] = [];
@@ -57,8 +69,8 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
       </View>
       <Section title="About you">
         {[
-          photo ? <SettingsRow key="photo" id="profile.photo" label="Photo" first found={found === "profile.photo"} control={<><SmallButton label="Choose" testID="choose-photo" onPress={() => void data.nav.choosePhoto().then((id) => { if (id) void change(photo, id); })} />{photo.value ? <SmallButton label="Remove" onPress={() => void change(photo, null)} /> : null}</>} /> : null,
-          rowFor(name, 1, <Field value={str(name)} label="Name" testID="ctl-profile.display_name" onCommit={(v) => void change(name!, v)} />, "Name"),
+          photo ? <SettingsRow key="photo" id="profile.photo" label="Photo" first found={found === "profile.photo"} {...(photoNote ? { sub: photoNote } : {})} control={<><SmallButton label="Choose" testID="choose-photo" onPress={() => { setPhotoNote(null); data.nav.choosePhoto().then((id) => { if (id) void change(photo, id); }, (e: unknown) => setPhotoNote(e instanceof Error && e.message ? e.message : "Could not use that picture.")); }} />{photo.value ? <SmallButton label="Remove" onPress={() => void change(photo, null)} /> : null}</>} /> : null,
+          rowFor(name, 1, <Field value={str(name) || data.me.name} label="Name" testID="ctl-profile.display_name" onCommit={(v) => { if (v !== (str(name) || data.me.name)) void change(name!, v); }} />, "Name"),
           rowFor(handle, 2, <Field value={str(handle)} label="Handle" prefix="@" mono pattern={"^([a-z0-9_.-]{2,32})?$"} width={160} testID="ctl-profile.handle" onCommit={(v) => void change(handle!, v)} />, "Handle", "Letters, numbers, dots and dashes"),
           rowFor(title, 3, <Field value={str(title)} label="Title" testID="ctl-profile.title" onCommit={(v) => void change(title!, v)} />, "Title"),
         ]}

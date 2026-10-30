@@ -224,7 +224,7 @@ test("Keyboard: shortcuts with their keys, an override shows its default and Res
 
 test("Spaces: each Space with its address and role; Open for the others, Leave for the open Team Space", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "spaces" });
-  assert.ok(has(out, "northwind.vyre.run, Owner") && has(out, "harbor.vyre.run, Member, 2 waiting on you") && has(out, "Only on this computer, Owner"));
+  assert.ok(has(out, "northwind.vyre.run, Owner") && has(out, "harbor.vyre.run, Member, 2 waiting on you") && has(out, "Only on this computer") && !has(out, "Only on this computer, Owner"), "a Personal Space carries no role label");
   assert.ok(has(out, 'data-testid="open-harbor"') && has(out, 'data-testid="leave-northwind"') && !has(out, 'data-testid="leave-personal"') && !has(out, 'data-testid="leave-harbor"'));
 });
 

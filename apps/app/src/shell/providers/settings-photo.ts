@@ -30,6 +30,15 @@ export const pickImageFromPage: PickImage = () => {
         resolve({ name: f.name, mime: f.type || "image/png", size: f.size, base64: btoa(bin) });
       }, () => resolve(null));
     };
+    // WKWebView (the desktop app on a Mac) only opens a file chooser for an input that is in the page: attach it, hidden, for the click, and take it out when it answers.
+    const body = (doc as unknown as { body?: { appendChild(n: unknown): void; removeChild(n: unknown): void } }).body;
+    const el = input as unknown as { style?: { display: string } };
+    if (el.style) el.style.display = "none";
+    body?.appendChild(input);
+    const done = (): void => { try { body?.removeChild(input); } catch { /* already gone */ } };
+    const prevChange = input.onchange, prevCancel = input.oncancel;
+    input.onchange = () => { done(); prevChange?.(); };
+    input.oncancel = () => { done(); prevCancel?.(); };
     input.click();
   });
 };
