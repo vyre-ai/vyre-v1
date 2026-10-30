@@ -8,7 +8,7 @@ import { graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave 
 import { archiveSweep, learned, restore, trailRead, trashSearch, undo } from "./lifecycle.ts";
 import { backlinks, exportMarkdown, pageDelete, pageGet, pageList, pagePut, pageRestoreVersion, pageSetVisibility, pageVersions } from "./pages.ts";
 import { noteErase } from "./purge.ts";
-import { meaningStatusRead } from "./meaning.ts";
+import { meaningRank, meaningStatusRead } from "./meaning.ts";
 import { maintain, questionResolve, questionsList, upkeepStatus } from "./upkeep.ts";
 
 export const handlers = {
@@ -52,6 +52,7 @@ export const handlers = {
   "memory.trail": trailRead,
   "memory.upkeep.status": upkeepStatus,
   "memory.meaning.status": meaningStatusRead,
+  "memory.meaning.rank": meaningRank,
   "memory.page.get": pageGet,
   "memory.page.put": pagePut,
   "memory.page.list": pageList,

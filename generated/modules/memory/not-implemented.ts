@@ -29,6 +29,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "memory.learned": async (ctx) => { throw new VyreErr(notImplemented("memory.learned", ctx.trace)); },
   "memory.maintain": async (ctx) => { throw new VyreErr(notImplemented("memory.maintain", ctx.trace)); },
   "memory.map.get": async (ctx) => { throw new VyreErr(notImplemented("memory.map.get", ctx.trace)); },
+  "memory.meaning.rank": async (ctx) => { throw new VyreErr(notImplemented("memory.meaning.rank", ctx.trace)); },
   "memory.meaning.status": async (ctx) => { throw new VyreErr(notImplemented("memory.meaning.status", ctx.trace)); },
   "memory.notes.erase": async (ctx) => { throw new VyreErr(notImplemented("memory.notes.erase", ctx.trace)); },
   "memory.notes.list": async (ctx) => { throw new VyreErr(notImplemented("memory.notes.list", ctx.trace)); },

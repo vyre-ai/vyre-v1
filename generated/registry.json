@@ -14259,6 +14259,32 @@
       ],
       "type": "object"
     },
+    "s_b7630fe556": {
+      "description": "How meaning search ran for this question. Anything but on means keyword search answered; not_set_up is healthy.",
+      "properties": {
+        "hint": {
+          "description": "Why search is keyword-only right now, in plain words",
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "on",
+            "loading",
+            "not_set_up",
+            "degraded",
+            "off"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "type": "object"
+    },
     "s_b87b1cfef9": {
       "properties": {
         "createdAt": {
@@ -114277,6 +114303,127 @@
       ],
       "examples": [
         {
+          "input": {
+            "candidates": [
+              {
+                "id": "example",
+                "text": "example"
+              }
+            ],
+            "query": "example"
+          },
+          "name": "example",
+          "output": {
+            "meaning": {
+              "hint": "example",
+              "model": "example",
+              "state": "on"
+            },
+            "scores": [
+              {
+                "id": "example",
+                "score": 1
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "candidates"
+        ],
+        "type": "object"
+      },
+      "label": "filter",
+      "level": "view",
+      "module": "memory",
+      "name": "memory.meaning.rank",
+      "output": {
+        "properties": {
+          "meaning": {
+            "$ref": "#/$defs/s_b7630fe556"
+          },
+          "scores": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "score"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "scores",
+          "meaning"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; the scores are 0 to 1 and empty when the model is not ready",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "memory_meaning_rank",
+          "toolset": "memory"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
           "input": {},
           "name": "example",
           "output": {
@@ -116932,30 +117079,7 @@
             "type": "array"
           },
           "meaning": {
-            "description": "How meaning search ran for this question. Anything but on means keyword search answered; not_set_up is healthy.",
-            "properties": {
-              "hint": {
-                "description": "Why search is keyword-only right now, in plain words",
-                "type": "string"
-              },
-              "model": {
-                "type": "string"
-              },
-              "state": {
-                "enum": [
-                  "on",
-                  "loading",
-                  "not_set_up",
-                  "degraded",
-                  "off"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "state"
-            ],
-            "type": "object"
+            "$ref": "#/$defs/s_b7630fe556"
           },
           "tookMs": {
             "type": "integer"

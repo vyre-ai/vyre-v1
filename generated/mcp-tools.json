@@ -30993,6 +30993,48 @@
     },
     {
       "blocks": [],
+      "cap": "memory.meaning.rank",
+      "deferred": false,
+      "description": "Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; the scores are 0 to 1 and empty when the model is not ready",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "candidates"
+        ],
+        "type": "object"
+      },
+      "name": "memory_meaning_rank",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.meaning.status",
       "deferred": false,
       "description": "Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)",
