@@ -12,6 +12,8 @@ export const SYSTEM_READ: readonly string[] = [
   "/usr/lib", "/usr/bin", "/usr/sbin", "/usr/share", "/usr/libexec", "/bin", "/sbin", "/System/Library", "/Library/Frameworks", "/Library/Preferences/Logging",
   "/private/var/db/dyld", "/private/var/db/timezone", "/private/etc/ssl", "/private/etc/ssl", "/Library/Apple/System",
 ];
+/** The one directory opened as a literal, not as a tree: macOS 26 aborts every process at startup (SIGABRT) unless it can open `/`. What is under `/` stays closed. */
+export const ROOT_DIR_LITERAL = "/";
 const DEVICES_READ = ["/dev/null", "/dev/zero", "/dev/random", "/dev/urandom", "/dev/tty"];
 
 /** A string for a profile. A control character or a line break is refused; a backslash and a quote are escaped. */
@@ -39,6 +41,8 @@ export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
     "(allow sysctl-read)",
     "(allow file-read-metadata)",
     "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\") (global-name \"com.apple.logd\") (global-name \"com.apple.system.notification_center\") (global-name \"com.apple.trustd.agent\"))",
+    ";; the root directory itself, not what is under it (macOS 26 aborts every process at startup without it)",
+    `(allow file-read* (literal ${sbplString(ROOT_DIR_LITERAL)}))`,
     ";; the system, read only",
     `(allow file-read* ${[...new Set([...SYSTEM_READ, ...(o.programRead ?? [])])].map((p) => `(subpath ${sbplString(p)})`).join(" ")})`,
     `(allow file-read* ${DEVICES_READ.map((p) => `(literal ${sbplString(p)})`).join(" ")})`,

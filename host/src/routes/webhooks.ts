@@ -69,6 +69,8 @@ async function readRaw(req: http.IncomingMessage): Promise<string | null> {
 function answer(out: unknown, a: WebhookAccept): { type: string; body: string } {
   const o = (out !== null && typeof out === "object" ? out : {}) as Record<string, unknown>;
   if (typeof o["twiml"] === "string") return { type: "text/xml; charset=utf-8", body: o["twiml"] };
+  // Microsoft Graph's subscription handshake: the token it sent, as plain text.
+  if (typeof o["validationToken"] === "string") return { type: "text/plain; charset=utf-8", body: o["validationToken"] };
   if (typeof o["encryptedToken"] === "string") {
     let plainToken = "";
     try { plainToken = String((JSON.parse(a.body) as { payload?: { plainToken?: unknown } }).payload?.plainToken ?? ""); } catch { /* the module already refused a body it could not read */ }

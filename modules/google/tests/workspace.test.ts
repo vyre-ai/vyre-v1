@@ -11,7 +11,7 @@ import {
 import { getProfile, watch } from "../handlers/gmail.ts";
 import { handlers } from "../impl.ts";
 import { registry } from "../../../generated/registry.ts";
-import { ensure, SCOPES } from "../projections.ts";
+import { ensure, pushToken, SCOPES } from "../projections.ts";
 import { act, codeOf, CONN, contractErrors, fixture, harness, NOW, seedDelegation } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -100,7 +100,8 @@ test("status and scopes tell the wizard what is set and what to paste into the A
   await dwdSetup(h.ctx, setupInput);
   await dwdSetExcluded(h.ctx, { email: SAM, excluded: true });
   const after = await dwdStatus(h.ctx);
-  assert.deepEqual(after, { configured: true, adminEmail: "admin@vyre.test", domain: "vyre.test", lastProbeAt: NOW, lastProbeOk: true, autoConnect: true, mappedMembers: 2, excluded: [SAM] });
+  assert.deepEqual(after, { configured: true, adminEmail: "admin@vyre.test", domain: "vyre.test", lastProbeAt: NOW, lastProbeOk: true, autoConnect: true, mappedMembers: 2, excluded: [SAM], pushToken: pushToken(h.ctx) });
+  assert.match(after.pushToken!, /^[0-9a-f]{64}$/, "the secret for the Pub/Sub push address is made with the setup");
   check("google.dwd.status", before);
   check("google.dwd.status", after);
   const scopes = await dwdScopes(h.ctx);
@@ -384,9 +385,9 @@ test("free/busy is flattened per person and channels are opened and closed", asy
   const busy = await freeBusy(h.ctx, { ...act, emails: [MAYA, SAM], timeMin: "2026-10-26T00:00:00Z", timeMax: "2026-10-27T00:00:00Z" });
   assert.deepEqual(busy.busy, [{ email: MAYA, start: "a", end: "b" }, { email: MAYA, start: "c", end: "d" }]);
   assert.deepEqual(h.hits(`${CAL}/freeBusy`)[0]!.body, { timeMin: "2026-10-26T00:00:00Z", timeMax: "2026-10-27T00:00:00Z", items: [{ id: MAYA }, { id: SAM }] });
-  const w = await calendarWatch(h.ctx, { ...act, calendarId: "primary", channelId: "ch1", address: "https://hooks.vyre.test/hooks/google" });
+  const w = await calendarWatch(h.ctx, { ...act, calendarId: "primary", channelId: "ch1", address: "https://hooks.vyre.test/hooks/google/calendar" });
   assert.deepEqual(w, { resourceId: "res1", expiration: 1_761_000_000_000 });
-  assert.deepEqual(h.hits(`${CAL}/calendars/primary/events/watch`)[0]!.body, { id: "ch1", type: "web_hook", address: "https://hooks.vyre.test/hooks/google" });
+  assert.deepEqual(h.hits(`${CAL}/calendars/primary/events/watch`)[0]!.body, { id: "ch1", type: "web_hook", address: "https://hooks.vyre.test/hooks/google/calendar", token: pushToken(h.ctx) });
   assert.deepEqual(await calendarStopWatch(h.ctx, { ...act, channelId: "ch1", resourceId: "res1" }), { stopped: true });
   check("google.calendar.free_busy", busy);
   check("google.calendar.watch", w);
@@ -464,7 +465,7 @@ test("Drive changes, watches and channel stops", async () => {
   const changes = await driveChanges(h.ctx, { ...act, pageToken: "t1", driveId: "d1" });
   assert.deepEqual(changes.changes.map((c) => [c.fileId, c.removed, "file" in c]), [["f1", false, true], ["f3", true, false]]);
   assert.equal(changes.newStartPageToken, "t9");
-  const w = await driveWatch(h.ctx, { ...act, pageToken: "t9", channelId: "ch2", address: "https://hooks.vyre.test/hooks/google", driveId: "d1" });
+  const w = await driveWatch(h.ctx, { ...act, pageToken: "t9", channelId: "ch2", address: "https://hooks.vyre.test/hooks/google/drive", driveId: "d1" });
   assert.deepEqual(w, { resourceId: "res2", expiration: 1_761_000_000_000 });
   assert.deepEqual(await driveStopWatch(h.ctx, { ...act, channelId: "ch2", resourceId: "res2" }), { stopped: true });
   check("google.drive.list_changes", changes);

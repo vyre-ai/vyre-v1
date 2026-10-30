@@ -136,3 +136,5 @@ export const localChangesConsumer = {
 
 export const inline = {};
 export const consumers = { "mounts.local_changes": localChangesConsumer };
+/** What the host runs over the Space log: edits made in Vyre inside a mounted folder (the host reads async projections from `projections`). */
+export const projections = [localChangesConsumer];
