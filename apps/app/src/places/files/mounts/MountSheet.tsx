@@ -19,7 +19,8 @@ import {
   SOURCES, back, canMount, canNext, chooseSource, crumbs, defaultName, emptyDraft, isMounted, metaOf, next, pathKey as pathKeyOf, pick, setQuery, sourceOf, togglePerson, walkInto, walkTo, whoLabel,
 } from "./model.ts";
 import type { BrowseItem, Draft, MountKind, MountRow, SourceId } from "./model.ts";
-import { Actions, Btn, ErrorLine, Field, IconButton, MenuButton, Segmented, Sheet, SheetHead, TextField, anchorOf } from "./parts.tsx";
+import type { DialogAction } from "../../../../../../ui/src/Dialog/index.tsx";
+import { ErrorLine, Field, IconButton, MenuButton, Segmented, Sheet, TextField, anchorOf } from "./parts.tsx";
 
 export interface MountedInfo { mountId: string; folderId: string; runId: string; name: string; warning?: string }
 
@@ -136,13 +137,16 @@ export function MountSheet({ onClose, onMounted, into, initial, preload }: Mount
   };
 
   let title = "Mount a folder";
-  let mark: ReactElement | undefined;
-  if (d.step >= 2 && source) { title = source.name; mark = <Mark kind={markKind(source.id)} size={16} />; }
+  if (d.step >= 2 && source) title = source.name;
   if (d.step === 3 && d.picked && source) title = source.id === "github" ? d.picked.ref : d.picked.name;
 
+  const actions: DialogAction[] = d.step === 2
+    ? [{ label: "Back", onPress: () => setD((x) => back(x)), testID: "mount-back" }, { label: "Next", primary: true, disabled: !canNext(d), onPress: () => setD((x) => next(x)), testID: "mount-next" }]
+    : d.step === 3
+      ? [{ label: "Back", onPress: () => setD((x) => back(x)), testID: "mount-back" }, { label: busy ? "Mounting…" : "Mount", primary: true, disabled: busy || !canMount(d), onPress: mount, testID: "mount-go" }]
+      : [{ label: "Cancel", onPress: onClose, testID: "mount-cancel" }];
   return (
-    <Sheet label="Mount a folder" onClose={onClose} onKey={onKey} testID="mount-sheet">
-      <SheetHead title={title} mark={mark} onBack={d.step > 1 ? () => setD((x) => back(x)) : undefined} onClose={onClose} />
+    <Sheet label={title} onClose={onClose} onKey={onKey} actions={actions} testID="mount-sheet">
       {d.step === 1 ? <SourceStep onChoose={choose} /> : null}
       {d.step === 2 && source ? (
         <PickStep
@@ -181,18 +185,6 @@ export function MountSheet({ onClose, onMounted, into, initial, preload }: Mount
         </View>
       ) : null}
       {error ? <ErrorLine text={error} /> : null}
-      {d.step === 2 ? (
-        <Actions>
-          <Btn label="Cancel" onPress={onClose} testID="mount-cancel" />
-          <Btn label="Next" primary disabled={!canNext(d)} onPress={() => setD((x) => next(x))} testID="mount-next" />
-        </Actions>
-      ) : null}
-      {d.step === 3 ? (
-        <Actions>
-          <Btn label="Back" onPress={() => setD((x) => back(x))} testID="mount-back" />
-          <Btn label={busy ? "Mounting…" : "Mount"} primary disabled={busy || !canMount(d)} onPress={mount} testID="mount-go" />
-        </Actions>
-      ) : null}
       {menu.element}
     </Sheet>
   );

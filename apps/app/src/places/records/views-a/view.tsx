@@ -130,7 +130,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
         out.push({ label: n === null ? o.title : `${o.title} (${n})`, checked: chosen(v, f.key).includes(optionValue(f, o.key)), onSelect: () => set(toggleOption(v, f.key, optionValue(f, o.key))) });
       }
     }
-    if (out.length === 0) out.push({ head: "Filter" }, { label: "No fields to filter by" });
+    if (out.length === 0) out.push({ head: "Nothing to filter by yet" });
     if (v.clauses.length > 0) out.push({ separator: true }, { label: "Clear filters", onSelect: () => set(clearClauses(v)) });
     return out;
   };

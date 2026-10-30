@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { MenuIcon, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { iconMarkup } from "../../../shell/rail/icons.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { NeedsTeamSpace } from "../../../../../../ui/src/NeedsTeamSpace/index.tsx";
@@ -63,7 +64,7 @@ function useLists(): Lists {
   }, [sites, forms, campaigns, templates, domains, domainError]);
 }
 
-const EMPTY_ICON = { sites: "files", forms: "records", campaigns: "inbox", templates: "files", domains: "inbox" } as const;
+const EMPTY_ICON = { sites: "files", forms: "files", campaigns: "inbox", templates: "files", domains: "inbox" } as const;
 
 function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | undefined; route?: AppsRoute | undefined }): ReactElement {
   const d = useAppsData();
@@ -129,7 +130,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
           onPress={() => { setGroup(g.key); if (route.kind !== "list") d.nav.show(g.key); setClosed((c) => { const n = new Set(c); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; }); }}
           style={(state) => [s.gh, (state as { hovered?: boolean }).hovered === true && s.over]}
         >
-          <View style={open ? undefined : s.shut}><Text style={s.chev}>{"▾"}</Text></View>
+          <View style={open ? undefined : s.shut}><MenuIcon icon={iconMarkup("chev")} color="var(--ink-4)" size={12} /></View>
           <Text style={[s.gt, group === g.key && s.gtOn]}>{g.title}</Text>
           <Text style={s.gn}>{rows.length}</Text>
         </Pressable>
@@ -193,7 +194,8 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
             <Pressable accessibilityRole="button" accessibilityLabel="New" testID="apps-new" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y); }} style={(state) => [s.ib, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={s.plus}>+</Text></Pressable>
           </View>
           <View style={s.search}>
-            <TextInput ref={(r) => { search.current = r as unknown as { focus?: () => void } | null; }} value={q} onChangeText={setQ} placeholder="Search" placeholderTextColor="var(--ink-3)" accessibilityLabel="Search Apps" testID="apps-search" style={s.searchInput} />
+            <MenuIcon icon={iconMarkup("search")} color="var(--ink-3)" />
+            <TextInput ref={(r) => { search.current = r as unknown as { focus?: () => void } | null; }} value={q} onChangeText={setQ} placeholder="Search apps" placeholderTextColor="var(--ink-4)" accessibilityLabel="Search Apps" testID="apps-search" style={s.searchInput} />
           </View>
           <View style={s.groups}>{side}</View>
         </View>
@@ -236,17 +238,16 @@ const s = StyleSheet.create({
   sideWide: { width: 268, flexShrink: 0 },
   sideFull: { flex: 1, borderRightWidth: 0 },
   sh: { height: 52, flexDirection: "row", alignItems: "center", paddingLeft: 18, paddingRight: 10 },
-  title: { fontSize: 17, fontWeight: "600", letterSpacing: -0.2, color: "var(--ink)" as string },
+  title: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   grow: { flex: 1 },
   ib: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   plus: { fontSize: 18, color: "var(--ink-2)" as string },
   over: { backgroundColor: "var(--hover)" as string },
-  search: { paddingHorizontal: 12, paddingBottom: 8 },
-  searchInput: { height: 30, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sel)" as string, fontSize: 13, color: "var(--ink)" as string },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string },
+  searchInput: { flex: 1, minWidth: 0, height: 30, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as object) },
   groups: { paddingHorizontal: 8, paddingBottom: 12 },
   gh: { height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 6, marginTop: 8 },
   shut: { transform: [{ rotate: "-90deg" }] },
-  chev: { fontSize: 10, color: "var(--ink-3)" as string },
   gt: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string, flex: 1 },
   gtOn: { color: "var(--ink)" as string },
   gn: { fontSize: 12, color: "var(--ink-3)" as string },
