@@ -198,3 +198,16 @@ test("an adopted agent gets the same two grants on its new folder", async () => 
   const home = String(record(hn, "agt_scout")["folderId"]);
   assert.deepEqual(onHome(hn, home), [`agent:agt_scout:edit:agent:agt_scout`, `person:${DANA}:manage:agent:agt_scout`].sort());
 });
+
+test("a Personal Space has no grants to write: the boot pass makes no access call, logs nothing and is quiet on every later pass", async () => {
+  const hn = harness();
+  const a = await make(hn);
+  hn.world.homeGrants.length = 0;
+  hn.ctx.db.run("DELETE FROM agents_meta WHERE key = ?", `agents.home_grants.v1:${a.agentId}`);
+  hn.world.answer("spaces.get", () => ({ space: { kind: "personal" } }));
+  hn.world.answer("access.share", () => { throw Object.assign(new Error("Needs a Team Space"), { error: { code: "permission.needs_team", message: "Needs a Team Space" } }); });
+  hn.clear();
+  assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
+  assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
+  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share" || c.cap === "access.shares_of").length, 0);
+});
