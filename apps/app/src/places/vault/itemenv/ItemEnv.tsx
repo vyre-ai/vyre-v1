@@ -146,7 +146,7 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
   const moreItems: MenuEntry[] = [
     ...(canEdit ? [{ label: "Edit…", onSelect: onEdit }] : []),
     { label: "Copy handle", onSelect: () => { void copyText(data, item.handle); } },
-    ...(item.yourLevel === "manage" ? [{ label: "Share…", onSelect: () => data.nav.openShare(itemId) }] : []),
+    ...(item.yourLevel === "manage" && data.personal !== true ? [{ label: "Share…", onSelect: () => data.nav.openShare(itemId) }] : []),
     SEP,
     ...(canEdit ? [{ label: "Mark as rotated", onSelect: () => { void rotate(); } }, { label: "Fill on the Space only", checked: item.spaceOnly, onSelect: () => { void lockSpace(); } }] : []),
     ...(item.yourLevel === "manage" && item.scope === "shared" ? [{ label: "Export .env…", onSelect: () => data.nav.openExport(item.folderId) }] : []),
@@ -252,11 +252,13 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
           ) : null}
           {failure ? <Text style={s.error} accessibilityRole="alert" testID="item-error">{failure}</Text> : null}
 
-          <WhoCanUse
+          {data.personal === true ? null : (
+            <WhoCanUse
             shares={shares ?? []} you={{ name: data.me.name, level: meShare?.level ?? item.yourLevel, owner: meShare?.through === "owner" }} nameOf={subjectName} meId={data.me.id} canManage={item.yourLevel === "manage"}
             onLevel={(sh, l) => { void setLevel(sh, l); }} onRemove={(sh) => { void stopSharing(sh); }} onShare={() => data.nav.openShare(itemId)}
             onMenu={(entries, x, y) => menu.show(entries, x, y, "other")}
           />
+          )}
 
           <View style={s.sectionHead}><Text style={s.h2}>Recent use</Text></View>
           {hist.status !== "ready" ? <Text style={s.note}>Loading</Text> : entries.length === 0 ? <Text style={s.note} testID="history-empty">Nothing has used this item yet.</Text> : (

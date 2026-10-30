@@ -80,7 +80,7 @@ export function AddProvider({ onClose, onAdded, initial }: AddProviderProps): Re
   const scopeMenu = (e: unknown): void => {
     const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } };
     const r = ev.currentTarget?.getBoundingClientRect?.();
-    show([{ head: "Belongs to" }, { label: "Mine", checked: scope === "mine", onSelect: () => setScope("mine") }, { label: "Shared with the Space", checked: scope === "shared", onSelect: () => setScope("shared") }], r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
+    show([{ head: "Belongs to" }, { label: "Mine", checked: scope === "mine", onSelect: () => setScope("mine") }, ...(data.personal === true ? [] : [{ label: "Shared with the Space", checked: scope === "shared", onSelect: () => setScope("shared") }])], r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
   };
 
   const title = added ? `Added ${added.name}` : pick ? `Add ${pick.name}` : "Add an AI provider";
