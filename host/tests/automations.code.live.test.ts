@@ -49,12 +49,12 @@ async function ok(d: Daemon, cap: string, input: unknown): Promise<any> {   // e
   assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data)}`);
   return r.data;
 }
-async function until<T>(what: string, ms: number, look: () => Promise<T | undefined>): Promise<T> {
+async function until<T>(what: string | (() => string), ms: number, look: () => Promise<T | undefined>): Promise<T> {
   const end = Date.now() + ms;
   for (;;) {
     const v = await look();
     if (v !== undefined) return v;
-    assert.ok(Date.now() < end, `gave up waiting for ${what}`);
+    assert.ok(Date.now() < end, `gave up waiting for ${typeof what === "function" ? what() : what}`);
     await new Promise((r) => setTimeout(r, 150));
   }
 }
@@ -69,8 +69,11 @@ async function runCode(d: Daemon, input: Record<string, unknown>, mode: "run" | 
   const id = String(made.automation.id);
   const started = await ok(d, mode === "test" ? "automations.test" : "automations.run", mode === "test" ? { automationId: id } : { automationId: id, idempotencyKey: `code-run-${n}` });
   const runId = String(started.runId);
-  return until("the run to end", 60_000, async () => {
+  let last = "";
+  return until(() => `the run to end (${last})`, 60_000, async () => {
     const run = (await ok(d, "runs.get", { runId })).run as { status: string };
+    const step = d.db!.all("SELECT state, error_code, error_message FROM runs_steps WHERE run_id = ? AND step = 'code'", runId)[0];
+    last = `run ${run.status}, step ${JSON.stringify(step ?? null)}`;
     if (run.status !== "succeeded" && run.status !== "failed" && run.status !== "stopped") return undefined;
     const row = d.db!.all("SELECT state, output_json, error_code, error_message FROM runs_steps WHERE run_id = ? AND step = 'code'", runId)[0] as { state: string; output_json: string | null; error_code: string | null; error_message: string | null } | undefined;
     return { status: run.status, ...(row?.output_json ? { output: JSON.parse(row.output_json) } : {}), ...(row?.error_code ? { error: { code: row.error_code, message: row.error_message ?? "" } } : {}) };

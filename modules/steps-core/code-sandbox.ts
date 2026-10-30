@@ -156,13 +156,20 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
     const argv = ["/bin/sh", "-c", `ulimit -t ${cpu}; ulimit -d ${dataKb}; exec "$@"`, "sh", node, ...nodeFlags(dir, heap), path.join(dir, "runner.mjs"), dir];
     const w = bwrapWallCommand(spec, roots, argv, { wallDir: net.dir, node, ...(h.programRead ? { programRead: h.programRead } : {}) });
     const outcome = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean }>((resolve) => {
-      const p = spawn(w.cmd, w.args, { env: {}, stdio: ["ignore", "ignore", "pipe"] });
+      // Its own process group: the wall clock ends everything the sandbox started, so a grandchild cannot keep the stderr pipe open and leave the run waiting for a close that never comes.
+      const p = spawn(w.cmd, w.args, { env: {}, stdio: ["ignore", "ignore", "pipe"], detached: true });
       let stderr = "";
       let timedOut = false;
+      let done = false;
+      const finish = (code: number | null, signal: NodeJS.Signals | null): void => { if (done) return; done = true; clearTimeout(t); resolve({ code, signal, stderr, timedOut }); };
       p.stderr.on("data", (d: Buffer) => { if (stderr.length < 4_000) stderr += d.toString("utf8"); });
-      const t = setTimeout(() => { timedOut = true; p.kill("SIGKILL"); }, h.wallMs ?? LIMITS.wallMs);
-      p.on("error", (err) => { clearTimeout(t); resolve({ code: null, signal: null, stderr: `${stderr}${err.message}`, timedOut }); });
-      p.on("close", (code, signal) => { clearTimeout(t); resolve({ code, signal, stderr, timedOut }); });
+      const t = setTimeout(() => {
+        timedOut = true;
+        try { if (p.pid !== undefined) process.kill(-p.pid, "SIGKILL"); else p.kill("SIGKILL"); } catch { p.kill("SIGKILL"); }
+      }, h.wallMs ?? LIMITS.wallMs);
+      p.on("error", (err) => { stderr = `${stderr}${err.message}`; finish(null, null); });
+      p.on("exit", (code, signal) => { setTimeout(() => finish(code, signal), 500); });   // the pipe normally closes first; this does not wait for one that is held open
+      p.on("close", (code, signal) => finish(code, signal));
     });
     return readResult(dir, outcome, cpu, heap, 128, h.diagnose === true);
   } finally {

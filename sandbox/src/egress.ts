@@ -90,7 +90,7 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
   }
 
   const refuse = (socket: Duplex, status: number, text: string): void => {
-    try { socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: ${DENIED_BODY.length}\r\n\r\n${DENIED_BODY}`); } catch { socket.destroy(); }
+    try { socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: ${DENIED_BODY.length}\r\n\r\n${DENIED_BODY}`, () => socket.destroy()); } catch { socket.destroy(); }   // answered at once and closed once written: a refused client never waits on a half-open tunnel
   };
 
   const server = http.createServer(async (req, res) => {
