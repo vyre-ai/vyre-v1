@@ -11,4 +11,5 @@ HTTP 403. Retryable: no.
 - access.share
 - folders.place
 - projects.members.set
+- projects.teammates.create
 - vault.share

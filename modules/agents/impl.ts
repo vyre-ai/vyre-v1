@@ -7,6 +7,7 @@ import { onMessageReceived } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
 import type { FileVersionEvent, PrincipalEvent, TurnEvent } from "./handlers/crud.ts";
 import type { AgentsCtx } from "./projections.ts";
+import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -17,6 +18,9 @@ export const periodic = {
 };
 
 export { restoreAgentFiles };
+
+/** The host's half for plugins (host/src/seams/plugins.ts): fetching a marketplace or a plugin as a map of text files. */
+export const hostSeams = { setPluginsHost };
 
 export const consumers = {
   ...memoryGuideConsumers,

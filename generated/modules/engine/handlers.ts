@@ -21,6 +21,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.lease.acquire": Handler<"engine.lease.acquire", X>;
   "engine.lease.heartbeat": Handler<"engine.lease.heartbeat", X>;
   "engine.lease.release": Handler<"engine.lease.release", X>;
+  "engine.mcp.call": Handler<"engine.mcp.call", X>;
+  "engine.mcp.read": Handler<"engine.mcp.read", X>;
+  "engine.mcp.tools": Handler<"engine.mcp.tools", X>;
   "engine.models.list": Handler<"engine.models.list", X>;
   "engine.placement.decide": Handler<"engine.placement.decide", X>;
   "engine.policy.get": Handler<"engine.policy.get", X>;

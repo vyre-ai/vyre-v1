@@ -4,6 +4,7 @@ import { complete } from "./complete.ts";
 import { accountProbe, accountResolve, accountsList } from "./accounts.ts";
 import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolve, incidentsList, interrupt, setMode, setModel, stop, stopAll, switchEngine } from "./control.ts";
 import { extraHandlers } from "./extra/index.ts";
+import { mcpCall, mcpTools } from "./mcp.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
 
 export const handlers = {
@@ -30,6 +31,9 @@ export const handlers = {
   "engine.spend.raise": raiseLimit,
   "engine.usage.query": usageQuery,
   "engine.turn.record_usage": recordUsage,
+  "engine.mcp.tools": mcpTools,
+  "engine.mcp.read": mcpCall,
+  "engine.mcp.call": mcpCall,
   ...extraHandlers,
 };
 

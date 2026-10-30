@@ -11,6 +11,8 @@ import { buildCatalog, parseDefaultTools } from "../../agent/src/tools/catalog.t
 import type { AgentToolRow, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import type { AgentRules, Level, ThreadFacts } from "../../agent/src/tools/types.ts";
+import type { CallHooks, DynamicTools } from "../../agent/src/tools/call.ts";
+import type { ToolCtx, ToolDef } from "../../agent/src/tools/types.ts";
 import type { SystemBlock } from "../../agent/src/drivers/api/types.ts";
 import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
@@ -23,6 +25,8 @@ export interface EngineApiToolsDeps {
   system(spec: SessionSpec, input: TurnInput): Promise<SystemBlock[]>;
   /** Call a capability as a person: what the tool set of a turn depends on is read this way, before the turn's tools are chosen. */
   call?(cap: string, input: unknown, as?: string): Promise<unknown>;
+  /** The MCP tools of the agent's plugins and connections, and the plugin hooks around every call (modules/engine/plugin-tools.ts). */
+  plugins?: { extra(ctx: ToolCtx): Promise<ToolDef[]>; dynamic: DynamicTools; hooks: CallHooks };
 }
 
 let catalog: ReturnType<typeof buildCatalog> | null = null;
@@ -41,7 +45,7 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   const facts = new Map<string, Omit<ThreadFacts, "threadId">>();
   const levels = new Map<string, Level | null>();
   const levelKey = (asker: string, scope: { type: string; id: string }): string => `${asker}|${scope.type}|${scope.id}`;
-  const session = createToolSession({ invoke: d.invoke, catalog, defaults, levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null, canEngineer: () => false });
+  const session = createToolSession({ invoke: d.invoke, catalog, defaults, levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null, canEngineer: () => false, ...(d.plugins ? { dynamic: d.plugins.dynamic, hooks: d.plugins.hooks } : {}) });
   const primed = new Set<string>();
   const prepare = async (t: { threadId: string; agentId: string; asker: string; turnId: string }): Promise<void> => {
     if (!d.call || primed.has(t.turnId)) return;
@@ -61,6 +65,6 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
       levels.set(levelKey(t.asker, scope), lvl?.level ?? null);
     }
   };
-  const tools = createApiTools({ session, space: d.space, system: (spec, input) => d.system(spec, input), prepare, rules: (id) => rules.get(id), thread: (id) => facts.get(id) });
+  const tools = createApiTools({ session, space: d.space, system: (spec, input) => d.system(spec, input), prepare, rules: (id) => rules.get(id), thread: (id) => facts.get(id), ...(d.plugins ? { extra: d.plugins.extra } : {}) });
   return tools;
 }

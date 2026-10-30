@@ -476,3 +476,28 @@ test("without an authorizer nothing is allowed: the project stays closed", async
   await refused(run(h, "projects.get", { projectId: p.projectId }, blind), "validation.not_found");
   await refused(run(h, "projects.share_out", { projectId: p.projectId }, blind), "validation.not_found");
 });
+
+test("teammates: one yes makes an agent for the project with a role, the lead comes first and is the default participant, and removing one made for this project trashes it", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  const rev = (await run(h, "projects.teammates.create", { projectId: p.projectId, name: "Security reviewer", role: "reviewer", brief: "Checks drafts for safety.", idempotencyKey: key() })).teammate;
+  const lead = (await run(h, "projects.teammates.create", { projectId: p.projectId, name: "Coordinator", role: "lead", idempotencyKey: key() })).teammate;
+  assert.deepEqual([rev.role, rev.madeForProject, rev.roleLine], ["reviewer", true, "Checks drafts for safety."]);
+  assert.deepEqual([...h.world.agents.values()].map((a) => [a["name"], a["teammateOf"]]), [["Security reviewer", p.projectId], ["Coordinator", p.projectId]], "made for the project, not for the Space");
+  const list = await run(h, "projects.teammates.list", { projectId: p.projectId });
+  assert.deepEqual(list.teammates.map((t: { name: string; role: string }) => [t.name, t.role]), [["Coordinator", "lead"], ["Security reviewer", "reviewer"]], "the lead comes first");
+  assert.equal(list.leadAgentId, lead.agentId);
+  assert.equal(h.world.records.get(p.recordId)?.fields["lead"], lead.agentId);
+  assert.ok(h.world.grants.some((g) => g.subject.id === rev.agentId && g.level === "view"), "a reviewer can read the project");
+  // an agent that was only given a role (not made for the project) is listed but is not trashed with the role
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "member" });
+  assert.equal((await run(h, "projects.teammates.list", { projectId: p.projectId })).teammates.find((t: { agentId: string }) => t.agentId === BOT).madeForProject, false);
+  assert.deepEqual(await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: BOT, idempotencyKey: key() }), { removed: true });
+  assert.deepEqual(h.world.trashed, []);
+  assert.deepEqual(await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: rev.agentId, idempotencyKey: key() }), { removed: true });
+  assert.deepEqual(h.world.trashed, [rev.agentId]);
+  assert.deepEqual(await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: rev.agentId, idempotencyKey: key() }), { removed: false });
+  await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: " ", role: "member", idempotencyKey: key() }), "validation.bad_input");
+  h.allowOnly((a) => a.level === "view" || a.level === "edit");
+  await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: "No rights", role: "member", idempotencyKey: key() }), "validation.not_found");
+});

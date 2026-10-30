@@ -8,10 +8,15 @@
 // DECISION: `engine.probe_account` is declared as a read: it sends the provider a model-list call with no Space data.
 // DECISION: the three hop and loop limits (agent_hops, review_loops, ci_fix_loops) are declared here; route() reads agent_hops and
 //   tasks.transition reads the other two.
-import { create, defineManifest, ev, health, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, label, pageIn, pageOut } from './_common.ts';
 
 const effort = t.enm('low', 'medium', 'high', 'max');
+// Outside tools (CHAT-DESIGN ruling 6): the MCP servers of plugins and connections, run in the sandbox. A call is one capability, so access, the Gate and the audit trail apply to it like any other.
+const mcpTool = t.obj({ name: t.str(), description: t.str(), inputSchema: t.json(), readOnly: t.bool() });
+const mcpServerRow = t.obj({ key: t.str({ examples: ['greeter/echo'] }), name: t.str(), from: t.enm('plugin', 'connection'), ok: t.bool(), error: t.opt(t.str()), tools: t.arr(mcpTool) });
+const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'] }), tool: t.str(), input: t.opt(t.json()) };
+const mcpCallOut = { isError: t.bool(), text: t.str(), structured: t.opt(t.json()) };
 const agentMode = t.enm('lead', 'listen');
 const turnState = t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled');
 const driverId = t.enm('anthropic', 'openai', 'openrouter', 'google', 'xai', 'opencode_go', 'local', 'custom', 'claude_code', 'codex', 'grok');
@@ -49,6 +54,15 @@ export default defineManifest({
   title: 'Engine',
   owner: 'L2',
   capabilities: [
+    read('engine.mcp.tools', 'The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)', {
+      in: { agentId: id.agent, server: t.opt(t.str()) }, out: { servers: t.arr(mcpServerRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'mcp_tools', agent: { planMode: 'allowed' },
+    }),
+    read('engine.mcp.read', 'Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server', {
+      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant'],
+    }),
+    outward('engine.mcp.call', 'Call an outside MCP tool that may change things; an agent\'s call goes through the Gate', {
+      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', risk: 'medium', gate: { act: 'send', when: "actor.kind != 'person'" }, errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant', 'validation.precondition_failed'],
+    }),
     // ---- control of a running thread (K list)
     write('engine.interrupt', 'Interrupt now: cancel the current turn and queue the message at top priority ("stop and send")', {
       in: { ...threadT, messageId: t.opt(id.message) }, out: { queued: t.bool() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled', 'turn.queued'],

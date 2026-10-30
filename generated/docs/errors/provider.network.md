@@ -14,6 +14,7 @@ HTTP 502. Retryable: yes.
 - connectors.push
 - connectors.run
 - email_builder.send_test
+- engine.mcp.call
 - engine.probe_account
 - esign.send
 - files.share_external
@@ -30,4 +31,3 @@ HTTP 502. Retryable: yes.
 - github.pull_request.request_review
 - github.pull_request.rerun_checks
 - github.pull_request.update
-- google.calendar.create_event
