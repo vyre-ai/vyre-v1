@@ -181,3 +181,14 @@ test('an externally busy installer never triggers rollback and releases the Spac
  const error=await failed(call('updates.apply',w.ctx,{to:'1.3.0'}));assert.equal(error.error.code,'validation.precondition_failed');assert.deepEqual(w.installer.log,[]);assert.equal(w.installer.version,'1.3.0','the other operation is not rolled back');
  w.installer.version='1.2.0';w.installer.install=install;w.backups.runs.push({backupId:'bkp_retry'});w.backups.listed.push('bkp_retry');await call('updates.apply',w.ctx,{to:'1.3.0'});assert.equal(w.installer.version,'1.3.0','the failed request released its guard');
 });
+
+test("a server with no vyre-server answers updates.status in words, not as an unexpected failure", async () => {
+  const w = await ready();
+  w.installer.current = async () => { throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" }); };
+  await assert.rejects(call("updates.status", w.ctx, {}), (e: unknown) => {
+    const err = (e as { error?: { code?: string; message?: string } }).error ?? (e as { code?: string; message?: string });
+    assert.equal(err.code, "validation.precondition_failed");
+    assert.match(String(err.message), /updated outside Vyre/);
+    return true;
+  });
+});

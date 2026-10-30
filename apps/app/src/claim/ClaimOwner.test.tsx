@@ -9,7 +9,7 @@ test("claim screen: a fresh link shows the details form for the owner", () => {
   const out = renderToStaticMarkup(<ClaimOwner {...base} />);
   for (const id of ["claim-name", "claim-username", "claim-password", "claim-confirm", "claim-next"]) assert.ok(out.includes(`data-testid="${id}"`), id);
   assert.ok(out.includes("Set up northwind"));
-  assert.ok(out.includes("You are the owner"));
+  assert.ok(out.includes("Forget your password? Your recovery code gets you back in."));
 });
 
 test("claim screen: a link already used shows one plain line and no form", () => {

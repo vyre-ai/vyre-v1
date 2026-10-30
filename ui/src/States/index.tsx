@@ -1,7 +1,7 @@
 // ui/States: the one empty, offline and error state for every place (spec 3.0).
 // Empty and offline: an icon, one line, one primary action. Error: title, one line, Retry; trace id, Copy trace id and Report a problem behind a Details link.
 
-import { createElement, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { STATE_ICONS } from "./props.ts";
 import type { ErrorProps, StateIcon, StateProps } from "./props.ts";
@@ -46,17 +46,19 @@ function Icon({ name }: { name: StateIcon }) {
   );
 }
 
-function Button({ label, onPress, primary, testID }: { label: string; onPress?: () => void; primary?: boolean; testID: string }) {
+function Button({ label, onPress, primary, testID, busy }: { label: string; onPress?: () => void; primary?: boolean; testID: string; busy?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} testID={testID} style={({ hovered }: { hovered?: boolean }) => [styles.btn, primary ? styles.primary : styles.quiet, hovered && styles.btnHover]}>
+    <Pressable accessibilityRole="button" accessibilityState={{ busy: busy === true }} onPress={onPress} testID={testID} style={({ hovered }: { hovered?: boolean }) => [styles.btn, primary ? styles.primary : styles.quiet, hovered && styles.btnHover]}>
       <Text style={primary ? styles.primaryText : styles.quietText}>{label}</Text>
     </Pressable>
   );
 }
 
-function copyTrace(traceId?: string): void {
+/** Copies the trace id; resolves true when the clipboard took it. */
+async function copyTrace(traceId?: string): Promise<boolean> {
   const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard;
-  if (traceId && clip) void clip.writeText(traceId);
+  if (!traceId || !clip) return false;
+  try { await clip.writeText(traceId); return true; } catch { return false; }
 }
 
 function reportProblem(detail: { traceId?: string; code?: string; message: string }): void {
@@ -67,13 +69,26 @@ function reportProblem(detail: { traceId?: string; code?: string; message: strin
 /** Error: title, one line, Retry. The trace id and the two help actions sit behind one quiet Details link. */
 export function ErrorState({ props, startOpen = false }: { props: ErrorProps; startOpen?: boolean }) {
   const [open, setOpen] = useState(startOpen);
+  // Retry shows "Trying again..." until the call settles (and for at least a beat, so a quick failure still reads as a retry); Copy shows Copied for two seconds
+  const [retrying, setRetrying] = useState(false);
+  const [copied, setCopied] = useState<"" | "yes" | "no">("");
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => { for (const t of timers.current) clearTimeout(t); }, []);
+  const later = (fn: () => void, ms: number): void => { timers.current.push(setTimeout(fn, ms)); };
+  const retry = (): void => {
+    if (retrying) return;
+    setRetrying(true);
+    const started = Date.now();
+    void Promise.resolve().then(() => props.onRetry?.()).catch(() => undefined).then(() => later(() => setRetrying(false), Math.max(0, 700 - (Date.now() - started))));
+  };
+  const copy = (): void => { void copyTrace(props.traceId).then((ok) => { setCopied(ok ? "yes" : "no"); later(() => setCopied(""), 2000); }); };
   const line = props.cause ?? props.next;
   return (
     <View accessibilityRole="alert" testID="state-error" style={styles.box}>
       <Icon name="error" />
       <Text style={styles.title}>{props.message}</Text>
       {line ? <Text style={styles.sub} testID="state-cause">{line}</Text> : null}
-      {props.retryable ? <View style={styles.actions}><Button label="Retry" onPress={props.onRetry} primary testID="state-retry" /></View> : null}
+      {props.retryable ? <View style={styles.actions}><Button label={retrying ? "Trying again…" : "Retry"} busy={retrying} onPress={retry} primary testID="state-retry" /></View> : null}
       <Pressable accessibilityRole="button" onPress={() => setOpen(!open)} testID="state-details" style={styles.detailsLink}>
           <Text style={styles.detailsText}>{open ? "Hide details" : "Details"}</Text>
       </Pressable>
@@ -82,7 +97,7 @@ export function ErrorState({ props, startOpen = false }: { props: ErrorProps; st
           {props.next && props.cause ? <Text style={styles.sub} testID="state-next">{props.next}</Text> : null}
           {props.code || props.traceId ? <Text style={styles.trace} testID="state-trace">{[props.code, props.traceId].filter(Boolean).join("  ")}</Text> : null}
           <View style={styles.actions}>
-            <Button label="Copy trace id" onPress={() => copyTrace(props.traceId)} testID="state-copy" />
+            <Button label={copied === "yes" ? "Copied" : copied === "no" ? "Could not copy" : "Copy trace id"} onPress={copy} testID="state-copy" />
             <Button label="Report a problem" onPress={() => reportProblem({ traceId: props.traceId, code: props.code, message: props.message })} testID="state-report" />
           </View>
         </View>

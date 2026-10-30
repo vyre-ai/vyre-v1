@@ -1,12 +1,33 @@
 // First launch has three doors: Just me, I was invited, Set up my team. "Set up my team" always makes the Personal Space first (so the founder has their own place), then
 // offers the Team Space. Two small notes carry that across the claim screen and the shell: a wish to add a team once the Personal Space is open, and the name and username
 // just claimed, so the Team claim can pre-fill them. The password is never kept, and each Space has its own recovery code.
-export type Door = "me" | "invited" | "team";
+export type Door = "me" | "invited" | "team" | "server" | "app";
 export const DOORS: readonly { door: Door; title: string; help: string }[] = [
   { door: "me", title: "Just me", help: "A Personal Space on this computer" },
   { door: "invited", title: "I was invited", help: "Open an invite link or a Space address" },
   { door: "team", title: "My team", help: "Your Personal Space first, then a Team Space" },
 ];
+
+/** Where the first screen is shown: the desktop app on a Mac or a PC, a browser, or a phone (journeys, table D). */
+export type Device = "mac" | "win" | "web" | "phone";
+
+/** The doors a device offers, in order. A Personal Space lives on a computer, so a browser and a phone never offer "Just me"; a team server is set up from a computer, so a phone offers the app by email instead. */
+export function doorsFor(device: Device): readonly { door: Door; title: string; help: string }[] {
+  if (device === "web") return [{ door: "invited", title: "Join a team", help: "Use your invite link" }, { door: "server", title: "Set up a team server", help: "A Linux server, one command" }];
+  if (device === "phone") return [{ door: "invited", title: "Join a team", help: "Open your invite" }, { door: "app", title: "Get the desktop app", help: "We email you a link" }];
+  return [
+    { door: "me", title: "Just me", help: "Your own private Space" },
+    { door: "invited", title: "I was invited", help: "Join a team's Space" },
+    { door: "team", title: "My team", help: "Your Space first, then a team" },
+  ];
+}
+
+/** The device a window is, from what the shell and the window say. */
+export function deviceOf(o: { desktop: boolean; mac: boolean; width: number }): Device {
+  if (o.width <= 640) return "phone";
+  if (!o.desktop) return "web";
+  return o.mac ? "mac" : "win";
+}
 
 export interface NoteStore { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void }
 const defaultStore = (): NoteStore | undefined => { try { return (globalThis as { localStorage?: NoteStore }).localStorage; } catch { return undefined; } };

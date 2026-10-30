@@ -1,0 +1,1 @@
+- Error panel: Retry shows Trying again until the call settles, Copy trace id says Copied for two seconds, and Report a problem now opens the report sheet (it was never mounted in the shell) with the failed action's trace id.

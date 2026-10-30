@@ -32,3 +32,7 @@ test("a chat tied to a record or a project is a workspace; a DM, a channel and a
   assert.equal(workOf({ kind: "channel", recordId: "rec_1" }), null);
   assert.equal(workOf({ kind: "ask", scopeType: "record", scopeId: "rec_1" }), null);
 });
+
+test("an Ask link can carry the words the composer starts with", () => {
+  assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant&about=compose%3Aemail&draft=Draft%20an%20email%20to%20").route, { view: "ask", agentId: "assistant", scopeType: "compose", scopeId: "email", bringFrom: null, draft: "Draft an email to " });
+});

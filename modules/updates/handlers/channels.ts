@@ -292,7 +292,11 @@ function waiting(state: Map<string, string>, current: string): { version: string
 
 export async function status(ctx: UpdateCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
-  const current = await d.installer.current();
+  // a server run from source has no vyre-server: say so in words, not as an unexpected failure
+  const current = await d.installer.current().catch((e: unknown) => {
+    if ((e as { code?: unknown } | null)?.code === "ENOENT") return failWith(ctx.trace.traceId, "validation.precondition_failed", "This server was not installed with vyre-server, so it is updated outside Vyre.");
+    throw e;
+  });
   const state = readState(ctx);
   const w = waiting(state, current);
   const last = historyRows(ctx, 1)[0];

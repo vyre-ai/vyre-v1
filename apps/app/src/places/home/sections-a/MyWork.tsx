@@ -72,7 +72,7 @@ function Circle({ task, onDone }: { task: Task; onDone: () => void }): ReactElem
 
 function LayoutButton({ kind, on, onPress }: { kind: "list" | "plan"; on: boolean; onPress: () => void }): ReactElement {
   return (
-    <Pressable role="radio" aria-checked={on} aria-label={kind === "list" ? "List" : "Plan"} testID={`work-view-${kind}`} onPress={onPress} style={[local.segBtn, on && local.segOn]}>
+    <Pressable role="radio" aria-checked={on} aria-selected={on} aria-label={kind === "list" ? "List" : "Plan"} testID={`work-view-${kind}`} onPress={onPress} style={[local.segBtn, on && local.segOn]}>
       <Glyph name={kind === "list" ? "list" : "timeline"} size={14} color={on ? "var(--ink)" : "var(--ink-3)"} />
     </Pressable>
   );
@@ -200,7 +200,7 @@ export function MyWork(): ReactElement {
   const dueN = dueCount(tasks, clock);
   return (
     <Section id="s-work">
-      <SectionHeader id="work" title="My work" count={open.status === "ready" ? `${total} · ${dueN} due` : undefined}>
+      <SectionHeader id="work" title="My work" count={open.status === "ready" && total > 0 ? `${total} · ${dueN} due` : undefined}>
         {total > MY_WORK_LIMIT ? <LinkButton label={`All ${total} in My work`} onPress={() => data.nav.openMyWork()} testID="work-all" /> : null}
         <LinkButton label="+ New task" onPress={() => setAdding(true)} testID="work-new" />
         <View style={local.seg} accessibilityRole="radiogroup" accessibilityLabel="My work layout">

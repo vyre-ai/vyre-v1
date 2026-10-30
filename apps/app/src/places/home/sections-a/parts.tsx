@@ -234,9 +234,9 @@ export const tone = {
 export const s = StyleSheet.create({
   section: { marginTop: 26, paddingTop: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   sectionFirst: { marginTop: 0, paddingTop: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  head: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28, marginBottom: 4 },
+  head: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 2, minHeight: 28, marginBottom: 4 },
   grow: { flex: 1, minWidth: 0 },
-  h2: { margin: 0, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
+  h2: { margin: 0, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 0 },
   count: { color: "var(--ink-3)" as string, fontWeight: "500", fontSize: 12 },
   empty: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 },
   emptyText: { color: "var(--ink-3)" as string, fontSize: 13.5 },

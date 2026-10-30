@@ -1,0 +1,1 @@
+- Inbox: New message opens an Ask chat with the assistant to draft it (it opened a screen with no UI); click tests for it and for the Chats head fold.
