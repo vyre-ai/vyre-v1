@@ -51,7 +51,7 @@ interface QuietNote { id: number; text: string; undo: (() => Promise<void> | voi
 const LINE_MS = 9000;
 
 export type VaultRoute =
-  | { surface: "layout" }
+  | { surface: "layout"; addProvider?: true }
   | { surface: "share"; itemId: string }
   | { surface: "export"; folderId: string }
   | { surface: "advanced" }
@@ -78,6 +78,9 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   const [adding, setAdding] = useState<{ paste?: string; app?: string } | null>(sheet?.add ?? null);
   const [editing, setEditing] = useState<string | null>(sheet?.edit ?? null);
   const [addingProvider, setAddingProvider] = useState<boolean>(sheet?.addProvider !== undefined);
+  // A link that asks for the sign-in (an agent with no AI account) opens the sheet even when the Vault is already showing.
+  const routedAdd = route.surface === "layout" && route.addProvider === true;
+  useEffect(() => { if (routedAdd) setAddingProvider(true); }, [routedAdd]);
   const [importing, setImporting] = useState<boolean>(sheet?.importFrom !== undefined);
   const [addField, setAddField] = useState(false);
   const [lastFolder, setLastFolder] = useState<string | undefined>(undefined);

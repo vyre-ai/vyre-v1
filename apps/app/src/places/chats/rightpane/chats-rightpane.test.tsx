@@ -95,10 +95,9 @@ test("Computer, asleep: Wake, the last session, and a dimmed screen that wakes o
   assert.ok(!has(out, 'data-testid="computer-take"'), "Take over is for a working computer");
 });
 
-test("Computer, in a Personal Space there is no Computer tab and the pane opens on Threads; an agent without a computer offers to set one up", () => {
+test("Computer, in a Personal Space, says Needs a Team Space; an agent without a computer offers to set one up", () => {
   const personal = html(createSample("personal"), "computer");
-  assert.ok(!has(personal, 'data-testid="computer-personal"') && !has(personal, ">Computer<"), "no Computer tab in a Personal Space");
-  assert.ok(has(personal, 'data-testid="face-Assistant"'), "asking for Computer shows Threads");
+  assert.ok(has(personal, "Needs a Team Space") && has(personal, "Agent computers") && has(personal, 'data-testid="computer-personal"'));
   const s = createSample();
   const bare = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }} open onToggle={() => undefined} tab="computer" window={ALL} />));
   assert.ok(has(bare, "Intake has no computer yet") && has(bare, 'data-testid="computer-provision"'));

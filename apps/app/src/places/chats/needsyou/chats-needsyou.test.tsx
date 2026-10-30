@@ -12,6 +12,7 @@ import {
   sortItems, splitActions, stepSelection,
 } from "./model.ts";
 import type { Item } from "./model.ts";
+import { NO_ACCOUNT_TITLE, isNoAccount } from "./account.ts";
 import { ME, SAMPLE_NOW, createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
 
@@ -178,7 +179,19 @@ test("every nav handler is reachable: the shell is told what to open, never how"
   s.data.nav.openSource("chat", "c3");
   s.data.nav.openFile("doc1");
   s.data.nav.openComputer("agt_scout");
-  assert.deepEqual(s.opened, ["source:chat:c3", "file:doc1", "computer:agt_scout"]);
+  s.data.nav.openSignIn();
+  assert.deepEqual(s.opened, ["source:chat:c3", "file:doc1", "computer:agt_scout", "sign-in"]);
+});
+
+test("a turn with no AI account leaves one task whose action is the direct sign-in, not the agent's computer", () => {
+  const s = createSample();
+  const base = item(s, "n4").task;
+  const acct: Item = { reason: "ready", task: { ...base, id: "acct", kind: "unblock", title: NO_ACCOUNT_TITLE, summary: "So your agent can answer.", blocked: false, source: { kind: "chat", id: "c1" } } };
+  s.replica.put("needs", [{ id: "acct", ...acct }]);
+  const out = html(s, "acct");
+  assert.ok(has(out, 'data-testid="needs-signin"') && has(out, "Sign in"), "the sign-in is the action");
+  assert.ok(!has(out, 'data-testid="needs-computer"') && !has(out, 'data-testid="needs-primary"'));
+  assert.ok(isNoAccount(acct.task) && !isNoAccount({ kind: "unblock", title: "County records search" }));
 });
 
 /* ---------- the rules behind it ---------- */

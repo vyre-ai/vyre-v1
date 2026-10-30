@@ -1,10 +1,10 @@
 // Right pane > Computer (spec 2.7, 3.2): the agent's screen, what it is doing, the steps of its session, and the sites it is signed in to. Asleep shows the last frame dimmed
 // with Wake; working shows a small live view with the caption; after you take over it says "You're in control" with Give back. Click the screen and the computer opens at 90
-// percent of the window (P-L9b_08). A Personal Space has no agent computers: one sentence says so.
+// percent of the window (P-L9b_08). A Personal Space has no agent computers: one locked card says so.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { NeedsTeamSpace } from "../../../../../../ui/src/NeedsTeamSpace/index.tsx";
+import { COMPUTER_ICON, TeamOnly } from "../../../../../../ui/src/TeamOnly/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -53,7 +53,8 @@ export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: Virtual
   const name = data.agent.name;
   const computerId = data.agent.computerId ?? "";
   if (data.space.personal) {
-    return <View testID="computer-personal" style={st.padded}><NeedsTeamSpace what="Agent computers" density="regular" /></View>;
+    // Agent computers run on a Team Space's server (every computers capability is team-only), so a Personal Space shows one locked card, not a blank pane or a sentence.
+    return <View testID="computer-personal" style={st.padded}><TeamOnly title="Agent computers" icon={COMPUTER_ICON} {...(data.nav.setUpTeam ? { onAction: data.nav.setUpTeam } : {})} /></View>;
   }
   if (computerId === "") {
     return (

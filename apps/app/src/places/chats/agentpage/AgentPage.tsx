@@ -70,11 +70,8 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const menu = useMenu();
   const win = useWindowDimensions();
   const narrow = win.width > 0 && win.width < NARROW;
-  // a Personal Space has no agent computers: no Computer tab, and the page opens on Chats
-  const personal = data.space.personal;
-  const [own, setOwn] = useState<TabKey>(initialTab ?? (personal ? "chats" : DEFAULT_TAB));
-  const tab = personal && (controlled ?? own) === "computer" ? "chats" : controlled ?? own;
-  const tabList = useMemo(() => TABS.filter((t) => !(personal && t.key === "computer")), [personal]);
+  const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
+  const tab = controlled ?? own;
   const [colW, setColW] = useState(0);
   const titles = useTitleWidths();
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
@@ -90,7 +87,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
 
   // The page's tab strip folds like the pane's: the same fit and More menu (rightpane/fit.tsx), at the page column's own width (390 px phone: Settings never clips).
   const pageW = colW > 0 ? colW : win.width > 0 ? Math.min(win.width, 760) : 760;
-  const { strip, select } = useFittedTabs(tabList, tab, pageW, {
+  const { strip, select } = useFittedTabs(TABS, tab, pageW, {
     chrome: STRIP_PADDING, measured: titles.widths,
     menu, left: Math.max(0, (win.width - pageW) / 2) + 16, top: 330,
     pick: (key) => { setOwn(key); onTab?.(key); },

@@ -18,6 +18,7 @@ export function vaultRoute(target: HashTarget): VaultRoute {
   if (target.args["export"]) return { surface: "export", folderId: target.args["export"] };
   if (target.args["advanced"] === "true") return { surface: "advanced" };
   if (target.args["policy"] === "true") return { surface: "policy" };
+  if (target.args["addProvider"] === "true") return { surface: "layout", addProvider: true };
   return { surface: "layout" };
 }
 
@@ -75,5 +76,5 @@ export default function VaultPlace(_props: { place: string }): ReactElement {
   const { target, opened } = usePlaceHash();
   const data = useMemo(() => (rt ? vaultData(rt) : null), [rt]);
   const route = useMemo(() => vaultRoute(target), [target]);
-  return data ? <VaultLayout data={data} route={route} onRouteClose={() => opened({ screen: "vault.layout" })} /> : <VaultLoading />;
+  return data ? <VaultLayout data={data} route={route} {...(route.surface === "layout" && route.addProvider ? { sheet: { addProvider: true as const } } : {})} onRouteClose={() => opened({ screen: "vault.layout" })} /> : <VaultLoading />;
 }

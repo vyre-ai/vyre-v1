@@ -104,10 +104,13 @@ async function accountFor(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedA
   return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
 }
 
+/** The task a turn with no AI account leaves for the asker. The app opens the direct sign-in for it (apps/app/src/places/chats/needsyou/account.ts holds the same title; test/no-account-title.test.ts keeps them equal). */
+export const NO_ACCOUNT_TITLE = "Connect an AI account";
+
 async function unblock(h: EngineHostSeam, db: Db, info: { threadId: string; turnId: string; agentId: string; asker: string }): Promise<void> {
   const key = `no-account:${info.threadId}:${info.agentId}:${info.asker}`;
   const made = (await h.call("tasks.create", {
-    kind: "unblock", title: "Add a key so your agent can answer", summary: "No API key or sign-in is available to run this conversation. Add one in the Vault and the agent answers.",
+    kind: "unblock", title: NO_ACCOUNT_TITLE, summary: "So your agent can answer.",
     assigned: { kind: "person", id: info.asker }, source: { kind: "chat", id: info.threadId }, idempotencyKey: key,
   }, info.asker)) as { task?: { id?: string } };
   const taskId = made.task?.id;

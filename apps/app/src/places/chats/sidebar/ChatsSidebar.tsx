@@ -24,6 +24,7 @@ import {
 } from "./model.ts";
 import type { Agent, ChatRow, Entry, Filter, Group, NeedsItem, RecentOut, SectionError, SectionKey } from "./model.ts";
 import { REPORT_PROBLEM_EVENT } from "../../../../../../ui/src/States/index.tsx";
+import { displayTitle } from "./titles.ts";
 import { Badge, EmptyLine, Face, GroupLabel, Glyph, LeadGlyph, SectionHead, Tool, UnreadDot } from "./parts.tsx";
 import type { Channel } from "./model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -322,7 +323,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
           <Hot>
             {(over) => (
               <Row
-                id={e.key} title={r.title} selected={sel} emphasis={r.unread > 0} onPress={() => open(e)}
+                id={e.key} title={displayTitle(r, data.clock().offsetMin)} selected={sel} emphasis={r.unread > 0} onPress={() => open(e)}
                 leading={<View style={{ marginRight: 6 }}><Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} /></View>}
                 trailing={
                   <View style={st.tools}>

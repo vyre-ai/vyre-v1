@@ -1,0 +1,2 @@
+- The agent pane's Computer tab in a Personal Space is one locked card (icon, "Agent computers", Set up a team) instead of a blank pane with a sentence. Agent computers still need a Team Space: every computers capability is team-only.
+- When a turn has no AI account, the task it leaves is "Connect an AI account" and its action is Sign in, which opens the Vault's Add an AI provider sheet (direct sign-in), not the agent's computer.
