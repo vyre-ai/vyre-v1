@@ -5,6 +5,7 @@
 // DECISION: automations.run (manual start) is named so that no capability name is a prefix of another; run history is runs.list with the automation as subject.
 // record_change lists record.created, record.updated and record.deleted; spreadsheet_row lists sheet.row_appended and sheet.row_updated; the filter narrows by op and field.
 // DECISION: webhook triggers post to /hooks/automation/<automationId>/<secret>; they are Team Space only (personalOk false), as are the caps that read or rotate the URL.
+// DECISION: a schedule trigger stores one cron, a time zone and a missed policy. backfill_each_tick is capped at 30 days and 500 runs; a larger backlog pauses that schedule only.
 // Triggers that cover several events (record_change, spreadsheet_row, email_received) list them in TriggerDef.source.events.
 import { create, defineManifest, ev, list, read, screen, setting, t, trigger, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, runStarted, subjectRef, versionRow } from './_common.ts';
@@ -18,10 +19,18 @@ const aiBlock = t.obj({
   agentId: t.opt(id.agent), keyId: t.opt(t.str()), backupKeyId: t.opt(t.str()), assigned: t.opt(assignee), reviewer: t.opt(assignee), approver: t.opt(assignee),
   timeoutMinutes: t.opt(t.int({ minimum: 1 })), nudgeMinutes: t.opt(t.int({ minimum: 1 })), escalateTo: t.opt(assignee),
 });
+const anyJson = t.json();
 const node = t.obj({
   id: t.str({ examples: ['step_1'] }), key: t.str({ description: 'A StepDef key', examples: ['records.update'] }), title: t.opt(t.str()), input: t.rec(),
   next: t.opt(t.arr(t.str())), branches: t.opt(t.arr(t.obj({ label: t.str(), to: t.str(), when: t.opt(t.str()) }))),
-  onError: t.opt(t.obj({ mode: t.enm('fail', 'continue', 'retry', 'route'), max: t.opt(t.int({ minimum: 1, maximum: 10 })), route: t.opt(t.str()) })), ai: t.opt(aiBlock),
+  onError: t.opt(t.obj({
+    mode: t.enm('fail', 'continue', 'retry', 'route', 'skip', 'substitute'),
+    max: t.opt(t.int({ minimum: 1, maximum: 10 })),
+    route: t.opt(t.str()),
+    codes: t.opt(t.arr(t.str())),
+    output: t.opt(anyJson),
+  })),
+  ai: t.opt(aiBlock),
 });
 const definition = t.obj({
   triggers: t.arr(triggerRef, { minItems: 1 }), nodes: t.arr(node), start: t.opt(t.arr(t.str())), allowSelfTrigger: t.opt(t.bool()),
@@ -45,7 +54,52 @@ const accessDiff = t.obj({
   vaultNames: t.arr(t.str()), connections: t.arr(t.str()), keysToReplace: t.arr(t.obj({ stepId: t.str(), keyId: t.str(), reason: t.str() })),
 });
 const target = { automationId: id.automation };
-const anyJson = t.json();
+const jsonSchema = t.rec();
+const httpMethod = t.enm('GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'TRACE');
+const connectorLevel = t.enm('draft');
+const effectKind = t.enm('read', 'outward');
+const authKind = t.enm('oauth', 'api_key', 'none', 'unknown');
+const openApiDocument = { ...t.rec(), description: 'An OpenAPI 3 document already in memory. Omit it to load one allowlisted app. A web address is not opened.' };
+const connectorDraft = t.obj({
+  key: t.str(), level: connectorLevel, docsUrl: t.opt(t.str({ description: 'Stored on the draft only. Not fetched and not a server.' })),
+  tested: t.bool(), reviewed: t.bool(), auth: authKind,
+});
+const draftedAction = t.obj({
+  key: t.str(), level: connectorLevel, method: httpMethod, path: t.str(),
+  fields: t.arr(t.obj({ name: t.str(), in: t.enm('path', 'query', 'header', 'body'), required: t.bool(), schema: jsonSchema })),
+  inputSchema: jsonSchema, outputSchema: t.opt(jsonSchema), body: t.opt(jsonSchema), effect: effectKind,
+  scopes: t.opt(t.arr(t.str())), servers: t.arr(t.str()), domains: t.arr(t.str()),
+  errors: t.opt(t.arr(t.obj({ status: t.str(), code: t.str() }))),
+  connection: t.opt(t.obj({ required: t.bool() })),
+  auth: authKind, tested: t.bool(), reviewed: t.bool(), missing: t.arr(t.str()),
+});
+const authenticatedRequest = t.obj({
+  method: httpMethod, path: t.str(), query: t.rec(jsonSchema), headers: t.rec(jsonSchema),
+  body: t.opt(jsonSchema), outputSchema: t.opt(jsonSchema), effect: effectKind,
+  servers: t.arr(t.str()), allowedDomains: t.arr(t.str()),
+});
+const pasteField = t.obj({
+  name: t.str(), secret: t.bool(), in: t.enm('header', 'query', 'body'), headerName: t.opt(t.str()), hint: t.str(),
+});
+const draftTrigger = t.obj({
+  key: t.str(), level: connectorLevel, method: httpMethod, path: t.str(), effect: effectKind, check: t.enm('dry_run', 'hold'),
+});
+const actionCheck = t.obj({
+  key: t.str(), effect: effectKind, check: t.enm('dry_run', 'hold'), reason: t.str(),
+});
+const askField = t.obj({ name: t.str(), valueType: t.enm('secret', 'string'), presence: t.enm('missing') });
+const connectorSetup = t.obj({
+  fields: t.arr(pasteField),
+  triggers: t.arr(draftTrigger),
+  checks: t.arr(actionCheck),
+  scopes: t.arr(t.str()),
+  ask: t.obj({
+    resource: t.enm('connection'),
+    message: t.opt(t.str()),
+    fields: t.opt(t.arr(askField)),
+    docs: t.opt(t.arr(t.str())),
+  }),
+});
 
 const recordFilter = t.obj({ type: id.recordType, op: t.opt(t.enm('created', 'updated', 'deleted')), fields: t.opt(t.arr(t.str())), where: t.opt(anyJson) });
 const rowFilter = t.obj({ fileId: id.file, sheet: t.opt(t.str()), op: t.opt(t.enm('added', 'changed')), columns: t.opt(t.arr(t.str())) });
@@ -65,6 +119,9 @@ export default defineManifest({
     ev('automation.promoted', 'A Personal Automation became a Space Automation with access granted to the automation itself', { p: { automationId: id.automation, ownerId: t.str(), grants: t.int(), keysReplaced: t.int() }, subject: ['automation', '/automationId'], retention: 'audit' }),
     ev('automation.copied', 'A Space Automation was copied to a Personal Automation', { p: { automationId: id.automation, fromId: id.automation }, subject: ['automation', '/automationId'] }),
     ev('automation.moved', 'An Automation moved to a Group', { p: { automationId: id.automation, groupId: t.nullable(groupId) }, subject: ['automation', '/automationId'] }),
+    ev('automation.runs_migrated', 'Active runs moved to a later definition version without replaying finished steps', {
+      p: { automationId: id.automation, toVersion: t.int(), runIds: t.arr(id.run) }, subject: ['automation', '/automationId'], retention: 'audit',
+    }),
     ev('automation.alerts_changed', 'Error alerts and the escalation chain changed', { p: { automationId: id.automation }, subject: ['automation', '/automationId'] }),
     ev('automation.follower_added', 'A follower was added', { p: { automationId: id.automation, follower: t.str() }, subject: ['automation', '/automationId'] }),
     ev('automation.follower_removed', 'A follower was removed', { p: { automationId: id.automation, follower: t.str() }, subject: ['automation', '/automationId'] }),
@@ -82,7 +139,36 @@ export default defineManifest({
       in: { section: t.opt(t.enm('personal', 'shared', 'space')), folder: t.opt(id.folder), groupId: t.opt(groupId), status: t.opt(status), q: t.opt(t.str()), ...pageIn },
       out: { automations: t.arr(summary), ...pageOut }, tool: 'automations', label: 'filter', cli: 'vyre automations list',
     }),
+    read('automations.packages.list', 'List portable Automation packages this person has exported', {
+      in: {},
+      out: { packages: t.arr(t.obj({ id: t.str(), name: t.str(), sourceAutomationId: id.automation, createdAt: t.ts() })) },
+      tool: 'automations',
+    }),
+    write('automations.packages.export', 'Save a portable copy of an Automation definition', {
+      in: { ...target, name: t.opt(t.str({ minLength: 1 })) },
+      out: { package: t.obj({ id: t.str(), name: t.str(), sourceAutomationId: id.automation, createdAt: t.ts() }) },
+      on: ['automation', '/automationId'], tool: 'automations',
+      errors: ['permission.not_found', 'validation.bad_input'],
+    }),
+    write('automations.packages.import', 'Create a draft Automation from a package this person exported', {
+      in: { packageId: t.str({ minLength: 1 }), name: t.opt(t.str({ minLength: 1 })) },
+      out: { automation: row },
+      emits: ['automation.created'],
+      tool: 'automations',
+      errors: ['validation.not_found', 'validation.bad_input'],
+    }),
     read('automations.get', 'Read an Automation with its definition, alerts and followers', { in: target, out: { automation: row }, on: ['automation', '/automationId'], tool: 'automations', label: 'check', cli: 'vyre automations get' }),
+    read('automations.migration_preview', 'Group active runs by the step they are on before moving them to a definition version', {
+      in: { ...target, toVersion: t.int({ minimum: 1 }) },
+      out: {
+        cohorts: t.arr(t.obj({
+          definitionVersion: t.int(), currentStepId: t.nullable(t.str()), runIds: t.arr(id.run),
+          disposition: t.enm('safe', 'ambiguous', 'inactive'), proposedStepId: t.nullable(t.str()), reason: t.str(),
+          repeatedEffects: t.arr(t.str()), skippedEffects: t.arr(t.str()),
+        })),
+      },
+      on: ['automation', '/automationId'], tool: 'automations',
+    }),
     create('automations.create', 'Create an Automation; it starts Personal', {
       in: { name: t.str({ minLength: 1 }), description: t.opt(t.str()), definition: t.opt(definition), groupId: t.opt(groupId), folderId: t.opt(id.folder) },
       out: { automation: row }, make: ['automation', '/folderId'], perm: 'automations.personal', emits: ['automation.created'], tool: 'automations', cli: 'vyre automations create',
@@ -91,9 +177,41 @@ export default defineManifest({
       in: { ...target, name: t.opt(t.str()), description: t.opt(t.str()), definition: t.opt(definition), expectedVersion: t.opt(t.int()) },
       out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.updated'], tool: 'automations', errors: ['validation.version_conflict', 'validation.bad_input'],
     }),
+    write('automations.migrate_runs', 'Move selected active runs onto a definition version without replaying finished steps', {
+      in: { ...target, toVersion: t.int({ minimum: 1 }), runIds: t.arr(id.run, { minItems: 1 }) },
+      out: { moved: t.arr(t.obj({ runId: id.run, fromVersion: t.int(), toVersion: t.int(), atStepId: t.str() })) },
+      on: ['automation', '/automationId'], emits: ['automation.runs_migrated'], tool: 'automations',
+      errors: ['validation.precondition_failed', 'validation.not_found'],
+    }),
     write('automations.set_enabled', 'Turn an Automation on or off', {
       in: { ...target, enabled: t.bool() }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.enabled', 'automation.disabled'], tool: 'automations',
       errors: ['validation.precondition_failed'],
+    }),
+    write('automations.schedule_choose', 'Apply one recovery choice to a schedule whose backlog is over its cap', {
+      in: {
+        ...target,
+        choice: t.enm('run_first_n', 'run_latest_n', 'skip_backlog_and_resume', 'change_limits', 'keep_paused'),
+        n: t.opt(t.int({ minimum: 1, maximum: 500 })),
+        limits: t.opt(t.obj({
+          lookbackMs: t.opt(t.int({ minimum: 0, maximum: 30 * 24 * 60 * 60 * 1000 })),
+          cap: t.opt(t.int({ minimum: 1, maximum: 500 })),
+          spacingMs: t.opt(t.int({ minimum: 0 })),
+          overlap: t.opt(t.enm('queue', 'skip_while_active', 'bounded_concurrency')),
+          concurrency: t.opt(t.int({ minimum: 1, maximum: 20 })),
+        })),
+      },
+      out: {
+        ok: t.bool(),
+        started: t.arr(t.obj({ automationId: id.automation, tickId: t.str(), runId: id.run })),
+        paused: t.bool(),
+        error: t.opt(t.str()),
+      },
+      on: ['automation', '/automationId'],
+      emits: ['automation.enabled', 'automation.disabled', 'automation.updated', 'automation.run_started', 'automation.trigger_dropped'],
+      tool: 'automations',
+    }),
+    read('automations.account_picks', 'The last account this person picked for each app', {
+      in: {}, out: { picks: t.arr(t.obj({ app: t.str(), accountId: t.str() })) }, tool: 'automations',
     }),
     write('automations.delete', 'Move an Automation to Trash', {
       in: target, out: { deleted: t.bool() }, on: ['automation', '/automationId'], level: 'manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['automation.deleted'], tool: 'automations',
@@ -106,6 +224,22 @@ export default defineManifest({
     }),
     read('automations.validate', 'Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space', {
       in: { definition, kind: t.opt(kindEnum) }, out: { ok: t.bool(), issues: t.arr(t.obj({ nodeId: t.opt(t.str()), severity: t.enm('error', 'warning'), message: t.str() })) }, tool: 'automations',
+    }),
+    read('automations.draft_connector', 'Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.', {
+      in: {
+        document: t.opt(openApiDocument),
+        docsUrl: t.opt(t.str({ description: 'Stored on the draft only. Not fetched and not a server.' })),
+        app: t.opt(t.str({ description: 'Selects one official document from the directory. A web address is not opened.' })),
+        intent: t.opt(t.str({ description: 'Keeps matching paths from that document. It is not a URL.' })),
+      },
+      out: {
+        draft: connectorDraft,
+        actions: t.arr(draftedAction),
+        request: t.nullable(authenticatedRequest),
+        refused: t.arr(t.obj({ path: t.str(), reason: t.str() })),
+        setup: connectorSetup,
+      },
+      tool: 'automations',
     }),
     read('automations.triggers.list', 'The trigger palette: every trigger with its payload schema, sample and whether a Personal Space can use it', {
       in: {}, out: { triggers: t.arr(t.obj({ key: t.str(), title: t.str(), payload: anyJson, sample: anyJson, personalOk: t.bool(), allowSelfTrigger: t.bool() })) }, tool: 'automations',
@@ -132,8 +266,9 @@ export default defineManifest({
     write('automations.retry', 'Retry a failed run of this Automation from the start or from a step', {
       in: { ...target, runId: id.run, fromStep: t.opt(t.str()) }, out: runStarted, on: ['automation', '/automationId'], level: 'use', emits: ['automation.run_started'], run: { kind: 'automation', stoppable: true }, tool: 'automations',
     }),
-    write('automations.replay', 'Run a past run again on the same definition version or the current one', {
-      in: { ...target, runId: id.run, version: t.enm('same', 'current') }, out: runStarted, on: ['automation', '/automationId'], level: 'use', emits: ['automation.run_started'], run: { kind: 'automation', stoppable: true }, tool: 'automations',
+    write('automations.replay', 'Live rerun of a past run on the same definition version or the current one, not a sandbox replay', {
+      in: { ...target, runId: id.run, version: t.enm('same', 'current'), confirm: t.lit(true) }, out: runStarted, on: ['automation', '/automationId'], level: 'use', emits: ['automation.run_started'], run: { kind: 'automation', stoppable: true }, audit: 'always', tool: 'automations',
+      errors: ['validation.precondition_failed'],
     }),
     read('automations.preview_promote', 'Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys', {
       in: target, out: { diff: accessDiff, ready: t.bool() }, on: ['automation', '/automationId'], tool: 'automations',
@@ -175,12 +310,77 @@ export default defineManifest({
     write('automations.groups.delete', 'Delete a Group; its Automations become ungrouped', {
       in: { groupId }, out: { deleted: t.bool() }, on: ['automation_group', '/groupId'], level: 'manage', emits: ['automation.group_deleted'], tool: 'automations',
     }),
+    read('automations.open_document', 'Open one public https document. A private, loopback, link-local, or metadata address is refused. The page text is not returned.', {
+      in: { url: t.str() },
+      out: { ok: t.bool(), finalUrl: t.opt(t.str()), reason: t.opt(t.str()) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.connector_offers', 'Open connector setup offers. Each one names an app. A Vault value is not included.', {
+      in: {},
+      out: { offers: t.arr(t.obj({ itemId: id.vaultItem, appName: t.str(), text: t.str() })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.connector_offer.decline', 'Decline a connector setup offer. Declining is final for that Vault item.', {
+      in: { itemId: id.vaultItem },
+      out: { decision: t.enm('declined', 'absent') },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.connector_offer.accept', 'Accept a connector setup offer. Accepting is final for that Vault item.', {
+      in: { itemId: id.vaultItem },
+      out: { decision: t.enm('accepted', 'absent') },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.open_mcp', 'Read a public MCP server address and draft one action per tool name. The document text is not returned.', {
+      in: { app: t.str(), url: t.str() },
+      out: {
+        ok: t.bool(),
+        reason: t.opt(t.str()),
+        actions: t.opt(t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') }))),
+      },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.try_read', 'Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.', {
+      in: {
+        method: t.str(),
+        path: t.str(),
+        domains: t.arr(t.str()),
+        markedSafe: t.opt(t.bool()),
+        vaultItemId: t.str(),
+        actionKey: t.opt(t.str()),
+      },
+      out: { level: t.enm('tested', 'draft'), reason: t.opt(t.str()) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    write('automations.connector_share', 'Offer tested connector actions to another Space as a draft. The reply is the app name and the action names. A key is not stored.', {
+      in: { appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str() })) },
+      out: { appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
+    read('automations.connector_shares', 'List connector actions another Space can start from. A key is not included.', {
+      in: {},
+      out: { connectors: t.arr(t.obj({ appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') })) })) },
+      tool: 'automations',
+      agent: { planMode: 'blocked' },
+    }),
   ],
   triggers: [
     trigger('record_change', 'A record changes', { events: ['record.created', 'record.updated', 'record.deleted'], filter: recordFilter },
       { record: t.rec(), recordId: id.record, type: id.recordType, op: t.enm('created', 'updated', 'deleted'), fields: t.arr(t.str()), changed: t.opt(t.rec()), version: t.opt(t.int()) }),
-    trigger('schedule', 'On a schedule', { schedule: true, ifMissed: ['skip', 'run_once'] },
-      { firedAt: t.ts(), scheduledFor: t.ts(), missed: t.bool(), cron: t.opt(t.str()) }),
+    trigger('schedule', 'On a schedule', {
+      schedule: true,
+      ifMissed: ['skip', 'run_once', 'backfill_each_tick'],
+      lookbackMaxDays: 30,
+      capMax: 500,
+      spacing: true,
+      overlap: ['queue', 'skip_while_active', 'bounded_concurrency'],
+    }, { firedAt: t.ts(), scheduledFor: t.ts(), missed: t.bool(), cron: t.opt(t.str()) }),
     trigger('webhook', 'A webhook is received', { webhook: true, path: '/hooks/automation/{automationId}' },
       { headers: t.rec(t.str()), query: t.rec(t.str()), body: anyJson, receivedAt: t.ts() }),
     trigger('form_submit', 'A form is submitted', { event: 'form.submitted' },
@@ -257,7 +457,7 @@ export default defineManifest({
         unfollow: ['automations.followers.remove', { automationId: '/route/automationId', follower: '/state/follower' }],
         webhookUrl: ['automations.webhook_url.rotate', { automationId: '/route/automationId', confirm: '/state/confirm' }, 'Rotate the webhook URL? The old one stops working.'],
         retry: ['automations.retry', { automationId: '/route/automationId', runId: '/state/runId', fromStep: '/state/fromStep' }],
-        replay: ['automations.replay', { automationId: '/route/automationId', runId: '/state/runId', version: '/state/version' }],
+        replay: ['automations.replay', { automationId: '/route/automationId', runId: '/state/runId', version: '/state/version', confirm: '/state/confirm' }, 'Running this live can repeat outward steps. Sandbox replay does not.'],
       },
       empty: 'No settings to show',
     }),
