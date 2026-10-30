@@ -90164,6 +90164,7 @@
           "purpose": {
             "enum": [
               "app",
+              "phone",
               "extension",
               "daemon"
             ],
