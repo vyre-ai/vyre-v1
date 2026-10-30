@@ -73796,6 +73796,7 @@ if ("mailboxId" in o4706) lf(o4706["mailboxId"], p + "/mailboxId", e, L118);
 if ("memberId" in o4706) lf(o4706["memberId"], p + "/memberId", e, L20);
 if ("provider" in o4706) lf(o4706["provider"], p + "/provider", e, L274);
 if ("auto" in o4706) lf(o4706["auto"], p + "/auto", e, L9);
+if ("private" in o4706) lf(o4706["private"], p + "/private", e, L9);
 }
 }
 }

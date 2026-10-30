@@ -186041,6 +186041,9 @@
             "pattern": "^usr_[a-z0-9]+$",
             "type": "string"
           },
+          "private": {
+            "type": "boolean"
+          },
           "provider": {
             "enum": [
               "google",

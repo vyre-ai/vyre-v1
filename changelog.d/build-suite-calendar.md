@@ -4,3 +4,4 @@
 - Google setup matches the admin who runs it to the admin address they typed, since an owner has no invitation email on record. An address an invitation already gave to someone else is never taken over.
 - Microsoft 365 setup works on a real server. The check of the app credentials ran before the Vault handle was saved, so the host could not find the key and answered "not connected" every time. The handle is saved first and removed again if Microsoft refuses the credentials.
 Checking the Microsoft connection now asks for a fresh sign-in, so a permission an admin consented to a minute ago shows as granted at once instead of up to an hour later.
+- Each person sees only their own mail. A mailbox connected for a member by delegation or consent is private to them and no longer inherits the Space's access, so another member's Inbox never lists it (the owner and admins do not see it either, unless it is shared).

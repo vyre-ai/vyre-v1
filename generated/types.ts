@@ -30489,6 +30489,7 @@ export type MailboxConnectedPayload = {
   memberId?: string;
   provider: "google" | "microsoft" | "imap" | "inbound_only";
   auto: boolean;
+  private?: boolean;
 };
 export type MailboxCreatedPayload = {
   mailboxId: string;
