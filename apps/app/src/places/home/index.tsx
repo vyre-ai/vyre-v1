@@ -3,7 +3,7 @@
 // The shell provides the data (replica hooks, calls, navigation) through HomeDataProvider; without it the place draws its loading frame, the size of the real page.
 import { useEffect } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   AwayDigest, HomeDataProvider, HomeLineProvider, MyWork, NEEDS_SCREEN, NeedsYouTop3, ProjectsAtRisk, RoutinesToday, SelectionProvider, WORK_SCREEN,
   dateLine, dayNumber, firstName, greeting, summaryBits, useHomeData, useHomeLine, useOnline, useOptionalHomeData, useScreenQuery, useSelection,
@@ -80,6 +80,9 @@ function PersonalGreeting(): ReactElement {
   return <GreetingView sub={`${dateLine(data.clock())} · ${PERSONAL_INTRO}`} />;
 }
 
+/** Taller than the Ask dock (the Quick start row, the Ask box and their spacing) so a scrolled-to control stops above it. */
+export const SCROLL_CLEAR = 140;
+
 function Page({ top, bottom, personal }: { top?: ReactNode; bottom?: ReactNode; personal?: boolean }): ReactElement {
   const sel = useSelection();
   if (personal) {
@@ -151,7 +154,8 @@ export default function Home({ data, top, bottom, personal }: HomeProps): ReactE
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: "var(--win)" as string },
+  // the Ask dock is sticky at the foot of this scroller: scroll-padding keeps a control scrolled into view (a click, a Tab) clear of it, so the dock never sits over a button
+  scroll: { flex: 1, backgroundColor: "var(--win)" as string, ...(Platform.OS === "web" ? ({ scrollPaddingBottom: SCROLL_CLEAR } as object) : {}) },
   scrollContent: { flexGrow: 1 },
   col: { width: "100%", maxWidth: 780, alignSelf: "center", paddingTop: 34, paddingHorizontal: 28, paddingBottom: 40 },
   hh: { marginBottom: 24 },
