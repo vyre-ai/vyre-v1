@@ -85,7 +85,7 @@ test("placing writes 0600 files in 0700 folders in the engine's home, and releas
 test("a Codex turn reads its sign-in from CODEX_HOME: the file is 0600, the token is not in the environment, and the files are gone when it ends", async () => {
   const r = await run("codex", CODEX_FILES, "authcheck");
   const reply = JSON.parse(r.text.split("\n").find((l) => l.includes("agent_message"))!) as { item: { text: string } };
-  const expected = (await import("node:crypto")).createHash("sha256").update(ACCESS).digest("hex").slice(0, 10);
+  const expected = `${ACCESS.length}:${ACCESS.slice(-4)}`;
   assert.equal(reply.item.text, `codex signed in as ${expected} mode 600 env none`);
   assert.equal(r.text.includes(ACCESS), false, "the stand-in never prints the token");
   assert.equal(fs.existsSync(path.join(engineHome(r.dir, r.cwd), ".codex", "auth.json")), false, "removed after the turn");
@@ -95,7 +95,7 @@ test("a Codex turn reads its sign-in from CODEX_HOME: the file is 0600, the toke
 test("a Grok turn reads its sign-in from its home, and the files are gone when it ends", async () => {
   const r = await run("grok", GROK_FILES, "authcheck");
   const result = JSON.parse(r.text.split("\n").find((l) => l.includes('"type":"result"'))!) as { result: string };
-  const expected = (await import("node:crypto")).createHash("sha256").update(GROK).digest("hex").slice(0, 10);
+  const expected = `${GROK.length}:${GROK.slice(-4)}`;
   assert.equal(result.result, `grok signed in as ${expected} mode 600 env none`);
   assert.equal(fs.existsSync(path.join(engineHome(r.dir, r.cwd), ".grok", "auth.json")), false);
   fs.rmSync(r.dir, { recursive: true, force: true });
