@@ -1,7 +1,7 @@
 // The Files place in the shell (spec 3.5): the list of the open folder, Recent, Starred, Shared with me, Trash or Knowledge, with the Files sidebar in the shared place sidebar slot (P-L9_22).
 // Where the list is, the selection and Quick Look are the place's own state. On a phone the sidebar is the list and the body opens when a row is chosen. Before the Space's runtime exists
 // the place draws its loading frames.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import type { MountRow } from "../../places/files/mounts/index.ts";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -12,8 +12,9 @@ import { ReviewDataProvider } from "../../places/files/review/index.ts";
 import { filesData } from "./files-data.ts";
 import { MountSheets, MountStrip, useMountOf } from "./files-mounts.tsx";
 import type { MountRequest } from "./files-mounts.tsx";
-import type { MemoryView } from "./files-data.ts";
 import { MemoryMount } from "./files-memory.tsx";
+import { KNOW_SCREEN, routeFromArgs, routeToArgs } from "../../places/files/memory/know.ts";
+import type { KnowRoute } from "../../places/files/memory/know.ts";
 import { reviewData } from "./files-review.ts";
 import { SidebarContent } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
@@ -41,7 +42,7 @@ function FolderBody({ rt, version, onUnmount }: { rt: ShellRuntime; version: num
  * The body beside the tree: a file (its viewer, or the agent file page for an agent's AGENT.md and agent.toml), one of the review screens the shell wrote to the hash (a change set, a compare,
  * a commit, a history), or the list. Choosing anything in the tree gives the body back to the list.
  */
-function FilesBody({ rt, fileId, memory, version, onUnmount }: { rt: ShellRuntime; fileId: string | null; memory: MemoryView["view"]; version: number; onUnmount(mount: MountRow): void }): ReactElement {
+function FilesBody({ rt, fileId, memory, go, version, onUnmount }: { rt: ShellRuntime; fileId: string | null; memory: KnowRoute | null; go(route: KnowRoute | null): void; version: number; onUnmount(mount: MountRow): void }): ReactElement {
   const { target, opened } = usePlaceHash();
   const { state } = useFilesState();
   const review = reviewKind(target);
@@ -53,7 +54,7 @@ function FilesBody({ rt, fileId, memory, version, onUnmount }: { rt: ShellRuntim
   // a compare and a history name the file in the same hash argument the viewer reads: the review screen wins
   if (review) return <ReviewScreen rt={rt} target={target} />;
   if (fileId) return <AgentFileGate rt={rt} fileId={fileId}><FileDetail rt={rt} fileId={fileId} /></AgentFileGate>;
-  if (memory) return <MemoryMount rt={rt} view={memory} />;
+  if (memory) return <MemoryMount rt={rt} route={memory} go={go} />;
   return <FolderBody rt={rt} version={version} onUnmount={onUnmount} />;
 }
 
@@ -61,14 +62,22 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
   const rt = useOptionalShellRuntime();
   const fileId = useOpenedId(["file", "doc", "document"], ["fileId"]);
   const folderId = useOpenedId(["folder"], ["folderId"]);
-  // Which Knowledge screen has the body: Proposed or Graph, from the sidebar or from a link that names the screen. Choosing anything else in the sidebar gives the body back to the list.
-  const screen = usePlaceHash().target.screen;
-  const [memory, setMemory] = useState<MemoryView["view"]>(screen === "files.memory-graph" ? "graph" : screen === "files.memory-proposed" ? "proposed" : null);
-  useEffect(() => { if (screen === "files.memory-graph") setMemory("graph"); else if (screen === "files.memory-proposed") setMemory("proposed"); }, [screen]);
+  // Which Knowledge screen has the body: from the sidebar, from a link that names the screen, or from a click inside Knowledge (the route is written to the tab's hash, so back, forward and links follow it).
+  // Choosing anything else in the sidebar gives the body back to the list.
+  const { target, opened } = usePlaceHash();
+  const screen = target.screen;
+  const fromHash = (): KnowRoute | null => (screen === KNOW_SCREEN ? routeFromArgs(target.args) : screen === "files.memory-graph" ? { v: "graph" } : screen === "files.memory-proposed" ? { v: "learned" } : null);
+  const [memory, setMemory] = useState<KnowRoute | null>(fromHash);
+  const argsKey = JSON.stringify(target.args);
+  useEffect(() => { const r = fromHash(); if (r) setMemory(r); }, [screen, argsKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const openRoute = useCallback((r: KnowRoute | null): void => {
+    setMemory(r);
+    if (r) opened({ screen: KNOW_SCREEN, args: routeToArgs(r) });
+  }, [opened]);
   // Connect a folder: the mount sheet, and the Unmount sheet for a mounted folder; `mountVersion` makes a mounted folder's status line read again after either
   const [mountReq, setMountReq] = useState<MountRequest | null>(null);
   const [mountVersion, setMountVersion] = useState(0);
-  const data = useMemo(() => (rt ? filesData(rt, { view: memory, open: setMemory }, { connect: (into) => setMountReq({ kind: "mount", into }) }) : null), [rt, memory]);
+  const data = useMemo(() => (rt ? filesData(rt, { view: memory, open: openRoute }, { connect: (into) => setMountReq({ kind: "mount", into }) }) : null), [rt, memory, openRoute]);
   const review = useMemo(() => (rt ? reviewData(rt) : null), [rt]);
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720;
@@ -86,7 +95,7 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
         <FilesStateProvider key={folderId ?? "root"} {...(folderId ? { initial: { where: { kind: "folder" as const, id: folderId } } } : {})}>
           <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
             <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
-            <FilesBody rt={rt!} fileId={fileId} memory={memory} version={mountVersion} onUnmount={(mount) => setMountReq({ kind: "unmount", mount })} />
+            <FilesBody rt={rt!} fileId={fileId} memory={memory} go={openRoute} version={mountVersion} onUnmount={(mount) => setMountReq({ kind: "unmount", mount })} />
             <MountSheets rt={rt!} request={mountReq} onClose={() => setMountReq(null)} onChanged={() => setMountVersion((n) => n + 1)} />
           </View>
         </FilesStateProvider>

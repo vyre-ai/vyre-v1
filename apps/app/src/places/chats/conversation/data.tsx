@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { ComposerLists } from "../../../../../../ui/src/Composer/index.tsx";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
+import type { ChatMemoryData } from "../memory/data.tsx";
 import type { Candidate, Clock } from "./model.ts";
 
 /** Where a click goes. The shell supplies these (tabs, the pane, the agent page); the conversation never decides how a thing opens. */
@@ -52,6 +53,8 @@ export interface ConversationData {
   fill?: ComposerFill;
   /** A line above the composer for work that waits in the background ("Waiting on: build 42"); the shell draws it from the thread's runs (P-L9b_23). */
   waitingLine?: ReactElement;
+  /** What the chat's memory surfaces read and write (Used N memories, quote cards, Learned lines, underlined subjects, the message menu's memory items). Left out where the shell has none: every surface then draws nothing. */
+  memory?: ChatMemoryData;
 }
 
 /**

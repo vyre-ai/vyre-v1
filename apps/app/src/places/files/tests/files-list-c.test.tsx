@@ -156,7 +156,7 @@ test("the Space's root folders Files registers (Agents, Projects, People, Channe
   const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_people", "row-folder-fld_channels"].map((t) => pos(out, `data-testid="${t}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, then the registered roots in the order files.tree lists them");
   assert.ok(order.every((n) => n >= 0));
-  const loc = [">Memory<", ">Space<", ">Agents<", ">Projects<"].map((t) => pos(out, t));
+  const loc = [">Learned<", ">Space<", 'data-testid="row-folder-fld_agents"', 'data-testid="row-folder-fld_projects"'].map((t) => pos(out, t));
   assert.deepEqual([...loc].sort((a, b) => a - b), loc);
 });
 

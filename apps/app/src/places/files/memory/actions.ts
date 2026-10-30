@@ -29,3 +29,22 @@ export function errorText(e: unknown, what: string): string {
   const msg = e instanceof Error ? e.message : "";
   return msg ? `${what}: ${msg}` : `${what}.`;
 }
+
+// ---------------------------------------------------------------- Knowledge (Learned, pages, Trash): every button of those screens ends in one of these.
+
+type Out<C extends keyof CapMap> = CapMap[C]["out"];
+const call = async <C extends keyof CapMap>(data: MemoryData, cap: C, input: CapMap[C]["in"]): Promise<Out<C>> => (await data.call(cap, input)) as Out<C>;
+
+/** Undo something memory learned: the fact goes to Trash, and Restore brings it back. */
+export const undoFact = (data: MemoryData, factId: string) => call(data, "memory.undo", { factId });
+/** Restore a fact (or a page) from Trash, or from Archive for an admin. */
+export const restoreFact = (data: MemoryData, factId: string) => call(data, "memory.restore", { factId });
+export const restorePage = (data: MemoryData, pageId: string) => call(data, "memory.restore", { pageId });
+/** Edit a fact: the old one closes with today as its end and a new one is added (the old version is kept). */
+export const correctFact = (data: MemoryData, factId: string, text: string) => call(data, "memory.fact.correct", { factId, text });
+/** Answer an upkeep question: keep one of two facts (the other goes to Trash), keep both, or drop. */
+export const resolveQuestion = (data: MemoryData, questionId: string, resolution: "keep_a" | "keep_b" | "keep_both" | "drop") => call(data, "memory.question.resolve", { questionId, resolution });
+/** Write the Notes of a page as a new version. `baseVersion` makes a stale write refuse instead of overwriting. */
+export const putNotes = (data: MemoryData, pageId: string, notes: string, baseVersion: number) => call(data, "memory.page.put", { pageId, notes, baseVersion });
+export const trashPage = (data: MemoryData, pageId: string) => call(data, "memory.page.delete", { pageId });
+export const restoreNotesVersion = (data: MemoryData, pageId: string, version: number) => call(data, "memory.page.restore_version", { pageId, version });

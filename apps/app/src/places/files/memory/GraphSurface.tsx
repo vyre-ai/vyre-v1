@@ -1,306 +1,355 @@
-// The graph surface: sigma.js (WebGL) over a graphology graph, so ten thousand notes pan and zoom at the frame rate. This is the one place sigma is used; everything around it (layers, kinds, the
-// time slider, Find, saving where a node was left, export) is in MemoryGraph and reaches the surface through these props. Sigma and graphology load when the surface mounts, never on the server or
-// in a test, and colours are read from the skin's tokens when it draws, so a skin switch repaints. No WebGL, no surface: the screen says so and the same nodes are in the list beneath it.
-import { createElement, useEffect, useRef, useState } from "react";
+// The graph surface: one 2D canvas that draws the typed nodes (a round dot per kind, a rounded square for a chat) and the labelled edges, and answers the pointer. This is the one place the picture is
+// drawn; everything around it (stat line, legend, evidence card, time slider, menus, route) is MemoryGraph. Why a canvas and not sigma: sigma draws edge labels only through its own label pass and
+// tests an edge hit against every edge on every mouse move, and neither holds at thousands of edges. Here the edges of a frame go into a handful of batched paths (one stroke per style), labels are
+// left off past EDGE_LABELS_MAX edges in view, and a pointer asks a spatial grid (model.ts HitGrid: nodes by cell, edges by every cell they cross) that is built once per picture and camera, so a hover
+// costs the same at ten nodes and at ten thousand. Colours are read from the skin's tokens while drawing, so a skin switch repaints. Pan by dragging the background, zoom with the wheel, drag a node to
+// move it (the drop is reported), click a node or an edge to select it, double-click a node to open it, right-click for a menu. The same nodes and links are also a hidden list a screen reader walks.
+import { createElement, useEffect, useRef } from "react";
 import type { ReactElement } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
-import type Graph from "graphology";
-import type Sigma from "sigma";
-import { KINDS, KIND_HUE, KIND_LABEL, hslHex, kindColor, neighborsOf, radiusOf } from "./model.ts";
-import type { GEdge, GNode, Positions } from "./model.ts";
+import { Platform } from "react-native";
+import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
+import { KIND_LABEL, buildGrid, centreOn, edgeKey, fitCam, hitAt, kindHex, labelPlan, neighborsOf, nodeRadius, panBy, toWorld, zoomAt } from "./model.ts";
+import type { Cam, HitGrid, KGEdge, KGNode, Positions } from "./model.ts";
+
+export interface SurfaceCommand { id: number; kind: "in" | "out" | "fit" | "focus" | "pan"; node?: string; dx?: number; dy?: number }
+export interface SurfaceMenu { kind: "node" | "edge" | "bg"; id?: string; x: number; y: number }
 
 export interface SurfaceProps {
-  nodes: readonly GNode[];
-  edges: readonly GEdge[];
+  nodes: readonly KGNode[];
+  edges: readonly KGEdge[];
   pos: Positions;
   deg: ReadonlyMap<string, number>;
   sel: string | null;
+  /** The selected edge, `<from>><to>`. */
+  selEdge: string | null;
   lit: ReadonlySet<string>;
-  /** Changes whenever the picture is a new one (another scope, day, filter), so the camera fits it again. */
+  /** The subject of an "Around" graph: drawn biggest, with a ring. */
+  center: string | null;
+  /** Every edge shows its label (an Around graph); otherwise only the edge that is hovered or selected, or one of a hovered or selected node, does. */
+  labelsAll: boolean;
+  /** Changes whenever the picture is a new one (another subject, scope, day, filter), so the camera fits it again. */
   fitKey: string;
   /** A one-shot request from the zoom buttons and keys. */
-  command: { id: number; kind: "in" | "out" | "fit" | "focus"; node?: string } | null;
-  onSelect: (id: string | null) => void;
+  command: SurfaceCommand | null;
+  onSelectNode: (id: string) => void;
+  onSelectEdge: (key: string) => void;
+  /** A click on the background. */
+  onClear: () => void;
   onOpen: (id: string) => void;
   /** A node was dragged and let go: where it is now. */
   onDrop: (id: string, p: { x: number; y: number }) => void;
-  onMenu: (id: string, x: number, y: number) => void;
+  onMenu: (m: SurfaceMenu) => void;
   onKey: (e: { key: string; shiftKey?: boolean; preventDefault?: () => void }) => void;
-  /** The kinds the legend shows as on (none chosen means every kind), and a click on one of its rows. */
-  kinds?: ReadonlySet<string>;
-  onKind?: (k: GNode["kind"]) => void;
-  /** A window too narrow for the legend card: it is left out, as in the prototype. */
-  narrow?: boolean;
 }
 
-/** The family the root font set on this host (canvas text cannot inherit it, so it is read once from the computed style). */
-function family(el: Element): string {
-  const css = (globalThis as { getComputedStyle?: (e: Element) => { fontFamily: string } }).getComputedStyle?.(el).fontFamily;
-  return css && css.trim() ? css : "sans-serif";
-}
-
-/** A colour from the skin as a value WebGL can use (#rrggbb or rgba), whatever form the token is written in. */
-function resolve(el: Element, token: string, fallback: string): string {
-  const css = (globalThis as { getComputedStyle?: (e: Element) => { getPropertyValue(p: string): string } }).getComputedStyle?.(el).getPropertyValue(token).trim();
-  if (!css) return fallback;
-  const doc = (globalThis as { document?: { createElement(t: string): { getContext(k: string): { fillStyle: string } | null } } }).document;
-  const ctx = doc?.createElement("canvas").getContext("2d");
-  if (!ctx) return fallback;
-  ctx.fillStyle = "#000000";
-  ctx.fillStyle = css;
-  return ctx.fillStyle;
-}
-
-interface Live { sel: string | null; hover: string | null; lit: ReadonlySet<string>; near: ReadonlySet<string> | null; focus: ReadonlySet<string>; hubs: ReadonlySet<string>; ink: string; ink3: string; line: string; faint: string; accent: string; edgeInk: string; font: string }
-
-/** How many of the most linked notes keep their name on screen when nothing is selected. */
+/** How many of the most linked nodes keep their name on screen when the picture is crowded. */
 const HUBS = 12;
-/** A group needs this many notes to get a halo. */
-const HALO_MIN = 3;
+/** The most links the hidden list names (the canvas has all of them); the selected one is always in it. */
+const LIST_EDGES = 300;
+
+interface Colors { ink: string; ink2: string; ink3: string; ink4: string; line: string; win: string; accent: string; font: string; at: number }
+interface Drag { mode: "node" | "pan"; id: string; sx: number; sy: number; cam: Cam; moved: boolean; hit: ReturnType<typeof hitAt> }
+interface Live {
+  cam: Cam; w: number; h: number; needFit: boolean; fitKey: string; command: number; raf: number; grid: HitGrid | null; moved: Positions; hover: ReturnType<typeof hitAt>; drag: Drag | null;
+  near: ReadonlySet<string> | null; hubs: ReadonlySet<string>; colors: Colors | null; xs: Float64Array;
+}
+
+function token(el: Element, name: string, fallback: string): string {
+  const css = (globalThis as { getComputedStyle?: (e: Element) => { getPropertyValue(p: string): string } }).getComputedStyle?.(el).getPropertyValue(name).trim();
+  return css || fallback;
+}
 
 export function GraphSurface(p: SurfaceProps): ReactElement | null {
-  const el = useRef<HTMLElement | null>(null);
-  const sigma = useRef<Sigma | null>(null);
-  const graph = useRef<Graph | null>(null);
-  const live = useRef<Live>({ sel: null, hover: null, lit: new Set(), near: null, focus: new Set(), hubs: new Set(), ink: "#555555", ink3: "#777777", line: "#cccccc", faint: "#aaaaaa", accent: "#5b50e8", edgeInk: "#a1a1aa", font: "sans-serif" });
+  const box = useRef<HTMLDivElement | null>(null);
+  const cv = useRef<HTMLCanvasElement | null>(null);
   const props = useRef(p);
   props.current = p;
-  const [failed, setFailed] = useState<string | null>(null);
-  const [ready, setReady] = useState(0);
-  const haloEl = useRef<HTMLCanvasElement | null>(null);
-  const seen = useRef({ fit: "", command: 0 });
+  const live = useRef<Live>({ cam: { x: 0, y: 0, k: 1 }, w: 0, h: 0, needFit: true, fitKey: "", command: 0, raf: 0, grid: null, moved: {}, hover: null, drag: null, near: null, hubs: new Set(), colors: null, xs: new Float64Array(0) });
+  const draw = useRef<() => void>(() => undefined);
+  const schedule = useRef<() => void>(() => undefined);
 
-  // sigma and graphology are loaded when the surface is on screen
+  // the drawing and the pointer: set up once, reading the latest props through a ref
   useEffect(() => {
-    const node = el.current;
-    if (!node || Platform.OS !== "web") return;
-    let dead = false;
-    let renderer: Sigma | null = null;
-    void Promise.all([import("sigma"), import("graphology")]).then(([sg, gr]) => {
-      if (dead) return;
-      try {
-        const g = new gr.default();
-        graph.current = g;
-        const r = new sg.default(g, node, {
-          renderEdgeLabels: false, labelRenderedSizeThreshold: 8, labelSize: 12, labelWeight: "500", labelFont: family(node), zIndex: true, minCameraRatio: 0.08, maxCameraRatio: 4, allowInvalidContainer: true,
-          nodeReducer: (id, d) => {
-            const s = live.current;
-            const dim = (s.near !== null && !s.near.has(id)) || (s.lit.size > 0 && !s.lit.has(id));
-            const on = s.sel === id || s.hover === id;
-            const named = s.focus.has(id);
-            return { ...d, color: dim ? fade(d.color, s.faint) : d.color, label: dim && !s.lit.has(id) && !named ? "" : d.label, forceLabel: on || named || s.lit.has(id) || (!dim && s.hubs.has(id)), highlighted: s.sel === id, zIndex: on ? 2 : dim ? 0 : 1 };
-          },
-          edgeReducer: (id, d) => {
-            const s = live.current;
-            const [a, b] = g.extremities(id);
-            const hot = s.sel !== null && (a === s.sel || b === s.sel);
-            return { ...d, color: hot ? s.accent : s.near !== null ? fade(s.edgeInk, s.faint) : s.edgeInk, size: hot ? 2.4 : d.size, zIndex: hot ? 1 : 0 };
-          },
-          defaultEdgeColor: "#a1a1aa",
-          // the hovered or selected note keeps the quiet label (no white box over a dark skin): its name beside it in the full ink
-          defaultDrawNodeHover: (ctx, d, st) => {
-            if (!d.label) return;
-            ctx.font = `${st.labelWeight} ${st.labelSize}px ${st.labelFont}`;
-            ctx.fillStyle = live.current.ink;
-            ctx.fillText(d.label, d.x + d.size + 3, d.y + st.labelSize / 3);
-          },
-        });
-        renderer = r;
-        sigma.current = r;
-        // the cluster halos sit on a canvas under sigma's own, redrawn after every frame it draws
-        const halo = (globalThis as { document: Document }).document.createElement("canvas");
-        halo.setAttribute("data-testid", "graph-halos");
-        halo.setAttribute("aria-hidden", "true");
-        halo.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none";
-        node.insertBefore(halo, node.firstChild);
-        haloEl.current = halo;
-        r.on("afterRender", () => drawHalos(halo, r, g, live.current));
-        let drag: { id: string; moved: boolean } | null = null;
-        r.on("downNode", (e) => { drag = { id: e.node, moved: false }; g.setNodeAttribute(e.node, "highlighted", true); if (!r.getCustomBBox()) r.setCustomBBox(r.getBBox()); r.getCamera().disable(); });
-        r.getMouseCaptor().on("mousemovebody", (e) => {
-          if (!drag) return;
-          drag.moved = true;
-          const q = r.viewportToGraph(e);
-          g.setNodeAttribute(drag.id, "x", q.x);
-          g.setNodeAttribute(drag.id, "y", q.y);
-          e.preventSigmaDefault();
-          e.original.preventDefault();
-          e.original.stopPropagation();
-        });
-        const up = (): void => {
-          const d = drag;
-          drag = null;
-          r.getCamera().enable();
-          if (!d) return;
-          g.removeNodeAttribute(d.id, "highlighted");
-          if (d.moved) props.current.onDrop(d.id, { x: Math.round(g.getNodeAttribute(d.id, "x") as number), y: Math.round(g.getNodeAttribute(d.id, "y") as number) });
-          else props.current.onSelect(d.id);
-        };
-        r.getMouseCaptor().on("mouseup", up);
-        r.on("clickStage", () => props.current.onSelect(null));
-        r.on("doubleClickNode", (e) => { e.preventSigmaDefault(); props.current.onOpen(e.node); });
-        r.on("rightClickNode", (e) => { e.preventSigmaDefault(); e.event.original.preventDefault(); { const o = e.event.original as MouseEvent; props.current.onMenu(e.node, o.clientX, o.clientY); } });
-        r.on("enterNode", (e) => { live.current.hover = e.node; r.refresh({ skipIndexation: true }); });
-        r.on("leaveNode", () => { live.current.hover = null; r.refresh({ skipIndexation: true }); });
-        setReady((n) => n + 1);
-      } catch (e) {
-        setFailed(e instanceof Error ? e.message : "WebGL is not available");
+    const host = box.current, canvas = cv.current;
+    if (!host || !canvas || Platform.OS !== "web") return;
+    const s = live.current;
+    const at = (id: string): { x: number; y: number } | undefined => s.moved[id] ?? props.current.pos[id];
+    const radius = (id: string): number => nodeRadius(props.current.deg.get(id) ?? 0, id === props.current.center, props.current.nodes.length);
+    const colors = (): Colors => {
+      const now = Date.now();
+      if (s.colors && now - s.colors.at < 400) return s.colors;
+      const fam = (globalThis as { getComputedStyle?: (e: Element) => { fontFamily: string } }).getComputedStyle?.(host).fontFamily || "sans-serif";
+      return (s.colors = { ink: token(host, "--ink", "#222"), ink2: token(host, "--ink-2", "#555"), ink3: token(host, "--ink-3", "#777"), ink4: token(host, "--ink-4", "#aaa"), line: token(host, "--line", "#ccc"), win: token(host, "--win", "#fff"), accent: token(host, "--accent", "#5b50e8"), font: fam, at: now });
+    };
+    const grid = (): HitGrid => (s.grid ??= buildGrid(props.current.nodes, props.current.edges, at, s.cam, radius, s.w, s.h));
+    const ask = (): void => { if (!s.raf) s.raf = requestAnimationFrame(() => { s.raf = 0; draw.current(); }); };
+    schedule.current = ask;
+
+    const render = (): void => {
+      const P = props.current;
+      const ctx = canvas.getContext("2d");
+      if (!ctx || s.w === 0) return;
+      const dpr = (globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1;
+      if (canvas.width !== Math.round(s.w * dpr) || canvas.height !== Math.round(s.h * dpr)) { canvas.width = Math.round(s.w * dpr); canvas.height = Math.round(s.h * dpr); }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, s.w, s.h);
+      if (s.needFit) { s.cam = fitCam({ ...P.pos, ...s.moved }, P.nodes.map((n) => n.nodeId), s.w, s.h); s.needFit = false; s.grid = null; }
+      const c = colors(), cam = s.cam, W = s.w, H = s.h;
+      const sel = P.sel, selEdge = P.selEdge, focusOn = sel !== null || selEdge !== null;
+      const hoverEdge = s.hover && "edge" in s.hover ? s.hover.edge : null, hoverNode = s.hover && "node" in s.hover ? s.hover.node : null;
+      const selEnds = selEdge ? selEdge.split(">") : null;
+
+      // the edges in view, as screen coordinates in one reusable array
+      if (s.xs.length < P.edges.length * 4) s.xs = new Float64Array(P.edges.length * 4);
+      const xs = s.xs, view: number[] = [];
+      for (let i = 0; i < P.edges.length; i++) {
+        const e = P.edges[i]!, a = at(e.from), b = at(e.to);
+        if (!a || !b) continue;
+        const x1 = a.x * cam.k + cam.x, y1 = a.y * cam.k + cam.y, x2 = b.x * cam.k + cam.x, y2 = b.y * cam.k + cam.y;
+        if ((x1 < -20 && x2 < -20) || (x1 > W + 20 && x2 > W + 20) || (y1 < -20 && y2 < -20) || (y1 > H + 20 && y2 > H + 20)) continue;
+        xs[i * 4] = x1; xs[i * 4 + 1] = y1; xs[i * 4 + 2] = x2; xs[i * 4 + 3] = y2;
+        view.push(i);
       }
-    }).catch((e: unknown) => setFailed(e instanceof Error ? e.message : "The graph could not load"));
-    return () => { dead = true; renderer?.kill(); haloEl.current?.remove(); haloEl.current = null; sigma.current = null; graph.current = null; };
+      const inView = new Set<string>();
+      let nodesInView = 0;
+      for (const n of P.nodes) { const a = at(n.nodeId); if (!a) continue; const x = a.x * cam.k + cam.x, y = a.y * cam.k + cam.y; if (x > -30 && y > -30 && x < W + 30 && y < H + 30) { inView.add(n.nodeId); nodesInView += 1; } }
+      const plan = labelPlan(view.length, nodesInView);
+
+      // edges: quiet ones in one stroke, dimmed ones in another, the lit ones one by one
+      const quiet: number[] = [], dimmed: number[] = [], hot: number[] = [];
+      for (const i of view) {
+        const e = P.edges[i]!, key = edgeKey(e);
+        const isHot = key === selEdge || (sel !== null && (e.from === sel || e.to === sel));
+        (isHot ? hot : focusOn ? dimmed : quiet).push(i);
+      }
+      ctx.lineCap = "round";
+      const strokeBatch = (list: number[], color: string, alpha: number, width: number): void => {
+        if (list.length === 0) return;
+        ctx.beginPath();
+        for (const i of list) { ctx.moveTo(xs[i * 4]!, xs[i * 4 + 1]!); ctx.lineTo(xs[i * 4 + 2]!, xs[i * 4 + 3]!); }
+        ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+      };
+      strokeBatch(quiet, c.ink4, quiet.length > 1500 ? 0.35 : 0.55, 1.1);
+      strokeBatch(dimmed, c.ink4, 0.14, 1);
+      for (const i of hot) { const key = edgeKey(P.edges[i]!); strokeBatch([i], c.accent, 1, key === selEdge ? 2.2 : 1.8); }
+      if (hoverEdge) { const i = view.find((j) => edgeKey(P.edges[j]!) === hoverEdge); if (i !== undefined && hoverEdge !== selEdge) strokeBatch([i], c.ink2, 0.9, 1.8); }
+      ctx.globalAlpha = 1;
+
+      // edge labels: dim until the edge or one of its nodes is hovered or selected; none when zoomed out far
+      const labelOf = (i: number, color: string, alpha: number, bold: boolean): void => {
+        const e = P.edges[i]!;
+        if (!e.label) return;
+        const x1 = xs[i * 4]!, y1 = xs[i * 4 + 1]!, x2 = xs[i * 4 + 2]!, y2 = xs[i * 4 + 3]!;
+        const need = e.label.length * 5.6 + 14;
+        if (!bold && Math.hypot(x2 - x1, y2 - y1) < need) return;
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - 5;
+        ctx.font = `${bold ? 600 : 400} 10.5px ${c.font}`; ctx.textAlign = "center"; ctx.lineJoin = "round";
+        ctx.globalAlpha = 1; ctx.lineWidth = 3.5; ctx.strokeStyle = c.win; ctx.strokeText(e.label, mx, my);
+        ctx.globalAlpha = alpha; ctx.fillStyle = color; ctx.fillText(e.label, mx, my);
+        ctx.globalAlpha = 1;
+      };
+      if (plan.edges) {
+        for (const i of quiet) { const e = P.edges[i]!, k = edgeKey(e), near = hoverNode !== null && (e.from === hoverNode || e.to === hoverNode); if (k === hoverEdge || near) labelOf(i, c.ink, 1, false); else if (P.labelsAll) labelOf(i, c.ink3, 0.62, false); }
+        if (P.labelsAll) for (const i of dimmed) labelOf(i, c.ink3, 0.22, false);
+      }
+      for (const i of hot) labelOf(i, c.accent, 1, true);
+      if (hoverEdge && hoverEdge !== selEdge) { const i = view.find((j) => edgeKey(P.edges[j]!) === hoverEdge); if (i !== undefined) labelOf(i, c.ink, 1, true); }
+
+      // nodes: one path per kind and dim state
+      const dimOf = (id: string): boolean => {
+        if (selEnds) return !selEnds.includes(id);
+        if (s.near) return !s.near.has(id);
+        return P.lit.size > 0 && !P.lit.has(id);
+      };
+      const groups = new Map<string, { x: number; y: number; r: number }[]>();
+      for (const n of P.nodes) {
+        if (!inView.has(n.nodeId)) continue;
+        const a = at(n.nodeId)!, d = dimOf(n.nodeId);
+        const key = `${d ? 1 : 0}${n.kind}`;
+        const item = { x: a.x * cam.k + cam.x, y: a.y * cam.k + cam.y, r: radius(n.nodeId) };
+        const list = groups.get(key);
+        if (list) list.push(item); else groups.set(key, [item]);
+      }
+      const rr = (ctx as unknown as { roundRect?: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect;
+      for (const pass of [1, 0]) for (const [key, list] of groups) {
+        if (key[0] !== String(pass)) continue;
+        const kind = key.slice(1) as KGNode["kind"];
+        ctx.beginPath();
+        for (const q of list) {
+          if (kind === "chat") { if (rr) rr.call(ctx, q.x - q.r, q.y - q.r * 0.82, q.r * 2, q.r * 1.64, 4); else ctx.rect(q.x - q.r, q.y - q.r * 0.82, q.r * 2, q.r * 1.64); }
+          else { ctx.moveTo(q.x + q.r, q.y); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); }
+        }
+        ctx.globalAlpha = pass === 1 ? 0.22 : 1; ctx.fillStyle = kindHex(kind); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // rings and names
+      const ringAt = (id: string, extra: number, color: string, width: number, alpha = 1): void => {
+        const a = at(id); if (!a) return;
+        ctx.beginPath(); ctx.arc(a.x * cam.k + cam.x, a.y * cam.k + cam.y, radius(id) + extra, 0, Math.PI * 2); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke(); ctx.globalAlpha = 1;
+      };
+      if (P.center && inView.has(P.center)) ringAt(P.center, 6, c.accent, 1.5, 0.55);
+      if (sel && inView.has(sel)) ringAt(sel, 5, c.accent, 2);
+      if (hoverNode && hoverNode !== sel) ringAt(hoverNode, 3, c.ink3, 1.5, 0.8);
+      for (const id of P.lit) if (inView.has(id)) ringAt(id, 4, c.accent, 1.5, 0.9);
+      ctx.textAlign = "center"; ctx.lineJoin = "round";
+      for (const n of P.nodes) {
+        const id = n.nodeId;
+        if (!inView.has(id)) continue;
+        const named = plan.nodes || s.hubs.has(id) || id === P.center || id === sel || id === hoverNode || P.lit.has(id) || (s.near?.has(id) ?? false) || (selEnds?.includes(id) ?? false);
+        if (!named) continue;
+        const a = at(id)!, x = a.x * cam.k + cam.x, y = a.y * cam.k + cam.y + radius(id) + 13, dim = dimOf(id) && id !== hoverNode;
+        const big = id === P.center || id === sel || id === hoverNode;
+        ctx.font = `${big ? 600 : 500} 11.5px ${c.font}`;
+        ctx.globalAlpha = 1; ctx.lineWidth = 3.5; ctx.strokeStyle = c.win; ctx.strokeText(n.title, x, y);
+        ctx.globalAlpha = dim ? 0.3 : 1; ctx.fillStyle = big ? c.ink : c.ink2; ctx.fillText(n.title, x, y);
+        ctx.globalAlpha = 1;
+      }
+    };
+    draw.current = render;
+
+    const size = (): void => {
+      const r = host.getBoundingClientRect();
+      if (r.width === s.w && r.height === s.h) return;
+      const first = s.w === 0;
+      s.w = r.width; s.h = r.height; s.grid = null;
+      if (first) s.needFit = true;
+      ask();
+    };
+    const RO = (globalThis as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+    const ro = RO ? new RO(size) : null;
+    ro?.observe(host);
+    size();
+
+    const local = (e: { clientX: number; clientY: number }): { x: number; y: number } => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    const down = (e: PointerEvent): void => {
+      if (e.button !== 0) return;
+      const q = local(e), hit = hitAt(grid(), q.x, q.y);
+      s.drag = { mode: hit && "node" in hit ? "node" : "pan", id: hit && "node" in hit ? hit.node : "", sx: q.x, sy: q.y, cam: s.cam, moved: false, hit };
+      canvas.setPointerCapture?.(e.pointerId);
+      host.focus({ preventScroll: true });
+    };
+    const move = (e: PointerEvent): void => {
+      const q = local(e), d = s.drag;
+      if (d) {
+        const dx = q.x - d.sx, dy = q.y - d.sy;
+        if (!d.moved && Math.hypot(dx, dy) > 3) d.moved = true;
+        if (d.moved) {
+          if (d.mode === "node") s.moved = { ...s.moved, [d.id]: toWorld(s.cam, q.x, q.y) }; else s.cam = panBy(d.cam, dx, dy);
+          s.grid = null; ask();
+        }
+        return;
+      }
+      const hit = hitAt(grid(), q.x, q.y);
+      const same = (hit === null && s.hover === null) || (hit !== null && s.hover !== null && JSON.stringify(hit) === JSON.stringify(s.hover));
+      if (!same) { s.hover = hit; canvas.style.cursor = hit ? "pointer" : "default"; ask(); }
+    };
+    const up = (e: PointerEvent): void => {
+      const d = s.drag;
+      s.drag = null;
+      canvas.releasePointerCapture?.(e.pointerId);
+      if (!d) return;
+      const P = props.current;
+      if (d.moved) {
+        if (d.mode === "node") { const w = s.moved[d.id]; if (w) P.onDrop(d.id, { x: Math.round(w.x), y: Math.round(w.y) }); }
+        return;
+      }
+      if (d.hit && "node" in d.hit) P.onSelectNode(d.hit.node);
+      else if (d.hit && "edge" in d.hit) P.onSelectEdge(d.hit.edge);
+      else P.onClear();
+    };
+    const dbl = (e: MouseEvent): void => { const q = local(e), hit = hitAt(grid(), q.x, q.y); if (hit && "node" in hit) props.current.onOpen(hit.node); };
+    // the menu comes from ui/Menu's own trigger (right-click, long press, the menu key); its handlers are put on the canvas under the DOM event they are named for
+    const trigger = menuTrigger((x, y) => {
+      const q = local({ clientX: x, clientY: y }), hit = hitAt(grid(), q.x, q.y);
+      props.current.onMenu(hit && "node" in hit ? { kind: "node", id: hit.node, x, y } : hit ? { kind: "edge", id: hit.edge, x, y } : { kind: "bg", x, y });
+    });
+    const triggers = Object.entries(trigger).filter(([k, f]) => k !== "onKeyDown" && k !== "onLongPress" && typeof f === "function").map(([k, f]) => [k.slice(2).toLowerCase(), f as EventListener] as const);
+    const wheel = (e: WheelEvent): void => {
+      e.preventDefault();
+      const q = local(e);
+      s.cam = zoomAt(s.cam, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016)), q.x, q.y);
+      s.grid = null; ask();
+    };
+    const leave = (): void => { if (s.hover && !s.drag) { s.hover = null; canvas.style.cursor = "default"; ask(); } };
+    canvas.addEventListener("pointerdown", down);
+    canvas.addEventListener("pointermove", move);
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointerleave", leave);
+    canvas.addEventListener("dblclick", dbl);
+    for (const [name, f] of triggers) canvas.addEventListener(name, f);
+    canvas.addEventListener("wheel", wheel, { passive: false });
+    return () => {
+      ro?.disconnect();
+      if (s.raf) cancelAnimationFrame(s.raf);
+      s.raf = 0;
+      canvas.removeEventListener("pointerdown", down); canvas.removeEventListener("pointermove", move); canvas.removeEventListener("pointerup", up); canvas.removeEventListener("pointerleave", leave);
+      canvas.removeEventListener("dblclick", dbl); for (const [name, f] of triggers) canvas.removeEventListener(name, f); canvas.removeEventListener("wheel", wheel);
+    };
   }, []);
 
-  // the nodes and the links: rebuilt when the picture changes
+  // a new picture: the grid is stale, a dropped node's own position is now in `pos`, the hubs are counted again, a new fitKey fits the camera
   useEffect(() => {
-    const g = graph.current, r = sigma.current, node = el.current;
-    if (!g || !r || !node) return;
-    const kind = (k: GNode["kind"]): string => hslHex(KIND_HUE[k], 62, 55);
-    g.clear();
-    for (const n of p.nodes) {
-      const at = p.pos[n.nodeId];
-      if (!at) continue;
-      g.addNode(n.nodeId, { x: at.x, y: at.y, size: radiusOf(p.deg.get(n.nodeId) ?? 0) * 0.62, label: n.title, color: kind(n.kind), kind: n.kind, cluster: n.cluster ?? "" });
-    }
-    for (const e of p.edges) if (g.hasNode(e.from) && g.hasNode(e.to) && !g.hasEdge(e.from, e.to)) g.addEdge(e.from, e.to, { size: e.kind === "came_from" ? 0.8 : 1.3, kind: e.kind });
-    live.current.hubs = new Set([...p.nodes].sort((a, b) => (p.deg.get(b.nodeId) ?? 0) - (p.deg.get(a.nodeId) ?? 0) || a.title.localeCompare(b.title)).slice(0, HUBS).filter((n) => (p.deg.get(n.nodeId) ?? 0) > 0).map((n) => n.nodeId));
-    live.current.font = family(node);
-    live.current.ink = resolve(node, "--ink-2", "#555555");
-    live.current.ink3 = resolve(node, "--ink-3", "#777777");
-    live.current.line = resolve(node, "--line", "#cccccc");
-    live.current.faint = resolve(node, "--win", "#ffffff");
-    live.current.accent = resolve(node, "--accent", "#5b50e8");
-    live.current.edgeInk = resolve(node, "--ink-4", "#a1a1aa");
-    r.setSetting("labelColor", { color: live.current.ink });
-    r.setSetting("defaultEdgeColor", live.current.edgeInk);
-    r.setCustomBBox(null);
-    r.refresh();
-    if (seen.current.fit !== p.fitKey) { seen.current.fit = p.fitKey; void r.getCamera().animatedReset({ duration: 220 }); }
-  }, [p.nodes, p.edges, p.pos, p.deg, p.fitKey, ready]);
+    const s = live.current;
+    s.grid = null;
+    s.moved = {};
+    s.hubs = new Set([...p.nodes].sort((a, b) => (p.deg.get(b.nodeId) ?? 0) - (p.deg.get(a.nodeId) ?? 0) || a.title.localeCompare(b.title)).slice(0, HUBS).filter((n) => (p.deg.get(n.nodeId) ?? 0) > 0).map((n) => n.nodeId));
+    if (s.fitKey !== p.fitKey) { s.fitKey = p.fitKey; s.needFit = true; }
+    schedule.current();
+  }, [p.nodes, p.edges, p.pos, p.deg, p.fitKey]);
 
-  // selection, search and the neighbours of the selected node: only a repaint
+  // selection and search: only a repaint (the neighbours of the selected node keep their names)
   useEffect(() => {
-    const r = sigma.current;
-    live.current.sel = p.sel;
-    live.current.lit = p.lit;
     live.current.near = p.sel ? neighborsOf(p.sel, p.edges) : null;
-    // every note in the selected note's cluster keeps its name, and so do the ones it links to
-    const focus = new Set<string>(live.current.near ?? []);
-    const home = p.sel ? p.nodes.find((n) => n.nodeId === p.sel)?.cluster : undefined;
-    if (home) for (const n of p.nodes) if (n.cluster === home) focus.add(n.nodeId);
-    live.current.focus = focus;
-    r?.refresh({ skipIndexation: true });
-  }, [p.sel, p.lit, p.edges, p.nodes, ready]);
+    schedule.current();
+  }, [p.sel, p.selEdge, p.lit, p.center, p.edges]);
 
-  // zoom buttons, keys and focus
+  // zoom buttons, keys, focus
   useEffect(() => {
-    const r = sigma.current, c = p.command;
-    if (!r || !c || seen.current.command === c.id) return;
-    seen.current.command = c.id;
-    const cam = r.getCamera();
-    if (c.kind === "in") void cam.animatedZoom({ duration: 160 });
-    else if (c.kind === "out") void cam.animatedUnzoom({ duration: 160 });
-    else if (c.kind === "fit") void cam.animatedReset({ duration: 220 });
-    else if (c.node) { const d = r.getNodeDisplayData(c.node); if (d) void cam.animate({ x: d.x, y: d.y, ratio: Math.min(cam.ratio, 0.7) }, { duration: 220 }); }
-  }, [p.command, ready]);
+    const s = live.current, c = p.command;
+    if (!c || s.command === c.id) return;
+    s.command = c.id;
+    if (c.kind === "in") s.cam = zoomAt(s.cam, 1.25, s.w / 2, s.h / 2);
+    else if (c.kind === "out") s.cam = zoomAt(s.cam, 1 / 1.25, s.w / 2, s.h / 2);
+    else if (c.kind === "fit") s.needFit = true;
+    else if (c.kind === "pan") s.cam = panBy(s.cam, c.dx ?? 0, c.dy ?? 0);
+    else if (c.node) { const a = p.pos[c.node]; if (a) s.cam = centreOn(s.cam, s.moved[c.node] ?? a, s.w, s.h, 0.7); }
+    s.grid = null;
+    schedule.current();
+  }, [p.command, p.pos]);
 
   if (Platform.OS !== "web") return null;
-  if (failed) return <View style={s.fail} testID="graph-nowebgl"><Text style={s.failText}>{`The graph needs WebGL, which this window does not have (${failed}).`}</Text></View>;
   const near = p.sel ? neighborsOf(p.sel, p.edges) : null;
-  // the canvas cannot be read by a screen reader, so the same notes are a listbox beside it: the selected one says so, and so do the ones it links to
+  // the canvas cannot be read by a screen reader, so the same nodes and links are lists beside it
   const options: ReactElement[] = [];
   for (const n of p.nodes) {
     options.push(createElement("div", {
       key: n.nodeId, role: "option", tabIndex: -1, "aria-selected": p.sel === n.nodeId, "aria-label": `${n.title}, ${KIND_LABEL[n.kind]}, ${p.deg.get(n.nodeId) ?? 0} links`, "data-testid": `gnode-${n.nodeId}`, "data-kind": n.kind,
       "data-linked": near !== null && near.has(n.nodeId) && p.sel !== n.nodeId ? "true" : "false", "data-lit": p.lit.has(n.nodeId) ? "true" : "false",
-      onClick: () => p.onSelect(n.nodeId), onDoubleClick: () => p.onOpen(n.nodeId),
+      onClick: () => p.onSelectNode(n.nodeId), onDoubleClick: () => p.onOpen(n.nodeId),
     }, n.title));
   }
+  const titles = new Map<string, string>();
+  for (const n of p.nodes) titles.set(n.nodeId, n.title);
+  const links: ReactElement[] = [];
+  for (const e of p.edges) {
+    const key = edgeKey(e);
+    if (links.length >= LIST_EDGES && key !== p.selEdge) continue;
+    links.push(createElement("div", {
+      key, role: "option", tabIndex: -1, "aria-selected": p.selEdge === key, "aria-label": `${titles.get(e.from) ?? e.from} ${e.label ?? "links to"} ${titles.get(e.to) ?? e.to}`, "data-testid": `gedge-${key}`,
+      onClick: () => p.onSelectEdge(key),
+    }, e.label ?? ""));
+  }
+  const hidden = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" } as const;
   return createElement(
     "div",
     { style: { position: "absolute", inset: 0 } },
-    createElement("div", {
-      ref: (n: HTMLElement | null) => { el.current = n; }, tabIndex: 0, role: "application", "aria-label": "Memory graph. Tab walks the notes, Enter opens one, plus and minus zoom.", "data-testid": "graph-surface",
-      onKeyDown: p.onKey, style: { position: "absolute", inset: 0, outline: "none" },
-    }),
-    p.narrow ? null : kindsLegend(p),
-    createElement("div", { role: "listbox", "aria-label": "Notes in the graph", "data-testid": "graph-notes", style: { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" } }, ...options),
+    createElement(
+      "div",
+      { ref: (n: HTMLDivElement | null) => { box.current = n; }, tabIndex: 0, role: "application", "aria-label": "Knowledge graph. Tab walks the nodes, Enter opens one, plus and minus zoom, the arrow keys pan.", "data-testid": "graph-surface", onKeyDown: p.onKey, style: { position: "absolute", inset: 0, outline: "none" } },
+      createElement("canvas", { ref: (n: HTMLCanvasElement | null) => { cv.current = n; }, "data-testid": "graph-canvas", style: { position: "absolute", inset: 0, width: "100%", height: "100%", touchAction: "none" } }),
+    ),
+    createElement("div", { role: "listbox", "aria-label": "Nodes in the graph", "data-testid": "graph-notes", style: hidden }, ...options),
+    createElement("div", { role: "listbox", "aria-label": "Links in the graph", "data-testid": "graph-links", style: hidden }, ...links),
   );
 }
-
-/** The legend as a card in the lower left corner: one row per kind with its colour and how many notes of it are drawn. A row turns that kind off and on. */
-function kindsLegend(p: SurfaceProps): ReactElement {
-  const count = new Map<string, number>();
-  for (const n of p.nodes) count.set(n.kind, (count.get(n.kind) ?? 0) + 1);
-  const chosen = p.kinds ?? new Set<string>();
-  const rows: ReactElement[] = [];
-  for (const k of KINDS) {
-    const off = chosen.size > 0 && !chosen.has(k);
-    rows.push(createElement("button", {
-      key: k, type: "button", "data-testid": `legend-${k}`, "aria-pressed": !off, "aria-label": `${KIND_LABEL[k]}, ${count.get(k) ?? 0}`, onClick: () => p.onKind?.(k),
-      style: { display: "flex", alignItems: "center", gap: 8, height: 22, width: "100%", padding: "0 4px", border: 0, borderRadius: 6, background: "transparent", font: "inherit", fontSize: 12, color: "var(--ink-2)", textAlign: "left", cursor: "pointer", opacity: off ? 0.4 : 1 },
-    },
-    createElement("i", { style: { width: 9, height: 9, borderRadius: 9, flex: "none", background: kindColor(k), display: "inline-block" } }),
-    KIND_LABEL[k],
-    createElement("span", { style: { marginLeft: "auto", paddingLeft: 14, color: "var(--ink-4)", fontVariantNumeric: "tabular-nums" } }, String(count.get(k) ?? 0))));
-  }
-  return createElement("div", { key: "legend", "data-testid": "graph-legend", role: "group", "aria-label": "Kinds", style: { position: "absolute", left: 16, bottom: 16, display: "flex", flexDirection: "column", gap: 1, padding: "8px 10px", borderRadius: 12, background: "color-mix(in srgb, var(--raised) 86%, transparent)", backdropFilter: "blur(10px)", boxShadow: "var(--sh-1), inset 0 0 0 1px var(--line)", minWidth: 150 } }, ...rows);
-}
-
-/** The halos: a soft disc behind each group of notes that share a cluster, with the cluster's name over it. The group's size and place come from where sigma has put its notes on screen. */
-function drawHalos(cv: HTMLCanvasElement, r: Sigma, g: Graph, live: Live): void {
-  const host = cv.parentElement;
-  if (!host) return;
-  const dpr = (globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1;
-  const w = host.clientWidth, h = host.clientHeight;
-  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
-  const c = cv.getContext("2d");
-  if (!c) return;
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  c.clearRect(0, 0, w, h);
-  const by = new Map<string, { x: number; y: number }[]>();
-  g.forEachNode((id, a) => {
-    const name = a.cluster as string;
-    if (!name) return;
-    const d = r.getNodeDisplayData(id);
-    if (!d) return;
-    const at = r.framedGraphToViewport({ x: d.x, y: d.y });
-    const list = by.get(name);
-    if (list) list.push(at); else by.set(name, [at]);
-  });
-  for (const [name, pts] of by) {
-    if (pts.length < HALO_MIN) continue;
-    let cx = 0, cy = 0;
-    for (const q of pts) { cx += q.x; cy += q.y; }
-    cx /= pts.length; cy /= pts.length;
-    let far = 0, sum = 0;
-    for (const q of pts) { const d = Math.hypot(q.x - cx, q.y - cy); far = Math.max(far, d); sum += d; }
-    const rad = Math.min(far, (sum / pts.length) * 1.35) + 40;
-    const grd = c.createRadialGradient(cx, cy, rad * 0.2, cx, cy, rad);
-    grd.addColorStop(0, "rgba(128,128,255,.075)");
-    grd.addColorStop(1, "rgba(128,128,255,.02)");
-    c.fillStyle = grd;
-    c.beginPath(); c.arc(cx, cy, rad, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = live.line; c.globalAlpha = 0.55; c.lineWidth = 1; c.setLineDash([2, 5]); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
-    c.font = `600 11.5px ${live.font}`; c.fillStyle = live.ink3; c.textAlign = "center";
-    c.fillText(name, cx, Math.max(14, cy - rad - 7));
-  }
-}
-
-/** A colour mixed toward the background by a third: how a node or link that is not in focus looks. */
-function fade(color: string | undefined, bg: string): string {
-  const a = rgbOf(color ?? "#888888"), b = rgbOf(bg);
-  const m = (x: number, y: number): number => Math.round(x * 0.22 + y * 0.78);
-  return `rgb(${m(a[0], b[0])},${m(a[1], b[1])},${m(a[2], b[2])})`;
-}
-
-function rgbOf(c: string): [number, number, number] {
-  const hex = /^#([0-9a-f]{6})$/i.exec(c);
-  if (hex) { const n = parseInt(hex[1]!, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
-  const rgb = /rgba?\(\s*(\d+)[ ,]+(\d+)[ ,]+(\d+)/.exec(c);
-  return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])] : [136, 136, 136];
-}
-
-const s = StyleSheet.create({
-  fail: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  failText: { fontSize: 13, color: "var(--ink-3)" as string, textAlign: "center" },
-});

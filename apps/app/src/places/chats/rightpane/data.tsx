@@ -4,6 +4,7 @@ import { createContext, useContext, useMemo, useSyncExternalStore } from "react"
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { DirectoryEntry } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import type { ChatMemoryData } from "../memory/data.tsx";
 import type { Clock } from "./model.ts";
 
 /** Where a click goes. The shell decides how a thing opens (in place, beside, full screen); the pane only says what. */
@@ -50,6 +51,8 @@ export interface ChatRightPaneData {
   clock(): Clock;
   /** The Space's people, for "Delegate" on a routine (the shared people picker draws them). Absent while the directory has not loaded: the picker then says so. */
   people?: readonly DirectoryEntry[];
+  /** What the Knows tab reads and writes (facts in scope for this chat and this asker, live and editable). Left out where the shell has none: the tab then shows the agent's own facts as it always did. */
+  memory?: ChatMemoryData;
 }
 
 const Ctx = createContext<ChatRightPaneData | null>(null);
