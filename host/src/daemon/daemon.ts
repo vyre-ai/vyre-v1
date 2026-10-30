@@ -86,6 +86,7 @@ import { createSyncLiveBridge, createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
+import { createComputeStream } from "../routes/compute-stream.ts";
 import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
@@ -240,6 +241,8 @@ export interface DaemonOptions {
   computersSocketPath?: string;
   /** How long a computer that joined has to answer a job before it is handed out again (default 45 s); tests shorten it. */
   computeLeaseMs?: number;
+  /** How often a computer's live-view socket checks that its credential still stands (a test sets it low). Default 2 s. */
+  computeStreamRecheckMs?: number;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -380,7 +383,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeJobs: (nodeId: string, running: string[]) => Promise<unknown[]> = () => Promise.resolve([]);
   let computeResult: (nodeId: string, a: { jobId: string; ok: boolean; result?: unknown; error?: string }) => Promise<{ status: string }> = () => Promise.resolve({ status: "unknown" });
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
-  const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a) });
+  let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
+  let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
+  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}) });
+  closers.push(() => computeStream.close());
+  let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
+  const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
   const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
@@ -547,6 +555,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // what a computer that joined is asked to do (the computers module's jobs), what it answers, and the one door it has into an agent's home: a job's token, as that agent, for the home calls only
       computeJobs = async (nodeId, running) => ((await hookRunner.call("computers.node_jobs", { nodeId, running, ...(o.computeLeaseMs !== undefined ? { leaseMs: o.computeLeaseMs } : {}) })) as { jobs?: unknown[] } | null)?.jobs ?? [];
       computeResult = async (nodeId, a) => (await hookRunner.call("computers.node_result", { nodeId, ...a })) as { status: string };
+      computeRecording = async (nodeId, a) => {
+        if (!(await hookRunner.call("computers.node_recording_check", { nodeId, token: a.token, computerId: a.computerId })) ) return false;
+        await putToSlot(a.url, a.bytes);
+        return true;
+      };
+      computeStreamOpen = async (ticket, computerId) => (await hookRunner.call("computers.stream_open", { ticket, computerId })) as { nodeId: string; personId: string; input: boolean } | null;
+      computeStreamInput = async (computerId, personId) => (await hookRunner.call("computers.stream_input", { computerId, personId })) === true;
       computeHome = async (nodeId, a) => {
         const check = (await hookRunner.call("computers.node_home_check", { nodeId, token: a.token, computerId: a.computerId, cap: a.cap })) as { agentId: string } | null;
         if (!check) return null;
@@ -747,6 +762,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           hub?.publish(spaceId, events);
           // someone left a chat or lost a grant: whoever was watching a reply being written is asked about again before the next piece reaches them
           if (events.some((e) => READER_LOSS.test(e.type))) engineSeam?.forgetReaders?.();
+          // a computer removed from the Space loses its live-view socket this instant
+          for (const e of events) if (e.type === "network.server_removed") { const id = (e.payload as { serverId?: unknown } | undefined)?.serverId; if (typeof id === "string") computeStream.closeNode(id); }
           void hookRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "hooks.pump_failed", place: "hooks", attrs: { error: e instanceof Error ? e.message : String(e) } }));
           void projectionRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "projections.pump_failed", place: "projections", attrs: { error: e instanceof Error ? e.message : String(e) } }));
         },
@@ -1247,6 +1264,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       capIndex = indexCapabilities(caps);
 
       const mkHub = (): LiveHub => createLiveHub({
+        claims: (req) => computeStream.claims(req),
         session: (h, url) => {
           return identify(bearer(h["authorization"]) ?? url.searchParams.get("token"));
         },
@@ -1389,6 +1407,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     o.liveSync?.onHub?.(h);
     syncLive.setHost(h);
     const server = h.server;
+    if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); });
     server.removeAllListeners("request");
     const listener = requestListener({
       health, coerce,
@@ -1416,7 +1435,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

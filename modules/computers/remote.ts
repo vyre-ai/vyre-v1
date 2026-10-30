@@ -1,19 +1,19 @@
 // A ComputerHost for a computer that lives on a node: every call becomes a job for that node (jobs.ts), and its answer comes back as the call's answer. The node runs the job on its own Docker with
 // the same host the Space uses at home (nodeRun below is the one place a job is turned back into a call), so the two cannot drift.
-// What is not here yet on a node (the live view, recordings) refuses plainly; the Space's own computers keep all of it.
+// The live view does not go through a job: the node holds one outbound socket to the Space (host/src/routes/compute-stream.ts) and the Space bridges a viewer's ticketed connection to it. Here, stream only says
+// where on the Space the viewer connects. Recording is a job (start, stop), and the finished folder reaches Files from the node's home mirror (saveRecording), so process, get and playback work as at home.
 import { awaitJob, enqueueJob } from "./jobs.ts";
 import type { JobKind } from "./jobs.ts";
 import { bindRemote, computerBy } from "./projections.ts";
 import type { ComputerHost, Db, Probe, RecordResult, SessionInfo } from "./projections.ts";
 import type { ToolHost } from "./handlers/tools/common.ts";
 
-const NOT_YET = "That is not available on a computer that joined the Space yet.";
 const bytesOut = (u: Uint8Array): string => Buffer.from(u).toString("base64");
 const bytesIn = (s: string): Uint8Array => new Uint8Array(Buffer.from(s, "base64"));
 
 export interface RemoteDeps { db: Db; now(): number; nodeId: string }
 
-const TIMEOUT: Partial<Record<JobKind, number>> = { start: 150_000, create: 120_000, stop: 90_000, remove: 60_000, screenshot: 30_000 };
+const TIMEOUT: Partial<Record<JobKind, number>> = { start: 150_000, create: 120_000, stop: 90_000, remove: 60_000, screenshot: 30_000, record: 90_000, saveRecording: 180_000, removeRecording: 60_000 };
 
 export function createRemoteHost(d: RemoteDeps): ComputerHost & ToolHost {
   async function run<T>(kind: JobKind, computerId: string, input: unknown, timeoutMs = TIMEOUT[kind] ?? 30_000): Promise<T> {
@@ -22,7 +22,6 @@ export function createRemoteHost(d: RemoteDeps): ComputerHost & ToolHost {
     const jobId = enqueueJob(d.db, { nodeId: d.nodeId, computerId, agentId, kind, input, timeoutMs, now: d.now() });
     return (await awaitJob(d.db, jobId, { now: d.now, timeoutMs })) as T;
   }
-  const refuse = async (): Promise<never> => { throw new Error(NOT_YET); };
   return {
     kind: "server",
     create: (a) => run<{ diskBytes?: number }>("create", a.computerId, a),
@@ -37,10 +36,11 @@ export function createRemoteHost(d: RemoteDeps): ComputerHost & ToolHost {
       const r = await run<{ png: string; width: number; height: number }>("screenshot", computerId, { computerId });
       return { bytes: bytesIn(r.png), width: r.width, height: r.height };
     },
-    stream: refuse as ComputerHost["stream"],
-    record: refuse as unknown as (a: { computerId: string; recordingId: string; action: "start" | "stop" }) => Promise<RecordResult>,
-    saveRecording: refuse as ComputerHost["saveRecording"],
-    removeRecording: refuse as ComputerHost["removeRecording"],
+    // the viewer connects to the Space, never to the node: the address is the Space's own route for this computer
+    stream: async (a) => ({ transport: "mjpeg", url: `/computers/${a.computerId}/stream` }),
+    record: (a) => run<RecordResult>("record", a.computerId, a),
+    saveRecording: async (a) => { await run("saveRecording", a.computerId, a); },
+    removeRecording: async (a) => { await run("removeRecording", a.computerId, a); },
     sessions: async (computerId) => (await run<{ sessions?: SessionInfo[] }>("sessions", computerId, { computerId })).sessions ?? [],
     async signOut(a) { return (await run<{ ok?: boolean }>("signOut", a.computerId, a)).ok === true; },
     async health() { return { ok: true }; },
@@ -63,6 +63,12 @@ export async function nodeRun(host: ComputerHost & Partial<ToolHost>, kind: stri
     case "screenshot": { const s = await host.screenshot(String(a["computerId"])); return { png: bytesOut(s.bytes), width: s.width, height: s.height }; }
     case "sessions": return { sessions: await host.sessions(String(a["computerId"])) };
     case "signOut": return { ok: await host.signOut(a as never) };
+    case "record": return host.record(a as never);
+    case "saveRecording": await host.saveRecording(a as never); return {};
+    // The node's working copy goes if it is there; a computer that is asleep has none (the mirror was wiped when it slept), and Files, which the Space clears itself, is the truth.
+    case "removeRecording": try { await host.removeRecording(a as never); return { removed: true }; } catch { return { removed: false }; }
+    // not a job: the node's own relay asks for the address of agentd's live view on this machine (host/src/compute/node.ts), and it stays on this machine
+    case "stream": return host.stream(a as never);
     case "tool": if (typeof host.tool !== "function") throw new Error("This computer cannot run tools."); return host.tool(a as never);
     default: throw new Error(`This computer does not do "${kind}".`);
   }

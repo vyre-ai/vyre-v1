@@ -31,7 +31,7 @@ import type { HomeDeps, HomeSync } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost } from "./projections.ts";
-import { nodeHomeCheck, nodeJobs, nodeResult } from "./handlers/node.ts";
+import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
 import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
 import type { ToolAnswer, ToolCode, ToolHost } from "./handlers/tools/common.ts";
@@ -278,8 +278,8 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
         await ctl(a.computerId, "stream", { ticket: a.ticket });
         return o.streamUrl(a.computerId, a.ticket);
       }
-      const s = await ctl<{ transport?: "webrtc" | "mjpeg"; url?: string }>(a.computerId, "stream", { ticket: a.ticket });
-      return { transport: s.transport === "webrtc" ? "webrtc" : "mjpeg", url: s.url ?? `/computers/${a.computerId}/stream?ticket=${a.ticket}` };
+      const s = await ctl<{ transport?: "webrtc" | "mjpeg"; url?: string; ws?: string }>(a.computerId, "stream", { ticket: a.ticket });
+      return { transport: s.transport === "webrtc" ? "webrtc" : "mjpeg", url: s.url ?? `/computers/${a.computerId}/stream?ticket=${a.ticket}`, ...(typeof s.ws === "string" ? { ws: s.ws } : {}) };
     },
     async record(a) {
       if (a.action === "start") { await ctl(a.computerId, "record_start", { recordingId: a.recordingId }); return {}; }
@@ -300,6 +300,14 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
         { path: "events.jsonl", data: enc.encode(a.events), mode: 0o640, uid, gid, mtime: at },
         { path: "network.har", data: enc.encode(a.har), mode: 0o640, uid, gid, mtime: at },
       ]));
+      // On a machine that keeps a working copy of the home, the finished folder (video, events, network log) has to reach Files before the recording counts as saved. A pass skips a file written in
+      // the last second, so wait that out, then run the pass; one that leaves anything undone fails the save rather than reporting a recording the Space cannot play.
+      const home = homes.get(a.computerId);
+      if (home) {
+        await sleep(1_100);
+        const r = await home.sync.pass();
+        if (r.failed > 0) throw new Error("the recording did not reach Files");
+      }
     },
     async removeRecording(a) {
       if (!RECORDING_PATH.test(a.folderPath)) throw new Error("a recording lives under work/recordings/<id>");
@@ -378,4 +386,4 @@ export const hostSeams = { setComputersFill, setComputerHost };
 export { nodeRun };
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
-export const hostCalls = { "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck };
+export const hostCalls = { "computers.node_jobs": nodeJobs, "computers.node_result": nodeResult, "computers.node_home_check": nodeHomeCheck, "computers.stream_open": nodeStreamOpen, "computers.stream_input": nodeStreamInput, "computers.node_recording_check": nodeRecordingCheck };

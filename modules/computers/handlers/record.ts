@@ -3,7 +3,7 @@
 // A recording is a folder under the agent's Files folder (work/recordings/<id>/{events.jsonl,network.har,video.mp4}). The host (agentd) writes the video; the events and the network log pass
 // through here first, so a password typed, an Authorization header or a token in a request body never reaches disk, and neither does any value the computer filled from the Vault.
 import {
-  actorOf, addStep, agentFolder, clean, ensure, hostOf, mintId, mintTicket, needComputer, needTeam, raise, recordingBy, recordingFiles, recordingOf, recordingOut, rowsOf, setComputer, stepOf, stepOut,
+  actorOf, addStep, agentFolder, clean, ensure, hostOf, mintId, mintTicket, needComputer, needTeam, nodeOf, raise, recordingBy, recordingFiles, recordingOf, recordingOut, rowsOf, setComputer, stepOf, stepOut,
 } from "../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, RecordingRow, RecordResult } from "../projections.ts";
 
@@ -240,6 +240,19 @@ export async function recordingProcess(ctx: CompCtx, input: { recordingId: strin
   return { taskId };
 }
 
+/** The recording's folder in the agent's Files folder goes to Trash. A folder that is not there (it never reached Files, or is already gone) is nothing to remove. */
+async function clearFilesCopy(ctx: CompCtx, r: RecordingRow): Promise<void> {
+  const folderId = await agentFolder(ctx, r.agentId);
+  if (!folderId) return;
+  let target: string | undefined;
+  try {
+    const home = (await ctx.call("files.folder.get", { folderId })) as { folder: { path: string } };
+    target = ((await ctx.call("files.resolve", { path: `${home.folder.path}/${r.folderPath}` })) as { folderId?: string }).folderId;
+  } catch { return; }
+  if (!target) return;
+  try { await ctx.call("files.folder.delete", { folderId: target }); } catch { raise(ctx, "internal.unexpected", "The recording could not be deleted. Try again."); }
+}
+
 export async function recordingDelete(ctx: CompCtx, input: { recordingId: string }) {
   ensure(ctx.db);
   needTeam(ctx);
@@ -252,6 +265,8 @@ export async function recordingDelete(ctx: CompCtx, input: { recordingId: string
   } catch {
     raise(ctx, "internal.unexpected", "The recording could not be deleted. Try again.");
   }
+  // A computer on a node keeps a working copy; Files holds the recording, and nothing on the node's machine clears that, so the Space does.
+  if (nodeOf(ctx.db, r.computerId)) await clearFilesCopy(ctx, r);
   ctx.db.run("DELETE FROM computers_recordings WHERE recording_id = ?", r.recordingId);
   return { deleted: true };
 }

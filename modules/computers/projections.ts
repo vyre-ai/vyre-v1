@@ -69,8 +69,8 @@ export interface ComputerHost {
   takeover(a: { computerId: string; personId: string }): Promise<void>;
   giveBack(computerId: string): Promise<void>;
   screenshot(computerId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
-  /** Where the live view is served from, for a ticket the viewer will present. */
-  stream(a: { computerId: string; ticket: string }): Promise<{ transport: "webrtc" | "mjpeg"; url: string }>;
+  /** Where the live view is served from, for a ticket the viewer will present. `ws` is agentd's own WebSocket address on the machine that runs the container; it is for that machine's node relay and never goes to a viewer. */
+  stream(a: { computerId: string; ticket: string }): Promise<{ transport: "webrtc" | "mjpeg"; url: string; ws?: string }>;
   record(a: { computerId: string; recordingId: string; action: "start" | "stop" }): Promise<RecordResult>;
   /** Write the masked events and network log beside the video agentd saved, in the recording's folder under the agent's Files folder. */
   saveRecording(a: { computerId: string; recordingId: string; folderPath: string; events: string; har: string }): Promise<void>;

@@ -164,3 +164,15 @@ export function stateWord(c: Computer): string {
     case "error": return "Needs attention";
   }
 }
+
+/** Where the live view image is loaded from. A path on the Space (a computer on a node) gets the Space's address in front; an absolute address (agentd's own) is used as it is. */
+export function streamSrc(url: string, ticket: string, spaceUrl?: string): string {
+  const base = url.startsWith("/") ? (spaceUrl ?? "").replace(/\/+$/, "") : "";
+  return `${base}${url}?ticket=${ticket}`;
+}
+
+/** The small "on <computer name>" label of a computer that lives on a computer that joined the Space; null for the Space's own. */
+export function hostLabel(servers: ReadonlyArray<{ serverId: string; name: string }> | undefined, nodeId: string | undefined): string | null {
+  const name = nodeId ? servers?.find((x) => x.serverId === nodeId)?.name : undefined;
+  return name ? `on ${name}` : null;
+}
