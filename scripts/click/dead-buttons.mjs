@@ -272,6 +272,7 @@ export async function crawl({ browser, space, name, web, csp, workers, maxScreen
       if (key) { if (screens.get(key) === "done") { active--; continue; } screens.set(key, "done"); }
       try { await runUnit(w, unit); } catch (e) { log(`unit failed ${screenKey(unit.url)} ${unit.steps.map((s) => s.label).join(">")}: ${String(e).slice(0, 160)}`); skipped.push({ space: name, place: unit.place, screen: screenKey(unit.url), path: unit.steps.map((s) => s.label), why: `crawl error: ${String(e).slice(0, 120)}` }); }
       active--;
+      try { fs.writeFileSync(path.join(out, `partial-${name}.json`), JSON.stringify({ dead, quiet, disabled, skipped, stats })); } catch { /* the crawl goes on */ }
       log(`${name} ${unit.place} ${screenKey(unit.url)}${unit.steps.length ? ` > ${unit.steps.map((s) => s.label).join(" > ")}` : ""}: ${stats.clicks} clicks, ${dead.length} dead`);
     }
   };
