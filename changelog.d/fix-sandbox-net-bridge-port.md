@@ -1,0 +1,1 @@
+- Fixed a flaky heavy test: the sandbox network bridge test picked its port at random from a fixed range, so concurrent runners on one host could collide and the bridge exited 70. It asks the OS for a free port.
