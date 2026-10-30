@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { memberNote, microsoftSecret, parseGoogleKey, personLine, serviceRows, shortScope, summaryOf } from "./model.ts";
 
+// secret-scan: fake (a made-up key body, used only to prove the parser never returns it)
 const key = (o: Record<string, unknown> = {}) => JSON.stringify({ type: "service_account", project_id: "firm-prod", client_id: "104857384729183746501", client_email: "vyre@firm-prod.iam.gserviceaccount.com", private_key: "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n", ...o });
 
 test("a service-account key gives back only its public identity", () => {
