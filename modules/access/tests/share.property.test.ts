@@ -9,6 +9,7 @@ import {
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
 import { groupsAddMember, groupsRemoveMember, putPrincipal } from "../handlers/roles.ts";
+import { MemoryDb } from "../fixtures/db.ts";
 import type { AccessStore, Db, Level } from "../projections.ts";
 import { EVERYONE, storeOf } from "../projections.ts";
 
@@ -18,32 +19,8 @@ const STEPS = 35;
 const PEOPLE = ["usr_admin", "usr_a", "usr_b", "usr_c"] as const;
 const ORDER: readonly Level[] = ["view", "use", "edit", "manage"];
 
-class SqlDb implements Db {
-  tables = new Map<string, Record<string, unknown>[]>();
-  all(sql: string): unknown[] {
-    const rows = this.tables.get(/\bFROM\s+([A-Za-z0-9_]+)/i.exec(sql)?.[1] ?? "");
-    if (!rows) throw new Error("no table");
-    return rows.map((r) => ({ ...r }));
-  }
-  run(sql: string, ...args: unknown[]): { changes: number } {
-    if (/^CREATE\s+/i.test(sql)) return { changes: 0 };
-    const del = /^DELETE\s+FROM\s+([A-Za-z0-9_]+)(\s+WHERE\s+id\s*=\s*\?)?/i.exec(sql);
-    if (del) {
-      const rows = this.tables.get(del[1]!) ?? [];
-      const keep = del[2] ? rows.filter((r) => r["id"] !== args[0]) : [];
-      this.tables.set(del[1]!, keep);
-      return { changes: rows.length - keep.length };
-    }
-    const ins = /^INSERT\s+INTO\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)\s*VALUES\s*\(([^)]*)\)/i.exec(sql);
-    if (!ins) throw new Error(`unsupported sql: ${sql}`);
-    const row: Record<string, unknown> = {};
-    ins[2]!.split(",").map((c) => c.trim()).forEach((c, i) => { row[c] = args[i] ?? null; });
-    const list = this.tables.get(ins[1]!) ?? [];
-    list.push(row);
-    this.tables.set(ins[1]!, list);
-    return { changes: 1 };
-  }
-}
+/** The access tables' in-memory SQL (modules/access/fixtures/db.ts). */
+class SqlDb extends MemoryDb {}
 
 function rng(seed: number) {
   let a = (seed * 2654435761) >>> 0;
