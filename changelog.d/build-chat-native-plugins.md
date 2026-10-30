@@ -1,1 +1,0 @@
-- Plugins installed on a Claude Code or Codex agent are written into that engine's own config in its sandbox work folder: Claude Code gets the plugin folders (`--plugin-dir`) and the plugin MCP servers, Codex gets the skills in its skills folders and the servers as config overrides. A secret is a Vault handle the existing fill puts in the environment; no value is written.

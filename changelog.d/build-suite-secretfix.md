@@ -1,1 +1,0 @@
-- Test fixture for the Google key parser is marked as fake for the secret scan.

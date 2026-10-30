@@ -1,1 +1,0 @@
-- A person imported from the directory is matched to their own Google or Microsoft mailbox and calendar the moment they accept their invitation (the member.joined event), with no admin step. An address that is not a Workspace or Microsoft address stays unmatched and keeps its Match to... line for the admin.

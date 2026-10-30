@@ -1,2 +1,0 @@
-- The Windows installer now reaches the release: the desktop build renames Tauri's `Vyre_<version>_x64-setup.exe` to `VyreSetup.exe` (the name `irm vyre.run/w | iex` downloads) and writes its SHA-256 sidecar, which goes through sign like the Mac one; publish checks the program against it, attaches both and writes `SHA256SUMS`, the file `install.ps1` reads.
-- `install.ps1` finds the installed program under the name Tauri gives it (`vyre-desktop.exe`) as well as `Vyre.exe`, and stops either when uninstalling.
