@@ -16,11 +16,11 @@ test("How you work opens on a blank field with the three-dot progress, a hint to
   assert.ok(/aria-disabled="true"|disabled=""/.test(out), "Next waits for a pick");
 });
 
-test("the Chrome card is one button: Add to Chrome in the desktop app, Download for Chrome on the web, and the zip is the release's", () => {
+test("the Chrome card is one button: Install in the desktop app, Download for Chrome on the web, and the zip is the release's", () => {
   const web = renderToStaticMarkup(<ChromeCard call={call} device="web" onConnected={() => undefined} />);
-  assert.ok(web.includes('data-testid="chrome-add"') && web.includes("Download for Chrome") && !web.includes("Add to Chrome"));
+  assert.ok(web.includes('data-testid="chrome-add"') && web.includes("Download for Chrome") && !web.includes("Install"));
   const mac = renderToStaticMarkup(<ChromeCard call={call} device="mac" onConnected={() => undefined} />);
-  assert.ok(mac.includes("Vyre for Chrome") && mac.includes('data-testid="chrome-add"'));
+  assert.ok(mac.includes('data-testid="chrome-add"'));
   assert.equal(EXTENSION_ZIP_URL, "https://github.com/vyre-ai/vyre-v1/releases/latest/download/vyre-chrome.zip");
 });
 

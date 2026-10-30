@@ -1,4 +1,4 @@
-// The Chrome step. On the desktop app one button, "Add to Chrome": the app unpacks the extension into its own folder, opens Chrome on chrome://extensions and shows the folder, then three visual steps
+// The Chrome step. On the desktop app one button, "Install": the app unpacks the extension into its own folder, opens Chrome on chrome://extensions and shows the folder, then three visual steps
 // (turn on Developer mode, Load unpacked, pick the folder). Chrome only installs silently from the Web Store or by company policy, so this guided flow is the honest best. On the web the button
 // downloads vyre-chrome.zip from the release, then the same three steps. "Connected" shows by itself when the extension pairs (computers.chrome.status).
 import { useEffect, useState } from "react";
@@ -52,9 +52,9 @@ export function ChromeCard({ call, device, onConnected, extensionUrl = EXTENSION
   if (mode === "idle") {
     return (
       <View testID="chrome-card" style={s.col}>
-        <View style={s.big}><View style={s.chromeTile}><Glyph paths={CHROME} size={20} /></View><Text style={s.bigText}>Vyre for Chrome</Text></View>
+        <View style={s.big}><View style={s.chromeTile}><Glyph paths={CHROME} size={20} /></View></View>
         {error ? <Text testID="chrome-error" style={s.err}>{error}</Text> : null}
-        <Pressable testID="chrome-add" accessibilityRole="button" disabled={busy} onPress={() => void start()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{app ? "Add to Chrome" : "Download for Chrome"}</Text></Pressable>
+        <Pressable testID="chrome-add" accessibilityRole="button" disabled={busy} onPress={() => void start()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{app ? "Install" : "Download for Chrome"}</Text></Pressable>
       </View>
     );
   }

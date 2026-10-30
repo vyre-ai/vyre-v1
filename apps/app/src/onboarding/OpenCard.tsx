@@ -8,7 +8,7 @@ import { StepTile } from "./StepGlyph.tsx";
 export function OpenCard({ text, action, onOpen, onDone, step }: { text: string; action: string; onOpen(): void; onDone(): void; step?: { flow: FlowKind; key: string } }): ReactElement {
   return (
     <View testID="open-card" style={s.col}>
-      <View style={s.head}>{step ? <StepTile flow={step.flow} k={step.key} size={40} /> : null}<Text style={s.line}>{text}</Text></View>
+      <View style={s.head}>{step ? <StepTile flow={step.flow} k={step.key} size={40} /> : null}{text ? <Text style={s.line}>{text}</Text> : null}</View>
       <View style={s.row}>
         <Pressable testID="open-card-go" accessibilityRole="button" onPress={onOpen} style={s.primary}><Text style={s.primaryText}>{action}</Text></Pressable>
         <Pressable testID="open-card-done" accessibilityRole="button" onPress={onDone} style={s.ghost}><Text style={s.ghostText}>Done</Text></Pressable>
@@ -19,13 +19,13 @@ export function OpenCard({ text, action, onOpen, onDone, step }: { text: string;
 
 /** Where each such step lives; the place ids are the shell rail's. */
 export const OPEN_TARGETS: Partial<Record<string, { place: string; text: string; action: string }>> = {
-  import_sessions: { place: "settings", text: "Bring in the sessions found on this computer.", action: "Open session import" },
-  local_folders: { place: "files", text: "Add a folder from this computer.", action: "Open Files" },
-  chrome: { place: "vault", text: "Add Vyre to Chrome.", action: "Open Browsers" },
-  first_win: { place: "automations", text: "Start from a ready-made routine.", action: "Open Automations" },
-  meet_agents: { place: "chats", text: "Say hello to the team\u2019s agents.", action: "Open Chats" },
-  apps: { place: "settings", text: "Get the desktop, phone and Chrome apps.", action: "Open Settings" },
-  own_data: { place: "inbox", text: "Your mail and calendar are here, only yours.", action: "Open Inbox" },
+  import_sessions: { place: "settings", text: "", action: "Open session import" },
+  local_folders: { place: "files", text: "", action: "Open Files" },
+  chrome: { place: "vault", text: "", action: "Open Browsers" },
+  first_win: { place: "automations", text: "", action: "Open Automations" },
+  meet_agents: { place: "chats", text: "", action: "Open Chats" },
+  apps: { place: "settings", text: "", action: "Open Settings" },
+  own_data: { place: "inbox", text: "", action: "Open Inbox" },
 };
 
 const s = StyleSheet.create({

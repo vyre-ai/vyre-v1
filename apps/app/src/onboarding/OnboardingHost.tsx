@@ -6,6 +6,7 @@ import { StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
 import { ChromeCard } from "./ChromeCard.tsx";
+import { SessionsCard } from "./SessionsCard.tsx";
 import { InterviewCard } from "./InterviewCard.tsx";
 import { takeTeamNext } from "./doors.ts";
 import { TeamBridgeCard } from "./TeamBridgeCard.tsx";
@@ -22,6 +23,7 @@ import { scriptFor } from "./script.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
 import type { CardContext } from "./OnboardingScreen.tsx";
+import { desktopSessionImporter } from "../../../../client/src/session-import/desktop.ts";
 import { flowOfSession, loadFlow, markSeen, markStep, publishProgress, registerOnboardingOpener, usedChecklistBefore } from "./store.ts";
 
 export interface OnboardingHostProps {
@@ -101,6 +103,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "bridge_team" && onAddSpace) return <TeamBridgeCard mac={mac} onCreate={() => { onAddSpace(); ctx.later(); }} />;
     if (card === "phone" && call && address) return <PairPhoneCard call={call} address={address} onPaired={() => ctx.done()} />;
     if (card === "chrome" && call) return <ChromeCard call={call} device={ctx.device} onConnected={() => ctx.done()} />;
+    if (card === "import_sessions" && call && desktopSessionImporter()) return <SessionsCard call={call} onDone={() => ctx.done()} />;
     const target = OPEN_TARGETS[card];
     if (target && onGo) return <OpenCard step={{ flow: ctx.flow, key: ctx.step.key }} text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} />;
     if (card === "space_ai" && call) return <SpaceAiCard team={call} personal={personalCall} onConnected={() => ctx.done()} />;
@@ -111,7 +114,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
       if (card === "directory") return <DirectoryCard call={call} by={personName ?? "Your admin"} space={space.name} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
     }
     if (card === "invites" && call) return <InvitesCard call={call} onDone={() => ctx.done()} />;
-    if (card === "org" && call) return <KitPickCard call={call} onInstalled={() => ctx.done()} />;
+    if (card === "org" && call) return <KitPickCard call={call} spaceName={space.kind === "team" ? space.name : ""} onInstalled={() => ctx.done()} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can do it later from the checklist on Home.</Text>;
   }, [call, cards, aiProvider, progress, onAddSpace, mac, address, onGo, personalCall, personName]);
@@ -122,7 +125,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
       {children}
       {shown && flow ? (
         <View style={s.fill}>
-          <OnboardingScreen flow={flow} spaceName={space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} onClose={() => { setShown(false); setStep(null); }} renderCard={renderCard} renderPreview={(card) => <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
+          <OnboardingScreen flow={flow} spaceName={space.kind === "personal" ? (personName ?? space.name) : space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} onClose={() => { setShown(false); setStep(null); }} renderCard={renderCard} renderPreview={(card) => scriptFor(card, flow).preview === "" ? null : <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
         </View>
       ) : null}
     </>
