@@ -1,7 +1,7 @@
 // A tab on an item is named for the item.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { recordTitle, titleAsk } from "./titles.ts";
+import { recordTitle, titleAsk, typeTitleAsk } from "./titles.ts";
 
 test("each kind of item names its tab from the read that knows it", () => {
   assert.deepEqual(titleAsk({ type: "automation", id: "aut_1" })?.input, { automationId: "aut_1" });
@@ -20,4 +20,14 @@ test("a record is named by its name, else its title, else its first text", () =>
   assert.equal(recordTitle({ title: "Rivera retainer", name: "" }), "Rivera retainer");
   assert.equal(recordTitle({ count: 3, note: "First note" }), "First note");
   assert.equal(recordTitle(null), null);
+});
+
+test("a Records tab on a type is named for the type: its plural, else its title; other places and no type keep the place name", () => {
+  const ask = typeTitleAsk("records", { type: "company" })!;
+  assert.equal(ask.cap, "schema.types.list");
+  assert.equal(ask.name({ types: [{ key: "contact", plural: "Contacts", title: "Contact" }, { key: "company", plural: "Companies", title: "Company" }] }), "Companies");
+  assert.equal(ask.name({ types: [{ key: "company", title: "Company" }] }), "Company");
+  assert.equal(ask.name({ types: [] }), null);
+  assert.equal(typeTitleAsk("files", { type: "company" }), null);
+  assert.equal(typeTitleAsk("records", {}), null);
 });
