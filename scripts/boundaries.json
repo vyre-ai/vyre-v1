@@ -204,6 +204,7 @@
       "text": "named exceptions to the layer rule"
     },
     "dynamicOk": [
+      "modules/memory/local-embedder.ts",
       "ui/src/theme/theme.firstframe.test.ts",
       "host/src/loader.ts",
       "agent/tests/sandbox.heavy.test.ts",

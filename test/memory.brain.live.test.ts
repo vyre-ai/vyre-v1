@@ -178,18 +178,18 @@ test("memory core live: pages keep versioned Notes, [[links]] become labelled ed
   } finally { await d.stop(); }
 });
 
-test("memory core live: engine.complete runs one request on an account through the engine and reports the tokens", async () => {
+test("memory core live: engine.complete is internal: a person and an agent tool are both refused", async () => {
   const d = await boot(seededDir());
   try {
     await connect(d);
     assert.equal((await call(d, "engine.pool.status", {})).status, 200);
+    const keeper = await newAgent(d, "Keeper");
     const accounts = (await call(d, "engine.accounts.list", {})).data.accounts as Array<{ ref: string }>;
-    assert.ok(accounts.length > 0, "the connected account is listed");
-    const out = await call(d, "engine.complete", { accountRef: accounts[0]!.ref, prompt: "Tasks: patterns.\nPlace: space memory.\n\nFacts:\n- fct_abc123 [note, 2026-10-01] Dana likes oat milk", system: "You tidy memory." });
-    assert.equal(out.status, 200, JSON.stringify(out.data));
-    assert.deepEqual([out.data.tokensIn, out.data.tokensOut], [1_200, 80]);
-    assert.equal(JSON.parse(out.data.text).actions[0].from[0], "fct_abc123");
-    const none = await call(d, "engine.complete", { accountRef: "#Not_An_Account", prompt: "hello" });
-    assert.equal(none.status, 404, JSON.stringify(none.data));
+    const person = await call(d, "engine.complete", { accountRef: accounts[0]!.ref, prompt: "Tasks: patterns." });
+    assert.equal(person.status, 403, JSON.stringify(person.data));
+    assert.equal(person.data.error.code, "permission.no_grant");
+    // an agent has no tool for it: asking for the tool finds nothing, and calling it by name is refused
+    const viaAgent = await say(d, keeper.id, `TOOL engine_complete ${JSON.stringify({ accountRef: accounts[0]!.ref, prompt: "Tasks: patterns.", idempotencyKey: "ec1" })}`, "ec");
+    assert.doesNotMatch(viaAgent.reply, /TOOL RESULT ok/, viaAgent.reply);
   } finally { await d.stop(); }
 });

@@ -30,7 +30,7 @@ Requires: nothing.
 - [memory.learned](../capabilities/memory.learned.md): The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone
 - [memory.maintain](../capabilities/memory.maintain.md): Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent
 - [memory.map.get](../capabilities/memory.map.get.md): The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night
-- [memory.meaning.rank](../capabilities/memory.meaning.rank.md): Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; the scores are 0 to 1 and empty when the model is not ready
+- [memory.meaning.rank](../capabilities/memory.meaning.rank.md): Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; a score is 0 when unrelated and 0.5 to 1 when related, and the list is empty when the model is not ready
 - [memory.meaning.status](../capabilities/memory.meaning.status.md): Whether meaning search is on, which model it uses, how many documents have a vector and, when it is not, a plain reason (not set up reads healthy)
 - [memory.notes.erase](../capabilities/memory.notes.erase.md): Erase one memory note for good, with its graph node and links (governance erase)
 - [memory.notes.list](../capabilities/memory.notes.list.md): List memory notes of an agent, project or the Space, including proposed/ and recipes/

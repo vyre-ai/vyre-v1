@@ -5,7 +5,7 @@
 //   everything from a chat goes to the asker's own layer and merges on its own only for a kind in the setting memory.auto_merge_kinds (default preference), or when the person typed it themselves.
 // DECISION: search is local and has no model call: BM25 over words, character trigrams for the "semantic" side, a small recency lift. The vector table of ARCH 6.10 is the same call shape and slots in later.
 import { extrasFor, factRows } from "../enrich.ts";
-import { MEANING_MIN, meaningScores } from "../meaning.ts";
+import { meaningScores } from "../meaning.ts";
 import { reviewRequired } from "../policy.ts";
 import { trail, whoIs } from "../trail.ts";
 import type { Who } from "../trail.ts";
@@ -479,10 +479,10 @@ export async function search(
     const mean = cos(d);
     let score = 0;
     if (mode === "keyword") score = r.matched > 0 ? r.score : 0;
-    else if (mode === "semantic") score = mean !== undefined ? (mean >= MEANING_MIN ? mean : 0) : sim >= 0.12 ? sim : 0;
+    else if (mode === "semantic") score = mean !== undefined ? mean : sim >= 0.12 ? sim : 0;
     else if (mean !== undefined) {
       // blend: BM25 (words), trigrams (spelling) and meaning; a word match or a close meaning admits a document
-      if (r.matched > 0 || sim >= 0.25 || mean >= MEANING_MIN) score = (top > 0 ? 0.45 * (r.score / top) : 0) + 0.15 * sim + 0.4 * Math.max(0, mean);
+      if (r.matched > 0 || sim >= 0.25 || mean > 0) score = (top > 0 ? 0.45 * (r.score / top) : 0) + 0.15 * sim + 0.4 * mean;
     } else if (r.matched > 0 || sim >= 0.25) score = (top > 0 ? 0.65 * (r.score / top) : 0) + 0.35 * sim;
     if (score > 0 && d.kind === "fact") score += recencyBoost(d.learnedAt, now) * (mode === "keyword" ? top / 10 : 0.1);
     if (score > 0) hits.push({ doc: d, score });

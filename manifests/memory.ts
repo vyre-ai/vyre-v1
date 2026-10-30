@@ -249,7 +249,7 @@ export default defineManifest({
       in: {}, out: { mode: t.enm('local', 'key', 'off'), state: t.enm('on', 'loading', 'not_set_up', 'degraded', 'off'), model: t.opt(t.str()), hint: t.opt(t.str()), indexed: t.int({ minimum: 0 }) }, label: 'filter', tool: 'memory',
       mcpName: 'memory_meaning_status', agent: { planMode: 'allowed' },
     }),
-    read('memory.meaning.rank', 'Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; the scores are 0 to 1 and empty when the model is not ready', {
+    read('memory.meaning.rank', 'Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; a score is 0 when unrelated and 0.5 to 1 when related, and the list is empty when the model is not ready', {
       in: { query: t.str(), candidates: t.arr(t.obj({ id: t.str(), text: t.str() }), { maxItems: 200 }) }, out: { scores: t.arr(t.obj({ id: t.str(), score: t.num() })), meaning: meaningInfo }, label: 'filter', tool: 'memory',
       mcpName: 'memory_meaning_rank', agent: { planMode: 'allowed' },
     }),

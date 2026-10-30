@@ -15,6 +15,8 @@ export interface Embedder {
   /** Model name, kept with each vector so a changed model re-embeds. */
   name: string;
   dim: number;
+  /** Cosine at or above which this model calls two texts related (models differ: this is chosen per model on fixtures/meaning-pairs.ts). Default MEANING_MIN. */
+  minScore?: number;
   status(): { state: EmbedderState; detail?: string };
   /** One unit-length vector per text. Rejects when the model is not ready. */
   embed(texts: string[]): Promise<Float32Array[]>;
@@ -50,6 +52,9 @@ export function cosine(a: Float32Array, b: Float32Array): number {
 
 /** Below this a document is not "about" the question. Tuned for MiniLM-class models; the blend keeps keyword hits whatever this says. */
 export const MEANING_MIN = 0.3;
+
+/** A model's cosine as a score where 0.5 means "related" for that model: 0 below its own threshold, then 0.5 to 1 up to a cosine of 1. Models differ in how high unrelated texts score, so callers compare this, not the cosine. */
+export const calibrated = (cos: number, min: number): number => (cos < min ? 0 : 0.5 + (0.5 * (cos - min)) / Math.max(1e-6, 1 - min));
 const NEW_SHARED_PER_CALL = 256;
 const PERSONAL_PER_CALL = 128;
 
@@ -77,6 +82,7 @@ export async function meaningStatus(ctx: Pick<MemCtx, "call">): Promise<MeaningS
 }
 
 export interface MeaningDoc { kind: "fact" | "note" | "page"; id: string; text: string; shared: boolean }
+/** `scores` are calibrated (0 unrelated, 0.5 and up related, see `calibrated`). */
 export interface MeaningResult { scores: Map<string, number> | null; status: MeaningStatus }
 
 const keyOf = (d: Pick<MeaningDoc, "kind" | "id">): string => `${d.kind}:${d.id}`;
@@ -124,7 +130,8 @@ export async function meaningScores(ctx: MemCtx, docs: MeaningDoc[], query: stri
       const out = await embedder.embed(personal.map((d) => d.text));
       personal.forEach((d, i) => { const v = out[i]; if (v) vecs.set(keyOf(d), v); });
     }
-    for (const d of docs) { const v = vecs.get(keyOf(d)); if (v) scores.set(keyOf(d), cosine(q, v)); }
+    const min = embedder.minScore ?? MEANING_MIN;
+    for (const d of docs) { const v = vecs.get(keyOf(d)); if (v) scores.set(keyOf(d), calibrated(cosine(q, v), min)); }
     return { scores, status };
   } catch {
     return { scores: null, status: { ...status, state: "degraded", hint: "Meaning search could not run just now. Keyword search is in use." } };

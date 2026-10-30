@@ -1,6 +1,6 @@
 # memory.meaning.rank
 
-Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; the scores are 0 to 1 and empty when the model is not ready
+Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; a score is 0 when unrelated and 0.5 to 1 when related, and the list is empty when the model is not ready
 
 | | |
 |---|---|

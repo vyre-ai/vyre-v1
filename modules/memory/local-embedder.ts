@@ -1,15 +1,19 @@
-// The local embedding model behind meaning search (owner design 30 Oct 2026, ruling 7; rulings 47 and 54): all-MiniLM-L6-v2, quantized ONNX, run from Node by onnxruntime-node, mean pooled over the
-// attention mask and normalised to unit length (384 dimensions). The host owns the files (it fetches them on first use into the Space data folder and checks them against pinned hashes) and hands them
+// The local embedding model behind meaning search (owner design 30 Oct 2026, ruling 7; rulings 47 and 54): bge-small-en-v1.5, quantized ONNX, run from Node on the WebAssembly build of onnxruntime (loaded from the data folder, nothing of it in the install), CLS pooled
+// and normalised to unit length (384 dimensions). The host owns the files (it fetches them on first use into the Space data folder and checks them against pinned hashes) and hands them
 // over through ModelFiles; this file owns the tokenizer, the runtime and the state a search sees: not set up, loading, ready, or failed (retried after ten minutes). While it is not ready, search is
 // keyword search and says so.
 import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import type { Embedder, EmbedderState } from "./meaning.ts";
 
 export const DIM = 384;
+/** Cosine at or above which this model calls two texts related: chosen on the 30 pairs in fixtures/meaning-pairs.ts (every related pair scores at least 0.578, every unrelated one at most 0.563 on the shipped runtime). */
+export const LOCAL_MIN_SCORE = 0.57;
 const RETRY_AFTER_MS = 10 * 60_000;
 
 /** The model's two files, as the host hands them over: it reads them from its data folder, fetching on first use, and refuses a file whose hash is not the pinned one. */
-export interface ModelFiles { name: string; load(): Promise<{ model: Uint8Array; tokenizer: string }> }
+export interface ModelFiles { name: string; load(): Promise<{ model: Uint8Array; tokenizer: string; runtimeDir?: string }> }
 
 // ---- BERT WordPiece (uncased), as all-MiniLM-L6-v2 uses it
 
@@ -85,6 +89,19 @@ export interface LocalEmbedderOptions {
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
 }
 
+/**
+ * The WebAssembly build of onnxruntime from the folder the host verified (three files, about 14 MB, fetched the first time and checked against pinned hashes). Nothing of the runtime is in the install,
+ * and it is loaded from that folder only; one thread, since the model is small and a search embeds a handful of texts.
+ */
+async function wasmRuntime(dir: string | undefined): Promise<OrtLike> {
+  if (!dir) throw new Error("the runtime folder was not provided");
+  const url = pathToFileURL(path.join(dir, "ort.wasm.min.mjs")).href;
+  const ort = (await import(url)) as unknown as OrtLike & { env: { wasm: { wasmPaths: string; numThreads: number } } };
+  ort.env.wasm.wasmPaths = `${pathToFileURL(dir).href}/`;
+  ort.env.wasm.numThreads = 1;
+  return ort;
+}
+
 export function createLocalEmbedder(o: LocalEmbedderOptions): Embedder {
   const now = o.now ?? Date.now;
   const threads = o.threads ?? Math.max(1, os.availableParallelism() - 1);
@@ -97,10 +114,10 @@ export function createLocalEmbedder(o: LocalEmbedderOptions): Embedder {
   let loading: Promise<void> | null = null;
 
   async function load(): Promise<void> {
-    const ort = await (o.ort ? o.ort() : (import("onnxruntime-node") as unknown as Promise<OrtLike>));
-    const { model, tokenizer } = await o.files.load();
+    const { model, tokenizer, runtimeDir } = await o.files.load();
+    const ort = await (o.ort ? o.ort() : wasmRuntime(runtimeDir));
     const vocab = vocabOf(tokenizer);
-    const session = await ort.InferenceSession.create(model, { executionProviders: ["cpu"], graphOptimizationLevel: "all", intraOpNumThreads: threads, interOpNumThreads: 1 });
+    const session = await ort.InferenceSession.create(model, { executionProviders: [o.ort ? "cpu" : "wasm"], graphOptimizationLevel: "all", intraOpNumThreads: threads, interOpNumThreads: 1 });
     async function run(texts: readonly string[]): Promise<Float32Array[]> {
       const rows = texts.map((t) => encode(t, vocab, maxTokens));
       const T = Math.max(...rows.map((r) => r.length));
@@ -113,10 +130,10 @@ export function createLocalEmbedder(o: LocalEmbedderOptions): Embedder {
       });
       const hidden = (out["last_hidden_state"] ?? Object.values(out)[0])!.data as Float32Array;
       return rows.map((r, i) => {
+        // CLS pooling: the vector of the first token stands for the text
         const v = new Float32Array(DIM);
-        for (let j = 0; j < r.length; j++) { const at = (i * T + j) * DIM; for (let d = 0; d < DIM; d++) v[d] = v[d]! + hidden[at + d]!; }
         let s = 0;
-        for (let d = 0; d < DIM; d++) { v[d] = v[d]! / r.length; s += v[d]! * v[d]!; }
+        for (let d = 0; d < DIM; d++) { v[d] = hidden[i * T * DIM + d]!; s += v[d]! * v[d]!; }
         const k = s === 0 ? 0 : 1 / Math.sqrt(s);
         for (let d = 0; d < DIM; d++) v[d] = v[d]! * k;
         return v;
@@ -152,6 +169,7 @@ export function createLocalEmbedder(o: LocalEmbedderOptions): Embedder {
 
   return {
     name: o.files.name,
+    minScore: LOCAL_MIN_SCORE,
     dim: DIM,
     status() {
       if (state === "not_set_up" || (state === "failed" && now() - failedAt >= RETRY_AFTER_MS)) kick();
