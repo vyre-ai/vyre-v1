@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { API_KEYS, SUBSCRIPTIONS, finishSubscription, saveApiKey, startSubscription } from "./connect-ai.ts";
+import { API_KEYS, SUBSCRIPTIONS, saveApiKey, startSubscription } from "./connect-ai.ts";
 import type { CapCall } from "../shell/session/caps.ts";
 
 const recorder = (answers: Record<string, unknown>): { call: CapCall; calls: Array<{ cap: string; input: unknown }> } => {
@@ -13,16 +13,16 @@ test("Claude, ChatGPT and Grok are the subscription tiles, with Grok beside the 
   assert.ok(API_KEYS.some((o) => o.key === "xai"));
 });
 
-test("a subscription sign-in starts and finishes through the Vault providers", async () => {
-  const r = recorder({ "providers.subscription_start": { flowId: "sub_1", instruction: "Sign in." }, "providers.subscription_complete": { provider: { id: "prv_1" } } });
-  assert.deepEqual(await startSubscription(r.call, "grok", "k"), { flowId: "sub_1", instruction: "Sign in." });
-  assert.equal(await finishSubscription(r.call, "sub_1"), "prv_1");
+test("a subscription sign-in starts through the Vault providers and answers the link, the code and whether a code comes back", async () => {
+  const r = recorder({ "providers.subscription_start": { flowId: "sub_1", instruction: "Sign in.", url: "https://auth.openai.com/codex/device", userCode: "ABCD-1234", needsCode: false } });
+  assert.deepEqual(await startSubscription(r.call, "codex", "k"), { flowId: "sub_1", instruction: "Sign in.", url: "https://auth.openai.com/codex/device", userCode: "ABCD-1234", needsCode: false });
+  assert.deepEqual(r.calls[0], { cap: "providers.subscription_start", input: { providerKey: "codex", idempotencyKey: "k" } });
   await assert.rejects(() => startSubscription(r.call, "nope", "k"));
 });
 
-test("an unfinished sign-in says so in plain words", async () => {
-  const r = recorder({ "providers.subscription_complete": Object.assign(new Error("x"), { code: "validation.precondition_failed" }) });
-  await assert.rejects(() => finishSubscription(r.call, "sub_1"), /has not finished yet/);
+test("a sign-in that cannot start says why in the server's own words", async () => {
+  const r = recorder({ "providers.subscription_start": new Error("Grok sign-in needs the Grok command line on this computer. Install it, or use an API key.") });
+  await assert.rejects(() => startSubscription(r.call, "grok", "k"), /needs the Grok command line/);
 });
 
 test("an API key goes to providers.add in Mine and never appears in what comes back", async () => {

@@ -4,7 +4,7 @@ const invite={space:'Northwind',host:'northwind.example',by:'Owner',role:'Member
 test('Space entry uses the shared0.6.8 auth frame and exposes distinct real join/create choices',()=>{
  const html=renderToStaticMarkup(<SpaceEntry onTarget={()=>undefined} onBack={()=>undefined}/>);
  for(const id of['join-frame','join-panel','auth-form-mark','space-entry-join','space-entry-create'])assert.ok(html.includes(`data-testid="${id}"`),id);
- assert.ok(html.includes('Join your team, or make a place of your own.'));assert.ok(!html.includes('Created your Space'));
+ assert.ok(!html.includes('Created your Space'));assert.ok(html.includes('Join a Space') && html.includes('Create a Space'));
 });
 test('locked entry keeps password sign-in and has an explicit Unlock action without device approval',()=>{
  const html=renderToStaticMarkup(<JoinFrame><SignIn invite={invite} state={initialState(invite,{stage:'signin'})} dispatch={()=>undefined} unlock onSubmit={()=>undefined} onBack={()=>undefined}/></JoinFrame>);

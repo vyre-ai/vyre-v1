@@ -71,6 +71,17 @@ test("first launch shows the three doors and a way in for people who already hav
   assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("My team") && out.includes("Welcome to Vyre") && out.includes("Used Vyre on another computer?"));
 });
 
+test("a browser offers two doors and no Just me, a phone offers to join or to email the app, a PC offers all three (journeys, table D)", async () => {
+  const { FirstLaunch } = await import("./FirstLaunch.tsx");
+  const at = (device: "mac" | "win" | "web" | "phone") => renderToStaticMarkup(<FirstLaunch device={device} onDoor={async () => undefined} existing={<span>sign in</span>} />);
+  const web = at("web");
+  assert.ok(web.includes('data-testid="door-invited"') && web.includes('data-testid="door-server"') && !web.includes('data-testid="door-me"') && web.includes("Set up a team server"));
+  const phone = at("phone");
+  assert.ok(phone.includes('data-testid="door-invited"') && phone.includes('data-testid="door-app"') && !phone.includes('data-testid="door-me"') && !phone.includes('data-testid="door-team"'));
+  const win = at("win");
+  for (const id of ["door-me", "door-invited", "door-team"]) assert.ok(win.includes(`data-testid="${id}"`), id);
+});
+
 test("the team bridge card warns about a sleeping Mac in plain words, only on a Mac", async () => {
   const { TeamBridgeCard, MAC_WARNING } = await import("./TeamBridgeCard.tsx");
   assert.equal(MAC_WARNING, "This Mac must be on and Vyre open for your team to connect. For always-on, install on a server.");
