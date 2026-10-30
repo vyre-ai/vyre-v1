@@ -159,7 +159,8 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const field = laneFieldOf(ctx.def, ctx.saved, picked);
   const head = <ViewHead ctx={ctx} st={st} lanes={{ field, choices: ctx.def.fields.filter(isLaneField), pick: setPicked }} />;
   if (!field) {
-    return <View style={c.main} testID="records-board">{head}<States kind="empty" title={`${ctx.def.plural} have no status or choice field to make lanes from.`} icon="records" /></View>;
+    const choices = ctx.def.fields.filter(isLaneField);
+    return <View style={c.main} testID="records-board">{head}<States kind="empty" title={choices.length > 0 ? "Pick a field to group by." : `${ctx.def.plural} have no status or choice field to make lanes from.`} icon="records" /></View>;
   }
   // the lane of records with no value comes first: a board whose records have none shows them at the left, and not beyond the screen behind lanes that say "No cards" (it is drawn only while it has cards)
   const own = lanesOf(field);
