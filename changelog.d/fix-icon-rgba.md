@@ -1,0 +1,1 @@
+- fix(desktop): the four restored app icon PNGs (32x32, 128x128, 128x128@2x, icon) are RGBA with full alpha, so the Tauri build accepts them on macOS; the pixels are unchanged.
