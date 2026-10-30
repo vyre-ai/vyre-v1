@@ -82,7 +82,8 @@ function Body({ device, doors, busy, error, pick, onSignIn, onGetApp }: { device
           <View style={{ alignItems: "center" }}>
             <HalftoneV size={phone ? 150 : device === "web" ? 150 : 210} />
             <Text accessibilityRole="header" style={[baseText(p), { fontSize: phone ? 30 : 40, lineHeight: phone ? 36 : 46, fontWeight: "700", letterSpacing: -1, textAlign: "center" }]}>{device === "mac" || device === "win" ? "Welcome to Vyre" : "Vyre"}</Text>
-            <View testID="doors" accessibilityRole={"list" as never} style={{ flexDirection: phone ? "column" : "row", gap: phone ? 10 : 18, marginTop: phone ? 20 : 34, justifyContent: "center", alignSelf: phone ? "stretch" : "center" }}>
+            <View testID="doors" accessibilityLabel="Ways to start" style={{ flexDirection: phone ? "column" : "row", gap: phone ? 10 : 18, marginTop: phone ? 20 : 34, justifyContent: "center", alignSelf: phone ? "stretch" : "center" }}>
+              {/* ui-rows-lint: not a list (three door cards: art, title and a hover hint, one per way to start, not rows of a list) */}
               {doors.map((d, i) => (
                 <DoorCard key={d.door} testID={`door-${d.door}`} n={String(i + 1)} title={d.title} hint={d.help} art={<Art kind={ART[d.door]} width={phone ? 56 : 132} height={phone ? 48 : 112} />} busy={busy === d.door} disabled={!!busy && busy !== d.door} onPress={() => void pick(d.door)} />
               ))}
