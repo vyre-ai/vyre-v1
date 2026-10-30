@@ -139,3 +139,14 @@ test("a subscription sign-in: start gives a flow, complete waits for the compute
   assert.ok(!h.everything().includes(SECRET));
   h.cleanup();
 });
+
+test("the provider list shows this month's tokens on the account, from the turns the engine metered on its item", async () => {
+  const h = harness();
+  const folder = await sharedFolder(h);
+  const row = out(out(await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "shared", apiKey: SECRET, folderId: folder, idempotencyKey: key() })).provider);
+  assert.equal((out(row.usage)).tokens, 0, "nothing metered yet");
+  h.setUsage("agent", String(row.itemId), [{ key: "agt_a", turns: 2, tokensIn: 1000, tokensOut: 40 }, { key: "agt_b", turns: 1, tokensIn: 200, tokensOut: 10 }]);
+  const listed = (out(await p.list(h.ctx, {})).providers as Json[])[0]!;
+  assert.equal(out(listed.usage).tokens, 1250);
+  assert.deepEqual(contractErrors("providers.list", "out", { providers: [listed] }), []);
+});
