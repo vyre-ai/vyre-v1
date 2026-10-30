@@ -72,7 +72,7 @@ function Circle({ task, onDone }: { task: Task; onDone: () => void }): ReactElem
 
 function LayoutButton({ kind, on, onPress }: { kind: "list" | "plan"; on: boolean; onPress: () => void }): ReactElement {
   return (
-    <Pressable role="radio" aria-checked={on} aria-label={kind === "list" ? "List" : "Plan"} testID={`work-view-${kind}`} onPress={onPress} style={[local.segBtn, on && local.segOn]}>
+    <Pressable role="radio" aria-checked={on} aria-selected={on} aria-label={kind === "list" ? "List" : "Plan"} testID={`work-view-${kind}`} onPress={onPress} style={[local.segBtn, on && local.segOn]}>
       <Glyph name={kind === "list" ? "list" : "timeline"} size={14} color={on ? "var(--ink)" : "var(--ink-3)"} />
     </Pressable>
   );

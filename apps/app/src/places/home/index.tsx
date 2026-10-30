@@ -3,7 +3,7 @@
 // The shell provides the data (replica hooks, calls, navigation) through HomeDataProvider; without it the place draws its loading frame, the size of the real page.
 import { useEffect } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   AwayDigest, HomeDataProvider, HomeLineProvider, MyWork, NEEDS_SCREEN, NeedsYouTop3, ProjectsAtRisk, RoutinesToday, SelectionProvider, WORK_SCREEN,
   dateLine, dayNumber, firstName, greeting, summaryBits, useHomeData, useHomeLine, useOnline, useOptionalHomeData, useScreenQuery, useSelection,
@@ -39,7 +39,7 @@ function GreetingView({ sub }: { sub: string }): ReactElement {
   }, [line]);
 
   return (
-    <View style={styles.hh} accessibilityRole="header">
+    <View style={styles.hh}>
       <Text accessibilityRole="header" aria-level={1} style={styles.h1}>{`${greeting(c)}, ${firstName(data.me.name)}`}</Text>
       <Text style={styles.hdate} testID="home-date">{sub}</Text>
       {online ? null : (
@@ -83,23 +83,26 @@ function PersonalGreeting(): ReactElement {
 /** Taller than the Ask dock (the Quick start row, the Ask box and their spacing) so a scrolled-to control stops above it. */
 export const SCROLL_CLEAR = 140;
 
+/** A click on the empty page clears the selection. A plain element with a click handler, so the page is not a tab stop and no button role covers the greeting. */
+function clearOnClick(clear: () => void): Record<string, unknown> { return Platform.OS === "web" ? { onClick: clear } : {}; }
+
 function Page({ top, bottom, personal }: { top?: ReactNode; bottom?: ReactNode; personal?: boolean }): ReactElement {
   const sel = useSelection();
   if (personal) {
     // A Personal Space is the assistant and the checklist only: Needs you, My work, Projects at risk, While you were away and Routines need a team, so they are not drawn.
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
-        <Pressable accessible={false} onPress={() => sel.select(null)} style={styles.col}>
+        <View {...clearOnClick(() => sel.select(null))} style={styles.col}>
           <PersonalGreeting />
           {top}
           {bottom}
-        </Pressable>
+        </View>
       </ScrollView>
     );
   }
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
-      <Pressable accessible={false} onPress={() => sel.select(null)} style={styles.col}>
+      <View {...clearOnClick(() => sel.select(null))} style={styles.col}>
         <Greeting />
         {top}
         <NeedsYouTop3 />
@@ -108,7 +111,7 @@ function Page({ top, bottom, personal }: { top?: ReactNode; bottom?: ReactNode; 
         <AwayDigest />
         <RoutinesToday />
         {bottom}
-      </Pressable>
+      </View>
     </ScrollView>
   );
 }
