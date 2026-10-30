@@ -13,8 +13,8 @@ export const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200
 
 export const OWNER = "tok-usr_olivia";
 export const MEMBER = "tok-usr_noah";
-export const OTHER = "tok-usr_mia";
-const WHO: Record<string, string> = { [OWNER]: "usr_olivia", [MEMBER]: "usr_noah", [OTHER]: "usr_mia" };
+export const OTHER = "tok-usr_sana";
+const WHO: Record<string, string> = { [OWNER]: "usr_olivia", [MEMBER]: "usr_noah", [OTHER]: "usr_sana" };
 
 /** Provider answers for the module's egress (ctx.http): a status, a JSON body or text. */
 export type Answer = { status?: number; json?: unknown; text?: string } | undefined;
@@ -111,10 +111,15 @@ export async function bootWorld(o: WorldOptions) {
     }
     return r.data;
   };
+  /** Server log lines (message and attributes) that match, for a test that wants to say why something did not happen. */
+  const logsLike = (re: RegExp): string[] => {
+    d.sink.flush();
+    return (d.sink.db.prepare("SELECT msg, attrs FROM logs").all() as { msg: string; attrs: string }[]).filter((l) => re.test(`${l.msg} ${l.attrs}`)).map((l) => `${l.msg} ${l.attrs}`);
+  };
   let key = 0;
   const idem = (): string => `${o.prefix}-${++key}`;
   return {
-    d, dir: dataDir, seen, call, ok, idem,
+    d, dir: dataDir, seen, call, ok, idem, logsLike,
     async stop(keep = false) { await d.stop(); if (!keep) fs.rmSync(dataDir, { recursive: true, force: true }); },
   };
 }
