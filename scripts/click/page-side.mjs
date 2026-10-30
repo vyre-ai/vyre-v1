@@ -87,7 +87,7 @@ export function enumerate(scopeSel) {
     if (r.width < 2 || r.height < 2 || cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) continue;
     const disabled = e.disabled === true || e.getAttribute("aria-disabled") === "true" || e.hasAttribute("disabled");
     const noop = e.closest("[data-noop-ok]");
-    const selected = e.getAttribute("aria-selected") === "true" || e.getAttribute("aria-current") === "page" || e.getAttribute("aria-current") === "true";
+    const selected = e.getAttribute("aria-selected") === "true" || e.getAttribute("aria-pressed") === "true" || e.getAttribute("aria-current") === "page" || e.getAttribute("aria-current") === "true";
     e.setAttribute("data-dbg-i", String(i));
     const href = e.getAttribute("href");
     out.push({ i: i++, label: shortLabel(e), tag: tn.toLowerCase(), role: e.getAttribute("role") || "", testid: e.getAttribute("data-testid") || "", sel: structural(e), disabled, selected, noop: noop ? noop.getAttribute("data-noop-ok") || "marked" : "", href: href || "", target: e.getAttribute("target") || "", rect: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)], hasKids: [...e.querySelectorAll(SEL)].some((k) => matched.has(k)) });
@@ -184,4 +184,11 @@ export function clearMarks() {
 
 export function snapshotText() {
   return (document.body.innerText || "").replace(/\s+/g, " ").slice(0, 300);
+}
+
+/** The load-failure panel ("Couldn't reach ...") as text, or null. */
+export function errorPanel() {
+  const t = document.body.innerText || "";
+  const i = t.search(/Couldn.t reach|Something went wrong/);
+  return i < 0 ? null : t.replace(/\s+/g, " ").slice(Math.max(0, i - 10), i + 260);
 }

@@ -67,6 +67,7 @@ async function newWorker(browser, origin, session, nonce, csp, shotDir, spaceNam
   const pg = w.page;
   pg.setDefaultTimeout(10000);
   pg.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) { const e = { m: r.request().method(), p: u.pathname, s: r.status(), t: Date.now(), body: "" }; w.net.push(e); if (e.s >= 400) void r.text().then((b) => { e.body = b.slice(0, 160); }).catch(() => undefined); } });
+  pg.on("requestfailed", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) w.net.push({ m: r.method(), p: u.pathname, s: 0, t: Date.now(), body: `request failed: ${r.failure()?.errorText ?? ""}` }); });
   pg.on("console", (m) => { if (m.type() === "error") w.logs.push({ t: Date.now(), text: m.text().slice(0, 240) }); });
   pg.on("pageerror", (e) => w.logs.push({ t: Date.now(), text: `pageerror ${e.message.slice(0, 240)}` }));
   pg.on("dialog", (d) => { w.events.push({ t: Date.now(), k: "native-dialog" }); void d.dismiss().catch(() => undefined); });
@@ -87,7 +88,14 @@ async function settle(w, max = 6000) {
   }
 }
 
+/** Set by crawl(): where a screen that loaded into the failure panel is recorded, with the calls the Space refused while it loaded. */
 async function load(w, url) {
+  const t0 = Date.now();
+  await load1(w, url);
+  const panel = await w.page.evaluate(P.errorPanel).catch(() => null);
+  if (panel && w.onLoadError) { await sleep(300); w.onLoadError({ url, panel, calls: w.net.filter((n) => n.t >= t0 && (n.s >= 400 || n.s === 0)).map((n) => `${n.s} ${n.m} ${n.p} ${n.body}`), logs: w.logs.filter((l) => l.t >= t0).map((l) => l.text).slice(0, 4) }); }
+}
+async function load1(w, url) {
   await w.page.goto("about:blank").catch(() => undefined);
     await w.page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => undefined);
   await settle(w);
@@ -174,11 +182,12 @@ export async function crawl({ browser, space, name, web, csp, workers, maxScreen
   const nonce = Buffer.from(String(Math.random())).toString("base64").replace(/[^a-z0-9]/gi, "").slice(0, 16);
   const ws = [];
   for (let i = 0; i < workers; i++) ws.push(await newWorker(browser, web.origin, space.session, nonce, csp, path.join(out, "shots", name), name));
+  for (const w of ws) w.onLoadError = (e) => loadErrors.push({ space: name, screen: screenKey(e.url), ...e, url: undefined });
   const seedUrls = places.map((p) => `${web.origin}/${p}`);
   const queue = seedUrls.map((url) => ({ url, steps: [], depth: 0, place: new URL(url).pathname.slice(1) }));
   const screens = new Map();   // screenKey -> true
   const perPlace = new Map();
-  const dead = [], quiet = [], disabled = [], skipped = [], stats = { clicks: 0, screens: 0, units: 0, noop: 0, cspViolations: 0 };
+  const dead = [], quiet = [], disabled = [], skipped = [], current = [], loadErrors = [], stats = { clicks: 0, screens: 0, units: 0, noop: 0, cspViolations: 0 };
   const sigCount = new Map();
   const cspSeen = new Set();
   const chromeDone = new Set();
@@ -207,7 +216,7 @@ export async function crawl({ browser, space, name, web, csp, workers, maxScreen
     for (const e of els) {
       if (e.disabled) continue;
       if (e.noop) { stats.noop++; continue; }
-      if (/-selected$/.test(e.testid) || e.selected) continue;   // the place or tab already shown: pressing it again may do nothing
+      if (/-selected$/.test(e.testid) || e.selected) { record(current, unit, e, { note: "already the current choice (aria-selected, aria-pressed, aria-current or a -selected test id)" }); continue; }   // pressing the current choice again may do nothing
       if (!scope && CHROME.test(e.testid)) { const c = e.testid.replace(/-selected$/, ""); if (chromeDone.has(c)) continue; chromeDone.add(c); }
       if (RISKY.test(e.label)) { skipped.push({ space: name, place: unit.place, screen: screenKey(unit.url), path: unit.steps.map((s) => s.label), label: e.label, why: "ends the session or the Space; its confirm is not clicked" }); continue; }
       if (e.href && /^(mailto:|tel:|sms:)/.test(e.href)) continue;
@@ -272,14 +281,14 @@ export async function crawl({ browser, space, name, web, csp, workers, maxScreen
       if (key) { if (screens.get(key) === "done") { active--; continue; } screens.set(key, "done"); }
       try { await runUnit(w, unit); } catch (e) { log(`unit failed ${screenKey(unit.url)} ${unit.steps.map((s) => s.label).join(">")}: ${String(e).slice(0, 160)}`); skipped.push({ space: name, place: unit.place, screen: screenKey(unit.url), path: unit.steps.map((s) => s.label), why: `crawl error: ${String(e).slice(0, 120)}` }); }
       active--;
-      try { fs.writeFileSync(path.join(out, `partial-${name}.json`), JSON.stringify({ dead, quiet, disabled, skipped, stats })); } catch { /* the crawl goes on */ }
+      try { fs.writeFileSync(path.join(out, `partial-${name}.json`), JSON.stringify({ dead, quiet, disabled, skipped, current, loadErrors, stats })); } catch { /* the crawl goes on */ }
       log(`${name} ${unit.place} ${screenKey(unit.url)}${unit.steps.length ? ` > ${unit.steps.map((s) => s.label).join(" > ")}` : ""}: ${stats.clicks} clicks, ${dead.length} dead`);
     }
   };
   for (const u of queue) screens.set(screenKey(u.url), true);
   await Promise.all(ws.map((w) => runWorker(w)));
   for (const w of ws) await w.ctx.close().catch(() => undefined);
-  return { dead, quiet, disabled, skipped, stats };
+  return { dead, quiet, disabled, skipped, current, loadErrors, stats };
 }
 
 /** The baseline key of a dead element: the same element on the same screen is the same entry from run to run. */
@@ -296,6 +305,10 @@ export function reportMd(all, meta) {
   const cover = new Map();
   for (const d of all.dead) { const m = /lands on (\S+)/.exec(d.cause); const k = m ? m[1] : "not covered"; cover.set(k, (cover.get(k) ?? 0) + 1); }
   lines.push("", "## DEAD by covering element", "", ...[...cover].sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`));
+  lines.push("", "## Screens that loaded into the failure panel", "");
+  for (const e of all.loadErrors) lines.push(`- ${e.space} ${e.screen}: ${e.panel}\n  calls: ${e.calls.join(" | ") || "(none refused; look at the page errors)"}\n  page errors: ${e.logs.join(" | ") || "(none)"}`);
+  lines.push("", "## Current (already the chosen option, not counted as dead)", "");
+  for (const d of all.current) lines.push(`- ${d.space} ${d.place} ${d.screen} "${d.label}"`);
   lines.push("", "## Quiet", "");
   for (const d of all.quiet) lines.push(`- ${d.space} ${d.place} ${d.screen} ${d.path.join(" > ")} "${d.label}": ${d.note}`);
   lines.push("", "## Disabled", "");
@@ -347,7 +360,7 @@ export async function main(argv) {
   const pw = await import("playwright-core");
   const launcher = (pw.default ?? pw)[engine];
   const browser = await launcher.launch(engine === "chromium" ? { args: ["--no-sandbox"] } : {});
-  const all = { dead: [], quiet: [], disabled: [], skipped: [], stats: { clicks: 0, units: 0, screens: 0, noop: 0, cspViolations: 0 } };
+  const all = { dead: [], quiet: [], disabled: [], skipped: [], current: [], loadErrors: [], stats: { clicks: 0, units: 0, screens: 0, noop: 0, cspViolations: 0 } };
   const t0 = Date.now();
   try {
     for (const kind of kinds) {
@@ -357,7 +370,7 @@ export async function main(argv) {
         space.session = await sessionFor(kind, web, space, browser);
         await seed(web, space.session, (m) => console.log(m));
         const r = await crawl({ browser, space, name: kind, web, csp, workers, maxScreens, maxMinutes: Number(args["max-minutes"] || 12), places, out, log: (m) => console.log(m) });
-        for (const k of ["dead", "quiet", "disabled", "skipped"]) all[k].push(...r[k]);
+        for (const k of ["dead", "quiet", "disabled", "skipped", "current", "loadErrors"]) all[k].push(...r[k]);
         for (const k of Object.keys(all.stats)) all.stats[k] += r.stats[k];
       } finally { web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
     }
