@@ -110,8 +110,9 @@ export function Microsoft365Page(): ReactElement {
         {link.data ? <OpenLink url={link.data.url} label="Open the admin consent page" testID="link-consent" /> : <Para>Connect in step 4 and the consent link appears here.</Para>}
       </Step>
       <Step n={6} title="Limit the app to the members you include" state={stateOf(5)}>
-        <Para>Without this, the app could read any mailbox in your tenant. Run this in Exchange Online PowerShell as a tenant admin. It limits the app to the members below and no one else.</Para>
+        <Para>Without this, the app could read any mailbox in your tenant. The first part runs in Exchange Online PowerShell and limits the app to the members below and no one else. The second part runs in Microsoft Teams PowerShell and lets the app read Teams transcripts of those members' meetings only. Run both as a tenant admin.</Para>
         <OpenLink url={MICROSOFT_LINKS.exchangePowerShell} label="How to connect to Exchange Online PowerShell" testID="link-powershell" />
+        <OpenLink url={MICROSOFT_LINKS.teamsPowerShell} label="How to connect to Microsoft Teams PowerShell" testID="link-teams-powershell" />
         {snippet.data ? <CodeBlock value={snippet.data.snippet} testID="policy-snippet" /> : <Para>Connect in step 4 and the script appears here, filled in with your members.</Para>}
         <Actions><Button label={ranPolicy || s.policyConfirmed ? "Marked as done" : "I ran this"} disabled={!snippet.data || ranPolicy || s.policyConfirmed} testID="ms-policy-done" onPress={() => setRanPolicy(true)} /></Actions>
       </Step>

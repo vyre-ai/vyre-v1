@@ -141,7 +141,7 @@ export function Members({ rows, onToggle, busy }: { rows: readonly MemberRow[]; 
     <Section title="Members" count={rows.length} testID="suite-members">
       <Group>
         {rows.length === 0 ? (
-          <View style={{ padding: 12 }}><Text style={s.para}>No one in your Space has an address on this domain yet. People are matched by email when they join.</Text></View>
+          <View style={{ padding: 12 }}><Text style={s.para}>No one is matched yet. People are matched by the email their invitation went to, so someone who joined without one is not listed. The person setting this up is matched to the address they type.</Text></View>
         ) : rows.map((m) => (
           <Row
             key={m.email} id={m.email} title={m.email} note={memberNote(m)}
