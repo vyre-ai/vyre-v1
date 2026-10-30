@@ -3,14 +3,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CARD_H, CARD_W, GAP_Y, addAfter, addInto, addTrigger, blankStep, check, clampZoom, describeTrigger, duplicateStep, fitScale, joinOf, kindOfKey, layout, moveStep, neighbour, removeStep,
-  removeTrigger, runStates, sortedIssues, subtitleOf, successors, updateStep,
+  removeTrigger, runStates, sortedIssues, subtitleOf, successors, titleOfKey, updateStep,
 } from "./model.ts";
 import type { Definition } from "./model.ts";
 import { LEAD_FOLLOW_UP } from "../sidebar/sample.ts";
 
 const linear = (): Definition => ({
   triggers: [{ key: "schedule" }], start: ["a"],
-  nodes: [{ id: "a", key: "records.find", input: { type: "person" }, next: ["b"] }, { id: "b", key: "send_email", input: { to: "x@y.z" }, next: ["c"] }, { id: "c", key: "stop", input: {} }],
+  nodes: [{ id: "a", key: "records.find", input: { type: "person" }, next: ["b"] }, { id: "b", key: "send_email", input: { to: "x@y.z", mailboxId: "mbx_main" }, next: ["c"] }, { id: "c", key: "stop", input: {} }],
 });
 
 /** Three paths that come back together: a, then paths p with three lanes, then z. */
@@ -125,6 +125,8 @@ test("the local check names what is missing, in words, against the step", () => 
   const out = sortedIssues(check(d));
   assert.ok(out.every((i, n) => n === 0 || out[n - 1]!.severity !== "warning" || i.severity === "warning"), "errors come first");
   assert.ok(out.some((i) => i.nodeId === "h" && /needs a title/.test(i.message)), "Create a task needs a title");
+  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "m", key: "send_email", input: { to: "a@b.c" } }] }).some((i) => /needs a mailbox/.test(i.message)));
+  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "s", key: "send_sms", input: { to: "+1" } }] }).some((i) => /needs a number/.test(i.message)));
   assert.ok(out.some((i) => i.nodeId === "p" && /needs its condition/.test(i.message)));
   assert.ok(check({ triggers: [], nodes: [] }).some((i) => /Add a trigger/.test(i.message)));
   assert.ok(check({ triggers: [{ key: "webhook" }], nodes: [] }, "personal").some((i) => /Team Space/.test(i.message)), "a webhook needs a Team Space");
@@ -155,6 +157,12 @@ test("card text: the title falls back to the step's name and the second line say
   assert.equal(byId(l.cards, "wait").sub, "They reply by text, up to 1 day");
   assert.equal(subtitleOf({ id: "s", key: "stop", input: {} }), "The run ends here");
   assert.equal(subtitleOf({ id: "s", key: "ai", input: {} }), "Pick a key for this step");
+  assert.equal(subtitleOf({ id: "m", key: "send_email", input: { to: ["ada@example.com"], subject: "Hello", message: { version: 2 } } }), "Email ada@example.com: Hello, template v2");
+  assert.equal(subtitleOf({ id: "t", key: "send_sms", input: { to: "+1555", body: "Hi" } }), "Text +1555, 1 segment");
+  assert.equal(subtitleOf({ id: "c", key: "connector_request", input: { connector: "acme", action: "ping" } }), "acme · ping");
+  assert.equal(titleOfKey("google.gmail.list_messages"), "Google · List Gmail messages");
+  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "g", key: "google.gmail.list_messages", input: {} }] }).some((i) => /needs a connection/.test(i.message)));
+  assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "c", key: "connector_request", input: {} }] }).some((i) => /needs a connector/.test(i.message)));
   assert.equal(describeTrigger({ key: "record_change", filter: { where: "Source is Meta" } }), "Only when Source is Meta");
   assert.equal(describeTrigger({ key: "form_submit" }), "Every time");
 });

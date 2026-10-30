@@ -134,8 +134,8 @@ export interface HookRunner {
   /** Run one periodic job now. */
   runPeriodic(name: string): Promise<void>;
   /** Run a module's hostCall as that module and answer what it returns. */
-  /** `as`: run it for that principal (the admin whose action this is), with their authority for anything the call asks of other modules; omitted: as the host. */
-  call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
+  /** `as`: run it for that principal (the admin whose action this is), with their authority for anything the call asks of other modules; omitted: as the host. `run` is the Run this call belongs to, so a hold can resume it. */
+  call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string }; run?: string }): Promise<unknown>;
 }
 
 const capName = (kind: "consumer" | "periodic" | "call", name: string): string => `host.hook.${kind}.${name}`;
@@ -251,7 +251,8 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     },
     async call(name, input, as) {
       if (!byCall.has(name)) throw new Error(`no host call named ${name}`);
-      const r = await d.invoke(capName("call", name), { input }, as ? seed({ principal: { ...as.principal }, preAuth: false }) : seed());
+      const run = typeof as?.run === "string" && as.run !== "" ? as.run : undefined;
+      const r = await d.invoke(capName("call", name), { input }, as ? seed({ principal: { ...as.principal }, preAuth: false, ...(run ? { run } : {}) }) : seed());
       if (r.status !== "ok") throw new Error(`${name} was held`);
       return r.output;
     },
