@@ -73,6 +73,8 @@ import { createEventsHost } from "../seams/events-ports.ts";
 import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
+import { connectorReadSender } from "../seams/connector-read.ts";
+import { documentPin } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
@@ -94,6 +96,7 @@ import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { preAuthSession } from "./preauth.ts";
+import { createFiller } from "../seams/filler.ts";
 import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, wireSeams } from "../seams/index.ts";
@@ -219,6 +222,8 @@ export interface DaemonOptions {
     /** where a vault value may be filled, by kind (git_credential, container_env, env...): each receives the value for one call and must not keep or log it */
     vaultSinks?: Record<string, (f: { value: string; ref: string; handle: string; field: string; itemId: string }) => Promise<void> | void>;
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
+  /** Tests: extra environment for every git command the git module runs (GIT_CONFIG_COUNT entries that point a remote address at a local repository). */
+  gitEnv?: Record<string, string>;
   /** The address an agent computer reaches this daemon at (its container is not on localhost). Default http://host.docker.internal:<port>. */
   computersBaseUrl?: string;
   /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
@@ -297,6 +302,9 @@ const loopback = (address: string | undefined): boolean => address === "127.0.0.
 export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const cfg = o.config;
   const now = o.now ?? Date.now;
+  // What holds a GitHub installation token for one use: the token is delivered once, to the git module's credential slot (a ref), and read back by the git host. It is no Vault item and is never stored.
+  const gitCredentials = new Map<string, string>();
+  const filler = o.seams?.filler ?? createFiller({ git_credential: (ref, value) => { gitCredentials.set(ref, value); } }, now);
   const codeRoot = o.codeRoot ?? CODE_ROOT;
   const platform = o.platform ?? nodePlatform();
   const hasSpace = cfg.roles.includes("space");
@@ -357,14 +365,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
   // POST /hooks/<connector> (P-L5_17): a provider's signed webhook; the connector module's host call `<connector>.accept_webhook` verifies the signature and records the event once
-  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")) };
+  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown>; automation(a: { automationId: string; secret: string; payload: unknown; idempotencyKey?: string }): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")), automation: () => Promise.resolve(null) };
   // POST /compute/poll: a computer that joined the Space reports in with its credential; the network module's host call decides (it knows only the credential's hash)
   let computePoll: (credential: string, report: { docker?: boolean; version?: string }) => Promise<{ serverId: string; owner?: string } | null> = () => Promise.resolve(null);
   let computeJobs: (nodeId: string, running: string[]) => Promise<unknown[]> = () => Promise.resolve([]);
   let computeResult: (nodeId: string, a: { jobId: string; ok: boolean; result?: unknown; error?: string }) => Promise<{ status: string }> = () => Promise.resolve({ status: "unknown" });
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a) });
-  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
+  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
   let ownerOfSpace: () => string | null = () => cfg.owner;
@@ -513,7 +521,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const runsHost = createRunsHost({ call: (n, i, as) => hookRunner.call(n, i, as), log: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "runs", attrs }) });
       closers.push(() => runsHost.settle(5_000));
       const acceptors = new Set([...loaded.moduleExports].flatMap(([id, ns]) => (ns["hostCalls"] && typeof ns["hostCalls"] === "object" && `${id}.accept_webhook` in (ns["hostCalls"] as object) ? [id] : [])));
-      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a) };
+      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a), automation: (a) => hookRunner.call("automations.accept_hook", a) };
       computePoll = (credential, report) => hookRunner.call("network.node_poll", { credential, report }) as Promise<{ serverId: string; owner?: string } | null>;
       // what a computer that joined is asked to do (the computers module's jobs), what it answers, and the one door it has into an agent's home: a job's token, as that agent, for the home calls only
       computeJobs = async (nodeId, running) => ((await hookRunner.call("computers.node_jobs", { nodeId, running, ...(o.computeLeaseMs !== undefined ? { leaseMs: o.computeLeaseMs } : {}) })) as { jobs?: unknown[] } | null)?.jobs ?? [];
@@ -677,7 +685,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         })()),
         services: hostServices({
           base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs,
-          vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed),
+          vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed, { fill: (h, into, at) => filler.fill(h, into, at), now }),
         }),
         idem, rate: createRateLimiter(), now, log: sinkLog,
         ...(gate ? { gate } : {}),
@@ -918,7 +926,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
         }),
         // the git module: working trees under the data directory; a GitHub token arrives only through ctx.vault.fill (git_credential), which waits on the Vault module (w12a, P-L7_LIVE)
-        setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), takeCredential: () => undefined }),
+        setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), ...(o.gitEnv ? { env: o.gitEnv } : {}), takeCredential: (ref: string) => { const v = gitCredentials.get(ref); gitCredentials.delete(ref); return v; } }),
         ...spaceStoreDrivers(spaceStore),
         configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq,
           address: () => {
@@ -943,6 +951,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
         configureVault: () => ({ sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
+        setDocumentNetwork: () => documentPin(),
+        setConnectorReadSender: (d) => connectorReadSender(d),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
         setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
         ...(o.seams?.drivers ?? {}),
@@ -956,7 +966,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           blobs: o.seams?.blobs ?? { put: none("The blob store") },
           members: o.seams?.members ?? { emails: none("The member list") },
           ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
-          ...(o.seams?.filler ? { filler: o.seams.filler } : {}),
+          filler,
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
           publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
           drivers: hostDrivers, owners: loaded.seamOwners,

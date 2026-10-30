@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { keyNeighbour, tabLabel } from "../a11y.ts";
 import { Glyph } from "./icons.tsx";
 import type { GlyphName } from "./icons.tsx";
 import type { IconKey } from "./model.ts";
@@ -27,7 +28,7 @@ export function IconButton({ icon, label, onPress, on = false, size = 26, testID
       onPress={onPress}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
-      {...webOnly({ title: label })}
+      {...webOnly({ title: label, dataSet: { vyreFocus: "1" } })}
       style={[s.iconBtn, { width: size, height: size }, (over || on) && { backgroundColor: "var(--hover)" }, pointer]}
     >
       <Glyph name={icon} size={15} color={over || on ? "var(--ink)" : "var(--ink-3)"} />
@@ -61,10 +62,13 @@ export interface SubTab { key: string; label: string; note?: string; tone?: "dan
 
 /** Underline tabs (the prototype's pane tabs): the active one is ink with a 2 px accent bar under it; left and right arrows move, Home and End jump. */
 export function SubTabs({ tabs, active, onSelect, label }: { tabs: readonly SubTab[]; active: string; onSelect: (key: string) => void; label: string }): ReactElement {
-  const keys = (key: string) => (e: KeyEventLike): void => {
-    const i = tabs.findIndex((t) => t.key === key);
-    const to = e.key === "ArrowRight" ? tabs[Math.min(tabs.length - 1, i + 1)] : e.key === "ArrowLeft" ? tabs[Math.max(0, i - 1)] : e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[tabs.length - 1] : undefined;
-    if (to && to.key !== key) { e.preventDefault?.(); onSelect(to.key); }
+  const onKey = (key: string) => (e: KeyEventLike): void => {
+    const next = keyNeighbour(tabs.map((t) => t.key), key, e.key ?? "");
+    if (!next) return;
+    e.preventDefault?.();
+    onSelect(next);
+    const doc = (globalThis as { document?: { querySelector(s: string): { focus?: () => void } | null } }).document;
+    setTimeout(() => doc?.querySelector(`[data-testid="subtab-${next}"]`)?.focus?.(), 0);
   };
   const items: ReactElement[] = [];
   for (const t of tabs) {
@@ -75,10 +79,10 @@ export function SubTabs({ tabs, active, onSelect, label }: { tabs: readonly SubT
         accessibilityRole="tab"
         accessibilityState={{ selected: on }}
         aria-selected={on}
-        accessibilityLabel={t.label}
+        accessibilityLabel={tabLabel(t.label, on)}
         testID={`subtab-${t.key}`}
         onPress={() => onSelect(t.key)}
-        {...webOnly({ onKeyDown: keys(t.key), tabIndex: on ? 0 : -1 })}
+        {...webOnly({ onKeyDown: onKey(t.key), tabIndex: on ? 0 : -1, dataSet: { vyreFocus: "1" } })}
         style={[s.tab, on && s.tabOn, pointer]}
       >
         <Text style={[s.tabText, on && { color: "var(--ink)" as string }]}>{t.label}</Text>

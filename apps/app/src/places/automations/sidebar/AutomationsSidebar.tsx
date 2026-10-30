@@ -32,14 +32,19 @@ export interface SidebarProps {
   /** Why an Automation needs attention, in a few words ("Needs the Twilio key"), by id. */
   reasons?: Readonly<Record<string, string>>;
   initialOpen?: readonly string[];
+  /** When the shell slot hosts this list, its search replaces the inner field and a choice opens the body. */
+  hosted?: boolean;
+  query?: string;
+  onChoose?(): void;
 }
 
 const EMPTY: readonly string[] = [];
 
-export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null, initialTab = "automations", shared, reasons, initialOpen = EMPTY }: SidebarProps): ReactElement {
+export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null, initialTab = "automations", shared, reasons, initialOpen = EMPTY, hosted = false, query, onChoose }: SidebarProps): ReactElement {
   const data = useAutomationsData();
   const [tab, setTab] = useState<SidebarTab>(initialTab);
-  const [q, setQ] = useState("");
+  const [ownQ, setQ] = useState("");
+  const q = hosted ? (query ?? "") : ownQ;
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set(initialOpen));
   const [collapsed, setCollapsed] = useState<ReadonlySet<SectionKey>>(new Set());
   const [typesClosed, setTypesClosed] = useState(false);
@@ -64,7 +69,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   const create = async (groupId?: string): Promise<void> => {
     try {
       const out = (await data.call("automations.create", { name: "New automation", ...(groupId ? { groupId } : {}) })) as { automation?: { id: string } };
-      if (out?.automation?.id) data.nav.openAutomation(out.automation.id);
+      if (out?.automation?.id) { data.nav.openAutomation(out.automation.id); onChoose?.(); }
     } catch (e) { fail(e); }
   };
   const createGroup = async (): Promise<void> => {
@@ -78,7 +83,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
     for (const g of groups) move.push({ label: g.name, checked: a.groupId === g.id, onSelect: () => void data.call("automations.move", { automationId: a.id, groupId: g.id }).catch(fail) });
     move.push({ label: "No group", checked: !a.groupId, onSelect: () => void data.call("automations.move", { automationId: a.id }).catch(fail) });
     show([
-      { label: "Open", onSelect: () => data.nav.openAutomation(a.id) },
+      { label: "Open", onSelect: () => { data.nav.openAutomation(a.id); onChoose?.(); } },
       { label: "Move to a group", onSelect: () => show(move, x, y, "other") },
       ...(a.failedRuns > 0 ? [{ label: "Open failed runs", onSelect: () => data.nav.openFailedRuns() }] : []),
       { separator: true },
@@ -119,7 +124,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
     if (k === "Enter" && focusId) {
       e.preventDefault?.();
       if (focusId.startsWith("group:")) toggleGroup(focusId.slice(6));
-      else { const id = focusId.slice(focusId.indexOf(":") + 1); data.nav.openAutomation(id); }
+      else { const id = focusId.slice(focusId.indexOf(":") + 1); data.nav.openAutomation(id); onChoose?.(); }
     }
   };
 
@@ -176,7 +181,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
       <View key={`auto-${rid}`} {...menuTrigger((x, y) => rowMenu(a, x, y))} {...webOnly({ dataSet: { row: rid } })}>
         <Row
           id={`auto-${rid}`} title={a.name} note={noteOf(a, reasons)} selected={selectedId === a.id || focusId === rid}
-          onPress={() => { setFocusId(rid); data.nav.openAutomation(a.id); }}
+          onPress={() => { setFocusId(rid); data.nav.openAutomation(a.id); onChoose?.(); }}
           leading={<View style={[sb.lead, depth === 1 && { marginLeft: 20 }]}><Dot tone={tone} /></View>}
           trailing={<Glyph name={waiting ? "clock" : "bolt"} size={13} color="var(--ink-3)" />}
         />
@@ -193,7 +198,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
           id={`journey-${j.id}`} title={j.name} selected={selectedJourneyId === j.id}
           leading={<View aria-hidden style={sb.jtile}><Text style={sb.jtileText}>{initials(j.name)}</Text></View>}
           trailing={<Badge n={j.inFlight} testID={`journey-count-${j.id}`} />}
-          onPress={() => data.nav.openJourney(j.id)}
+          onPress={() => { data.nav.openJourney(j.id); onChoose?.(); }}
         />
       </View>,
     );
@@ -201,9 +206,9 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
 
   const tabs = [{ key: "automations", label: "Automations", note: String(autos.length) }, { key: "journeys", label: "Journeys", note: String(journeys.length) }];
   return (
-    <View testID="automations-sidebar" accessibilityLabel="Automations" style={sb.frame} {...webOnly({ onKeyDown: onKey })}>
+    <View testID="automations-sidebar" accessibilityLabel="Automations" style={hosted ? sb.hosted : sb.frame} {...webOnly({ onKeyDown: onKey })}>
       <SubTabs tabs={tabs} active={tab} onSelect={(k) => setTab(k as SidebarTab)} label="Automations and Journeys" />
-      <View style={sb.searchWrap}>
+      {hosted ? null : <View style={sb.searchWrap}>
         <View style={sb.search}>
           <Glyph name="search" size={14} color="var(--ink-3)" />
           <TextInput
@@ -216,7 +221,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
           />
           {q ? <IconButton icon="x" label="Clear the search" size={20} onPress={() => setQ("")} /> : <Text style={sb.slash}>/</Text>}
         </View>
-      </View>
+      </View>}
       <ScrollView style={sb.scroll} contentContainerStyle={sb.scrollIn} keyboardShouldPersistTaps="handled">
         {tab === "automations" ? (
           <>
@@ -260,6 +265,7 @@ const focusRow = (id: string): void => {
 
 const sb = StyleSheet.create({
   frame: { width: 268, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  hosted: { flex: 1, minHeight: 0, backgroundColor: "transparent" as string },
   searchWrap: { paddingHorizontal: 10, paddingTop: 12, paddingBottom: 6 },
   search: { height: 34, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, borderRadius: 9, backgroundColor: "var(--hover)" as string },
   searchInput: { flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--ink)" as string, ...({ outlineStyle: "none", outlineWidth: 0 } as object) },

@@ -20,6 +20,8 @@ export interface FilesNav {
   /** Rename and Move need a name or a place; the shell asks for it and calls the capability. */
   renameEntry(kind: "file" | "folder", id: string, current: string): void;
   newFolder(scope: "personal" | "space", parentId: string | null): void;
+  /** Connect a folder from Google Drive, Microsoft 365, this computer or GitHub into a folder (null: the top of the Space): the shell opens the mount sheet. */
+  connectFolder?(intoFolderId: string | null): void;
   /** Proposed: the facts agents suggested that nobody has decided on yet. */
   openMemory(): void;
   openGraph(): void;

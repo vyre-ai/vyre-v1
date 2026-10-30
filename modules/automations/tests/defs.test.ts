@@ -32,8 +32,38 @@ test("missing inputs are named per step", async () => {
   const r = await validate(h, { triggers: trig, nodes: [node("a", "records.update", { type: "contact" }), node("b", "send_email", { to: "x@example.com", subject: "Hi", body: "Hello" })] });
   assert.equal(r.ok, false);
   const msgs = r.issues.filter((i) => i.severity === "error").map((i) => `${i.nodeId}: ${i.message}`);
-  assert.deepEqual(msgs.sort(), ["a: Update a record needs patch.", "a: Update a record needs recordId."]);
+  assert.deepEqual(msgs.sort(), ["a: Update a record needs patch.", "a: Update a record needs recordId.", "b: Send an email needs a mailbox."]);
   assert.ok(r.issues.some((i) => i.nodeId === "b" && i.severity === "warning"), "b is not reached from a");
+});
+
+test("an authenticated request needs a connection and cannot store a secret", async () => {
+  const h = harness();
+  const secret = await validate(h, { triggers: trig, nodes: [node("r", "connector_request", { connector: "acme", action: "ping", connectionId: "con_1", input: { apiKey: "sk-live" } })] });
+  assert.ok(secret.issues.some((i) => /cannot hold a secret/.test(i.message)));
+  const missing = await validate(h, { triggers: trig, nodes: [node("r", "connector_request", { connector: "acme", action: "ping" })] });
+  assert.ok(missing.issues.some((i) => /needs a connection/.test(i.message)));
+});
+
+test("create and update refuse a pasted secret anywhere, including a draft, and keep a page token", async () => {
+  const h = harness();
+  const withPatch = (patch: Record<string, unknown>) => ({ triggers: trig, nodes: [node("a", "records.update", { type: "contact", recordId: "rec_abc", patch })] });
+  await refused(h.call("automations.create", create({ definition: withPatch({ note: "sk-live-pasted" }) }), alice), "validation.bad_input", "secret");
+  await refused(h.call("automations.create", create({ definition: withPatch({ note: "Bearer pasted-token" }) }), alice), "validation.bad_input", "secret");
+  await refused(h.call("automations.create", create({ definition: withPatch({ apiKey: "not-a-token" }) }), alice), "validation.bad_input", "secret");
+  await refused(h.call("automations.create", create({ definition: { triggers: [{ key: "manual", filter: { token: "x" } }], nodes: [] } }), alice), "validation.bad_input", "secret");
+  assert.equal((await h.call("automations.list", {}, alice)).automations.length, 0);
+  const page = withPatch({ pageToken: "next", status: "active" });
+  const made = await h.call("automations.create", create({ definition: page }), alice);
+  const id = made.automation.id as string;
+  assert.equal(made.automation.status, "draft");
+  assert.equal(made.automation.definition.nodes[0].input.patch.pageToken, "next");
+  await refused(h.call("automations.update", { automationId: id, definition: withPatch({ note: "key_live_pasted" }) }, alice), "validation.bad_input", "secret");
+  const still = await h.call("automations.get", { automationId: id }, alice);
+  assert.equal(still.automation.version, 1);
+  assert.equal(still.automation.definition.nodes[0].input.patch.pageToken, "next");
+  const reported = await validate(h, withPatch({ authorization: "x" }));
+  assert.equal(reported.ok, false);
+  assert.ok(reported.issues.some((i) => /cannot hold a secret/.test(i.message)));
 });
 
 test("steps and triggers that are not in the catalogue are errors", async () => {
@@ -68,6 +98,45 @@ test("a step nothing reaches is a warning; the Automation is still valid", async
   assert.deepEqual(start.issues.map((i) => i.nodeId), ["a"], "the start list decides what is reached");
 });
 
+test("a loop above 1000 iterations is an error, and so is a loop inside a loop", async () => {
+  const h = harness();
+  const make = node("make", "records.create", { type: "note", fields: { title: "Item" } });
+  const after = node("after", "stop", {});
+  const over = await validate(h, {
+    triggers: trig,
+    nodes: [node("each", "loop", { items: "trigger.items", maxIterations: 1001 }, { branches: [{ label: "body", to: "make" }], next: ["after"] }), make, after],
+  });
+  assert.equal(over.ok, false);
+  assert.ok(over.issues.some((i) => i.nodeId === "each" && i.severity === "error" && i.message === "A loop allows at most 1000 iterations."));
+  const atCap = await validate(h, {
+    triggers: trig,
+    nodes: [node("each", "loop", { items: "trigger.items", maxIterations: 1000 }, { branches: [{ label: "body", to: "make" }], next: ["after"] }), make, after],
+  });
+  assert.equal(atCap.ok, true, JSON.stringify(atCap.issues));
+  const nested = await validate(h, {
+    triggers: trig,
+    nodes: [
+      node("outer", "loop", { items: "trigger.items" }, { branches: [{ label: "body", to: "prep" }], next: ["after"] }),
+      node("prep", "records.create", { type: "note", fields: { title: "Prep" } }, { next: ["inner"] }),
+      node("inner", "loop", { items: "item.rows" }, { branches: [{ label: "body", to: "make" }], next: ["after"] }),
+      make,
+      after,
+    ],
+  });
+  assert.equal(nested.ok, false);
+  assert.ok(nested.issues.some((i) => i.nodeId === "inner" && i.severity === "error" && i.message === "A loop cannot contain another loop."));
+  const sequence = await validate(h, {
+    triggers: trig,
+    nodes: [
+      node("first", "loop", { items: "trigger.items", maxIterations: 1000 }, { branches: [{ label: "body", to: "make" }], next: ["second"] }),
+      make,
+      node("second", "loop", { items: "trigger.more", maxIterations: 1000 }, { branches: [{ label: "body", to: "make2" }] }),
+      node("make2", "records.create", { type: "note", fields: { title: "More" } }),
+    ],
+  });
+  assert.equal(sequence.ok, true, JSON.stringify(sequence.issues));
+});
+
 test("a path that loops back is an error unless it goes through a Loop step", async () => {
   const h = harness();
   const find = { type: "contact" };
@@ -76,6 +145,31 @@ test("a path that loops back is an error unless it goes through a Loop step", as
   assert.match(bad.issues.find((i) => i.severity === "error")!.message, /loops back to a without a Loop step/);
   const good = await validate(h, { triggers: trig, nodes: [node("a", "records.find", find, { next: ["b"] }), node("b", "loop", { items: "{{ steps.a.out.records }}" }, { next: ["a"] })] });
   assert.equal(good.ok, true);
+});
+
+test("a preview step can be saved and cannot be turned on", async () => {
+  const h = harness();
+  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("a", "ai", { prompt: "Summarise" }, { ai: { agentId: "agt_helper" } })] } }), alice)).automation.id as string;
+  const saved = await h.call("automations.get", { automationId: id }, alice);
+  assert.equal(saved.automation.definition.nodes[0].key, "ai");
+  await refused(h.call("automations.set_enabled", { automationId: id, enabled: true }, alice), "validation.precondition_failed", "preview");
+});
+
+test("a code step can be saved and cannot be turned on", async () => {
+  const h = harness();
+  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("a", "code", { source: "return 1" })] } }), alice)).automation.id as string;
+  const saved = await h.call("automations.get", { automationId: id }, alice);
+  assert.equal(saved.automation.definition.nodes[0].key, "code");
+  await refused(h.call("automations.set_enabled", { automationId: id, enabled: true }, alice), "validation.precondition_failed", "preview");
+});
+
+test("a schedule can be turned on", async () => {
+  const h = harness();
+  const id = (await h.call("automations.create", create({
+    definition: goodDefinition({ triggers: [{ key: "schedule", config: { cron: "0 9 * * 1-5", timezone: "UTC", missed: "skip" } }] }),
+  }), alice)).automation.id as string;
+  const on = await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
+  assert.equal(on.automation.status, "on");
 });
 
 test("an AI step needs an agent or a key; a Personal Space cannot use a webhook trigger", async () => {
@@ -122,8 +216,8 @@ test("replay offers the same version or the current one; test can pin any earlie
   const id = await makeLive(h);
   const old = await h.call("automations.run", { automationId: id }, alice);
   await h.call("automations.update", { automationId: id, definition: goodDefinition({ nodes: [node("a", "records.update", { type: "contact", recordId: "rec_zzz", patch: {} })] }) }, alice);
-  const same = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "same" }, alice);
-  const cur = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "current" }, alice);
+  const same = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "same", confirm: true }, alice);
+  const cur = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "current", confirm: true }, alice);
   assert.equal(findRunLink(h.db, same.runId)!.version, 1);
   assert.equal(findRunLink(h.db, cur.runId)!.version, 2);
   assert.equal(findRunLink(h.db, same.runId)!.parentRun, old.runId);
@@ -188,7 +282,7 @@ test("Promote refuses until the subscription keys are replaced, then makes a Spa
 
 test("a promoted Automation runs as its own Service principal with only the vault names it was confirmed with", async () => {
   const h = harness();
-  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("m", "send_email", { to: "a@example.com", subject: "s", body: "Key #Resend_Key" })] } }), alice)).automation.id as string;
+  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("m", "send_email", { to: "a@example.com", subject: "s", body: "Key #Resend_Key", mailboxId: "mbx_main" })] } }), alice)).automation.id as string;
   await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
   const personal = await h.call("automations.run", { automationId: id }, alice);
   assert.deepEqual(loadRunPlan({ db: h.db }, personal.runId)!.link.principal, { kind: "person", id: alice.id });

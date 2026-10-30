@@ -252,7 +252,7 @@ export async function itemPut(ctx: VaultCtx, input: {
   );
   ctx.db.run(`INSERT INTO vault_item_x ("itemId", "createdAt", "secrets") VALUES (?, ?, ?)`, id, now, JSON.stringify(Object.fromEntries(fields.map((f) => [f.key, f.secret]))));
   record(ctx, id, "created");
-  ctx.emit("vault.item_created", `vault_item/${id}`, { itemId: id, kind: input.kind, folderId: str(folder, "id"), scope }, { vis: "participants" });
+  ctx.emit("vault.item_created", `vault_item/${id}`, { itemId: id, kind: input.kind, folderId: str(folder, "id"), scope, name }, { vis: "participants" });
   return { item: metaOut(ctx, liveItem(ctx, id)) };
 }
 

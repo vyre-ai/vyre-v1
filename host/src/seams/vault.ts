@@ -7,10 +7,18 @@ import { fail } from "../routes/errors.ts";
 
 export type VaultInvoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 
-export function createVaultService(invoke: VaultInvoke, space: string, seed: CtxSeed): Ctx["vault"] {
+/** What holds a value for one use (host/src/seams/filler.ts): a GitHub installation token is held behind a `#fill_` handle that is no Vault item. */
+export interface HeldValues { fill(handle: string, into: { kind: string; ref: string }, now: number): boolean; now(): number }
+
+export function createVaultService(invoke: VaultInvoke, space: string, seed: CtxSeed, held?: HeldValues): Ctx["vault"] {
   return {
     use: (handle) => ({ handle }),
     async fill(handle, into) {
+      // a held value (an installation token) is delivered by the filler that holds it, once, to the place named; it was never a Vault item
+      if (held && handle.startsWith("#fill_")) {
+        if (!held.fill(handle, { kind: into.kind, ref: into.ref }, held.now())) throw fail("provider.auth_failed", seed.trace?.traceId ?? "0".repeat(32), { message: "The token for this call is no longer held. Try again." });
+        return;
+      }
       const r = await invoke("vault.fill", { handle, target: { kind: into.kind, ref: into.ref } }, {
         space, principal: seed.principal, actingFor: seed.actingFor, run: seed.run, thread: seed.thread, device: seed.device, origin: seed.origin ?? "module", depth: (seed.depth ?? 0) + 1,
         ...(seed.trace ? { trace: seed.trace } : {}),
