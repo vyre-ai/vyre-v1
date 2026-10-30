@@ -6,6 +6,7 @@ import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { AccountQuery, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
 import { bindBridge, createBridge } from "./handlers/bridge.ts";
+import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
 import { buildOpener, roleBlocks } from "./session.ts";
@@ -43,6 +44,8 @@ export interface EngineHostSeam {
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
   postAs?: PostAs;
+  /** Live turn events (text as it is written, the end, the message it became) for the host to put on the live socket. */
+  stream?: (e: StreamEvent) => void;
   /** Runs once the runtime exists and before it is bound (the chat bridge attaches here). */
   extend?: (engine: TurnEngine) => void;
 }
@@ -115,7 +118,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.stream ? { stream: h.stream } : {}), ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     const engine = createTurnEngine({
       holder: h.holder, openSession: withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),

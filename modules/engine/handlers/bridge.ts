@@ -32,8 +32,17 @@ export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
 /** Run a capability for a person through the real pipeline, so what a turn reads is what that person may read (the host builds the call; spec 6.3). */
 export type CallAs = (cap: string, input: unknown, personId: string) => Promise<unknown>;
 
+/** What a reader of a live turn is told (the host turns each into one `turn` frame to the people who may read the thread): the turn opened, a piece of its text, the turn ended, and which chat message the finished turn became. */
+export type StreamEvent =
+  | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string }
+  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string }
+  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
+  | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
+
 export interface BridgeOptions {
   postAs: PostAs;
+  /** Live turn events for the host to fan out over the live socket. A throw here never touches the turn. */
+  stream?: (e: StreamEvent) => void;
   /** Reads of the chat run as the person whose message started the turn. A private chat answers only to its members, so the host's system principal cannot read it. Without it the consumer's own ctx reads. */
   callAs?: CallAs;
   log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
@@ -54,7 +63,7 @@ export interface Bridge {
 }
 
 interface Segment { blocks: PostBlock[]; text: string; mentions: number }
-interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null }
+interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
@@ -68,15 +77,18 @@ export function createBridge(o: BridgeOptions): Bridge {
   const ready = new Map<string, Ready>();                // `${thread}:${agent}` -> a completed turn waiting for the engine to store its reply
   const queuedRoutine = new Map<string, boolean>();      // `${thread}:${qseq}` -> routine
   const turns = new Map<string, { routineOwner: string | null }>();
+  const emit = (e: StreamEvent): void => { try { o.stream?.(e); } catch { /* a live view must never fail a turn */ } };
   const askerOf = new Map<string, string>();               // threadId -> the person whose turn ran last: the agent speaks for them
   const chains = new Map<string, Promise<void>>();       // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
 
-  const enqueuePost = (threadId: string, agentId: string, post: AgentPost): void => {
+  const enqueuePost = (threadId: string, agentId: string, post: AgentPost, turnId?: string): void => {
     const prev = chains.get(threadId) ?? Promise.resolve();
     const next = prev.then(async () => {
       const asker = askerOf.get(threadId);
-      try { await o.postAs(agentId, asker ? { ...post, actingFor: asker } : post); } catch (e) { warn("the bridge could not post an agent reply", { threadId, agentId, error: e instanceof Error ? e.message : String(e) }); }
+      let posted = false;
+      try { await o.postAs(agentId, asker ? { ...post, actingFor: asker } : post); posted = true; } catch (e) { warn("the bridge could not post an agent reply", { threadId, agentId, error: e instanceof Error ? e.message : String(e) }); }
+      if (turnId) emit({ kind: "final", threadId, turnId, agentId, messageId: posted ? post.clientId : null });   // after the post: the row exists when the reader hears which one it is
     });
     chains.set(threadId, next);
   };
@@ -96,16 +108,20 @@ export function createBridge(o: BridgeOptions): Bridge {
         queuedRoutine.delete(`${e.threadId}:${e.qseq}`);
         turns.set(e.turnId, { routineOwner: routine ? e.asker : null });
         askerOf.set(e.threadId, e.asker);
+        emit({ kind: "start", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, asker: e.asker });
         return;
       }
       case "turn.completed": {
         const seg = live.get(e.turnId) ?? { blocks: [], text: "", mentions: 0 };
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         live.delete(e.turnId); turns.delete(e.turnId);
+        emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: "done" });
         if (seg.text !== "" || seg.mentions > 0) {
-          ready.set(`${e.threadId}:${e.agentId}`, { ...seg, routineOwner });   // the engine stores the reply right after this event; message.received below posts it
+          ready.set(`${e.threadId}:${e.agentId}`, { ...seg, routineOwner, turnId: e.turnId });   // the engine stores the reply right after this event; message.received below posts it
         } else if (seg.blocks.length > 0) {
-          enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: "", blocks: seg.blocks, mentions: [], clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
+          enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: "", blocks: seg.blocks, mentions: [], clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) }, e.turnId);
+        } else {
+          emit({ kind: "final", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, messageId: null });
         }
         return;
       }
@@ -117,7 +133,8 @@ export function createBridge(o: BridgeOptions): Bridge {
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
         const blocks = [...(seg?.blocks ?? []), status(e)];
-        enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: [], clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) });
+        emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting" });
+        enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: [], clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) }, e.turnId);
         return;
       }
       case "message.received": {
@@ -128,7 +145,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         ready.delete(`${e.threadId}:${e.authorId}`);
         enqueuePost(e.threadId, e.authorId, {
           threadId: e.threadId, body: msg.body, blocks: r?.blocks ?? [], mentions: [...msg.mentions], clientId: msg.id, ...(r?.routineOwner ? { via: { routineOwner: r.routineOwner } } : {}),
-        });
+        }, r?.turnId);
         return;
       }
       default: return;
@@ -140,7 +157,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       const seg: Segment = { blocks: [], text: "", mentions: 0 };
       live.set(input.turnId, seg);
       for await (const ev of s.send(input)) {
-        if (ev.type === "text") seg.text += ev.text;
+        if (ev.type === "text") { seg.text += ev.text; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text }); }
         else if (ev.type === "block") seg.blocks.push({ type: ev.kind, v: 1, data: ev.payload ?? {} });
         else if (ev.type === "done") seg.mentions = ev.mentions?.length ?? 0;
         yield ev;
