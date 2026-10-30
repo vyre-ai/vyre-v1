@@ -229,7 +229,7 @@ test("auto-connect creates one Pending mailbox and one notice for each new membe
   assert.deepEqual(out, { created: 2, notified: 2, skipped: 4 });
   const rows = h.rows(`SELECT * FROM mail_mailbox WHERE kind = ?`, "personal").filter((r) => r.id !== "mbx_maya" && r.id !== "mbx_kim");
   assert.deepEqual(rows.map((r) => [r.address, r.ownerId, r.provider, r.state, r.privacy]).sort(), [
-    ["lee@vyre.test", "usr_lee01", "google", "pending", "private"], ["pat@vyre.test", "usr_pat01", "google", "pending", "private"],
+    ["lee@vyre.test", "usr_lee01", "google", "pending", "space"], ["pat@vyre.test", "usr_pat01", "google", "pending", "space"],
   ]);
   const notices = h.named("mailbox.connected");
   assert.equal(notices.length, 2);
