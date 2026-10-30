@@ -112,6 +112,49 @@ export function Panel({ children, bar, center }: { children: ReactNode; bar?: Re
   );
 }
 
+/** The first screens' stage: no card, the content sits on the window itself (the wash and the dot field behind it), centred, as wide as its doors need. */
+export function Stage({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  const { phone } = useJoin();
+  return (
+    <ScrollView style={{ width: "100%", flex: 1 }} contentContainerStyle={{ flexGrow: 1, alignItems: "center", justifyContent: "center", paddingVertical: phone ? 24 : 40, paddingHorizontal: phone ? 16 : 24 }} keyboardShouldPersistTaps="handled">
+      <View testID="join-stage" style={{ width: "100%", maxWidth: wide ? 860 : 600, alignItems: "center" }}>{children}</View>
+    </ScrollView>
+  );
+}
+
+const lift = (on: boolean): ViewStyle => (web ? ({ transform: [{ translateY: on ? -6 : 0 }], transitionProperty: "transform, box-shadow, border-color", transitionDuration: "240ms", transitionTimingFunction: "cubic-bezier(.2,.8,.2,1)" } as ViewStyle) : {});
+
+/** A big visual choice: a picture, two or three words, a number key. The hint shows on hover or keyboard focus only. On a phone it is a row. */
+export function Door({ art, title, hint, n, onPress, testID, busy, disabled }: { art: ReactNode; title: string; hint?: string; n?: string; onPress?: () => void; testID?: string; busy?: boolean; disabled?: boolean }) {
+  const { p, phone, mode } = useJoin();
+  const r = useRing();
+  return (
+    <Pressable
+      accessibilityRole="button" accessibilityLabel={hint ? `${title}. ${hint}` : title} accessibilityState={{ busy: !!busy, disabled: !!disabled }} disabled={disabled || busy} onPress={onPress} testID={testID} {...r.handlers}
+      style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => {
+        const on = hovered === true || r.ring;
+        const base: ViewStyle = phone
+          ? { flexDirection: "row", alignItems: "center", gap: 16, height: 76, width: "100%", paddingHorizontal: 16, borderRadius: 20 }
+          : { width: 224, height: 236, alignItems: "center", justifyContent: "space-between", paddingTop: 22, paddingBottom: 20, paddingHorizontal: 18, borderRadius: 24, overflow: "hidden" };
+        return { ...base, ...lift(on && !phone), backgroundColor: pressed ? p.accentWash : p.panel, borderWidth: on ? 1.5 : 1, borderColor: on ? p.accentLine : p.hair, opacity: disabled ? 0.5 : 1,
+          ...shadow(on ? (mode === "light" ? "0 6px 16px -6px rgba(24,24,26,.14), 0 24px 48px -24px rgba(24,24,26,.18)" : "0 6px 16px -6px rgba(0,0,0,.5), 0 24px 48px -24px rgba(0,0,0,.6)") : (mode === "light" ? "0 1px 1px rgba(24,24,26,.04), 0 2px 6px -2px rgba(24,24,26,.06)" : "0 1px 1px rgba(0,0,0,.3)")) };
+      }}
+    >
+      {({ hovered }: { hovered?: boolean }) => (
+        <>
+          {n && !phone ? <View style={{ position: "absolute", top: 14, right: 14, minWidth: 22, height: 22, borderRadius: 7, alignItems: "center", justifyContent: "center", ...shadow(`inset 0 0 0 1px ${p.hair}`) }}><Text style={[base(p), { fontSize: 11, color: p.tx3 }]}>{n}</Text></View> : null}
+          <View style={{ marginTop: phone ? 0 : 8, ...(phone ? { width: 56, height: 56, alignItems: "center", justifyContent: "center" } : { height: 112, alignItems: "center", justifyContent: "center" }) }}>{art}</View>
+          <View style={{ alignItems: phone ? "flex-start" : "center", flex: phone ? 1 : undefined }}>
+            <Text style={[base(p), { fontSize: phone ? 18 : 20, lineHeight: 26, fontWeight: "650" as never, letterSpacing: -0.3 }]}>{busy ? "Starting…" : title}</Text>
+            {!phone ? <Text style={[base(p), { fontSize: 12.5, lineHeight: 18, height: 18, color: p.tx3, opacity: hovered === true || r.ring ? 1 : 0 }]}>{hint ?? ""}</Text> : null}
+          </View>
+          {busy ? <Spinner size={20} /> : null}
+        </>
+      )}
+    </Pressable>
+  );
+}
+
 /** The reference reading column fills its content-height form surface. */
 export function Step({ children, dir = 1, id }: { children: ReactNode; dir?: 1 | -1; id: string }) {
   const style: ViewStyle = { width: "100%", alignSelf: "center" };

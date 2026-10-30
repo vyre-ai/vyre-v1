@@ -2,12 +2,21 @@
 // and a line that says the page finishes by itself. It polls only for a sign-in that needs no pasted code.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import type { ViewStyle } from "react-native";
 import { GIVE_UP_MS, POLL_MS, checkFlow, nextLine, pastedCode, safeLink } from "./flow.ts";
 import type { Call, Flow } from "./flow.ts";
 
 async function copy(text: string): Promise<boolean> {
   try { const nav = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator; if (!nav?.clipboard) return false; await nav.clipboard.writeText(text); return true; } catch { return false; }
+}
+
+/** A turning ring: the accent over the hairline. Still for a person who asks for reduced motion. */
+function Ring(): ReactElement {
+  const still = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const style: ViewStyle = { width: 18, height: 18, borderRadius: 9, borderWidth: 2.5, borderColor: "var(--line-2)" as string, borderTopColor: "var(--accent)" as string };
+  if (Platform.OS === "web" && !still) Object.assign(style, { animationKeyframes: [{ from: { transform: [{ rotate: "0deg" }] }, to: { transform: [{ rotate: "360deg" }] } }], animationDuration: "900ms", animationIterationCount: "infinite", animationTimingFunction: "linear" });
+  return <View accessible={false} style={style} />;
 }
 
 export interface SignInPanelProps {
@@ -76,7 +85,7 @@ export function SignInPanel({ call, flow, onDone, onCancel }: SignInPanelProps):
         </View>
       ) : (
         <View style={s.row}>
-          <Text style={s.dim} testID="signin-waiting">Waiting for you to approve in the browser.</Text>
+          <View style={s.wait}><Ring /><Text style={s.dim} testID="signin-waiting">Waiting for you</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel="Cancel sign-in" testID="signin-cancel" onPress={onCancel} style={s.ghost}><Text style={s.ghostText}>Cancel</Text></Pressable>
         </View>
       )}
@@ -93,9 +102,10 @@ const s = StyleSheet.create({
   dim: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
   err: { fontSize: 13, lineHeight: 18, color: "var(--danger)" as string },
   input: { height: 40, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, color: "var(--ink)" as string, fontSize: 14, backgroundColor: "var(--win)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
+  primary: { height: 40, paddingHorizontal: 18, borderRadius: 10, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
   primaryText: { fontSize: 13.5, fontWeight: "500", color: "var(--accent-ink)" as string },
-  ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
+  ghost: { height: 40, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
   ghostText: { fontSize: 13.5, color: "var(--ink)" as string },
   off: { opacity: 0.45 },
+  wait: { flexDirection: "row", alignItems: "center", gap: 10, marginRight: 8 },
 });

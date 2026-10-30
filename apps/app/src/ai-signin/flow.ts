@@ -54,7 +54,7 @@ export function safeLink(url: string | undefined): string | null {
 
 /** The line that tells the person what to do next for this flow. */
 export function nextLine(f: Flow): string {
-  if (f.needsCode) return "Open the sign-in, approve it, then paste the code the page shows.";
-  if (f.userCode) return `Open the sign-in and enter the code ${f.userCode}. This page finishes by itself.`;
+  if (f.needsCode) return "Approve it in your browser, then paste the code.";
+  if (f.userCode) return "Open the sign-in and enter this code.";
   return f.instruction;
 }

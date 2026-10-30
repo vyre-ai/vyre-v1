@@ -21,14 +21,14 @@ test("each provider has a Sign in with button", () => {
 test("Claude's panel: Open the sign-in, Copy link, a field for the pasted code, Finish and Cancel, and no code to type", () => {
   const out = html({ flowId: "sub_1", instruction: "x", url: "https://claude.ai/oauth/authorize?state=s", needsCode: true });
   for (const id of ["signin-open", "signin-copy", "signin-code", "signin-finish", "signin-cancel"]) assert.match(out, new RegExp(`data-testid="${id}"`), id);
-  assert.match(out, /paste the code the page shows/);
+  assert.match(out, /then paste the code/);
   assert.doesNotMatch(out, /signin-usercode|signin-waiting/);
 });
 
-test("ChatGPT's panel: the code to type is shown big, there is no code field, and it says it finishes by itself", () => {
+test("ChatGPT's panel: the code to type is shown big, there is no code field, and it waits by itself", () => {
   const out = html({ flowId: "sub_2", instruction: "x", url: "https://auth.openai.com/codex/device", userCode: "ABCD-1234", needsCode: false });
   assert.match(out, /data-testid="signin-usercode"[^>]*>ABCD-1234</);
-  assert.match(out, /enter the code ABCD-1234\. This page finishes by itself/);
+  assert.match(out, /enter this code/);
   assert.match(out, /data-testid="signin-waiting"/);
   assert.doesNotMatch(out, /signin-code"|signin-finish/);
 });

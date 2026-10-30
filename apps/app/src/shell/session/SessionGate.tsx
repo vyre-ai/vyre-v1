@@ -18,6 +18,7 @@ import { completeReset } from "../../join/reset.ts";
 import {completeRecovery} from "../../join/recover.ts";
 import { SpaceEntry } from "../../join/SpaceEntry.tsx";
 import { FirstLaunch } from "../../onboarding/FirstLaunch.tsx";
+import { deviceOf } from "../../onboarding/doors.ts";
 import { wantTeamNext } from "../../onboarding/doors.ts";
 import { clearLock, consumeBrowserInvite, inviteAppLink, VYRE_DOWNLOADS, entryTarget, isMacShell, readLock } from "./entry.ts";
 import type { EntryTarget, LockedIdentity } from "./entry.ts";
@@ -274,7 +275,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [desktopRoute, setDesktopRoute] = useState<DesktopRoute | null>(null);
   const [entry, setEntry] = useState(false);
-  const [entryStart, setEntryStart] = useState<'choice'|'join'>('choice');
+  const [entryStart, setEntryStart] = useState<'choice'|'join'|'team'>('choice');
   const [personalClaim,setPersonalClaim]=useState<{address:string;token:string;fragment:string}|null>(null);
   const [locked, setLocked] = useState<LockedIdentity|null>(null);
   const [returnSession, setReturnSession] = useState<StoredSession|null>(null);
@@ -337,7 +338,10 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const createMacServer=async():Promise<void>=>{if(!invoke)throw new Error('Desktop shell required');const local=await ensureMacServer(invoke);if(local.claimUrl){const link=new URL(local.claimUrl);setPersonalClaim({address:local.address,token:link.pathname.slice('/claim/'.length),fragment:link.hash});setEntry(false);}else await chooseEntry({kind:'signin',address:local.address});};
   // first launch on the desktop app: three doors; elsewhere (and for a person who already has a Space) the plain connect screen
   const connectScreen=<ConnectSpaceWelcome onConnect={connectSpace} onGetStarted={()=>{setEntryStart('choice');setEntry(true);}} />;
-  const firstScreen=invoke?<FirstLaunch existing={connectScreen} onDoor={async door=>{if(door==='invited'){setEntryStart('join');setEntry(true);return;}wantTeamNext(door==='team');await createPersonal();}} />:connectScreen;
+  const device=deviceOf({desktop:!!invoke,mac:isMacShell(),width:(globalThis as {innerWidth?:number}).innerWidth??1280});
+  const getApp=():void=>{(globalThis as {open?:(url:string,target?:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank');};
+  const emailApp=():void=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(`mailto:?subject=${encodeURIComponent('Get Vyre')}&body=${encodeURIComponent(VYRE_DOWNLOADS)}`);};
+  const firstScreen=<FirstLaunch device={device} existing={connectScreen} {...(device==='web'?{onGetApp:getApp}:{})} onDoor={async door=>{if(door==='invited'){setEntryStart('join');setEntry(true);return;}if(door==='server'){setEntryStart('team');setEntry(true);return;}if(door==='app'){emailApp();return;}wantTeamNext(door==='team');await createPersonal();}} />;
   if(personalClaim)return <Suspense fallback={null}><LocalClaim deviceClass="desktop" token={personalClaim.token} address={personalClaim.address} fragment={personalClaim.fragment} onDone={()=>{const stored=readStored(undefined,personalClaim.address);if(stored){setConnectedAddress(personalClaim.address);setPersonalClaim(null);signedIn(stored);}}} onSignIn={()=>{const address=personalClaim.address;setPersonalClaim(null);void chooseEntry({kind:'signin',address});}}/></Suspense>;
   if(entry)return <SpaceEntry startAt={entryStart} {...(invoke?{onCreatePersonal:createPersonal}:{})} {...(invoke&&isMacShell()?{onCreateMacServer:createMacServer}:{})} onTarget={chooseEntry} onBack={()=>{setEntry(false);setDesktopRoute(null);const previous=returnSession??readStored(undefined,baseUrl??undefined);if(previous){activateAddress(previous,true);setConnectedAddress(previous.baseUrl);consumeBrowserInvite();setDesktopRoute(null);setPhase({kind:'shell',stored:previous});}setReturnSession(null);}}/>;
   if (loadedAddress !== baseUrl || !ready) return baseUrl ? <View style={styles.fill} /> : firstScreen;

@@ -54,7 +54,18 @@ test("first launch shows the three doors and a way in for people who already hav
   const { FirstLaunch } = await import("./FirstLaunch.tsx");
   const out = renderToStaticMarkup(<FirstLaunch onDoor={async () => undefined} existing={<span>sign in</span>} />);
   for (const id of ["door-me", "door-invited", "door-team", "door-existing"]) assert.ok(out.includes(`data-testid="${id}"`), id);
-  assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("Set up my team"));
+  assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("My team"));
+});
+
+test("a browser offers two doors and no Just me, a phone offers to join or to email the app, a PC offers all three (journeys, table D)", async () => {
+  const { FirstLaunch } = await import("./FirstLaunch.tsx");
+  const at = (device: "mac" | "win" | "web" | "phone") => renderToStaticMarkup(<FirstLaunch device={device} onDoor={async () => undefined} existing={<span>sign in</span>} />);
+  const web = at("web");
+  assert.ok(web.includes('data-testid="door-invited"') && web.includes('data-testid="door-server"') && !web.includes('data-testid="door-me"') && web.includes("Set up a team server"));
+  const phone = at("phone");
+  assert.ok(phone.includes('data-testid="door-invited"') && phone.includes('data-testid="door-app"') && !phone.includes('data-testid="door-me"') && !phone.includes('data-testid="door-team"'));
+  const win = at("win");
+  for (const id of ["door-me", "door-invited", "door-team"]) assert.ok(win.includes(`data-testid="${id}"`), id);
 });
 
 test("the team bridge card warns about a sleeping Mac in plain words, only on a Mac", async () => {
