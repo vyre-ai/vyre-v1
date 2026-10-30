@@ -280,7 +280,19 @@ export interface TriggerDef {
   source:
     | { event: EventName; filter?: Schema }
     | { events: EventName[]; filter?: Schema }                   // several events fire the same trigger (record created, updated, deleted)
-    | { schedule: true; ifMissed: ('skip' | 'run_once')[] }
+    | {
+        schedule: true;
+        /** skip, one run for the whole gap, or one run per missed tick */
+        ifMissed: ('skip' | 'run_once' | 'backfill_each_tick')[];
+        /** backfill_each_tick cannot look back further than this many days */
+        lookbackMaxDays?: number;
+        /** backfill_each_tick cannot start more runs than this */
+        capMax?: number;
+        /** backfill_each_tick waits between starts */
+        spacing?: boolean;
+        /** queue, skip while a run is active, or a fixed number of runs at once */
+        overlap?: ('queue' | 'skip_while_active' | 'bounded_concurrency')[];
+      }
     | { webhook: true; path: string }
     | { manual: true } | { button: true };
   payload: Schema;                     // what the run receives as $trigger

@@ -1,6 +1,7 @@
 // Automation definitions (spec 2.12, 3.7; ARCH 7.7): create, update with versions, validation against the step and trigger catalogue, Groups, followers, alerts,
 // webhook URL, Promote to the Space with its access diff, and the Personal copy. Starting Runs and the trigger consumer are in triggers.ts.
 // DECISION: a new Automation is a draft. It turns on only when validate finds no error; saving a definition with errors is allowed while it is not on, refused while it is.
+// A pasted secret is refused in every status, including a draft. The connection holds it.
 // DECISION: a definition change appends a version; a name or description change does not.
 // DECISION: Promote keeps the id, history and versions, makes the Automation a Space one owned by the named person and run as its own Service principal. The access it was
 // confirmed with is stored (automations_access) with the vault names it may use (automations_vault); subscription keys must be replaced by shared API keys first.
@@ -10,7 +11,12 @@ import {
   allAutomations, clean, defaultAlerts, emitAuto, findGroup, getAutomation, isOwner, listGroups, listVersions, markDeleted, markRestored, me, newId, newSecret, out, page,
   raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
 } from "../projections.ts";
-import type { Alerts, AutoCtx, Automation, Definition, Grant, Node, Policy } from "../projections.ts";
+import { rememberAccountPicks } from "../accounts.ts";
+import { publishAllowed } from "../connector-breadth.ts";
+import { storedLevel } from "../connector-level.ts";
+import { admit, contractOf } from "../val.ts";
+import { containsSecret } from "../trust.ts";
+import type { Alerts, AutoCtx, Automation, Db, Definition, Grant, Node, Policy } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -31,6 +37,94 @@ function edges(n: Node): string[] {
   return [...(n.next ?? []), ...(n.branches ?? []).map((b) => b.to), ...(n.onError?.mode === "route" && n.onError.route ? [n.onError.route] : [])];
 }
 
+function laneEntries(n: Node): string[] {
+  if (n.branches && n.branches.length > 0) return n.branches.map((b) => b.to ?? "");
+  const raw = n.input?.["branches"];
+  if (Array.isArray(raw) && raw.every((x) => typeof x === "string")) return raw;
+  return [];
+}
+
+function afterIds(n: Node): string[] {
+  if (n.key === "loop") return n.next ?? [];
+  const lanes = laneEntries(n);
+  if (n.branches && n.branches.length > 0) return lanes;
+  if (n.key === "parallel" && lanes.length > 0) return lanes;
+  return n.next ?? [];
+}
+
+function reached(byId: Map<string, Node>, from: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const walk = (id: string): void => {
+    if (!id || seen.has(id)) return;
+    const n = byId.get(id);
+    if (!n) return;
+    seen.add(id);
+    out.push(id);
+    if (n.key === "loop") {
+      const body = laneEntries(n)[0];
+      if (body) walk(body);
+    }
+    for (const s of afterIds(n)) walk(s);
+  };
+  walk(from);
+  return out;
+}
+
+function joinId(byId: Map<string, Node>, n: Node): string | null {
+  const heads = laneEntries(n).filter((id) => id.length > 0);
+  if (heads.length < 2) return null;
+  const sets = heads.map((h) => new Set(reached(byId, h)));
+  for (const id of reached(byId, heads[0]!)) if (sets.every((s) => s.has(id))) return id;
+  return null;
+}
+
+// The host refuses a Loop whose body contains another Loop. The body starts at the first branch and stops at this Loop and at what follows it.
+function loopBody(byId: Map<string, Node>, loop: Node): Node[] {
+  const entry = laneEntries(loop)[0] ?? "";
+  if (!entry) return [];
+  const stop = new Set<string>([loop.id, ...(loop.next ?? [])]);
+  const out: Node[] = [];
+  const seen = new Set<string>();
+  const walk = (id: string): void => {
+    if (!id || seen.has(id) || stop.has(id)) return;
+    const n = byId.get(id);
+    if (!n) return;
+    seen.add(id);
+    out.push(n);
+    if (n.key === "parallel") {
+      const join = joinId(byId, n);
+      if (join) walk(join);
+      else for (const s of n.next ?? []) walk(s);
+      return;
+    }
+    if (n.key === "loop") {
+      for (const s of n.next ?? []) walk(s);
+      return;
+    }
+    const lanes = laneEntries(n);
+    if ((n.key === "if" || n.key === "paths") && lanes.some((lane) => lane.length > 0)) {
+      for (const lane of lanes) walk(lane);
+      for (const s of n.next ?? []) walk(s);
+      return;
+    }
+    for (const s of afterIds(n)) walk(s);
+  };
+  walk(entry);
+  return out;
+}
+
+// A stored row is the only tested level. An input claim of tested or draft is still a draft.
+function connectorLevel(n: Node, db?: Db): "draft" | "tested" | undefined {
+  if (db) {
+    const stored = storedLevel(db, n.key);
+    if (stored === "tested" || stored === "draft") return stored;
+  }
+  const level = n.input["connectorLevel"];
+  if (level === "draft" || level === "tested") return "draft";
+  return undefined;
+}
+
 /** The structural problems that make a definition unreadable: duplicate ids, references to nodes that do not exist, steps and triggers that are not in the catalogue. */
 export function structuralIssues(def: Definition): Issue[] {
   const out: Issue[] = [];
@@ -41,7 +135,7 @@ export function structuralIssues(def: Definition): Issue[] {
   }
   for (const t of def.triggers) if (!TRIGGERS.has(t.key)) out.push(issue("error", `There is no trigger called ${t.key}.`));
   for (const n of def.nodes) {
-    if (!STEPS.has(n.key)) out.push(issue("error", `There is no step called ${n.key}.`, n.id));
+    if (!STEPS.has(n.key) && connectorLevel(n) === undefined) out.push(issue("error", `There is no step called ${n.key}.`, n.id));
     for (const to of edges(n)) if (!ids.has(to)) out.push(issue("error", `This step points at ${to}, which does not exist.`, n.id));
   }
   for (const s of def.start ?? []) if (!ids.has(s)) out.push(issue("error", `The start step ${s} does not exist.`));
@@ -62,8 +156,27 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (!s) continue;
     const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
     for (const k of requiredOf(s.input)) if (!present(have[k])) out.push(issue("error", `${s.title} needs ${k}.`, n.id));
+    if (n.key === "send_email" && !present(have["mailboxId"])) out.push(issue("error", "Send an email needs a mailbox.", n.id));
+    if (n.key === "send_sms" && !present(have["numberId"])) out.push(issue("error", "Send a text needs a number.", n.id));
+    if (n.key === "connector_request" && !present(have["connector"])) out.push(issue("error", "An authenticated request needs a connector.", n.id));
+    if (n.key === "connector_request" && !present(have["action"])) out.push(issue("error", "An authenticated request needs an action.", n.id));
+    if (n.key === "connector_request" && !present(have["connectionId"])) out.push(issue("error", "An authenticated request needs a connection.", n.id));
+    if (n.key === "connector_request" && containsSecret(have["input"])) out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
     if (s.kind === "ai" && !n.ai?.agentId && !n.ai?.keyId && !present(have.agentId) && !present(have.keyId)) out.push(issue("error", `${s.title} needs an agent or a key.`, n.id));
+    if (n.key === "loop") {
+      const max = have["maxIterations"];
+      if (typeof max === "number" && max > 1000) out.push(issue("error", "A loop allows at most 1000 iterations.", n.id));
+    }
     if (n.onError?.mode === "route" && !n.onError.route) out.push(issue("error", "On error: route needs a step to go to.", n.id));
+  }
+  const nested = new Set<string>();
+  for (const n of def.nodes) {
+    if (n.key !== "loop") continue;
+    for (const inner of loopBody(byId, n)) {
+      if (inner.key !== "loop" || nested.has(inner.id)) continue;
+      nested.add(inner.id);
+      out.push(issue("error", "A loop cannot contain another loop.", inner.id));
+    }
   }
   const starts = (def.start && def.start.length ? def.start : def.nodes[0] ? [def.nodes[0].id] : []).filter((s) => byId.has(s));
   const seen = new Set<string>();
@@ -92,9 +205,79 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     path.pop(); state.set(id, 2);
   };
   for (const n of def.nodes) if ((state.get(n.id) ?? 0) === 0) dfs(n.id);
+  if (hasPastedSecret(def)) out.push(issue("error", "A definition cannot hold a secret. Use a connection."));
   return out;
 }
+
+// `pageToken` is a normal cursor. The letters "token" inside it are not a secret field.
+function pageTokenField(key: string): boolean {
+  if (!/page[-_]?tokens?/i.test(key)) return false;
+  const rest = key.replace(/page[-_]?tokens?/gi, "");
+  return !containsSecret({ [rest || "ok"]: 1 });
+}
+
+/** A secret anywhere in the definition: a secret-like field, or a value that is a bearer, sk-, or key_ secret. */
+function hasPastedSecret(value: unknown): boolean {
+  if (typeof value === "string") return containsSecret(value);
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((item) => hasPastedSecret(item));
+  return Object.entries(value as Record<string, unknown>).some(([key, item]) => {
+    if (pageTokenField(key)) return hasPastedSecret(item);
+    if (containsSecret({ [key]: 1 })) return true;
+    return hasPastedSecret(item);
+  });
+}
+
+function refuseSecret(ctx: AutoCtx, def: Definition): void {
+  if (!hasPastedSecret(def)) return;
+  raise(ctx, "validation.bad_input", "A definition cannot hold a secret. Use a connection.", { reason: "secret" });
+}
 const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.severity === "error");
+
+// AI and Code stay off the live path. The host has no agent port and no sandbox port for them.
+// A draft may contain either step. Turning the Automation on may not. A schedule can be turned on.
+const PREVIEW_STEPS = new Set(["ai", "code"]);
+const HIDDEN_STEPS = new Set(["ai", "code"]);
+function previewMessage(key: string): string {
+  if (key === "code") return "Code steps run in the sandbox, which is not connected here.";
+  return "AI step is a preview and cannot be turned on.";
+}
+export function previewLiveIssues(def: Definition): Issue[] {
+  const out: Issue[] = [];
+  for (const n of def.nodes) {
+    if (!PREVIEW_STEPS.has(n.key)) continue;
+    out.push(issue("error", previewMessage(n.key), n.id));
+  }
+  return out;
+}
+
+/** Live publish runs admit() on every catalogue step. Preview wording stays in previewLiveIssues. */
+export function admissionIssues(def: Definition): Issue[] {
+  const out: Issue[] = [];
+  for (const n of def.nodes) {
+    const step = STEPS.get(n.key);
+    if (!step || PREVIEW_STEPS.has(n.key)) continue;
+    const verdict = admit(contractOf(step));
+    if (verdict.stable) continue;
+    for (const item of verdict.issues) out.push(issue("error", item.message, n.id));
+  }
+  return out;
+}
+
+function draftedActionIssues(def: Definition, db: Db): Issue[] {
+  const out: Issue[] = [];
+  for (const n of def.nodes) {
+    const level = connectorLevel(n, db);
+    if (level === undefined) continue;
+    const verdict = publishAllowed(level);
+    if (!verdict.ok) out.push(issue("error", verdict.reason, n.id));
+  }
+  return out;
+}
+
+function blocksGoingLive(def: Definition, policy: Policy, db: Db): Issue[] {
+  return [...validateDefinition(def, policy), ...previewLiveIssues(def), ...admissionIssues(def), ...draftedActionIssues(def, db)];
+}
 
 // ---- reads ----
 
@@ -153,7 +336,7 @@ export async function triggersList(): Promise<unknown> {
   return { triggers: registry.triggers.map((t) => ({ key: t.key, title: t.title, payload: t.payload, sample: t.sample, personalOk: t.personalOk, allowSelfTrigger: t.allowSelfTrigger })) };
 }
 export async function stepsList(_ctx: AutoCtx, input: In): Promise<unknown> {
-  const steps = registry.steps.filter((s) => !input.category || s.category === input.category);
+  const steps = registry.steps.filter((s) => !HIDDEN_STEPS.has(s.key) && (!input.category || s.category === input.category));
   return { steps: steps.map((s) => clean({ key: s.key, title: s.title, category: s.category, kind: s.kind, input: s.input, output: s.output, effects: s.effects, gateAct: s.gateAct })) };
 }
 
@@ -171,6 +354,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   if (!name) raise(ctx, "validation.bad_input", "An automation needs a name.");
   const def: Definition = input.definition ?? EMPTY;
   checkStructure(ctx, def);
+  refuseSecret(ctx, def);
   if (input.groupId && !findGroup(ctx.db, input.groupId)) raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
   const now = ctx.now();
   const owner = me(ctx);
@@ -180,6 +364,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   });
   saveAutomation(ctx.db, a);
   saveVersion(ctx, a, "Created");
+  rememberAccountPicks(ctx.db, owner, def, now);
   emitAuto(ctx, "automation.created", a.id, { name: a.name, kind: a.kind });
   return { automation: out(a) };
 }
@@ -197,7 +382,10 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   let definitionChanged = false;
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
-    if (a.status === "on" && hasErrors(validateDefinition(input.definition, readPolicy(ctx.db)))) {
+    refuseSecret(ctx, input.definition);
+    const policy = readPolicy(ctx.db);
+    const blocking = a.status === "on" ? blocksGoingLive(input.definition, policy, ctx.db) : validateDefinition(input.definition, policy);
+    if (a.status === "on" && hasErrors(blocking)) {
       raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
     }
     a.definition = input.definition;
@@ -207,7 +395,10 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   }
   if (fields.length === 0) return { automation: out(a) };
   touch(ctx, a);
-  if (definitionChanged) saveVersion(ctx, a);
+  if (definitionChanged) {
+    saveVersion(ctx, a);
+    rememberAccountPicks(ctx.db, me(ctx), a.definition, ctx.now());
+  }
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields });
   return { automation: out(a) };
 }
@@ -216,8 +407,13 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   if (input.enabled) {
     if (a.status === "on") return { automation: out(a) };
-    const issues = validateDefinition(a.definition, readPolicy(ctx.db));
-    if (hasErrors(issues)) raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason: "invalid_definition", issues });
+    const issues = blocksGoingLive(a.definition, readPolicy(ctx.db), ctx.db);
+    if (hasErrors(issues)) {
+      const preview = previewLiveIssues(a.definition);
+      const drafted = draftedActionIssues(a.definition, ctx.db);
+      const reason = preview.length > 0 ? "preview" : drafted.length > 0 ? "draft" : "invalid_definition";
+      raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason, issues });
+    }
     a.status = "on";
     delete a.pausedReason;
     touch(ctx, a);
@@ -260,7 +456,9 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
-  if (a.status === "on" && hasErrors(validateDefinition(v.definition, readPolicy(ctx.db)))) {
+  refuseSecret(ctx, v.definition);
+  const restored = a.status === "on" ? blocksGoingLive(v.definition, readPolicy(ctx.db), ctx.db) : validateDefinition(v.definition, readPolicy(ctx.db));
+  if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
   }
   a.definition = v.definition;
@@ -378,7 +576,12 @@ export async function webhookRotate(ctx: AutoCtx, input: In): Promise<unknown> {
 /** The webhook receiver asks this: does the secret in the URL belong to this Automation. */
 export function webhookSecretMatches(ctx: AutoCtx, automationId: string, secret: string): boolean {
   const have = (ctx.db.all("SELECT secret FROM automations_webhooks WHERE automation_id = ?", automationId) as { secret: string }[])[0];
-  return !!have && have.secret === secret;
+  if (!have) return false;
+  // Every character is compared whatever the first mismatch, so the time taken does not say how much of a guess was right.
+  const a = have.secret, b = secret;
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
 }
 
 // ---- Promote and the Personal copy ----

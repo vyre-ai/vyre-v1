@@ -1912,6 +1912,13 @@ export type AuditVerifyOut = {
   checked: number;
   firstBadSeq?: number;
 };
+export type AutomationsAccountPicksIn = Record<string, unknown>;
+export type AutomationsAccountPicksOut = {
+  picks: Array<{
+      app: string;
+      accountId: string;
+    }>;
+};
 export type AutomationsAlertsGetIn = {
   automationId: string;
 };
@@ -1988,6 +1995,52 @@ export type AutomationsAlertsSetOut = {
       }>;
   };
 };
+export type AutomationsConnectorOfferAcceptIn = {
+  itemId: string;
+};
+export type AutomationsConnectorOfferAcceptOut = {
+  decision: "accepted" | "absent";
+};
+export type AutomationsConnectorOfferDeclineIn = {
+  itemId: string;
+};
+export type AutomationsConnectorOfferDeclineOut = {
+  decision: "declined" | "absent";
+};
+export type AutomationsConnectorOffersIn = Record<string, unknown>;
+export type AutomationsConnectorOffersOut = {
+  offers: Array<{
+      itemId: string;
+      appName: string;
+      text: string;
+    }>;
+};
+export type AutomationsConnectorShareIn = {
+  appName: string;
+  actions: Array<{
+      key: string;
+      title: string;
+    }>;
+};
+export type AutomationsConnectorShareOut = {
+  appName: string;
+  actions: Array<{
+      key: string;
+      title: string;
+      level: "draft" | "tested";
+    }>;
+};
+export type AutomationsConnectorSharesIn = Record<string, unknown>;
+export type AutomationsConnectorSharesOut = {
+  connectors: Array<{
+      appName: string;
+      actions: Array<{
+          key: string;
+          title: string;
+          level: "draft" | "tested";
+        }>;
+    }>;
+};
 export type AutomationsCreateIn = {
   name: string;
   description?: string;
@@ -2009,9 +2062,11 @@ export type AutomationsCreateIn = {
             when?: string;
           }>;
         onError?: {
-          mode: "fail" | "continue" | "retry" | "route";
+          mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
           max?: number;
           route?: string;
+          codes?: Array<string>;
+          output?: unknown;
         };
         ai?: {
           agentId?: string;
@@ -2073,9 +2128,11 @@ export type AutomationsCreateOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2137,6 +2194,101 @@ export type AutomationsDeleteIn = {
 export type AutomationsDeleteOut = {
   deleted: boolean;
 };
+export type AutomationsDraftConnectorIn = {
+  document?: Record<string, unknown>;
+  docsUrl?: string;
+  app?: string;
+  intent?: string;
+};
+export type AutomationsDraftConnectorOut = {
+  draft: {
+    key: string;
+    level: "draft";
+    docsUrl?: string;
+    tested: boolean;
+    reviewed: boolean;
+    auth: "oauth" | "api_key" | "none" | "unknown";
+  };
+  actions: Array<{
+      key: string;
+      level: "draft";
+      method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "TRACE";
+      path: string;
+      fields: Array<{
+          name: string;
+          in: "path" | "query" | "header" | "body";
+          required: boolean;
+          schema: Record<string, unknown>;
+        }>;
+      inputSchema: Record<string, unknown>;
+      outputSchema?: Record<string, unknown>;
+      body?: Record<string, unknown>;
+      effect: "read" | "outward";
+      scopes?: Array<string>;
+      servers: Array<string>;
+      domains: Array<string>;
+      errors?: Array<{
+          status: string;
+          code: string;
+        }>;
+      connection?: {
+        required: boolean;
+      };
+      auth: "oauth" | "api_key" | "none" | "unknown";
+      tested: boolean;
+      reviewed: boolean;
+      missing: Array<string>;
+    }>;
+  request: ({
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "TRACE";
+    path: string;
+    query: Record<string, Record<string, unknown>>;
+    headers: Record<string, Record<string, unknown>>;
+    body?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+    effect: "read" | "outward";
+    servers: Array<string>;
+    allowedDomains: Array<string>;
+  }) | null;
+  refused: Array<{
+      path: string;
+      reason: string;
+    }>;
+  setup: {
+    fields: Array<{
+        name: string;
+        secret: boolean;
+        in: "header" | "query" | "body";
+        headerName?: string;
+        hint: string;
+      }>;
+    triggers: Array<{
+        key: string;
+        level: "draft";
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "TRACE";
+        path: string;
+        effect: "read" | "outward";
+        check: "dry_run" | "hold";
+      }>;
+    checks: Array<{
+        key: string;
+        effect: "read" | "outward";
+        check: "dry_run" | "hold";
+        reason: string;
+      }>;
+    scopes: Array<string>;
+    ask: {
+      resource: "connection";
+      message?: string;
+      fields?: Array<{
+          name: string;
+          valueType: "secret" | "string";
+          presence: "missing";
+        }>;
+      docs?: Array<string>;
+    };
+  };
+};
 export type AutomationsFireIn = {
   automationId: string;
   trigger: string;
@@ -2196,9 +2348,11 @@ export type AutomationsGetOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2357,9 +2511,11 @@ export type AutomationsMakePersonalCopyOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2414,6 +2570,35 @@ export type AutomationsMakePersonalCopyOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type AutomationsMigrateRunsIn = {
+  automationId: string;
+  toVersion: number;
+  runIds: Array<string>;
+};
+export type AutomationsMigrateRunsOut = {
+  moved: Array<{
+      runId: string;
+      fromVersion: number;
+      toVersion: number;
+      atStepId: string;
+    }>;
+};
+export type AutomationsMigrationPreviewIn = {
+  automationId: string;
+  toVersion: number;
+};
+export type AutomationsMigrationPreviewOut = {
+  cohorts: Array<{
+      definitionVersion: number;
+      currentStepId: string | null;
+      runIds: Array<string>;
+      disposition: "safe" | "ambiguous" | "inactive";
+      proposedStepId: string | null;
+      reason: string;
+      repeatedEffects: Array<string>;
+      skippedEffects: Array<string>;
+    }>;
 };
 export type AutomationsMoveIn = {
   automationId: string;
@@ -2448,9 +2633,11 @@ export type AutomationsMoveOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2505,6 +2692,141 @@ export type AutomationsMoveOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type AutomationsOpenDocumentIn = {
+  url: string;
+};
+export type AutomationsOpenDocumentOut = {
+  ok: boolean;
+  finalUrl?: string;
+  reason?: string;
+};
+export type AutomationsOpenMcpIn = {
+  app: string;
+  url: string;
+};
+export type AutomationsOpenMcpOut = {
+  ok: boolean;
+  reason?: string;
+  actions?: Array<{
+      key: string;
+      title: string;
+      level: "draft" | "tested";
+    }>;
+};
+export type AutomationsPackagesExportIn = {
+  automationId: string;
+  name?: string;
+};
+export type AutomationsPackagesExportOut = {
+  package: {
+    id: string;
+    name: string;
+    sourceAutomationId: string;
+    createdAt: number;
+  };
+};
+export type AutomationsPackagesImportIn = {
+  packageId: string;
+  name?: string;
+};
+export type AutomationsPackagesImportOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+          };
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsPackagesListIn = Record<string, unknown>;
+export type AutomationsPackagesListOut = {
+  packages: Array<{
+      id: string;
+      name: string;
+      sourceAutomationId: string;
+      createdAt: number;
+    }>;
 };
 export type AutomationsPreviewPromoteIn = {
   automationId: string;
@@ -2564,9 +2886,11 @@ export type AutomationsPromoteOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2640,6 +2964,7 @@ export type AutomationsReplayIn = {
   automationId: string;
   runId: string;
   version: "same" | "current";
+  confirm: true;
 };
 export type AutomationsReplayOut = {
   runId: string;
@@ -2677,9 +3002,11 @@ export type AutomationsRestoreVersionOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2752,6 +3079,28 @@ export type AutomationsRunIn = {
 export type AutomationsRunOut = {
   runId: string;
 };
+export type AutomationsScheduleChooseIn = {
+  automationId: string;
+  choice: "run_first_n" | "run_latest_n" | "skip_backlog_and_resume" | "change_limits" | "keep_paused";
+  n?: number;
+  limits?: {
+    lookbackMs?: number;
+    cap?: number;
+    spacingMs?: number;
+    overlap?: "queue" | "skip_while_active" | "bounded_concurrency";
+    concurrency?: number;
+  };
+};
+export type AutomationsScheduleChooseOut = {
+  ok: boolean;
+  started: Array<{
+      automationId: string;
+      tickId: string;
+      runId: string;
+    }>;
+  paused: boolean;
+  error?: string;
+};
 export type AutomationsSetEnabledIn = {
   automationId: string;
   enabled: boolean;
@@ -2785,9 +3134,11 @@ export type AutomationsSetEnabledOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2886,6 +3237,18 @@ export type AutomationsTriggersListOut = {
       allowSelfTrigger: boolean;
     }>;
 };
+export type AutomationsTryReadIn = {
+  method: string;
+  path: string;
+  domains: Array<string>;
+  markedSafe?: boolean;
+  vaultItemId: string;
+  actionKey?: string;
+};
+export type AutomationsTryReadOut = {
+  level: "tested" | "draft";
+  reason?: string;
+};
 export type AutomationsUndeleteIn = {
   automationId: string;
 };
@@ -2918,9 +3281,11 @@ export type AutomationsUndeleteOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -2998,9 +3363,11 @@ export type AutomationsUpdateIn = {
             when?: string;
           }>;
         onError?: {
-          mode: "fail" | "continue" | "retry" | "route";
+          mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
           max?: number;
           route?: string;
+          codes?: Array<string>;
+          output?: unknown;
         };
         ai?: {
           agentId?: string;
@@ -3060,9 +3427,11 @@ export type AutomationsUpdateOut = {
               when?: string;
             }>;
           onError?: {
-            mode: "fail" | "continue" | "retry" | "route";
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
             max?: number;
             route?: string;
+            codes?: Array<string>;
+            output?: unknown;
           };
           ai?: {
             agentId?: string;
@@ -3137,9 +3506,11 @@ export type AutomationsValidateIn = {
             when?: string;
           }>;
         onError?: {
-          mode: "fail" | "continue" | "retry" | "route";
+          mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
           max?: number;
           route?: string;
+          codes?: Array<string>;
+          output?: unknown;
         };
         ai?: {
           agentId?: string;
@@ -19540,6 +19911,40 @@ export type RunsMarkWaitingOut = {
     };
   };
 };
+export type RunsPinVersionIn = {
+  runId: string;
+  definitionVersion: number;
+};
+export type RunsPinVersionOut = {
+  run: {
+    id: string;
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    subject?: {
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    };
+    status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
+    waitReason?: "approval" | "background" | "key";
+    definitionVersion?: number;
+    keyUsed?: string;
+    modelUsed?: string;
+    costMicros: number;
+    startedAt: number;
+    endedAt?: number;
+    parentRun?: string;
+    threadId?: string;
+    traceId: string;
+    summary?: string;
+    trigger?: {
+      messageId: string;
+      threadId: string;
+      channelId?: string;
+    };
+  };
+};
 export type RunsPreviewUndoIn = {
   runId: string;
 };
@@ -27127,10 +27532,17 @@ export interface CapMap {
   "audit.get": { in: AuditGetIn; out: AuditGetOut };
   "audit.list": { in: AuditListIn; out: AuditListOut };
   "audit.verify": { in: AuditVerifyIn; out: AuditVerifyOut };
+  "automations.account_picks": { in: AutomationsAccountPicksIn; out: AutomationsAccountPicksOut };
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
+  "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
+  "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
+  "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
+  "automations.connector_share": { in: AutomationsConnectorShareIn; out: AutomationsConnectorShareOut };
+  "automations.connector_shares": { in: AutomationsConnectorSharesIn; out: AutomationsConnectorSharesOut };
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };
   "automations.delete": { in: AutomationsDeleteIn; out: AutomationsDeleteOut };
+  "automations.draft_connector": { in: AutomationsDraftConnectorIn; out: AutomationsDraftConnectorOut };
   "automations.fire": { in: AutomationsFireIn; out: AutomationsFireOut };
   "automations.followers.add": { in: AutomationsFollowersAddIn; out: AutomationsFollowersAddOut };
   "automations.followers.remove": { in: AutomationsFollowersRemoveIn; out: AutomationsFollowersRemoveOut };
@@ -27141,18 +27553,27 @@ export interface CapMap {
   "automations.groups.rename": { in: AutomationsGroupsRenameIn; out: AutomationsGroupsRenameOut };
   "automations.list": { in: AutomationsListIn; out: AutomationsListOut };
   "automations.make_personal_copy": { in: AutomationsMakePersonalCopyIn; out: AutomationsMakePersonalCopyOut };
+  "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };
+  "automations.migration_preview": { in: AutomationsMigrationPreviewIn; out: AutomationsMigrationPreviewOut };
   "automations.move": { in: AutomationsMoveIn; out: AutomationsMoveOut };
+  "automations.open_document": { in: AutomationsOpenDocumentIn; out: AutomationsOpenDocumentOut };
+  "automations.open_mcp": { in: AutomationsOpenMcpIn; out: AutomationsOpenMcpOut };
+  "automations.packages.export": { in: AutomationsPackagesExportIn; out: AutomationsPackagesExportOut };
+  "automations.packages.import": { in: AutomationsPackagesImportIn; out: AutomationsPackagesImportOut };
+  "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
   "automations.run": { in: AutomationsRunIn; out: AutomationsRunOut };
+  "automations.schedule_choose": { in: AutomationsScheduleChooseIn; out: AutomationsScheduleChooseOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
   "automations.steps.list": { in: AutomationsStepsListIn; out: AutomationsStepsListOut };
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };
   "automations.test": { in: AutomationsTestIn; out: AutomationsTestOut };
   "automations.triggers.list": { in: AutomationsTriggersListIn; out: AutomationsTriggersListOut };
+  "automations.try_read": { in: AutomationsTryReadIn; out: AutomationsTryReadOut };
   "automations.undelete": { in: AutomationsUndeleteIn; out: AutomationsUndeleteOut };
   "automations.update": { in: AutomationsUpdateIn; out: AutomationsUpdateOut };
   "automations.validate": { in: AutomationsValidateIn; out: AutomationsValidateOut };
@@ -28185,6 +28606,7 @@ export interface CapMap {
   "runs.get": { in: RunsGetIn; out: RunsGetOut };
   "runs.list": { in: RunsListIn; out: RunsListOut };
   "runs.mark_waiting": { in: RunsMarkWaitingIn; out: RunsMarkWaitingOut };
+  "runs.pin_version": { in: RunsPinVersionIn; out: RunsPinVersionOut };
   "runs.preview_undo": { in: RunsPreviewUndoIn; out: RunsPreviewUndoOut };
   "runs.purge": { in: RunsPurgeIn; out: RunsPurgeOut };
   "runs.record_key": { in: RunsRecordKeyIn; out: RunsRecordKeyOut };
@@ -28837,6 +29259,11 @@ export type AutomationRunStartedPayload = {
   test: boolean;
   depth: number;
   origin?: string;
+};
+export type AutomationRunsMigratedPayload = {
+  automationId: string;
+  toVersion: number;
+  runIds: Array<string>;
 };
 export type AutomationTriggerDroppedPayload = {
   automationId: string;
@@ -31771,6 +32198,7 @@ export type VaultItemCreatedPayload = {
   kind: "login" | "api_key" | "env" | "card" | "note" | "totp" | "ssh_key" | "ai_subscription" | "other";
   folderId: string;
   scope: "mine" | "shared";
+  name?: string;
 };
 export type VaultItemDeletedPayload = {
   itemId: string;
@@ -31986,6 +32414,7 @@ export interface EventMap {
   "automation.promoted": AutomationPromotedPayload;
   "automation.restored": AutomationRestoredPayload;
   "automation.run_started": AutomationRunStartedPayload;
+  "automation.runs_migrated": AutomationRunsMigratedPayload;
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;
   "automation.version_restored": AutomationVersionRestoredPayload;

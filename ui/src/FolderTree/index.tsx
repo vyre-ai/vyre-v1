@@ -104,6 +104,8 @@ export interface FolderHandlers {
   onRename?: (node: FolderNode) => void;
   onMove?: (node: FolderNode) => void;
   onDelete?: (node: FolderNode) => void;
+  /** Connect a folder from Google Drive, Microsoft 365, this computer or GitHub into this folder. */
+  onMount?: (node: FolderNode) => void;
   /** An item was dropped on a folder (or on a section head: folderId null). */
   onDropItem?: (itemId: string, folderId: string | null, scope: FolderScope) => void;
 }
@@ -118,6 +120,7 @@ export function folderMenu(node: FolderNode, open: boolean, hasChildren: boolean
   const items: MenuEntry[] = [];
   if (hasChildren) items.push({ label: open ? "Close" : "Open", icon: "open", ...(h.onToggle === undefined ? {} : { onSelect: () => h.onToggle?.(node.id, !open) }) });
   if (canManageFolder(node)) items.push({ label: "New Folder…", icon: "plus", onSelect: () => h.onNewFolder?.(node.scope, node.id) });
+  if (canManageFolder(node) && h.onMount) items.push({ label: "Connect a Folder…", icon: "link", onSelect: () => h.onMount?.(node) });
   if (items.length > 0) items.push({ separator: true });
   items.push({ label: "Share…", icon: "link", onSelect: () => h.onShare?.(node) });
   if (canManageFolder(node)) {

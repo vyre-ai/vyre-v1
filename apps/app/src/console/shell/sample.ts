@@ -16,7 +16,7 @@ const DAY = 24 * HOUR;
 export type Viewer = "owner" | "developer" | "member";
 
 const PERMS: Readonly<Record<Viewer, readonly string[]>> = {
-  owner: ["console.access", "audit.read", "access.manage", "policy.manage", "members.invite", "members.remove", "agents.manage", "computers.use", "schema.manage", "records.hold", "records.export", "server.backups", "server.update", "server.logs", "server.network", "ai.models", "ai.spend", "ai.incidents", "comms.domains", "comms.numbers", "comms.shared_send", "engineer.mcp"],
+  owner: ["console.access", "audit.read", "access.manage", "policy.manage", "members.invite", "members.remove", "agents.manage", "computers.use", "schema.manage", "records.hold", "records.export", "server.backups", "server.update", "server.logs", "server.network", "ai.models", "ai.spend", "ai.incidents", "comms.domains", "comms.numbers", "comms.shared_send", "engineer.mcp", "connectors.manage"],
   developer: ["console.access", "schema.manage", "server.logs", "engineer.mcp", "audit.read"],
   member: [],
 };
