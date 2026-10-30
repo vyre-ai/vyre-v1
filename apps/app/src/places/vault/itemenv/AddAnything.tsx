@@ -179,7 +179,7 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
       const out = (await data.call("vault.item.put", { folderId: target, name: name.trim(), kind, fields: plainFields(filled), ...(templateById(template) && template !== "custom" ? { template } : {}) })) as { item: { id: string; name: string } };
       onAdded(out.item.id, out.item.name, target);
     } catch (e) {
-      setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : "Could not save. Nothing was lost; try again.");
+      setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : reasonOf(e, "Could not save. Nothing was lost; try again."));
       setSaving(false);
     }
   };
