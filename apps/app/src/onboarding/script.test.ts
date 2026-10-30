@@ -6,7 +6,7 @@ import { greeting, scriptFor } from "./script.ts";
 test("every step of every flow has scripted words, a preview and a skip hint", () => {
   for (const flow of ["personal", "team", "member"] as const) for (const s of stepsOf(flow)) {
     const w = scriptFor(s.card, flow);
-    assert.ok(w.lines.length > 0 && (w.preview !== "" || s.card === "chrome" || s.card === "import_sessions") && w.skipHint !== "", `${flow}/${s.key}`);
+    assert.ok(w.lines.length > 0 && (w.preview !== "" || s.card === "chrome" || s.card === "import_sessions" || s.card === "org") && w.skipHint !== "", `${flow}/${s.key}`);
     assert.ok(!w.lines.some((l) => l.includes("no words yet")), `${flow}/${s.key} has words`);
   }
 });

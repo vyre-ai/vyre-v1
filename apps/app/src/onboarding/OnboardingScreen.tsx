@@ -16,7 +16,11 @@ import { Glyph, StepTile } from "./StepGlyph.tsx";
 import { stepLook } from "./stepStyle.ts";
 
 export interface ChatLine { id: string; from: "assistant" | "you"; text: string }
-export interface CardContext { step: StepDef; flow: FlowKind; done(): void; later(): void; device: Device }
+export interface CardContext {
+  step: StepDef; flow: FlowKind; done(): void; later(): void; device: Device;
+  /** a card that saves on Continue hands over its save (true = saved, move on) while it has something to save; null takes it back */
+  gate(save: (() => Promise<boolean>) | null): void;
+}
 
 export interface OnboardingScreenProps {
   flow: FlowKind;
@@ -236,8 +240,11 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const pops = new Set<string>();
   if (seen.current !== null) for (const k of doneNow) if (!seen.current.has(k)) pops.add(k);
   useEffect(() => { seen.current = doneNow; });
+  const gateRef = useRef<(() => Promise<boolean>) | null>(null);
+  const [armed, setArmed] = useState(false);
   const ctx: CardContext | null = def ? {
     step: def, flow: p.flow, device,
+    gate: (save) => { gateRef.current = save; setArmed((was) => (was === (save !== null) ? was : save !== null)); },
     done: () => { p.onStep(def.key, "done"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "done" }, def.key, device); if (n) open(n); else setEnded(true); },
     later: () => { p.onStep(def.key, "later"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "later" }, def.key, device); if (n && !isLast0(p.flow, def.key, device)) open(n); else setEnded(true); },
   } : null;
@@ -245,8 +252,17 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const at = def ? steps.findIndex((x) => x.key === def.key) : -1;
   const isLast = at === steps.length - 1;
   const isDone = def ? stateOn(p.progress, def, device) === "done" : false;
+  const [saving, setSaving] = useState(false);
+  const canNext = isDone || (armed && !saving);
   const next = (): void => {
-    if (!def || !isDone) return;
+    if (!def) return;
+    if (!isDone) {
+      const save = gateRef.current;
+      if (!save || saving) return;
+      setSaving(true);
+      void save().then((ok) => { setSaving(false); if (ok && ctx) ctx.done(); }, () => setSaving(false));
+      return;
+    }
     if (isLast) { setEnded(true); return; }
     open(steps[at + 1]!.key);
   };
@@ -266,7 +282,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const footBtns = def && ctx ? (
     <>
       {isDone ? null : <Pressable testID="step-later" accessibilityRole="button" onPress={ctx.later} style={({ hovered }: { hovered?: boolean }) => [s.ghost, phone && s.btnTall, hovered === true && s.ghostOver]}><Text style={s.ghostText}>Skip</Text></Pressable>}
-      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !isDone }} disabled={!isDone} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, phone && s.flexBtn, !isDone && s.off, hovered === true && isDone && s.primaryOver]}><Text style={s.primaryText}>{isLast ? "Finish" : "Continue"}</Text></Pressable>
+      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext }} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, phone && s.flexBtn, !canNext && s.off, hovered === true && isDone && s.primaryOver]}><Text style={s.primaryText}>{isLast ? "Finish" : "Continue"}</Text></Pressable>
     </>
   ) : null;
   const laterBtn = p.onClose && !finished ? <Pressable testID="onboarding-close" accessibilityRole="link" onPress={p.onClose} style={({ hovered }: { hovered?: boolean }) => [s.later, hovered === true && s.laterOver]}><Text style={s.finishLater}>Finish later</Text></Pressable> : null;

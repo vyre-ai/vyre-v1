@@ -23,7 +23,7 @@ const personal: StepDef[] = [
 ];
 
 const team: StepDef[] = [
-  { key: "org", title: "Your organisation", card: "org", line: "Name, address, kit" },
+  { key: "org", title: "Your organisation", card: "org", line: "Name and kit" },
   { key: "space_ai", title: "AI for the Space", card: "space_ai", line: "Yours and a shared key" },
   { key: "workspace", title: "Google or Microsoft", card: "google_microsoft", line: "Mail, calendar, files" },
   { key: "sign_in", title: "Sign in for your domain", card: "sign_in_domain", line: "Same app" },

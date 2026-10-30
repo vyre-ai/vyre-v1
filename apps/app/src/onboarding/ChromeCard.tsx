@@ -52,9 +52,10 @@ export function ChromeCard({ call, device, onConnected, extensionUrl = EXTENSION
   if (mode === "idle") {
     return (
       <View testID="chrome-card" style={s.col}>
-        <View style={s.big}><View style={s.chromeTile}><Glyph paths={CHROME} size={20} /></View></View>
+        <View style={s.big}><View style={s.chromeTile}><Glyph paths={CHROME} size={20} /></View>
+          <Pressable testID="chrome-add" accessibilityRole="button" disabled={busy} onPress={() => void start()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{app ? "Install" : "Download for Chrome"}</Text></Pressable>
+        </View>
         {error ? <Text testID="chrome-error" style={s.err}>{error}</Text> : null}
-        <Pressable testID="chrome-add" accessibilityRole="button" disabled={busy} onPress={() => void start()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{app ? "Install" : "Download for Chrome"}</Text></Pressable>
       </View>
     );
   }

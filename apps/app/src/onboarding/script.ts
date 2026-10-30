@@ -14,7 +14,7 @@ const S: Partial<Record<CardKind, ScriptStep>> = {
   phone: { lines: ["Scan this code with your phone to pair it, or open the link on the phone. The code works once and expires."], preview: "A pairing code for your phone", skipHint: "Pair a phone later from Settings." },
   first_win: { lines: ["Let us set one useful routine running, for example a short morning summary. You can change or stop it any time."], preview: "A routine you can see running", skipHint: "Set one up later from Automations." },
   bridge_team: { lines: ["When you are ready to work with other people, create a Team Space. It has its own Vault and memory. Nothing is copied from this Space unless you choose to."], preview: "Create a Team Space", skipHint: "You can add a team any time from the Space switcher." },
-  org: { lines: ["Name your Space, then start blank or pick a Kit."], preview: "Your Space profile and Kit", skipHint: "Fill this in later from the Console." },
+  org: { lines: ["Name your Space, then start blank or pick a Kit."], preview: "", skipHint: "Fill this in later from the Console." },
   space_ai: { lines: ["Choose the AI for this Space. You can use your own account here, and optionally add a shared key for everyone."], preview: "Who pays for the Space's AI", skipHint: "Set it later from the Console." },
   google_microsoft: { lines: ["Connect Google Workspace or Microsoft 365. I will give you the admin steps one at a time, with secure fields for keys and a live test at the end."], preview: "Connection status", skipHint: "Connect later from the Console." },
   sign_in_domain: { lines: ["Let people sign in with their work account for your domain, inside the same app."], preview: "Sign-in for your domain", skipHint: "Turn it on later from the Console." },

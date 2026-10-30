@@ -114,7 +114,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
       if (card === "directory") return <DirectoryCard call={call} by={personName ?? "Your admin"} space={space.name} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
     }
     if (card === "invites" && call) return <InvitesCard call={call} onDone={() => ctx.done()} />;
-    if (card === "org" && call) return <KitPickCard call={call} spaceName={space.kind === "team" ? space.name : ""} onInstalled={() => ctx.done()} />;
+    if (card === "org" && call) return <KitPickCard call={call} spaceName={space.kind === "team" ? space.name : ""} onInstalled={() => ctx.done()} gate={ctx.gate} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can do it later from the checklist on Home.</Text>;
   }, [call, cards, aiProvider, progress, onAddSpace, mac, address, onGo, personalCall, personName]);

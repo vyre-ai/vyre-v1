@@ -6,7 +6,7 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { installKit, listKits, sheetFor, sheetLine } from "./kit-pick.ts";
 import type { KitRow, KitSheet } from "./kit-pick.ts";
 
-export function KitPickCard({ call, spaceName = "", onInstalled }: { call: CapCall; spaceName?: string; onInstalled(kitId: string): void }): ReactElement {
+export function KitPickCard({ call, spaceName = "", onInstalled, gate }: { call: CapCall; spaceName?: string; onInstalled(kitId: string): void; gate?(save: (() => Promise<boolean>) | null): void }): ReactElement {
   const [name, setName] = useState(spaceName);
   const [kits, setKits] = useState<KitRow[] | null>(null);
   const [picked, setPicked] = useState<KitRow | null>(null);
@@ -18,16 +18,21 @@ export function KitPickCard({ call, spaceName = "", onInstalled }: { call: CapCa
     setPicked(k); setSheet(null); setError("");
     try { setSheet(await sheetFor(call, k.kitId)); } catch { setError("Could not read this Kit."); }
   };
-  // Save names the Space, then installs the Kit when one is picked; "Start blank" installs nothing.
-  const save = async (): Promise<void> => {
-    if (busy || name.trim() === "") return;
+  // Continue saves: the name, then the Kit when one is picked; "Start blank" installs nothing.
+  const save = async (): Promise<boolean> => {
+    if (busy || name.trim() === "") return false;
     setBusy(true); setError("");
     try {
       if (name.trim() !== spaceName) await call("spaces.update", { name: name.trim(), logoFileId: null });
       if (picked) await installKit(call, picked.kitId);
-      onInstalled(picked?.kitId ?? "");
-    } catch { setError("Could not save. Try again."); } finally { setBusy(false); }
+      return true;
+    } catch { setError("Could not save. Try again."); return false; } finally { setBusy(false); }
   };
+  useEffect(() => {
+    if (!gate) return undefined;
+    gate(name.trim() === "" ? null : save);
+    return () => gate(null);
+  });
   const chips: ReactElement[] = [];
   chips.push(<Pressable key="blank" testID="kit-blank" accessibilityRole="button" accessibilityState={{ selected: picked === null }} onPress={() => { setPicked(null); setSheet(null); }} style={[s.tile, picked === null && s.tileOn]}><Text style={s.tileText}>Start blank</Text></Pressable>);
   for (const k of kits ?? []) {
@@ -40,7 +45,6 @@ export function KitPickCard({ call, spaceName = "", onInstalled }: { call: CapCa
       <View style={s.row}>{chips}</View>
       {sheet && picked ? <Text testID="kit-sheet" style={s.dim}>{sheetLine(sheet)}</Text> : null}
       {error ? <Text testID="kit-error" style={s.err}>{error}</Text> : null}
-      <Pressable testID="kit-install" accessibilityRole="button" disabled={busy || name.trim() === "" || (sheet?.problems ?? 0) > 0} onPress={() => void save()} style={[s.primary, (busy || name.trim() === "" || (sheet?.problems ?? 0) > 0) && s.off]}><Text style={s.primaryText}>{busy ? "Saving" : "Save"}</Text></Pressable>
     </View>
   );
 }
