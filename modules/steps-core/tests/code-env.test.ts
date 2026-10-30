@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { SPAWN_ENV, wallCommand } from "../code-sandbox.ts";
+import { SPAWN_ENV, readResult, wallCommand } from "../code-sandbox.ts";
 
 const SECRET = "daemon-secret-7731";   // secret-scan: fake
 const setenvOf = (args: readonly string[]): Record<string, string> => Object.fromEntries(args.flatMap((x, k) => (x === "--setenv" ? [[args[k + 1] as string, args[k + 2] as string]] : [])));
@@ -46,4 +46,16 @@ test("bwrap clears its environment and sets exactly the allow-list: no hosts nam
       fs.rmSync(c.dir, { recursive: true, force: true });
     }
   } finally { delete process.env["DAEMON_ONLY_SECRET"]; }
+});
+
+test("a sandbox that ends without a result is read by the status the bridge reports: processor time, memory, or neither", () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-code-status-")));
+  try {
+    const end = (code: number | null, extra: { signal?: NodeJS.Signals | null; stderr?: string; timedOut?: boolean } = {}): () => unknown => () => readResult(dir, { code, signal: extra.signal ?? null, stderr: extra.stderr ?? "", timedOut: extra.timedOut ?? false }, 2, 64, 128);
+    assert.throws(end(152), (e: { error?: { code?: string; message?: string } }) => e.error?.code === "timeout.deadline" && /processor time/.test(e.error.message ?? ""), "SIGXCPU");
+    assert.throws(end(137), (e: { error?: { code?: string } }) => e.error?.code === "timeout.deadline", "SIGKILL from the kernel's hard limit");
+    assert.throws(end(134), (e: { error?: { message?: string } }) => /memory/.test(e.error?.message ?? ""), "SIGABRT: V8 aborts when the heap is full");
+    assert.throws(end(null, { timedOut: true }), (e: { error?: { code?: string } }) => e.error?.code === "timeout.deadline", "the wall clock");
+    assert.throws(end(128), (e: { error?: { message?: string } }) => /did not finish/.test(e.error?.message ?? ""), "128 alone says nothing about why");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

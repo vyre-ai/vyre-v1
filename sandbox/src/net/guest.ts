@@ -13,10 +13,11 @@ export const GUEST_PORT = 3128;
 
 /**
  * usage: node bridge.mjs <socket> <port> [-- <program> <args>...]
- * With no program the bridge is the container's main process. With one it starts the program once the port is listening, passes its exit status on, and ends with it (bwrap).
+ * With no program the bridge is the container's main process. With one it starts the program once the port is listening, passes its exit status on (128 plus the signal number when it died on a signal), and ends with it (bwrap).
  */
 export const BRIDGE_SOURCE = `import net from "node:net";
 import { spawn } from "node:child_process";
+import os from "node:os";
 const [socket, portArg, ...rest] = process.argv.slice(2);
 const program = rest[0] === "--" ? rest.slice(1) : rest;
 const port = Number(portArg);
@@ -32,7 +33,8 @@ server.listen(port, "127.0.0.1", () => {
   if (program.length === 0) return;
   const child = spawn(program[0], program.slice(1), { stdio: "inherit" });
   child.on("error", (e) => { console.error("bridge: could not start " + program[0] + ": " + e.message); process.exit(127); });
-  child.on("exit", (code, signal) => { server.close(); process.exit(code === null ? (signal ? 128 : 1) : code); });
+  // a program that died on a signal ends the bridge the way a shell reports it, 128 plus the signal number (SIGKILL 137, SIGXCPU 152, SIGABRT 134), so the host can tell a processor-time or memory kill from any other end
+  child.on("exit", (code, signal) => { server.close(); process.exit(code === null ? (signal ? 128 + (os.constants.signals[signal] ?? 0) : 1) : code); });
   for (const s of ["SIGINT", "SIGTERM"]) process.on(s, () => child.kill(s));
 });
 `;
