@@ -1,0 +1,1 @@
+- Fixed Records tab names and the phone record page. A tab opened on a record is named for the record, such as "Elena Rivera". On a phone the record bar keeps the type, and Relationships and Details are icons.

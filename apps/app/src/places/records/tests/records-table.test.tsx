@@ -250,6 +250,11 @@ test("the table opens offline from the kept copy and says so", () => {
   assert.ok(!has(table(), "Offline, showing"));
 });
 
+test("an empty table offers no Go to row (there is no row to go to), a table with rows does", () => {
+  assert.ok(!has(table(undefined, {}, { ...harbor, counts: { clients: 0, projects: 0 } }), 'data-testid="records-goto"'));
+  assert.ok(has(table(), 'data-testid="records-goto"'));
+});
+
 test("an empty type and an empty filter say so with the shared empty state", () => {
   assert.ok(has(table(undefined, {}, { ...harbor, counts: { clients: 0, projects: 0 } }), "No clients yet."));
   const none = table({ find: "zzzz" });

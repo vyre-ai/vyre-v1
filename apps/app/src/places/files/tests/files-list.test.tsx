@@ -403,3 +403,8 @@ test("the column header sorts: pressing a column asks for that sort", () => {
   for (const f of found) f.onPress?.();
   assert.deepEqual(asked, ["name", "updated", "by", "size", "kind"]);
 });
+
+test("the view toggle says which choice is current: the current radio is checked, the other is not", () => {
+  const out = list(folder("fld_sales"));
+  assert.ok(has(tag(out, "files-view-list"), 'aria-checked="true"') && has(tag(out, "files-view-grid"), 'aria-checked="false"'));
+});

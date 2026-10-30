@@ -144,8 +144,8 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // a tab opened on an item is named for it: read the item's name once the tab shows and give the tab that title
   useEffect(() => {
     if (!session) return;
-    const sub = parseHash(location.hash).subject;
-    const ask = sub ? titleAsk(sub) : null;
+    const target = parseHash(location.hash);
+    const ask = target.subject ? titleAsk(target.subject, target.args) : null;
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
     let off = false;
