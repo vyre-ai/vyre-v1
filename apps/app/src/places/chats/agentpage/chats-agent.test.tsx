@@ -6,10 +6,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AgentPage, AgentPageLoading } from "./AgentPage.tsx";
-import { acceptSuggestion, dismissSuggestion, moveToTrash, pause, resume, saveRoleLine, setRoutine, startChat } from "./actions.ts";
+import { acceptSuggestion, dismissSuggestion, moveToTrash, pause, resume, saveRoleLine, setAccounts, setRoutine, startChat } from "./actions.ts";
 import type { PageDeps } from "./actions.ts";
 import {
-  AGENT_MD_LIMIT, LOCKED_NOTE, ROLE_MAX, TABS, accountLine, chatsOf, dollars, instructionsLine, isTabKey, limitRows, mineOnly, roleToSave, routineLabel, routineNote, spendLine, spendRatio, statusLine,
+  AGENT_MD_LIMIT, LOCKED_NOTE, ROLE_MAX, TABS, accountLine, moveRef, chatsOf, dollars, instructionsLine, isTabKey, limitRows, mineOnly, roleToSave, routineLabel, routineNote, spendLine, spendRatio, statusLine,
   stripOf, suggestionTitle,
 } from "./model.ts";
 import type { AgentRow, Routine, Summary, TabKey, Thread } from "./model.ts";
@@ -228,4 +228,43 @@ test("states: the frame before data, offline, a Personal Space, and no em dash i
 
 test("sample clock: Friday 24 October 2025, 10:00", () => {
   assert.equal(new Date(SAMPLE_NOW).toISOString(), "2025-10-24T10:00:00.000Z");
+});
+
+test("Settings > AI accounts: the chat key, the ordered fallback list and the memory key are rows, each changed through agents.update with Undo; a viewer sees them and cannot change them", async () => {
+  const s = createSample("owner");
+  const { d, notes } = deps(s);
+  const out = html(s, "settings");
+  for (const t of ["AI accounts", "Chat key", "The account of whoever asks", "No fallback keys", "Memory key", "The Space memory key", 'data-testid="pick-chat-key"', 'data-testid="pick-fallback"', 'data-testid="pick-memory-key"']) assert.ok(has(out, t), t);
+  const before = { accountPolicy: "asker" as const, accountKey: null, accountFallback: [] as string[], memoryKey: null };
+
+  // pin the chat key, add two fallbacks, reorder, remove, set the memory key
+  assert.equal(await setAccounts(d, "agt_intake", { accountPolicy: "key", accountKey: "#Team_Anthropic_Key" }, before, "Intake now runs on Team Anthropic (shared)."), true);
+  assert.equal(s.calls[s.calls.length - 1]!.cap, "agents.update");
+  assert.ok(has(html(s, "settings"), "Always Team Anthropic (shared)"));
+  await setAccounts(d, "agt_intake", { accountFallback: ["#Team_OpenAI_Key", "#Omar_Claude"] }, before, "added");
+  let page = html(s, "settings");
+  inOrder(page, ["1. Team OpenAI (shared)", "Tried first if the chat key fails", "2. Omar&#x27;s Claude (yours)".replace("&#x27;", "'"), "Tried next"]);
+  assert.ok(has(page, 'data-testid="fallback-up-0"') && has(page, 'data-testid="fallback-down-1"'));
+  assert.deepEqual(moveRef(["a", "b", "c"], 0, 1), ["b", "a", "c"]);
+  assert.deepEqual(moveRef(["a", "b", "c"], 0, -1), ["a", "b", "c"], "the top one cannot go up");
+  assert.deepEqual(moveRef(["a", "b", "c"], 2, 1), ["a", "b", "c"], "the bottom one cannot go down");
+  await setAccounts(d, "agt_intake", { accountFallback: moveRef(["#Team_OpenAI_Key", "#Omar_Claude"], 0, 1) }, before, "moved");
+  page = html(s, "settings");
+  inOrder(page, ["1. Omar's Claude (yours)", "2. Team OpenAI (shared)"]);
+  await setAccounts(d, "agt_intake", { memoryKey: "#Team_Anthropic_Key" }, before, "Team Anthropic (shared) now pays for Intake's memory upkeep.");
+  assert.ok(has(html(s, "settings"), "Team Anthropic (shared) pays for this agent's memory upkeep"));
+  // Undo writes the values from before
+  await notes[notes.length - 1]!.undo!();
+  const now = agentNow(s);
+  assert.deepEqual([now.accountPolicy, now.accountKey, now.accountFallback, now.memoryKey], ["asker", undefined, [], undefined]);
+
+  // a refusal is one quiet line
+  s.failNext("agents.update");
+  assert.equal(await setAccounts(d, "agt_intake", { memoryKey: "#Team_OpenAI_Key" }, before, "x"), false);
+  assert.equal(notes[notes.length - 1]!.text, "Could not save the accounts. Try again.");
+
+  // a viewer reads the same rows with no pickers
+  const viewer = html(createSample("viewer"), "settings");
+  assert.ok(has(viewer, "Chat key") && has(viewer, "Memory key"));
+  assert.ok(!has(viewer, 'data-testid="pick-chat-key"') && !has(viewer, 'data-testid="pick-fallback"') && !has(viewer, 'data-testid="pick-memory-key"'));
 });

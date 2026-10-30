@@ -21,6 +21,8 @@ const agentRow = t.obj({
   agentId: id.agent, name: t.str(), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
   status: agentStatus, pausedReason: t.opt(t.str()), pausedBy: t.opt(t.str()), ownerId: id.user, folderId: id.folder,
   model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
+  accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
+  memoryKey: t.opt(t.str({ description: 'Vault handle that pays for this agent memory upkeep; never a value', examples: ['#Team_Anthropic_Key'] })),
   toolsAllowed: t.arr(t.str()), toolsDenied: t.arr(t.str()), vaultKeys: t.arr(t.str()), limits, captureMode, hasComputer: t.bool(), templateVersion: t.int(),
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
 });
@@ -80,6 +82,9 @@ export default defineManifest({
     }),
     read('agents.get', 'Read one agent: record, status, limits and the effective configuration', {
       in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], tool: 'agents', label: 'check', errors: ['validation.not_found'],
+    }),
+    read('agents.memory_key.get', 'The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)', {
+      in: target, out: { memoryKey: t.opt(t.str({ description: 'Vault handle, never a value' })), ownerId: id.user }, on: ['agent', '/agentId'], label: 'check', errors: ['validation.not_found'],
     }),
     read('agents.status', 'Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who', {
       in: target, out: { status: agentStatus, since: t.ts(), reason: t.opt(t.str()), by: t.opt(t.str()) }, on: ['agent', '/agentId'], tool: 'agents',
@@ -278,7 +283,7 @@ export default defineManifest({
       q: {
         agent: ['agents.get', { agentId: '/state/agentId' }, true], summary: ['agents.summary', { agentId: '/state/agentId' }, true],
         routines: ['agents.routines.list', { agentId: '/state/agentId' }, true], suggestions: ['agents.suggestions.list', { agentId: '/state/agentId' }, true],
-        config: ['agents.config.get', { agentId: '/state/agentId' }, true], chats: ['threads.list', {}, true],
+        config: ['agents.config.get', { agentId: '/state/agentId' }, true], chats: ['threads.list', {}, true], accounts: ['engine.accounts.list', {}, true],
       },
       a: {
         chat: ['chat.start', {}], setRoleLine: ['agents.role_line.set', { agentId: '/state/agentId' }], update: ['agents.update', { agentId: '/state/agentId' }],

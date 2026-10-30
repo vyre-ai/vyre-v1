@@ -15,6 +15,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.guide.get": Handler<"agents.guide.get", X>;
   "agents.limits.get": Handler<"agents.limits.get", X>;
   "agents.list": Handler<"agents.list", X>;
+  "agents.memory_key.get": Handler<"agents.memory_key.get", X>;
   "agents.pause": Handler<"agents.pause", X>;
   "agents.restore": Handler<"agents.restore", X>;
   "agents.restore_version": Handler<"agents.restore_version", X>;

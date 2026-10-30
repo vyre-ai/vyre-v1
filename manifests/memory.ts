@@ -19,13 +19,14 @@ const factExtras = {
   by: t.opt(t.str({ description: 'Id of who wrote it: a person, an agent or upkeep' })), byKind: t.opt(t.enm('person', 'agent', 'upkeep', 'system')),
   versions: t.opt(t.int({ minimum: 1, description: 'How many versions the fact has had, this one included' })),
 };
-const factRow = t.obj({
+const factFields = {
   factId: id.fact, layer, ownerRef: t.str({ description: 'Person, agent, project or Space the fact belongs to', examples: ['agt_a1b2c3'] }), agentId: t.opt(id.agent), noteId: t.opt(id.note),
   text: t.str(), validFrom: t.ts(), validTo: t.opt(t.ts()), learnedAt: t.ts(), closedAt: t.opt(t.ts()), sourceKind, sourceRef: t.str(),
   sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record' })), status: factStatus, lowRisk: t.opt(t.bool()),
   trashedAt: t.opt(t.ts()), trashReason: t.opt(t.str({ description: 'Why the fact is in Trash, for example removed, duplicate, undone' })), archivedAt: t.opt(t.ts()),
   ...factExtras,
-});
+};
+const factRow = t.obj(factFields);
 const learnedRow = t.obj({
   fact: factRow, at: t.ts(), actor: t.str({ description: 'Who learned it: the agent or person id, or upkeep' }), actorKind: t.enm('person', 'agent', 'upkeep', 'system'), sourceKind, sourceRef: t.str(),
   sourceLink: t.opt(t.str()), from: t.opt(t.str({ description: 'The person the fact came from' })), undone: t.bool(),
@@ -58,6 +59,14 @@ const trailRow = t.obj({
 });
 const noteRow = t.obj({ noteId: id.note, path: t.str({ examples: ['Agents/Intake/memory/notes/clients.md'] }), title: t.str(), layer, agentId: t.opt(id.agent), updatedAt: t.ts() });
 const hit = t.obj({ kind: t.enm('note', 'fact', 'page'), noteId: t.opt(id.note), factId: t.opt(id.fact), pageId: t.opt(t.str()), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num(), ...factExtras });
+const quoteRow = t.obj({
+  ref: t.str({ description: 'Source id of the line: a message id, or <thread>#<index> for a transcript row', examples: ['msg_a1b2c3'] }), source: t.enm('message', 'step'),
+  text: t.str({ description: 'The stored words, exactly as written' }), truncated: t.opt(t.bool()),
+  author: t.obj({ kind: t.enm('person', 'agent', 'actor', 'service'), id: t.str(), name: t.opt(t.str()) }), role: t.str(), at: t.ts(), threadId: id.thread, threadTitle: t.opt(t.str()),
+  link: t.str({ description: 'Opens the chat scrolled to this line, highlighted', examples: ['vyre://thread/thr_a1b2c3?m=msg_a1b2c3'] }), score: t.num(),
+});
+const keyChoice = t.obj({ ref: t.str({ description: 'Vault handle', examples: ['#Team_Anthropic_Key'] }), title: t.str(), provider: t.str(), kind: t.enm('subscription', 'api_key', 'local_model'), mine: t.bool(), state: t.str() });
+const keyPicker = t.obj({ accountRef: t.nullable(t.str()), choices: t.arr(keyChoice) });
 const node = t.obj({
   nodeId: t.str(), kind: t.enm('note', 'person', 'client', 'project', 'site', 'decision', 'record', 'chat', 'agent', 'topic'), title: t.str(), pageId: t.opt(t.str({ description: 'For a page node: the page to open' })), layer: t.opt(layer), cluster: t.opt(t.str({ description: 'Cluster named after its hub' })),
   x: t.opt(t.num()), y: t.opt(t.num()), link: t.opt(t.str()),
@@ -94,6 +103,26 @@ export default defineManifest({
       in: { q: t.str(), layers: t.opt(t.arr(layer)), agentId: t.opt(id.agent), projectId: t.opt(id.project), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
       out: { hits: t.arr(hit), tookMs: t.int(), meaning: t.opt(meaningInfo) }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
     }),
+    read('memory.quote', 'Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves', {
+      in: {
+        q: t.opt(t.str()), ref: t.opt(t.str({ description: 'A source id from a recalled quote: returns that line in full' })), threadId: t.opt(id.thread),
+        excludeThreadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 20 })), minCoverage: t.opt(t.num({ minimum: 0, maximum: 1 })),
+      },
+      out: { quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', mcpName: 'memory_quote', agent: { planMode: 'allowed' }, cli: 'vyre memory quote', rate: { n: 120, perSeconds: 60, scope: 'principal' },
+    }),
+    read('memory.keys.get', 'The account that pays for memory upkeep: yours for personal memory, and for an admin the Space\'s with the accounts it can be picked from and the keys picked for projects', {
+      in: {}, out: { personal: keyPicker, admin: t.bool(), space: t.opt(keyPicker), projectKeys: t.opt(t.rec(t.str(), { description: 'Project id to the account picked for its memory' })) }, label: 'check', tool: 'memory',
+    }),
+    read('memory.key.resolve', 'The account that pays for one scope\'s upkeep and where the choice came from (agent, project, Space or person); no key means rule-based upkeep', {
+      in: { layer: layer, ownerRef: t.str(), agentId: t.opt(id.agent), projectId: t.opt(id.project) },
+      out: {
+        reason: t.opt(t.enm('no_key', 'key_unavailable')),
+        key: t.opt(t.obj({ accountRef: t.str(), provider: t.opt(t.str()), kind: t.opt(t.str()), source: t.enm('agent', 'project', 'space', 'person'), model: t.opt(t.str()) })),
+      }, label: 'check',
+    }),
+    read('memory.used', 'What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the "Used N memories" line and "Show what the agent knew here"', {
+      in: { threadId: id.thread, messageId: id.message }, out: { messageId: id.message, at: t.opt(t.ts()), facts: t.arr(t.obj({ ...factFields, agentId: t.opt(id.agent), sourceTitle: t.opt(t.str({ description: 'The chat the fact came from, by its title, when the reader may open it' })) })), quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', agent: { planMode: 'allowed' },
+    }),
     read('memory.read_note', 'Read one memory note as Markdown', {
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
     }),
@@ -124,7 +153,7 @@ export default defineManifest({
     }),
     read('memory.pointer', 'Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread', {
       in: { threadId: id.thread, agentId: id.agent, text: t.str(), sinceIdx: t.opt(t.int()) },
-      out: { lines: t.arr(t.obj({ title: t.str(), fact: t.opt(t.str()), trueSince: t.opt(t.ts()), path: t.str(), sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record the fact came from' })) })), tokens: t.int(), skipped: t.opt(t.enm('short_ack', 'mid_tool_loop', 'no_match', 'duplicate')) },
+      out: { lines: t.arr(t.obj({ title: t.str(), fact: t.opt(t.str()), trueSince: t.opt(t.ts()), path: t.str(), sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record the fact came from' })), ref: t.opt(t.str({ description: 'The fact id, for memory_forget' })) })), tokens: t.int(), skipped: t.opt(t.enm('short_ack', 'mid_tool_loop', 'no_match', 'duplicate')) },
       label: 'filter',
     }),
     // ---- write: facts
@@ -134,6 +163,26 @@ export default defineManifest({
         kind: t.opt(t.str({ description: 'Fact kind, for example preference', examples: ['preference'] })),
       },
       out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], tool: 'memory', mcpName: 'memory_propose', agent: { planMode: 'blocked', blocks: ['memory_saved'] }, errors: ['permission.provider_label'],
+    }),
+    write('memory.remember', 'Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule', {
+      in: {
+        text: t.str(), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), kind: t.opt(t.str({ examples: ['preference'] })), threadId: t.opt(id.thread),
+        sourceRef: t.opt(t.str({ description: 'The source id of what this came from, for example a quote ref' })),
+      },
+      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted'], tool: 'memory', mcpName: 'memory_remember', agent: { planMode: 'blocked', blocks: ['memory_saved'] },
+      errors: ['permission.provider_label'], cli: 'vyre memory remember', idem: 'natural',
+    }),
+    write('memory.forget', 'Forget facts by id: they stop being recalled and stay in history', {
+      in: { factIds: t.arr(id.fact, { minItems: 1 }) }, out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', mcpName: 'memory_forget', agent: { planMode: 'blocked' }, audit: 'sensitive', risk: 'medium',
+      cli: 'vyre memory forget', idem: 'natural',
+    }),
+    write('memory.recall.record', 'Record which facts and quotes recall handed the agent for one message (ids only), for memory.used; the engine writes this as the person whose message it was', {
+      in: { threadId: id.thread, messageId: id.message, agentId: t.opt(id.agent), lines: t.arr(t.obj({ kind: t.enm('fact', 'quote'), ref: t.str() }), { maxItems: 50 }) },
+      out: { recorded: t.int() }, idem: 'natural', risk: 'low',
+    }),
+    write('memory.key.set', 'Pick the account that pays for memory upkeep: yours for personal memory, or (admins) the Space\'s or a project\'s; null clears it and upkeep stays rule-based', {
+      in: { layer: t.enm('space', 'project', 'person'), projectId: t.opt(id.project), accountRef: t.nullable(t.str()) }, out: { layer: t.enm('space', 'project', 'person'), accountRef: t.nullable(t.str()) },
+      idem: 'natural', tool: 'memory', audit: 'sensitive', errors: ['permission.no_grant'],
     }),
     write('memory.fact.accept', 'Accept a proposed fact into current memory', {
       in: factT, out: { fact: factRow }, emits: ['memory.fact_accepted'], tool: 'memory', offline: 'queue', errors: ['validation.precondition_failed'],
@@ -364,6 +413,11 @@ export default defineManifest({
         remove: ['memory.facts.remove', {}, 'Remove from answers?'], erase: ['memory.erase', {}, 'Erase completely? This deletes it from history.'], promote: ['memory.promote', { factId: '/state/factId' }],
       },
       empty: 'Nothing remembered yet', primary: 'Ask the agent to remember something',
+    }),
+    screen('settings.memory-keys', 'settings', 'ui:MemoryKeys', {
+      q: { keys: ['memory.keys.get', {}, true], projects: ['projects.list', {}, true] },
+      a: { set: ['memory.key.set', {}] },
+      empty: 'No AI accounts yet', primary: 'Open Vault',
     }),
     screen('files.memory-graph', 'files', 'ui:MemoryGraph', {
       q: { graph: ['memory.graph', { scope: '/state/scope', agentId: '/state/agentId', asOf: '/state/asOf' }, true], layout: ['memory.layout.get', { scope: '/state/scope', agentId: '/state/agentId' }, false] },

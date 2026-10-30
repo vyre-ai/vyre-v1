@@ -16,6 +16,9 @@ import type { ValueSource, VaultRunDeps } from "../../agent/src/vault-use/index.
 import { recallText } from "../../agent/src/turn-engine/recall.ts";
 import { contextBlocks, ordered } from "../../agent/src/turn-engine/context.ts";
 import type { ContextSection } from "../../agent/src/turn-engine/context.ts";
+import { GUIDE_FILES, memoryGuide } from "../../lib/memory-guide.ts";
+import fs from "node:fs";
+import path from "node:path";
 import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 /** What every engine process gets from the daemon's environment: the launcher's short list, with a PATH that finds the CLIs an app started from the Finder would not see. */
@@ -46,7 +49,7 @@ export interface OpenerHost {
   now?: () => number;
 }
 
-const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Save what you learn with memory_propose and cite where it came from. Memory you cannot see is not yours to guess.";
+const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Quotes are the exact words people wrote in earlier chats and runs: quote them as written, never reword them, and use memory_quote with a ref to read a whole line or to look for words. Look up with memory_search, save what you learn with memory_remember and cite where it came from, and close a fact that is wrong or no longer true with memory_forget. Memory you cannot see is not yours to guess.";
 
 /**
  * The system prompt of an API-key chat. With the turn context (modules/engine/context.ts) it is the ordered context: identity, rules, where, the memory block, skills, what the agent can do here,
@@ -82,6 +85,19 @@ export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?
   };
 }
 
+/**
+ * The memory guide of this agent as the person asking may read it (agent layer only), in the CLI's work folder as CLAUDE.md and AGENTS.md. A CLI engine reads one of them from its folder,
+ * so it knows it has memory and which tools reach it before its first tool call. The work folder is per person and thread, so nothing here reaches another person.
+ */
+export async function writeMemoryGuide(call: OpenerHost["call"], dir: string, spec: { agent: { id: string }; asker: string }): Promise<void> {
+  let name: string = spec.agent.id;
+  let body: string | undefined;
+  try { name = ((await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string } }).agent?.name ?? name; } catch { /* the id names it */ }
+  try { body = ((await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } }).map?.body; } catch { /* no map yet, or not this person's to read */ }
+  const text = memoryGuide(name, body);
+  for (const f of GUIDE_FILES) fs.writeFileSync(path.join(dir, f), text, { mode: 0o644 });
+}
+
 /** Builds the opener; the runtime keeps it for the life of the daemon and calls close() on shutdown. */
 export function buildOpener(h: OpenerHost): SessionOpener {
   const system = roleBlocks(h.call);
@@ -108,6 +124,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
     ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
     ...(dataDir ? { cli: { workFolder: (spec) => workFolder(dataDir, spec.asker, spec.threadId) } } : {}),
+    ...(dataDir ? { prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) => writeMemoryGuide(h.call, workFolder(dataDir, spec.asker, spec.threadId), spec) } : {}),
     apiContext: h.apiTools ? h.apiTools.context : async (spec, input) => ({ system: await system(spec, input), tools: [] }),
   });
 }

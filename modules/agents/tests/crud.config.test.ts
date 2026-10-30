@@ -295,3 +295,31 @@ test("summary assembles the strip from the neighbours and survives any of them b
   const d = await call(down.hn, "agents.summary", { agentId: down.id });
   assert.deepEqual([d.chatsThisWeek, d.openTasks, d.runsToday, d.spendTodayMicros, d.memoryFacts, d.proposedFacts, d.workingOn, d.linked, d.watches], [0, 0, 0, 0, 0, 0, [], [], []]);
 });
+
+test("the chat key, the ordered fallback list and the memory key are settings of the agent, kept in order, checked as Vault names, and shown in agent.toml", async () => {
+  const hn = harness();
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Keyed", role: "Use me for keys.", idempotencyKey: "kk1" })).agent;
+  assert.deepEqual(a.accountFallback, []);
+  const set = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { accountPolicy: "key", accountKey: "#Team_A", accountFallback: ["#Team_C", "#Team_B", "#Team_C"], memoryKey: "#Team_M" } });
+  assert.deepEqual([set.agent.accountKey, set.agent.accountFallback, set.agent.memoryKey], ["#Team_A", ["#Team_C", "#Team_B"], "#Team_M"], "order kept, repeats dropped");
+  const toml = String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]);
+  assert.match(toml, /account_fallback = \["#Team_C", "#Team_B"\]/);
+  assert.match(toml, /memory_key = "#Team_M"/);
+  for (const bad of [{ accountFallback: ["not a handle"] }, { memoryKey: "nope" }, { accountFallback: "x" }]) {
+    await assert.rejects(() => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: bad }), /Vault name|list of names|fallback keys/);
+  }
+  const cleared = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { accountFallback: [], memoryKey: null } });
+  assert.deepEqual([cleared.agent.accountFallback, cleared.agent.memoryKey], [[], undefined]);
+});
+
+test("the server reads an agent's memory key for the nightly job without seeing the agent page; a person who cannot see the agent is told it does not exist", async () => {
+  const hn = harness({ allow: (a, r) => !(r.type === "agent" && a.level === "view") });
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Hidden", role: "Use me for keys.", idempotencyKey: "kk2" })).agent;
+  await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { memoryKey: "#Team_M" } });
+  const stranger = hn.person("usr_stranger");
+  assert.equal(await failure(() => h["agents.memory_key.get"]!(stranger, { agentId: a.agentId })), "validation.not_found");
+  const host = hn.as({ kind: "service", id: "svc_host" });
+  assert.deepEqual(await h["agents.memory_key.get"]!(host, { agentId: a.agentId }), { memoryKey: "#Team_M", ownerId: "usr_dana" });
+  const other = hn.as({ kind: "service", id: "svc_deadbeefdeadbeefdeadbeefdeadbeef" });
+  assert.equal(await failure(() => h["agents.memory_key.get"]!(other, { agentId: a.agentId })), "validation.not_found", "a tenant's service is not the server");
+});

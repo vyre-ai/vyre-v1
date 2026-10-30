@@ -9,6 +9,7 @@ import { Icon, LeadIcon, PaneList, Switch, TextButton } from "../rightpane/parts
 import type { Entry } from "../rightpane/parts.tsx";
 import { acceptSuggestion, dismissSuggestion, moveToTrash, pause, resume, setRoutine } from "./actions.ts";
 import type { PageDeps } from "./actions.ts";
+import { useAccountEntries } from "./AccountsRows.tsx";
 import { useAgentPageData, useScreenQuery } from "./data.tsx";
 import { CAPTURE_WORDS, accountLine, instructionsLine, limitRows, lastRun, mineOnly, routineLabel, routineNote, suggestionTitle } from "./model.ts";
 import type { AgentRow, Routine, Suggestion } from "./model.ts";
@@ -16,6 +17,7 @@ import type { AgentRow, Routine, Suggestion } from "./model.ts";
 type ConfigOut = CapMap["agents.config.get"]["out"];
 type RoutinesOut = CapMap["agents.routines.list"]["out"];
 type SuggestionsOut = CapMap["agents.suggestions.list"]["out"];
+type AccountsOut = CapMap["engine.accounts.list"]["out"];
 
 export function SettingsTab({ agent, deps, window }: { agent: AgentRow; deps: PageDeps; window?: VirtualWindow }): ReactElement {
   const data = useAgentPageData();
@@ -23,6 +25,8 @@ export function SettingsTab({ agent, deps, window }: { agent: AgentRow; deps: Pa
   const config = useScreenQuery<ConfigOut>("config", { agentId });
   const routinesQ = useScreenQuery<RoutinesOut>("routines", { agentId });
   const sugQ = useScreenQuery<SuggestionsOut>("suggestions", { agentId });
+  const accountsQ = useScreenQuery<AccountsOut>("accounts", {});
+  const accounts = useAccountEntries({ agent, deps, accounts: accountsQ.status === "ready" ? accountsQ.data.accounts : [], canEdit: data.canEdit });
   const [trash, setTrash] = useState(false);
   const clock = data.clock();
   const name = data.agent.name;
@@ -56,6 +60,7 @@ export function SettingsTab({ agent, deps, window }: { agent: AgentRow; deps: Pa
   entries.push({ key: "l-model", type: "label", text: "Model" });
   entries.push({ key: "m-model", type: "row", title: "Model", note: agent.model ? `${agent.model}${agent.fallbackModel ? `, then ${agent.fallbackModel}` : ""}` : "The Space default", testID: "setting-model" });
   entries.push({ key: "m-account", type: "row", title: "Runs on", note: accountLine(agent), testID: "setting-account" });
+  entries.push(...accounts.entries);
   entries.push({ key: "m-memory", type: "row", title: "Memory", note: CAPTURE_WORDS[agent.captureMode], testID: "setting-memory" });
   entries.push({ key: "m-computer", type: "row", title: "Computer", note: agent.hasComputer ? "Has its own computer" : data.space.personal ? "Agent computers need a Team Space" : "None yet", testID: "setting-computer" });
 
@@ -101,7 +106,7 @@ export function SettingsTab({ agent, deps, window }: { agent: AgentRow; deps: Pa
       }
       : { key: "t-trash", type: "row", title: "Move to Trash…", note: "Its folder and chats are kept for 30 days", leading: <LeadIcon name="trash" color="var(--danger)" />, onPress: () => setTrash(true), testID: "trash" });
   }
-  return <PaneList entries={entries} {...(window ? { window } : {})} testID="settings-list" />;
+  return <><PaneList entries={entries} {...(window ? { window } : {})} testID="settings-list" />{accounts.element}</>;
 }
 
 const st = StyleSheet.create({

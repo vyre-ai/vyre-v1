@@ -8,9 +8,9 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 - Agent parity: every capability a principal screen query or action reaches is agent-visible or wrapped by an `agentTools` entry. The generator rejects a manifest that breaks this; the test re-checks it from the manifests (all principal screens, more than 500 references).
 - Pre-auth capabilities (anonymous and pending callers, 11 in all) are never agent-visible.
 - No capability sets `surfaces.agent: false` today, so there is no opt-out list and `contracts/agent-optout.json` is not needed. 255 principal capabilities have no MCP surface; none is reached by a screen.
-- A tool with `deferred: true` is found with `tool_search` and called after its schema is returned. The default listed toolset is the 59 tools below (about 60, plus or minus 5). The `engineer` toolset is never in the default list; it needs `engineer.mcp`.
+- A tool with `deferred: true` is found with `tool_search` and called after its schema is returned. The default listed toolset is the 62 tools below (about 60, plus or minus 5). The `engineer` toolset is never in the default list; it needs `engineer.mcp`.
 
-## Default listed toolset (59 tools)
+## Default listed toolset (62 tools)
 
 | Tool | Toolset | Summary |
 |---|---|---|
@@ -36,6 +36,9 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 | `read_note` | memory | Read one memory note as Markdown |
 | `facts_as_of` | memory | Facts that were true on a date (valid_from and valid_to), for "what did it believe on 3 March" |
 | `memory_propose` | memory | Propose a fact for the asker layer of the agent memory, with its source; low-risk kinds merge on their own |
+| `memory_quote` | memory | Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves |
+| `memory_remember` | memory | Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule |
+| `memory_forget` | memory | Forget facts by id: they stop being recalled and stay in history |
 | `vault_use` | vault | Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values |
 | `vault_request` | vault | Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status |
 | `automations_list` | automations | List Automations by section (Personal, Shared with me, Space), folder and Group |

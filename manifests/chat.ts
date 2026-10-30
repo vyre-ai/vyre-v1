@@ -26,6 +26,10 @@ const threadRow = t.obj({
   replyCount: t.opt(t.int({ minimum: 0, description: 'Messages in the thread that are not deleted' })), lastMessageAt: t.opt(t.ts()),
   path: t.opt(t.arr(t.obj({ title: t.str(), threadId: id.thread }), { description: 'Address bar parts for helper chats, each a link back' })),
 });
+const historyHit = t.obj({
+  source: t.enm('message', 'step'), ref: t.str({ examples: ['msg_a1b2c3'] }), messageId: t.opt(id.message), threadId: id.thread, threadTitle: t.opt(t.str()), threadKind: t.str(), seq: t.int(),
+  role: t.str({ examples: ['person'] }), author: principalRef, text: t.str(), truncated: t.opt(t.bool()), at: t.ts(), link: t.str({ examples: ['vyre://thread/thr_a1b2c3?m=msg_a1b2c3'] }), score: t.num(),
+});
 const reaction = t.obj({ emoji: t.str({ examples: ['thumbs_up'] }), by: t.arr(t.str()) });
 const messageRow = t.obj({
   messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef,
@@ -260,6 +264,13 @@ export default defineManifest({
     read('chat.transcript.search', 'Search transcripts the asker may see: keyword, semantic or hybrid (default), snippets with links, never raw files', {
       in: { q: t.str(), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), threadId: t.opt(id.thread), agentId: t.opt(id.agent), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
       out: { hits: t.arr(transcriptHit) }, label: 'filter', tool: 'chats', mcpName: 'transcript_search', agent: { planMode: 'allowed' },
+    }),
+    read('chat.history.search', 'Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line', {
+      in: {
+        q: t.opt(t.str()), ref: t.opt(t.str({ description: 'A message id, or <thread>#<index> for a transcript row: read that one line in full' })), threadId: t.opt(id.thread),
+        excludeThreadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 20 })), minCoverage: t.opt(t.num({ minimum: 0, maximum: 1 })),
+      },
+      out: { hits: t.arr(historyHit) }, label: 'filter', rate: { n: 120, perSeconds: 60, scope: 'principal' },
     }),
     read('chat.transcript.read', 'Read a window of a transcript as Markdown (the chats/<id>/transcript.md view)', {
       in: { ...threadT, fromIdx: t.opt(t.int()), limit: t.opt(t.int({ minimum: 1, maximum: 500 })) }, out: { markdown: t.str(), next: t.opt(t.int()) },

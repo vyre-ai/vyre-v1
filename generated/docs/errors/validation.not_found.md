@@ -12,6 +12,7 @@ HTTP 404. Retryable: no.
 - agents.delete
 - agents.get
 - agents.limits.get
+- agents.memory_key.get
 - agents.pause
 - agents.restore
 - agents.restore_version

@@ -11,6 +11,7 @@ import {
   threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Db, PlanStep, ThreadRec } from "../projections.ts";
+import { mayRecall } from "./history.ts";
 import { canSpeak, deliver } from "./post.ts";
 
 type Row = Record<string, unknown>;
@@ -56,7 +57,7 @@ const TRANSCRIPT_SCHEMA = [
   )`,
 ];
 const tReady = new WeakSet<object>();
-function ensureTranscript(db: Db): void {
+export function ensureTranscript(db: Db): void {
   ensure(db);
   if (tReady.has(db)) return;
   for (const stmt of TRANSCRIPT_SCHEMA) db.run(stmt);
@@ -176,7 +177,7 @@ export async function transcriptSearch(
   const may = new Map<string, boolean>();
   const allowed = (id: string): boolean => {
     let ok = may.get(id);
-    if (ok === undefined) { const t = threadBy(ctx.db, id); ok = t !== null && canSpeak(ctx, t); may.set(id, ok); }
+    if (ok === undefined) { const t = threadBy(ctx.db, id); ok = t !== null && canSpeak(ctx, t) && mayRecall(ctx, t); may.set(id, ok); }
     return ok;
   };
   const hits: Array<{ score: number; hit: Row }> = [];

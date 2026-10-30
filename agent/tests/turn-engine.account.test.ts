@@ -87,3 +87,45 @@ test("without resolveAccount the engine keeps its own starter and steerer choice
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+test("an account that is refused before the turn said anything hands the turn to the next account in order, the failed ones are skipped, and the one that served is metered; nothing left fails the turn as before", async () => {
+  const order = ["#A", "#B", "#C"];
+  const refuse = new Set(["#A", "#B"]);
+  const p = scriptedProvider({ script: (_i, spec) => (refuse.has(spec.account?.ref ?? "") ? [{ type: "error" as const, code: "provider.rate_limited", message: "slow down" }] : say) });
+  const asked: Array<readonly string[] | undefined> = [];
+  const ended: Array<string | null> = [];
+  const engine = createTurnEngine({
+    holder: "host:s", openSession: p.openSession,
+    resolveAccount: async () => account({ ref: order[0]! }),
+    nextAccount: async (q) => { asked.push(q.unavailable); const next = order.find((r) => !(q.unavailable ?? []).includes(r)); return next ? account({ ref: next, reason: "backup_key" }) : null; },
+    onTurnEnd: (_t, acct) => { ended.push(acct?.ref ?? null); },
+  });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: "hello" });
+  await engine.idle("T");
+  assert.deepEqual(p.specs.map((s) => s.account?.ref), ["#A", "#B", "#C"], "tried in the agent's order");
+  assert.deepEqual(asked, [["#A"], ["#A", "#B"]]);
+  assert.deepEqual(engine.turns("T").map((t) => t.state), ["completed"]);
+  assert.deepEqual(ended, ["#C"], "usage is metered against the account that served");
+  assert.equal(p.sessions.filter((s) => !s.closed).length, 0, "every session was closed");
+
+  // nothing left: the last refusal is the turn's error
+  refuse.add("#C");
+  engine.receive({ threadId: "T", author: person, body: "again" });
+  await engine.idle("T");
+  assert.deepEqual(engine.turns("T").map((t) => [t.state, t.error?.code]).at(-1), ["failed", "provider.rate_limited"]);
+
+  // a failure that is not about the account (a bad request) is surfaced at once, and a refusal after output is never retried
+  const q = scriptedProvider({ script: [{ type: "error" as const, code: "provider.bad_request", message: "no" }] });
+  const e2 = createTurnEngine({ holder: "host:s", openSession: q.openSession, resolveAccount: async () => account(), nextAccount: async () => account({ ref: "#Z" }) });
+  e2.openThread(thread());
+  e2.receive({ threadId: "T", author: person, body: "x" });
+  await e2.idle("T");
+  assert.equal(q.sessions.length, 1);
+  const r = scriptedProvider({ script: [{ type: "text" as const, text: "Half an ans" }, { type: "error" as const, code: "provider.rate_limited", message: "x" }] });
+  const e3 = createTurnEngine({ holder: "host:s", openSession: r.openSession, resolveAccount: async () => account(), nextAccount: async () => account({ ref: "#Z" }) });
+  e3.openThread(thread());
+  e3.receive({ threadId: "T", author: person, body: "x" });
+  await e3.idle("T");
+  assert.equal(r.sessions.length, 1, "no repeat after output");
+});

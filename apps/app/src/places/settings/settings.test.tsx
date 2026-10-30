@@ -304,3 +304,19 @@ test("no em dash in any copy on any page", () => {
   const s = createSampleSettings(northwind);
   for (const p of PAGES) assert.ok(!html(s, { initialPage: p.key }).includes(String.fromCharCode(0x2014)), p.key);
 });
+
+test("Memory and privacy > Who pays for memory: your own picker, the Space and project pickers for an admin, each saving through memory.key.set with Undo; no account reads as rules only", async () => {
+  const s = createSampleSettings(northwind);
+  const out = html(s, { initialPage: "privacy" });
+  for (const t of ["Who pays for memory", "Your memory", "None (rules only)", "Space memory", "Project memory", "Rivera matter", "Probate GTM", "The Space&#x27;s account", 'data-testid="ctl-memory-key-person"', 'data-testid="ctl-memory-key-space"', 'data-testid="ctl-memory-key-project-prj_rivera"']) assert.ok(out.includes(t) || out.replaceAll("&#x27;", "'").includes(t.replaceAll("&#x27;", "'")), t);
+  await s.data.call("memory.key.set", { layer: "person", accountRef: "#Team_OpenAI_Key" });
+  await s.data.call("memory.key.set", { layer: "project", projectId: "prj_rivera", accountRef: "#Team_Anthropic_Key" });
+  const after = html(s, { initialPage: "privacy" });
+  assert.ok(after.includes("OpenAI team key (shared)") && after.includes("Anthropic team key (shared)"), "the chosen accounts are on the pickers");
+  assert.ok(after.includes("Its own account"), "a project with its own account says so");
+  assert.deepEqual(s.calls.map((c) => c.cap), ["memory.key.set", "memory.key.set"]);
+  // a person who is not an admin has their own picker only, and the Space one is refused
+  const harborOut = html(createSampleSettings(harbor), { initialPage: "privacy" });
+  assert.ok(harborOut.includes("Your memory") && !harborOut.includes("Space memory") && !harborOut.includes("Project memory"));
+  await assert.rejects(() => createSampleSettings(harbor).data.call("memory.key.set", { layer: "space", accountRef: "#Team_OpenAI_Key" }), /Only a Space admin/);
+});

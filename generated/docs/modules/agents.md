@@ -16,6 +16,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.guide.get](../capabilities/agents.guide.get.md): The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md
 - [agents.limits.get](../capabilities/agents.limits.get.md): Effective limits of an agent: agent.toml capped by Space caps
 - [agents.list](../capabilities/agents.list.md): List agents you are in or that are shared with you (admins may toggle All in the Space)
+- [agents.memory_key.get](../capabilities/agents.memory_key.get.md): The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)
 - [agents.pause](../capabilities/agents.pause.md): Pause an agent with a reason; the status shows who paused it
 - [agents.restore](../capabilities/agents.restore.md): Restore an agent from Trash
 - [agents.restore_version](../capabilities/agents.restore_version.md): Restore AGENT.md or agent.toml to an earlier version

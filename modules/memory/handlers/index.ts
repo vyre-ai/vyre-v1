@@ -10,6 +10,10 @@ import { backlinks, exportMarkdown, pageDelete, pageGet, pageList, pagePut, page
 import { noteErase } from "./purge.ts";
 import { meaningRank, meaningStatusRead } from "./meaning.ts";
 import { maintain, questionResolve, questionsList, upkeepStatus } from "./upkeep.ts";
+import { keyResolve, keySet, keysGet } from "./keys.ts";
+import { quote } from "./quotes.ts";
+import { recallRecord, used } from "./recalllog.ts";
+import { forget, remember } from "./tools.ts";
 
 export const handlers = {
   "memory.search": search,
@@ -64,4 +68,12 @@ export const handlers = {
   "memory.export_markdown": exportMarkdown,
   "memory.questions.list": questionsList,
   "memory.question.resolve": questionResolve,
+  "memory.quote": quote,
+  "memory.used": used,
+  "memory.recall.record": recallRecord,
+  "memory.keys.get": keysGet,
+  "memory.key.set": keySet,
+  "memory.key.resolve": keyResolve,
+  "memory.remember": remember,
+  "memory.forget": forget,
 };

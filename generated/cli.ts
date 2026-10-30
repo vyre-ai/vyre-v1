@@ -271,8 +271,23 @@ export const cliCommands: Array<{ command: string; cap: string; v: number }> = [
     "v": 1
   },
   {
+    "command": "vyre memory forget",
+    "cap": "memory.forget",
+    "v": 1
+  },
+  {
     "command": "vyre memory graph",
     "cap": "memory.graph",
+    "v": 1
+  },
+  {
+    "command": "vyre memory quote",
+    "cap": "memory.quote",
+    "v": 1
+  },
+  {
+    "command": "vyre memory remember",
+    "cap": "memory.remember",
     "v": 1
   },
   {

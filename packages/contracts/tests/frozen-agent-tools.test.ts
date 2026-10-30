@@ -21,7 +21,7 @@ const TOOLSETS = ['records', 'files', 'memory', 'vault', 'automations', 'chats',
 export const DEFAULT_TOOLS: Record<string, string[]> = {
   records: ['schema_describe', 'records_query', 'records_get', 'records_create', 'records_update', 'records_bulk_upsert', 'records_history', 'records_as_of', 'records_relate'],
   files: ['files_list', 'files_read', 'files_write', 'mounts_add', 'git_status', 'git_diff', 'git_commit', 'changesets_get', 'changesets_diff'],
-  memory: ['memory_search', 'read_note', 'facts_as_of', 'memory_propose'],
+  memory: ['memory_search', 'read_note', 'facts_as_of', 'memory_propose', 'memory_quote', 'memory_remember', 'memory_forget'],
   vault: ['vault_use', 'vault_request'],
   automations: ['automations_list', 'automations_create', 'automations_run', 'journeys_start', 'wait_for'],
   chats: ['chat_post', 'chat_thread', 'handoff', 'ask_question', 'plan_propose', 'open_tab'],

@@ -4,6 +4,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { onFileVersion, onPersonCreated, onTurn, restoreAgentFiles } from "./handlers/crud.ts";
 import { onMessageReceived } from "./handlers/routines.ts";
+import { memoryGuideConsumers } from "./memory-guide.ts";
 import type { FileVersionEvent, PrincipalEvent, TurnEvent } from "./handlers/crud.ts";
 import type { AgentsCtx } from "./projections.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -18,6 +19,7 @@ export const periodic = {
 export { restoreAgentFiles };
 
 export const consumers = {
+  ...memoryGuideConsumers,
   /** A person's account exists (claim or join): they get their private assistant, with or without an AI account. */
   "agents.ensure_assistant": {
     on: ["principal.created"],

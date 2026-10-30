@@ -85,3 +85,24 @@ test("a task uses the step key, then its backup, else it waits in the owner's Ne
   assert.equal(none.unblock?.why, "no_account");
   assert.equal(none.unblock?.to, "usr_dana");
 });
+
+test("the agent's ordered fallback list is walked in order, then the Space backups, then Needs you", () => {
+  const A = row({ ref: "#Fallback_A" }), B = row({ ref: "#Fallback_B" }), C = row({ ref: "#Fallback_C" });
+  const req = base({ agent: { accountPolicy: "key", accountKey: "#Team_Anthropic_Key", accountFallback: ["#Fallback_A", "#Fallback_B", "#Fallback_C"] }, backupRefs: ["#Team_Backup_Key"], accounts: [DANA_KEY, TEAM_KEY, A, B, C, BACKUP2] });
+  const order = ["#Team_Anthropic_Key", "#Fallback_A", "#Fallback_B", "#Fallback_C", "#Team_Backup_Key"];
+  const failed: string[] = [];
+  for (let i = 0; i < order.length; i++) {
+    const r = resolveAccount({ ...req, unavailable: failed });
+    assert.equal(r.accountRef, order[i], `attempt ${i + 1}`);
+    assert.equal(r.reason, i === 0 ? "starter" : "backup_key");
+    failed.push(order[i]!);
+    const next = onAccountFailure({ ...req, unavailable: failed.slice(0, -1) }, order[i]!, { code: "provider.rate_limited" });
+    if (i < order.length - 1) assert.equal(next.action === "use" ? next.accountRef : null, order[i + 1], "the fallback walks the same order");
+    else assert.equal(next.action, "wait", "nothing left: Needs you");
+  }
+  // an asker-policy agent: the asker's own account first, then the agent's list
+  const own = resolveAccount({ ...req, agent: { accountPolicy: "asker", provider: "anthropic", accountFallback: ["#Fallback_B"] }, unavailable: ["#Dana_Anthropic"] });
+  assert.equal(own.accountRef, "#Fallback_B");
+  // a task keeps to its step key and the Space backups
+  assert.equal(resolveAccount({ ...req, trigger: "task", unavailable: [] }).accountRef, "#Team_Backup_Key");
+});

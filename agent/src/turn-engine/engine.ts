@@ -46,6 +46,11 @@ export interface EngineOptions {
    * session spec. Null means no usable account: no session is opened, the turn fails with `no_account`, and `onNoAccount` raises the Unblock.
    */
   resolveAccount?: (q: AccountQuery) => Promise<ResolvedAccount | null>;
+  /**
+   * The account that fails a turn is skipped and the next one in the agent's order pays (ordered fallback, then the Space backups). Asked with `unavailable` holding every account that already failed
+   * this turn; null means nothing is left and the turn fails as it did. Only before the turn produced anything: a half-written answer is never repeated on another account.
+   */
+  nextAccount?: (q: AccountQuery) => Promise<ResolvedAccount | null>;
   /** No account could be found for a turn: raise the Unblock task for the starter; when it is answered the host calls wake() to run the turn again. */
   onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string }) => Promise<void> | void;
   /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
@@ -71,6 +76,10 @@ export interface EngineOptions {
   /** Persisted turn.block coalescing interval for streaming text. */
   blockMs?: number;
 }
+
+/** Provider errors that mean this account cannot serve the turn (agent/src/accounts/fallback.ts holds the same list). */
+const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited"]);
+const MAX_FALLBACKS = 8;
 
 interface Running { turnId: string; agentId: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
 interface ThreadState { thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean }
@@ -275,6 +284,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     }, HEARTBEAT_MS);
 
     const trigger = findMessage(st, item.messageId);
+    let paying: ResolvedAccount | null | undefined = account;
     let parked: { callId: string; name: string; held: HeldCall } | null = null;
     let reply = "";
     let mentions: readonly RouteMention[] = [];
@@ -295,9 +305,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
         throw Object.assign(new Error("no account can pay for this turn"), { code: "no_account" });
       }
-      const session = await opts.openSession({ threadId: st.thread.id, agent, asker, turnId: turn.id, traceId: turn.traceId, ...(account ? { account } : {}) });
+      const failedRefs: string[] = [];
+      for (;;) {
+      const session = await opts.openSession({ threadId: st.thread.id, agent, asker, turnId: turn.id, traceId: turn.traceId, ...(paying ? { account: paying } : {}) });
       run.session = session;
       if (run.cancelled) await session.cancel();
+      let switchTo: ResolvedAccount | null = null;
       const input = {
         threadId: st.thread.id, turnId: turn.id, agent, trigger, asker,
         history: st.messages.slice(-historyWindow),
@@ -344,15 +357,28 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             mentions = ev.mentions ?? [];
             ended = true;
             break;
-          case "error":
+          case "error": {
+            // A key that is refused or out of quota, before the turn said anything: the next account in the agent's order takes it, and the failed one is skipped.
+            if (opts.nextAccount && paying && ACCOUNT_FAILURE.has(ev.code) && reply === "" && blockIdx === 0 && failedRefs.length < MAX_FALLBACKS) {
+              try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref] }); } catch { switchTo = null; }
+              if (switchTo) { failedRefs.push(paying.ref); ended = true; break; }
+            }
             flush("text");
             turn.error = { code: ev.code, message: ev.message };
             ended = true;
             break;
+          }
         }
         if (ended) break;
       }
+      if (switchTo) {
+        try { await session.close(); } catch { /* dropped */ }
+        paying = switchTo;
+        continue;
+      }
       flush("text");
+      break;
+      }
     } catch (e) {
       const code = typeof (e as { code?: unknown }).code === "string" ? (e as { code: string }).code : "engine_error";
       if (!run.cancelled) turn.error = { code, message: e instanceof Error ? e.message : "the turn failed" };
@@ -382,7 +408,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     else turn.state = "completed";
     queue.setState(st.thread.id, item.qseq, turn.state === "cancelled" ? "cancelled" : "done");
     recordSpend(turn);
-    try { await opts.onTurnEnd?.(turn, account ?? null); } catch { /* metering must never fail the turn */ }
+    try { await opts.onTurnEnd?.(turn, paying ?? null); } catch { /* metering must never fail the turn */ }
     if (turn.state === "completed") emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
     else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
     else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });

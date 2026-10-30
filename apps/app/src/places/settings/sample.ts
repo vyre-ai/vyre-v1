@@ -149,6 +149,21 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     { id: "openai", key: "openai", title: "OpenAI team key", totals: { turns: 168, tokensIn: 1_300_000, tokensOut: 240_000, costMicros: 48_200_000 } },
     { id: "ocg", key: "ocg", title: "OpenCode Go, your key", totals: { turns: 40, tokensIn: 220_000, tokensOut: 60_000, costMicros: 3_600_000 } },
   ]);
+  // Who pays for memory: the keys picked, the accounts they may be picked from (an admin sees the shared ones for the Space and the projects)
+  replica.put("memkeys", [{ id: "keys", person: null, space: null, projects: {} }]);
+  const picker = (ref: string | null, shared: boolean): { accountRef: string | null; choices: unknown[] } => ({
+    accountRef: ref,
+    choices: [
+      ...(shared ? [] : [{ ref: "#Irfad_Claude", title: "Claude Max, your sign-in", provider: "anthropic", kind: "subscription", mine: true, state: "ok" }]),
+      { ref: "#Team_OpenAI_Key", title: "OpenAI team key", provider: "openai", kind: "api_key", mine: false, state: "ok" },
+      { ref: "#Team_Anthropic_Key", title: "Anthropic team key", provider: "anthropic", kind: "api_key", mine: false, state: "ok" },
+    ],
+  });
+  replica.resolve("memory.keys.get", () => {
+    const k = replica.rows("memkeys")[0] as unknown as { person: string | null; space: string | null; projects: Record<string, string> };
+    return { personal: picker(k.person, false), admin: space.id === "northwind", ...(space.id === "northwind" ? { space: picker(k.space, true), projectKeys: k.projects } : {}) } as unknown as CapMap["memory.keys.get"]["out"];
+  });
+  replica.resolve("projects.list", () => ({ projects: space.id === "northwind" ? [{ projectId: "prj_rivera", title: "Rivera matter" }, { projectId: "prj_probate", title: "Probate GTM" }] : [] }) as unknown as CapMap["projects.list"]["out"]);
   replica.put("kits", [{ id: "kit_law", kitId: "kit_law", key: "law", title: "Law firm", version: "1.2.0", channel: "stable", installed: true, contents: ["ui", "structure"] }, { id: "kit_studio", kitId: "kit_studio", key: "studio", title: "Studio", version: "1.0.0", channel: "stable", installed: true, contents: ["ui"] }]);
   replica.put("kit", [{ id: "k", space: "kit_law", person: null, effective: "kit_law" }]);
   replica.put("other", [{ id: "o", ...space.other }]);
@@ -207,6 +222,16 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     "devices.revoke_others": () => { let n = 0; for (const x of replica.rows("devices")) if (!x["current"] && x["revokedAt"] === undefined) { replica.put("devices", [{ ...x, revokedAt: SAMPLE_NOW }]); n++; } return { revoked: n }; },
     "mail.mailbox.pause": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "paused" }]); return { ok: true }; },
     "mail.mailbox.resume": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "syncing" }]); return { ok: true }; },
+    "memory.key.set": (i: { layer: "space" | "project" | "person"; projectId?: string; accountRef: string | null }) => {
+      const k = replica.rows("memkeys")[0] as unknown as { id: string; person: string | null; space: string | null; projects: Record<string, string> };
+      if (i.layer !== "person" && space.id !== "northwind") throw new Error("Only a Space admin sets the key for Space and project memory.");
+      const next = { ...k, projects: { ...k.projects } };
+      if (i.layer === "person") next.person = i.accountRef;
+      else if (i.layer === "space") next.space = i.accountRef;
+      else if (i.accountRef === null) delete next.projects[i.projectId ?? ""]; else next.projects[i.projectId ?? ""] = i.accountRef;
+      replica.put("memkeys", [next as unknown as Row]);
+      return { layer: i.layer, accountRef: i.accountRef };
+    },
     "spaces.leave": () => ({ ok: true }),
   };
 

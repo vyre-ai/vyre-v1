@@ -28,6 +28,8 @@ export interface ConversationData {
   call(cap: string, input: unknown): Promise<unknown>;
   connection: Connection;
   threadId: string;
+  /** A message to open the page scrolled to and highlighted: the link a memory quote carries (`vyre://thread/<id>?m=<messageId>`). */
+  focus?: string;
   /** The signed-in person: messages from them are the right-hand bubbles. */
   me: { id: string; name: string };
   nameOf(id: string): string;

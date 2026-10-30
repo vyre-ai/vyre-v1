@@ -254,7 +254,7 @@ export function dumpToml(doc: TomlDoc, header = ""): string {
 export interface Limits { runCostMicros?: number; dayCostMicros?: number; monthCostMicros?: number; turnsPerDay?: number; minutesPerRun?: number; tokensPerDay?: number }
 export type LimitKey = keyof Limits;
 export interface AgentConfig {
-  name: string; description?: string; model?: string; fallbackModel?: string; accountPolicy: "asker" | "key"; accountKey?: string; handoffs: string[];
+  name: string; description?: string; model?: string; fallbackModel?: string; accountPolicy: "asker" | "key"; accountKey?: string; accountFallback: string[]; memoryKey?: string; handoffs: string[];
   toolsAllowed: string[]; toolsDenied: string[]; vaultKeys: string[]; limits: Limits; captureMode: "auto" | "propose" | "auto_low_risk" | "off";
 }
 /** manifest limit name -> key in [limits] of agent.toml (the keys files.lint knows). */
@@ -263,6 +263,7 @@ export const LIMIT_TOML: Readonly<Record<LimitKey, string>> = Object.freeze({
 });
 export const LIMIT_KEYS = Object.keys(LIMIT_TOML) as LimitKey[];
 const TOP_KEYS = new Set(["name", "description", "model", "fallback_model", "account_policy", "handoffs", "tools", "vault", "limits", "approvals", "memory", "routines"]);
+const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 const CAPTURE = new Set(["auto", "propose", "auto_low_risk", "off"]);
 
 export interface Problem { line?: number; message: string }
@@ -307,9 +308,15 @@ export function checkToml(text: string, o: { agentNames?: readonly string[]; sel
     if (b === null) err("tools.denied", "tools.denied is a list of tool names."); else denied = b;
   }
   let accountKey: string | undefined;
+  let accountFallback: string[] = [];
+  let memoryKey: string | undefined;
   if (vault) {
     const k = strList(vault["keys"]);
     if (k === null) err("vault.keys", "vault.keys is a list of key names."); else keys = k;
+    const fb = strList(vault["account_fallback"]);
+    if (fb === null || fb.some((x) => !HANDLE.test(x))) err("vault.account_fallback", "vault.account_fallback is a list of Vault names like #Team_Anthropic_Key, best first."); else accountFallback = fb;
+    const mk = vault["memory_key"];
+    if (mk !== undefined) { if (typeof mk !== "string" || !HANDLE.test(mk)) err("vault.memory_key", "vault.memory_key is a Vault name like #Team_Anthropic_Key."); else memoryKey = mk; }
     const ak = vault["account_key"];
     if (ak !== undefined) { if (typeof ak !== "string" || !/^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(ak)) err("vault.account_key", "vault.account_key is a Vault name like #Team_Anthropic_Key."); else accountKey = ak; }
   }
@@ -332,12 +339,13 @@ export function checkToml(text: string, o: { agentNames?: readonly string[]; sel
   if (routines !== undefined && (!Array.isArray(routines) || routines.some((r) => !isObj(r)))) err("routines", "routines is a list of [[routines]] tables.");
   if (errors.length > 0) return { ok: false, errors, warnings };
   const config: AgentConfig = {
-    name: (d["name"] as string).trim(), accountPolicy: policy === "key" ? "key" : "asker", handoffs: hand ?? [], toolsAllowed: allowed, toolsDenied: denied, vaultKeys: keys, limits: lim, captureMode: capture,
+    name: (d["name"] as string).trim(), accountPolicy: policy === "key" ? "key" : "asker", handoffs: hand ?? [], toolsAllowed: allowed, toolsDenied: denied, vaultKeys: keys, limits: lim, captureMode: capture, accountFallback,
   };
   if (typeof desc === "string" && desc.trim() !== "") config.description = desc.trim();
   if (typeof d["model"] === "string" && d["model"] !== "") config.model = d["model"];
   if (typeof d["fallback_model"] === "string" && d["fallback_model"] !== "") config.fallbackModel = d["fallback_model"];
   if (accountKey !== undefined) config.accountKey = accountKey;
+  if (memoryKey !== undefined) config.memoryKey = memoryKey;
   return { ok: true, errors, warnings, config };
 }
 
@@ -353,7 +361,10 @@ export function writeConfig(doc: TomlDoc, c: AgentConfig): TomlDoc {
   out["handoffs"] = c.handoffs;
   const sub = (k: string): TomlDoc => (isObj(out[k]) ? { ...(out[k] as TomlDoc) } : {});
   const tools = sub("tools"); tools["allowed"] = c.toolsAllowed; tools["denied"] = c.toolsDenied; out["tools"] = tools;
-  const vault = sub("vault"); vault["keys"] = c.vaultKeys; if (c.accountKey !== undefined) vault["account_key"] = c.accountKey; else delete vault["account_key"]; out["vault"] = vault;
+  const vault = sub("vault"); vault["keys"] = c.vaultKeys; if (c.accountKey !== undefined) vault["account_key"] = c.accountKey; else delete vault["account_key"];
+  if ((c.accountFallback ?? []).length > 0) vault["account_fallback"] = c.accountFallback; else delete vault["account_fallback"];
+  if (c.memoryKey !== undefined) vault["memory_key"] = c.memoryKey; else delete vault["memory_key"];
+  out["vault"] = vault;
   const limits = sub("limits");
   for (const k of LIMIT_KEYS) { const v = c.limits[k]; if (v === undefined) delete limits[LIMIT_TOML[k]]; else limits[LIMIT_TOML[k]] = v; }
   if (Object.keys(limits).length > 0) out["limits"] = limits; else delete out["limits"];
@@ -367,7 +378,7 @@ export const tomlFor = (doc: TomlDoc): string => dumpToml(doc, TOML_HEADER);
 /** The first agent.toml of an agent. */
 export function newConfig(a: { name: string; role?: string | undefined; model?: string | undefined; tools?: { allowed: string[]; denied: string[] } | undefined; limits?: Limits | undefined }): AgentConfig {
   const c: AgentConfig = {
-    name: a.name.trim(), accountPolicy: "asker", handoffs: [], toolsAllowed: a.tools?.allowed ?? [], toolsDenied: a.tools?.denied ?? [], vaultKeys: [], limits: { ...(a.limits ?? {}) }, captureMode: "auto",
+    name: a.name.trim(), accountPolicy: "asker", handoffs: [], toolsAllowed: a.tools?.allowed ?? [], toolsDenied: a.tools?.denied ?? [], vaultKeys: [], limits: { ...(a.limits ?? {}) }, captureMode: "auto", accountFallback: [],
   };
   if (a.role !== undefined && a.role.trim() !== "") c.description = a.role.trim();
   if (a.model !== undefined && a.model !== "") c.model = a.model;
@@ -383,6 +394,8 @@ export function widenings(before: AgentConfig, after: AgentConfig): string[] {
   added("vault.keys", before.vaultKeys, after.vaultKeys);
   added("handoffs", before.handoffs, after.handoffs);
   if (after.accountKey !== undefined && after.accountKey !== before.accountKey) out.push(`vault.account_key uses ${after.accountKey}`);
+  added("vault.account_fallback", before.accountFallback ?? [], after.accountFallback ?? []);
+  if (after.memoryKey !== undefined && after.memoryKey !== before.memoryKey) out.push(`vault.memory_key uses ${after.memoryKey}`);
   for (const k of LIMIT_KEYS) {
     const b = before.limits[k], a = after.limits[k];
     if (a === undefined && b !== undefined) out.push(`limits.${LIMIT_TOML[k]} is removed`);
@@ -393,11 +406,11 @@ export function widenings(before: AgentConfig, after: AgentConfig): string[] {
 
 export type PatchResult = { ok: true; doc: TomlDoc; config: AgentConfig; fields: string[]; face?: string } | { ok: false; code: "validation.field_locked" | "validation.bad_input"; message: string };
 const LOCKED = new Set(["agentId", "ownerId", "folderId", "status", "pausedReason", "pausedBy", "templateVersion", "createdAt", "lastActiveAt", "hasComputer"]);
-const SETTABLE = new Set(["name", "face", "role", "model", "fallbackModel", "accountPolicy", "accountKey", "toolsAllowed", "toolsDenied", "vaultKeys", "limits", "captureMode", "handoffs"]);
+const SETTABLE = new Set(["name", "face", "role", "model", "fallbackModel", "accountPolicy", "accountKey", "accountFallback", "memoryKey", "toolsAllowed", "toolsDenied", "vaultKeys", "limits", "captureMode", "handoffs"]);
 
 /** Apply the fields of agents.update to the current document. Nothing is half applied: the answer is the new document or the reason it cannot be. */
 export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<string, unknown>): PatchResult {
-  const next: AgentConfig = { ...current, limits: { ...current.limits }, handoffs: [...current.handoffs], toolsAllowed: [...current.toolsAllowed], toolsDenied: [...current.toolsDenied], vaultKeys: [...current.vaultKeys] };
+  const next: AgentConfig = { ...current, accountFallback: [...(current.accountFallback ?? [])], limits: { ...current.limits }, handoffs: [...current.handoffs], toolsAllowed: [...current.toolsAllowed], toolsDenied: [...current.toolsDenied], vaultKeys: [...current.vaultKeys] };
   const fields: string[] = [];
   let face: string | undefined;
   const bad = (message: string): PatchResult => ({ ok: false, code: "validation.bad_input", message });
@@ -415,15 +428,16 @@ export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<str
         if (t.trim() === "") delete next.description; else next.description = t.trim();
         break;
       }
-      case "model": case "fallbackModel": case "accountKey": {
-        if (v === null || v === "") { if (k === "model") delete next.model; else if (k === "fallbackModel") delete next.fallbackModel; else delete next.accountKey; break; }
+      case "model": case "fallbackModel": case "accountKey": case "memoryKey": {
+        if (v === null || v === "") { if (k === "model") delete next.model; else if (k === "fallbackModel") delete next.fallbackModel; else if (k === "memoryKey") delete next.memoryKey; else delete next.accountKey; break; }
         const t = text(); if (typeof t !== "string") return t;
-        if (k === "accountKey" && !/^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(t)) return bad("The shared key is a Vault name like #Team_Anthropic_Key.");
-        if (k === "model") next.model = t; else if (k === "fallbackModel") next.fallbackModel = t; else next.accountKey = t;
+        if ((k === "accountKey" || k === "memoryKey") && !HANDLE.test(t)) return bad("A key is a Vault name like #Team_Anthropic_Key.");
+        if (k === "model") next.model = t; else if (k === "fallbackModel") next.fallbackModel = t; else if (k === "memoryKey") next.memoryKey = t; else next.accountKey = t;
         break;
       }
       case "accountPolicy": if (v !== "asker" && v !== "key") return bad('accountPolicy is "asker" or "key".'); next.accountPolicy = v; break;
       case "captureMode": if (typeof v !== "string" || !CAPTURE.has(v)) return bad('captureMode is "auto", "propose", "auto_low_risk" or "off".'); next.captureMode = v as AgentConfig["captureMode"]; break;
+      case "accountFallback": { const l = list(); if (!Array.isArray(l)) return l; if (l.some((x) => !HANDLE.test(x))) return bad("The fallback keys are Vault names like #Team_Anthropic_Key, best first."); next.accountFallback = [...new Set(l)]; break; }
       case "toolsAllowed": { const l = list(); if (!Array.isArray(l)) return l; next.toolsAllowed = [...new Set(l)]; break; }
       case "toolsDenied": { const l = list(); if (!Array.isArray(l)) return l; next.toolsDenied = [...new Set(l)]; break; }
       case "vaultKeys": { const l = list(); if (!Array.isArray(l)) return l; next.vaultKeys = [...new Set(l)]; break; }
@@ -493,7 +507,7 @@ export function agentOut(a: AgentRec, now: number): Record<string, unknown> {
     agentId: a.id, name: a.name, face: a.face, ...(c.description !== undefined ? { role: c.description } : {}), status: statusOf(a, now),
     ...(a.paused && a.pausedReason !== undefined ? { pausedReason: a.pausedReason } : {}), ...(a.paused && a.pausedBy !== undefined ? { pausedBy: a.pausedBy } : {}),
     ownerId: a.ownerId, folderId: a.folderId ?? "fld_unset", ...(c.model !== undefined ? { model: c.model } : {}), ...(c.fallbackModel !== undefined ? { fallbackModel: c.fallbackModel } : {}),
-    accountPolicy: c.accountPolicy, ...(c.accountKey !== undefined ? { accountKey: c.accountKey } : {}), toolsAllowed: c.toolsAllowed, toolsDenied: c.toolsDenied, vaultKeys: c.vaultKeys,
+    accountPolicy: c.accountPolicy, ...(c.accountKey !== undefined ? { accountKey: c.accountKey } : {}), accountFallback: c.accountFallback ?? [], ...(c.memoryKey !== undefined ? { memoryKey: c.memoryKey } : {}), toolsAllowed: c.toolsAllowed, toolsDenied: c.toolsDenied, vaultKeys: c.vaultKeys,
     limits: c.limits, captureMode: c.captureMode, hasComputer: a.hasComputer, templateVersion: a.templateVersion, createdAt: a.createdAt,
     ...(a.lastActiveAt !== undefined ? { lastActiveAt: a.lastActiveAt } : {}),
   };

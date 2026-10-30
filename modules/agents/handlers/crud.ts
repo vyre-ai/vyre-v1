@@ -12,6 +12,7 @@ import {
 } from "../projections.ts";
 import type { AgentConfig, AgentRec, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
 import { readTemplate, templateVersion } from "./routines.ts";
+import { isHostService } from "../../../lib/trust.ts";
 
 type Row = Record<string, unknown>;
 const by = (ctx: AgentsCtx): string => ctx.actingFor ?? ctx.principal.id;
@@ -36,6 +37,14 @@ export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shar
 
 export async function get(ctx: AgentsCtx, input: { agentId: string }) {
   return { agent: agentOut(visible(ctx, input.agentId), ctx.now()) };
+}
+
+/** The keys that pay for an agent's memory upkeep and its chat fallbacks. The server reads them for the nightly job, which runs as itself and sees no agents; a person needs to be able to see the agent. */
+export async function memoryKeyGet(ctx: AgentsCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const a = isHostService(ctx.principal) ? agentBy(ctx.db, input.agentId) : visible(ctx, input.agentId);
+  if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
+  return { ...(a.config.memoryKey !== undefined ? { memoryKey: a.config.memoryKey } : {}), ownerId: a.ownerId };
 }
 
 export async function status(ctx: AgentsCtx, input: { agentId: string }) {
@@ -457,7 +466,7 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
   const out: string[] = [];
   const diff = (k: string, x: unknown, y: unknown): void => { if (JSON.stringify(x) !== JSON.stringify(y)) out.push(k); };
   diff("name", a.name, b.name); diff("role", a.description, b.description); diff("model", a.model, b.model); diff("fallbackModel", a.fallbackModel, b.fallbackModel);
-  diff("accountPolicy", a.accountPolicy, b.accountPolicy); diff("accountKey", a.accountKey, b.accountKey); diff("handoffs", a.handoffs, b.handoffs);
+  diff("accountPolicy", a.accountPolicy, b.accountPolicy); diff("accountKey", a.accountKey, b.accountKey); diff("accountFallback", (a.accountFallback ?? []).join(", "), (b.accountFallback ?? []).join(", ")); diff("memoryKey", a.memoryKey, b.memoryKey); diff("handoffs", a.handoffs, b.handoffs);
   diff("toolsAllowed", a.toolsAllowed, b.toolsAllowed); diff("toolsDenied", a.toolsDenied, b.toolsDenied); diff("vaultKeys", a.vaultKeys, b.vaultKeys);
   diff("limits", a.limits, b.limits); diff("captureMode", a.captureMode, b.captureMode);
   return out.length > 0 ? out : ["agent.toml"];
