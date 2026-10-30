@@ -84,6 +84,7 @@ function google() {
       const parent = /'([^']+)' in parents/.exec(u.searchParams.get("q") ?? "")?.[1];
       return { json: { files: (files[who.sub] ?? []).filter((f) => !parent || f.parents.includes(parent)) } };
     }
+    if (u.hostname === "admin.googleapis.com" && u.pathname === "/admin/directory/v1/users") return { json: { users: [{ primaryEmail: NOAH, name: { fullName: "Noah Berg" } }, { primaryEmail: `kim@${DOMAIN}`, name: { fullName: "Kim Ito" } }] } };
     if (u.hostname === "meet.googleapis.com") {
       if (u.pathname === "/v2/conferenceRecords") return { json: { conferenceRecords: conferences } };
       if (u.pathname === "/v2/spaces/s1") return { json: { name: "spaces/s1", meetingUri: "https://meet.google.com/abc-defg-hij" } };
@@ -132,7 +133,7 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     const before = await w.ok(OWNER, "google.dwd.status");
     assert.deepEqual(before, { configured: false, autoConnect: true, mappedMembers: 0, excluded: [] });
     const scopes = await w.ok(OWNER, "google.dwd.scopes");
-    assert.equal(scopes.scopes.length, 6);
+    assert.equal(scopes.scopes.length, 7);
 
     // 2 Mia is excluded before setup: she is never mapped to a connection
     await w.ok(OWNER, "google.dwd.set_excluded", { email: MIA, excluded: true });
@@ -214,6 +215,22 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     assert.equal(asMia.status, 403, "not even the admin can act as an excluded member");
     assert.equal((await w.call(MEMBER, "google.dwd.set_excluded", { email: NOAH, excluded: true })).status, 403, "a member cannot change who is excluded");
     assert.equal((await w.call(MEMBER, "google.dwd.setup", { vaultItem: "#Google_DWD", adminEmail: NOAH, idempotencyKey: w.idem() })).status, 403, "a member cannot set delegation up");
+
+    // 9b the directory: only an admin lists it, the chosen person gets one invitation, and a member cannot match or sync
+    assert.equal((await w.call(MEMBER, "google.directory.list", {})).status, 403, "a member cannot list the directory");
+    const dir = await w.ok(OWNER, "google.directory.list", {});
+    assert.deepEqual(dir.people.map((p: { email: string; userId?: string }) => [p.email, p.userId]), [[NOAH, "usr_noah"], [`kim@${DOMAIN}`, undefined]]);
+    const roles = await w.ok(OWNER, "access.roles.list", {});
+    const roleId = roles.roles.find((r: { id: string }) => r.id === "rol_member").id;
+    const imported = await w.ok(OWNER, "google.directory.import", { people: [{ email: `kim@${DOMAIN}`, role: roleId }, { email: NOAH, role: roleId }], idempotencyKey: w.idem() });
+    assert.deepEqual([imported.invited.map((i: { email: string }) => i.email), imported.skipped.map((i: { email: string }) => i.email)], [[`kim@${DOMAIN}`], [NOAH]]);
+    assert.match(imported.invited[0].link, /join/);
+    assert.equal((await w.call(MEMBER, "google.directory.import", { people: [{ email: `kim@${DOMAIN}`, role: roleId }], idempotencyKey: w.idem() })).status, 403);
+    assert.equal((await w.call(MEMBER, "google.dwd.map_member", { email: `kim@${DOMAIN}`, userId: "usr_noah", idempotencyKey: w.idem() })).status, 403, "a member cannot match addresses");
+    assert.equal((await w.call(MEMBER, "google.dwd.sync_members", { idempotencyKey: w.idem() })).status, 403);
+    const matched = await w.ok(OWNER, "google.dwd.map_member", { email: `kim@${DOMAIN}`, userId: "usr_adam", idempotencyKey: w.idem() });
+    assert.deepEqual([matched.mapped, matched.connected], [true, true]);
+    assert.equal((await w.ok(OWNER, "google.dwd.members", {})).members.some((m: { email: string; mapped: boolean }) => m.email === `kim@${DOMAIN}` && m.mapped), true);
 
     // 10 nothing was ever asked of Google as Mia
     assert.equal(g.asked.some((a) => a.sub === MIA), false, "Mia's account was never read");

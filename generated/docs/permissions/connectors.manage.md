@@ -41,6 +41,8 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - github.app.create_manifest
 - github.app.get
 - github.installations.list
+- google.directory.import
+- google.directory.list
 - google.dwd.disable
 - google.dwd.map_member
 - google.dwd.members
@@ -49,6 +51,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - google.dwd.set_excluded
 - google.dwd.setup
 - google.dwd.status
+- google.dwd.sync_members
 - hubspot.push_object
 - mail.auto_connect_members
 - mail.mailbox.create
@@ -60,7 +63,10 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - ms.consent.set_excluded
 - ms.consent.setup
 - ms.consent.status
+- ms.consent.sync_members
 - ms.consent.verify
+- ms.directory.import
+- ms.directory.list
 - ms.subscriptions.renew
 - sources.create
 - sources.delete

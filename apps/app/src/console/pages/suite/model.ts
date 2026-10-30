@@ -30,6 +30,7 @@ export const GOOGLE_SCOPE_USE: Readonly<Record<string, string>> = {
   spreadsheets: "Read and write Sheets",
   documents: "Read and write Docs",
   "meetings.space.readonly": "Read Meet recordings and transcripts",
+  "admin.directory.user.readonly": "List the people in your directory to bring a team in",
 };
 
 export const MICROSOFT_PERMISSION_USE: Readonly<Record<string, string>> = {
@@ -50,6 +51,7 @@ const GOOGLE_SERVICES: readonly ServiceDef[] = [
   { key: "drive", title: "Drive", needs: ["drive"], what: "Google Drive" },
   { key: "meet", title: "Meet", needs: ["meetings.space.readonly"], what: "Meet transcripts" },
   { key: "docs", title: "Docs and Sheets", needs: ["documents", "spreadsheets"], what: "Docs and Sheets" },
+  { key: "people", title: "People", needs: ["admin.directory.user.readonly"], what: "Your directory" },
 ];
 const MICROSOFT_SERVICES: readonly ServiceDef[] = [
   { key: "mail", title: "Mail", needs: ["Mail.ReadWrite", "Mail.Send"], what: "Outlook mail" },

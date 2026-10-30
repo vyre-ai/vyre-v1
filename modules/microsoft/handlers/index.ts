@@ -10,3 +10,4 @@ export {
   mailSubscribe, mailUnsubscribe, receiveNotification, renew, teamsSubscribe,
 } from "./subscriptions.ts";
 export { acceptHook, sameState } from "./hook.ts";
+export { directoryImport, directoryList, syncMembers } from "./directory.ts";

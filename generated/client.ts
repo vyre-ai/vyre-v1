@@ -916,6 +916,10 @@ export function createClient(transport: Transport) {
         update_event: call("google.calendar.update_event", 1),
         watch: call("google.calendar.watch", 1),
       },
+      directory: {
+        import: call("google.directory.import", 1),
+        list: call("google.directory.list", 1),
+      },
       docs: {
         batch_update: call("google.docs.batch_update", 1),
         create_document: call("google.docs.create_document", 1),
@@ -946,6 +950,7 @@ export function createClient(transport: Transport) {
         set_excluded: call("google.dwd.set_excluded", 1),
         setup: call("google.dwd.setup", 1),
         status: call("google.dwd.status", 1),
+        sync_members: call("google.dwd.sync_members", 1),
       },
       gmail: {
         create_draft: call("google.gmail.create_draft", 1),
@@ -1387,7 +1392,12 @@ export function createClient(transport: Transport) {
         set_excluded: call("ms.consent.set_excluded", 1),
         setup: call("ms.consent.setup", 1),
         status: call("ms.consent.status", 1),
+        sync_members: call("ms.consent.sync_members", 1),
         verify: call("ms.consent.verify", 1),
+      },
+      directory: {
+        import: call("ms.directory.import", 1),
+        list: call("ms.directory.list", 1),
       },
       drive: {
         create_folder: call("ms.drive.create_folder", 1),

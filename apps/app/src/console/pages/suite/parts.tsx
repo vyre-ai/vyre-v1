@@ -174,6 +174,37 @@ export function MatchPerson({ people, domain, busy, onMatch }: { people: readonl
   );
 }
 
+export interface DirPerson { email: string; name?: string | undefined; suspended: boolean; userId?: string | undefined }
+export interface Invited { email: string; link: string }
+
+/** "Bring your team in": the directory's people, tick the ones to invite, and the links to send once a person approves. */
+export function Directory({ people, picked, links, busy, onLoad, onToggle, onInvite }: {
+  people: readonly DirPerson[] | null; picked: ReadonlySet<string>; links: readonly Invited[]; busy: boolean; onLoad: () => void; onToggle: (email: string) => void; onInvite: () => void;
+}): ReactElement {
+  return (
+    <Section title="Bring your team in" count={people ? people.length : undefined} testID="suite-directory" right={<Button label={people ? "Reload the directory" : "Load the directory"} disabled={busy} testID="directory-load" onPress={onLoad} />}>
+      <Group>
+        {people === null ? <View style={{ padding: 12 }}><Para>Load your directory to choose who to invite. Nobody is invited until you press Invite, and each invitation is a link that is only sent after a person approves it.</Para></View> : null}
+        {people === null ? null : people.map((p) => (
+          <Row
+            key={p.email} id={p.email} title={p.name ?? p.email} note={p.userId ? `${p.email}. Already in the Space.` : p.suspended ? `${p.email}. Suspended in your directory.` : p.email}
+            leading={<Dot tone={p.userId ? "ok" : "off"} label={p.userId ? "In the Space" : "Not yet"} />}
+            trailing={p.userId || p.suspended ? undefined : <Button label={picked.has(p.email) ? "Chosen" : "Choose"} disabled={busy} testID={`directory-pick-${p.email}`} onPress={() => onToggle(p.email)} />}
+          />
+        ))}
+      </Group>
+      {people && picked.size > 0 ? <Actions><Button label={`Invite ${picked.size} ${picked.size === 1 ? "person" : "people"}`} disabled={busy} testID="directory-invite" onPress={onInvite} /></Actions> : null}
+      {links.length > 0 ? (
+        <View style={{ gap: 8, marginTop: 8 }} testID="directory-links">
+          <Para>These invitation links are shown once. Send each only after a person approves it.</Para>
+          {/* ui-rows-lint: not a list (values to copy, not rows of things to open) */}
+          {links.map((l) => <CopyRow key={l.email} label={l.email} value={l.link} />)}
+        </View>
+      ) : null}
+    </Section>
+  );
+}
+
 export function StepsCard({ children }: { children: ReactNode }): ReactElement { return <View style={s.steps}>{children}</View>; }
 
 const s = StyleSheet.create({

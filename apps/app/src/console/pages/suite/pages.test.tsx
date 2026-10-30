@@ -14,7 +14,7 @@ function draw(element: ReactElement, rows: Record<string, unknown>): string {
   return renderToStaticMarkup(<ConsoleDataProvider value={data}>{element}</ConsoleDataProvider>);
 }
 
-const SCOPES = ["gmail.modify", "calendar", "drive", "spreadsheets", "documents", "meetings.space.readonly"].map((s) => `https://www.googleapis.com/auth/${s}`);
+const SCOPES = ["gmail.modify", "calendar", "drive", "spreadsheets", "documents", "meetings.space.readonly", "admin.directory.user.readonly"].map((s) => `https://www.googleapis.com/auth/${s}`);
 const vault = { "vault.folders.list": { folders: [{ id: "fld_1", name: "Company", yourLevel: "manage" }] }, "vault.items.list": { items: [] } };
 const gStatus = (o: Record<string, unknown> = {}) => ({ configured: false, autoConnect: true, mappedMembers: 0, excluded: [], ...o });
 
@@ -28,7 +28,7 @@ test("Google, not set up: the page reads healthy with a hint and lists every ste
   assert.ok((html.match(/>Copy</g) ?? []).length >= 7, "a Copy button on the client id row's scopes and the all-scopes box");
   assert.ok(html.includes("https://") === false || !/href="http/.test(html), "links open through the app, not as bare hrefs");
   for (const label of ["Open Service accounts in Google Cloud", "Open Domain-wide delegation in Google Admin", "Open the API library"]) assert.ok(html.includes(label), label);
-  assert.equal((html.match(/Not set up yet/g) ?? []).length, 5, "five services, each healthy with a hint");
+  assert.equal((html.match(/Not set up yet/g) ?? []).length, 6, "six services, each healthy with a hint");
   assert.ok(!html.includes("Degraded"));
   assert.match(html, /Gmail API/);
 });
@@ -48,6 +48,8 @@ test("Google, connected with a missing scope: Drive and Docs and Sheets degrade;
   assert.match(html, />Exclude</);
   assert.match(html, /never reads this person/);
   assert.match(html, /Match an address to a person/);
+  assert.match(html, /Bring your team in/);
+  assert.match(html, /Load the directory/);
   assert.match(html, />Unmatch</);
   assert.ok(html.includes("Check connection") && html.includes("Turn off"));
 });

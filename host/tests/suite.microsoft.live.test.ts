@@ -58,6 +58,7 @@ function microsoft() {
     const path = decodeURIComponent(u.pathname).replace(/^\/v1\.0/, "");
     asked.push(path);
     if (path === "/organization") return { json: { value: [{ id: TENANT }] } };
+    if (path === "/users") return { json: { value: [{ displayName: "Noah Berg", mail: NOAH, accountEnabled: true }, { displayName: "Kim Ito", mail: `kim@${DOMAIN}`, accountEnabled: true }] } };
     if (method === "POST" && path === "/subscriptions") {
       const b = JSON.parse(String(body)) as { expirationDateTime: string; clientState: string };
       clientState = b.clientState;
@@ -198,6 +199,16 @@ test("Microsoft 365: setup, consent, check, then mail, calendar, Teams and OneDr
     assert.equal((await w.call(MEMBER, "ms.consent.set_excluded", { email: NOAH, excluded: true })).status, 403, "a member cannot change who is excluded");
     assert.equal((await w.call(MEMBER, "ms.consent.setup", { vaultItem: "#Microsoft_App", tenantId: TENANT, idempotencyKey: w.idem() })).status, 403, "a member cannot set the connection up");
     assert.equal((await w.call(OWNER, "ms.mail.list_folders", { connectionId, as: MIA })).status, 403, "not even the owner can act as an excluded member");
+
+    // 9b the directory: only an admin lists it, imports and matches
+    assert.equal((await w.call(MEMBER, "ms.directory.list", {})).status, 403, "a member cannot list the directory");
+    const dir = await w.ok(OWNER, "ms.directory.list", {});
+    assert.deepEqual(dir.people.map((p: { email: string; userId?: string }) => [p.email, p.userId]), [[NOAH, "usr_noah"], [`kim@${DOMAIN}`, undefined]]);
+    const imported = await w.ok(OWNER, "ms.directory.import", { people: [{ email: `kim@${DOMAIN}`, role: "rol_member" }, { email: NOAH, role: "rol_member" }], idempotencyKey: w.idem() });
+    assert.deepEqual([imported.invited.map((i: { email: string }) => i.email), imported.skipped.map((i: { email: string }) => i.email)], [[`kim@${DOMAIN}`], [NOAH]]);
+    assert.equal((await w.call(MEMBER, "ms.consent.map_member", { email: `kim@${DOMAIN}`, userId: "usr_noah", idempotencyKey: w.idem() })).status, 403, "a member cannot match addresses");
+    const matched = await w.ok(OWNER, "ms.consent.map_member", { email: `kim@${DOMAIN}`, userId: "usr_adam", idempotencyKey: w.idem() });
+    assert.deepEqual([matched.mapped, matched.connected], [true, true]);
 
     // 10 Microsoft was never asked anything about Mia
     assert.equal(g.asked.some((p) => p.includes(MIA) || p.includes(encodeURIComponent(MIA))), false, "Mia's mailbox, calendar and drive were never read");

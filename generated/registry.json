@@ -3178,6 +3178,67 @@
       ],
       "type": "object"
     },
+    "s_24c0d63ac5": {
+      "properties": {
+        "invited": {
+          "items": {
+            "properties": {
+              "email": {
+                "examples": [
+                  "maya@example.com"
+                ],
+                "pattern": "^[^@\\s]+@[^@\\s]+$",
+                "type": "string"
+              },
+              "inviteId": {
+                "examples": [
+                  "inv_a1b2c3"
+                ],
+                "pattern": "^inv_[a-z0-9]+$",
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "email",
+              "inviteId",
+              "link"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "skipped": {
+          "items": {
+            "properties": {
+              "email": {
+                "examples": [
+                  "maya@example.com"
+                ],
+                "pattern": "^[^@\\s]+@[^@\\s]+$",
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "email",
+              "reason"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "invited",
+        "skipped"
+      ],
+      "type": "object"
+    },
     "s_24f4f7e0a4": {
       "properties": {
         "allowGithub": {
@@ -11883,6 +11944,50 @@
       ],
       "type": "object"
     },
+    "s_9c97baf2a0": {
+      "properties": {
+        "idempotencyKey": {
+          "examples": [
+            "idem_1"
+          ],
+          "minLength": 1,
+          "type": "string"
+        },
+        "people": {
+          "items": {
+            "properties": {
+              "email": {
+                "examples": [
+                  "maya@example.com"
+                ],
+                "pattern": "^[^@\\s]+@[^@\\s]+$",
+                "type": "string"
+              },
+              "role": {
+                "examples": [
+                  "rol_a1b2c3"
+                ],
+                "pattern": "^rol_[a-z0-9]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "email",
+              "role"
+            ],
+            "type": "object"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "people",
+        "idempotencyKey"
+      ],
+      "type": "object"
+    },
     "s_9d36938961": {
       "properties": {
         "driveId": {
@@ -18493,6 +18598,38 @@
         "mount"
       ],
       "type": "object"
+    },
+    "s_fd1ce6dded": {
+      "items": {
+        "properties": {
+          "email": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "suspended": {
+            "type": "boolean"
+          },
+          "userId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "suspended"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "s_fd2fd1aeff": {
       "properties": {
@@ -83598,6 +83735,148 @@
     },
     {
       "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "people": [
+              {
+                "email": "maya@example.com",
+                "role": "rol_a1b2c3"
+              }
+            ]
+          },
+          "name": "example",
+          "output": {
+            "invited": [
+              {
+                "email": "maya@example.com",
+                "inviteId": "inv_a1b2c3",
+                "link": "example"
+              }
+            ],
+            "skipped": [
+              {
+                "email": "maya@example.com",
+                "reason": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_9c97baf2a0"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.directory.import",
+      "output": {
+        "$ref": "#/$defs/s_24c0d63ac5"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.auth_failed",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "pageToken": "example",
+            "query": "example"
+          },
+          "name": "example",
+          "output": {
+            "nextPageToken": "example",
+            "people": [
+              {
+                "email": "maya@example.com",
+                "name": "example",
+                "suspended": true,
+                "userId": "usr_a1b2c3"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "pageToken": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.directory.list",
+      "output": {
+        "properties": {
+          "nextPageToken": {
+            "type": "string"
+          },
+          "people": {
+            "$ref": "#/$defs/s_fd1ce6dded"
+          }
+        },
+        "required": [
+          "people"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
       "effects": "outward",
       "emits": [],
       "errors": [
@@ -85800,6 +86079,84 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "State of domain-wide delegation: key stored, scopes, last probe, mapped members",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.on_hold",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1"
+          },
+          "name": "example",
+          "output": {
+            "connected": 1,
+            "matched": 1
+          }
+        }
+      ],
+      "gate": {
+        "act": "connection_change",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.dwd.sync_members",
+      "output": {
+        "properties": {
+          "connected": {
+            "type": "integer"
+          },
+          "matched": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "connected"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -117760,6 +118117,84 @@
     {
       "audit": "always",
       "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.on_hold",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1"
+          },
+          "name": "example",
+          "output": {
+            "connected": 1,
+            "matched": 1
+          }
+        }
+      ],
+      "gate": {
+        "act": "connection_change",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.consent.sync_members",
+      "output": {
+        "properties": {
+          "connected": {
+            "type": "integer"
+          },
+          "matched": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "connected"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
       "emits": [
         "microsoft.consent_verified"
       ],
@@ -117834,6 +118269,148 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Call GET /organization and check consent and the access policy for a probe member",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "people": [
+              {
+                "email": "maya@example.com",
+                "role": "rol_a1b2c3"
+              }
+            ]
+          },
+          "name": "example",
+          "output": {
+            "invited": [
+              {
+                "email": "maya@example.com",
+                "inviteId": "inv_a1b2c3",
+                "link": "example"
+              }
+            ],
+            "skipped": [
+              {
+                "email": "maya@example.com",
+                "reason": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_9c97baf2a0"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.directory.import",
+      "output": {
+        "$ref": "#/$defs/s_24c0d63ac5"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.auth_failed",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "query": "example",
+            "skipToken": "example"
+          },
+          "name": "example",
+          "output": {
+            "nextSkipToken": "example",
+            "people": [
+              {
+                "email": "maya@example.com",
+                "name": "example",
+                "suspended": true,
+                "userId": "usr_a1b2c3"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "skipToken": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "microsoft",
+      "name": "ms.directory.list",
+      "output": {
+        "properties": {
+          "nextSkipToken": {
+            "type": "string"
+          },
+          "people": {
+            "$ref": "#/$defs/s_fd1ce6dded"
+          }
+        },
+        "required": [
+          "people"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The people in the Microsoft 365 directory (admin only), with the Space member each is matched to, for choosing who to bring in",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -173274,6 +173851,9 @@
         "google.dwd.probe",
         "google.dwd.members",
         "google.dwd.set_excluded",
+        "google.directory.list",
+        "google.directory.import",
+        "google.dwd.sync_members",
         "google.dwd.map_member",
         "google.dwd.disable",
         "google.health",
@@ -173340,7 +173920,8 @@
           "https://www.googleapis.com/auth/drive",
           "https://www.googleapis.com/auth/spreadsheets",
           "https://www.googleapis.com/auth/documents",
-          "https://www.googleapis.com/auth/meetings.space.readonly"
+          "https://www.googleapis.com/auth/meetings.space.readonly",
+          "https://www.googleapis.com/auth/admin.directory.user.readonly"
         ],
         "type": "service_account_dwd"
       },
@@ -173559,6 +174140,9 @@
         "ms.consent.verify",
         "ms.consent.members",
         "ms.consent.set_excluded",
+        "ms.directory.list",
+        "ms.directory.import",
+        "ms.consent.sync_members",
         "ms.consent.map_member",
         "ms.consent.disable",
         "ms.health",

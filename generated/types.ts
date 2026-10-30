@@ -11584,6 +11584,37 @@ export type GoogleCalendarWatchOut = {
   resourceId: string;
   expiration: number;
 };
+export type GoogleDirectoryImportIn = {
+  people: Array<{
+      email: string;
+      role: string;
+    }>;
+  idempotencyKey: string;
+};
+export type GoogleDirectoryImportOut = {
+  invited: Array<{
+      email: string;
+      inviteId: string;
+      link: string;
+    }>;
+  skipped: Array<{
+      email: string;
+      reason: string;
+    }>;
+};
+export type GoogleDirectoryListIn = {
+  pageToken?: string;
+  query?: string;
+};
+export type GoogleDirectoryListOut = {
+  people: Array<{
+      email: string;
+      name?: string;
+      suspended: boolean;
+      userId?: string;
+    }>;
+  nextPageToken?: string;
+};
 export type GoogleDocsBatchUpdateIn = {
   connectionId: string;
   as?: string;
@@ -11896,6 +11927,13 @@ export type GoogleDwdStatusOut = {
   mappedMembers: number;
   excluded: Array<string>;
   pushToken?: string;
+};
+export type GoogleDwdSyncMembersIn = {
+  idempotencyKey: string;
+};
+export type GoogleDwdSyncMembersOut = {
+  matched: number;
+  connected: number;
 };
 export type GoogleGmailCreateDraftIn = {
   connectionId: string;
@@ -17292,6 +17330,13 @@ export type MsConsentStatusOut = {
   mappedMembers: number;
   excluded: Array<string>;
 };
+export type MsConsentSyncMembersIn = {
+  idempotencyKey: string;
+};
+export type MsConsentSyncMembersOut = {
+  matched: number;
+  connected: number;
+};
 export type MsConsentVerifyIn = {
   as?: string;
   policyConfirmed?: boolean;
@@ -17300,6 +17345,37 @@ export type MsConsentVerifyOut = {
   ok: boolean;
   missingPermissions: Array<string>;
   detail?: string;
+};
+export type MsDirectoryImportIn = {
+  people: Array<{
+      email: string;
+      role: string;
+    }>;
+  idempotencyKey: string;
+};
+export type MsDirectoryImportOut = {
+  invited: Array<{
+      email: string;
+      inviteId: string;
+      link: string;
+    }>;
+  skipped: Array<{
+      email: string;
+      reason: string;
+    }>;
+};
+export type MsDirectoryListIn = {
+  skipToken?: string;
+  query?: string;
+};
+export type MsDirectoryListOut = {
+  people: Array<{
+      email: string;
+      name?: string;
+      suspended: boolean;
+      userId?: string;
+    }>;
+  nextSkipToken?: string;
 };
 export type MsDriveCreateFolderIn = {
   connectionId: string;
@@ -28119,6 +28195,8 @@ export interface CapMap {
   "google.calendar.stop_watch": { in: GoogleCalendarStopWatchIn; out: GoogleCalendarStopWatchOut };
   "google.calendar.update_event": { in: GoogleCalendarUpdateEventIn; out: GoogleCalendarUpdateEventOut };
   "google.calendar.watch": { in: GoogleCalendarWatchIn; out: GoogleCalendarWatchOut };
+  "google.directory.import": { in: GoogleDirectoryImportIn; out: GoogleDirectoryImportOut };
+  "google.directory.list": { in: GoogleDirectoryListIn; out: GoogleDirectoryListOut };
   "google.docs.batch_update": { in: GoogleDocsBatchUpdateIn; out: GoogleDocsBatchUpdateOut };
   "google.docs.create_document": { in: GoogleDocsCreateDocumentIn; out: GoogleDocsCreateDocumentOut };
   "google.docs.get_document": { in: GoogleDocsGetDocumentIn; out: GoogleDocsGetDocumentOut };
@@ -28144,6 +28222,7 @@ export interface CapMap {
   "google.dwd.set_excluded": { in: GoogleDwdSetExcludedIn; out: GoogleDwdSetExcludedOut };
   "google.dwd.setup": { in: GoogleDwdSetupIn; out: GoogleDwdSetupOut };
   "google.dwd.status": { in: GoogleDwdStatusIn; out: GoogleDwdStatusOut };
+  "google.dwd.sync_members": { in: GoogleDwdSyncMembersIn; out: GoogleDwdSyncMembersOut };
   "google.gmail.create_draft": { in: GoogleGmailCreateDraftIn; out: GoogleGmailCreateDraftOut };
   "google.gmail.get_attachment": { in: GoogleGmailGetAttachmentIn; out: GoogleGmailGetAttachmentOut };
   "google.gmail.get_message": { in: GoogleGmailGetMessageIn; out: GoogleGmailGetMessageOut };
@@ -28467,7 +28546,10 @@ export interface CapMap {
   "ms.consent.set_excluded": { in: MsConsentSetExcludedIn; out: MsConsentSetExcludedOut };
   "ms.consent.setup": { in: MsConsentSetupIn; out: MsConsentSetupOut };
   "ms.consent.status": { in: MsConsentStatusIn; out: MsConsentStatusOut };
+  "ms.consent.sync_members": { in: MsConsentSyncMembersIn; out: MsConsentSyncMembersOut };
   "ms.consent.verify": { in: MsConsentVerifyIn; out: MsConsentVerifyOut };
+  "ms.directory.import": { in: MsDirectoryImportIn; out: MsDirectoryImportOut };
+  "ms.directory.list": { in: MsDirectoryListIn; out: MsDirectoryListOut };
   "ms.drive.create_folder": { in: MsDriveCreateFolderIn; out: MsDriveCreateFolderOut };
   "ms.drive.delete_item": { in: MsDriveDeleteItemIn; out: MsDriveDeleteItemOut };
   "ms.drive.delta": { in: MsDriveDeltaIn; out: MsDriveDeltaOut };

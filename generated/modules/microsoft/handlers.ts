@@ -25,7 +25,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.consent.set_excluded": Handler<"ms.consent.set_excluded", X>;
   "ms.consent.setup": Handler<"ms.consent.setup", X>;
   "ms.consent.status": Handler<"ms.consent.status", X>;
+  "ms.consent.sync_members": Handler<"ms.consent.sync_members", X>;
   "ms.consent.verify": Handler<"ms.consent.verify", X>;
+  "ms.directory.import": Handler<"ms.directory.import", X>;
+  "ms.directory.list": Handler<"ms.directory.list", X>;
   "ms.drive.create_folder": Handler<"ms.drive.create_folder", X>;
   "ms.drive.delete_item": Handler<"ms.drive.delete_item", X>;
   "ms.drive.delta": Handler<"ms.drive.delta", X>;

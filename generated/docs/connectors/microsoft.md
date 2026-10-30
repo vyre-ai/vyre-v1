@@ -24,6 +24,9 @@ Key microsoft, module microsoft. Mode oauth_app, owned by a space. Auth client_c
 - ms.consent.verify
 - ms.consent.members
 - ms.consent.set_excluded
+- ms.directory.list
+- ms.directory.import
+- ms.consent.sync_members
 - ms.consent.map_member
 - ms.consent.disable
 - ms.health

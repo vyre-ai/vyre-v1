@@ -42,7 +42,7 @@ test("not set up reads healthy with a hint, for both suites", () => {
 
 test("a check that names a missing scope degrades only the services that need it, and says where to add it", () => {
   const rows = serviceRows("google", { configured: true, lastOk: false, checked: { ok: false, missing: ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/documents"] } });
-  assert.deepEqual(rows.map((r) => [r.key, r.state]), [["mail", "healthy"], ["calendar", "healthy"], ["drive", "degraded"], ["meet", "healthy"], ["docs", "degraded"]]);
+  assert.deepEqual(rows.map((r) => [r.key, r.state]), [["mail", "healthy"], ["calendar", "healthy"], ["drive", "degraded"], ["meet", "healthy"], ["docs", "degraded"], ["people", "healthy"]]);
   assert.equal(rows[2]!.hint, "Add drive in the Google Admin console, then check again.");
   assert.equal(rows[4]!.hint, "Add documents in the Google Admin console, then check again.");
   const s = summaryOf("google", rows, true, 4);

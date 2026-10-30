@@ -14,6 +14,7 @@ HTTP 502. Retryable: no.
 - git.push
 - git.sync
 - github.app.complete
+- google.directory.list
 - google.dwd.probe
 - google.dwd.setup
 - google.gmail.send_message
@@ -30,4 +31,3 @@ HTTP 502. Retryable: no.
 - mounts.browse
 - ms.consent.setup
 - ms.consent.verify
-- ms.mail.send_message

@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (49)
+## Capabilities (52)
 
 - [ms.calendar.create_event](../capabilities/ms.calendar.create_event.md): Create an event; Exchange invites the attendees
 - [ms.calendar.delete_event](../capabilities/ms.calendar.delete_event.md): Delete an event; Exchange tells the attendees
@@ -26,7 +26,10 @@ Requires: mail.
 - [ms.consent.set_excluded](../capabilities/ms.consent.set_excluded.md): Exclude a member from the connection, or include them again (excluded members never get a connection)
 - [ms.consent.setup](../capabilities/ms.consent.setup.md): Store the app registration (Vault item Microsoft_App), map members by email and, with auto-connect on, create their Pending mail and calendar connections
 - [ms.consent.status](../capabilities/ms.consent.status.md): State of the Microsoft 365 connection: app registered, consent given, access policy checked, mapped members
+- [ms.consent.sync_members](../capabilities/ms.consent.sync_members.md): Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar
 - [ms.consent.verify](../capabilities/ms.consent.verify.md): Call GET /organization and check consent and the access policy for a probe member
+- [ms.directory.import](../capabilities/ms.directory.import.md): Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves
+- [ms.directory.list](../capabilities/ms.directory.list.md): The people in the Microsoft 365 directory (admin only), with the Space member each is matched to, for choosing who to bring in
 - [ms.drive.create_folder](../capabilities/ms.drive.create_folder.md): Create a folder
 - [ms.drive.delete_item](../capabilities/ms.drive.delete_item.md): Delete an item
 - [ms.drive.delta](../capabilities/ms.drive.delta.md): Item changes since a delta link (mount sync and mount lag)
