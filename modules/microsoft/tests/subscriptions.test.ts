@@ -415,3 +415,12 @@ test("the handler map covers exactly the capabilities the microsoft manifest dec
   assert.deepEqual(Object.keys(handlers).sort(), declared);
   assert.equal(declared.length, 48);
 });
+
+test("verify asks for a fresh token, so a permission consented a moment ago is seen at once", async () => {
+  const h = admin();
+  await consentSetup(h.ctx, setupInput);
+  const before = h.state.mints ?? 0;
+  await consentVerify(h.ctx, {});
+  await consentVerify(h.ctx, {});
+  assert.equal((h.state.mints ?? 0) - before, 2, "each check signs in again instead of reading a token minted before the consent");
+});
