@@ -86,7 +86,7 @@ export function SectionHead({ id, label, count, open, onToggle, keep = false, ch
   const hover = { onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) };
   return (
     <View testID={`head-${id}`} style={s.head} {...hover}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${label}${count ? `, ${count}` : ""}`} accessibilityState={{ expanded: open }} onPress={onToggle} testID={`toggle-${id}`} style={s.headLabel}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${label}${count ? `, ${count}` : ""}`} accessibilityState={{ expanded: open }} onPress={onToggle} testID={`toggle-${id}`} nativeID={`toggle-${id}`} style={s.headLabel}>
         <Text style={s.headText}>{label}</Text>
         <View style={{ transform: [{ rotate: open ? "0deg" : "-90deg" }] }}><Glyph name="chev" size={11} color="var(--ink-4)" /></View>
         {count ? <Badge n={count} testID={`count-${id}`} /> : null}

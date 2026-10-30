@@ -96,11 +96,11 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     const found = asking.scopeType === "" ? chatWith(rt, who) : askWith(rt, who, asking.scopeType, asking.scopeId, asking.bringFrom);
     void found.then((id) => {
       if (!live) return;
-      if (id) act({ t: "chat", threadId: id, pane: true });
+      if (id) { if (asking.draft) fill.set(asking.draft); act({ t: "chat", threadId: id, pane: true }); }
       else { setLine("Could not open the Ask. You may not see that yet."); act({ t: "agent", agentId: who, tab: "chats" }); }
     });
     return () => { live = false; };
-  }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, rt, act]);
+  }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, asking?.draft, rt, act, fill]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   const route = shown.route;
   // Cmd/Ctrl+Shift+F searches every chat, from anywhere in the place

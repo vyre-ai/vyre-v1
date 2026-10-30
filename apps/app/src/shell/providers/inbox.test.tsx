@@ -38,6 +38,13 @@ test("inbox: before the runtime exists the place draws its own loading frame", (
   assert.ok(out.includes('data-testid="inbox-place-loading"'));
 });
 
+test("inbox: New message is never a dead click: it opens an Ask chat with the assistant, not a screen that only reads", () => {
+  const { rt, opened } = runtime();
+  inboxData(rt, () => undefined).nav.compose();
+  assert.equal(opened.length, 1);
+  assert.deepEqual(opened[0], { screen: "chats.conversation", args: { with: "agt_assistant", about: "compose:email", draft: "Draft an email to " } });
+});
+
 test("inbox: opening a contact reaches the place, and the sidebar's other doors ask the shell", () => {
   const { rt, opened } = runtime();
   const picked: string[] = [];
@@ -46,7 +53,7 @@ test("inbox: opening a contact reaches the place, and the sidebar's other doors 
   data.nav.openCall("call_1");
   data.nav.compose();
   assert.deepEqual(picked, ["elena"]);
-  assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }, { screen: "mail.message-detail" }]);
+  assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }, { screen: "chats.conversation", args: { with: "agt_assistant", about: "compose:email", draft: "Draft an email to " } }]);
 });
 
 test("inbox: Match to a record opens the Unmatched screen in the Inbox body, not the contact list", () => {
