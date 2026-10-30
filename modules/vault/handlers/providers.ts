@@ -8,6 +8,7 @@ import { itemDelete, itemPut, openFields } from "./items.ts";
 import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
+import type { SigninPort } from "./use.ts";
 import { readFileSync } from "node:fs";
 import { addressProblem, builtinDefs } from "./provider-defs.ts";
 import type { CatalogEntry } from "./provider-defs.ts";
@@ -182,25 +183,48 @@ export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: str
   ensureProviders(ctx);
   const c = entry(ctx, input.providerKey);
   if (!c || !c.connections.includes("subscription")) return bad(ctx, "That provider does not sign in with a subscription.");
+  // a sign-in is a person's own act: it ends with a credential in their own Mine folder
+  if (ctx.principal.kind === "agent") return bad(ctx, "Signing in is something a person does. Ask them to press Sign in.");
   const id = newId("sub", ctx.now());
+  const port = hostOf()?.signin;
+  if (port?.has(c.key)) {
+    let started: Awaited<ReturnType<SigninPort["start"]>>;
+    try { started = await port.start({ id, provider: c.key, person: me(ctx) }); } catch (e) { return bad(ctx, e instanceof Error ? e.message : "The sign-in could not start. Try again."); }
+    ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
+    return {
+      flowId: id, url: started.url, ...(started.userCode ? { userCode: started.userCode } : {}), needsCode: started.needsCode,
+      instruction: started.needsCode ? `Open the sign-in, approve it, then paste the code ${c.name} shows.` : `Open the sign-in and enter the code ${started.userCode ?? ""}. This page finishes by itself.`.replace("  ", " "),
+    };
+  }
   ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
-  return { flowId: id, instruction: c.instruction ?? `Sign in to ${c.name} on your computer, then press Done.` };
+  return { flowId: id, needsCode: false, instruction: c.instruction ?? `Sign in to ${c.name} on your computer, then press Done.` };
 }
 
-export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: string }) {
+export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: string; code?: string }) {
   ensureProviders(ctx);
   if (!isId("sub", input.flowId)) bad(ctx, "Flow id is not valid.");
   const f = first(ctx.db.all(`SELECT * FROM vault_provider_flow WHERE id = ?`, input.flowId));
   if (!f || str(f, "person") !== me(ctx)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That sign-in was not started by you." });
+  if (ctx.principal.kind === "agent") return bad(ctx, "Signing in is something a person does.");
   if (f["doneAt"] !== null) {
     const again = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).find((p) => live(p) && str(p, "owner") === me(ctx) && str(p, "providerKey") === str(f, "providerKey"));
     if (again) return { provider: rowOut(ctx, again) };
+  }
+  const port = hostOf()?.signin;
+  if (port?.active(input.flowId)) {
+    const step = await port.step({ id: input.flowId, person: me(ctx), ...(typeof input.code === "string" && input.code.trim() !== "" ? { code: input.code } : {}) });
+    if (step.state === "waiting") return { waiting: true };
+    if (step.state === "failed") throw fail("provider.auth_failed", ctx.trace.traceId, { message: step.message });
+    // the credential goes straight into the person's own Mine folder; it is not returned to anyone
+    const c = entry(ctx, str(f, "providerKey"))!;
+    const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
+    await itemPut(ctx, { folderId: await mineFolder(ctx), name: n === 0 ? c.name : `${c.name} ${n + 1}`, kind: "ai_subscription", fields: step.fields, idempotencyKey: `${input.flowId}:item` } as Parameters<typeof itemPut>[1]);
   }
   const linked = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).map((p) => str(p, "itemId")));
   const item = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")))
     .filter((r) => num(first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, str(r, "id"))), "createdAt") >= num(f, "startedAt"))
     .sort((a, b) => num(b, "updatedAt") - num(a, "updatedAt"))[0];
-  if (!item) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "The sign-in has not finished yet. Finish it on your computer, then press Done again." });
+  if (!item) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "The sign-in has not finished yet. Finish it, then press Done again." });
   const id = newId("prv", ctx.now());
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, str(f, "providerKey"), "subscription", "mine", me(ctx), str(item, "id"), 0, "ok", ctx.now(), null);

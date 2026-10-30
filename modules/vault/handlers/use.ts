@@ -45,8 +45,19 @@ export interface VaultHost {
   probe?: ProviderProbe;
   /** The network guard for an address a person typed (custom endpoint, local model): a reason it may not be used from this node, or null. */
   refuse?(p: { address: string; caller: string }): Promise<string | null>;
+  /** Starts and finishes an AI subscription sign-in (Claude, Codex, Grok) on the server. The credential comes back only to the module, which saves it in the person's Mine folder. */
+  signin?: SigninPort;
   /** The module hands the host its SecretPort. */
   provide?(port: SecretPort): void;
+}
+
+export interface SigninPort {
+  has(provider: string): boolean;
+  /** True while the host holds this flow (it is lost when the server restarts). */
+  active(id: string): boolean;
+  start(p: { id: string; provider: string; person: string }): Promise<{ url: string; userCode?: string; needsCode: boolean; expiresInSec: number }>;
+  step(p: { id: string; person: string; code?: string }): Promise<{ state: "waiting" } | { state: "done"; fields: { key: string; value: string; secret: boolean }[] } | { state: "failed"; message: string }>;
+  cancel(id: string): void;
 }
 let host: VaultHost | null = null;
 export const hostOf = (): VaultHost | null => host;

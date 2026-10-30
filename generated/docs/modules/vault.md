@@ -14,8 +14,8 @@ Requires: access.
 - [providers.list](../capabilities/providers.list.md): My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage
 - [providers.remove](../capabilities/providers.remove.md): Remove a provider and its key or sign-in
 - [providers.set_space_use](../capabilities/providers.set_space_use.md): Let the Space run work on my subscription, or stop it (stopping ends my sandbox)
-- [providers.subscription_complete](../capabilities/providers.subscription_complete.md): Finish a subscription sign-in: the credential files are captured into a Mine item of kind ai_subscription
-- [providers.subscription_start](../capabilities/providers.subscription_start.md): Start a subscription sign-in (Claude Code setup-token, Codex login) inside my own sandbox or device
+- [providers.subscription_complete](../capabilities/providers.subscription_complete.md): Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.
+- [providers.subscription_start](../capabilities/providers.subscription_start.md): Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider's own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.
 - [providers.test](../capabilities/providers.test.md): Test a provider connection and list the models it offers
 - [vault.export_env](../capabilities/vault.export_env.md): Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified
 - [vault.exports.list](../capabilities/vault.exports.list.md): Export pull links that are still open

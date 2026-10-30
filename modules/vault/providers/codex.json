@@ -10,5 +10,5 @@
   "models": [
     "gpt-5-codex"
   ],
-  "instruction": "On your computer run `codex login`. Vyre saves the sign-in as an AI subscription item in your Mine folder. Then press Done."
+  "instruction": "Press Sign in with ChatGPT. Vyre starts ChatGPT's own sign-in and gives you its link. Approve it in your browser and the account is saved in your Mine folder."
 }

@@ -5835,13 +5835,13 @@
     {
       "deferred": false,
       "name": "providers_subscription_complete",
-      "summary": "Finish a subscription sign-in: the credential files are captured into a Mine item of kind ai_subscription",
+      "summary": "Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.",
       "toolset": "vault"
     },
     {
       "deferred": false,
       "name": "providers_subscription_start",
-      "summary": "Start a subscription sign-in (Claude Code setup-token, Codex login) inside my own sandbox or device",
+      "summary": "Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider's own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.",
       "toolset": "vault"
     },
     {

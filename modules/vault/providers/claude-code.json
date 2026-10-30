@@ -12,5 +12,5 @@
     "claude-sonnet-5-5",
     "claude-haiku-5-5"
   ],
-  "instruction": "On your computer run `claude setup-token`. Vyre saves the token as an AI subscription item in your Mine folder. Then press Done."
+  "instruction": "Press Sign in with Claude. Vyre starts Claude's own sign-in and gives you its link. Approve it in your browser and the account is saved in your Mine folder."
 }

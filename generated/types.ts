@@ -21021,9 +21021,10 @@ export type ProvidersSetSpaceUseOut = {
 };
 export type ProvidersSubscriptionCompleteIn = {
   flowId: string;
+  code?: string;
 };
 export type ProvidersSubscriptionCompleteOut = {
-  provider: {
+  provider?: {
     id: string;
     providerKey: string;
     name: string;
@@ -21045,6 +21046,7 @@ export type ProvidersSubscriptionCompleteOut = {
     address?: string;
     keyless?: boolean;
   };
+  waiting?: boolean;
 };
 export type ProvidersSubscriptionStartIn = {
   providerKey: string;
@@ -21055,6 +21057,7 @@ export type ProvidersSubscriptionStartOut = {
   instruction: string;
   url?: string;
   userCode?: string;
+  needsCode?: boolean;
 };
 export type ProvidersTestIn = {
   providerId: string;
