@@ -20,7 +20,7 @@ export class CapError extends Error {
   }
 }
 
-export type RouteRow = Pick<Route, "method" | "path" | "cap" | "v">;
+export type RouteRow = Pick<Route, "method" | "path" | "cap" | "v"> & Partial<Pick<Route, "idempotency">>;
 export type CapCall = (cap: string, input?: unknown, o?: { idempotencyKey?: string; signal?: AbortSignal }) => Promise<unknown>;
 
 export interface CapCallerOptions {
@@ -71,6 +71,18 @@ function errorOf(status: number, body: unknown, trace: string | null): CapError 
   return new CapError({ code, message, traceId, status, ...(details ? { details } : {}) });
 }
 
+let mints = 0;
+const mint = (): string => {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  return c?.randomUUID ? c.randomUUID() : `k_${Date.now().toString(36)}_${(mints++).toString(36)}`;
+};
+
+/** A capability whose contract asks for an idempotencyKey (idempotency: "key") gets one per attempt when the caller sent none: a screen that forgot it would be refused with "/idempotencyKey: required" and look dead. */
+export function withKey(route: RouteRow, input: unknown): unknown {
+  if (route.idempotency !== "key" || !isObj(input) || input["idempotencyKey"] !== undefined) return input ?? {};
+  return { ...input, idempotencyKey: mint() };
+}
+
 export function createCapCaller(o: CapCallerOptions): CapCall {
   const base = o.baseUrl.replace(/\/+$/, "");
   const doFetch = o.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
@@ -91,7 +103,7 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
     const res = await doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
       method: route.method.toUpperCase(),
       headers,
-      ...(get ? {} : { body: JSON.stringify(input ?? {}) }),
+      ...(get ? {} : { body: JSON.stringify(withKey(route, input)) }),
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
     let body: unknown = null;

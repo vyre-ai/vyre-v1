@@ -85,6 +85,17 @@ test("caps: a 401 with a token tells the session it is over; an unknown capabili
   await assert.rejects(call("nope.nothing", {}), (e: unknown) => e instanceof CapError && e.status === 404);
 });
 
+test("caps: a capability whose contract asks for an idempotencyKey gets one when the caller sent none, and keeps one it sent", async () => {
+  const gw = gateway({ "POST /v1/files/rename": () => ({ status: 200, body: { data: { ok: true } } }) });
+  const keyed: RouteRow[] = ROUTES.map((r) => (r.cap === "files.rename" ? { ...r, idempotency: "key" as const } : r));
+  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => keyed });
+  await call("files.rename", { id: "f1" });
+  await call("files.rename", { id: "f2", idempotencyKey: "mine" });
+  const bodies = gw.seen.map((s) => s.body as Record<string, unknown>);
+  assert.equal(typeof bodies[0]!["idempotencyKey"], "string");
+  assert.equal(bodies[1]!["idempotencyKey"], "mine");
+});
+
 test("caps: the newest version of a capability's route wins, and a query string leaves out missing values", () => {
   assert.equal(indexByCap(ROUTES).get("old.cap")!.path, "/v2/old");
   assert.equal(queryString({ a: "x", b: undefined, c: null, d: true }), "?a=x&d=true");
