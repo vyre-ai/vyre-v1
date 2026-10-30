@@ -774,7 +774,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         </View>
       ) : null}
       <View style={styles.sheet} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} {...({ onKeyDown } as object)}>
-        {count === 0 && !items?.length ? (
+        {count === 0 && !items?.length && adding === null ? (
           <States kind="empty" title={v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: startNew } })} />
         ) : (
           <Scroller
@@ -813,7 +813,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <View style={styles.statusBar} testID="records-status">
           <Text style={styles.footText} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
           <View style={styles.grow} />
-          {jump === null ? (
+          {count === 0 ? null : jump === null ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
           ) : (
             <TextInput
