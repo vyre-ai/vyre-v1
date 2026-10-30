@@ -6,6 +6,7 @@ HTTP 502. Retryable: yes.
 
 ## Raised by
 
+- automations.connector.send
 - backup.run
 - campaigns.launch
 - computers.chrome.act
@@ -30,4 +31,3 @@ HTTP 502. Retryable: yes.
 - computers.chrome.tabs
 - computers.chrome.type
 - computers.chrome.wait
-- computers.files.delete

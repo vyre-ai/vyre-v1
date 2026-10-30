@@ -14,6 +14,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 
 ## Capabilities that need it
 
+- automations.connector.publish
 - connections.create
 - connectors.build
 - connectors.diff

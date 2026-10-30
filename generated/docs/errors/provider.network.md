@@ -6,6 +6,7 @@ HTTP 502. Retryable: yes.
 
 ## Raised by
 
+- automations.connector.send
 - backup.run
 - campaigns.launch
 - computers.chrome.api
@@ -30,4 +31,3 @@ HTTP 502. Retryable: yes.
 - github.pull_request.request_review
 - github.pull_request.rerun_checks
 - github.pull_request.update
-- google.calendar.create_event

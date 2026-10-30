@@ -1995,6 +1995,333 @@ export type AutomationsAlertsSetOut = {
       }>;
   };
 };
+export type AutomationsConnectorGetIn = {
+  app: string;
+};
+export type AutomationsConnectorGetOut = {
+  connector: {
+    app: string;
+    title: string;
+    docsUrl?: string;
+    level: "draft" | "tested" | "published";
+    domains: Array<string>;
+    auth: {
+      type: "api_key" | "bearer" | "basic" | "none";
+      field?: string;
+      userField?: string;
+      header?: string;
+      prefix?: string;
+      query?: string;
+    };
+    vaultHandle?: string;
+    owner: {
+      kind: string;
+      id: string;
+    };
+    actions: Array<{
+        key: string;
+        title: string;
+        description?: string;
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+        path: string;
+        effect: "read" | "outward";
+        params: Array<{
+            name: string;
+            in: "path" | "query" | "header" | "body";
+            required: boolean;
+            type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            description?: string;
+          }>;
+        output?: string;
+        level: "draft" | "tested" | "published";
+        stepKey: string;
+      }>;
+    triggers: Array<{
+        key: string;
+        title: string;
+        kind: "poll" | "webhook";
+        level: "draft" | "tested" | "published";
+        action?: string;
+        intervalSec?: number;
+        polling?: {
+          primed: boolean;
+          fired: number;
+          lastAt?: number;
+          lastStatus?: number;
+          lastError?: string;
+          failures: number;
+        };
+        webhook?: {
+          exists: boolean;
+          lastDeliveryAt?: number;
+          url?: string;
+        };
+      }>;
+    updatedAt: number;
+    publishedAt?: number;
+  };
+  definition: Record<string, unknown>;
+};
+export type AutomationsConnectorInfoIn = {
+  key: string;
+};
+export type AutomationsConnectorInfoOut = {
+  found: boolean;
+  app?: string;
+  action?: string;
+  title?: string;
+  effect?: "read" | "outward";
+  level?: "draft" | "tested" | "published";
+};
+export type AutomationsConnectorPollIn = {
+  app: string;
+  trigger: string;
+};
+export type AutomationsConnectorPollOut = {
+  polled: boolean;
+  fired: number;
+  status?: number;
+  reason?: string;
+  nextAt?: number;
+  more?: boolean;
+};
+export type AutomationsConnectorPublishIn = {
+  app: string;
+};
+export type AutomationsConnectorPublishOut = {
+  connector: {
+    app: string;
+    title: string;
+    docsUrl?: string;
+    level: "draft" | "tested" | "published";
+    domains: Array<string>;
+    auth: {
+      type: "api_key" | "bearer" | "basic" | "none";
+      field?: string;
+      userField?: string;
+      header?: string;
+      prefix?: string;
+      query?: string;
+    };
+    vaultHandle?: string;
+    owner: {
+      kind: string;
+      id: string;
+    };
+    actions: Array<{
+        key: string;
+        title: string;
+        description?: string;
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+        path: string;
+        effect: "read" | "outward";
+        params: Array<{
+            name: string;
+            in: "path" | "query" | "header" | "body";
+            required: boolean;
+            type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            description?: string;
+          }>;
+        output?: string;
+        level: "draft" | "tested" | "published";
+        stepKey: string;
+      }>;
+    triggers: Array<{
+        key: string;
+        title: string;
+        kind: "poll" | "webhook";
+        level: "draft" | "tested" | "published";
+        action?: string;
+        intervalSec?: number;
+        polling?: {
+          primed: boolean;
+          fired: number;
+          lastAt?: number;
+          lastStatus?: number;
+          lastError?: string;
+          failures: number;
+        };
+        webhook?: {
+          exists: boolean;
+          lastDeliveryAt?: number;
+          url?: string;
+        };
+      }>;
+    updatedAt: number;
+    publishedAt?: number;
+  };
+  published: number;
+};
+export type AutomationsConnectorReadIn = {
+  key: string;
+  input?: Record<string, unknown>;
+  dryRun?: boolean;
+};
+export type AutomationsConnectorReadOut = {
+  output: unknown;
+  status: number;
+  dryRun: boolean;
+};
+export type AutomationsConnectorRemoveIn = {
+  app: string;
+};
+export type AutomationsConnectorRemoveOut = {
+  removed: boolean;
+};
+export type AutomationsConnectorSaveIn = {
+  definition: {
+    app: string;
+    title: string;
+    docsUrl?: string;
+    domains: Array<string>;
+    auth: {
+      type: "api_key" | "bearer" | "basic" | "none";
+      field?: string;
+      userField?: string;
+      header?: string;
+      prefix?: string;
+      query?: string;
+    };
+    actions?: Array<{
+        key: string;
+        title: string;
+        description?: string;
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+        path: string;
+        params?: Array<{
+            name: string;
+            in: "path" | "query" | "header" | "body";
+            required?: boolean;
+            type?: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            description?: string;
+          }>;
+        output?: string;
+        host?: string;
+        effect?: "read" | "outward";
+        markedSafe?: boolean;
+      }>;
+    triggers?: Array<{
+        key: string;
+        title: string;
+        kind: "poll" | "webhook";
+        action?: string;
+        intervalSec?: number;
+        items?: string;
+        idField?: string;
+        order?: "newest_first" | "oldest_first";
+        cursor?: {
+          mode: "none" | "updated_since" | "after_id" | "next_token";
+          param?: string;
+          field?: string;
+          format?: "iso" | "epoch_s" | "epoch_ms";
+          from?: string;
+        };
+        sample?: unknown;
+      }>;
+  };
+  vaultHandle?: string;
+};
+export type AutomationsConnectorSaveOut = {
+  connector: {
+    app: string;
+    title: string;
+    docsUrl?: string;
+    level: "draft" | "tested" | "published";
+    domains: Array<string>;
+    auth: {
+      type: "api_key" | "bearer" | "basic" | "none";
+      field?: string;
+      userField?: string;
+      header?: string;
+      prefix?: string;
+      query?: string;
+    };
+    vaultHandle?: string;
+    owner: {
+      kind: string;
+      id: string;
+    };
+    actions: Array<{
+        key: string;
+        title: string;
+        description?: string;
+        method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+        path: string;
+        effect: "read" | "outward";
+        params: Array<{
+            name: string;
+            in: "path" | "query" | "header" | "body";
+            required: boolean;
+            type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            description?: string;
+          }>;
+        output?: string;
+        level: "draft" | "tested" | "published";
+        stepKey: string;
+      }>;
+    triggers: Array<{
+        key: string;
+        title: string;
+        kind: "poll" | "webhook";
+        level: "draft" | "tested" | "published";
+        action?: string;
+        intervalSec?: number;
+        polling?: {
+          primed: boolean;
+          fired: number;
+          lastAt?: number;
+          lastStatus?: number;
+          lastError?: string;
+          failures: number;
+        };
+        webhook?: {
+          exists: boolean;
+          lastDeliveryAt?: number;
+          url?: string;
+        };
+      }>;
+    updatedAt: number;
+    publishedAt?: number;
+  };
+};
+export type AutomationsConnectorSendIn = {
+  key: string;
+  input?: Record<string, unknown>;
+  dryRun?: boolean;
+  idempotencyKey: string;
+};
+export type AutomationsConnectorSendOut = {
+  output: unknown;
+  status: number;
+  dryRun: boolean;
+};
+export type AutomationsConnectorTrustHostIn = {
+  app: string;
+  host: string;
+};
+export type AutomationsConnectorTrustHostOut = {
+  app: string;
+  host: string;
+  allowed: boolean;
+};
+export type AutomationsConnectorWebhookUrlGetIn = {
+  app: string;
+  trigger: string;
+};
+export type AutomationsConnectorWebhookUrlGetOut = {
+  url: string;
+  method: "POST";
+  lastDeliveryAt?: number;
+};
+export type AutomationsConnectorWebhookUrlRotateIn = {
+  app: string;
+  trigger: string;
+  confirm: true;
+};
+export type AutomationsConnectorWebhookUrlRotateOut = {
+  url: string;
+  method: "POST";
+};
 export type AutomationsConnectorOfferAcceptIn = {
   itemId: string;
 };
@@ -2039,6 +2366,70 @@ export type AutomationsConnectorSharesOut = {
           title: string;
           level: "draft" | "tested";
         }>;
+    }>;
+};
+export type AutomationsConnectorsListIn = Record<string, unknown>;
+export type AutomationsConnectorsListOut = {
+  connectors: Array<{
+      app: string;
+      title: string;
+      docsUrl?: string;
+      level: "draft" | "tested" | "published";
+      domains: Array<string>;
+      auth: {
+        type: "api_key" | "bearer" | "basic" | "none";
+        field?: string;
+        userField?: string;
+        header?: string;
+        prefix?: string;
+        query?: string;
+      };
+      vaultHandle?: string;
+      owner: {
+        kind: string;
+        id: string;
+      };
+      actions: Array<{
+          key: string;
+          title: string;
+          description?: string;
+          method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD";
+          path: string;
+          effect: "read" | "outward";
+          params: Array<{
+              name: string;
+              in: "path" | "query" | "header" | "body";
+              required: boolean;
+              type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+              description?: string;
+            }>;
+          output?: string;
+          level: "draft" | "tested" | "published";
+          stepKey: string;
+        }>;
+      triggers: Array<{
+          key: string;
+          title: string;
+          kind: "poll" | "webhook";
+          level: "draft" | "tested" | "published";
+          action?: string;
+          intervalSec?: number;
+          polling?: {
+            primed: boolean;
+            fired: number;
+            lastAt?: number;
+            lastStatus?: number;
+            lastError?: string;
+            failures: number;
+          };
+          webhook?: {
+            exists: boolean;
+            lastDeliveryAt?: number;
+            url?: string;
+          };
+        }>;
+      updatedAt: number;
+      publishedAt?: number;
     }>;
 };
 export type AutomationsCreateIn = {
@@ -2960,6 +3351,20 @@ export type AutomationsPromoteOut = {
       }>;
   };
 };
+export type AutomationsReadDocsIn = {
+  url: string;
+  offset?: number;
+};
+export type AutomationsReadDocsOut = {
+  ok: boolean;
+  finalUrl?: string;
+  text?: string;
+  nextOffset?: number;
+  totalChars?: number;
+  links?: Array<string>;
+  reason?: string;
+  note: string;
+};
 export type AutomationsReplayIn = {
   automationId: string;
   runId: string;
@@ -3207,6 +3612,8 @@ export type AutomationsStepsListOut = {
       output: unknown;
       effects: "read" | "write" | "outward";
       gateAct?: string;
+      app?: string;
+      level?: "draft" | "tested" | "published";
     }>;
 };
 export type AutomationsStopIn = {
@@ -3238,16 +3645,23 @@ export type AutomationsTriggersListOut = {
     }>;
 };
 export type AutomationsTryReadIn = {
-  method: string;
-  path: string;
-  domains: Array<string>;
+  app?: string;
+  action?: string;
+  input?: Record<string, unknown>;
+  allowHost?: string;
+  method?: string;
+  path?: string;
+  domains?: Array<string>;
   markedSafe?: boolean;
-  vaultItemId: string;
+  vaultItemId?: string;
   actionKey?: string;
 };
 export type AutomationsTryReadOut = {
   level: "tested" | "draft";
   reason?: string;
+  status?: number;
+  shape?: unknown;
+  notes?: Array<string>;
 };
 export type AutomationsUndeleteIn = {
   automationId: string;
@@ -27535,11 +27949,23 @@ export interface CapMap {
   "automations.account_picks": { in: AutomationsAccountPicksIn; out: AutomationsAccountPicksOut };
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
+  "automations.connector.get": { in: AutomationsConnectorGetIn; out: AutomationsConnectorGetOut };
+  "automations.connector.info": { in: AutomationsConnectorInfoIn; out: AutomationsConnectorInfoOut };
+  "automations.connector.poll": { in: AutomationsConnectorPollIn; out: AutomationsConnectorPollOut };
+  "automations.connector.publish": { in: AutomationsConnectorPublishIn; out: AutomationsConnectorPublishOut };
+  "automations.connector.read": { in: AutomationsConnectorReadIn; out: AutomationsConnectorReadOut };
+  "automations.connector.remove": { in: AutomationsConnectorRemoveIn; out: AutomationsConnectorRemoveOut };
+  "automations.connector.save": { in: AutomationsConnectorSaveIn; out: AutomationsConnectorSaveOut };
+  "automations.connector.send": { in: AutomationsConnectorSendIn; out: AutomationsConnectorSendOut };
+  "automations.connector.trust_host": { in: AutomationsConnectorTrustHostIn; out: AutomationsConnectorTrustHostOut };
+  "automations.connector.webhook_url.get": { in: AutomationsConnectorWebhookUrlGetIn; out: AutomationsConnectorWebhookUrlGetOut };
+  "automations.connector.webhook_url.rotate": { in: AutomationsConnectorWebhookUrlRotateIn; out: AutomationsConnectorWebhookUrlRotateOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
   "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
   "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
   "automations.connector_share": { in: AutomationsConnectorShareIn; out: AutomationsConnectorShareOut };
   "automations.connector_shares": { in: AutomationsConnectorSharesIn; out: AutomationsConnectorSharesOut };
+  "automations.connectors.list": { in: AutomationsConnectorsListIn; out: AutomationsConnectorsListOut };
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };
   "automations.delete": { in: AutomationsDeleteIn; out: AutomationsDeleteOut };
   "automations.draft_connector": { in: AutomationsDraftConnectorIn; out: AutomationsDraftConnectorOut };
@@ -27563,6 +27989,7 @@ export interface CapMap {
   "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
+  "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -29176,6 +29603,14 @@ export type AgentTemplateAppliedPayload = {
   agents: number;
   suggestions: number;
   by: string;
+};
+export type AppEventReceivedPayload = {
+  app: string;
+  trigger: string;
+  itemId: string;
+  item: unknown;
+  source: "poll" | "webhook";
+  at: number;
 };
 export type AuditArchivedPayload = {
   year: number;
@@ -32395,6 +32830,7 @@ export interface EventMap {
   "agent.suggestion_resolved": AgentSuggestionResolvedPayload;
   "agent.task_finished": AgentTaskFinishedPayload;
   "agent.template_applied": AgentTemplateAppliedPayload;
+  "app_event.received": AppEventReceivedPayload;
   "audit.archived": AuditArchivedPayload;
   "audit.checkpointed": AuditCheckpointedPayload;
   "audit.exported": AuditExportedPayload;

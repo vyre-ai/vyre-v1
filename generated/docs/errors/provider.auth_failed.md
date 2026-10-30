@@ -6,6 +6,8 @@ HTTP 502. Retryable: no.
 
 ## Raised by
 
+- automations.connector.read
+- automations.connector.send
 - connections.complete_auth
 - connectors.push
 - engine.probe_account
@@ -29,5 +31,3 @@ HTTP 502. Retryable: no.
 - mounts.add
 - mounts.browse
 - ms.consent.setup
-- ms.consent.verify
-- ms.mail.send_message

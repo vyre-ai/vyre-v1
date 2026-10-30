@@ -54,6 +54,8 @@ export interface BoundOpener { warm(spec: SessionSpec): void; pool: { status(): 
 let boundOpener: BoundOpener | null = null;
 export function bindOpener(o: BoundOpener | null): void { boundOpener = o; }
 export const openerOf = (): BoundOpener | null => boundOpener;
+/** The engine on this host, or null where none runs (a consumer must not fail an event because this host holds no engine). */
+export const engineIfBound = (): TurnEngine | null => bound;
 export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   if (!bound) raise(ctx, "internal.unavailable", "The engine is not running on this host.");
   return bound;

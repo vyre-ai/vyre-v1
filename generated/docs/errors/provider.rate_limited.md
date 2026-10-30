@@ -6,6 +6,8 @@ HTTP 502. Retryable: yes.
 
 ## Raised by
 
+- automations.connector.read
+- automations.connector.send
 - connectors.push
 - google.gmail.send_message
 - mail.send

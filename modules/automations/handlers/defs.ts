@@ -14,6 +14,8 @@ import {
 import { rememberAccountPicks } from "../accounts.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
+import { connectorSteps } from "../connector-steps.ts";
+import { triggerLevelKey } from "../connector-def.ts";
 import { admit, contractOf } from "../val.ts";
 import { containsSecret } from "../trust.ts";
 import type { Alerts, AutoCtx, Automation, Db, Definition, Grant, Node, Policy } from "../projections.ts";
@@ -118,7 +120,8 @@ function loopBody(byId: Map<string, Node>, loop: Node): Node[] {
 function connectorLevel(n: Node, db?: Db): "draft" | "tested" | undefined {
   if (db) {
     const stored = storedLevel(db, n.key);
-    if (stored === "tested" || stored === "draft") return stored;
+    if (stored === "tested" || stored === "published") return "tested";
+    if (stored === "draft") return stored;
   }
   const level = n.input["connectorLevel"];
   if (level === "draft" || level === "tested") return "draft";
@@ -149,6 +152,7 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
   for (const t of def.triggers) {
     const d = TRIGGERS.get(t.key);
     if (d && !d.personalOk && policy.personalSpace) out.push(issue("error", `${d.title} needs a Team Space.`));
+    if (t.key === "app_event" && appEventOf(t) === undefined) out.push(issue("error", "An app event needs the app and the trigger of a connector."));
   }
   if (def.nodes.length === 0) out.push(issue("warning", "This Automation has no steps yet."));
   for (const n of def.nodes) {
@@ -264,6 +268,25 @@ export function admissionIssues(def: Definition): Issue[] {
   return out;
 }
 
+function appEventOf(t: { config?: Record<string, unknown> }): { app: string; trigger: string } | undefined {
+  const app = t.config?.["app"], trigger = t.config?.["trigger"];
+  return typeof app === "string" && typeof trigger === "string" && app !== "" && trigger !== "" ? { app, trigger } : undefined;
+}
+
+/** A trigger of a connector written in this Space starts nothing until a read or a delivery proved it. */
+function draftedTriggerIssues(def: Definition, db: Db): Issue[] {
+  const out: Issue[] = [];
+  for (const t of def.triggers) {
+    if (t.key !== "app_event") continue;
+    const at = appEventOf(t);
+    if (at === undefined) continue;
+    const stored = storedLevel(db, triggerLevelKey(at.app, at.trigger));
+    if (stored === undefined) out.push(issue("error", `There is no trigger ${at.trigger} on a connector called ${at.app}.`));
+    else if (stored === "draft") out.push(issue("error", "This trigger is a draft. A read of its list, or a first delivery, has to prove it before it can start an automation."));
+  }
+  return out;
+}
+
 function draftedActionIssues(def: Definition, db: Db): Issue[] {
   const out: Issue[] = [];
   for (const n of def.nodes) {
@@ -275,8 +298,21 @@ function draftedActionIssues(def: Definition, db: Db): Issue[] {
   return out;
 }
 
-function blocksGoingLive(def: Definition, policy: Policy, db: Db): Issue[] {
-  return [...validateDefinition(def, policy), ...previewLiveIssues(def), ...admissionIssues(def), ...draftedActionIssues(def, db)];
+/** A Space automation runs as its own service, which is not the author. It may use only what a person published. */
+function unpublishedForSpace(def: Definition, db: Db): Issue[] {
+  const out: Issue[] = [];
+  for (const n of def.nodes) {
+    if (storedLevel(db, n.key) === "tested") out.push(issue("error", `${n.title ?? n.key} is only tested. Publish the connector before a Space automation uses it.`, n.id));
+  }
+  for (const t of def.triggers) {
+    const at = t.key === "app_event" ? appEventOf(t) : undefined;
+    if (at && storedLevel(db, triggerLevelKey(at.app, at.trigger)) === "tested") out.push(issue("error", `The trigger ${at.trigger} is only tested. Publish the connector before a Space automation uses it.`));
+  }
+  return out;
+}
+
+function blocksGoingLive(def: Definition, policy: Policy, db: Db, kind: "personal" | "space" = "personal"): Issue[] {
+  return [...validateDefinition(def, policy), ...previewLiveIssues(def), ...admissionIssues(def), ...draftedActionIssues(def, db), ...draftedTriggerIssues(def, db), ...(kind === "space" ? unpublishedForSpace(def, db) : [])];
 }
 
 // ---- reads ----
@@ -335,9 +371,11 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
 export async function triggersList(): Promise<unknown> {
   return { triggers: registry.triggers.map((t) => ({ key: t.key, title: t.title, payload: t.payload, sample: t.sample, personalOk: t.personalOk, allowSelfTrigger: t.allowSelfTrigger })) };
 }
-export async function stepsList(_ctx: AutoCtx, input: In): Promise<unknown> {
+export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
   const steps = registry.steps.filter((s) => !HIDDEN_STEPS.has(s.key) && (!input.category || s.category === input.category));
-  return { steps: steps.map((s) => clean({ key: s.key, title: s.title, category: s.category, kind: s.kind, input: s.input, output: s.output, effects: s.effects, gateAct: s.gateAct })) };
+  const built = steps.map((s) => clean({ key: s.key, title: s.title, category: s.category, kind: s.kind, input: s.input, output: s.output, effects: s.effects, gateAct: s.gateAct }));
+  const written = connectorSteps(ctx).filter((s) => !input.category || s.category === input.category);
+  return { steps: [...built, ...written] };
 }
 
 // ---- create, update, versions ----
@@ -384,7 +422,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
     const policy = readPolicy(ctx.db);
-    const blocking = a.status === "on" ? blocksGoingLive(input.definition, policy, ctx.db) : validateDefinition(input.definition, policy);
+    const blocking = a.status === "on" ? blocksGoingLive(input.definition, policy, ctx.db, a.kind) : validateDefinition(input.definition, policy);
     if (a.status === "on" && hasErrors(blocking)) {
       raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
     }
@@ -407,10 +445,10 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   if (input.enabled) {
     if (a.status === "on") return { automation: out(a) };
-    const issues = blocksGoingLive(a.definition, readPolicy(ctx.db), ctx.db);
+    const issues = blocksGoingLive(a.definition, readPolicy(ctx.db), ctx.db, a.kind);
     if (hasErrors(issues)) {
       const preview = previewLiveIssues(a.definition);
-      const drafted = draftedActionIssues(a.definition, ctx.db);
+      const drafted = [...draftedActionIssues(a.definition, ctx.db), ...draftedTriggerIssues(a.definition, ctx.db)];
       const reason = preview.length > 0 ? "preview" : drafted.length > 0 ? "draft" : "invalid_definition";
       raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason, issues });
     }
@@ -457,7 +495,7 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
   refuseSecret(ctx, v.definition);
-  const restored = a.status === "on" ? blocksGoingLive(v.definition, readPolicy(ctx.db), ctx.db) : validateDefinition(v.definition, readPolicy(ctx.db));
+  const restored = a.status === "on" ? blocksGoingLive(v.definition, readPolicy(ctx.db), ctx.db, a.kind) : validateDefinition(v.definition, readPolicy(ctx.db));
   if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
   }
