@@ -1,6 +1,6 @@
 # automations.replay
 
-Run a past run again on the same definition version or the current one
+Live rerun of a past run on the same definition version or the current one, not a sandbox replay
 
 | | |
 |---|---|
@@ -14,7 +14,7 @@ Run a past run again on the same definition version or the current one
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
-| Audit | none |
+| Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/automations/replay |
 | MCP tool | automations_replay (automations) |
@@ -28,6 +28,7 @@ type In = {
   automationId: string;
   runId: string;
   version: "same" | "current";
+  confirm: true;
 };
 ```
 
@@ -46,6 +47,7 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
+- validation.precondition_failed
 
 ## Example
 
@@ -54,6 +56,7 @@ type Out = {
   "name": "example",
   "input": {
     "automationId": "aut_a1b2c3",
+    "confirm": true,
     "runId": "run_a1b2c3",
     "version": "same"
   },

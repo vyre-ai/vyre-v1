@@ -35,7 +35,9 @@ const providerRow = t.obj({
   itemId: id.vaultItem, handle: t.opt(id.handle), agentsUsing: t.arr(id.agent),
   usage: t.obj({ tokens: t.int({ minimum: 0 }), costCents: t.int({ minimum: 0 }), periodStart: t.ts() }),
   engine: t.str({ examples: ['claude-code'] }), spaceMayUse: t.bool(), state: t.enm('ok', 'needs_sign_in', 'failing'),
+  address: t.opt(t.str({ description: 'The address a local model or custom endpoint is reached at' })), keyless: t.opt(t.bool()),
 });
+const customEndpoint = t.obj({ key: t.str({ examples: ['custom-acme-gateway'] }), name: t.str(), base: t.str(), keyless: t.bool(), models: t.arr(t.str()), connected: t.int({ minimum: 0 }) });
 const exportRow = t.obj({ id: t.id('vex'), folderId: id.vaultFolder, by: id.user, expiresAt: t.ts(), pulled: t.bool() });
 const exportPolicy = t.obj({ exportRoles: t.arr(t.str()), pullExpiryMax: t.enm('1h', '1d', '7d'), blockRestrictedExport: t.lit(true), revealNeedsReason: t.bool() });
 const historyRow = t.obj({
@@ -55,7 +57,7 @@ export default defineManifest({
     ev('vault.exported', 'A .env file was made from a folder; the folder owner is notified', { p: { exportId: t.id('vex'), folderId: id.vaultFolder, itemCount: t.int({ minimum: 0 }), expiresAt: t.ts() }, subject: ['vault_folder', '/folderId'], vis: 'participants', retention: 'audit' }),
     ev('vault.export_revoked', 'An export pull link was revoked before it expired', { p: { exportId: t.id('vex'), folderId: id.vaultFolder }, subject: ['vault_folder', '/folderId'], retention: 'audit' }),
     ev('vault.scrub_miss', 'The output scrubber failed to remove a value from a stream (value not recorded)', { p: { itemId: id.vaultItem, place: t.enm('terminal', 'http', 'browser', 'file', 'chat'), traceId: id.trace }, subject: ['vault_item', '/itemId'], vis: 'participants', retention: 'audit' }),
-    ev('vault.item_created', 'An item was added', { p: { itemId: id.vaultItem, kind: itemKind, folderId: id.vaultFolder, scope: t.enm('mine', 'shared') }, subject: ['vault_item', '/itemId'], vis: 'participants' }),
+    ev('vault.item_created', 'An item was added', { p: { itemId: id.vaultItem, kind: itemKind, folderId: id.vaultFolder, scope: t.enm('mine', 'shared'), name: t.opt(t.str()) }, subject: ['vault_item', '/itemId'], vis: 'participants' }),
     ev('vault.item_updated', 'Fields or settings of an item changed (field keys only)', { p: { itemId: id.vaultItem, fieldsChanged: t.arr(fieldKey), settingsChanged: t.arr(t.str()) }, subject: ['vault_item', '/itemId'], vis: 'participants' }),
     ev('vault.item_moved', 'An item moved to another folder (re-encrypted when it crosses Mine and Shared)', { p: { itemId: id.vaultItem, fromFolderId: id.vaultFolder, toFolderId: id.vaultFolder }, subject: ['vault_item', '/itemId'], vis: 'participants' }),
     ev('vault.item_deleted', 'An item moved to Trash', { p: { itemId: id.vaultItem }, subject: ['vault_item', '/itemId'], vis: 'participants' }),
@@ -179,7 +181,7 @@ export default defineManifest({
 
     // ---- AI providers (top of the Vault)
     read('providers.catalog', 'The provider gallery from the definition files: name, logo, connection kinds, model list source, engine', {
-      ...V, in: {}, out: { providers: t.arr(t.obj({ key: t.str(), name: t.str(), logo: t.opt(t.str()), connections: t.arr(t.enm('subscription', 'api_key', 'local_model')), modelsSource: t.str(), engine: t.str() })) }, tool: 'vault',
+      ...V, in: {}, out: { providers: t.arr(t.obj({ key: t.str(), name: t.str(), logo: t.opt(t.str()), connections: t.arr(t.enm('subscription', 'api_key', 'local_model')), modelsSource: t.str(), engine: t.str(), custom: t.opt(t.bool()), base: t.opt(t.str()) })) }, tool: 'vault',
     }),
     read('providers.list', 'My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month\'s usage', { ...V, in: {}, out: { providers: t.arr(providerRow) }, tool: 'vault' }),
     write('providers.add', 'Connect a provider with a pasted API key (stored once, used by handle) or a local model address', {
@@ -196,6 +198,14 @@ export default defineManifest({
       ...V, in: { providerId: t.id('prv'), allow: t.bool() }, out: { provider: providerRow }, emits: ['provider.updated'], audit: 'always', tool: 'vault', offline: 'online',
     }),
     read('providers.test', 'Test a provider connection and list the models it offers', { ...V, in: { providerId: t.id('prv') }, out: { ok: t.bool(), models: t.arr(t.str()), latencyMs: t.int({ minimum: 0 }), detail: t.opt(t.str()) }, tool: 'vault', offline: 'online' }),
+    write('providers.custom_add', 'Register an OpenAI-compatible endpoint (a gateway, vLLM, LiteLLM, a hosted model) by base address and connect it with my key, held in the Vault by handle', {
+      ...V, idem: 'key', in: { name: t.str({ examples: ['Acme gateway'] }), baseUrl: t.str({ examples: ['https://llm.acme.test/v1'] }), apiKey: t.opt(t.str()), models: t.opt(t.arr(t.str())), scope: t.enm('mine', 'shared'), folderId: t.opt(id.vaultFolder) },
+      out: { endpoint: customEndpoint, provider: providerRow }, emits: ['provider.added', 'vault.item_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate'],
+    }),
+    read('providers.custom_list', 'The custom OpenAI-compatible endpoints this Space registered', { ...V, in: {}, out: { endpoints: t.arr(customEndpoint) }, tool: 'vault' }),
+    write('providers.custom_remove', 'Remove a custom endpoint I registered, and my connections to it', {
+      ...V, in: { key: t.str() }, out: ok, emits: ['provider.removed', 'vault.item_deleted'], audit: 'always', gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'vault', offline: 'online', errors: ['validation.precondition_failed'],
+    }),
     write('providers.remove', 'Remove a provider and its key or sign-in', { ...V, in: { providerId: t.id('prv') }, out: ok, emits: ['provider.removed', 'vault.item_deleted'], audit: 'always', gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'vault', offline: 'online' }),
 
     // ---- health probe
