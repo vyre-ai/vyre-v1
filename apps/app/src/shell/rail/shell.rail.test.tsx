@@ -1,4 +1,4 @@
-// The rail (spec 3.0, 2.1) and the Space tile menu: Kit-defined places, counts and dots, the Console only with access, a Personal Space that keeps Apps (and says so in the place).
+// The rail (spec 3.0, 2.1) and the Space tile menu: Kit-defined places, counts and dots, the Console only with access, a Personal Space that hides the team-only Apps.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -19,7 +19,7 @@ test("each Space's Kit draws its own rail and the Console shows only with access
   assert.deepEqual(railPlaces(rail(NORTHWIND)), ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console", "join"]);
   assert.deepEqual(railPlaces(rail(HARBOR)), ["home", "chats", "inbox", "files", "apps", "vault", "settings", "join"]);
   assert.ok(!railPlaces(rail(PERSONAL)).includes("console"));
-  assert.ok(railPlaces(rail(PERSONAL)).includes("apps"), "a Personal Space keeps Apps in the rail; the place says it needs a Team Space");
+  assert.ok(!railPlaces(rail(PERSONAL)).includes("apps"), "a Personal Space hides Apps: forms, campaigns and sending domains are for a team");
   const noAccess = railFor({ kit: kitById("northwind"), console: false, counts: {}, dots: {}, active: "home" });
   assert.ok(!railPlaces(noAccess).includes("console"), "no console.access, no Console button");
   assert.equal(kitById("nope").id, "northwind", "an unknown Kit falls back to the default");

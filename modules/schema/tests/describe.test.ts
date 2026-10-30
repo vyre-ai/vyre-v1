@@ -155,3 +155,10 @@ test("sensitivity scan: ID, card and health text are found, nothing is returned 
   const text = JSON.stringify(out);
   assert.ok(!text.includes("123-45-6789") && !text.includes("4111") && !text.includes("metformin"), "no value leaves");
 });
+
+test("a new Space starts with the neutral set: Kit types arrive with their Kit, the default Kit's stay", async () => {
+  const { h, ctx } = kit();
+  const keys = (await h["schema.describe"](ctx, {})).types.map((t) => t.key);
+  for (const k of ["matter", "lead", "client_plan", "commission"]) assert.ok(!keys.includes(k), `${k} is not seeded`);
+  for (const k of ["contact", "company", "project", "task", "note_board", "agent"]) assert.ok(keys.includes(k), `${k} is seeded`);
+});

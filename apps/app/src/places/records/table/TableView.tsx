@@ -541,10 +541,22 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const saveView = (): void => {
     void data.call("views.save", { type, ...(saved ? { viewId: saved.viewId } : {}), kind: "table", title: saved?.title ?? `${def.plural} view`, ...toSaved(v), idempotencyKey: `view-${type}-${Date.now()}` });
   };
-  const newRecord = (): void => {
-    void data.call("records.create", { type, fields: {}, idempotencyKey: `new-${type}-${Date.now()}` }).then((out) => {
+  /** New: ask for the title first (the field every record needs), create, open it. A refusal shows its reason in the bar; nothing fails silently. */
+  const [adding, setAdding] = useState<{ name: string; busy: boolean; error?: string } | null>(null);
+  const titleLabel = (def.fields.find((f) => f.key === def.titleField)?.title ?? "name").toLowerCase();
+  const startNew = (): void => setAdding({ name: `New ${def.title.toLowerCase()}`, busy: false });   // the prototype starts a new row with this name, selected: Enter saves, Esc cancels
+  const createNew = (): void => {
+    if (adding === null || adding.busy) return;
+    const name = adding.name.trim();
+    if (name === "") { setAdding({ ...adding, error: `Give the ${def.title.toLowerCase()} a ${titleLabel}.` }); return; }
+    setAdding({ name, busy: true });
+    data.call("records.create", { type, fields: { [def.titleField]: name }, idempotencyKey: `new-${type}-${Date.now()}` }).then((out) => {
+      setAdding(null);
       const id = (out as { record?: { id?: string } } | undefined)?.record?.id;
       if (id) data.nav.openRecord(id);
+    }, (e: unknown) => {
+      const x = e as { error?: { message?: string }; message?: string };
+      setAdding({ name, busy: false, error: x?.error?.message ?? x?.message ?? `Could not create the ${def.title.toLowerCase()}.` });
     });
   };
   const nPicked = pickCount(sel, count ?? 0);
@@ -691,9 +703,22 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={keep("fields")} />
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={slim} testID="records-colour" onPress={keep("colour")} />
         {headerExtra}
-        <HeadButton icon="plus" label="New" bare={slim} filled testID="records-new" onPress={newRecord} />
+        <HeadButton icon="plus" label="New" bare={slim} filled testID="records-new" onPress={startNew} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
+      {adding ? (
+        <View style={styles.draft} accessibilityRole="toolbar" testID="records-adding">
+          <View style={[styles.rn, styles.draftGutter]}><Text style={styles.footText}>+</Text></View>
+          <TextInput
+            value={adding.name} onChangeText={(t) => setAdding({ name: t, busy: false })} placeholder={`New ${def.title.toLowerCase()}`} placeholderTextColor="var(--ink-3)" accessibilityLabel={`New ${def.title.toLowerCase()}`} testID="records-adding-input"
+            autoFocus selectTextOnFocus editable={!adding.busy} onSubmitEditing={createNew} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setAdding(null); }} style={[styles.draftInput, { width: (primary?.width ?? 240) - 14 }]}
+          />
+          {adding.error ? <Text style={[styles.footText, styles.pickDanger]} accessibilityRole="alert" testID="records-adding-error">{adding.error}</Text> : <Text style={styles.footText}>{adding.busy ? "Creating…" : "Enter saves, Esc cancels"}</Text>}
+          <View style={styles.grow} />
+          <Pressable accessibilityRole="button" testID="records-adding-create" disabled={adding.busy} onPress={createNew} style={styles.pickLink}><Text style={styles.pickLinkText}>Create</Text></Pressable>
+          <Pressable accessibilityRole="button" testID="records-adding-cancel" onPress={() => setAdding(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Cancel</Text></Pressable>
+        </View>
+      ) : null}
       {work ? (
         <View style={styles.pickBar} accessibilityRole="alert" testID="records-work">
           {work.kind === "confirm" ? (
@@ -739,7 +764,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       ) : null}
       <View style={styles.sheet} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} {...({ onKeyDown } as object)}>
         {count === 0 && !items?.length ? (
-          <States kind="empty" title={v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: newRecord } })} />
+          <States kind="empty" title={v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: startNew } })} />
         ) : (
           <Scroller
             handle={scroller} width={width} height={total * ROW_H} onScroll={onScroll}
@@ -751,20 +776,10 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
                 {headCells}
               </View>
             )}
-            footer={(
+            footer={!cols.some((c) => aggregateOf(c.field, loaded?.rows ?? []) !== "") ? null : (
               <View style={[styles.tf, { width }]} testID="records-foot">
                 <View style={[styles.rn, STICKY(0), styles.headBg]} />
                 <View style={[styles.td, STICKY(GUTTER), styles.headBg, { width: primary?.width ?? 280 }]}>
-                  <Text style={styles.footText} testID="records-count">{count === null ? "" : `${count.toLocaleString("en-US")} ${count === 1 ? "record" : "records"}`}</Text>
-                  {jump === null ? (
-                    <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
-                  ) : (
-                    <TextInput
-                      value={jump} onChangeText={(t) => setJump(t.replace(/\D/g, ""))} placeholder="Row number" placeholderTextColor="var(--ink-3)" accessibilityLabel="Go to row" testID="records-goto-input" autoFocus keyboardType="number-pad"
-                      onSubmitEditing={() => { if (jump) goTo(Number(jump) - 1); setJump(null); }} onBlur={() => setJump(null)}
-                      onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setJump(null); if (e.nativeEvent.key === "Enter" && jump) { goTo(Number(jump) - 1); setJump(null); } }} style={styles.gotoInput}
-                    />
-                  )}
                 </View>
                 {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
                 {/* ui-rows-lint: not a list (the foot has one figure cell per column) */}
@@ -785,7 +800,17 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       </View>
       {count === null ? null : (
         <View style={styles.statusBar} testID="records-status">
-          <Text style={styles.footText}>{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
+          <Text style={styles.footText} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
+          <View style={styles.grow} />
+          {jump === null ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
+          ) : (
+            <TextInput
+              value={jump} onChangeText={(t) => setJump(t.replace(/\D/g, ""))} placeholder="Row number" placeholderTextColor="var(--ink-3)" accessibilityLabel="Go to row" testID="records-goto-input" autoFocus keyboardType="number-pad"
+              onSubmitEditing={() => { if (jump) goTo(Number(jump) - 1); setJump(null); }} onBlur={() => setJump(null)}
+              onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setJump(null); if (e.nativeEvent.key === "Enter" && jump) { goTo(Number(jump) - 1); setJump(null); } }} style={styles.gotoInput}
+            />
+          )}
         </View>
       )}
       {menu.element}
@@ -876,6 +901,9 @@ const styles = StyleSheet.create({
   cbOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   goto: { marginLeft: 14, paddingHorizontal: 6, height: 22, justifyContent: "center", borderRadius: 5 },
   gotoInput: { marginLeft: 14, width: 96, height: 22, paddingHorizontal: 6, fontSize: 12, color: "var(--ink)" as string, borderRadius: 5, borderWidth: 1, borderColor: "var(--line)" as string },
+  draft: { height: ROW_H, flexDirection: "row", alignItems: "center", gap: 10, paddingRight: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  draftGutter: { width: GUTTER, alignItems: "center", justifyContent: "center" },
+  draftInput: { height: 26, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--win)" as string, fontSize: 13, color: "var(--ink)" as string, borderWidth: 1, borderColor: "var(--accent)" as string },
   pickBar: { height: 34, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   pickBarText: { fontSize: 12.5, color: "var(--ink)" as string },
   pickLink: { height: 24, justifyContent: "center", paddingHorizontal: 4 },
@@ -906,7 +934,7 @@ const styles = StyleSheet.create({
   groupText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   groupCount: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   chevShut: { transform: [{ rotate: "-90deg" }] },
-  statusBar: { height: 28, justifyContent: "center", paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  statusBar: { height: 28, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   tf: { height: 32, flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   footText: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   skRow: { flexDirection: "row", alignItems: "center", gap: 18, height: ROW_H, paddingHorizontal: 18 },
