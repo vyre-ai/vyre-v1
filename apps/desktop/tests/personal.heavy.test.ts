@@ -225,8 +225,13 @@ test("the built app starts Personal, claims over HTTP, imports fixture sessions 
       const msgs = ok(await post(state.url, state.token, "chat.messages.list", { threadId: state.chatThread }), "chat.messages.list").messages as { author?: { kind?: string }; body?: string }[];
       return msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine."));
     }, 60_000, first.out);
-    const turns = ok(await post(state.url, state.token, "engine.turns.list", { threadId: state.chatThread }), "engine.turns.list").turns as { state: string; tokensIn: number; tokensOut: number }[];
-    assert.ok(turns.some((t) => t.state === "completed" && t.tokensIn > 0 && t.tokensOut > 0), `a completed turn holds the usage: ${JSON.stringify(turns)}`);
+    // The turn's usage is what a CLI turn leaves behind that the spend caps and the usage page read: engine_usage, written through engine.turn.record_usage when the turn ends, which can be just after the
+    // reply is posted, so wait for it. (engine.turns.list reads engine_turns, which only the worker capabilities engine.turn.start and finish write; the in-process turn engine that runs a chat turn does not.)
+    const usage = await until("the CLI turn's usage in engine.usage.query", async () => {
+      const u = ok(await post(state.url, state.token, "engine.usage.query", { by: "agent", agentId: agent }), "engine.usage.query").rows as { key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }[];
+      return u.find((r) => r.key === agent && r.totals.turns >= 1 && r.totals.tokensIn > 0 && r.totals.tokensOut > 0) ?? null;
+    }, 20_000, first.out);
+    assert.ok(usage, "a completed turn holds the usage");
   } finally {
     c.close();
     if (first.app.exitCode === null) await quit(first.app).catch(() => first.app.kill("SIGKILL"));
