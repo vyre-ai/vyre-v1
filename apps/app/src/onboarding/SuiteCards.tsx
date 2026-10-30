@@ -20,7 +20,7 @@ export function WorkspaceCard({ call, onOpenConsole, onDone }: { call: CapCall; 
   const rows = c ? [c.google, c.microsoft] : [];
   return (
     <View testID="workspace-card" style={s.col}>
-      <Text style={s.line}>Connect Google Workspace or Microsoft 365 so people and mailboxes come in. The admin steps are in the Console, with secure fields for keys and a live test.</Text>
+      <Text style={s.line}>Connect Google Workspace or Microsoft 365.</Text>
       {/* ui-rows-lint: not a list (two status lines of text, not list rows) */}
       {c === null ? <Text style={s.dim}>Checking</Text> : rows.map((p, i) => <Text key={i} testID={`workspace-${i === 0 ? "google" : "microsoft"}`} style={s.dim}>{p.kind === "ready" ? `${p.value.name}: ${p.value.note}` : `${i === 0 ? "Google Workspace" : "Microsoft 365"}: ${line(p, "")}`}</Text>)}
       <Buttons><Go id="workspace-open" label="Open the setup in the Console" onPress={onOpenConsole} />{c && stepDoneBy(c) ? <Go id="workspace-done" label="Done" ghost onPress={onDone} /> : null}</Buttons>
@@ -38,7 +38,7 @@ export function SignInDomainCard({ call, onOpenConsole, onSetUp, onDone }: { cal
   const list = p?.kind === "ready" ? p.value : [];
   return (
     <View testID="signin-domain-card" style={s.col}>
-      <Text style={s.line}>Let people sign in with their work account for your domain, in the same app. Only existing members and people with an accepted invite can sign in.</Text>
+      <Text style={s.line}>Sign in with a work account, in the same app.</Text>
       {/* ui-rows-lint: not a list (each sign-in setup is a block with its own status and buttons, not a list row) */}
       {p === null ? <Text style={s.dim}>Checking</Text> : p.kind !== "ready" ? <Text style={s.dim}>{line(p, "")}</Text> : list.length === 0 ? <Text testID="signin-none" style={s.dim}>Not turned on yet. Press Set up to add your Google or Microsoft app.</Text> : list.map((x) => (
         <View key={x.key} style={s.col}>
@@ -89,7 +89,7 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone }: { call
   };
   return (
     <View testID="directory-card" style={s.col}>
-      <Text style={s.line}>Tick the people to bring in. Each gets an invite as a Member. Nothing is sent until you press send on the drafts below.</Text>
+      <Text style={s.line}>Tick the people to bring in. Nothing sends until you press send.</Text>
       {state === "loading" ? <Text style={s.dim}>Checking</Text> : state !== "ready" ? <Text testID="directory-status" style={s.dim}>{state === "not_yet" ? NOT_YET : "Could not read this right now."}</Text> : shown.length === 0 ? <Text testID="directory-status" style={s.dim}>Everyone in your directory is already here.</Text> : (
         <View style={s.col}>
           {/* ui-rows-lint: not a list (the people to bring in are checkbox choices on a card, not list rows) */}

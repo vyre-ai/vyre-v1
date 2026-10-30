@@ -23,7 +23,7 @@ export function PairPhoneCard({ call, address, onPaired }: { call: CapCall; addr
   return (
     <View testID="pair-phone" style={s.col}>
       {link ? <Text selectable testID="pair-link" style={s.link}>{link}</Text> : null}
-      {link ? <Text style={s.dim}>Open this on your phone. It works once and expires in ten minutes.</Text> : <Text style={s.dim}>Make a link and open it on your phone to pair it.</Text>}
+      {link ? <Text style={s.dim}>Open it on your phone. It works once, for ten minutes.</Text> : <Text style={s.dim}>Make a link, open it on your phone.</Text>}
       {error ? <Text testID="pair-error" style={s.err}>{error}</Text> : null}
       <View style={s.row}>
         <Pressable testID="pair-make" accessibilityRole="button" disabled={busy} onPress={() => void make()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{link ? "Make a new link" : "Make a pairing link"}</Text></Pressable>

@@ -23,7 +23,7 @@ export function KitPickCard({ call, onInstalled }: { call: CapCall; onInstalled(
   };
   return (
     <View testID="kit-pick" style={s.col}>
-      <Text style={s.line}>Pick the Kit that fits your kind of work. It sets up the agents, record types and routines to start from.</Text>
+      <Text style={s.line}>Pick the Kit for your kind of work.</Text>
       {kits === null && !error ? <Text style={s.dim}>Loading Kits</Text> : null}
       {/* ui-rows-lint: not a list (Kit choices are tiles, not list rows) */}
       <View style={s.row}>{(kits ?? []).map((k) => (
