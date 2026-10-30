@@ -123,8 +123,8 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         const container = typeof given === "string" && given !== id && (deps.exists(given) || seen.has(given)) ? given : a.space;
         // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for
         const named = OWNER_NAMED.has(s.type) ? pointer(ev.payload, OWNER_NAMED.get(s.type)!) : undefined;
-        // a calendar that says it is private (a member's own Google or Outlook calendar, a Personal one) does not inherit the Space's access: the owner has it, and anyone they share it with
-        const privateRoot = s.type === "calendar" && pointer(ev.payload, "/private") === true;
+        // a calendar or mailbox that says it is private (a member's own Google or Outlook calendar or mail, a Personal calendar) does not inherit the Space's access: the owner has it, and anyone they share it with
+        const privateRoot = (s.type === "calendar" || s.type === "mailbox") && pointer(ev.payload, "/private") === true;
         out.push({ id, type: s.type, parent_id: s.type === "space" || privateRoot ? null : container, label: 0, owner_id: typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
       }
       return out;
