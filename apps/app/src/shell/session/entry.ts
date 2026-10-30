@@ -14,6 +14,11 @@ export function entryTarget(raw:string):EntryTarget|null{
  if(/^\/claim\/[A-Za-z0-9_-]{16,256}$/.test(url.pathname)&&new URLSearchParams(url.hash.slice(1)).has('s'))return{kind:'claim',address,url:url.href};
  return null;
 }
+/** The desktop shell on a Mac, the one place "Run this Mac as the Space server" is offered (a phone browser also says Mac in its user agent, so iPhone and iPad are left out). */
+export function isMacShell(nav:{platform?:string;userAgent?:string}|undefined=(globalThis as {navigator?:{platform?:string;userAgent?:string}}).navigator):boolean{
+ const text=`${nav?.platform??''} ${nav?.userAgent??''}`;
+ return /Mac/.test(text)&&!/iPhone|iPad|iPod/.test(text);
+}
 export function lockedIdentity(input:{baseUrl:string;personId:string;name?:string;[key:string]:unknown}):LockedIdentity{return{address:input.baseUrl,personId:input.personId,name:input.name||'Your account'};}
 const LOCK_KEY='vyre.locked.v1';
 const storage=()=>{try{return(globalThis as {sessionStorage?:Storage}).sessionStorage;}catch{return undefined;}};

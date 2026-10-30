@@ -4,7 +4,7 @@
 // capabilities bind to the calendar_event row, whose ACL comes from its calendar.
 // DECISION: create, update, delete and respond are plain writes (the provider sends invitations when the outbox syncs).
 // For agents, automations and campaigns they are held by the Gate act 'send' when the event has attendees.
-import { bindInputs, defineManifest, entity, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
+import { bindInputs, defineManifest, entity, ev, health, read, screen, step, t, write } from '../packages/contracts/src/index.ts';
 import { email, id, pageIn, pageOut } from './_common.ts';
 
 const calId = t.id('cld');
@@ -143,6 +143,18 @@ const manifest = defineManifest({
         link: ['calendar.link_record', { eventId: '/state/eventId', recordIds: '/state/recordIds' }],
       },
       empty: 'Event not found',
+    }),
+  ],
+  steps: [
+    step('calendar.list_events', 'Calendar · List events', 'data', 'capability', {
+      cap: 'calendar.list_events', effects: 'read',
+      in: { from: t.ts(), to: t.ts(), calendarIds: t.opt(t.arr(calId)), query: t.opt(t.str()) },
+      out: { events: t.arr(eventRow) },
+    }),
+    step('calendar.create_event', 'Calendar · Create an event', 'send', 'capability', {
+      cap: 'calendar.create_event', effects: 'write', gateAct: 'send', idempotency: 'key',
+      in: eventFields,
+      out: { event: eventRow },
     }),
   ],
 });

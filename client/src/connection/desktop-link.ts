@@ -141,12 +141,20 @@ export function shellDesktopLinkBridge(g: TauriGlobal = globalThis as never): De
 }
 
 export interface DesktopPersonalSpace {address:string;spaceId:string;claimUrl:string|null}
+/** The handoff the shell gives for a Space it runs on this computer: loopback address, Space id, and the owner setup link until the Space is claimed. */
+function checkedLocalSpace(value:unknown,label:string):DesktopPersonalSpace{
+ const raw=record(value);const address=text(raw?.['address']),spaceId=text(raw?.['spaceId']),claimUrl=nullableText(raw?.['claimUrl']);
+ if(!address||!spaceId?.startsWith('spc_')||claimUrl===undefined)throw new Error(`Invalid ${label} response`);
+ let base:URL;try{base=new URL(address);}catch{throw new Error(`Invalid ${label} address`);}
+ if(base.protocol!=='http:'||base.hostname!=='127.0.0.1'||!base.port||base.pathname!=='/'||base.username||base.password||base.search||base.hash)throw new Error(`Invalid ${label} address`);
+ if(claimUrl!==null){let claim:URL;try{claim=new URL(claimUrl);}catch{throw new Error(`Invalid ${label} setup`);}if(claim.origin!==base.origin||claim.username||claim.password||claim.search||!/^\/claim\/[A-Za-z0-9_-]{16,256}$/.test(claim.pathname)||new URLSearchParams(claim.hash.slice(1)).get('s')!==spaceId||hasControlCharacters(claimUrl))throw new Error(`Invalid ${label} setup`);}
+ return{address:base.origin,spaceId,claimUrl};
+}
 /** Native command has no caller arguments; validate its fixed local profile handoff before use. */
 export async function ensurePersonalSpace(invoke:Invoke):Promise<DesktopPersonalSpace>{
- const raw=record(await invoke('ensure_personal_space'));const address=text(raw?.['address']),spaceId=text(raw?.['spaceId']),claimUrl=nullableText(raw?.['claimUrl']);
- if(!address||!spaceId?.startsWith('spc_')||claimUrl===undefined)throw new Error('Invalid Personal Space response');
- let base:URL;try{base=new URL(address);}catch{throw new Error('Invalid Personal Space address');}
- if(base.protocol!=='http:'||base.hostname!=='127.0.0.1'||!base.port||base.pathname!=='/'||base.username||base.password||base.search||base.hash)throw new Error('Invalid Personal Space address');
- if(claimUrl!==null){let claim:URL;try{claim=new URL(claimUrl);}catch{throw new Error('Invalid Personal Space setup');}if(claim.origin!==base.origin||claim.username||claim.password||claim.search||!/^\/claim\/[A-Za-z0-9_-]{16,256}$/.test(claim.pathname)||new URLSearchParams(claim.hash.slice(1)).get('s')!==spaceId||hasControlCharacters(claimUrl))throw new Error('Invalid Personal Space setup');}
- return{address:base.origin,spaceId,claimUrl};
+ return checkedLocalSpace(await invoke('ensure_personal_space'),'Personal Space');
+}
+/** "Run this Mac as the Space server": one fixed command, no arguments. The shell runs a Team Space on this Mac (relay by default) and answers like the Personal one. */
+export async function ensureMacServer(invoke:Invoke):Promise<DesktopPersonalSpace>{
+ return checkedLocalSpace(await invoke('ensure_mac_server'),'Mac server');
 }

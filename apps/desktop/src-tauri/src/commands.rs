@@ -1,5 +1,6 @@
 // The shell's whole surface to the page (window.__TAURI__.core.invoke). Two commands, one event per kind:
 //   notify, pick_paths, set_badge   the native features (native.rs)
+//   ensure_personal_space(), ensure_mac_server()   the Space this computer hosts (personal.rs, macserver.rs)
 //   desktop_info()        platform, app version and the sidecar status (address once it answers /healthz)
 //   take_pending_link()   a Vyre link that arrived before the page was listening, once
 //   page_report(kind, text)  what the shell's own load hook (lib.rs PAGE_PROBE) tells us: script errors and the rendered size, to the log only
@@ -39,6 +40,7 @@ impl LinkHandoff {
 pub struct AppState {
     pub sidecar: Shared,
     pub personal: Shared,
+    pub server: Shared,
     pub links: Mutex<LinkHandoff>,
     pub native: crate::native::NativeState,
 }
@@ -68,6 +70,13 @@ pub fn desktop_info(app: AppHandle, state: State<'_, AppState>) -> Info {
 pub async fn ensure_personal_space(app: AppHandle, state: State<'_, AppState>) -> Result<crate::personal::PersonalSpace, String> {
     let shared=state.personal.clone();
     tauri::async_runtime::spawn_blocking(move || crate::personal::ensure(&app,&shared)).await.map_err(|_| "Personal Space startup stopped".to_string())?
+}
+
+/// "Run this Mac as the Space server": the fixed Team Space the app hosts on a Mac, linked to the relay. The page supplies no path, port, relay or argument.
+#[tauri::command]
+pub async fn ensure_mac_server(app: AppHandle, state: State<'_, AppState>) -> Result<crate::personal::PersonalSpace, String> {
+    let shared = state.server.clone();
+    tauri::async_runtime::spawn_blocking(move || crate::macserver::ensure(&app, &shared)).await.map_err(|_| "The server on this Mac stopped while starting".to_string())?
 }
 
 #[tauri::command]

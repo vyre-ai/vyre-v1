@@ -1,0 +1,46 @@
+{
+  "targets": [
+    {
+      "id": "SUITE_01-google-new",
+      "route": "/m/SUITE_01?part=google-new",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='console-google']",
+      "note": "Google Workspace, not set up: reads healthy with a hint, and the five numbered steps with the exact scopes to copy. The prototype has no Console; its image is the Home place for scale only."
+    },
+    {
+      "id": "SUITE_01-google-bad",
+      "route": "/m/SUITE_01?part=google-bad",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='console-google']",
+      "note": "Google Workspace, connected with a failed check: services degraded with the fix named, members with Include and Exclude. The prototype has no Console; its image is the Home place for scale only."
+    },
+    {
+      "id": "SUITE_01-google-ok",
+      "route": "/m/SUITE_01?part=google-ok",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='console-google']",
+      "note": "Google Workspace, healthy: every service healthy, members included. The prototype has no Console; its image is the Home place for scale only."
+    },
+    {
+      "id": "SUITE_01-ms-new",
+      "route": "/m/SUITE_01?part=ms-new",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='console-microsoft']",
+      "note": "Microsoft 365, not set up: seven numbered steps with the application permissions to copy. The prototype has no Console; its image is the Home place for scale only."
+    },
+    {
+      "id": "SUITE_01-ms-bad",
+      "route": "/m/SUITE_01?part=ms-bad",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='console-microsoft']",
+      "note": "Microsoft 365, consent not given: services degraded, the consent link, the access policy script, members. The prototype has no Console; its image is the Home place for scale only."
+    },
+    {
+      "id": "SUITE_01-ms-ok",
+      "route": "/m/SUITE_01?part=ms-ok",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='console-microsoft']",
+      "note": "Microsoft 365, healthy. The prototype has no Console; its image is the Home place for scale only."
+    }
+  ]
+}
