@@ -121,6 +121,9 @@ const LEVEL_RANK: Record<string, number> = { view: 0, use: 1, edit: 2, manage: 3
 export async function ensureHomeGrants(ctx: AgentsCtx, agentId: string, ownerId: string, folderId: string): Promise<number> {
   const marker = `agents.home_grants.v1:${agentId}`;
   if (meta(ctx.db, marker) !== undefined) return 0;
+  // A Personal Space has no sharing at all (access.share needs a Team Space), so there are no grants to write or to retry every pass.
+  const kind = await ctx.call?.("spaces.get", {}).then((r) => (r as { space?: { kind?: string } } | null)?.space?.kind, () => undefined);
+  if (kind === "personal") { setMeta(ctx.db, marker, "personal"); return 0; }
   const resource = { type: "folder", id: folderId };
   const have = await tolerant<{ shares?: Array<{ grant: { subject: { kind: string; id: string }; level: string } }> }>(ctx, "access.shares_of", { resource }, {});
   const holds = (kind: string, id: string, level: string): boolean =>

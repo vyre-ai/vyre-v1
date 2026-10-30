@@ -1,0 +1,1 @@
+- A Personal Space no longer tries to write folder grants for each agent every 15 seconds. It has no sharing, so the attempt only filled the log with two warnings per agent per pass.
