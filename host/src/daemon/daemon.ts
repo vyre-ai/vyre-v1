@@ -841,12 +841,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           storeSecret: async (secret, as) => {
             const seed = { space: spaceId, principal: as, origin: "module" } as const;
             const ask = async (cap: string, input: unknown): Promise<any> => { const r = await invokeRef(cap, input, seed); if (r.status !== "ok") throw new Error("The Vault needs approval first."); return r.output; };
-            const NAME = "GitHub sign-in client secret", field = { key: "client_secret", value: secret, secret: true };
-            const have = ((await ask("vault.items.list", { q: NAME })).items as { id: string; name: string; scope: string; handle: string }[]).find((i) => i.name === NAME && i.scope === "shared");
-            if (have) { await ask("vault.item.update", { itemId: have.id, fieldsSet: [field] }); return have.handle; }
-            const folders = (await ask("vault.folders.list", { scope: "shared" })).folders as { id: string }[];
-            const folderId = folders[0]?.id ?? (await ask("vault.folders.create", { name: "Space", scope: "shared", idempotencyKey: `gh-signin-folder-${spaceId}` })).folder.id;
-            return (await ask("vault.item.put", { folderId, name: NAME, kind: "api_key", fields: [field], spaceOnly: true, idempotencyKey: `gh-signin-secret-${Date.now()}` })).item.handle;
+            const NAME = "GitHub sign-in client secret", FOLDER = "Sign-in", field = { key: "client_secret", value: secret, secret: true };
+            // Owner and Admin only: a Member's role carries Edit over the whole Space, so the folder and the item are labelled Restricted (above a Member's, a Developer's and every agent's clearance) before and after the value goes in
+            const restrict = (type: "vault_folder" | "vault_item", id: string): Promise<unknown> => ask("access.labels.set", { resource: { type, id }, label: "restricted" });
+            const have = ((await ask("vault.items.list", { q: NAME })).items as { id: string; name: string; scope: string; handle: string; folderId?: string }[]).find((i) => i.name === NAME && i.scope === "shared");
+            if (have) { await restrict("vault_item", have.id); if (have.folderId) await restrict("vault_folder", have.folderId); await ask("vault.item.update", { itemId: have.id, fieldsSet: [field] }); return have.handle; }
+            const folders = (await ask("vault.folders.list", { scope: "shared" })).folders as { id: string; name: string }[];
+            const folderId = folders.find((f) => f.name === FOLDER)?.id ?? (await ask("vault.folders.create", { name: FOLDER, scope: "shared", idempotencyKey: `gh-signin-folder-${spaceId}` })).folder.id;
+            await restrict("vault_folder", folderId);
+            const put = (await ask("vault.item.put", { folderId, name: NAME, kind: "api_key", fields: [field], spaceOnly: true, idempotencyKey: `gh-signin-secret-${Date.now()}` })).item as { id: string; handle: string };
+            await restrict("vault_item", put.id);
+            return put.handle;
           },
           reload: () => reloadSpaceGithub(),
         } });

@@ -43,7 +43,9 @@ test("a directory person who accepts is matched to their own mailbox and calenda
   const w = await bootWorld({ prefix: "automatch", api, seam, secrets: { "#Google_DWD": KEY_JSON } });
   try {
     const folder = await w.ok(OWNER, "vault.folders.create", { name: "Company connections", scope: "shared", idempotencyKey: w.idem() });
-    await w.ok(OWNER, "vault.item.put", { folderId: folder.folder.id, name: "Google_DWD", kind: "other", fields: [{ key: "key", value: KEY_JSON, secret: true }], idempotencyKey: w.idem() });
+    await w.ok(OWNER, "access.labels.set", { resource: { type: "vault_folder", id: folder.folder.id }, label: "restricted" });   // as the setup page files it: Restricted, so only Owner and Admin reach the key (test/setup-secrets.live.test.ts)
+    const dwd = await w.ok(OWNER, "vault.item.put", { folderId: folder.folder.id, name: "Google_DWD", kind: "other", fields: [{ key: "key", value: KEY_JSON, secret: true }], idempotencyKey: w.idem() });
+    await w.ok(OWNER, "access.labels.set", { resource: { type: "vault_item", id: dwd.item.id }, label: "restricted" });
     await w.ok(OWNER, "google.dwd.setup", { vaultItem: "#Google_DWD", adminEmail: ADMIN, idempotencyKey: w.idem() });
     const roles = await w.ok(OWNER, "access.roles.list", {});
     const role = roles.roles.find((r: { id: string }) => r.id === "rol_member").id;

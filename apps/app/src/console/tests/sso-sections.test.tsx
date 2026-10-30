@@ -17,7 +17,7 @@ function fakeCall(over:Record<string,(i:never)=>unknown>={}){
   if(cap==="vault.items.list")return {items:[]};
   if(cap==="vault.folders.list")return {folders:[]};
   if(cap==="vault.folders.create")return {folder:{id:"vfd_1"}};
-  if(cap==="vault.item.put")return {item:{handle:"#Sso_Google_Secret"}};
+  if(cap==="vault.item.put")return {item:{id:"vit_1",handle:"#Sso_Google_Secret"}};
   return {ok:true};
  };
  return {call,calls};
@@ -33,7 +33,9 @@ test("saving Google keeps the secret in the Vault and sends members.sso.set only
  const set=calls.find(c=>c.cap==="members.sso.set")!;
  assert.deepEqual(set.input,{provider:{key:"google",title:"Google",issuer:"https://accounts.google.com",clientId:"1234-abc.apps.googleusercontent.com",clientSecretHandle:"#Sso_Google_Secret",enabled:true,domainHint:"firm.com"}});
  assert.ok(!JSON.stringify(set.input).includes("supersecret"),"the secret is not in the sso call");
- assert.deepEqual(calls.map(c=>c.cap),["vault.items.list","vault.folders.list","vault.folders.create","vault.item.put","members.sso.set"]);
+ assert.deepEqual(calls.map(c=>c.cap),["vault.items.list","vault.folders.list","vault.folders.create","access.labels.set","vault.item.put","access.labels.set","members.sso.set"]);
+ const labels=calls.filter(c=>c.cap==="access.labels.set").map(c=>c.input);
+ assert.deepEqual(labels,[{resource:{type:"vault_folder",id:"vfd_1"},label:"restricted"},{resource:{type:"vault_item",id:"vit_1"},label:"restricted"}],"the folder is restricted before the item goes in, and the item too");
 });
 
 test("changing a provider without a new secret keeps the saved handle and never touches the Vault; a new secret updates the same item",async()=>{
@@ -42,9 +44,9 @@ test("changing a provider without a new secret keeps the saved handle and never 
  assert.deepEqual(a.calls.map(c=>c.cap),["members.sso.set"]);
  assert.deepEqual((a.calls[0]!.input as {provider:{clientSecretHandle:string;domainHint:string;enabled:boolean}}).provider.clientSecretHandle,"#Sso_Google_Secret");
  assert.equal((a.calls[0]!.input as {provider:{domainHint:string}}).provider.domainHint,"firm.com");
- const b=fakeCall({"vault.items.list":()=>({items:[{id:"vit_1",name:"Sso_Google_Secret",handle:"#Sso_Google_Secret"}]})});
+ const b=fakeCall({"vault.items.list":()=>({items:[{id:"vit_1",name:"Sso_Google_Secret",handle:"#Sso_Google_Secret",folderId:"vfd_1"}]})});
  assert.equal((await saveSso(b.call,input({secret:"GOCSPX-rotatedvalue0002"}),saved)).ok,true);
- assert.deepEqual(b.calls.map(c=>c.cap),["vault.items.list","vault.item.update","members.sso.set"]);
+ assert.deepEqual(b.calls.map(c=>c.cap),["vault.items.list","access.labels.set","access.labels.set","vault.item.update","members.sso.set"]);
 });
 
 test("Microsoft refuses common, organizations and a domain name for the tenant, and saves a GUID as the pinned issuer",async()=>{
