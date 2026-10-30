@@ -2,7 +2,7 @@
 // Empty and offline: one line and one primary action.
 // Error: what, why, next, trace id, plus Retry, Copy trace id, and Report a problem.
 
-export const STATE_ICONS = ["inbox", "search", "files", "records", "chat", "offline", "error", "done"] as const;
+export const STATE_ICONS = ["inbox", "search", "files", "doc", "records", "chat", "offline", "error", "done"] as const;
 
 export type StateIcon = (typeof STATE_ICONS)[number];
 

@@ -15,6 +15,7 @@ export const REPORT_PROBLEM_EVENT = "vyre:report-problem";
 export const ICON_PATHS: Record<StateIcon, string[]> = {
   inbox: ["M2.5 9.5l1.6-5.2a1 1 0 011-.8h5.8a1 1 0 011 .8l1.6 5.2V12a1 1 0 01-1 1h-9a1 1 0 01-1-1z", "M2.5 9.5h3l1 1.5h3l1-1.5h3"],
   search: ["M10.5 10.5L14 14", "M11.5 7a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"],
+  doc: ["M4 2.5h5l3 3v8a1 1 0 01-1 1H4a1 1 0 01-1-1v-10a1 1 0 011-1z", "M9 2.5V6h3.5", "M5.5 9h5M5.5 11.5h3.5"],
   files: ["M2.5 4.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v6.5a1 1 0 01-1 1h-9a1 1 0 01-1-1z"],
   records: ["M3.5 2.5h9a1 1 0 011 1v9a1 1 0 01-1 1h-9a1 1 0 01-1-1v-9a1 1 0 011-1z", "M2.5 6h11M2.5 9.5h11M6.5 6v7.5"],
   chat: ["M3 3.5h10a1 1 0 011 1v6a1 1 0 01-1 1H7l-3 2.5v-2.5H3a1 1 0 01-1-1v-6a1 1 0 011-1z"],

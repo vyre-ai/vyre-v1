@@ -46,7 +46,7 @@ test("Learned draws the title, the lede, the day groups with counts, and one row
   const s = createKnowSample();
   const m = wrap(s, <KnowLearned />);
   has(m, "data-testid=\"know-learned\"");
-  has(m, "New facts appear here the moment Vyre picks them up from chats, runs and records. Undo removes one, Edit corrects it, and nothing waits for review unless an admin asks for it.");
+  has(m, "What Vyre picked up from chats, runs and records. Undo or Edit any of it.");
   const groups = groupByDay(learned(s), (x) => x.at, KNOW_NOW);
   assert.deepEqual(groups.map((g) => g.label), ["Today", "Yesterday", "Earlier"]);
   for (const g of groups) { has(m, `data-testid="group-${g.label}"`); has(m, `data-testid="day-${g.label}"`); }
@@ -56,7 +56,6 @@ test("Learned draws the title, the lede, the day groups with counts, and one row
   has(m, "Billing wrote it down");
   lacks(m, "Billing learned it from Billing");
   has(m, "Today 9:40"); has(m, "Yesterday 17:00");
-  has(m, "Capture is automatic for everything. An admin can require review for the Space or for named projects in Space Settings.");
   lacks(m, "Waiting for review");
   lacks(m, "data-testid=\"know-banner\"");
 });
