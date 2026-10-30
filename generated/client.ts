@@ -734,6 +734,7 @@ export function createClient(transport: Transport) {
         fallback: call("engine.turn.fallback", 1),
         finish: call("engine.turn.finish", 1),
         get: call("engine.turn.get", 1),
+        record: call("engine.turn.record", 1),
         record_usage: call("engine.turn.record_usage", 1),
         retry: call("engine.turn.retry", 1),
         start: call("engine.turn.start", 1),
