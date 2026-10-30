@@ -21,7 +21,7 @@ export function SameAccountOffer({ personal, team, accounts, onCopied, onDecline
   };
   return (
     <View testID="same-account" style={s.col}>
-      <Text style={s.line}>{`Use the same AI account here? This copies your ${first.name} key from your Personal Space into your own private folder in this Space. No one else can use it.`}</Text>
+      <Text style={s.line}>{`Use the same AI account here? Your ${first.name} key is copied into your private folder.`}</Text>
       {error ? <Text testID="same-account-error" style={s.err}>{error}</Text> : null}
       <View style={s.row}>
         <Pressable testID="same-account-yes" accessibilityRole="button" disabled={busy} onPress={() => void yes()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{busy ? "Copying" : "Use the same account"}</Text></Pressable>

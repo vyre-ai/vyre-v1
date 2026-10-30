@@ -82,6 +82,7 @@ export function Tool({ icon, label, onPress, active = false, testID }: { icon: I
 /** A section header: the label with its chevron toggles the section; tools sit at the right and show while the pointer is on the header, or the section is filtered. */
 export function SectionHead({ id, label, count, open, onToggle, keep = false, children }: { id: string; label: string; count?: number | undefined; open: boolean; onToggle: () => void; keep?: boolean; children?: ReactNode }): ReactElement {
   const [over, setOver] = useState(false);
+  const [focus, setFocus] = useState(false);
   const hover = { onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) };
   return (
     <View testID={`head-${id}`} style={s.head} {...hover}>
@@ -91,7 +92,8 @@ export function SectionHead({ id, label, count, open, onToggle, keep = false, ch
         {count ? <Badge n={count} testID={`count-${id}`} /> : null}
       </Pressable>
       <View style={s.grow} />
-      <View style={[s.tools, { opacity: over || keep ? 1 : 0 }]} pointerEvents={over || keep ? "auto" : "none"}>{children}</View>
+      {/* the tools are always hit-testable and only drawn on hover, focus or keep: a hidden tool that swallowed no pointer would leave the head under the pointer, so the tool could not be pressed */}
+      <View style={[s.tools, { opacity: over || focus || keep ? 1 : 0 }]} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}>{children}</View>
     </View>
   );
 }

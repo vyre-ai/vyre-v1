@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { States, ICON_PATHS, isStateIcon } from "./index.tsx";
+import { ErrorState, States, ICON_PATHS, isStateIcon } from "./index.tsx";
 import { STATE_ICONS } from "./props.ts";
 
 test("empty shows its line and one primary action", () => {
@@ -18,14 +18,14 @@ test("offline defaults to the offline icon and may omit the action", () => {
   assert.doesNotMatch(html, /state-action/);
 });
 
-test("error shows what, why, next, trace id and Copy trace id plus Report a problem", () => {
-  const html = renderToStaticMarkup(
-    <States kind="error" message="Could not load records" cause="The server did not answer" next="Check the connection" code="E_NET" traceId="tr_123" />,
-  );
-  for (const text of ["Could not load records", "The server did not answer", "Check the connection", "E_NET", "tr_123", "Copy trace id", "Report a problem"]) {
-    assert.ok(html.includes(text), text);
-  }
-  assert.doesNotMatch(html, /state-retry/, "no Retry when the error is not retryable");
+test("error shows the title, one line and Details; the trace and help actions open behind Details", () => {
+  const props = { kind: "error" as const, message: "Could not load records", cause: "The server did not answer", next: "Check the connection", code: "E_NET", traceId: "tr_123" };
+  const closed = renderToStaticMarkup(<States {...props} />);
+  for (const text of ["Could not load records", "The server did not answer", "Details"]) assert.ok(closed.includes(text), text);
+  for (const text of ["tr_123", "Copy trace id", "Report a problem"]) assert.ok(!closed.includes(text), `${text} hidden`);
+  const open = renderToStaticMarkup(<ErrorState props={props} startOpen />);
+  for (const text of ["Check the connection", "E_NET", "tr_123", "Copy trace id", "Report a problem"]) assert.ok(open.includes(text), text);
+  assert.doesNotMatch(open, /state-retry/, "no Retry when the error is not retryable");
 });
 
 test("a retryable error offers Retry", () => {

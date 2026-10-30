@@ -113,6 +113,8 @@ jobs:
         run: node scripts/lint/emits-declared.ts --enforce
       - name: raise-after-write (enforced); a refusal must come before the handler's first write (ruling 90)
         run: node scripts/lint/raise-after-write.ts --enforce
+      - name: no-silent-calls (enforced); a fire-and-forget capability call in apps/app or ui needs an error handler, so a refused call never leaves a dead button (known list may only shrink)
+        run: node scripts/lint/no-silent-calls.ts --enforce
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main

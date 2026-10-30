@@ -219,8 +219,16 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
     if (again) return { provider: rowOut(ctx, again) };
   }
   const port = hostOf()?.signin;
+  const linked = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).map((p) => str(p, "itemId")));
+  /** The person's own sign-in saved since this flow began and not yet linked as a provider (their client saved it, or the flow just did). */
+  const saved = (): Row | undefined => rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")))
+    .filter((r) => num(first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, str(r, "id"))), "createdAt") >= num(f, "startedAt"))
+    .sort((a, b) => num(b, "updatedAt") - num(a, "updatedAt"))[0];
+  const pasted = typeof input.code === "string" && input.code.trim() !== "";
+  // no code, and the sign-in is already saved in Mine by the person's client: the flow is not needed, link what they saved
+  if (port?.active(input.flowId) && !pasted && saved()) port.cancel(input.flowId);
   if (port?.active(input.flowId)) {
-    const step = await port.step({ id: input.flowId, person: me(ctx), ...(typeof input.code === "string" && input.code.trim() !== "" ? { code: input.code } : {}) });
+    const step = await port.step({ id: input.flowId, person: me(ctx), ...(pasted ? { code: input.code as string } : {}) });
     if (step.state === "waiting") return { waiting: true };
     if (step.state === "failed") throw fail("provider.auth_failed", ctx.trace.traceId, { message: step.message });
     // the credential goes straight into the person's own Mine folder; it is not returned to anyone
@@ -228,10 +236,7 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
     const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
     await itemPut(ctx, { folderId: await mineFolder(ctx), name: n === 0 ? c.name : `${c.name} ${n + 1}`, kind: "ai_subscription", fields: step.fields, idempotencyKey: `${input.flowId}:item` } as Parameters<typeof itemPut>[1]);
   }
-  const linked = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).map((p) => str(p, "itemId")));
-  const item = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")))
-    .filter((r) => num(first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, str(r, "id"))), "createdAt") >= num(f, "startedAt"))
-    .sort((a, b) => num(b, "updatedAt") - num(a, "updatedAt"))[0];
+  const item = saved();
   if (!item) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "The sign-in has not finished yet. Finish it, then press Done again." });
   const id = newId("prv", ctx.now());
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

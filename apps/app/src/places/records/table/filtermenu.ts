@@ -38,7 +38,7 @@ export function filterMenuEntries(o: {
       out.push({ label: nameOf(id), icon: faceIcon(nameOf(id)), ...(n === null ? {} : { count: n }), checked: chosen(cur, f.key).includes(id), onSelect: () => set(toggleOption(cur, f.key, id)) });
     }
   }
-  if (out.length === 0) out.push({ head: "Filter" }, { label: "No fields to filter by" });
+  if (out.length === 0) out.push({ head: "Nothing to filter by yet" });
   if (cur.clauses.length > 0) out.push({ separator: true }, { label: "Clear filters", onSelect: () => set(clearClauses(cur)) });
   return out;
 }

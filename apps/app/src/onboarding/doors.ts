@@ -5,7 +5,7 @@ export type Door = "me" | "invited" | "team" | "server" | "app";
 export const DOORS: readonly { door: Door; title: string; help: string }[] = [
   { door: "me", title: "Just me", help: "A Personal Space on this computer" },
   { door: "invited", title: "I was invited", help: "Open an invite link or a Space address" },
-  { door: "team", title: "Set up my team", help: "Your Personal Space first, then a Team Space" },
+  { door: "team", title: "My team", help: "Your Personal Space first, then a Team Space" },
 ];
 
 /** Where the first screen is shown: the desktop app on a Mac or a PC, a browser, or a phone (journeys, table D). */

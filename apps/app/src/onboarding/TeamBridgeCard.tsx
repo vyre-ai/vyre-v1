@@ -8,9 +8,8 @@ export const MAC_WARNING = "This Mac must be on and Vyre open for your team to c
 export function TeamBridgeCard({ onCreate, mac }: { onCreate(): void; /** the desktop app is on a Mac, where this Mac can host */ mac: boolean }): ReactElement {
   return (
     <View testID="team-bridge" style={s.col}>
-      <Text style={s.line}>A Team Space has its own Vault and memory. Nothing from your Personal Space is copied unless you choose to.</Text>
+      <Text style={s.line}>A Team Space has its own Vault and memory.</Text>
       {mac ? <Text testID="mac-warning" style={s.warn}>{MAC_WARNING}</Text> : null}
-      {mac ? <Text style={s.dim}>The Mac installer keeps the server running when Vyre is closed.</Text> : null}
       <Pressable testID="team-create" accessibilityRole="button" onPress={onCreate} style={s.primary}><Text style={s.primaryText}>Create a Team Space</Text></Pressable>
     </View>
   );

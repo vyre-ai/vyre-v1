@@ -1,0 +1,1 @@
+- Fixed the leftover polish in Records, Files and Apps. The Mount a folder and Unmount sheets use the shared dialog and text field, an empty Filter menu says "Nothing to filter by yet" in place of a lit dead row, the Apps sidebar search and group arrows match the other places, and the Learned page lost its paragraphs of help.

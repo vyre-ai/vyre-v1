@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { TextField } from "../../../../ui/src/TextField/index.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
 import { installKit, listKits, sheetFor, sheetLine } from "./kit-pick.ts";
 import type { KitRow, KitSheet } from "./kit-pick.ts";
 
-export function KitPickCard({ call, onInstalled }: { call: CapCall; onInstalled(kitId: string): void }): ReactElement {
+export function KitPickCard({ call, spaceName = "", onInstalled, gate }: { call: CapCall; spaceName?: string; onInstalled(kitId: string): void; gate?(save: (() => Promise<boolean>) | null): void }): ReactElement {
+  const [name, setName] = useState(spaceName);
   const [kits, setKits] = useState<KitRow[] | null>(null);
   const [picked, setPicked] = useState<KitRow | null>(null);
   const [sheet, setSheet] = useState<KitSheet | null>(null);
@@ -16,22 +18,33 @@ export function KitPickCard({ call, onInstalled }: { call: CapCall; onInstalled(
     setPicked(k); setSheet(null); setError("");
     try { setSheet(await sheetFor(call, k.kitId)); } catch { setError("Could not read this Kit."); }
   };
-  const install = async (): Promise<void> => {
-    if (!picked || busy) return;
+  // Continue saves: the name, then the Kit when one is picked; "Start blank" installs nothing.
+  const save = async (): Promise<boolean> => {
+    if (busy || name.trim() === "") return false;
     setBusy(true); setError("");
-    try { await installKit(call, picked.kitId); onInstalled(picked.kitId); } catch { setError("Could not install this Kit."); } finally { setBusy(false); }
+    try {
+      if (name.trim() !== spaceName) await call("spaces.update", { name: name.trim(), logoFileId: null });
+      if (picked) await installKit(call, picked.kitId);
+      return true;
+    } catch { setError("Could not save. Try again."); return false; } finally { setBusy(false); }
   };
+  useEffect(() => {
+    if (!gate) return undefined;
+    gate(name.trim() === "" ? null : save);
+    return () => gate(null);
+  });
+  const chips: ReactElement[] = [];
+  chips.push(<Pressable key="blank" testID="kit-blank" accessibilityRole="button" accessibilityState={{ selected: picked === null }} onPress={() => { setPicked(null); setSheet(null); }} style={[s.tile, picked === null && s.tileOn]}><Text style={s.tileText}>Start blank</Text></Pressable>);
+  for (const k of kits ?? []) {
+    chips.push(<Pressable key={k.kitId} testID={`kit-${k.kitId}`} accessibilityRole="button" accessibilityState={{ selected: picked?.kitId === k.kitId }} onPress={() => void pick(k)} style={[s.tile, picked?.kitId === k.kitId && s.tileOn]}><Text style={s.tileText}>{k.installed ? `${k.title} (installed)` : k.title}</Text></Pressable>);
+  }
   return (
     <View testID="kit-pick" style={s.col}>
-      <Text style={s.line}>Pick the Kit that fits your kind of work. It sets up the agents, record types and routines to start from.</Text>
-      {kits === null && !error ? <Text style={s.dim}>Loading Kits</Text> : null}
-      {/* ui-rows-lint: not a list (Kit choices are tiles, not list rows) */}
-      <View style={s.row}>{(kits ?? []).map((k) => (
-        <Pressable key={k.kitId} testID={`kit-${k.kitId}`} accessibilityRole="button" accessibilityState={{ selected: picked?.kitId === k.kitId }} onPress={() => void pick(k)} style={[s.tile, picked?.kitId === k.kitId && s.tileOn]}><Text style={s.tileText}>{k.installed ? `${k.title} (installed)` : k.title}</Text></Pressable>
-      ))}</View>
-      {sheet ? <Text testID="kit-sheet" style={s.dim}>{sheetLine(sheet)}</Text> : null}
+      <TextField testID="org-name" accessibilityLabel="Name" value={name} onChangeText={setName} placeholder="Name" autoCorrect={false} />
+      <Text style={s.dim}>Kind of work</Text>
+      <View style={s.row}>{chips}</View>
+      {sheet && picked ? <Text testID="kit-sheet" style={s.dim}>{sheetLine(sheet)}</Text> : null}
       {error ? <Text testID="kit-error" style={s.err}>{error}</Text> : null}
-      {picked && sheet ? <Pressable testID="kit-install" accessibilityRole="button" disabled={busy || sheet.problems > 0} onPress={() => void install()} style={[s.primary, (busy || sheet.problems > 0) && s.off]}><Text style={s.primaryText}>{busy ? "Installing" : `Install ${picked.title}`}</Text></Pressable> : null}
     </View>
   );
 }

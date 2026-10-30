@@ -48,16 +48,18 @@ const NOTE_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", over
 const NOTE2_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 } as const;
 
 const h = createElement;
-function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
+function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, accentLit = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
   ensureRowCss();
+  const filled = accentLit && hovered && !selected;
+  const inkOn = filled ? { color: "var(--accent-ink)" } : null;
   const tid = (suffix: string): string | undefined => (id ? `row-${id}${suffix}` : undefined);
   const { style: extra, ...dom } = (domProps ?? {}) as { style?: Record<string, unknown> } & Record<string, unknown>;
-  const titleEl = h("span", { style: emphasis ? { ...TITLE_S, ...BOLD } : TITLE_S }, title);
+  const titleEl = h("span", { style: { ...(emphasis ? { ...TITLE_S, ...BOLD } : TITLE_S), ...inkOn } }, title);
   return h(
     "div",
     {
       role: "button", tabIndex: 0, "aria-label": title, "aria-selected": selected, "data-testid": tid(""), className: "vyre-row",
-      style: { ...ROW_S, minHeight: rowHeight(note, tall), ...(onPress ? { cursor: "pointer" } : null), ...(selected ? SELECTED : hovered ? HOVER : null), ...extra },
+      style: { ...ROW_S, minHeight: rowHeight(note, tall), ...(onPress ? { cursor: "pointer" } : null), ...(selected ? SELECTED : filled ? HOVER_ACCENT : hovered ? HOVER : null), ...extra },
       ...(onPress ? {
         onClick: (e: unknown) => onPress(e as never),
         onKeyDown: (e: { key?: string; preventDefault?: () => void }) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault?.(); onPress(e as never); } },
@@ -70,7 +72,7 @@ function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "
       titleSuffix || titleMarks
         ? h("div", { style: TLINE_S }, h("span", { style: emphasis ? { ...TITLE_IN_LINE_S, ...BOLD } : TITLE_IN_LINE_S }, title), titleSuffix ? h("span", { style: SUFFIX_S, "data-testid": tid("-suffix") }, titleSuffix) : null, titleMarks ? h("div", { style: MARKS_S, "data-testid": tid("-marks") }, titleMarks) : null)
         : titleEl,
-      note ? h("div", { style: tall ? NOTE2_S : NOTE_S }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
+      note ? h("div", { style: { ...(tall ? NOTE2_S : NOTE_S), ...(filled ? { color: "var(--accent-ink)", opacity: 0.8 } : null) } }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
     ),
     trailing ? h("div", { style: TRAIL_S, "data-testid": tid("-trailing") }, trailing) : null,
   );
@@ -117,6 +119,7 @@ const NativeRow = memo(function NativeRow({ id, title, titleSuffix, titleMarks, 
 
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
+const HOVER_ACCENT = { backgroundColor: "var(--accent)" };
 const NOTE_LEAD = { color: "var(--accent)", fontWeight: "500" as const };
 const NOTE_LEAD_WARN = { color: "var(--warn)", fontWeight: "500" as const };
 const BOLD = { fontWeight: "600" as const };

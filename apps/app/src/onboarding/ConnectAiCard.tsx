@@ -8,6 +8,8 @@ import { SignInPanel } from "../ai-signin/SignInPanel.tsx";
 import { SIGNIN_BUTTONS } from "../ai-signin/flow.ts";
 import { API_KEYS, saveApiKey, startSubscription } from "./connect-ai.ts";
 import type { SignInFlow } from "./connect-ai.ts";
+import { Mark } from "./ProviderLogo.tsx";
+import { Mark } from "./ProviderLogo.tsx";
 
 export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string } }): ReactElement {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
@@ -28,7 +30,7 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
       <View testID="ai-key-form" style={s.col}>
         {/* ui-rows-lint: not a list (provider choices are tiles, not list rows) */}
         <View style={s.row}>{API_KEYS.map((o) => (
-          <Pressable key={o.key} testID={`ai-provider-${o.key}`} accessibilityRole="button" accessibilityState={{ selected: provider === o.key }} onPress={() => setProvider(o.key)} style={[s.tile, provider === o.key && s.tileOn]}><Text style={s.tileText}>{o.label}</Text></Pressable>
+          <Pressable key={o.key} testID={`ai-provider-${o.key}`} accessibilityRole="button" accessibilityState={{ selected: provider === o.key }} onPress={() => setProvider(o.key)} style={[s.tile, provider === o.key && s.tileOn]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.label}</Text></Pressable>
         ))}</View>
         <TextInput testID="ai-key-field" secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="off" value={secret} onChangeText={setSecret} placeholder="Paste your API key" accessibilityLabel="API key" style={s.input} />
         <Text style={s.dim}>The key goes straight into your Vault. I never see it.</Text>
@@ -49,7 +51,7 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
         <View style={s.col}>
           {/* ui-rows-lint: not a list (sign-in choices are buttons, not list rows) */}
           {SIGNIN_BUTTONS.map((o) => (
-            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`)), provider: o.key }))} style={[s.signin, busy && s.off]}><Text style={s.tileText}>{o.button}</Text></Pressable>
+            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`)), provider: o.key }))} style={[s.signin, busy && s.off]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
           ))}
         </View>
       )}
@@ -63,7 +65,7 @@ const s = StyleSheet.create({
   col: { gap: 10 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   tile: { minHeight: 40, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--win)" as string },
-  signin: { minHeight: 42, paddingHorizontal: 18, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "flex-start", justifyContent: "center", backgroundColor: "var(--win)" as string },
+  signin: { minHeight: 44, paddingHorizontal: 18, borderRadius: 10, flexDirection: "row", gap: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "flex-start", backgroundColor: "var(--win)" as string },
   tileOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   tileText: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   input: { height: 40, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, color: "var(--ink)" as string, fontSize: 14 },

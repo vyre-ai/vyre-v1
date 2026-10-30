@@ -1,0 +1,1 @@
+- App: one dialog card (ui/Dialog) for the Security and Report a problem sheets, one text field (ui/TextField) with a lighter fill, a visible edge and an accent focus ring, and the empty, offline and error states sit on an icon tile.

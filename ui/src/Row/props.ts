@@ -5,6 +5,8 @@
 import type { ReactNode } from "react";
 
 export interface RowProps {
+  /** the lit row (hovered) fills with the accent and its text turns white, as in a menu (web) */
+  accentLit?: boolean;
   id?: string;
   title: string;
   note?: string;
