@@ -52,7 +52,7 @@ export function withKeys(call: ShellRuntime["call"]): ShellRuntime["call"] {
 
 export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined = desktopBrowsers()): VaultData {
   return {
-    screens: rt.screens, call: withKeys(rt.call), ...(rt.unlockVault ? { unlock: rt.unlockVault } : {}), connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name,
+    screens: rt.screens, call: withKeys(rt.call), connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name,
     nav: {
       openShare: (itemId) => rt.open({ screen: "vault.layout", args: { share: itemId } }),
       openExport: (folderId) => rt.open({ screen: "vault.export", args: { folderId } }),

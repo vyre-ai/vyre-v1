@@ -83,7 +83,6 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   const folders = useScreenQuery<FoldersOut>(LAYOUT_SCREEN, "folders", {});
   const menu = useMenu();
   const [made, setMade] = useState<Folder[]>([]);
-  const [locked, setLocked] = useState<{ password: string; busy: boolean; error?: string } | null>(null);
   const [creating, setCreating] = useState<{ name: string; busy: boolean; error?: string } | null>(null);
   const known: Folder[] = folders.status === "ready" ? folders.data.folders.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage") : [];
   const list: Folder[] = [...known, ...made.filter((m) => !known.some((k) => k.id === m.id))];
@@ -180,17 +179,9 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
       const out = (await data.call("vault.item.put", { folderId: target, name: name.trim(), kind, fields: plainFields(filled), ...(templateById(template) && template !== "custom" ? { template } : {}) })) as { item: { id: string; name: string } };
       onAdded(out.item.id, out.item.name, target);
     } catch (e) {
-      if (isVaultLocked(e) && data.unlock) { setLocked({ password: "", busy: false }); setSaving(false); return; }
       setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : reasonOf(e, "Could not save. Nothing was lost; try again."));
       setSaving(false);
     }
-  };
-
-  const unlock = (): void => {
-    if (locked === null || locked.busy || !data.unlock) return;
-    if (locked.password === "") { setLocked({ ...locked, error: "Type your password." }); return; }
-    setLocked({ password: locked.password, busy: true });
-    data.unlock(locked.password).then(() => { setLocked(null); void save(); }, (e: unknown) => setLocked({ password: "", busy: false, error: reasonOf(e, "Could not unlock your Vault.") }));
   };
 
   const folderMenu = (x: number, y: number): void => {
@@ -265,14 +256,6 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
           </View>
         </>
       ) : null}
-      {locked ? (
-        <View style={s.rowLine} testID="add-unlock">
-          <TextInput value={locked.password} onChangeText={(v) => setLocked({ password: v, busy: false })} secureTextEntry placeholder="Your password" accessibilityLabel="Your password" autoFocus onSubmitEditing={unlock} style={[s.input, { flex: 1, minWidth: 0 }]} testID="add-unlock-password" />
-          <Btn label={locked.busy ? "Unlocking" : "Unlock your Vault"} primary onPress={unlock} testID="add-unlock-go" />
-          <Btn label="Cancel" onPress={() => setLocked(null)} testID="add-unlock-cancel" />
-        </View>
-      ) : null}
-      {locked?.error ? <Text style={s.error} accessibilityRole="alert" testID="add-unlock-error">{locked.error}</Text> : null}
       {creating ? (
         <View style={s.rowLine} testID="add-new-folder">
           <TextInput value={creating.name} onChangeText={(v) => setCreating({ name: v, busy: false })} placeholder="Folder name" accessibilityLabel="Folder name" autoFocus onSubmitEditing={createFolder} style={[s.input, { flex: 1, minWidth: 0 }]} testID="add-new-folder-name" />
@@ -284,12 +267,6 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
       {error ? <Text style={s.error} accessibilityRole="alert" testID="add-error">{error}</Text> : null}
     </Sheet>
   );
-}
-
-/** The Vault says its key is locked on this computer: the person is still signed in; the page asks for the password in place. */
-export function isVaultLocked(e: unknown): boolean {
-  const x = e as { message?: string; details?: { reason?: string }; error?: { message?: string; details?: { reason?: string } } };
-  return x?.details?.reason === "vault_locked" || x?.error?.details?.reason === "vault_locked" || /vault key is locked/i.test(x?.message ?? x?.error?.message ?? "");
 }
 
 /** The reason a call was refused, in the daemon's own words, or the fallback. */

@@ -54,8 +54,6 @@ export interface VaultData {
   copy?(text: string): Promise<void> | void;
   /** Opens the system file chooser for an export to import; resolves the stored file's id, or null when the person cancels. The shell supplies it. */
   pickFile?(accept: string): Promise<string | null>;
-  /** Opens the person's Mine vault key with their password, in place. Resolves when it is open; rejects with a sentence to show. The shell supplies it. */
-  unlock?(password: string): Promise<void>;
   /** Install Vyre for Chrome from this app (desktop only). Without it the Advanced page has no row for it. */
   browsers?: VaultBrowsers;
 }
