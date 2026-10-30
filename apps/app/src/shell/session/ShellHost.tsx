@@ -11,7 +11,9 @@ import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
-import { formatHash } from "../hash/hash.ts";
+import { formatHash, parseHash } from "../hash/hash.ts";
+import { tabKey } from "../tabs/store.ts";
+import { titleAsk } from "../tabs/titles.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import type { ShellHub } from "../spaces/hub.ts";
@@ -136,6 +138,18 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
       .catch(() => undefined);
     return () => { off = true; made?.close(); setPhone(undefined); };
   }, [session, voice, telephony]);
+
+  // a tab opened on an item is named for it: read the item's name once the tab shows and give the tab that title
+  useEffect(() => {
+    if (!session) return;
+    const sub = parseHash(location.hash).subject;
+    const ask = sub ? titleAsk(sub) : null;
+    if (!ask) return;
+    const key = tabKey(location.place, location.hash);
+    let off = false;
+    session.call(ask.cap, ask.input).then((out) => { const name = ask.name(out); if (!off && name) hub.retitle(key, name); }, () => undefined);
+    return () => { off = true; };
+  }, [session, hub, location.place, location.hash]);
 
   const purge = useMemo<ShellPurge | undefined>(() => (session ? {
     client: webPurgeClient({ deviceId: "web", call: session.call, wipe: () => { wipeBrowserStorage(); clearStored(); }, done: () => onSignedOut() }),
