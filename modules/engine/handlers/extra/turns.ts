@@ -206,6 +206,61 @@ export async function turnFinish(
   return { turn: turnOf(loadTurn(ctx, input.turnId)) };
 }
 
+// ---- record (the in-process engine's turns)
+
+/**
+ * A chat turn runs in the in-process turn engine, which keeps its own copy and mints its own turn id; the bridge in runtime.ts reports each turn here, so the turn is one engine_turns row (the turn
+ * list, engine.turn.get and review sampling read it) and the log hears turn.started and then turn.completed, turn.failed or turn.cancelled (the agent's Working status follows them). The queue and
+ * the lease stay the engine's own: this touches neither. Every call is safe to repeat: a turn already recorded answers with its row, and an ended turn is never ended twice. A finish that arrives for a
+ * turn whose start was never recorded records the start first, so Working goes up and down exactly once.
+ */
+export async function turnRecord(
+  ctx: EngineCtx,
+  input: { threadId: string; turnId: string; agentId: string; phase: "started" | "completed" | "failed" | "cancelled"; qseq: number; asker?: string; engine?: string; model?: string; accountRef?: string; tokensIn?: number; tokensOut?: number; costMicros?: number; code?: string },
+): Promise<{ turn: TurnOut }> {
+  ensureExtra(ctx.db);
+  for (const [field, v] of [["tokensIn", input.tokensIn], ["tokensOut", input.tokensOut], ["costMicros", input.costMicros]] as const) {
+    if (v !== undefined && (!Number.isInteger(v) || v < 0)) raise(ctx, "validation.bad_input", `${field} must be a whole number, zero or more.`, { field });
+  }
+  const now = ctx.now();
+  let row = rows(ctx, "SELECT * FROM engine_turns WHERE turn_id = ?", input.turnId)[0];
+  if (!row) {
+    const engine = input.engine ?? "chat", model = input.model ?? "";
+    ctx.db.run(
+      `INSERT INTO engine_turns (turn_id, thread_id, agent_id, asker, account_ref, engine, model, placement, state, trace_id, run_id, qseq, started_at, ended_at, tokens_in, tokens_out, cost_micros, error, retry_of)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'host', 'running', ?, NULL, ?, ?, NULL, 0, 0, 0, NULL, NULL)`,
+      input.turnId, input.threadId, input.agentId, input.asker ?? actorOf(ctx), input.accountRef ?? null, engine, model, ctx.trace.traceId, input.qseq, now,
+    );
+    ctx.emit("turn.started", input.threadId, {
+      turnId: input.turnId, threadId: input.threadId, agentId: input.agentId, placement: "host", engine, model, ...(input.accountRef === undefined ? {} : { accountRef: input.accountRef }),
+    });
+    row = loadTurn(ctx, input.turnId);
+  }
+  if (input.phase === "started" || !isOpen(str(row["state"]))) return { turn: turnOf(row) };
+
+  const tokensIn = input.tokensIn ?? num(row["tokens_in"]), tokensOut = input.tokensOut ?? num(row["tokens_out"]), costMicros = input.costMicros ?? num(row["cost_micros"]);
+  const error: ErrShape | undefined = input.phase === "failed" ? { code: input.code ?? "unknown", message: "The turn failed.", next: [], traceId: str(row["trace_id"]) } : undefined;
+  ctx.db.run(
+    "UPDATE engine_turns SET state = ?, ended_at = ?, tokens_in = ?, tokens_out = ?, cost_micros = ?, error = ?, engine = COALESCE(?, engine), model = COALESCE(?, model), account_ref = COALESCE(?, account_ref) WHERE turn_id = ?",
+    input.phase, now, tokensIn, tokensOut, costMicros, error === undefined ? null : JSON.stringify(error), input.engine ?? null, input.model ?? null, input.accountRef ?? null, input.turnId,
+  );
+  ctx.db.run("DELETE FROM engine_turn_parks WHERE turn_id = ?", input.turnId);
+  const threadId = input.threadId, agentId = input.agentId;
+  if (input.phase === "completed") {
+    ctx.emit("turn.completed", threadId, { turnId: input.turnId, threadId, agentId, tokensIn, tokensOut, costMicros });
+    const durationMs = now - num(row["started_at"]);
+    if (durationMs >= LONG_TASK_MS) ctx.emit("agent.task_finished", threadId, { agentId, threadId, turnId: input.turnId, durationMs });
+    if (bucketOf(input.turnId) < (await samplePercent(ctx))) {
+      ctx.db.run("INSERT OR IGNORE INTO engine_review (turn_id, thread_id, agent_id, sampled_at, state) VALUES (?, ?, ?, ?, 'waiting')", input.turnId, threadId, agentId, now);
+    }
+  } else if (input.phase === "failed") {
+    ctx.emit("turn.failed", threadId, { turnId: input.turnId, threadId, agentId, code: input.code ?? "unknown", message: "The turn failed." });
+  } else {
+    ctx.emit("turn.cancelled", threadId, { turnId: input.turnId, threadId, agentId, by: actorOf(ctx) });
+  }
+  return { turn: turnOf(loadTurn(ctx, input.turnId)) };
+}
+
 // ---- fallback
 
 export function turnFallback(ctx: EngineCtx, input: { turnId: string; kind: "switch_model" | "backup_key"; to: string }): { ok: boolean } {
