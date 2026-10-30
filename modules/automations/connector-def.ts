@@ -1,6 +1,5 @@
 // A connector an agent or a person writes by hand: one app, the hosts it may reach, how its key travels, its actions and its triggers.
 // The definition holds no key. The auth block names a Vault field, never a value. A definition is checked here before it is stored, and a stored one is always at a draft level until a read proves it.
-import { createHash } from "node:crypto";
 
 export const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] as const;
 export type Method = (typeof METHODS)[number];
@@ -370,11 +369,26 @@ export function splitStepKey(stepKey: string): { app: string; action: string } |
 
 /** What a level depends on. A change to any of it sends the action back to draft. */
 export function actionFingerprint(def: ConnectorDef, action: ActionDef): string {
-  return createHash("sha256").update(JSON.stringify({ d: def.domains, a: def.auth, x: action })).digest("hex").slice(0, 24);
+  return fingerprint(JSON.stringify({ d: def.domains, a: def.auth, x: action }));
 }
 export function triggerFingerprint(def: ConnectorDef, trigger: TriggerDef): string {
   const source = trigger.kind === "poll" ? def.actions.find((a) => a.key === trigger.action) : undefined;
-  return createHash("sha256").update(JSON.stringify({ d: def.domains, a: def.auth, t: trigger, s: source })).digest("hex").slice(0, 24);
+  return fingerprint(JSON.stringify({ d: def.domains, a: def.auth, t: trigger, s: source }));
+}
+
+/** Two 53-bit hashes of the text, as 28 hex digits. It notices a change; it is not a security measure. */
+function fingerprint(text: string): string {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57, h3 = 0x9e3779b9, h4 = 0x7f4a7c15;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677);
+    h3 = Math.imul(h3 ^ c, 2246822519); h4 = Math.imul(h4 ^ c, 3266489917);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  h3 = Math.imul(h3 ^ (h3 >>> 16), 2246822507) ^ Math.imul(h4 ^ (h4 >>> 13), 3266489909);
+  h4 = Math.imul(h4 ^ (h4 >>> 16), 2246822507) ^ Math.imul(h3 ^ (h3 >>> 13), 3266489909);
+  return [h1, h2, h3, h4].map((n) => (n >>> 0).toString(16).padStart(8, "0")).join("").slice(0, 28);
 }
 
 /** A JSON pointer read. A missing step answers undefined. */
