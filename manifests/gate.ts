@@ -62,9 +62,9 @@ export default defineManifest({
       in: { holdId }, out: { outcome: t.enm('dropped', 'escalated'), escalatedTo: t.opt(t.str()) }, emits: ['gate.expired'], audit: 'always',
     }),
     read('gate.effective_rule', 'The effective rule for a principal and act: the strictest of Space policy, owner floor and agent.toml', {
-      in: { principal: principalRef, act: actKey },
+      in: { principal: principalRef, act: actKey, adminOnly: t.opt(t.bool()) },
       out: {
-        hold: t.bool(), reason: t.str(), approvers: approverRule, peopleOnly: t.bool(), afterHours: t.int(), onTimeout: t.enm('drop', 'escalate'),
+        hold: t.bool(), adminRule: t.bool(), reason: t.str(), approvers: approverRule, peopleOnly: t.bool(), afterHours: t.int(), onTimeout: t.enm('drop', 'escalate'),
         sources: t.obj({ space: t.enm('hold', 'allow'), floor: t.opt(t.enm('hold', 'allow')), agent: t.opt(t.enm('hold', 'allow')) }),
       },
       tool: 'meta', agent: true,

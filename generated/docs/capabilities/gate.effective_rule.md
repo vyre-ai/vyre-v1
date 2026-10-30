@@ -30,6 +30,7 @@ type In = {
     id: string;
   };
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  adminOnly?: boolean;
 };
 ```
 
@@ -38,6 +39,7 @@ type In = {
 ```ts
 type Out = {
   hold: boolean;
+  adminRule: boolean;
   reason: string;
   approvers: string;
   peopleOnly: boolean;
@@ -65,12 +67,14 @@ type Out = {
   "name": "example",
   "input": {
     "act": "send",
+    "adminOnly": true,
     "principal": {
       "id": "usr_a1b2c3",
       "kind": "person"
     }
   },
   "output": {
+    "adminRule": true,
     "afterHours": 1,
     "approvers": "role:admin",
     "hold": true,

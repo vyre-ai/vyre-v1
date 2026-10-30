@@ -663,7 +663,7 @@ export function moveStep(def: Definition, id: string, by: -1 | 1): Definition {
   return d;
 }
 
-export function updateStep(def: Definition, id: string, patch: Partial<Pick<DefNode, "title" | "input" | "onError" | "ai" | "branches">>): Definition {
+export function updateStep(def: Definition, id: string, patch: Partial<Pick<DefNode, "title" | "input" | "onError" | "ai" | "branches" | "askBeforeSending">>): Definition {
   const d = clone(def);
   const n = d.nodes.find((x) => x.id === id);
   if (!n) throw new Error("no such step");
@@ -672,6 +672,7 @@ export function updateStep(def: Definition, id: string, patch: Partial<Pick<DefN
   if (patch.onError !== undefined) n.onError = patch.onError;
   if (patch.ai !== undefined) n.ai = patch.ai;
   if (patch.branches !== undefined) n.branches = patch.branches;
+  if (patch.askBeforeSending !== undefined) { if (patch.askBeforeSending) n.askBeforeSending = true; else delete n.askBeforeSending; }
   return d;
 }
 

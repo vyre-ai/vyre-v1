@@ -16,9 +16,8 @@
 // "a revoked Google account fails the step, Ask Vyre drops the token, and the same connection retries"
 //   Gap: the Google step and the Ask Vyre scrub are module fixtures. Not invented here.
 // "publishing version 13 leaves version 12 runs in place and previews safe and ambiguous groups"
-//   Publishing a later version does not move a waiting run. migration_preview answers that it is not available yet, and the run stays on version 1.
-//   Gap: the safe and ambiguous cohorts still need the pinned if-branch fixture.
-//   automations.migrate_runs is the public move. It is not called.
+//   Publishing a later version does not move a waiting run. migration_preview groups it as a safe cohort and the run stays on version 1.
+//   The move itself, and the refusals, are host/tests/automations.cohort.live.test.ts.
 // Personal ownership: Noah can run an automation he owns. Olivia is not refused on that id.
 //   automations.get returns 200. Her space-owner grant on the ancestor covers it.
 //   The module rule (not found unless owner, follower, or an explicit view allow) is not what this daemon returns.
@@ -222,10 +221,9 @@ test("publishing a later version does not move a waiting run", async () => {
     });
     assert.equal((saved["automation"] as { version?: number }).version, 2);
     assert.equal(await versionOf(d, runId), 1);
-    const preview = await call(d, "/v1/automations/migration_preview", { automationId: id, toVersion: 2 });
-    assert.notEqual(preview.status, 200, preview.text);
-    assert.match(preview.text, /not available yet/);
-    assert.equal(await versionOf(d, runId), 1, "a closed preview does not move the run");
+    const preview = await ok(d, "/v1/automations/migration_preview", { automationId: id, toVersion: 2 });
+    assert.deepEqual((preview["cohorts"] as { disposition: string; runIds: string[] }[]).map((c) => [c.disposition, c.runIds]), [["safe", [runId]]]);
+    assert.equal(await versionOf(d, runId), 1, "a preview does not move the run");
     await untilStatus(d, runId, "succeeded", 20_000);
     assert.equal(await versionOf(d, runId), 1);
     assert.equal(await noteCount(d, pinned), 1);

@@ -17,7 +17,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Group, Hint, Lab, PickButton, SRow, Switch } from "../config/parts.tsx";
 import { useDesign, useJourney } from "./data.ts";
 import type { Selection } from "./JourneyDesigner.tsx";
-import { DUE_CHOICES, automationsByStage, initials, agentNames as seatNames, EXIT_RULES, LIMIT_CHOICES, SLOTS, agentSeats, clearTaskField, countOf, dueWords, exitRuleId, exitWords, findTask, limitWords, plural, renameStage, setSeat, tasksWords, updateTask } from "./model.ts";
+import { DUE_CHOICES, automationsByStage, initials, agentNames as seatNames, EXIT_RULES, LIMIT_CHOICES, SLOTS, agentSeats, clearTaskField, countOf, doneByWords, dueWords, exitRuleId, exitWords, findTask, limitWords, plural, renameStage, setSeat, tasksWords, updateTask } from "./model.ts";
 import type { Journey, Ref, Slot, Stage, StageCounts, Task } from "./model.ts";
 
 export interface JourneyPaneProps { journeyId: string; selection: Selection | null; canDesign?: boolean }
@@ -108,7 +108,7 @@ function StagePane({ journey: j, stage: g, counts, canDesign }: { journey: Journ
         {canDesign ? (
           <>
             <Lab first>Name</Lab>
-            <Group><SRow minHeight={44} last><TextInput accessibilityLabel="Stage name" testID="stage-name" value={title} onChangeText={setTitle} onBlur={commit} onSubmitEditing={commit} {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setTitle(g.title); e.stopPropagation?.(); } } })} style={p.input} /></SRow></Group>
+            <View style={p.nameRow}><TextInput accessibilityLabel="Stage name" testID="stage-name" value={title} onChangeText={setTitle} onBlur={commit} onSubmitEditing={commit} {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setTitle(g.title); e.stopPropagation?.(); } } })} style={p.input} /></View>
           </>
         ) : null}
         <Lab first={!canDesign}>When a record moves on</Lab>
@@ -170,7 +170,7 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
         {canDesign ? (
           <>
             <Lab first>Name</Lab>
-            <Group><SRow minHeight={44} last><TextInput accessibilityLabel="Task name" testID="task-name" value={title} onChangeText={setTitle} onBlur={commitTitle} onSubmitEditing={commitTitle} {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setTitle(t.title); e.stopPropagation?.(); } } })} style={p.input} /></SRow></Group>
+            <View style={p.nameRow}><TextInput accessibilityLabel="Task name" testID="task-name" value={title} onChangeText={setTitle} onBlur={commitTitle} onSubmitEditing={commitTitle} {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setTitle(t.title); e.stopPropagation?.(); } } })} style={p.input} /></View>
           </>
         ) : null}
         <Lab first={!canDesign}>People on this task</Lab>
@@ -202,6 +202,19 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
             </Group>
           </>
         ) : null}
+
+        <Lab>Done by</Lab>
+        <Group testID="task-done-by">
+          <SRow label="Done by" sub={t.doneByAutomation ? "Its run does this task. A run that fails leaves it for a person." : "The people above do this task"} minHeight={44} last>
+            <PickButton
+              label="Done by" value={doneByWords(t, data.name)} empty={!t.doneByAutomation} disabled={!canDesign} testID="pick-done-by"
+              onPress={(x, y) => show([
+                { label: "A person or agent", checked: !t.doneByAutomation, onSelect: () => edit(clearTaskField(j.stages, g.key, t.key, "doneByAutomation"), "Done by a person or agent") },
+                ...(extras.directory.automations.length > 0 ? [{ separator: true } as MenuEntry, ...each(extras.directory.automations, (a) => ({ label: a.name, checked: t.doneByAutomation === a.id, onSelect: () => edit(updateTask(j.stages, g.key, t.key, { doneByAutomation: a.id }), `Done by ${a.name}`) }))] : [{ head: "No Automations to pick yet" } as MenuEntry]),
+              ], x, y, "other", { label: "Done by" })}
+            />
+          </SRow>
+        </Group>
 
         <Lab>When</Lab>
         <Group testID="task-when">
@@ -242,7 +255,8 @@ const p = StyleSheet.create({
   dim: { fontSize: 12.5, color: "var(--ink-3)" as string },
   dimr: { fontSize: 12.5, color: "var(--ink-2)" as string },
   para: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
-  input: { flex: 1, height: 30, borderRadius: 7, paddingHorizontal: 8, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--hover)" as string, ...({ outlineStyle: "none", outlineWidth: 0 } as object) },
+  nameRow: { alignSelf: "stretch" },
+  input: { alignSelf: "stretch", width: "100%", height: 36, borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, paddingHorizontal: 10, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string, ...({ outlineStyle: "none", outlineWidth: 0 } as object) },
   brief: { minHeight: 72, height: undefined, paddingTop: 8, paddingBottom: 8, flex: undefined },
   note: { fontSize: 12, color: "var(--ink-2)" as string, marginTop: 14 },
 });

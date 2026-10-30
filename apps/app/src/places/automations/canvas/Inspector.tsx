@@ -26,6 +26,7 @@ import { ERROR_MODES, groupOfKey, iconOfKey, keyChoices, kindOfKey, setBranch, s
 import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import type { KeysStatus } from "./data.tsx";
+import { SendApproval, sendsOutward } from "./AskBeforeSending.tsx";
 import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 
 const humanize = (k: string): string => k.replace(/([A-Z])/g, " $1").replace(/[_.]+/g, " ").replace(/^./, (x) => x.toUpperCase());
@@ -304,6 +305,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
             )}
           </View>
         ) : null}
+        {sendsOutward(node.key) ? <SendApproval on={node.askBeforeSending === true} onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))} /> : null}
         <View style={i.group}>
           <Text style={i.groupHead}>If this step fails</Text>
           <Choice

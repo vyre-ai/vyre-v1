@@ -2025,6 +2025,43 @@ export type AutomationsAlertsSetOut = {
       }>;
   };
 };
+export type AutomationsAnalyticsIn = {
+  automationId?: string;
+  days?: number;
+};
+export type AutomationsAnalyticsOut = {
+  windowDays: number;
+  totals: {
+    runs: number;
+    succeeded: number;
+    failed: number;
+    stopped: number;
+    active: number;
+    costMicros: number;
+    successRate: number | null;
+    medianMs: number | null;
+  };
+  daily: Array<{
+      day: string;
+      succeeded: number;
+      failed: number;
+      other: number;
+    }>;
+  automations: Array<{
+      automationId: string;
+      name: string;
+      runs: number;
+      succeeded: number;
+      failed: number;
+      lastRunAt: number;
+    }>;
+  failures: Array<{
+      automationId: string | null;
+      step: string;
+      code: string;
+      count: number;
+    }>;
+};
 export type AutomationsConnectorOfferAcceptIn = {
   itemId: string;
 };
@@ -2121,6 +2158,7 @@ export type AutomationsCreateIn = {
             id: string;
           };
         };
+        askBeforeSending?: boolean;
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
@@ -2187,6 +2225,7 @@ export type AutomationsCreateOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2223,6 +2262,21 @@ export type AutomationsDeleteIn = {
 };
 export type AutomationsDeleteOut = {
   deleted: boolean;
+};
+export type AutomationsDependenciesIn = Record<string, unknown>;
+export type AutomationsDependenciesOut = {
+  automations: number;
+  items: Array<{
+      kind: string;
+      ref: string;
+      problem: ("missing" | "off") | null;
+      usedBy: Array<{
+          automationId: string;
+          name: string;
+          status: string;
+          stepIds: Array<string>;
+        }>;
+    }>;
 };
 export type AutomationsDraftConnectorIn = {
   document?: Record<string, unknown>;
@@ -2407,6 +2461,7 @@ export type AutomationsGetOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2570,6 +2625,7 @@ export type AutomationsMakePersonalCopyOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2613,6 +2669,7 @@ export type AutomationsMigrateRunsOut = {
       toVersion: number;
       atStepId: string;
     }>;
+  held: Array<string>;
 };
 export type AutomationsMigrationPreviewIn = {
   automationId: string;
@@ -2692,6 +2749,7 @@ export type AutomationsMoveOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2754,11 +2812,21 @@ export type AutomationsPackagesExportOut = {
     name: string;
     sourceAutomationId: string;
     createdAt: number;
+    requires: {
+      connections: Array<{
+          slot: string;
+          label: string;
+          stepIds: Array<string>;
+        }>;
+      vault: Array<string>;
+      keys: Array<string>;
+    };
   };
 };
 export type AutomationsPackagesImportIn = {
   packageId: string;
   name?: string;
+  connections?: Record<string, string>;
 };
 export type AutomationsPackagesImportOut = {
   automation: {
@@ -2818,6 +2886,7 @@ export type AutomationsPackagesImportOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -2848,6 +2917,15 @@ export type AutomationsPackagesImportOut = {
     createdAt: number;
     updatedAt: number;
   };
+  needs: {
+    connections: Array<{
+        slot: string;
+        label: string;
+        stepIds: Array<string>;
+      }>;
+    vault: Array<string>;
+    keys: Array<string>;
+  };
 };
 export type AutomationsPackagesListIn = Record<string, unknown>;
 export type AutomationsPackagesListOut = {
@@ -2856,6 +2934,15 @@ export type AutomationsPackagesListOut = {
       name: string;
       sourceAutomationId: string;
       createdAt: number;
+      requires: {
+        connections: Array<{
+            slot: string;
+            label: string;
+            stepIds: Array<string>;
+          }>;
+        vault: Array<string>;
+        keys: Array<string>;
+      };
     }>;
 };
 export type AutomationsPreviewPromoteIn = {
@@ -2945,6 +3032,7 @@ export type AutomationsPromoteOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3061,6 +3149,7 @@ export type AutomationsRestoreVersionOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3193,6 +3282,7 @@ export type AutomationsSetEnabledOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3246,6 +3336,117 @@ export type AutomationsStopIn = {
 };
 export type AutomationsStopOut = {
   stopped: number;
+};
+export type AutomationsTemplatesListIn = Record<string, unknown>;
+export type AutomationsTemplatesListOut = {
+  templates: Array<{
+      key: string;
+      title: string;
+      summary: string;
+      starts: string;
+      setUp: Array<string>;
+      steps: Array<{
+          id: string;
+          key: string;
+          title: string;
+        }>;
+    }>;
+};
+export type AutomationsTemplatesUseIn = {
+  templateKey: string;
+  name?: string;
+  folderId?: string;
+  idempotencyKey: string;
+};
+export type AutomationsTemplatesUseOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+  };
 };
 export type AutomationsTestIn = {
   automationId: string;
@@ -3340,6 +3541,7 @@ export type AutomationsUndeleteOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3422,6 +3624,7 @@ export type AutomationsUpdateIn = {
             id: string;
           };
         };
+        askBeforeSending?: boolean;
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
@@ -3486,6 +3689,7 @@ export type AutomationsUpdateOut = {
               id: string;
             };
           };
+          askBeforeSending?: boolean;
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
@@ -3565,6 +3769,7 @@ export type AutomationsValidateIn = {
             id: string;
           };
         };
+        askBeforeSending?: boolean;
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
@@ -10797,9 +11002,11 @@ export type GateEffectiveRuleIn = {
     id: string;
   };
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise";
+  adminOnly?: boolean;
 };
 export type GateEffectiveRuleOut = {
   hold: boolean;
+  adminRule: boolean;
   reason: string;
   approvers: string;
   peopleOnly: boolean;
@@ -29144,6 +29351,7 @@ export interface CapMap {
   "automations.account_picks": { in: AutomationsAccountPicksIn; out: AutomationsAccountPicksOut };
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
+  "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
   "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
   "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
@@ -29151,6 +29359,7 @@ export interface CapMap {
   "automations.connector_shares": { in: AutomationsConnectorSharesIn; out: AutomationsConnectorSharesOut };
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };
   "automations.delete": { in: AutomationsDeleteIn; out: AutomationsDeleteOut };
+  "automations.dependencies": { in: AutomationsDependenciesIn; out: AutomationsDependenciesOut };
   "automations.draft_connector": { in: AutomationsDraftConnectorIn; out: AutomationsDraftConnectorOut };
   "automations.fire": { in: AutomationsFireIn; out: AutomationsFireOut };
   "automations.followers.add": { in: AutomationsFollowersAddIn; out: AutomationsFollowersAddOut };
@@ -29180,6 +29389,8 @@ export interface CapMap {
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
   "automations.steps.list": { in: AutomationsStepsListIn; out: AutomationsStepsListOut };
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };
+  "automations.templates.list": { in: AutomationsTemplatesListIn; out: AutomationsTemplatesListOut };
+  "automations.templates.use": { in: AutomationsTemplatesUseIn; out: AutomationsTemplatesUseOut };
   "automations.test": { in: AutomationsTestIn; out: AutomationsTestOut };
   "automations.triggers.list": { in: AutomationsTriggersListIn; out: AutomationsTriggersListOut };
   "automations.try_read": { in: AutomationsTryReadIn; out: AutomationsTryReadOut };

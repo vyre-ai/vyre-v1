@@ -17,3 +17,4 @@ Area: automations. Risk: low. Applies to: space.
 - automations.create
 - automations.groups.create
 - automations.make_personal_copy
+- automations.templates.use

@@ -4393,6 +4393,34 @@
     },
     {
       "blocks": [],
+      "cap": "automations.analytics",
+      "deferred": false,
+      "description": "Outcomes from runs: totals, success rate, a daily series, the busiest automations and where failures stop",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "days": {
+            "maximum": 90,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_analytics",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.connector_offer.accept",
       "deferred": false,
       "description": "Accept a connector setup offer. Accepting is final for that Vault item.",
@@ -4656,6 +4684,9 @@
                       },
                       "type": "object"
                     },
+                    "askBeforeSending": {
+                      "type": "boolean"
+                    },
                     "branches": {
                       "items": {
                         "properties": {
@@ -4850,6 +4881,21 @@
       },
       "name": "automations_delete",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.dependencies",
+      "deferred": false,
+      "description": "What every visible automation names: other automations, connections, mailboxes, forms and more, with who uses each and what is missing or off",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_dependencies",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
@@ -5343,7 +5389,7 @@
       "blocks": [],
       "cap": "automations.packages.export",
       "deferred": false,
-      "description": "Save a portable copy of an Automation definition",
+      "description": "Save a portable copy of an Automation definition; connections become slots and no secret, Vault value or run data is carried",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -5373,10 +5419,20 @@
       "blocks": [],
       "cap": "automations.packages.import",
       "deferred": false,
-      "description": "Create a draft Automation from a package this person exported",
+      "description": "Create a Personal draft from a package this person exported, put their own connections in its slots and list what is left to connect",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "connections": {
+            "additionalProperties": {
+              "examples": [
+                "con_a1b2c3"
+              ],
+              "pattern": "^con_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "object"
+          },
           "name": {
             "minLength": 1,
             "type": "string"
@@ -5821,6 +5877,63 @@
     },
     {
       "blocks": [],
+      "cap": "automations.templates.list",
+      "deferred": false,
+      "description": "The starter templates: what each one does, what starts it and what to set up",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_templates_list",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.templates.use",
+      "deferred": false,
+      "description": "Make a Personal draft from a starter template",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "templateKey": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "templateKey",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "automations_templates_use",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.test",
       "deferred": false,
       "description": "Test an Automation with sample data: reads run for real, writes and sends are stubbed (a Run)",
@@ -6087,6 +6200,9 @@
                         }
                       },
                       "type": "object"
+                    },
+                    "askBeforeSending": {
+                      "type": "boolean"
                     },
                     "branches": {
                       "items": {
@@ -6380,6 +6496,9 @@
                         }
                       },
                       "type": "object"
+                    },
+                    "askBeforeSending": {
+                      "type": "boolean"
                     },
                     "branches": {
                       "items": {
@@ -20047,6 +20166,9 @@
               "spend_raise"
             ],
             "type": "string"
+          },
+          "adminOnly": {
+            "type": "boolean"
           },
           "principal": {
             "properties": {

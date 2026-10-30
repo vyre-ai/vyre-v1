@@ -560,6 +560,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_analytics",
+      "summary": "Outcomes from runs: totals, success rate, a daily series, the busiest automations and where failures stop",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_connector_offer_accept",
       "summary": "Accept a connector setup offer. Accepting is final for that Vault item.",
       "toolset": "automations"
@@ -598,6 +604,12 @@
       "deferred": false,
       "name": "automations_delete",
       "summary": "Move an Automation to Trash",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_dependencies",
+      "summary": "What every visible automation names: other automations, connections, mailboxes, forms and more, with who uses each and what is missing or off",
       "toolset": "automations"
     },
     {
@@ -693,13 +705,13 @@
     {
       "deferred": false,
       "name": "automations_packages_export",
-      "summary": "Save a portable copy of an Automation definition",
+      "summary": "Save a portable copy of an Automation definition; connections become slots and no secret, Vault value or run data is carried",
       "toolset": "automations"
     },
     {
       "deferred": false,
       "name": "automations_packages_import",
-      "summary": "Create a draft Automation from a package this person exported",
+      "summary": "Create a Personal draft from a package this person exported, put their own connections in its slots and list what is left to connect",
       "toolset": "automations"
     },
     {
@@ -766,6 +778,18 @@
       "deferred": false,
       "name": "automations_stop",
       "summary": "Stop one run of an Automation, or all its running runs and pause it",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_templates_list",
+      "summary": "The starter templates: what each one does, what starts it and what to set up",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_templates_use",
+      "summary": "Make a Personal draft from a starter template",
       "toolset": "automations"
     },
     {

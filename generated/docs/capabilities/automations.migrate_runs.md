@@ -41,6 +41,7 @@ type Out = {
       toVersion: number;
       atStepId: string;
     }>;
+  held: Array<string>;
 };
 ```
 
@@ -66,6 +67,9 @@ type Out = {
     "toVersion": 1
   },
   "output": {
+    "held": [
+      "run_a1b2c3"
+    ],
     "moved": [
       {
         "atStepId": "example",

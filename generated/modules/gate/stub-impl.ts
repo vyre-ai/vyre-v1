@@ -6,7 +6,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "gate.acts.list": async () => ({"acts":[{"humanToo":true,"key":"send","peopleOnly":true,"risk":"low","title":"example"}]} as unknown) as never,
   "gate.deny": async () => ({"ok":true} as unknown) as never,
-  "gate.effective_rule": async () => ({"afterHours":1,"approvers":"role:admin","hold":true,"onTimeout":"drop","peopleOnly":true,"reason":"example","sources":{"agent":"hold","floor":"hold","space":"hold"}} as unknown) as never,
+  "gate.effective_rule": async () => ({"adminRule":true,"afterHours":1,"approvers":"role:admin","hold":true,"onTimeout":"drop","peopleOnly":true,"reason":"example","sources":{"agent":"hold","floor":"hold","space":"hold"}} as unknown) as never,
   "gate.expire": async () => ({"escalatedTo":"example","outcome":"dropped"} as unknown) as never,
   "gate.holds.get": async () => ({"hold":{"act":"send","actingFor":"example","capName":"mail.send","createdAt":1760000000000,"expiresAt":1760000000000,"id":"hld_a1b2c3","payloadHash":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"runId":"run_a1b2c3","state":"held","taskId":"tsk_a1b2c3"}} as unknown) as never,
   "gate.holds.list": async () => ({"holds":[{"act":"send","actingFor":"example","capName":"mail.send","createdAt":1760000000000,"expiresAt":1760000000000,"id":"hld_a1b2c3","payloadHash":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"runId":"run_a1b2c3","state":"held","taskId":"tsk_a1b2c3"}],"next":"example","total":1} as unknown) as never,

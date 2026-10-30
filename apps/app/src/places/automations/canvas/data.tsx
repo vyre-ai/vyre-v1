@@ -16,6 +16,8 @@ export interface AutomationsNav {
   /** Opens the New Journey type sheet. Without it the plus on the Journey types header is not drawn. */
   newJourney?(): void;
   openFailedRuns(): void;
+  /** Opens the template gallery. Without it "From a template" is not offered. */
+  openTemplates?(): void;
   openRun(runId: string): void;
   /** Ask Vyre about this Automation. The bundle is already scrubbed. */
   ask(id: string, context?: AskBundle): void;
