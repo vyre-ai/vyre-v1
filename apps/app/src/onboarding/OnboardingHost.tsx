@@ -7,6 +7,7 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
 import { ChromeCard } from "./ChromeCard.tsx";
 import { SessionsCard } from "./SessionsCard.tsx";
+import { FoldersCard, shellInvoke } from "./FoldersCard.tsx";
 import { InterviewCard } from "./InterviewCard.tsx";
 import { takeTeamNext } from "./doors.ts";
 import { TeamBridgeCard } from "./TeamBridgeCard.tsx";
@@ -104,6 +105,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "phone" && call && address) return <PairPhoneCard call={call} address={address} onPaired={() => ctx.done()} />;
     if (card === "chrome" && call) return <ChromeCard call={call} device={ctx.device} onConnected={() => ctx.done()} />;
     if (card === "import_sessions" && call && desktopSessionImporter()) return <SessionsCard call={call} onDone={() => ctx.done()} />;
+    if (card === "local_folders" && call && shellInvoke() && ctx.device !== "web" && ctx.device !== "phone") return <FoldersCard call={call} gate={ctx.gate} />;
     const target = OPEN_TARGETS[card];
     if (target && onGo) return <OpenCard step={{ flow: ctx.flow, key: ctx.step.key }} text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} />;
     if (card === "space_ai" && call) return <SpaceAiCard team={call} personal={personalCall} onConnected={() => ctx.done()} />;
