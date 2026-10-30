@@ -63,6 +63,8 @@ function useLists(): Lists {
   }, [sites, forms, campaigns, templates, domains, domainError]);
 }
 
+const EMPTY_ICON = { sites: "files", forms: "records", campaigns: "inbox", templates: "files", domains: "inbox" } as const;
+
 function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | undefined; route?: AppsRoute | undefined }): ReactElement {
   const d = useAppsData();
   const { width } = useWindowDimensions();
@@ -165,7 +167,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
         {group === "forms" || group === "campaigns" || group === "domains" ? <Pressable accessibilityRole="button" accessibilityLabel={group === "domains" ? "Add sending domain" : `New ${g.one}`} testID="apps-new-group" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y, group); }} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>{group === "domains" ? "Add domain" : `New ${g.one}`}</Text></Pressable> : null}
       </View>
       {cur.error ? <States kind="error" message={cur.error} /> : !cur.ready ? <View testID="apps-loading" style={s.skeleton}>{skeleton()}</View> : rows.length === 0 ? (
-        <View style={s.empty} testID="apps-empty"><States kind="empty" title={q ? `Nothing matches ${q}` : g.empty} icon="search" /></View>
+        <View style={s.empty} testID="apps-empty"><States kind="empty" title={q ? `Nothing matches ${q}` : g.empty} icon={q ? "search" : EMPTY_ICON[g.key]} {...(!q && (g.key === "forms" || g.key === "campaigns" || g.key === "domains") ? { action: { label: g.key === "domains" ? "Add domain" : `New ${g.one}`, onPress: () => newMenu(width / 2, 320, g.key) } } : {})} /></View>
       ) : (
         <VirtualList
           data={rows} rowHeight={ROW_HEIGHT} keyOf={(r) => (r as AppRow).id}

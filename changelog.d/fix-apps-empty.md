@@ -1,0 +1,1 @@
+- Apps: an empty group shows an icon, one short line and its New action, instead of a magnifier and a sentence.
