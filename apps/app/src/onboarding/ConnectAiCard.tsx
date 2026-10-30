@@ -9,7 +9,6 @@ import { SIGNIN_BUTTONS } from "../ai-signin/flow.ts";
 import { API_KEYS, saveApiKey, startSubscription } from "./connect-ai.ts";
 import type { SignInFlow } from "./connect-ai.ts";
 import { Mark } from "./ProviderLogo.tsx";
-import { Mark } from "./ProviderLogo.tsx";
 
 export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string } }): ReactElement {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
