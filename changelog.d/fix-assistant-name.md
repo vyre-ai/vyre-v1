@@ -1,0 +1,1 @@
+- Agents: a person's private assistant is named "Irfad’s Assistant" (a first name ending in s gets "James’ Assistant"), and on boot an assistant still called by the old default "<First> Assistant" is renamed with its folder; one the person renamed is left alone.

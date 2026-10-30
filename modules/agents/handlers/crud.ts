@@ -479,6 +479,51 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
 
 // ---- what the engine and Files tell this module --------------------------------------------------------------------------------------------------------
 
+/** "Irfad" becomes "Irfad’s", "James" becomes "James’": the typographic apostrophe, and a name that ends in s takes no second s. */
+export const possessive = (name: string): string => (/s$/i.test(name) ? `${name}’` : `${name}’s`);
+
+const cleanName = (raw: string | undefined): string => (raw ?? "").trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").replace(/^\.+/, "").slice(0, MAX_NAME - 12);
+
+/** The names a person's assistant may take, in order: "<First>’s Assistant", then "<Full name>’s Assistant", then "Assistant <id>". No name at all gives "Assistant", "My Assistant", then the id form. */
+export function assistantNames(person: string, rawName: string | undefined): string[] {
+  const base = cleanName(rawName);
+  const first = base.split(" ")[0] ?? "";
+  return [first === "" ? "Assistant" : `${possessive(first)} Assistant`, base === "" ? "My Assistant" : `${possessive(base)} Assistant`, `Assistant ${person.slice(4, 10)}`];
+}
+
+/** The names the assistant had before the possessive rule, for the same person: "<First> Assistant" and "<Full name> Assistant". Index i here is replaced by index i in assistantNames. */
+const oldAssistantNames = (rawName: string | undefined): Array<string | null> => {
+  const base = cleanName(rawName);
+  const first = base.split(" ")[0] ?? "";
+  return [first === "" ? null : `${first} Assistant`, base === "" ? null : `${base} Assistant`];
+};
+
+/**
+ * Spaces made before the possessive rule hold assistants called "Irfad Assistant". One whose name still exactly equals that old default is renamed to "Irfad’s Assistant" through the normal update (the
+ * agent.toml, the folder and the display name follow). One the person renamed, or whose new name is taken, is left alone. Safe to run again: after the rename nothing matches.
+ */
+export async function renameOldAssistants(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const mine = allAgents(ctx.db).filter((a) => isAssistant(a) && a.ownerId.startsWith("usr_") && /^\S.* Assistant$/.test(a.name));
+  if (mine.length === 0) return [];
+  const listed = await tolerant<{ principals?: Array<{ id: string; name: string }> }>(ctx, "access.principals.list", { kind: "person", limit: 500 }, {});
+  const done: string[] = [];
+  for (const a of mine) {
+    const who = listed.principals?.find((p) => p.id === a.ownerId);
+    if (!who) continue;
+    const i = oldAssistantNames(who.name).findIndex((n) => n === a.name);
+    const target = i < 0 ? undefined : assistantNames(a.ownerId, who.name)[i];
+    if (target === undefined || target === a.name || agentByName(ctx.db, target)) continue;
+    try {
+      await update({ ...ctx, actingFor: a.ownerId }, { agentId: a.id, patch: { name: target } });
+      done.push(a.id);
+    } catch (e) {
+      ctx.log.warn("agents: an assistant could not be renamed", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    }
+  }
+  return done;
+}
+
 export interface PrincipalEvent { payload: { principalId?: string; kind?: string; name?: string } }
 
 /**
@@ -493,9 +538,7 @@ export async function onPersonCreated(ctx: AgentsCtx, event: PrincipalEvent): Pr
   // the role line is the agent's description in its config; the console assistant finds the assistant by the same word
   const have = allAgents(ctx.db).find((a) => a.ownerId === person && isAssistant(a));
   if (have) return [have.id];
-  const base = (event.payload.name ?? "").trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").replace(/^\.+/, "").slice(0, MAX_NAME - 12);
-  const first = base.split(" ")[0] ?? "";
-  const names = [first === "" ? "Assistant" : `${first} Assistant`, base === "" ? "My Assistant" : `${base} Assistant`, `Assistant ${person.slice(4, 10)}`];
+  const names = assistantNames(person, event.payload.name);
   for (const name of names) {
     if (agentByName(ctx.db, name)) continue;
     // the person is the asker, so the maker and the owner are the same and no one is asked to manage access

@@ -2,7 +2,7 @@
 // Also here: what the module reads from the event log. `consumers` lists, by name, the events each one reads and what it does with one; the host runs them after commit, at least once, so each is safe to repeat.
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { onFileVersion, onPersonCreated, onTurn, restoreAgentFiles } from "./handlers/crud.ts";
+import { onFileVersion, onPersonCreated, onTurn, renameOldAssistants, restoreAgentFiles } from "./handlers/crud.ts";
 import { onMessageReceived } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
 import type { FileVersionEvent, PrincipalEvent, TurnEvent } from "./handlers/crud.ts";
@@ -15,6 +15,8 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 /** The boot check: right after start, then every 15 seconds, each agent's AGENT.md and agent.toml are in its folder; a missing one is put back from the agent record (P-L5_30). */
 export const periodic = {
   "agents.agent_files": { everyMs: 15_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => restoreAgentFiles(ctx) },
+  /** The boot rename: an assistant still called "<First> Assistant" becomes "<First>’s Assistant"; one the person renamed is left alone. */
+  "agents.assistant_names": { everyMs: 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => renameOldAssistants(ctx) },
 };
 
 export { restoreAgentFiles };

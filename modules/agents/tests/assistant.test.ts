@@ -2,7 +2,8 @@
 // @reads /modules/agents/impl.ts
 import test from "node:test";
 import assert from "node:assert/strict";
-import { consumers } from "../impl.ts";
+import { consumers, periodic } from "../impl.ts";
+import { assistantNames, possessive } from "../handlers/crud.ts";
 import { DANA, LEO, harness } from "../fixtures/harness.ts";
 
 const run = consumers["agents.ensure_assistant"].run;
@@ -18,7 +19,7 @@ test("a person's account makes one private assistant owned by them, and a second
   const mine = listed.filter((a: any) => a.ownerId === DANA);
   assert.equal(mine.length, 1);
   assert.equal(mine[0].role, "assistant");
-  assert.equal(mine[0].name, "Dana Assistant");
+  assert.equal(mine[0].name, "Dana’s Assistant");
 });
 
 test("two people with the same first name each get their own; agents and services get none", async () => {
@@ -51,4 +52,35 @@ test("the assistant belongs to its person alone: another member's list does not 
   assert.deepEqual(await run(hn.person(DANA), born(DANA, "Dana R.")), [id]);
   const again = (await list(hn.person(DANA), { section: "personal", limit: 100 })).agents.filter((a) => a.ownerId === DANA && a.role === "assistant");
   assert.equal(again.length, 1);
+});
+
+test("the assistant name is possessive with a typographic apostrophe, and a name ending in s takes none", () => {
+  assert.equal(possessive("Irfad"), "Irfad’s");
+  assert.equal(possessive("James"), "James’");
+  assert.deepEqual(assistantNames("usr_abcdefgh", "Irfad Imtiaz"), ["Irfad’s Assistant", "Irfad Imtiaz’s Assistant", "Assistant abcdef"]);
+  assert.deepEqual(assistantNames("usr_abcdefgh", "James Cross"), ["James’ Assistant", "James Cross’ Assistant", "Assistant abcdef"]);
+  assert.deepEqual(assistantNames("usr_abcdefgh", undefined), ["Assistant", "My Assistant", "Assistant abcdef"]);
+  assert.deepEqual(assistantNames("usr_abcdefgh", "  "), ["Assistant", "My Assistant", "Assistant abcdef"]);
+  assert.equal(assistantNames("usr_abcdefgh", "Irfad")[0], "Irfad’s Assistant");
+});
+
+test("on boot an assistant still called by the old default is renamed with its folder; one the person renamed is not", async () => {
+  const { handlers } = await import("../impl.ts");
+  const get = handlers["agents.get"] as unknown as (c: unknown, i: unknown) => Promise<{ agent: { name: string; folderId?: string } }>;
+  const rename = periodic["agents.assistant_names"].run;
+  const hn = harness();
+  const people = hn.world.principals as unknown as Array<{ id: string; kind: string; name: string; status: string }>;
+  people.push({ id: DANA, kind: "person", name: "Dana Reyes", status: "active" }, { id: LEO, kind: "person", name: "Leo James", status: "active" });
+  const [dana] = await run(hn.person(DANA), born(DANA, "Dana Reyes"));
+  const [leo] = await run(hn.person(LEO), born(LEO, "Leo James"));
+  // make both look like a Space from before the rule: the old default name, written the way the old code did
+  const update = handlers["agents.update"] as unknown as (c: unknown, i: unknown) => Promise<unknown>;
+  await update(hn.person(DANA), { agentId: dana!, patch: { name: "Dana Assistant" } });
+  await update(hn.person(LEO), { agentId: leo!, patch: { name: "Leo Helper" } });   // renamed by hand: never touched
+  assert.deepEqual(await rename(hn.ctx), [dana]);
+  assert.equal((await get(hn.person(DANA), { agentId: dana! })).agent.name, "Dana’s Assistant");
+  assert.equal((await get(hn.person(LEO), { agentId: leo! })).agent.name, "Leo Helper");
+  assert.deepEqual(await rename(hn.ctx), [], "a second boot finds nothing to do");
+  const folder = hn.world.calls.filter((c) => c.cap === "files.folder.rename").map((c) => (c.input as { name: string }).name);
+  assert.ok(folder.includes("Dana’s Assistant"), "the folder followed the name");
 });
