@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (60)
+## Capabilities (61)
 
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
 - [google.calendar.delete_event](../capabilities/google.calendar.delete_event.md): Delete an event; Google tells the attendees
@@ -34,6 +34,7 @@ Requires: mail.
 - [google.drive.upload_file](../capabilities/google.drive.upload_file.md): Upload a Space file into Drive
 - [google.drive.watch_changes](../capabilities/google.drive.watch_changes.md): Open a Drive changes.watch channel
 - [google.dwd.disable](../capabilities/google.dwd.disable.md): Turn delegation off and stop every member sync
+- [google.dwd.map_member](../capabilities/google.dwd.map_member.md): Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in
 - [google.dwd.members](../capabilities/google.dwd.members.md): Workspace users mapped to Space members by email, with exclusion and mailbox state
 - [google.dwd.probe](../capabilities/google.dwd.probe.md): Mint a token for a probe user and call users.getProfile to prove the delegation and scopes
 - [google.dwd.scopes](../capabilities/google.dwd.scopes.md): The scope list and client id to paste into the Google Admin console

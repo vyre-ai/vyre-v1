@@ -22633,6 +22633,47 @@
     },
     {
       "blocks": [],
+      "cap": "google.dwd.map_member",
+      "deferred": false,
+      "description": "Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "email": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "userId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_dwd_map_member",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.dwd.members",
       "deferred": false,
       "description": "Workspace users mapped to Space members by email, with exclusion and mailbox state",
@@ -32169,6 +32210,47 @@
       },
       "name": "ms_consent_link",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.consent.map_member",
+      "deferred": false,
+      "description": "Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "email": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "userId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_consent_map_member",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },

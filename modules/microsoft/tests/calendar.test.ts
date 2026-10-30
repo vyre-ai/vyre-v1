@@ -91,3 +91,18 @@ test("a Calendar failure never fails the setup or the notice", async () => {
   n.ctx.call = async (cap, input) => { if (cap.startsWith("calendar.")) throw new Error("calendar is down"); return r2(cap, input); };
   assert.deepEqual(await receiveNotification(n.ctx, { notificationId: "n3", subscriptionId: "sub1", resource: `users/${MAYA}/messages/A`, changeType: "created", clientStateOk: true }), { accepted: true });
 });
+
+test("an admin matches an address to a person, whose mail and calendar then come in; a clash is refused until the first match is taken away", async () => {
+  const { consentMapMember } = await import("../handlers/index.ts");
+  const { codeOf } = await import("../fixtures/harness.ts");
+  const h = admin();
+  await consentSetup(h.ctx, setup);
+  const before = h.calls("mail.auto_connect_members").length;
+  const out = await consentMapMember(h.ctx, { email: "Owner@Vyre.test", userId: "usr_owner01", idempotencyKey: "m1" });
+  assert.deepEqual(out, { email: "owner@vyre.test", userId: "usr_owner01", mapped: true, connected: true });
+  assert.equal(h.calls("mail.auto_connect_members").length, before + 1);
+  assert.ok(h.calls("calendar.connect_provider").some((c) => c.input.account === "owner@vyre.test"));
+  await assert.rejects(() => consentMapMember(h.ctx, { email: "owner@vyre.test", userId: "usr_other01", idempotencyKey: "m2" }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(() => consentMapMember(h.ctx, { email: "x@elsewhere.test", userId: "usr_x000001", idempotencyKey: "m3" }), (e) => codeOf(e) === "validation.bad_input");
+  assert.deepEqual(await consentMapMember(h.ctx, { email: "owner@vyre.test", idempotencyKey: "m4" }), { email: "owner@vyre.test", mapped: false, connected: false });
+});

@@ -2,9 +2,9 @@
 // including them again brings it back, and the mailbox pass asks Calendar to sync the calendar. A Calendar failure never fails the setup or the mailbox pass.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dwdSetExcluded, dwdSetup, receivePush } from "../handlers/index.ts";
+import { dwdMapMember, dwdSetExcluded, dwdSetup, receivePush } from "../handlers/index.ts";
 import { ensure } from "../projections.ts";
-import { CONN, harness, NOW, seedDelegation } from "../fixtures/harness.ts";
+import { CONN, codeOf, harness, NOW, seedDelegation } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 const MAYA = "maya@vyre.test";
@@ -105,4 +105,33 @@ test("the admin who sets up is matched to the admin address even though no invit
   h2.on("GET", "https://gmail.googleapis.com/gmail/v1/users/me/profile", { body: { emailAddress: "admin@vyre.test", historyId: "1000" } });
   await dwdSetup(h2.ctx, { vaultItem: "#Google_DWD", adminEmail: "admin@vyre.test", idempotencyKey: "s1" });
   assert.deepEqual(h2.rows(`SELECT "userId" FROM google_member WHERE email = ?`, "admin@vyre.test"), [{ userId: "usr_other01" }]);
+});
+
+test("an admin matches an address to a person, whose mail and calendar then come in; a clash is refused until the first match is taken away", async () => {
+  const h = admin();
+  await dwdSetup(h.ctx, { vaultItem: "#Google_DWD", adminEmail: "admin@vyre.test", idempotencyKey: "s1" });
+  const before = h.calls("mail.auto_connect_members").length;
+  const out = await dwdMapMember(h.ctx, { email: "New.Person@Vyre.test", userId: "usr_new001", idempotencyKey: "m1" });
+  assert.deepEqual(out, { email: "new.person@vyre.test", userId: "usr_new001", mapped: true, connected: true });
+  assert.equal(h.calls("mail.auto_connect_members").length, before + 1);
+  assert.deepEqual(h.calls("mail.auto_connect_members").at(-1)!.input.members, [{ userId: "usr_new001", email: "new.person@vyre.test" }]);
+  assert.ok(h.calls("calendar.connect_provider").some((c) => c.input.account === "new.person@vyre.test"));
+  await assert.rejects(() => dwdMapMember(h.ctx, { email: "new.person@vyre.test", userId: "usr_other01", idempotencyKey: "m2" }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(() => dwdMapMember(h.ctx, { email: "second@vyre.test", userId: "usr_new001", idempotencyKey: "m3" }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(() => dwdMapMember(h.ctx, { email: "x@elsewhere.test", userId: "usr_new002", idempotencyKey: "m4" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(() => dwdMapMember(h.ctx, { email: "x@vyre.test", userId: "maya", idempotencyKey: "m5" }), (e) => codeOf(e) === "validation.bad_input");
+  const off = await dwdMapMember(h.ctx, { email: "new.person@vyre.test", idempotencyKey: "m6" });
+  assert.deepEqual(off, { email: "new.person@vyre.test", mapped: false, connected: false });
+  assert.deepEqual(h.rows(`SELECT mapped, "userId" FROM google_member WHERE email = ?`, "new.person@vyre.test"), [{ mapped: 0, userId: null }]);
+  assert.equal((await dwdMapMember(h.ctx, { email: "second@vyre.test", userId: "usr_new001", idempotencyKey: "m7" })).mapped, true);
+});
+
+test("a person who is excluded stays unconnected when matched", async () => {
+  const h = admin();
+  await dwdSetup(h.ctx, { vaultItem: "#Google_DWD", adminEmail: "admin@vyre.test", idempotencyKey: "s1" });
+  await dwdSetExcluded(h.ctx, { email: "ex@vyre.test", excluded: true });
+  const before = h.calls("mail.auto_connect_members").length;
+  const out = await dwdMapMember(h.ctx, { email: "ex@vyre.test", userId: "usr_ex0001", idempotencyKey: "m1" });
+  assert.deepEqual([out.mapped, out.connected], [true, false]);
+  assert.equal(h.calls("mail.auto_connect_members").length, before);
 });

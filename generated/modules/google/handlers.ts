@@ -33,6 +33,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.drive.upload_file": Handler<"google.drive.upload_file", X>;
   "google.drive.watch_changes": Handler<"google.drive.watch_changes", X>;
   "google.dwd.disable": Handler<"google.dwd.disable", X>;
+  "google.dwd.map_member": Handler<"google.dwd.map_member", X>;
   "google.dwd.members": Handler<"google.dwd.members", X>;
   "google.dwd.probe": Handler<"google.dwd.probe", X>;
   "google.dwd.scopes": Handler<"google.dwd.scopes", X>;

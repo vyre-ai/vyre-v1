@@ -939,6 +939,7 @@ export function stubs(ctx: CallCtx) {
       },
       dwd: {
         disable: call("google.dwd.disable"),
+        map_member: call("google.dwd.map_member"),
         members: call("google.dwd.members"),
         probe: call("google.dwd.probe"),
         scopes: call("google.dwd.scopes"),
@@ -1380,6 +1381,7 @@ export function stubs(ctx: CallCtx) {
       consent: {
         disable: call("ms.consent.disable"),
         link: call("ms.consent.link"),
+        map_member: call("ms.consent.map_member"),
         members: call("ms.consent.members"),
         policy_snippet: call("ms.consent.policy_snippet"),
         set_excluded: call("ms.consent.set_excluded"),

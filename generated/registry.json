@@ -1900,6 +1900,36 @@
       ],
       "type": "string"
     },
+    "s_162b976a1c": {
+      "properties": {
+        "email": {
+          "examples": [
+            "maya@example.com"
+          ],
+          "pattern": "^[^@\\s]+@[^@\\s]+$",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "examples": [
+            "idem_1"
+          ],
+          "minLength": 1,
+          "type": "string"
+        },
+        "userId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "email",
+        "idempotencyKey"
+      ],
+      "type": "object"
+    },
     "s_18a5df4b3d": {
       "items": {
         "properties": {
@@ -16770,6 +16800,36 @@
         "traceIds",
         "events",
         "versions"
+      ],
+      "type": "object"
+    },
+    "s_e4327547f1": {
+      "properties": {
+        "connected": {
+          "type": "boolean"
+        },
+        "email": {
+          "examples": [
+            "maya@example.com"
+          ],
+          "pattern": "^[^@\\s]+@[^@\\s]+$",
+          "type": "string"
+        },
+        "mapped": {
+          "type": "boolean"
+        },
+        "userId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "email",
+        "mapped",
+        "connected"
       ],
       "type": "object"
     },
@@ -85189,6 +85249,64 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.on_hold",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "email": "maya@example.com",
+            "idempotencyKey": "idem_1",
+            "userId": "usr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "connected": true,
+            "email": "maya@example.com",
+            "mapped": true,
+            "userId": "usr_a1b2c3"
+          }
+        }
+      ],
+      "gate": {
+        "act": "connection_change",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_162b976a1c"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.dwd.map_member",
+      "output": {
+        "$ref": "#/$defs/s_e4327547f1"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -117183,6 +117301,64 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "The admin consent link to open as a tenant admin, with the application permissions it grants",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.on_hold",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "email": "maya@example.com",
+            "idempotencyKey": "idem_1",
+            "userId": "usr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "connected": true,
+            "email": "maya@example.com",
+            "mapped": true,
+            "userId": "usr_a1b2c3"
+          }
+        }
+      ],
+      "gate": {
+        "act": "connection_change",
+        "when": "actor.kind != 'person'"
+      },
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_162b976a1c"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.consent.map_member",
+      "output": {
+        "$ref": "#/$defs/s_e4327547f1"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -173098,6 +173274,7 @@
         "google.dwd.probe",
         "google.dwd.members",
         "google.dwd.set_excluded",
+        "google.dwd.map_member",
         "google.dwd.disable",
         "google.health",
         "google.receive_push",
@@ -173382,6 +173559,7 @@
         "ms.consent.verify",
         "ms.consent.members",
         "ms.consent.set_excluded",
+        "ms.consent.map_member",
         "ms.consent.disable",
         "ms.health",
         "ms.receive_notification",

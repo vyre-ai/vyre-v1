@@ -64,6 +64,10 @@ const capabilities = [
   write('google.dwd.set_excluded', 'Exclude a member from delegation, or include them again (excluded members never get a connection)', {
     in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['permission.on_hold'],
   }),
+  write('google.dwd.map_member', 'Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in', {
+    in: { email, userId: t.opt(id.user) }, out: { email, userId: t.opt(id.user), mapped: t.bool(), connected: t.bool() },
+    perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
+  }),
   write('google.dwd.disable', 'Turn delegation off and stop every member sync', {
     in: {}, out: { disabled: t.bool() }, perm: 'connectors.manage', risk: 'high', emits: ['google.dwd_revoked'], audit: 'always', tool: 'engineer',
     gate: { act: 'connection_change', when: "actor.kind != 'person'" },

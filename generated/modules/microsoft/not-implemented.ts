@@ -19,6 +19,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "ms.calendar.update_event": async (ctx) => { throw new VyreErr(notImplemented("ms.calendar.update_event", ctx.trace)); },
   "ms.consent.disable": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.disable", ctx.trace)); },
   "ms.consent.link": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.link", ctx.trace)); },
+  "ms.consent.map_member": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.map_member", ctx.trace)); },
   "ms.consent.members": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.members", ctx.trace)); },
   "ms.consent.policy_snippet": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.policy_snippet", ctx.trace)); },
   "ms.consent.set_excluded": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.set_excluded", ctx.trace)); },

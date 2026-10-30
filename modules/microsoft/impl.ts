@@ -20,6 +20,7 @@ export const handlers: Record<string, Handler> = {
   "ms.consent.verify": (ctx, i) => h.consentVerify(ctx, i),
   "ms.consent.members": (ctx, i) => h.consentMembers(ctx, i),
   "ms.consent.set_excluded": (ctx, i) => h.consentExclude(ctx, i),
+  "ms.consent.map_member": (ctx, i) => h.consentMapMember(ctx, i),
   "ms.consent.disable": (ctx) => h.consentDisable(ctx),
   "ms.health": (ctx) => h.health(ctx),
   "ms.receive_notification": async (ctx, i) => { internalOnly(ctx, "ms.receive_notification"); return h.receiveNotification(ctx, i); },

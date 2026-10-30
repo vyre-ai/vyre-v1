@@ -18,6 +18,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "ms.calendar.update_event": async () => ({"event":{"attendees":[{"email":"maya@example.com","response":"example","type":"example"}],"end":{},"id":"example","isCancelled":true,"location":{},"onlineMeeting":{},"organizer":{},"start":{},"subject":"example"}} as unknown) as never,
   "ms.consent.disable": async () => ({"disabled":true} as unknown) as never,
   "ms.consent.link": async () => ({"permissions":["example"],"url":"example"} as unknown) as never,
+  "ms.consent.map_member": async () => ({"connected":true,"email":"maya@example.com","mapped":true,"userId":"usr_a1b2c3"} as unknown) as never,
   "ms.consent.members": async () => ({"members":[{"email":"maya@example.com","excluded":true,"mailboxState":"example","mapped":true,"userId":"usr_a1b2c3"}],"next":"example","total":1} as unknown) as never,
   "ms.consent.policy_snippet": async () => ({"groupName":"example","language":"powershell","snippet":"example"} as unknown) as never,
   "ms.consent.set_excluded": async () => ({"excluded":["maya@example.com"]} as unknown) as never,

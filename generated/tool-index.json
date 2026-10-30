@@ -3356,6 +3356,12 @@
     },
     {
       "deferred": false,
+      "name": "google_dwd_map_member",
+      "summary": "Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "google_dwd_members",
       "summary": "Workspace users mapped to Space members by email, with exclusion and mailbox state",
       "toolset": "engineer"
@@ -4774,6 +4780,12 @@
       "deferred": false,
       "name": "ms_consent_link",
       "summary": "The admin consent link to open as a tenant admin, with the application permissions it grants",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_consent_map_member",
+      "summary": "Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in",
       "toolset": "engineer"
     },
     {

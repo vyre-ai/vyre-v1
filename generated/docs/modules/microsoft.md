@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (48)
+## Capabilities (49)
 
 - [ms.calendar.create_event](../capabilities/ms.calendar.create_event.md): Create an event; Exchange invites the attendees
 - [ms.calendar.delete_event](../capabilities/ms.calendar.delete_event.md): Delete an event; Exchange tells the attendees
@@ -20,6 +20,7 @@ Requires: mail.
 - [ms.calendar.update_event](../capabilities/ms.calendar.update_event.md): Change an event; Exchange updates the attendees
 - [ms.consent.disable](../capabilities/ms.consent.disable.md): Turn the Microsoft connection off and stop every member sync
 - [ms.consent.link](../capabilities/ms.consent.link.md): The admin consent link to open as a tenant admin, with the application permissions it grants
+- [ms.consent.map_member](../capabilities/ms.consent.map_member.md): Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in
 - [ms.consent.members](../capabilities/ms.consent.members.md): Tenant users mapped to Space members by email, with exclusion and mailbox state
 - [ms.consent.policy_snippet](../capabilities/ms.consent.policy_snippet.md): PowerShell for the Exchange application access policy, limited to the mapped members, for a tenant admin to run
 - [ms.consent.set_excluded](../capabilities/ms.consent.set_excluded.md): Exclude a member from the connection, or include them again (excluded members never get a connection)

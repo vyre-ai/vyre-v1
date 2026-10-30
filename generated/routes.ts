@@ -12366,6 +12366,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/dwd/map_member",
+    "cap": "google.dwd.map_member",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/dwd/members",
     "cap": "google.dwd.members",
     "v": 1,
@@ -18285,6 +18303,24 @@ export const routes: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/consent/map_member",
+    "cap": "ms.consent.map_member",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
   },
   {
     "method": "POST",

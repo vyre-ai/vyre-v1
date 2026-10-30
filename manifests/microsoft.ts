@@ -62,6 +62,10 @@ const capabilities = [
   write('ms.consent.set_excluded', 'Exclude a member from the connection, or include them again (excluded members never get a connection)', {
     in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['permission.on_hold'],
   }),
+  write('ms.consent.map_member', 'Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in', {
+    in: { email, userId: t.opt(id.user) }, out: { email, userId: t.opt(id.user), mapped: t.bool(), connected: t.bool() },
+    perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
+  }),
   write('ms.consent.disable', 'Turn the Microsoft connection off and stop every member sync', {
     in: {}, out: { disabled: t.bool() }, perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_revoked'], audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" },
   }),

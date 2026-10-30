@@ -11825,6 +11825,17 @@ export type GoogleDwdDisableIn = Record<string, unknown>;
 export type GoogleDwdDisableOut = {
   disabled: boolean;
 };
+export type GoogleDwdMapMemberIn = {
+  email: string;
+  userId?: string;
+  idempotencyKey: string;
+};
+export type GoogleDwdMapMemberOut = {
+  email: string;
+  userId?: string;
+  mapped: boolean;
+  connected: boolean;
+};
 export type GoogleDwdMembersIn = {
   cursor?: string;
   limit?: number;
@@ -17219,6 +17230,17 @@ export type MsConsentLinkIn = {
 export type MsConsentLinkOut = {
   url: string;
   permissions: Array<string>;
+};
+export type MsConsentMapMemberIn = {
+  email: string;
+  userId?: string;
+  idempotencyKey: string;
+};
+export type MsConsentMapMemberOut = {
+  email: string;
+  userId?: string;
+  mapped: boolean;
+  connected: boolean;
 };
 export type MsConsentMembersIn = {
   cursor?: string;
@@ -28115,6 +28137,7 @@ export interface CapMap {
   "google.drive.upload_file": { in: GoogleDriveUploadFileIn; out: GoogleDriveUploadFileOut };
   "google.drive.watch_changes": { in: GoogleDriveWatchChangesIn; out: GoogleDriveWatchChangesOut };
   "google.dwd.disable": { in: GoogleDwdDisableIn; out: GoogleDwdDisableOut };
+  "google.dwd.map_member": { in: GoogleDwdMapMemberIn; out: GoogleDwdMapMemberOut };
   "google.dwd.members": { in: GoogleDwdMembersIn; out: GoogleDwdMembersOut };
   "google.dwd.probe": { in: GoogleDwdProbeIn; out: GoogleDwdProbeOut };
   "google.dwd.scopes": { in: GoogleDwdScopesIn; out: GoogleDwdScopesOut };
@@ -28438,6 +28461,7 @@ export interface CapMap {
   "ms.calendar.update_event": { in: MsCalendarUpdateEventIn; out: MsCalendarUpdateEventOut };
   "ms.consent.disable": { in: MsConsentDisableIn; out: MsConsentDisableOut };
   "ms.consent.link": { in: MsConsentLinkIn; out: MsConsentLinkOut };
+  "ms.consent.map_member": { in: MsConsentMapMemberIn; out: MsConsentMapMemberOut };
   "ms.consent.members": { in: MsConsentMembersIn; out: MsConsentMembersOut };
   "ms.consent.policy_snippet": { in: MsConsentPolicySnippetIn; out: MsConsentPolicySnippetOut };
   "ms.consent.set_excluded": { in: MsConsentSetExcludedIn; out: MsConsentSetExcludedOut };

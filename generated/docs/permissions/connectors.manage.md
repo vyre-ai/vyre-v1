@@ -42,6 +42,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - github.app.get
 - github.installations.list
 - google.dwd.disable
+- google.dwd.map_member
 - google.dwd.members
 - google.dwd.probe
 - google.dwd.scopes
@@ -53,6 +54,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - mail.mailbox.create
 - ms.consent.disable
 - ms.consent.link
+- ms.consent.map_member
 - ms.consent.members
 - ms.consent.policy_snippet
 - ms.consent.set_excluded

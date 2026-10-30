@@ -19,6 +19,7 @@ export const handlers: Record<string, Handler> = {
   "google.dwd.probe": (ctx, i) => h.dwdProbe(ctx, i),
   "google.dwd.members": (ctx, i) => h.dwdMembers(ctx, i),
   "google.dwd.set_excluded": (ctx, i) => h.dwdSetExcluded(ctx, i),
+  "google.dwd.map_member": (ctx, i) => h.dwdMapMember(ctx, i),
   "google.dwd.disable": (ctx) => h.dwdDisable(ctx),
   "google.health": (ctx, i) => h.health(ctx, i),
   "google.receive_push": async (ctx, i) => { internalOnly(ctx, "google.receive_push"); return h.receivePush(ctx, i); },
