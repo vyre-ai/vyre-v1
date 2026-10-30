@@ -12,6 +12,7 @@ const DOMAIN = "firm.test";
 const ADMIN = `olivia@${DOMAIN}`;
 const NOAH = `noah@${DOMAIN}`;
 const MIA = `mia@${DOMAIN}`;
+const SANA = `sana@${DOMAIN}`;
 const CLIENT_EMAIL = "vyre@firm-prod.iam.gserviceaccount.com";
 const SCOPE = "https://www.googleapis.com/auth/";
 const b64url = (s: string | Buffer): string => Buffer.from(s).toString("base64url");
@@ -27,7 +28,10 @@ const verifier = createPublicKey(publicKey.export({ type: "spki", format: "pem" 
 function google() {
   const refused = new Set<string>();   // scopes the Admin console has not delegated yet
   const asked: { sub: string; scope: string; url: string }[] = [];
-  const mail: Record<string, { id: string; subject: string; from: string; at: number }[]> = { [NOAH]: [{ id: "g-m1", subject: "Can we talk about the deed?", from: "Pat Lee <pat@acme.test>", at: Date.UTC(2026, 9, 28, 15, 0) }] };
+  const mail: Record<string, { id: string; subject: string; from: string; at: number }[]> = {
+    [NOAH]: [{ id: "g-m1", subject: "Can we talk about the deed?", from: "Pat Lee <pat@acme.test>", at: Date.UTC(2026, 9, 28, 15, 0) }],
+    [SANA]: [{ id: "g-s1", subject: "Sana only: payroll question", from: "Lee <lee@acme.test>", at: Date.UTC(2026, 9, 28, 16, 0) }],
+  };
   const events: Record<string, Record<string, unknown>[]> = {};
   const files: Record<string, { id: string; name: string; mimeType: string; modifiedTime: string; parents: string[] }[]> = {};
   const START = Date.now() - 3_600_000, END = Date.now() - 1_800_000;
@@ -107,7 +111,7 @@ function google() {
 }
 
 // the owner has no invitation email on record: setup maps the admin to the address it is given
-const members = [{ userId: "usr_noah", email: NOAH }, { userId: "usr_mia", email: MIA }];
+const members = [{ userId: "usr_noah", email: NOAH }, { userId: "usr_mia", email: MIA }, { userId: "usr_sana", email: SANA }];
 
 test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach the product; an excluded member is never read", async () => {
   const g = google();
@@ -139,7 +143,7 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
 
     // 3 setup works with Gmail delegated; the check names the scope that is missing
     const setup = await w.ok(OWNER, "google.dwd.setup", { vaultItem: "#Google_DWD", adminEmail: ADMIN, idempotencyKey: w.idem() });
-    assert.deepEqual([setup.configured, setup.mappedMembers, setup.connected], [true, 2, 2]);
+    assert.deepEqual([setup.configured, setup.mappedMembers, setup.connected], [true, 3, 3]);
     const missing = await w.ok(OWNER, "google.dwd.probe", {});
     assert.equal(missing.ok, false);
     assert.deepEqual(missing.scopesMissing, [`${SCOPE}drive`]);
@@ -147,10 +151,10 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     const fixed = await w.ok(OWNER, "google.dwd.probe", {});
     assert.deepEqual([fixed.ok, fixed.scopesMissing, fixed.email], [true, [], ADMIN]);
     const status = await w.ok(OWNER, "google.dwd.status");
-    assert.deepEqual([status.configured, status.lastProbeOk, status.mappedMembers, status.excluded], [true, true, 2, [MIA]]);
+    assert.deepEqual([status.configured, status.lastProbeOk, status.mappedMembers, status.excluded], [true, true, 3, [MIA]]);
     assert.match(status.pushToken, /^[0-9a-f]{64}$/);
     const roster = await w.ok(OWNER, "google.dwd.members", {});
-    assert.deepEqual(roster.members.map((m: { email: string; mapped: boolean; excluded: boolean }) => [m.email, m.mapped, m.excluded]).sort(), [[MIA, true, true], [NOAH, true, false], [ADMIN, true, false]].sort());
+    assert.deepEqual(roster.members.map((m: { email: string; mapped: boolean; excluded: boolean }) => [m.email, m.mapped, m.excluded]).sort(), [[MIA, true, true], [NOAH, true, false], [SANA, true, false], [ADMIN, true, false]].sort());
 
     // 4 mail: Noah's mailbox was made pending; syncing it brings the message into the Inbox
     const boxes = await w.ok(MEMBER, "mail.mailbox.list", {});
@@ -162,6 +166,18 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     assert.deepEqual(list.messages.map((m: { subject: string }) => m.subject), ["Can we talk about the deed?"]);
     const threads = await w.ok(MEMBER, "inbox.list_by_thread", {});
     assert.ok(JSON.stringify(threads).includes("Can we talk about the deed?"), "the message is in the Inbox thread list");
+
+    // 4b each person sees only their own mail: Sana syncs hers, and neither Inbox shows the other's
+    const sanaBoxes = (await w.ok(OTHER, "mail.mailbox.list", {})).mailboxes.filter((b: { address: string }) => b.address === SANA);
+    assert.equal(sanaBoxes.length, 1, "Sana has her own mailbox");
+    await w.ok(OTHER, "mail.sync_now", { mailboxId: sanaBoxes[0].id });
+    const sanaThreads = JSON.stringify(await w.ok(OTHER, "inbox.list_by_thread", {}));
+    assert.ok(sanaThreads.includes("Sana only: payroll question"), "Sana sees her own mail");
+    assert.equal(sanaThreads.includes("Can we talk about the deed?"), false, "Sana does not see Noah's mail");
+    const noahThreads = JSON.stringify(await w.ok(MEMBER, "inbox.list_by_thread", {}));
+    assert.equal(noahThreads.includes("Sana only"), false, "Noah does not see Sana's mail");
+    assert.equal((await w.ok(OTHER, "mail.message.list", { mailboxId: mine[0].id })).messages.length, 0, "Sana cannot list Noah's mailbox");
+    assert.equal((await w.ok(MEMBER, "mail.message.list", { mailboxId: sanaBoxes[0].id })).messages.length, 0, "Noah cannot list Sana's mailbox");
 
     // 5 calendar: the poll chain that the sync started made Noah's Google calendar and pulled his event
     const cals = await w.ok(MEMBER, "calendar.list_calendars", {});
