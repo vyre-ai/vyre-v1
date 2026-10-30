@@ -77,10 +77,13 @@ const mint = (): string => {
   return c?.randomUUID ? c.randomUUID() : `k_${Date.now().toString(36)}_${(mints++).toString(36)}`;
 };
 
-/** A capability whose contract asks for an idempotencyKey (idempotency: "key") gets one per attempt when the caller sent none: a screen that forgot it would be refused with "/idempotencyKey: required" and look dead. */
-export function withKey(route: RouteRow, input: unknown): unknown {
+/**
+ * A capability whose contract asks for an idempotencyKey (idempotency: "key") gets one when the caller sent none: a screen that forgot it would be refused with "/idempotencyKey: required" and look dead.
+ * The key is the caller's own, else the call's `opts.idempotencyKey` (the session sets one per logical call, so a send that is held and sent again, such as after the vault password, reuses it), else a new one.
+ */
+export function withKey(route: RouteRow, input: unknown, supplied?: string): unknown {
   if (route.idempotency !== "key" || !isObj(input) || input["idempotencyKey"] !== undefined) return input ?? {};
-  return { ...input, idempotencyKey: mint() };
+  return { ...input, idempotencyKey: supplied ?? mint() };
 }
 
 export function createCapCaller(o: CapCallerOptions): CapCall {
@@ -97,13 +100,13 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
     if (!route) throw new CapError({ code: "validation.unknown_capability", message: "There is no such endpoint.", traceId: "", status: 404, details: { cap } });
     const headers: Record<string, string> = { accept: "application/json" };
     if (token) headers["authorization"] = `Bearer ${token}`;
-    if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
+    if (opts.idempotencyKey && route.idempotency !== "none" && route.idempotency !== "natural") headers["idempotency-key"] = opts.idempotencyKey;
     const get = route.method.toUpperCase() === "GET";
     if (!get) headers["content-type"] = "application/json";
     const res = await doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
       method: route.method.toUpperCase(),
       headers,
-      ...(get ? {} : { body: JSON.stringify(withKey(route, input)) }),
+      ...(get ? {} : { body: JSON.stringify(withKey(route, input, opts.idempotencyKey)) }),
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
     let body: unknown = null;

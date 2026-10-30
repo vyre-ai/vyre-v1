@@ -12,6 +12,7 @@ import type { PlaceId } from "../rail/kits.ts";
 import type { SpaceDef } from "../spaces/model.ts";
 import { CapError, createCapCaller } from "./caps.ts";
 import type { CapCall, RouteRow } from "./caps.ts";
+import { attemptKey } from "../providers/files-review.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
 import { createTurnStreams } from "./turn-streams.ts";
@@ -153,7 +154,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     if (closed || refreshTimer !== null) return;
     refreshTimer = setTimeout(() => { refreshTimer = null; if (!closed) hooks.invalidate(); }, 120);
   };
-  const call: CapCall = async (cap, input, opts) => {
+  // one idempotency key per logical call (a retry layer that sends the same call again passes the same opts and so reuses it)
+  const call: CapCall = async (cap, input, given) => {
+    const opts = given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() };
     const r = await reach(cap, input, opts);
     refresh();
     return r;

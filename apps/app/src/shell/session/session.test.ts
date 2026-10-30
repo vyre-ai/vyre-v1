@@ -96,6 +96,18 @@ test("caps: a capability whose contract asks for an idempotencyKey gets one when
   assert.equal(bodies[1]!["idempotencyKey"], "mine");
 });
 
+test("caps: one logical call keeps one idempotencyKey when it is sent again (opts carry it), and a different call gets its own", async () => {
+  const gw = gateway({ "POST /v1/files/rename": () => ({ status: 200, body: { data: { ok: true } } }) });
+  const keyed: RouteRow[] = ROUTES.map((r) => (r.cap === "files.rename" ? { ...r, idempotency: "key" as const } : r));
+  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => keyed });
+  await call("files.rename", { id: "f1" }, { idempotencyKey: "logical-1" });
+  await call("files.rename", { id: "f1" }, { idempotencyKey: "logical-1" });
+  await call("files.rename", { id: "f1" }, { idempotencyKey: "logical-2" });
+  const keys = gw.seen.map((s) => (s.body as Record<string, unknown>)["idempotencyKey"]);
+  assert.deepEqual(keys, ["logical-1", "logical-1", "logical-2"], "the first send and its retry carry the same key");
+  assert.equal(gw.seen[0]!.headers["idempotency-key"], "logical-1");
+});
+
 test("caps: the newest version of a capability's route wins, and a query string leaves out missing values", () => {
   assert.equal(indexByCap(ROUTES).get("old.cap")!.path, "/v2/old");
   assert.equal(queryString({ a: "x", b: undefined, c: null, d: true }), "?a=x&d=true");
