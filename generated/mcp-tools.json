@@ -42799,6 +42799,33 @@
     },
     {
       "blocks": [],
+      "cap": "spaces.onboarding.flow",
+      "deferred": false,
+      "description": "My onboarding screen for one flow (personal, team or member): each step done or put off, and whether the screen has opened for me",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "flow": {
+            "enum": [
+              "personal",
+              "team",
+              "member"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow"
+        ],
+        "type": "object"
+      },
+      "name": "spaces_onboarding_flow",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "spaces.onboarding.get",
       "deferred": false,
       "description": "The first-run checklist for me: steps done, steps left",
@@ -42809,6 +42836,76 @@
       },
       "name": "spaces_onboarding_get",
       "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "spaces.onboarding.mark",
+      "deferred": false,
+      "description": "Mark an onboarding step done, put it off, or open it again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "flow": {
+            "enum": [
+              "personal",
+              "team",
+              "member"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "later",
+              "open"
+            ],
+            "type": "string"
+          },
+          "step": {
+            "examples": [
+              "ai"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow",
+          "step",
+          "state"
+        ],
+        "type": "object"
+      },
+      "name": "spaces_onboarding_mark",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "spaces.onboarding.seen",
+      "deferred": false,
+      "description": "Note that the onboarding screen has opened for me once, so it does not open by itself again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "flow": {
+            "enum": [
+              "personal",
+              "team",
+              "member"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow"
+        ],
+        "type": "object"
+      },
+      "name": "spaces_onboarding_seen",
+      "planMode": "blocked",
       "toolset": "meta",
       "v": 1
     },

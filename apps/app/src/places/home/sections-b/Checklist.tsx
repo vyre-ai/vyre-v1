@@ -10,6 +10,7 @@ import { isPersonal, useExtras } from "./data.tsx";
 import { CHECKLIST_SCREEN, checklistProgress, checklistRows } from "./model.ts";
 import type { ChecklistRow } from "./model.ts";
 import { GoButton, Icon } from "./parts.tsx";
+import { SetupRows } from "../../../onboarding/SetupRows.tsx";
 
 type Out = CapMap["home.checklist"]["out"];
 
@@ -39,6 +40,17 @@ export function Checklist(): ReactElement | null {
       </View>,
     );
   }
+  // the setup guide (step rail, chat, preview) holds the longer flow: one row per step, each reopening the screen at that step
+  items.push(
+    <SetupRows key="setup" render={(r, open, i) => (
+      <View key={`setup-${r.key}`} style={[local.item, local.itemLine]} testID={`first-setup-${r.key}`}>
+        <Row id={`first-setup-${r.key}`} title={r.title} note={r.state === "later" ? "Put off. Pick it up when you like" : r.note}
+          leading={<View style={local.lead}><Circle done={r.state === "done"} /></View>}
+          trailing={r.state === "done" ? null : <GoButton label={r.state === "later" ? "Resume" : i === 0 ? "Start" : "Open"} testID={`first-go-setup-${r.key}`} onPress={open} />}
+          {...(r.state === "done" ? {} : { onPress: open })} />
+      </View>
+    )} />,
+  );
   return (
     <View testID="s-first" accessibilityLabel="Get started" style={local.card}>
       <View style={local.head}>

@@ -12,7 +12,7 @@ export type { DesktopDeepLink } from "../../../../../client/src/connection/deskt
 
 export type DesktopRoute =
   | { kind: "signin"; address: string }
-  | { kind: "pair"; address: string; code: string }
+  | { kind: "pair"; address: string; code: string; /** a phone opened the pairing link in its browser */ phone?: true }
   | { kind: "join"; address: string; code: string; fingerprint: string };
 
 export type DesktopBootstrapBridge = DesktopLinkBridge;
@@ -124,7 +124,7 @@ export function consumeDesktopRoute(route: DesktopRoute | null): DesktopRoute | 
 
 /** Pairing spends the anonymous one-time code, then requires whoami and spaces.get before storing a session. Returned key ciphertext is intentionally ignored: Mine remains locked. */
 export async function redeemDesktopPair(route: Extract<DesktopRoute, { kind: "pair" }>, deps: DesktopSessionDeps): Promise<StoredSession> {
-  const answer = await preauth(deps.anonymous, "identity.pair_redeem", { code: route.code, deviceName: "Vyre desktop", deviceClass: "desktop" }, "This pairing link is unavailable. Ask to pair again.");
+  const answer = await preauth(deps.anonymous, "identity.pair_redeem", { code: route.code, deviceName: route.phone ? "Phone" : "Vyre desktop", deviceClass: route.phone ? "phone" : "desktop" }, "This pairing link is unavailable. Ask to pair again.");
   return verifyAndPersist(route.address, answer, undefined, deps);
 }
 
@@ -191,4 +191,16 @@ export async function consumeDesktopBootstrap(bridge: DesktopBootstrapBridge, on
     stopped = true;
     unlisten();
   };
+}
+
+/** A pairing link opened in a phone's browser: `<Space address>/home?pair=<code>`. Only the code shape is accepted; the code itself is spent by the redeem, once. */
+export function pairLink(address: string, code: string): string {
+  return `${address.replace(/\/+$/, "")}/home?pair=${encodeURIComponent(code)}`;
+}
+export function pairFromUrl(href: string, address: string): Extract<DesktopRoute, { kind: "pair" }> | null {
+  try {
+    const url = new URL(href);
+    const code = url.searchParams.get("pair");
+    return code && /^[A-Za-z0-9_-]{4,64}$/.test(code) ? { kind: "pair", address, code, phone: true } : null;
+  } catch { return null; }
 }

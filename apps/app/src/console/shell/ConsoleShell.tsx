@@ -22,6 +22,7 @@ import { Dot, Glyph } from "./glyphs.tsx";
 import { DEFAULT_PAGE, GROUPS, PAGES, pageById, visiblePages } from "./nav.ts";
 import type { PageDef } from "./nav.ts";
 import { pointer } from "./ui.tsx";
+import { openOnboarding } from "../../onboarding/store.ts";
 
 export const TOP_BAR_HEIGHT = 44;
 export const NAV_WIDTH = 232;
@@ -182,6 +183,9 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
         </Pressable>
         <Pressable ref={(r) => { skinBtn.current = r; }} accessibilityRole="button" accessibilityLabel="Skin" testID="console-skin" onPress={() => { const a = below(skinBtn); menu.show(skinMenuEntries(skin, (id) => onSkin?.(id)), a.x, a.y, "other", { label: "Skin" }); }} style={[s.chip, pointer]}>
           {narrow ? <Glyph name="gear" size={14} color="var(--ink-2)" /> : <><Text style={s.chipText}>{skinLabel(skin)}</Text><Glyph name="chevD" size={10} color="var(--ink-4)" /></>}
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Setup guide" testID="console-setup-guide" onPress={() => { openOnboarding(); }} style={[s.chip, pointer]}>
+          <Glyph name="ok" size={14} color="var(--ink-2)" />{narrow ? null : <Text style={s.chipText}>Setup guide</Text>}
         </Pressable>
         <Pressable accessibilityRole="link" accessibilityLabel="Open the app" testID="console-open-app" onPress={() => data.nav.openApp()} style={[s.chip, pointer]}>
           <Glyph name="open" size={14} color="var(--ink-2)" />{narrow ? null : <Text style={s.chipText}>Open the app</Text>}

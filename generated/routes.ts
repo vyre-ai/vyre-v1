@@ -24344,6 +24344,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/spaces/onboarding/flow",
+    "cap": "spaces.onboarding.flow",
+    "v": 1,
+    "module": "spaces",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/spaces/onboarding/get",
     "cap": "spaces.onboarding.get",
     "v": 1,
@@ -24357,6 +24375,42 @@ export const routes: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/spaces/onboarding/mark",
+    "cap": "spaces.onboarding.mark",
+    "v": 1,
+    "module": "spaces",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/spaces/onboarding/seen",
+    "cap": "spaces.onboarding.seen",
+    "v": 1,
+    "module": "spaces",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
     "teamOnly": false,
     "gate": null
   },

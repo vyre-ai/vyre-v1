@@ -12,6 +12,8 @@ export const NOW = 1_760_000_000_000;
 const TRACE = "0123456789abcdef0123456789abcdef";
 export const MIGRATION = fileURLToPath(new URL("../migrations/0001_spaces.sql", import.meta.url));
 
+const MORE = [fileURLToPath(new URL("../migrations/0002_onboarding_flow.sql", import.meta.url))];
+
 type Cell = string | number | null;
 export type Row = Record<string, Cell>;
 
@@ -169,7 +171,7 @@ export class FakeSpacesDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8"));
+    this.tables = parseMigration(migrationPath === MIGRATION ? [MIGRATION, ...MORE].map((f) => readFileSync(f, "utf8")).join("\n") : readFileSync(migrationPath, "utf8"));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }

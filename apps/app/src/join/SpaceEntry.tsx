@@ -5,8 +5,8 @@ import { Bar, Button, ErrorLine, FieldRow, Foot, Group, JoinFrame, Panel, Row, S
 import { entryTarget } from '../shell/session/entry.ts';
 import type { EntryTarget } from '../shell/session/entry.ts';
 
-export function SpaceEntry({onTarget,onBack,onCreatePersonal,onCreateMacServer}: {onTarget(target:EntryTarget):void|Promise<void>;onBack():void;onCreatePersonal?:()=>Promise<void>;onCreateMacServer?:()=>Promise<void>}):ReactElement{
- return <JoinFrame><SpaceEntryBody onTarget={onTarget} onBack={onBack} {...(onCreatePersonal?{onCreatePersonal}:{})} {...(onCreateMacServer?{onCreateMacServer}:{})}/></JoinFrame>;
+export function SpaceEntry({onTarget,onBack,onCreatePersonal,onCreateMacServer,startAt}: {onTarget(target:EntryTarget):void|Promise<void>;onBack():void;onCreatePersonal?:()=>Promise<void>;onCreateMacServer?:()=>Promise<void>;startAt?:'choice'|'join'}):ReactElement{
+ return <JoinFrame><SpaceEntryBody onTarget={onTarget} onBack={onBack} startAt={startAt??'choice'} {...(onCreatePersonal?{onCreatePersonal}:{})} {...(onCreateMacServer?{onCreateMacServer}:{})}/></JoinFrame>;
 }
 function SpaceEntryBody({onTarget,onBack,onCreatePersonal,onCreateMacServer}:{onTarget(target:EntryTarget):void|Promise<void>;onBack():void;onCreatePersonal?:()=>Promise<void>;onCreateMacServer?:()=>Promise<void>}):ReactElement{
  const {p}=useJoin();const[page,setPage]=useState<'choice'|'join'|'create'>('choice'),[value,setValue]=useState(''),[error,setError]=useState(''),[kind,setKind]=useState<'personal'|'team'>('personal'),[busy,setBusy]=useState(false);

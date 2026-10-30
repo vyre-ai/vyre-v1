@@ -14,7 +14,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "spaces.matrix": Handler<"spaces.matrix", X>;
   "spaces.onboarding.complete": Handler<"spaces.onboarding.complete", X>;
   "spaces.onboarding.dismiss": Handler<"spaces.onboarding.dismiss", X>;
+  "spaces.onboarding.flow": Handler<"spaces.onboarding.flow", X>;
   "spaces.onboarding.get": Handler<"spaces.onboarding.get", X>;
+  "spaces.onboarding.mark": Handler<"spaces.onboarding.mark", X>;
+  "spaces.onboarding.seen": Handler<"spaces.onboarding.seen", X>;
   "spaces.switch_address": Handler<"spaces.switch_address", X>;
   "spaces.switcher": Handler<"spaces.switcher", X>;
   "spaces.transfer_ownership": Handler<"spaces.transfer_ownership", X>;

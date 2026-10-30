@@ -1832,7 +1832,10 @@ export function stubs(ctx: CallCtx) {
       onboarding: {
         complete: call("spaces.onboarding.complete"),
         dismiss: call("spaces.onboarding.dismiss"),
+        flow: call("spaces.onboarding.flow"),
         get: call("spaces.onboarding.get"),
+        mark: call("spaces.onboarding.mark"),
+        seen: call("spaces.onboarding.seen"),
       },
       switch_address: call("spaces.switch_address"),
       switcher: call("spaces.switcher"),

@@ -22154,6 +22154,16 @@ export type SpacesOnboardingDismissIn = Record<string, unknown>;
 export type SpacesOnboardingDismissOut = {
   ok: boolean;
 };
+export type SpacesOnboardingFlowIn = {
+  flow: "personal" | "team" | "member";
+};
+export type SpacesOnboardingFlowOut = {
+  seen: boolean;
+  steps: Array<{
+      key: string;
+      state: "done" | "later";
+    }>;
+};
 export type SpacesOnboardingGetIn = Record<string, unknown>;
 export type SpacesOnboardingGetOut = {
   dismissed: boolean;
@@ -22162,6 +22172,20 @@ export type SpacesOnboardingGetOut = {
       title: string;
       done: boolean;
     }>;
+};
+export type SpacesOnboardingMarkIn = {
+  flow: "personal" | "team" | "member";
+  step: string;
+  state: "done" | "later" | "open";
+};
+export type SpacesOnboardingMarkOut = {
+  ok: boolean;
+};
+export type SpacesOnboardingSeenIn = {
+  flow: "personal" | "team" | "member";
+};
+export type SpacesOnboardingSeenOut = {
+  ok: boolean;
 };
 export type SpacesSwitchAddressIn = {
   mode: "relay" | "own_domain";
@@ -28863,7 +28887,10 @@ export interface CapMap {
   "spaces.matrix": { in: SpacesMatrixIn; out: SpacesMatrixOut };
   "spaces.onboarding.complete": { in: SpacesOnboardingCompleteIn; out: SpacesOnboardingCompleteOut };
   "spaces.onboarding.dismiss": { in: SpacesOnboardingDismissIn; out: SpacesOnboardingDismissOut };
+  "spaces.onboarding.flow": { in: SpacesOnboardingFlowIn; out: SpacesOnboardingFlowOut };
   "spaces.onboarding.get": { in: SpacesOnboardingGetIn; out: SpacesOnboardingGetOut };
+  "spaces.onboarding.mark": { in: SpacesOnboardingMarkIn; out: SpacesOnboardingMarkOut };
+  "spaces.onboarding.seen": { in: SpacesOnboardingSeenIn; out: SpacesOnboardingSeenOut };
   "spaces.switch_address": { in: SpacesSwitchAddressIn; out: SpacesSwitchAddressOut };
   "spaces.switcher": { in: SpacesSwitcherIn; out: SpacesSwitcherOut };
   "spaces.transfer_ownership": { in: SpacesTransferOwnershipIn; out: SpacesTransferOwnershipOut };

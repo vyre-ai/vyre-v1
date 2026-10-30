@@ -1832,7 +1832,10 @@ export function createClient(transport: Transport) {
       onboarding: {
         complete: call("spaces.onboarding.complete", 1),
         dismiss: call("spaces.onboarding.dismiss", 1),
+        flow: call("spaces.onboarding.flow", 1),
         get: call("spaces.onboarding.get", 1),
+        mark: call("spaces.onboarding.mark", 1),
+        seen: call("spaces.onboarding.seen", 1),
       },
       switch_address: call("spaces.switch_address", 1),
       switcher: call("spaces.switcher", 1),

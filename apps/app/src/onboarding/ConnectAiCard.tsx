@@ -1,0 +1,74 @@
+// The Connect AI card (owner flowchart step 2). Three subscription tiles and an "API key instead" form with a secure field. The value goes to the Vault through connect-ai.ts and is
+// cleared from this component at once; the chat only ever learns that a provider was connected.
+import { useRef, useState } from "react";
+import type { ReactElement } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import type { CapCall } from "../shell/session/caps.ts";
+import { API_KEYS, SUBSCRIPTIONS, finishSubscription, saveApiKey, startSubscription } from "./connect-ai.ts";
+import type { SignInFlow } from "./connect-ai.ts";
+
+export function ConnectAiCard({ call, connected, onConnected }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void }): ReactElement {
+  const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
+  const [mode, setMode] = useState<"tiles" | "key">("tiles");
+  const [flow, setFlow] = useState<(SignInFlow & { provider: string }) | null>(null);
+  const [provider, setProvider] = useState(API_KEYS[0]!.key);
+  const [secret, setSecret] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const run = async (work: () => Promise<void>): Promise<void> => {
+    if (busy) return;
+    setBusy(true); setError("");
+    try { await work(); } catch (e) { setError(e instanceof Error ? e.message : "Something went wrong."); } finally { setBusy(false); }
+  };
+  if (connected) return <Text testID="ai-connected" style={s.ok}>AI account connected.</Text>;
+  if (mode === "key") {
+    return (
+      <View testID="ai-key-form" style={s.col}>
+        {/* ui-rows-lint: not a list (provider choices are tiles, not list rows) */}
+        <View style={s.row}>{API_KEYS.map((o) => (
+          <Pressable key={o.key} testID={`ai-provider-${o.key}`} accessibilityRole="button" accessibilityState={{ selected: provider === o.key }} onPress={() => setProvider(o.key)} style={[s.tile, provider === o.key && s.tileOn]}><Text style={s.tileText}>{o.label}</Text></Pressable>
+        ))}</View>
+        <TextInput testID="ai-key-field" secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="off" value={secret} onChangeText={setSecret} placeholder="Paste your API key" accessibilityLabel="API key" style={s.input} />
+        <Text style={s.dim}>The key goes straight into your Vault. I never see it.</Text>
+        {error ? <Text testID="ai-error" style={s.err}>{error}</Text> : null}
+        <View style={s.row}>
+          <Pressable testID="ai-key-save" accessibilityRole="button" disabled={busy || secret.trim() === ""} onPress={() => void run(async () => { const value = secret; setSecret(""); onConnected(await saveApiKey(call, provider, value, attempt.current)); })} style={[s.primary, (busy || secret.trim() === "") && s.off]}><Text style={s.primaryText}>{busy ? "Saving" : "Save key"}</Text></Pressable>
+          <Pressable testID="ai-back" accessibilityRole="button" onPress={() => { setSecret(""); setMode("tiles"); setError(""); }} style={s.ghost}><Text style={s.tileText}>Back</Text></Pressable>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View testID="ai-tiles" style={s.col}>
+      {/* ui-rows-lint: not a list (sign-in choices are tiles, not list rows) */}
+      <View style={s.row}>{SUBSCRIPTIONS.map((o) => (
+        <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={`${o.label}: ${o.help}`} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}`)), provider: o.key }))} style={[s.tile, flow?.provider === o.key && s.tileOn]}><Text style={s.tileText}>{o.label}</Text></Pressable>
+      ))}</View>
+      {flow ? (
+        <View style={s.col}>
+          <Text testID="ai-instruction" style={s.dim}>{flow.instruction}</Text>
+          <Pressable testID="ai-sub-done" accessibilityRole="button" disabled={busy} onPress={() => void run(async () => onConnected(await finishSubscription(call, flow.flowId)))} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{busy ? "Checking" : "Done"}</Text></Pressable>
+        </View>
+      ) : null}
+      {error ? <Text testID="ai-error" style={s.err}>{error}</Text> : null}
+      <Pressable testID="ai-use-key" accessibilityRole="link" onPress={() => { setMode("key"); setError(""); }}><Text style={s.link}>Use an API key instead</Text></Pressable>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  col: { gap: 10 },
+  row: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
+  tile: { minHeight: 40, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--win)" as string },
+  tileOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
+  tileText: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
+  input: { height: 40, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, color: "var(--ink)" as string, fontSize: 14 },
+  dim: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
+  err: { fontSize: 13, color: "var(--danger, #c0392b)" as string },
+  ok: { fontSize: 14, color: "var(--ok)" as string },
+  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
+  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
+  off: { opacity: 0.45 },
+  ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
+  link: { fontSize: 13, color: "var(--accent)" as string },
+});
