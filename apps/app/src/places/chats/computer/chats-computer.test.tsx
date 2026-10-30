@@ -9,7 +9,7 @@ import type { PopupInitial } from "./ComputerPopup.tsx";
 import { createForwarder, discardRecording, giveBack, keepRecording, sendRecording, startRecording, stopRecording, takeOver, wake } from "./actions.ts";
 import type { PopupDeps } from "./actions.ts";
 import {
-  DEFAULT_INTENTS, DISPLAY, DOUBLE_MS, MASKED_NOTE, NO_CAPTURE, captureLine, captureParts, keyInput, mmss, options, orderedIntents, popupView, railItems, toDisplay, toggleIntent,
+  DEFAULT_INTENTS, DISPLAY, hostLabel, DOUBLE_MS, MASKED_NOTE, NO_CAPTURE, captureLine, captureParts, keyInput, mmss, options, orderedIntents, popupView, railItems, toDisplay, toggleIntent,
 } from "./model.ts";
 import type { Computer, Intent, Recording } from "./model.ts";
 import { COMPUTER, SAMPLE_NOW, createSample } from "./sample.ts";
@@ -305,4 +305,12 @@ test("the sheet's choices: any of them, never none", () => {
 test("variants exist for the screenshots", () => {
   const variants: Variant[] = ["working", "asleep", "takeover"];
   for (const v of variants) assert.ok(createSample(v).data.computerId.length > 0, v);
+});
+
+test("a computer on a computer that joined the Space says where it runs, and the Space's own says nothing", () => {
+  const servers = [{ serverId: "srv_a", name: "Olivia's Mac" }, { serverId: "srv_b", name: "Office PC" }];
+  assert.equal(hostLabel(servers, "srv_a"), "on Olivia's Mac");
+  assert.equal(hostLabel(servers, undefined), null);
+  assert.equal(hostLabel(servers, "srv_gone"), null);
+  assert.equal(hostLabel(undefined, "srv_a"), null);
 });

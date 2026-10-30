@@ -164,3 +164,9 @@ export function stateWord(c: Computer): string {
     case "error": return "Needs attention";
   }
 }
+
+/** The small "on <computer name>" label of a computer that lives on a computer that joined the Space; null for the Space's own. */
+export function hostLabel(servers: ReadonlyArray<{ serverId: string; name: string }> | undefined, nodeId: string | undefined): string | null {
+  const name = nodeId ? servers?.find((x) => x.serverId === nodeId)?.name : undefined;
+  return name ? `on ${name}` : null;
+}

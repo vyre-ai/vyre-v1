@@ -4,7 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { configure, provision, remove, sleep, wake } from "../handlers/lifecycle.ts";
 import { screenshot } from "../handlers/record.ts";
-import { nodeHomeCheck, nodeJobs, nodeResult } from "../handlers/node.ts";
+import { nodeHomeCheck, nodeJobs, nodeResult, nodeStreamInput, nodeStreamOpen } from "../handlers/node.ts";
+import { mintTicket } from "../projections.ts";
 import { claimJobs, enqueueJob, LEASE_MS, submitJob } from "../jobs.ts";
 import { nodeRun } from "../remote.ts";
 import { codeOf, harness, INTAKE, NOW, OMAR } from "../fixtures/harness.ts";
@@ -122,7 +123,7 @@ test("a job token reaches the home of its own computer, for the length of its jo
   assert.ok(!stored.includes(got["cmt_b"]!.token), "only a hash is kept");
 });
 
-test("what a node cannot do yet refuses plainly, and a computer on a node is not asked of the Space's machine on configure", async () => {
+test("a computer on a node is not asked of the Space's machine on configure, and its live view is served by the Space, not the node is not asked of the Space's machine on configure", async () => {
   const h = withNode();
   const node = startNode(h);
   try {
@@ -133,7 +134,9 @@ test("what a node cannot do yet refuses plainly, and a computer on a node is not
     assert.equal(node.host.named("configure").length >= 1, true);
     assert.equal(h.fake.named("configure").length, 0);
     const { hostOf } = await import("../projections.ts");
-    await assert.rejects(() => hostOf(h.ctx, id).stream({ computerId: id, ticket: "t" }), /not available on a computer that joined/);
+    const target = await hostOf(h.ctx, id).stream({ computerId: id, ticket: "t" });
+    assert.deepEqual(target, { transport: "mjpeg", url: `/computers/${id}/stream` }, "the viewer's address is the Space's own route, not the node's");
+    assert.equal(node.host.named("stream").length, 0, "asking for the address runs nothing on the node");
   } finally { await node.stop(); }
 });
 
@@ -154,4 +157,27 @@ test("removing a computer whose node left the Space removes the row; while the n
   here.advance(10 * 60_000);
   assert.ok((await caught) instanceof Error);
   assert.equal(here.rows("SELECT * FROM computers_computers").length, 1, "the row stays while its node is there");
+});
+
+test("a viewer's ticket opens the view of its own computer once, and input only for the person at the controls", async () => {
+  const h = withNode();
+  for (const [cid, state, by] of [["cmt_w", "working", null], ["cmt_t", "takeover", "usr_dana"], ["cmt_z", "asleep", null], ["cmt_l", "working", null]] as const) {
+    h.db.run("INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, node_id, takeover_by, created_at) VALUES (?, ?, ?, 0, 8, 10, 'server', ?, ?, ?)", cid, `agt_${cid}`, state, cid === "cmt_l" ? null : NODE, by, NOW);
+  }
+  const watch = await mintTicket(h.db, "stream", "cmt_w", "usr_dana", NOW);
+  assert.deepEqual(await nodeStreamOpen(h.ctx, { ticket: watch.ticket, computerId: "cmt_w" }), { nodeId: NODE, personId: "usr_dana", input: false });
+  assert.equal(await nodeStreamOpen(h.ctx, { ticket: watch.ticket, computerId: "cmt_w" }), null, "one use");
+  const other = await mintTicket(h.db, "stream", "cmt_w", "usr_dana", NOW);
+  assert.equal(await nodeStreamOpen(h.ctx, { ticket: other.ticket, computerId: "cmt_t" }), null, "a ticket is for its own computer");
+  const take = await mintTicket(h.db, "takeover", "cmt_t", "usr_dana", NOW);
+  assert.deepEqual(await nodeStreamOpen(h.ctx, { ticket: take.ticket, computerId: "cmt_t" }), { nodeId: NODE, personId: "usr_dana", input: true });
+  const stranger = await mintTicket(h.db, "takeover", "cmt_t", "usr_omar", NOW);
+  assert.equal((await nodeStreamOpen(h.ctx, { ticket: stranger.ticket, computerId: "cmt_t" }))?.input, false, "someone else's take-over ticket gives no input");
+  const asleep = await mintTicket(h.db, "stream", "cmt_z", "usr_dana", NOW);
+  assert.equal(await nodeStreamOpen(h.ctx, { ticket: asleep.ticket, computerId: "cmt_z" }), null, "an asleep computer has no view");
+  const home = await mintTicket(h.db, "stream", "cmt_l", "usr_dana", NOW);
+  assert.equal(await nodeStreamOpen(h.ctx, { ticket: home.ticket, computerId: "cmt_l" }), null, "the Space's own computers are not served by a node socket");
+  assert.equal(await nodeStreamInput(h.ctx, { computerId: "cmt_t", personId: "usr_dana" }), true);
+  assert.equal(await nodeStreamInput(h.ctx, { computerId: "cmt_t", personId: "usr_omar" }), false);
+  assert.equal(await nodeStreamInput(h.ctx, { computerId: "cmt_w", personId: "usr_dana" }), false, "not at the controls once given back");
 });

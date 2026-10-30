@@ -11,7 +11,7 @@ import { createForwarder, discardRecording, giveBack, keepRecording, openStream,
 import type { PopupDeps } from "./actions.ts";
 import { PopupDataProvider, useCapture, useOnline, useOptionalPopupData, usePopupData, useScreenQuery } from "./data.tsx";
 import type { ComputerPopupData } from "./data.tsx";
-import { DEFAULT_INTENTS, MASKED_NOTE, NO_CAPTURE, captureLine, captureParts, mmss, options, orderedIntents, popupView, railItems, toggleIntent } from "./model.ts";
+import { DEFAULT_INTENTS, MASKED_NOTE, hostLabel, NO_CAPTURE, captureLine, captureParts, mmss, options, orderedIntents, popupView, railItems, toggleIntent } from "./model.ts";
 import type { Capture, Intent, Recording } from "./model.ts";
 import { Desk, Icon, RailButton, SheetButton } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
@@ -73,6 +73,15 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
   const forwarder = useMemo(() => createForwarder(deps, data.computerId, data.display), [deps, data.computerId, data.display]);
   const state = q.status === "ready" ? q.data.computer.state : null;
   const reachable = state === "working" || state === "takeover";
+  const nodeId = q.status === "ready" ? q.data.computer.nodeId : undefined;
+  // A computer that lives on a computer that joined the Space looks the same; a small label says where it runs.
+  const [hostName, setHostName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!nodeId) { setHostName(null); return; }
+    let live = true;
+    void data.call("network.servers", {}).then((r) => { if (live) setHostName(hostLabel((r as { servers?: Array<{ serverId: string; name: string }> }).servers, nodeId)); }, () => undefined);
+    return () => { live = false; };
+  }, [nodeId, data.call]);
 
   const recSecs = rec ? Math.max(0, Math.floor((data.clock().now - rec.startedAt) / 1000)) : null;
 
@@ -178,7 +187,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
           </View>
         ) : null}
         <View testID="popup-window" style={[st.win, view.screen === "mine" && st.winMine, rec !== null && st.winRec]}>
-          <View style={st.pillWrap} pointerEvents="none"><View testID="popup-pill" style={st.pill}><View style={[st.pillDot, view.screen === "mine" && st.pillMine, rec !== null && st.pillRec]} /><Text style={st.pillText}>{view.pill}</Text></View></View>
+          <View style={st.pillWrap} pointerEvents="none"><View testID="popup-pill" style={st.pill}><View style={[st.pillDot, view.screen === "mine" && st.pillMine, rec !== null && st.pillRec]} /><Text style={st.pillText}>{view.pill}</Text></View>{hostName ? <Text testID="popup-host" style={st.hostText}>{hostName}</Text> : null}</View>
           <Pressable
             accessibilityRole="button" accessibilityLabel={c.state === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`} testID="popup-screen" onPress={screenPress} disabled={!online && c.state === "takeover"}
             onLayout={(e) => { box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }}
@@ -187,7 +196,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
             {...screenWeb}
           >
             <Desk kind={view.screen} caption="Elena Rivera, referred by Maya" />
-            {stream && stream.transport === "mjpeg" ? <Image testID="popup-stream" accessibilityLabel="Live view" source={{ uri: `${stream.url}?ticket=${stream.ticket}` }} resizeMode="contain" style={st.stream} /> : null}
+            {stream && stream.transport === "mjpeg" ? <Image testID="popup-stream" accessibilityLabel="Live view" source={{ uri: `${stream.url.startsWith("/") ? (data.spaceUrl ?? "").replace(/\/+$/, "") : ""}${stream.url}?ticket=${stream.ticket}` }} resizeMode="contain" style={st.stream} /> : null}
             {c.state === "asleep" ? <View style={st.wakeWrap}><View testID="popup-wake" style={st.wake}><Icon name="moon" size={14} /><Text style={st.wakeText}>Wake</Text></View></View> : null}
           </Pressable>
           {rec ? <View testID="popup-capture" style={st.capture}>{partNodes}</View> : null}
@@ -280,6 +289,7 @@ const st = StyleSheet.create({
   pillDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#4cc38a" as string },
   pillMine: { backgroundColor: "var(--accent)" as string },
   pillRec: { backgroundColor: "#ff5a4d" as string },
+  hostText: { marginTop: 4, fontSize: 11, color: "#fff", opacity: 0.8 },
   pillText: { fontSize: 12, fontWeight: "500", color: "#fff" },
   screen: { flex: 1 },
   stream: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },

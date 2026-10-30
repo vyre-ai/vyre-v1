@@ -73,6 +73,63 @@ export class FrameReader {
   }
 }
 
+/** A peer that is this far behind has frames dropped, not queued. */
+const PEER_BACKLOG = 2 * 1024 * 1024;
+
+/** A WebSocket peer on a socket node:http handed over: messages in, messages out, close. */
+export interface Peer {
+  send(data: string | Uint8Array): boolean;
+  close(code?: number): void;
+  onMessage(f: (data: Buffer, binary: boolean) => void): void;
+  onClose(f: () => void): void;
+  readonly open: boolean;
+}
+
+/** The server half of RFC 6455 on a socket node:http has already handed over: masked frames in (fragments joined), unmasked out, ping answered. */
+export function acceptPeer(req: http.IncomingMessage, socket: Duplex, head: Buffer, max: number): Peer | null {
+  const key = req.headers["sec-websocket-key"];
+  if (String(req.headers["upgrade"]).toLowerCase() !== "websocket" || typeof key !== "string" || req.headers["sec-websocket-version"] !== "13") {
+    socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
+    return null;
+  }
+  (socket as unknown as { setNoDelay?: (b: boolean) => void }).setNoDelay?.(true);
+  socket.write(`HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: Upgrade\r\nsec-websocket-accept: ${crypto.createHash("sha1").update(key + GUID).digest("base64")}\r\n\r\n`);
+  const reader = new FrameReader(max);
+  let message: (data: Buffer, binary: boolean) => void = () => undefined;
+  let gone: () => void = () => undefined;
+  let open = true;
+  const shut = (code: number): void => {
+    if (!open) return;
+    open = false;
+    const body = Buffer.alloc(2); body.writeUInt16BE(code, 0);
+    try { socket.end(encodeFrame(0x8, body)); } catch { /* already gone */ }
+    gone();
+  };
+  const feed = (chunk: Buffer): void => {
+    for (const m of reader.push(chunk)) {
+      if (m.opcode === 0x1 || m.opcode === 0x2) message(m.data, m.opcode === 0x2);
+      else if (m.opcode === 0x9) { try { socket.write(encodeFrame(0xa, m.data)); } catch { /* closing */ } }
+      else if (m.opcode === 0x8) { shut(1000); return; }
+    }
+    if (reader.error) shut(reader.error.code);
+  };
+  socket.on("data", feed);
+  socket.on("close", () => { if (open) { open = false; gone(); } });
+  socket.on("error", () => { if (open) { open = false; gone(); } });
+  if (head.length > 0) feed(head);
+  return {
+    get open() { return open; },
+    send(data) {
+      if (!open) return false;
+      if ((socket as unknown as { writableLength?: number }).writableLength! > PEER_BACKLOG) return false;   // a viewer that is behind sees fewer frames, never old ones
+      try { socket.write(encodeFrame(typeof data === "string" ? 0x1 : 0x2, typeof data === "string" ? Buffer.from(data) : data)); return true; } catch { return false; }
+    },
+    close: shut,
+    onMessage(f) { message = f; },
+    onClose(f) { gone = f; },
+  };
+}
+
 // ---- the hub ----
 
 /** Sync's live hub as this socket needs it (sync/src/live LiveHub): the transport it is handed, and what it is told. Declared here so the host layer takes no import from sync. */
@@ -93,6 +150,8 @@ export interface SyncHubPort {
 export interface LiveSession { space: string; principal: CtxSeed["principal"]; device: string; actingFor?: string | undefined }
 export interface HelloFrame { t: "hello"; cursor?: number; epoch?: number }
 export interface LiveOptions {
+  /** An upgrade another route on this server owns (the node's computer stream): the hub leaves it alone, neither answering nor closing it. */
+  claims?(req: http.IncomingMessage): boolean;
   /** Who is this upgrade request? null refuses it (401). */
   session(headers: http.IncomingHttpHeaders, url: URL): LiveSession | null | Promise<LiveSession | null>;
   invoke?: Invoke;
@@ -212,6 +271,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   }
 
   server.on("upgrade", (req, socket: Duplex) => {
+    if (o.claims?.(req)) return;
     void (async () => {
       const wsKey = req.headers["sec-websocket-key"];
       if (String(req.headers["upgrade"]).toLowerCase() !== "websocket" || typeof wsKey !== "string") { socket.end("HTTP/1.1 400 Bad Request\r\n\r\n"); return; }

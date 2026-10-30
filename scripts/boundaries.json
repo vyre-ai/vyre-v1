@@ -197,7 +197,8 @@
       "testMayImportOutside": [
         "manifests/",
         "tools/gen/",
-        "fixtures/"
+        "fixtures/",
+        "images/agent-computer/agentd/"
       ]
     },
     "B8": {

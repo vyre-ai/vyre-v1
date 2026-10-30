@@ -7,9 +7,11 @@ import { sourceOf } from "../daemon/preauth.ts";
 
 const TRACE = "0".repeat(32);
 const MAX_BODY = 16 * 1024;
-/** A job answer can carry a screenshot; a home call can carry a file of up to a few hundred kilobytes in base64. */
+/** A job answer can carry a screenshot; a home call can carry a file of up to a few hundred kilobytes in base64; an upload to a slot (the cap `put_upload`) may carry a recording's video, up to MAX_PUT. */
 const MAX_RESULT = 8 * 1024 * 1024;
 const MAX_HOME = 4 * 1024 * 1024;
+/** A file the node's home mirror sends to an upload slot (a recording's video is the large case), in base64. */
+const MAX_PUT = 48 * 1024 * 1024;
 const PER_MINUTE: Record<"poll" | "result" | "home", number> = { poll: 240, result: 600, home: 3000 };
 
 export interface ComputeRouteDeps {
@@ -49,12 +51,15 @@ export function createComputeRoute(deps: ComputeRouteDeps): { handle(req: http.I
     if (limited(`${which}:${source}`, PER_MINUTE[which])) { res.setHeader("retry-after", "60"); return send(res, 429, { error: makeError("rate_limit.exceeded" as never, TRACE, { message: "Too many requests from this address." }) }); }
     const auth = req.headers["authorization"];
     const credential = typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-    const parsed = await body(req, res, which === "poll" ? MAX_BODY : which === "result" ? MAX_RESULT : MAX_HOME);
+    // a home call may carry a large upload, so the computer is known before its body is read
+    const early = which === "home" ? (credential.startsWith("vcc_") ? await deps.poll(credential, {}).catch(() => null) : null) : undefined;
+    if (early === null) return send(res, 401, { error: makeError("auth.unauthenticated" as never, TRACE, { message: "This computer is not admitted." }) });
+    const parsed = await body(req, res, which === "poll" ? MAX_BODY : which === "result" ? MAX_RESULT : MAX_PUT);
     if (parsed === null) return;
     const report: { docker?: boolean; version?: string } = {};
     if (typeof parsed["docker"] === "boolean") report.docker = parsed["docker"];
     if (typeof parsed["version"] === "string") report.version = parsed["version"].slice(0, 40);
-    const who = credential.startsWith("vcc_") ? await deps.poll(credential, report).catch(() => null) : null;
+    const who = early ?? (credential.startsWith("vcc_") ? await deps.poll(credential, report).catch(() => null) : null);
     if (!who) return send(res, 401, { error: makeError("auth.unauthenticated" as never, TRACE, { message: "This computer is not admitted." }) });
     if (which === "poll") {
       const running = Array.isArray(parsed["running"]) ? (parsed["running"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 50) : [];
@@ -68,6 +73,7 @@ export function createComputeRoute(deps: ComputeRouteDeps): { handle(req: http.I
       if (!r || r.status === "unknown") return send(res, 404, { error: makeError("validation.not_found" as never, TRACE, { message: "There is no such job for this computer." }) });
       return send(res, 200, { ok: true, status: r.status });
     }
+    if (parsed["cap"] !== "put_upload" && JSON.stringify(parsed["input"] ?? null).length > MAX_HOME) return send(res, 413, { error: makeError("validation.too_large" as never, TRACE, { message: "That request is too large." }) });
     const token = typeof parsed["token"] === "string" ? parsed["token"] : "", computerId = typeof parsed["computerId"] === "string" ? parsed["computerId"] : "", cap = typeof parsed["cap"] === "string" ? parsed["cap"] : "";
     const out = deps.home && token && computerId && cap ? await deps.home(who.serverId, { token, computerId, cap, input: parsed["input"] }).catch((e: unknown) => ({ ok: false as const, message: e instanceof Error ? e.message.slice(0, 200) : "refused" })) : null;
     if (!out) return send(res, 403, { error: makeError("permission.no_grant" as never, TRACE, { message: "That job may not do that." }) });
