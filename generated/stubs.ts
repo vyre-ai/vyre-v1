@@ -54,6 +54,7 @@ export function stubs(ctx: CallCtx) {
       },
       projection_health: call("access.projection_health"),
       propose_change: call("access.propose_change"),
+      provider_check: call("access.provider_check"),
       request: call("access.request"),
       requests: {
         approve: call("access.requests.approve"),
@@ -191,6 +192,8 @@ export function stubs(ctx: CallCtx) {
         list: call("automations.groups.list"),
         rename: call("automations.groups.rename"),
       },
+      http_read: call("automations.http_read"),
+      http_send: call("automations.http_send"),
       list: call("automations.list"),
       make_personal_copy: call("automations.make_personal_copy"),
       migrate_runs: call("automations.migrate_runs"),
@@ -709,6 +712,7 @@ export function stubs(ctx: CallCtx) {
         raise: call("engine.spend.raise"),
         resume_all: call("engine.spend.resume_all"),
       },
+      step_turn: call("engine.step_turn"),
       stop: call("engine.stop"),
       stop_all: call("engine.stop_all"),
       subscription_share: {
@@ -1758,6 +1762,7 @@ export function stubs(ctx: CallCtx) {
       retry: call("runs.retry"),
       start: call("runs.start"),
       status: call("runs.status"),
+      step_io: call("runs.step_io"),
       steps: call("runs.steps"),
       stop: call("runs.stop"),
       undo: call("runs.undo"),
@@ -1955,6 +1960,7 @@ export function stubs(ctx: CallCtx) {
       toggle: call("stars.toggle"),
     },
     steps: {
+      support: call("steps.support"),
       test: call("steps.test"),
     },
     stripe: {

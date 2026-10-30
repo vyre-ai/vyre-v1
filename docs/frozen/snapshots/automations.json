@@ -22,6 +22,8 @@
     "automations.groups.delete@1": "1f14bab6a011f3734bcc449affd0845a4c632c6b0f1f5946da16e902d753cef4",
     "automations.groups.list@1": "21e855e269f7492e8634c89ed953462c6142774fbfb50de02e891d79ba826514",
     "automations.groups.rename@1": "309a1c3f77613ed005baf23c010076a8f648cda715f84853fde58ef5ee35a679",
+    "automations.http_read@1": "e891200f046da8f820a313cd64ca52d04c8f0988291586e0f78496e1f3ddd258",
+    "automations.http_send@1": "f83c6ccf89ccbf38a832d5adf35b0e368727d25a832b4b5c3583034ab5815d02",
     "automations.list@1": "865e6ed0a4001d1beb85db4c0e9f9469ee02f5135dd57c91f483f686220951d9",
     "automations.make_personal_copy@1": "e1c7a5ccbf86a594c0eaafda356bb7f4e5bd655e1cd68c2eb1e918da16e67f30",
     "automations.migrate_runs@1": "4f24c935848e5e9fce9371a582cca054f6f9e3b309304816f1b7f7498c5ef053",

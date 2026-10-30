@@ -1,5 +1,5 @@
-// The step panel: opens beside the canvas when a card is selected. A name, the account the step was given, the step's own fields (one text field per input, in words), the AI step's key
-// and backup, what happens when the step fails, and the problems the check found for this step. Every change goes through `onChange` as a new definition, so Undo and Save see it like any other edit.
+// The step panel: opens beside the canvas when a card is selected. A name, the account the step was given, the step's own fields (one text field per input, in words; the HTTP request, Run code
+// and AI steps have forms of their own in steps/), what happens when the step fails, and the problems the check found for this step. Every change goes through `onChange` as a new definition, so Undo and Save see it like any other edit.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -15,30 +15,27 @@ import type { AccountOption } from "../connect/accounts.ts";
 import { fieldsFromSchema, asFixture } from "../builder/fields.ts";
 import { MessageComposer } from "../builder/MessageComposer.tsx";
 import { DataShelf, MappingFix, SectionRow, advancedInputEdit, basicFieldEdit, commitTyped, nodeIdSet } from "../builder/marks.tsx";
+import { Choice, Field, MapTargetContext } from "./fields.tsx";
+import type { MapTarget } from "./fields.tsx";
 import { frameFor } from "./frame.ts";
 import type { StudioLayout } from "./frame.ts";
+import { RunStepIo } from "../builder/RunStepIo.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
-import { isPreviewKey, PREVIEW_NOTE } from "../catalog/model.ts";
 import { CONNECT_LIMIT } from "../connect/trust-view.ts";
 import { presenceOf } from "../values/typed.ts";
 import { Glyph } from "./icons.tsx";
-import { ERROR_MODES, groupOfKey, iconOfKey, keyChoices, kindOfKey, setBranch, setTriggerConfig, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
+import { ERROR_MODES, groupOfKey, iconOfKey, kindOfKey, setBranch, setTriggerConfig, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
 import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
+import { LiveStepForm } from "./steps/LiveStepForm.tsx";
 import type { KeysStatus } from "./data.tsx";
 import { SendApproval, sendsOutward } from "./AskBeforeSending.tsx";
 import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 
 const humanize = (k: string): string => k.replace(/([A-Z])/g, " $1").replace(/[_.]+/g, " ").replace(/^./, (x) => x.toUpperCase());
-type Ai = NonNullable<DefNode["ai"]>;
-function withKey(ai: DefNode["ai"], field: "keyId" | "backupKeyId", id: string | undefined): Ai {
-  const next: Ai = { ...(ai ?? {}) };
-  if (id) next[field] = id; else delete next[field];
-  return next;
-}
 const show = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks }: {
+export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks, kind: automationKind = "personal", runId, runLog }: {
   def: Definition;
   node: DefNode | null;
   trigger: DefTrigger | null;
@@ -70,8 +67,15 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   inputSchema?: unknown;
   /** Last explicit pick for this person, keyed by app. Omit when the parent has none. */
   lastPicks?: Readonly<Record<string, string>>;
+  /** Personal or Space: an AI step runs on its owner's own account in the first and on a key shared with the Space in the second. */
+  kind?: "personal" | "space";
+  /** The run being shown on the canvas. Its log for this step is on the Test tab. */
+  runId?: string;
+  /** The log of that step already read, for a screen that paints before the read answers. */
+  runLog?: unknown;
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
+  const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const ordered = layout ? frameFor(layout).ordered : false;
   useEffect(() => { installFocusRing(); }, []);
   const headerMode = onMode !== undefined;
@@ -123,15 +127,6 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     return out;
   };
   const mine = issues.filter((i) => (node ? i.nodeId === node.id : i.nodeId === "trigger"));
-  const keyName = (id: string | undefined): string => (id ? (keys.find((k) => k.id === id)?.name ?? id) : "Choose a key");
-  const pick = (x: number, y: number, set: (id: string | undefined) => void, none: string): void => {
-    const items: MenuEntry[] = [];
-    for (const k of keyChoices(keys, none, set)) {
-      items.push({ label: k.label, onSelect: k.run });
-      if (items.length === 1) items.push({ separator: true });
-    }
-    openMenu(items, x, y, "other");
-  };
   if (!node) {
     const meta = trigger ? triggerMeta(trigger.key, trigger.config) : null;
     const configFields: ReactElement[] = [];
@@ -150,11 +145,10 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
         <Head title={meta?.title ?? "Trigger"} sub="Trigger" icon={meta?.icon ?? "bolt"} onClose={onClose} />
         <ScrollView contentContainerStyle={i.body}>
           <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-          {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
+          {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} target={mapTarget} onPick={(_id, _expression, next) => { mapTarget?.commit(next); setMapTarget(null); }} /> : null}
           {section === "test" ? <Text style={i.hint}>Pick a step to test it.</Text> : null}
           {section === "configure" ? (
             <>
-              {trigger && isPreviewKey(trigger.key, "trigger") ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}
               <Text testID="plain-language" style={i.hint}>{trigger ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.` : "Every trigger is listed on the card. Any one starts a run."}</Text>
               {configFields}
               <Problems list={mine} />
@@ -166,6 +160,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     );
   }
   const kind = kindOfKey(node.key);
+  const live = kind === "http" || kind === "code" || kind === "ai";
   const accountPick = accountMenu({
     input: node.input ?? {},
     nodes: def.nodes.filter((item) => item.id !== node.id).map((item) => ({ input: item.input ?? {} })),
@@ -237,15 +232,16 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
     }} />);
   }
   return (
+    <MapTargetContext.Provider value={{ set: setMapTarget }}>
     <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`} {...webOnly({ dataSet: { vyreFocus: "1" } })}>
       <Head title={node.title ?? titleOfKey(node.key)} sub={groupOfKey(node.key)} icon={iconOfKey(node.key)} onClose={onClose} />
       <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
         <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-        {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} /> : null}
+        {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} target={mapTarget} onPick={(_id, _expression, next) => { mapTarget?.commit(next); setMapTarget(null); }} /> : null}
+        {section === "test" && runId ? <RunStepIo runId={runId} stepId={node.id} {...(runLog !== undefined ? { ready: runLog } : {})} /> : null}
         {section === "test" ? <StepTest stepKey={node.key} nodeId={node.id} input={node.input ?? {}} version={version} samples={samples} onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))} /> : null}
         {section === "configure" ? (
           <>
-        {isPreviewKey(node.key) ? <Text style={i.hint}>{PREVIEW_NOTE}</Text> : null}
         {node.key === "connector_request" ? <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text> : null}
         <Text testID="plain-language" style={i.hint}>{subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? id })}</Text>
         {headerMode ? null : (
@@ -254,8 +250,8 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
             {BUILDER_MODES.map((label) => {
               const on = (label === "Advanced") === advanced;
               return (
-                <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }} testID={label === "Advanced" ? "toggle-advanced" : "toggle-basic"} onPress={() => setAdvanced(label === "Advanced")} style={pointer}>
-                  <Text style={i.hint}>{label}</Text>
+                <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }} testID={label === "Advanced" ? "toggle-advanced" : "toggle-basic"} onPress={() => setAdvanced(label === "Advanced")} style={[i.segBtn, on && i.segBtnOn, pointer]}>
+                  <Text style={[i.segText, on && i.segTextOn]}>{label}</Text>
                 </Pressable>
               );
             })}
@@ -281,8 +277,9 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
           />
         ) : null}
         {fixedAccount ? <Text testID="account-fixed" style={i.hint}>{fixedAccount}</Text> : null}
+        {live ? <LiveStepForm def={def} node={node} onChange={onChange} openMenu={openMenu} kind={automationKind} keys={keys} /> : null}
         {composer ? <MessageComposer stepKey={node.key} nodeId={node.id} input={node.input ?? {}} samples={samples} onInput={(input) => onChange(updateStep(def, node.id, { input }))} /> : null}
-        {fields}
+        {live ? null : fields}
         {advanced ? (
           <Field label={VAL_LABEL} value={JSON.stringify(node.input ?? {}, null, 2)} testID="field-input-json" onCommit={(t) => {
             const edited = advancedInputEdit(t);
@@ -293,19 +290,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
         ) : null}
         {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
         {inputKeys.length === 0 && kind === "plain" && !advanced && !accountPick ? <Text style={i.hint}>Nothing is set on this step yet. Add what it needs in the fields the check names below.</Text> : null}
-        {kind === "ai" ? (
-          <View style={i.group}>
-            <Text style={i.groupHead}>Key</Text>
-            {keysStatus === "empty" || keysStatus === "unavailable" ? <Text style={i.hint}>No keys yet</Text> : (
-              <>
-                <Choice label="Runs on" value={keyName(node.ai?.keyId)} testID="choose-key" onOpen={(x, y) => pick(x, y, (id) => onChange(updateStep(def, node.id, { ai: withKey(node.ai, "keyId", id) })), "No key")} />
-                <Choice label="Backup" value={keyName(node.ai?.backupKeyId).replace("Choose a key", "No backup")} testID="choose-backup" onOpen={(x, y) => pick(x, y, (id) => onChange(updateStep(def, node.id, { ai: withKey(node.ai, "backupKeyId", id) })), "No backup")} />
-                <Text style={i.hint}>A lost key falls back to the backup, then the run waits in your Needs you. It never fails silently.</Text>
-              </>
-            )}
-          </View>
-        ) : null}
-        {sendsOutward(node.key) ? <SendApproval on={node.askBeforeSending === true} onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))} /> : null}
+        {sendsOutward(node.key) && !(node.key === "http_request" && (node.input?.["method"] === undefined || node.input["method"] === "GET" || node.input["method"] === "HEAD")) ? <SendApproval on={node.askBeforeSending === true} onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))} /> : null}
         <View style={i.group}>
           <Text style={i.groupHead}>If this step fails</Text>
           <Choice
@@ -356,6 +341,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       </ScrollView>
       {element}
     </View>
+    </MapTargetContext.Provider>
   );
 }
 
@@ -389,49 +375,6 @@ function Problems({ list }: { list: readonly Issue[] }): ReactElement | null {
   );
 }
 
-/** A labelled text field. The value commits on blur and on Enter; Escape puts the old value back. */
-function Field({ label, value, onCommit, placeholder, mono = false, readOnly = false, testID }: { label: string; value: string; onCommit(v: string): void; placeholder?: string; mono?: boolean; readOnly?: boolean; testID?: string }): ReactElement {
-  const [draft, setDraft] = useState<string | null>(null);
-  const shown = draft ?? value;
-  const done = (): void => { if (draft !== null && draft !== value) onCommit(draft); setDraft(null); };
-  return (
-    <View style={i.field}>
-      <Text style={i.label}>{label}</Text>
-      <TextInput
-        accessibilityLabel={label}
-        testID={testID}
-        value={shown}
-        editable={!readOnly}
-        placeholder={placeholder}
-        placeholderTextColor="var(--ink-4)"
-        onChangeText={setDraft}
-        onBlur={done}
-        onSubmitEditing={done}
-        {...webOnly({ onKeyDown: (e: { key?: string }) => { if (e.key === "Escape") setDraft(null); } })}
-        style={[i.input, mono && { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }, readOnly && { opacity: 0.6 }]}
-      />
-    </View>
-  );
-}
-
-function Choice({ label, value, onOpen, testID }: { label: string; value: string; onOpen(x: number, y: number): void; testID?: string }): ReactElement {
-  const [over, setOver] = useState(false);
-  return (
-    <View style={i.field}>
-      <Text style={i.label}>{label}</Text>
-      <Pressable
-        accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} testID={testID}
-        onPress={(e) => { const ev = e as unknown as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }; const r = ev.currentTarget?.getBoundingClientRect?.(); onOpen(r?.left ?? ev.nativeEvent?.pageX ?? 0, (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4); }}
-        onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-        style={[i.choice, over && { backgroundColor: "var(--hover)" as string }, pointer]}
-      >
-        <Text numberOfLines={1} style={i.choiceText}>{value}</Text>
-        <Glyph name="chevD" size={12} color="var(--ink-3)" />
-      </Pressable>
-    </View>
-  );
-}
-
 void ps;
 
 function paneStyle(embedded: boolean, layout?: StudioLayout) {
@@ -444,7 +387,11 @@ const i = StyleSheet.create({
   embedded: { width: "100%" as unknown as number, flex: 1, borderLeftWidth: 0 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, height: 52, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string },
-  seg: { flexDirection: "row", gap: 4 },
+  seg: { flexDirection: "row", gap: 2, alignSelf: "flex-start", padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  segBtn: { paddingHorizontal: 10, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  segBtnOn: { backgroundColor: "var(--win)" as string },
+  segText: { fontSize: 12, color: "var(--ink-3)" as string },
+  segTextOn: { color: "var(--ink)" as string, fontWeight: "600" },
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 11.5, color: "var(--ink-3)" as string },
   body: { padding: 14, gap: 12 },

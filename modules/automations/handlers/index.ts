@@ -6,6 +6,7 @@ import {
 import { accountPicks } from "./accounts.ts";
 import { draftConnector } from "./draft-connector.ts";
 import { acceptConnectorOffer, connectorOffers, declineConnectorOffer } from "./connector-offer.ts";
+import { httpRead, httpSend } from "./http-step.ts";
 import { openDocument } from "./open-document.ts";
 import { openMcp } from "./open-mcp.ts";
 import { connectorShares, shareConnector } from "./connector-share.ts";
@@ -27,6 +28,8 @@ export const handlers = {
   "automations.create": create,
   "automations.delete": remove,
   "automations.draft_connector": draftConnector,
+  "automations.http_read": httpRead,
+  "automations.http_send": httpSend,
   "automations.open_document": openDocument,
   "automations.connector_offers": connectorOffers,
   "automations.connector_offer.decline": declineConnectorOffer,

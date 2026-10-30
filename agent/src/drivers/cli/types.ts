@@ -58,6 +58,8 @@ export interface CommandOptions {
   /** Set when the engine reaches Vyre through a stdio shim (sandbox socket) instead of the URL. */
   mcpStdio?: { command: string; args: readonly string[] };
   planMode: boolean;
+  /** The session has no Vyre tools and none of the CLI's own: no MCP server is named and the CLI's tools are off, whatever folder it works in. */
+  noTools?: boolean;
   /** A granted work folder: the CLI's own file tools come on and it works there. Null on a chat that runs Vyre tools only. */
   workFolder: string | null;
   /** Vyre's guide for this agent (AGENT.md and the rest), for engines that take it as a flag. */

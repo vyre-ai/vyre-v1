@@ -788,6 +788,24 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/access/provider_check",
+    "cap": "access.provider_check",
+    "v": 1,
+    "module": "access",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/access/request",
     "cap": "access.request",
     "v": 1,
@@ -2388,6 +2406,42 @@ const routes0: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/http_read",
+    "cap": "automations.http_read",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/http_send",
+    "cap": "automations.http_send",
+    "v": 1,
+    "module": "automations",
+    "effects": "outward",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -9160,6 +9214,24 @@ const routes1: Route[] = [
       "type": "space"
     },
     "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/engine/step_turn",
+    "cap": "engine.step_turn",
+    "v": 1,
+    "module": "engine",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
@@ -23040,6 +23112,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/runs/step_io",
+    "cap": "runs.step_io",
+    "v": 1,
+    "module": "runs",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "run",
+      "id": "/runId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/runs/steps",
     "cap": "runs.steps",
     "v": 1,
@@ -25617,6 +25708,24 @@ const routes4: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/steps/support",
+    "cap": "steps.support",
+    "v": 1,
+    "module": "steps-core",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },

@@ -54,6 +54,7 @@ export function createClient(transport: Transport) {
       },
       projection_health: call("access.projection_health", 1),
       propose_change: call("access.propose_change", 1),
+      provider_check: call("access.provider_check", 1),
       request: call("access.request", 1),
       requests: {
         approve: call("access.requests.approve", 1),
@@ -191,6 +192,8 @@ export function createClient(transport: Transport) {
         list: call("automations.groups.list", 1),
         rename: call("automations.groups.rename", 1),
       },
+      http_read: call("automations.http_read", 1),
+      http_send: call("automations.http_send", 1),
       list: call("automations.list", 1),
       make_personal_copy: call("automations.make_personal_copy", 1),
       migrate_runs: call("automations.migrate_runs", 1),
@@ -709,6 +712,7 @@ export function createClient(transport: Transport) {
         raise: call("engine.spend.raise", 1),
         resume_all: call("engine.spend.resume_all", 1),
       },
+      step_turn: call("engine.step_turn", 1),
       stop: call("engine.stop", 1),
       stop_all: call("engine.stop_all", 1),
       subscription_share: {
@@ -1758,6 +1762,7 @@ export function createClient(transport: Transport) {
       retry: call("runs.retry", 1),
       start: call("runs.start", 1),
       status: call("runs.status", 1),
+      step_io: call("runs.step_io", 1),
       steps: call("runs.steps", 1),
       stop: call("runs.stop", 1),
       undo: call("runs.undo", 1),
@@ -1955,6 +1960,7 @@ export function createClient(transport: Transport) {
       toggle: call("stars.toggle", 1),
     },
     steps: {
+      support: call("steps.support", 1),
       test: call("steps.test", 1),
     },
     stripe: {

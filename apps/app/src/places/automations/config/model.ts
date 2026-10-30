@@ -98,14 +98,17 @@ export const VIA_WORDS: Readonly<Record<Diff["grants"][number]["via"], string>> 
 
 export interface Choice { stepId: string; keyId: string }
 /** One replacement per step that needs one; a step with no choice yet keeps the key the server suggested only when it is not a subscription. */
-export function initialChoices(diff: Diff, keys: readonly { id: string; kind: "subscription" | "api" }[]): Choice[] {
-  return diff.keysToReplace.map((k) => ({ stepId: k.stepId, keyId: keys.find((x) => x.kind === "api" && x.id !== k.keyId)?.id ?? "" }));
+type PromoteKey = { id: string; kind: "subscription" | "api"; shared?: boolean };
+/** A Space automation can run only on a key shared with the Space. */
+const spaceKey = (x: PromoteKey): boolean => x.kind === "api" && x.shared !== false;
+export function initialChoices(diff: Diff, keys: readonly PromoteKey[]): Choice[] {
+  return diff.keysToReplace.map((k) => ({ stepId: k.stepId, keyId: keys.find((x) => spaceKey(x) && x.id !== k.keyId)?.id ?? "" }));
 }
 export const choiceFor = (choices: readonly Choice[], stepId: string): string => choices.find((c) => c.stepId === stepId)?.keyId ?? "";
 export const setChoice = (choices: readonly Choice[], stepId: string, keyId: string): Choice[] => choices.map((c) => (c.stepId === stepId ? { stepId, keyId } : c));
 /** Promote is allowed once the server says it is ready and every step that needs a shared key has one that is an API key. */
-export function canPromote(p: PromoteDiff, choices: readonly Choice[], keys: readonly { id: string; kind: "subscription" | "api" }[]): boolean {
+export function canPromote(p: PromoteDiff, choices: readonly Choice[], keys: readonly PromoteKey[]): boolean {
   if (!p.ready && p.diff.keysToReplace.length === 0) return false;
-  return p.diff.keysToReplace.every((k) => { const c = choiceFor(choices, k.stepId); return c !== "" && keys.find((x) => x.id === c)?.kind === "api"; });
+  return p.diff.keysToReplace.every((k) => { const c = choiceFor(choices, k.stepId); const key = keys.find((x) => x.id === c); return c !== "" && key !== undefined && spaceKey(key); });
 }
 export const promoteInput = (automationId: string, ownerId: string, choices: readonly Choice[]): { automationId: string; confirm: true; ownerId: string; replaceKeys: Choice[] } => ({ automationId, confirm: true, ownerId, replaceKeys: choices.filter((c) => c.keyId !== "") });

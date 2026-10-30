@@ -39,6 +39,7 @@ Capabilities:
 - access.principals.list (read, grant only, level view)
 - access.projection_health (read, grant only, level view)
 - access.propose_change (write, grant only, level view)
+- access.provider_check (read, grant only, level view)
 - access.request (write, grant only, level member)
 - access.requests.approve (write, grant only, level view)
 - access.requests.decline (write, grant only, level view)

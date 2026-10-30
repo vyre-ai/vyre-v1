@@ -6,6 +6,7 @@ HTTP 403. Retryable: no.
 
 ## Raised by
 
+- automations.http_send
 - changesets.approve
 - git.push
 - git.sync

@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (52)
+## Capabilities (54)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -27,6 +27,8 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.groups.delete](../capabilities/automations.groups.delete.md): Delete a Group; its Automations become ungrouped
 - [automations.groups.list](../capabilities/automations.groups.list.md): List Groups with Automation counts
 - [automations.groups.rename](../capabilities/automations.groups.rename.md): Rename a Group
+- [automations.http_read](../capabilities/automations.http_read.md): Make a GET or HEAD request to a public https address for an HTTP request step. A private address is refused. The key comes from a Vault handle and is never returned.
+- [automations.http_send](../capabilities/automations.http_send.md): Make a POST, PUT, PATCH or DELETE request to a public https address for an HTTP request step. Held by the Gate like any send. The key comes from a Vault handle and is never returned.
 - [automations.list](../capabilities/automations.list.md): List Automations by section (Personal, Shared with me, Space), folder and Group
 - [automations.make_personal_copy](../capabilities/automations.make_personal_copy.md): Make a Personal copy of a Space Automation; it runs with only your access
 - [automations.migrate_runs](../capabilities/automations.migrate_runs.md): Move selected active runs onto a definition version without replaying finished steps

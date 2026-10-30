@@ -5,5 +5,6 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "steps.support": async (ctx) => { throw new VyreErr(notImplemented("steps.support", ctx.trace)); },
   "steps.test": async (ctx) => { throw new VyreErr(notImplemented("steps.test", ctx.trace)); },
 };

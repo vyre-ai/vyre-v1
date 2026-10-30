@@ -76,7 +76,9 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
       }
     },
     async open(spec) {
-      const endpoint = await deps.mcp(spec);
+      // a session without tools reaches nothing of Vyre: no MCP session is minted for it
+      const noTools = spec.tools === "none";
+      const endpoint = noTools ? { url: "", token: "" } : await deps.mcp(spec);
       const session = createCliSession({
         adapter, launcher: deps.launcher, endpoint,
         model: spec.agent.model ? spec.agent.model.replace(PREFIX, "") : null,
@@ -85,11 +87,12 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
         workFolder: deps.workFolder?.(spec) ?? null,
         env: deps.env?.(spec) ?? {},
         ...(deps.plugins?.(spec) ? { plugins: deps.plugins(spec)! } : {}),
+        ...(noTools ? { noTools: true } : {}),
         ...(deps.planMode ? { planMode: () => deps.planMode?.(spec) ?? false } : {}),
         ...(deps.prompt ? { prompt: deps.prompt } : {}),
         ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
         ...(deps.graceMs !== undefined ? { graceMs: deps.graceMs } : {}),
-        onClose: async () => { await deps.mcpClose?.(spec, endpoint); },
+        onClose: async () => { if (!noTools) await deps.mcpClose?.(spec, endpoint); },
       }, spec);
       if (deps.prewarm !== false) {
         try { await session.prewarm(); }

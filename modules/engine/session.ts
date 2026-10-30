@@ -129,6 +129,10 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     ...(dataDir && h.pluginsNative !== false ? { nativePlugins: (spec: SessionSpec, driver: "claude_code" | "codex") => nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, workFolder(dataDir, spec.asker, spec.threadId)) } : {}),
     ...(dataDir ? { cli: { workFolder: (spec) => workFolder(dataDir, spec.asker, spec.threadId) } } : {}),
     ...(dataDir ? { prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) => writeMemoryGuide(h.call, workFolder(dataDir, spec.asker, spec.threadId), spec) } : {}),
-    apiContext: h.apiTools ? h.apiTools.context : async (spec, input) => ({ system: await system(spec, input), tools: [] }),
+    // A session with tools "none" (an automation's AI step) gets no tools and no agent role: its prompt carries everything it needs.
+    apiContext: async (spec, input) => {
+      if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };
+      return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec, input), tools: [] };
+    },
   });
 }

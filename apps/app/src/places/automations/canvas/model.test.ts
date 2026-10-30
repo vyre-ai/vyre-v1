@@ -132,10 +132,11 @@ test("the local check names what is missing, in words, against the step", () => 
   assert.ok(check({ triggers: [{ key: "webhook" }], nodes: [] }, "personal").some((i) => /Team Space/.test(i.message)), "a webhook needs a Team Space");
 });
 
-test("an AI step asks for a key and a backup, a route needs a step, and a loop in the lanes is an error", () => {
+test("a Space AI step needs a shared key and a backup, a Personal one needs neither, a route needs a step, and a loop in the lanes is an error", () => {
   const d: Definition = { triggers: [{ key: "manual" }], start: ["x"], nodes: [{ id: "x", key: "ai", input: {}, next: ["y"] }, { id: "y", key: "send_email", input: { to: "a" }, next: ["x"], onError: { mode: "route" } }] };
   const out = check(d);
-  assert.ok(out.some((i) => i.nodeId === "x" && /pick the key/.test(i.message)));
+  assert.ok(out.some((i) => i.nodeId === "x" && i.severity === "error" && /Space automation needs a key shared with the Space/.test(i.message)));
+  assert.ok(!check(d, "personal").some((i) => i.nodeId === "x" && /key/.test(i.message)), "a Personal AI step runs on its owner's own account");
   assert.ok(out.some((i) => i.nodeId === "y" && /choose the step an error goes to/.test(i.message)));
   assert.ok(out.some((i) => /never end/.test(i.message)));
   d.nodes[0]!.ai = { keyId: "k1" };
@@ -152,11 +153,18 @@ test("a paths step needs at least one path and only the last may be Otherwise", 
 
 test("card text: the title falls back to the step's name and the second line says what it does", () => {
   const l = layout(LEAD_FOLLOW_UP, { keyName: (id) => ({ key_claude: "Your Claude sign-in", key_nw_openai: "Northwind OpenAI key" })[id] ?? id });
-  assert.equal(byId(l.cards, "draft").sub, "Your Claude sign-in, then Northwind OpenAI key");
+  assert.equal(byId(l.cards, "draft").sub, "Write a short, warm first hello. Your Claude sign-in, then Northwind OpenAI key");
   assert.equal(byId(l.cards, "mobile").sub, "1 path and Otherwise, first match wins");
   assert.equal(byId(l.cards, "wait").sub, "They reply by text, up to 1 day");
   assert.equal(subtitleOf({ id: "s", key: "stop", input: {} }), "The run ends here");
-  assert.equal(subtitleOf({ id: "s", key: "ai", input: {} }), "Pick a key for this step");
+  assert.equal(subtitleOf({ id: "s", key: "ai", input: {} }), "Write what the AI should do");
+  assert.equal(subtitleOf({ id: "s", key: "ai", input: { prompt: "Summarise\nthe note" } }), "Summarise the note. your own AI account");
+  assert.equal(subtitleOf({ id: "h", key: "http_request", input: { method: "GET", url: "https://api.example.com/v1/items" } }), "GET api.example.com/v1/items");
+  assert.equal(subtitleOf({ id: "h", key: "http_request", input: { method: "POST", url: "https://api.example.com/orders" } }), "POST api.example.com/orders");
+  assert.equal(subtitleOf({ id: "h", key: "http_request", askBeforeSending: true, input: { method: "POST", url: "https://api.example.com/orders" } } as never), "POST api.example.com/orders, asks before sending");
+  assert.equal(subtitleOf({ id: "h", key: "http_request", input: {} }), "Name the address to call");
+  assert.equal(subtitleOf({ id: "c", key: "code", input: { source: "// note\nreturn input.n + 1;" } }), "Runs 1 line of code, no network");
+  assert.equal(subtitleOf({ id: "c", key: "code", input: { source: "return 1", hosts: ["a.example.com", "b.example.com"] } }), "Runs 1 line of code, reaches a.example.com, b.example.com");
   assert.equal(subtitleOf({ id: "m", key: "send_email", input: { to: ["ada@example.com"], subject: "Hello", message: { version: 2 } } }), "Email ada@example.com: Hello, template v2");
   assert.equal(subtitleOf({ id: "t", key: "send_sms", input: { to: "+1555", body: "Hi" } }), "Text +1555, 1 segment");
   assert.equal(subtitleOf({ id: "c", key: "connector_request", input: { connector: "acme", action: "ping" } }), "acme · ping");
@@ -258,4 +266,29 @@ test("zoom stays between 30 and 200 percent and Fit never magnifies", () => {
   assert.equal(fitScale(l, 4000, 4000), 1);
   assert.ok(fitScale(l, 200, 4000) < 1);
   assert.equal(fitScale(l, 10, 10), 0.3);
+});
+
+test("the HTTP request, Run code and AI steps are checked while they are built", () => {
+  const nodes = (n: Definition["nodes"][number]): Definition => ({ triggers: [{ key: "manual" }], nodes: [n] });
+  const msgs = (d: Definition, kind: "personal" | "space" = "personal"): string[] => check(d, kind).filter((i) => i.severity === "error").map((i) => i.message);
+  assert.deepEqual(msgs(nodes({ id: "h", key: "http_request", input: {} })), ["HTTP request needs the address"]);
+  assert.deepEqual(msgs(nodes({ id: "h", key: "http_request", input: { method: "GET", url: "http://api.example.com" } })), ["HTTP request: the address must start with https://"]);
+  assert.deepEqual(msgs(nodes({ id: "h", key: "http_request", input: { method: "GET", url: "{{ trigger.url }}" } })), [], "a template is checked when it runs");
+  const auth = (a: object) => msgs(nodes({ id: "h", key: "http_request", input: { method: "GET", url: "https://a.example.com", auth: a } }));
+  assert.deepEqual(auth({ kind: "bearer", handle: "" }), ["HTTP request: pick the Vault key to sign the request with"]);
+  assert.deepEqual(auth({ kind: "basic", handle: "#K" }), ["HTTP request: basic sign-in needs a user name"]);
+  assert.deepEqual(auth({ kind: "header", handle: "#K" }), ["HTTP request: name the header the key goes in"]);
+  assert.deepEqual(auth({ kind: "bearer", handle: "#K" }), []);
+  assert.deepEqual(msgs(nodes({ id: "c", key: "code", input: {} })), ["Run code needs the code"]);
+  assert.deepEqual(msgs(nodes({ id: "a", key: "ai", input: {} })), ["AI step needs what to ask"]);
+});
+
+test("a new HTTP request step starts as a GET and a new Run code step with starter code, so the form opens with a choice made", () => {
+  const base: Definition = { triggers: [{ key: "manual" }], nodes: [] };
+  const http = addAfter(base, null, "http_request");
+  assert.deepEqual(http.def.nodes[0]!.input, { method: "GET" });
+  const code = addAfter(base, null, "code");
+  assert.equal(code.def.nodes[0]!.input["language"], "javascript");
+  assert.match(String(code.def.nodes[0]!.input["source"]), /return \{ ok: true \};/);
+  assert.deepEqual(addAfter(base, null, "ai").def.nodes[0]!.input, {});
 });

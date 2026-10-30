@@ -147,20 +147,102 @@ test("a path that loops back is an error unless it goes through a Loop step", as
   assert.equal(good.ok, true);
 });
 
-test("a preview step can be saved and cannot be turned on", async () => {
-  const h = harness();
-  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("a", "ai", { prompt: "Summarise" }, { ai: { agentId: "agt_helper" } })] } }), alice)).automation.id as string;
-  const saved = await h.call("automations.get", { automationId: id }, alice);
-  assert.equal(saved.automation.definition.nodes[0].key, "ai");
-  await refused(h.call("automations.set_enabled", { automationId: id, enabled: true }, alice), "validation.precondition_failed", "preview");
+// ---- live steps: Run code and the AI step ----
+
+type Prov = { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string };
+const prov = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", connection: "api_key", scope: "mine", spaceMayUse: false, state: "ok", ...over });
+const shared = (over: Partial<Prov> = {}): Prov => prov({ id: "prv_s", handle: "#Team_Key", itemId: "vit_s", name: "Team key", scope: "shared", ...over });
+function liveHarness(opts: { code?: boolean | string; providers?: Prov[] } = {}) {
+  const h = harness({ authorize: () => false });
+  const code = opts.code ?? true;
+  h.callee("steps.support", () => ({ code: code === true ? { available: true } : { available: false, reason: code === false ? "No sandbox." : code }, ai: { available: true } }));
+  h.callee("providers.list", () => ({ providers: opts.providers ?? [] }));
+  return h;
+}
+const aiNode = (over: Record<string, unknown> = {}, ai?: Record<string, unknown>) => node("a", "ai", { prompt: "Summarise", ...over }, ai ? { ai } : {});
+const draftWith = async (h: Harness, n: ReturnType<typeof node>): Promise<string> => (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [n] } }), alice)).automation.id as string;
+const turnOn = (h: Harness, id: string) => h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
+const messageOf = (e: unknown): string => (e as { error?: { message?: string } }).error?.message ?? String(e);
+
+test("a code step can be saved anywhere, and turned on only where this server can sandbox it", async () => {
+  const off = liveHarness({ code: "Run code needs a Linux server with bubblewrap." });
+  const id = await draftWith(off, node("a", "code", { source: "return 1" }));
+  assert.equal((await off.call("automations.get", { automationId: id }, alice)).automation.definition.nodes[0].key, "code");
+  await assert.rejects(turnOn(off, id), (e) => { assert.equal(codeOf(e), "validation.precondition_failed"); assert.equal(reasonOf(e), "live_step"); assert.match(messageOf(e), /Run code cannot be turned on here\. Run code needs a Linux server with bubblewrap\./); return true; });
+  const on = liveHarness();
+  const id2 = await draftWith(on, node("a", "code", { source: "return 1" }));
+  assert.equal((await turnOn(on, id2)).automation.status, "on");
 });
 
-test("a code step can be saved and cannot be turned on", async () => {
-  const h = harness();
-  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("a", "code", { source: "return 1" })] } }), alice)).automation.id as string;
-  const saved = await h.call("automations.get", { automationId: id }, alice);
-  assert.equal(saved.automation.definition.nodes[0].key, "code");
-  await refused(h.call("automations.set_enabled", { automationId: id, enabled: true }, alice), "validation.precondition_failed", "preview");
+test("the step catalogue hides Run code where the server cannot sandbox it, and shows it where it can", async () => {
+  const keys = async (h: Harness): Promise<string[]> => ((await h.call("automations.steps.list", {}, alice)).steps as { key: string }[]).map((s) => s.key);
+  assert.equal((await keys(liveHarness({ code: false }))).includes("code"), false);
+  assert.equal((await keys(liveHarness({ code: false }))).includes("ai"), true);
+  const both = await keys(liveHarness());
+  assert.equal(both.includes("code") && both.includes("ai"), true);
+  assert.equal((await keys(harness())).some((k) => k === "code" || k === "ai"), false, "a server that has not said it can run them hides them");
+});
+
+test("a Personal AI step needs no key: it turns on when the owner has an account that works on the server", async () => {
+  const h = liveHarness({ providers: [prov()] });
+  const id = await draftWith(h, aiNode());
+  assert.equal((await turnOn(h, id)).automation.status, "on");
+});
+
+test("a Personal AI step with no working account is refused, and the message says what to add", async () => {
+  const none = liveHarness({ providers: [] });
+  await assert.rejects(turnOn(none, await draftWith(none, aiNode())), (e) => { assert.equal(reasonOf(e), "live_step"); assert.match(messageOf(e), /your own AI account/); assert.match(messageOf(e), /AI settings/); return true; });
+  const sub = liveHarness({ providers: [prov({ connection: "subscription", spaceMayUse: false })] });
+  await assert.rejects(turnOn(sub, await draftWith(sub, aiNode())), (e) => { assert.match(messageOf(e), /Let the Space run work on my subscription/); return true; });
+  const subOk = liveHarness({ providers: [prov({ connection: "subscription", spaceMayUse: true })] });
+  assert.equal((await turnOn(subOk, await draftWith(subOk, aiNode()))).automation.status, "on");
+  const broken = liveHarness({ providers: [prov({ state: "needs_sign_in" })] });
+  await assert.rejects(turnOn(broken, await draftWith(broken, aiNode())), (e) => { assert.match(messageOf(e), /your own AI account/); return true; });
+});
+
+test("a Personal AI step may name one of its owner's accounts, and an unknown one is refused", async () => {
+  const h = liveHarness({ providers: [prov()] });
+  assert.equal((await turnOn(h, await draftWith(h, aiNode({}, { keyId: "#Mine_Anthropic" })))).automation.status, "on");
+  await assert.rejects(turnOn(h, await draftWith(h, aiNode({}, { keyId: "#Nope" }))), (e) => { assert.match(messageOf(e), /#Nope is not in the Vault/); return true; });
+});
+
+test("a Space AI step needs a Space-shared key in the step", async () => {
+  const h = liveHarness({ providers: [prov(), shared()] });
+  const mk = async (ai?: Record<string, unknown>): Promise<string> => {
+    const id = await draftWith(h, aiNode({}, ai));
+    await h.call("automations.promote", { automationId: id, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }].filter(() => false) }, alice).catch(() => undefined);
+    return id;
+  };
+  // promote an AI step that already names a shared key, then check the other cases on the Space copy
+  const okId = await mk({ keyId: "#Team_Key" });
+  assert.equal((await h.call("automations.get", { automationId: okId }, alice)).automation.kind, "space");
+  assert.equal((await turnOn(h, okId)).automation.status, "on");
+  const bareId = await draftWith(h, aiNode());
+  await h.call("automations.promote", { automationId: bareId, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }] }, alice);
+  assert.equal((await h.call("automations.get", { automationId: bareId }, alice)).automation.definition.nodes[0].ai.keyId, "#Team_Key", "Promote fills the step with the shared key it was given");
+  const mineId = await draftWith(h, aiNode({}, { keyId: "#Mine_Anthropic" }));
+  await h.call("automations.promote", { automationId: mineId, confirm: true }, alice);
+  await assert.rejects(turnOn(h, mineId), (e) => { assert.match(messageOf(e), /belongs to one person/); assert.match(messageOf(e), /Space-shared AI key/); return true; });
+});
+
+test("Promote asks for a shared key for an AI step that had none", async () => {
+  const h = liveHarness({ providers: [shared()] });
+  h.callee("vault.items.list", () => ({ items: [] }));
+  const id = await draftWith(h, aiNode());
+  const diff = (await h.call("automations.preview_promote", { automationId: id }, alice));
+  assert.equal(diff.ready, false);
+  assert.deepEqual(diff.diff.keysToReplace.map((k: { stepId: string; keyId: string }) => [k.stepId, k.keyId]), [["a", ""]]);
+  await refused(h.call("automations.promote", { automationId: id, confirm: true }, alice), "validation.precondition_failed", "keys_not_replaced");
+});
+
+test("a Space AI step with no key is refused and the message names what to add", async () => {
+  const h = liveHarness({ providers: [shared()] });
+  h.callee("vault.items.list", () => ({ items: [] }));
+  const id = await draftWith(h, aiNode());
+  await h.call("automations.promote", { automationId: id, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }] }, alice);
+  // the key is later removed from the Vault
+  h.callee("providers.list", () => ({ providers: [] }));
+  await assert.rejects(turnOn(h, id), (e) => { assert.match(messageOf(e), /#Team_Key is not in the Vault/); assert.match(messageOf(e), /Space-shared AI key/); return true; });
 });
 
 test("a schedule can be turned on", async () => {
@@ -172,11 +254,12 @@ test("a schedule can be turned on", async () => {
   assert.equal(on.automation.status, "on");
 });
 
-test("an AI step needs an agent or a key; a Personal Space cannot use a webhook trigger", async () => {
+test("an AI step needs a prompt; a Personal Space cannot use a webhook trigger", async () => {
   const h = harness();
   const bare = await validate(h, { triggers: trig, nodes: [node("a", "ai", { prompt: "Summarise" })] });
-  assert.equal(bare.ok, false);
-  assert.equal(bare.issues[0]!.message, "AI step needs an agent or a key.");
+  assert.equal(bare.ok, true, "a Personal AI step runs on its owner's account and needs neither");
+  const noPrompt = await validate(h, { triggers: trig, nodes: [node("a", "ai", {})] });
+  assert.equal(noPrompt.issues[0]!.message, "AI step needs prompt.");
   const withAgent = await validate(h, { triggers: trig, nodes: [node("a", "ai", { prompt: "Summarise" }, { ai: { agentId: "agt_helper" } })] });
   assert.equal(withAgent.ok, true);
   const hook = { triggers: [{ key: "webhook" }], nodes: [] };

@@ -167,6 +167,14 @@ export default defineManifest({
       in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })) },
       out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem) }, on: ['thread', '/threadId'],
     }),
+    write('engine.step_turn', 'Run one AI turn for an automation step: on the owner\'s own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.', {
+      in: {
+        prompt: t.str({ minLength: 1 }), agentId: t.opt(id.agent), keyId: t.opt(accountRef), backupKeyId: t.opt(accountRef), timeoutMinutes: t.opt(t.int({ minimum: 1, maximum: 30 })), recordIds: t.opt(t.arr(id.record, { maxItems: 200 })), runId: id.run, stepId: t.str(),
+      },
+      out: { text: t.str(), keyUsed: accountRef, modelUsed: t.str(), tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), agentName: t.opt(t.str()) },
+      level: 'view', idem: 'key', risk: 'medium', audit: 'sensitive', agent: false,
+      errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.unavailable', 'provider.overloaded', 'permission.limit', 'permission.provider_label', 'timeout.deadline', 'internal.unavailable'],
+    }),
     // ---- accounts and models
     read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status', {
       out: { accounts: t.arr(accountRow) }, tool: 'meta',

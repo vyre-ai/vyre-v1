@@ -5,11 +5,13 @@ import { accountProbe, accountResolve, accountsList } from "./accounts.ts";
 import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolve, incidentsList, interrupt, setMode, setModel, stop, stopAll, switchEngine } from "./control.ts";
 import { extraHandlers } from "./extra/index.ts";
 import { mcpCall, mcpTools } from "./mcp.ts";
+import { stepTurn } from "../step-turn.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
 
 export const handlers = {
   "engine.accounts.list": accountsList,
   "engine.complete": complete,
+  "engine.step_turn": stepTurn as never,
   "engine.account.resolve": accountResolve,
   "engine.probe_account": accountProbe,
   "engine.interrupt": interrupt,

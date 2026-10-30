@@ -40250,6 +40250,40 @@
     },
     {
       "blocks": [],
+      "cap": "runs.step_io",
+      "deferred": false,
+      "description": "What one step of a Run was given and what it answered, as the step log holds them, with anything that looks like a key hidden",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "attempt": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          },
+          "step": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "step"
+        ],
+        "type": "object"
+      },
+      "name": "runs_step_io",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "runs.steps",
       "deferred": false,
       "description": "The durable step log of a Run",

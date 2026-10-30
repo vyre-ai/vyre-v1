@@ -175,7 +175,11 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
 export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[] }
-export interface SessionSpec { threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount }
+export interface SessionSpec {
+  threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
+  /** "none": the session has no Vyre tools and no tools of its own (an automation's AI step answers in words and sends nothing). Absent: the agent's tools. */
+  tools?: "none";
+}
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 
 export interface ReceiveResult { responders: string[]; reason: RouteReason; qseqs: number[]; messageId: string }

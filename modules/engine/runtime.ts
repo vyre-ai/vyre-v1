@@ -21,7 +21,7 @@ import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { EngineSessionPorts } from "./session.ts";
 import type { PostAs } from "./handlers/bridge.ts";
-import { bindEngine, bindOpener, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
+import { bindEngine, bindOpener, bindStepOpen, mintEngineId, sqlLeases, sqlMessages, sqlQueue, sqlWaits } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
 
 export interface EngineHostSeam {
@@ -79,7 +79,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   closeOpener = null;
   host = h;
   building = null;
-  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; }
+  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; bindStepOpen(null); }
 }
 
 export function engineHost(): EngineHostSeam | null { return host; }
@@ -195,6 +195,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     completer = (i) => oneShot(openSession, i, now);
     bindEngine(engine);
     bindOpener(opener);
+    bindStepOpen(openSession);
     bindBridge(bridge);
     // threads with work a dead host left: queued or running rows with no live lease
     const stale = ctx.db.all("SELECT DISTINCT thread_id FROM engine_thread_queue WHERE state IN ('queued', 'running')") as Array<{ thread_id: string }>;

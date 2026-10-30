@@ -577,6 +577,19 @@ export type AccessProposeChangeIn = {
 export type AccessProposeChangeOut = {
   taskId: string;
 };
+export type AccessProviderCheckIn = {
+  resources: Array<{
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    }>;
+  provider: string;
+};
+export type AccessProviderCheckOut = {
+  blocked: Array<{
+      id: string;
+      label?: "public" | "internal" | "confidential" | "restricted";
+    }>;
+};
 export type AccessRequestIn = {
   resource: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -2531,6 +2544,47 @@ export type AutomationsGroupsRenameOut = {
     count: number;
     order: number;
   };
+};
+export type AutomationsHttpReadIn = {
+  method: "GET" | "HEAD";
+  url: string;
+  headers?: Record<string, string>;
+  query?: Record<string, unknown>;
+  json?: unknown;
+  text?: string;
+  auth?: {
+    kind: "bearer" | "basic" | "header";
+    handle: string;
+    username?: string;
+    header?: string;
+  };
+};
+export type AutomationsHttpReadOut = {
+  status: number;
+  ok: boolean;
+  headers: Record<string, string>;
+  body: unknown;
+};
+export type AutomationsHttpSendIn = {
+  method: "POST" | "PUT" | "PATCH" | "DELETE";
+  url: string;
+  headers?: Record<string, string>;
+  query?: Record<string, unknown>;
+  json?: unknown;
+  text?: string;
+  auth?: {
+    kind: "bearer" | "basic" | "header";
+    handle: string;
+    username?: string;
+    header?: string;
+  };
+  idempotencyKey: string;
+};
+export type AutomationsHttpSendOut = {
+  status: number;
+  ok: boolean;
+  headers: Record<string, string>;
+  body: unknown;
 };
 export type AutomationsListIn = {
   section?: "personal" | "shared" | "space";
@@ -8923,6 +8977,25 @@ export type EngineSpendRaiseOut = {
 export type EngineSpendResumeAllIn = Record<string, unknown>;
 export type EngineSpendResumeAllOut = {
   paused: boolean;
+};
+export type EngineStepTurnIn = {
+  prompt: string;
+  agentId?: string;
+  keyId?: string;
+  backupKeyId?: string;
+  timeoutMinutes?: number;
+  recordIds?: Array<string>;
+  runId: string;
+  stepId: string;
+  idempotencyKey: string;
+};
+export type EngineStepTurnOut = {
+  text: string;
+  keyUsed: string;
+  modelUsed: string;
+  tokensIn: number;
+  tokensOut: number;
+  agentName?: string;
 };
 export type EngineStopIn = {
   threadId: string;
@@ -21798,6 +21871,19 @@ export type RunsStatusOut = {
   queued: number;
   stuck: number;
 };
+export type RunsStepIoIn = {
+  runId: string;
+  step: string;
+  attempt?: number;
+};
+export type RunsStepIoOut = {
+  step: string;
+  attempt: number;
+  input?: unknown;
+  output?: unknown;
+  hidden: number;
+  truncated: boolean;
+};
 export type RunsStepsIn = {
   runId: string;
   cursor?: string;
@@ -23950,6 +24036,17 @@ export type StarsToggleIn = {
 export type StarsToggleOut = {
   starred: boolean;
   following: boolean;
+};
+export type StepsSupportIn = Record<string, unknown>;
+export type StepsSupportOut = {
+  code: {
+    available: boolean;
+    reason?: string;
+  };
+  ai: {
+    available: boolean;
+    reason?: string;
+  };
 };
 export type StepsTestIn = {
   key: string;
@@ -29282,6 +29379,7 @@ export interface CapMap {
   "access.principals.list": { in: AccessPrincipalsListIn; out: AccessPrincipalsListOut };
   "access.projection_health": { in: AccessProjectionHealthIn; out: AccessProjectionHealthOut };
   "access.propose_change": { in: AccessProposeChangeIn; out: AccessProposeChangeOut };
+  "access.provider_check": { in: AccessProviderCheckIn; out: AccessProviderCheckOut };
   "access.request": { in: AccessRequestIn; out: AccessRequestOut };
   "access.requests.approve": { in: AccessRequestsApproveIn; out: AccessRequestsApproveOut };
   "access.requests.decline": { in: AccessRequestsDeclineIn; out: AccessRequestsDeclineOut };
@@ -29369,6 +29467,8 @@ export interface CapMap {
   "automations.groups.delete": { in: AutomationsGroupsDeleteIn; out: AutomationsGroupsDeleteOut };
   "automations.groups.list": { in: AutomationsGroupsListIn; out: AutomationsGroupsListOut };
   "automations.groups.rename": { in: AutomationsGroupsRenameIn; out: AutomationsGroupsRenameOut };
+  "automations.http_read": { in: AutomationsHttpReadIn; out: AutomationsHttpReadOut };
+  "automations.http_send": { in: AutomationsHttpSendIn; out: AutomationsHttpSendOut };
   "automations.list": { in: AutomationsListIn; out: AutomationsListOut };
   "automations.make_personal_copy": { in: AutomationsMakePersonalCopyIn; out: AutomationsMakePersonalCopyOut };
   "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };
@@ -29737,6 +29837,7 @@ export interface CapMap {
   "engine.spend.pause_all": { in: EngineSpendPauseAllIn; out: EngineSpendPauseAllOut };
   "engine.spend.raise": { in: EngineSpendRaiseIn; out: EngineSpendRaiseOut };
   "engine.spend.resume_all": { in: EngineSpendResumeAllIn; out: EngineSpendResumeAllOut };
+  "engine.step_turn": { in: EngineStepTurnIn; out: EngineStepTurnOut };
   "engine.stop": { in: EngineStopIn; out: EngineStopOut };
   "engine.stop_all": { in: EngineStopAllIn; out: EngineStopAllOut };
   "engine.subscription_share.set": { in: EngineSubscriptionShareSetIn; out: EngineSubscriptionShareSetOut };
@@ -30494,6 +30595,7 @@ export interface CapMap {
   "runs.retry": { in: RunsRetryIn; out: RunsRetryOut };
   "runs.start": { in: RunsStartIn; out: RunsStartOut };
   "runs.status": { in: RunsStatusIn; out: RunsStatusOut };
+  "runs.step_io": { in: RunsStepIoIn; out: RunsStepIoOut };
   "runs.steps": { in: RunsStepsIn; out: RunsStepsOut };
   "runs.stop": { in: RunsStopIn; out: RunsStopOut };
   "runs.undo": { in: RunsUndoIn; out: RunsUndoOut };
@@ -30635,6 +30737,7 @@ export interface CapMap {
   "spaces.update": { in: SpacesUpdateIn; out: SpacesUpdateOut };
   "stars.list": { in: StarsListIn; out: StarsListOut };
   "stars.toggle": { in: StarsToggleIn; out: StarsToggleOut };
+  "steps.support": { in: StepsSupportIn; out: StepsSupportOut };
   "steps.test": { in: StepsTestIn; out: StepsTestOut };
   "stripe.checkout.create_session": { in: StripeCheckoutCreateSessionIn; out: StripeCheckoutCreateSessionOut };
   "stripe.customer.create": { in: StripeCustomerCreateIn; out: StripeCustomerCreateOut };

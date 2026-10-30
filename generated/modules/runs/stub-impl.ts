@@ -20,6 +20,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "runs.retry": async () => ({"runId":"run_a1b2c3"} as unknown) as never,
   "runs.start": async () => ({"runId":"run_a1b2c3"} as unknown) as never,
   "runs.status": async () => ({"detail":"example","latencyMs":1,"queued":1,"state":"healthy","stuck":1} as unknown) as never,
+  "runs.step_io": async () => ({"attempt":1,"hidden":1,"input":{},"output":{},"step":"example","truncated":true} as unknown) as never,
   "runs.steps": async () => ({"next":"example","steps":[{"attempt":1,"branch":"example","endedAt":1760000000000,"error":{"code":"example","message":"example"},"inputRef":"example","outputRef":"example","startedAt":1760000000000,"state":"pending","step":"step_1","traceSpan":"example"}],"total":1} as unknown) as never,
   "runs.stop": async () => ({"run":{"costMicros":1,"definitionVersion":1,"endedAt":1760000000000,"id":"run_a1b2c3","keyUsed":"example","kind":"automation","modelUsed":"example","name":"example","owner":"usr_a1b2c3","parentRun":"run_a1b2c3","startedAt":1760000000000,"startedBy":"example","status":"queued","subject":{"id":"rec_a1b2c3","type":"space"},"summary":"example","threadId":"thr_a1b2c3","traceId":"0123456789abcdef0123456789abcdef","trigger":{"channelId":"chn_a1b2c3","messageId":"msg_a1b2c3","threadId":"thr_a1b2c3"},"waitReason":"approval"}} as unknown) as never,
   "runs.undo": async () => ({"skipped":[{"eventId":"evt_a1b2c3","reason":"changed_since","summary":"example"}],"undone":[{"eventId":"evt_a1b2c3","summary":"example"}]} as unknown) as never,

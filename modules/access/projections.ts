@@ -87,6 +87,7 @@ export interface AccessCtx {
   preview?: { issue(person: string): { previewToken: string; expiresAt: number } };
   space: string;
   principal: { kind: string; id: string };
+  actingFor?: string | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;

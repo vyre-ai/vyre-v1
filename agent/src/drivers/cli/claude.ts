@@ -161,16 +161,17 @@ export const claudeCode: CliAdapter = {
   systemFlag: true,
   env: () => ({}),
   command(o: CommandOptions) {
-    const allowed = ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? WORK_FOLDER_TOOLS : [])];
+    const tools = o.noTools !== true;
+    const allowed = tools ? ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? WORK_FOLDER_TOOLS : [])] : [];
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-      "--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins), "--strict-mcp-config",
+      ...(tools ? ["--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins)] : []), "--strict-mcp-config",
       // installed plugins load natively: their commands, skills and agents come from the plugin folder in the work folder
-      ...(o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]),
+      ...(tools ? (o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]) : []),
       "--permission-mode", o.planMode ? "plan" : "default",
-      "--allowedTools", ...allowed,
-      // A chat on the person's computer runs Vyre's tools only: the CLI's own tools are switched off unless a work folder was granted.
-      ...(o.workFolder !== null ? ["--add-dir", o.workFolder] : ["--tools", ""]),
+      ...(allowed.length > 0 ? ["--allowedTools", ...allowed] : []),
+      // A chat on the person's computer runs Vyre's tools only: the CLI's own tools are switched off unless a work folder was granted. A session with noTools has neither.
+      ...(tools && o.workFolder !== null ? ["--add-dir", o.workFolder] : ["--tools", ""]),
       ...(o.model !== null ? ["--model", o.model] : []),
       ...(o.resume !== null ? ["--resume", o.resume] : []),
       ...(o.system !== null && o.system !== "" ? ["--append-system-prompt", o.system] : []),
