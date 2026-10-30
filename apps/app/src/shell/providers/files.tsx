@@ -3,11 +3,15 @@
 // the place draws its loading frames.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
+import type { MountRow } from "../../places/files/mounts/index.ts";
+import type { ShellRuntime } from "./runtime.tsx";
 import { View, useWindowDimensions } from "react-native";
 import { FilesList, ListLoading } from "../../places/files/list/index.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree, TreeLoading, useFilesState } from "../../places/files/tree/index.ts";
 import { ReviewDataProvider } from "../../places/files/review/index.ts";
 import { filesData } from "./files-data.ts";
+import { MountSheets, MountStrip, useMountOf } from "./files-mounts.tsx";
+import type { MountRequest } from "./files-mounts.tsx";
 import type { MemoryView } from "./files-data.ts";
 import { MemoryMount } from "./files-memory.tsx";
 import { reviewData } from "./files-review.ts";
@@ -21,11 +25,23 @@ import { FileDetail } from "./file-detail.tsx";
 
 const TREE_W = 240;
 
+/** The open folder's list, with the status line of a mount above it when the folder is the root of one. */
+function FolderBody({ rt, version, onUnmount }: { rt: ShellRuntime; version: number; onUnmount(mount: MountRow): void }): ReactElement {
+  const { state } = useFilesState();
+  const [mount, refresh] = useMountOf(rt, state.where.kind === "folder" ? state.where.id : null, version);
+  return (
+    <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+      {mount ? <MountStrip rt={rt} mount={mount} onUnmount={() => onUnmount(mount)} onChanged={refresh} /> : null}
+      <FilesList />
+    </View>
+  );
+}
+
 /**
  * The body beside the tree: a file (its viewer, or the agent file page for an agent's AGENT.md and agent.toml), one of the review screens the shell wrote to the hash (a change set, a compare,
  * a commit, a history), or the list. Choosing anything in the tree gives the body back to the list.
  */
-function FilesBody({ rt, fileId, memory }: { rt: ShellRuntime; fileId: string | null; memory: MemoryView["view"] }): ReactElement {
+function FilesBody({ rt, fileId, memory, version, onUnmount }: { rt: ShellRuntime; fileId: string | null; memory: MemoryView["view"]; version: number; onUnmount(mount: MountRow): void }): ReactElement {
   const { target, opened } = usePlaceHash();
   const { state } = useFilesState();
   const review = reviewKind(target);
@@ -38,7 +54,7 @@ function FilesBody({ rt, fileId, memory }: { rt: ShellRuntime; fileId: string | 
   if (review) return <ReviewScreen rt={rt} target={target} />;
   if (fileId) return <AgentFileGate rt={rt} fileId={fileId}><FileDetail rt={rt} fileId={fileId} /></AgentFileGate>;
   if (memory) return <MemoryMount rt={rt} view={memory} />;
-  return <FilesList />;
+  return <FolderBody rt={rt} version={version} onUnmount={onUnmount} />;
 }
 
 export default function FilesPlace(_props: { place: string }): ReactElement {
@@ -49,7 +65,10 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
   const screen = usePlaceHash().target.screen;
   const [memory, setMemory] = useState<MemoryView["view"]>(screen === "files.memory-graph" ? "graph" : screen === "files.memory-proposed" ? "proposed" : null);
   useEffect(() => { if (screen === "files.memory-graph") setMemory("graph"); else if (screen === "files.memory-proposed") setMemory("proposed"); }, [screen]);
-  const data = useMemo(() => (rt ? filesData(rt, { view: memory, open: setMemory }) : null), [rt, memory]);
+  // Connect a folder: the mount sheet, and the Unmount sheet for a mounted folder; `mountVersion` makes a mounted folder's status line read again after either
+  const [mountReq, setMountReq] = useState<MountRequest | null>(null);
+  const [mountVersion, setMountVersion] = useState(0);
+  const data = useMemo(() => (rt ? filesData(rt, { view: memory, open: setMemory }, { connect: (into) => setMountReq({ kind: "mount", into }) }) : null), [rt, memory]);
   const review = useMemo(() => (rt ? reviewData(rt) : null), [rt]);
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720;
@@ -67,7 +86,8 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
         <FilesStateProvider key={folderId ?? "root"} {...(folderId ? { initial: { where: { kind: "folder" as const, id: folderId } } } : {})}>
           <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
             <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
-            <FilesBody rt={rt!} fileId={fileId} memory={memory} />
+            <FilesBody rt={rt!} fileId={fileId} memory={memory} version={mountVersion} onUnmount={(mount) => setMountReq({ kind: "unmount", mount })} />
+            <MountSheets rt={rt!} request={mountReq} onClose={() => setMountReq(null)} onChanged={() => setMountVersion((n) => n + 1)} />
           </View>
         </FilesStateProvider>
       </ReviewDataProvider>

@@ -1,0 +1,4 @@
+- Files: Connect a folder (folder menu, New menu and the sidebar Space section) opens the mount sheet for Google Drive, SharePoint, OneDrive, GitHub or a folder on a computer; a source with no connection says to connect it first and opens Connections.
+- A mounted folder shows its source, last sync and state with Sync now, Pause or Resume, Unmount and Review changes.
+- Fix: edits made in Vyre inside a mounted folder now mark the item as waiting (the mounts projection was exported where the host never read it), and a file the engine just created no longer leaves a duplicate waiting row.
+- GitHub mounts sign in with the Space's GitHub App token (vault filler into the git module credential slot).
