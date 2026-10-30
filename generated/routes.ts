@@ -1167,6 +1167,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/agents/builtin_skill/get",
+    "cap": "agents.builtin_skill.get",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/agents/builtin_skills/list",
     "cap": "agents.builtin_skills.list",
     "v": 1,
@@ -4762,6 +4780,25 @@ export const routes: Route[] = [
     "level": "view",
     "resource": {
       "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/screen/get",
+    "cap": "chat.screen.get",
+    "v": 1,
+    "module": "chat",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
     },
     "idempotency": "natural",
     "risk": "low",

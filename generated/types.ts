@@ -1004,6 +1004,14 @@ export type AccessViewAsOut = {
   previewToken: string;
   expiresAt: number;
 };
+export type AgentsBuiltinSkillGetIn = {
+  name: string;
+};
+export type AgentsBuiltinSkillGetOut = {
+  name: string;
+  description: string;
+  body: string;
+};
 export type AgentsBuiltinSkillsListIn = Record<string, unknown>;
 export type AgentsBuiltinSkillsListOut = {
   skills: Array<{
@@ -5618,6 +5626,28 @@ export type ChatPostIn = {
     routineOwner: string;
   };
   clientId?: string;
+  screen?: {
+    place: string;
+    title?: string;
+    open?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    selection?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    filters?: Record<string, unknown>;
+    rows?: {
+      shown: number;
+      total?: number;
+      sample?: Array<string>;
+    };
+    actions?: Array<string>;
+    focus?: string;
+  };
   idempotencyKey: string;
 };
 export type ChatPostOut = {
@@ -5731,6 +5761,35 @@ export type ChatRecentOut = {
       preview?: string;
     }>;
   nextUnread: string | null;
+};
+export type ChatScreenGetIn = {
+  threadId: string;
+  messageId?: string;
+};
+export type ChatScreenGetOut = {
+  screen: {
+    place: string;
+    title?: string;
+    open?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    selection?: Array<{
+        type: string;
+        id: string;
+        title?: string;
+      }>;
+    filters?: Record<string, unknown>;
+    rows?: {
+      shown: number;
+      total?: number;
+      sample?: Array<string>;
+    };
+    actions?: Array<string>;
+    focus?: string;
+  } | null;
+  messageId?: string;
 };
 export type ChatStartIn = {
   kind: "chat" | "ask";
@@ -27505,6 +27564,7 @@ export interface CapMap {
   "access.shares_of": { in: AccessSharesOfIn; out: AccessSharesOfOut };
   "access.unshare": { in: AccessUnshareIn; out: AccessUnshareOut };
   "access.view_as": { in: AccessViewAsIn; out: AccessViewAsOut };
+  "agents.builtin_skill.get": { in: AgentsBuiltinSkillGetIn; out: AgentsBuiltinSkillGetOut };
   "agents.builtin_skills.list": { in: AgentsBuiltinSkillsListIn; out: AgentsBuiltinSkillsListOut };
   "agents.config.get": { in: AgentsConfigGetIn; out: AgentsConfigGetOut };
   "agents.config.validate": { in: AgentsConfigValidateIn; out: AgentsConfigValidateOut };
@@ -27701,6 +27761,7 @@ export interface CapMap {
   "chat.question.ask": { in: ChatQuestionAskIn; out: ChatQuestionAskOut };
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
+  "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };
   "chat.thread": { in: ChatThreadIn; out: ChatThreadOut };
   "chat.transcript.append": { in: ChatTranscriptAppendIn; out: ChatTranscriptAppendOut };

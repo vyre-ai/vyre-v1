@@ -35,7 +35,7 @@ function dropThread(ctx: ChatCtx, id: string): void {
   }
   ctx.db.run(`DELETE FROM chat_thread_seq WHERE thread = ?`, id);
   // tables other packets create when first used: the canonical transcript and its summary (the words of the turns), read markers, and the private chat key record and its per-turn audit rows
-  for (const t of ["chat_transcript_row", "chat_transcript_summary", "chat_thread_read", "chat_private_turn", "chat_private"]) ifTable(() => ctx.db.run(`DELETE FROM ${t} WHERE thread = ?`, id), { changes: 0 });
+  for (const t of ["chat_transcript_row", "chat_transcript_summary", "chat_thread_read", "chat_private_turn", "chat_private", "chat_screen"]) ifTable(() => ctx.db.run(`DELETE FROM ${t} WHERE thread = ?`, id), { changes: 0 });
   ctx.db.run(`DELETE FROM chat_thread__fm WHERE id = ?`, id);
   ctx.db.run(`DELETE FROM chat_thread WHERE id = ?`, id);
 }

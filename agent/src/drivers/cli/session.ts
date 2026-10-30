@@ -78,6 +78,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   let outstanding = 0;
   let systemSent = deps.resume !== null;
   const steer: StoredMessage[] = [];
+  /** The turn-context sections this engine session already holds (id to hash), so a resumed turn is sent only what changed. */
+  const sentContext = new Map<string, string>();
 
   const secrets = (): string[] => [deps.endpoint.token];
   const clean = (text: string): string => scrub(text, secrets());
@@ -200,7 +202,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     turns += 1;
     try {
       const fresh = sessionId === null;
-      const build = (steered: readonly StoredMessage[]): string => (deps.prompt && steered.length === 0 ? deps.prompt(input, { fresh }) : defaultPrompt(input, fresh, steered));
+      const build = (steered: readonly StoredMessage[]): string => (deps.prompt && steered.length === 0 ? deps.prompt(input, { fresh }) : defaultPrompt(input, fresh, steered, sentContext));
       let prompt = build(steer.splice(0, steer.length));
       for (;;) {
         const outcome = yield* turn(prompt, input.asker, ac.signal);
