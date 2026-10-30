@@ -9,6 +9,12 @@ export const SCREENS = { types: "records.types", views: "records.saved-views" } 
 export const DEFAULT_GROUP = "Records";
 export const SITES_GROUP = "Sites";
 
+/** Types a connector or the system writes into. The sidebar hides them while they are empty (Envelopes until e-sign, Issues and Pull requests until GitHub, Problem reports); they stay in Record types and show as soon as they hold a record. */
+export const HIDDEN_WHEN_EMPTY: ReadonlySet<string> = new Set(["envelope", "issue", "pull_request", "report"]);
+
+/** Agents live in Chats; their record type is a Manage row of the sidebar (next to Record types and Schema map), never a type group. */
+export const MANAGE_TYPE = "agent";
+
 export interface TypeGroup { key: string; label: string; items: TypeItem[] }
 export interface TypeItem { key: string; label: string; icon: string; count: number; synced: boolean; syncedFrom?: string; system: boolean }
 
@@ -31,6 +37,7 @@ export function typeGroups(types: readonly TypeRow[]): TypeGroup[] {
     g.items.push(item);
   };
   for (const t of types) {
+    if (t.key === MANAGE_TYPE || (HIDDEN_WHEN_EMPTY.has(t.key) && t.rowCount === 0)) continue;
     const site = isSiteTable(t);
     put(site ? SITES_GROUP : t.group ?? DEFAULT_GROUP, {
       key: t.key, label: site && t.scope ? `${siteName(t.scope)} › ${t.plural}` : t.plural, icon: t.icon, count: t.rowCount, synced: t.syncedFrom !== undefined, ...(t.syncedFrom !== undefined ? { syncedFrom: t.syncedFrom } : {}), system: t.system,
@@ -80,6 +87,7 @@ export function reduce(s: RecordsState, a: Action): RecordsState {
 /** The type to show: the open one if the person can still see it, else the first of the first group. */
 export function effectiveType(s: RecordsState, groups: readonly TypeGroup[]): string | null {
   const all = groups.flatMap((g) => g.items);
+  if (s.type === MANAGE_TYPE) return MANAGE_TYPE;
   if (s.type && all.some((i) => i.key === s.type)) return s.type;
   return all[0]?.key ?? null;
 }
