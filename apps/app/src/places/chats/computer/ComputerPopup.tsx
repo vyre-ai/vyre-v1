@@ -11,7 +11,7 @@ import { createForwarder, discardRecording, giveBack, keepRecording, openStream,
 import type { PopupDeps } from "./actions.ts";
 import { PopupDataProvider, useCapture, useOnline, useOptionalPopupData, usePopupData, useScreenQuery } from "./data.tsx";
 import type { ComputerPopupData } from "./data.tsx";
-import { DEFAULT_INTENTS, MASKED_NOTE, hostLabel, NO_CAPTURE, captureLine, captureParts, mmss, options, orderedIntents, popupView, railItems, toggleIntent } from "./model.ts";
+import { DEFAULT_INTENTS, MASKED_NOTE, hostLabel, streamSrc, NO_CAPTURE, captureLine, captureParts, mmss, options, orderedIntents, popupView, railItems, toggleIntent } from "./model.ts";
 import type { Capture, Intent, Recording } from "./model.ts";
 import { Desk, Icon, RailButton, SheetButton } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
@@ -196,7 +196,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
             {...screenWeb}
           >
             <Desk kind={view.screen} caption="Elena Rivera, referred by Maya" />
-            {stream && stream.transport === "mjpeg" ? <Image testID="popup-stream" accessibilityLabel="Live view" source={{ uri: `${stream.url.startsWith("/") ? (data.spaceUrl ?? "").replace(/\/+$/, "") : ""}${stream.url}?ticket=${stream.ticket}` }} resizeMode="contain" style={st.stream} /> : null}
+            {stream && stream.transport === "mjpeg" ? <Image testID="popup-stream" accessibilityLabel="Live view" source={{ uri: streamSrc(stream.url, stream.ticket, data.spaceUrl) }} resizeMode="contain" style={st.stream} /> : null}
             {c.state === "asleep" ? <View style={st.wakeWrap}><View testID="popup-wake" style={st.wake}><Icon name="moon" size={14} /><Text style={st.wakeText}>Wake</Text></View></View> : null}
           </Pressable>
           {rec ? <View testID="popup-capture" style={st.capture}>{partNodes}</View> : null}

@@ -259,6 +259,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     me,
     clock: () => ({ now: (o.now ?? Date.now)(), offsetMin: -new Date().getTimezoneOffset() }),
     space: { id: space.id, kind: space.kind, name: space.name },
+    baseUrl: o.baseUrl,
     ...(o.spaceCards?{knownSpaces:o.spaceCards}:{}),
     get assistant() { return assistant(); },
     get aiConnected() { return connected(AI_CONNECTORS); },

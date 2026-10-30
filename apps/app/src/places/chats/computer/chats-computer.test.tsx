@@ -9,7 +9,7 @@ import type { PopupInitial } from "./ComputerPopup.tsx";
 import { createForwarder, discardRecording, giveBack, keepRecording, sendRecording, startRecording, stopRecording, takeOver, wake } from "./actions.ts";
 import type { PopupDeps } from "./actions.ts";
 import {
-  DEFAULT_INTENTS, DISPLAY, hostLabel, DOUBLE_MS, MASKED_NOTE, NO_CAPTURE, captureLine, captureParts, keyInput, mmss, options, orderedIntents, popupView, railItems, toDisplay, toggleIntent,
+  DEFAULT_INTENTS, DISPLAY, hostLabel, streamSrc, DOUBLE_MS, MASKED_NOTE, NO_CAPTURE, captureLine, captureParts, keyInput, mmss, options, orderedIntents, popupView, railItems, toDisplay, toggleIntent,
 } from "./model.ts";
 import type { Computer, Intent, Recording } from "./model.ts";
 import { COMPUTER, SAMPLE_NOW, createSample } from "./sample.ts";
@@ -313,4 +313,14 @@ test("a computer on a computer that joined the Space says where it runs, and the
   assert.equal(hostLabel(servers, undefined), null);
   assert.equal(hostLabel(servers, "srv_gone"), null);
   assert.equal(hostLabel(undefined, "srv_a"), null);
+});
+
+test("the live view address is absolute when the Space's address is given, so the desktop app (tauri://) can load it", () => {
+  assert.equal(streamSrc("/computers/cmt_a/stream", "cpt_1", "https://team.example.com"), "https://team.example.com/computers/cmt_a/stream?ticket=cpt_1");
+  assert.equal(streamSrc("/computers/cmt_a/stream", "cpt_1", "https://team.example.com/"), "https://team.example.com/computers/cmt_a/stream?ticket=cpt_1", "no double slash");
+  assert.equal(streamSrc("http://10.0.0.5:7000/stream", "t", "https://team.example.com"), "http://10.0.0.5:7000/stream?ticket=t", "an absolute address is left alone");
+  assert.equal(streamSrc("/computers/cmt_a/stream", "cpt_1"), "/computers/cmt_a/stream?ticket=cpt_1");
+  const s = createSample("working");
+  const out = clean(renderToStaticMarkup(<ComputerPopup data={{ ...s.data, spaceUrl: "https://team.example.com" }} />));
+  assert.ok(out.includes("popup-screen"), "the popup still renders with a Space address");
 });

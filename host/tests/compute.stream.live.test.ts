@@ -88,7 +88,7 @@ interface StandIn {
 
 /** The node's host: a stand-in for the Docker host, honouring the same calls nodeRun makes. agentd's stream server is the real one. */
 function standIn(nodeDir: string): { make(link: HomeLink): { run(kind: string, input: unknown): Promise<unknown> }; state: StandIn } {
-  const state: StandIn = { executed: [], views: [], inputs: [], taken: { on: false }, video: Buffer.alloc(4_000_000, 7), stop: () => undefined };
+  const state: StandIn = { executed: [], views: [], inputs: [], taken: { on: false }, video: Buffer.alloc(12_000_000, 7), stop: () => undefined };
   let agd: StreamServer | undefined;
   let counter = 0;
   const agentOf = new Map<string, string>();
@@ -349,7 +349,7 @@ test("a computer on a node can be watched, taken over and recorded from the Spac
     const folder = (await post(d, "/v1/files/folder/get", { folderId: a.folderId }, owner)).json.data.folder.path as string;
     const fileOf = async (name: string) => { const r = await post(d, "/v1/files/resolve", { path: `${folder}/work/recordings/${recordingId}/${name}` }, owner); return r.status === 200 ? (r.json.data.fileId as string) : undefined; };
     const videoId = await fileOf("video.mp4");
-    assert.ok(videoId, "the 4 MB video reached Files through the recording route");
+    assert.ok(videoId, "the 12 MB video (three times a 4 MB call) reached Files through the recording route");
     const video = await post(d, "/v1/files/read", { fileId: videoId, as: "base64" }, owner);
     assert.equal(video.status, 200, JSON.stringify(video.json).slice(0, 300));
     assert.ok(Buffer.from(video.json.data.base64 as string, "base64").equals(mine.state.video), "and plays back from the Space byte for byte");

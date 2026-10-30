@@ -147,7 +147,7 @@ export function countingCall(call: ShellRuntime["call"], counter: CaptureCounter
 
 export function popupData(rt: ShellRuntime, go: Go, o: { computerId: string; agent: { agentId: string; name: string }; counter: CaptureCounter; renderChat?: ComputerPopupData["renderChat"] }): ComputerPopupData {
   return {
-    screens: rt.screens, call: countingCall(rt.call, o.counter), connection: rt.connection, computerId: o.computerId, agent: o.agent, capture: o.counter.store,
+    screens: rt.screens, call: countingCall(rt.call, o.counter), connection: rt.connection, computerId: o.computerId, agent: o.agent, capture: o.counter.store, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
     ...(o.renderChat ? { renderChat: o.renderChat } : {}), nav: { close: () => go.closeLayer() }, clock: rt.clock,
   };
 }
