@@ -16,7 +16,7 @@ import { holdKeyOnOwnNode } from "../../../client/src/gateway/local-key.ts";
 import { openBundle, wipe } from "../../../client/src/crypto/keys.ts";
 import { addJoinedApiKey } from "../src/shell/session/join-provider.ts";
 import { routes } from "../../../generated/routes.ts";
-import { bootFreshSpace, claimOnEdge, edge, liveModules, todoFor } from "./real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, liveModules, todoFor, dismissOnboarding} from "./real-app-harness.test.ts";
 
 function authenticatorCode(secret: string): string {
   let bits = "";
@@ -180,7 +180,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByTestId("claim-confirm").fill("correct horse battery 9");
         await page.getByTestId("claim-next").click();
         await page.getByTestId("claim-saved").click();
-        await page.getByTestId("claim-create").click();
+        await page.getByTestId("claim-create").click();await dismissOnboarding(page);
         await page.getByTestId("shell").waitFor({ timeout: 30_000 });
         signedIn = true;
       });

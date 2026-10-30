@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { bootFreshSpace, claimOnEdge, edge } from "./real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
 
 test("production Apps: create a form and campaign, reload their real editors, install a saved draft template, and review a sending domain", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
@@ -23,7 +23,7 @@ test("production Apps: create a form and campaign, reload their real editors, in
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
     await page.getByTestId("claim-name").fill("Fixture Owner"); await page.getByTestId("claim-username").fill("fixture");
     await page.getByTestId("claim-password").fill("fixture password 123"); await page.getByTestId("claim-confirm").fill("fixture password 123");
-    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
+    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
     const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); return saved.sessions?.[location.origin]?.token ?? saved.token; });
     const fixtureCompany = await context.request.post(`${web.origin}/v1/records/create`, { headers: { authorization: `Bearer ${token}` }, data: { type: "company", fields: { name: "Fixture relation company" }, idempotencyKey: "apps-company-fixture" } });

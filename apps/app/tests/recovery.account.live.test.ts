@@ -1,7 +1,7 @@
 // Saved-code account recovery against the production export, a fresh claimed daemon and real Chromium. Nothing is mocked: the claim, the Mine Vault item, sign-out, the wrong code,
 // the saved-code recovery, the revoked old password and old session, and the new verified session all go through the real capabilities.
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
-import { bootFreshSpace, claimOnEdge, edge } from './real-app-harness.test.ts';
+import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from './real-app-harness.test.ts';
 import { createCapCaller } from '../../../client/src/gateway/index.ts';import { routes } from '../../../generated/routes.ts';
 
 const OLD_PASSWORD = 'fixture recovery password 123';
@@ -37,7 +37,7 @@ test('saved-code recovery: same keys, private Vault data kept, old password and 
       await page.getByTestId('claim-name').fill('Recovery proof owner');await page.getByTestId('claim-username').fill('recoveryowner');
       await page.getByTestId('claim-password').fill(OLD_PASSWORD);await page.getByTestId('claim-confirm').fill(OLD_PASSWORD);await page.getByTestId('claim-next').click();
       await page.getByTestId('claim-code').waitFor();code = (await page.getByTestId('claim-code').innerText()).trim();assert.ok(code.length >= 8, 'the claim page shows a recovery code');
-      await page.getByTestId('claim-saved').click();await page.getByTestId('claim-create').click();await page.getByTestId('shell').or(page.getByTestId('mobile-shell')).first().waitFor({ timeout: 30000 });
+      await page.getByTestId('claim-saved').click();await page.getByTestId('claim-create').click();await dismissOnboarding(page);await page.getByTestId('shell').or(page.getByTestId('mobile-shell')).first().waitFor({ timeout: 30000 });
       ownerToken = (await storedSession())!.token;assert.ok(ownerToken);
     });
     await t.test('a private Mine Vault item is created and revealed before recovery', async () => {

@@ -135,6 +135,22 @@ export async function bootFreshSpace(kind?:"personal", publishLocal=false): Prom
 }
 
 /** The claim link as the browser opens it: the daemon prints its own address, the page is served from the edge, so the path and fragment move to the edge's origin. */
+interface Loc { waitFor(o?: { timeout?: number; state?: "detached" | "visible" }): Promise<void>; click(o?: { timeout?: number }): Promise<void>; first(): Loc; or(other: Loc): Loc }
+interface Pg { getByTestId(id: string): Loc }
+
+/**
+ * Onboarding opens fullscreen the first time a person enters a Space (right after a claim or a join). A live test that is not about onboarding walks past it the way a person does:
+ * Finish later, then the shell is back. Returns whether onboarding opened, so the one test about it can assert that it did.
+ */
+export async function dismissOnboarding(page: Pg, o: { wait?: number } = {}): Promise<boolean> {
+  await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
+  const screen = page.getByTestId("onboarding");
+  try { await screen.waitFor({ timeout: o.wait ?? 8_000 }); } catch { return false; }
+  await page.getByTestId("onboarding-close").click({ timeout: 10_000 });
+  await screen.waitFor({ state: "detached", timeout: 10_000 });
+  return true;
+}
+
 export function claimOnEdge(link: string, origin: string): string {
   const u = new URL(link);
   return `${origin}${u.pathname}${u.hash}`;
