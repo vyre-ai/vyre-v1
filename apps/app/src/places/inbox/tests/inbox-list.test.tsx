@@ -105,7 +105,7 @@ test("a filter narrows the list and the header says what is showing, with Show a
 test("an empty result says so and offers Show all", () => {
   const out = list({ query: "zzz" }, harbor);
   assert.ok(has(out, "Nothing matches these filters.") && has(out, "Show all"));
-  assert.ok(has(list({}, { ...harbor, contacts: [] }), "Nothing here"));
+  assert.ok(has(list({}, { ...harbor, contacts: [] }), "No messages yet."));
 });
 
 test("the sidebar groups inboxes with their unread counts and keeps the lists and calendars", () => {

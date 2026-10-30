@@ -1,0 +1,1 @@
+- When a turn has no AI account, the task it leaves is "Connect an AI account" and its action is Sign in, which opens the Vault's Add an AI provider sheet (direct sign-in), not the agent's computer.

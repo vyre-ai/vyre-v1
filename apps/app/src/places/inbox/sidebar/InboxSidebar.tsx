@@ -140,6 +140,7 @@ function Sidebar(): ReactElement {
   return (
     <View style={styles.side} testID="inbox-sidebar" accessibilityLabel="Inbox sidebar">
       <View style={styles.top}>
+        <Text accessibilityRole="header" style={styles.title}>Inbox</Text>
         <View style={styles.grow} />
         <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => data.nav.compose()} />
         <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />
@@ -199,6 +200,7 @@ export function InboxSidebar(): ReactElement {
 const styles = StyleSheet.create({
   side: { flex: 1, minWidth: 220, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   top: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 4, height: 44 },
+  title: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string, marginLeft: 8 },
   grow: { flex: 1 },
   search: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 9, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   searchOn: { boxShadow: "0 0 0 1px var(--accent-line)" as string },

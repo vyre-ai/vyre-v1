@@ -2,6 +2,7 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
+import { rememberFirstLine } from "../sidebar/titles.ts";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
@@ -102,6 +103,7 @@ function ConversationView(): ReactElement {
   const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({ value: data.fill?.take() ?? "", n: 0 }));
   const [typed, setTyped] = useState(seed.value);
   const typedRef = useRef(seed.value);
+  const emptyRef = useRef(false);
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
   const [finding, setFinding] = useState(false);
@@ -141,6 +143,8 @@ function ConversationView(): ReactElement {
 
   /* ---------- sending: the message is on the page before chat.post answers ---------- */
   const run = useCallback((p: Pending) => {
+    // the first message sent from this device names the chat on this device (the server never puts message text in a title)
+    if (emptyRef.current) { emptyRef.current = false; rememberFirstLine(data.threadId, p.body); }
     void (async () => {
       // files first: each is stored in Files under a key derived from this send, so a retry finds the same files and attaches them again
       const attachments = p.files && p.files.length > 0 ? await act.uploadAttachments(data, p.files, `chat-attach:${p.key}`) : [];
@@ -155,6 +159,7 @@ function ConversationView(): ReactElement {
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(around ?? live, older);
+  emptyRef.current = all.length === 0;
   const liveView = around === null;
   const win = lastMessages(all, shown);
   const ghosts = liveView ? ghostMessages(liveTurns, win.rows, thread.threadId) : [];
@@ -340,7 +345,7 @@ function ConversationView(): ReactElement {
       {compact ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
-        {leadFace ? <FaceButton key={leadFace.agentId} name={leadFace.name} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} label={leadFace.name} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
+        {leadFace ? <FaceButton key={leadFace.agentId} name={leadFace.name} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this thread" style={st.faces}>
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
           {narrow ? null : <IconButton icon="plus" label="Add an agent" size={24} testID="add-agent" onPress={addMenu} />}
