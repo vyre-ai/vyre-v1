@@ -99,7 +99,7 @@ test("every template is built from catalogue steps and makes a Personal Draft", 
   assert.equal(made.automation.kind, "personal");
   assert.equal(made.automation.status, "draft");
   assert.equal(made.automation.name, "Approval before sending");
-  assert.deepEqual(made.automation.definition.nodes.map((n: { key: string }) => n.key), ["approval", "if", "send_email", "stop"]);
+  assert.deepEqual(made.automation.definition.nodes.map((n: { key: string }) => n.key), ["approval", "paths", "send_email", "stop"]);
   await assert.rejects(h.call("automations.templates.use", { templateKey: "nope" }, alice), (e) => codeOf(e) === "validation.not_found");
 });
 
@@ -110,4 +110,12 @@ test("Ask before sending is accepted on a sending step and refused on one that d
   assert.deepEqual(ok.issues.filter((i: { message: string }) => /Ask before sending/.test(i.message)), []);
   const bad = await h.call("automations.validate", { definition: { triggers: [{ key: "manual" }], nodes: [{ ...note, askBeforeSending: false }] } }, alice);
   assert.ok(bad.issues.some((i: { message: string; nodeId?: string }) => /Ask before sending applies only/.test(i.message) && i.nodeId === "note"));
+});
+
+test("the Approval template has no step that the editor reports as a problem of its own: its paths are a real Paths step, only the last one is Otherwise", () => {
+  const t = TEMPLATES.find((x) => x.key === "approval_before_sending")!;
+  const decide = t.definition.nodes.find((n) => n.id === "decide")!;
+  assert.equal(decide.key, "paths");
+  const withWhen = (decide.branches ?? []).filter((b) => (b as { when?: string }).when !== undefined).length;
+  assert.equal(withWhen, (decide.branches ?? []).length - 1, "every path but the last has a condition");
 });
