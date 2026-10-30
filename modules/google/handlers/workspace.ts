@@ -711,3 +711,12 @@ export async function meetSubscribe(ctx: GoogleCtx, a: Act & { target: string; e
   return out;
 }
 
+
+/** The address the caller is matched to, if they are matched and not excluded. A mount names it so it syncs as the person who made it. */
+export async function dwdMyAccount(ctx: GoogleCtx) {
+  const person = ctx.actingFor ?? ctx.principal.id;
+  const row = first(ctx.db.all(`SELECT email, excluded FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1));
+  const out: { email?: string } = {};
+  if (row && num(row, "excluded") !== 1) out.email = str(row, "email");
+  return out;
+}

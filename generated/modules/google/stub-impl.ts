@@ -33,6 +33,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.drive.watch_changes": async () => ({"expiration":1760000000000,"resourceId":"example"} as unknown) as never,
   "google.dwd.disable": async () => ({"disabled":true} as unknown) as never,
   "google.dwd.members": async () => ({"members":[{"email":"maya@example.com","excluded":true,"mailboxState":"example","mapped":true,"userId":"usr_a1b2c3"}],"next":"example","total":1} as unknown) as never,
+  "google.dwd.my_account": async () => ({"email":"maya@example.com"} as unknown) as never,
   "google.dwd.probe": async () => ({"detail":"example","email":"maya@example.com","ok":true,"scopesMissing":["example"]} as unknown) as never,
   "google.dwd.scopes": async () => ({"adminConsoleUrl":"example","clientId":"example","scopes":["example"]} as unknown) as never,
   "google.dwd.set_excluded": async () => ({"excluded":["maya@example.com"]} as unknown) as never,

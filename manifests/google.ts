@@ -58,6 +58,9 @@ const capabilities = [
     in: { as: t.opt(email) }, out: { ok: t.bool(), email: t.opt(email), scopesMissing: t.arr(t.str()), detail: t.opt(t.str()) },
     perm: 'connectors.manage', emits: ['google.dwd_probed'], audit: 'always', tool: 'engineer', errors: ['provider.auth_failed'],
   }),
+  read('google.dwd.my_account', 'The Workspace address the caller is matched to, if any (a Drive mount names it so it syncs as the person, not as an admin)', {
+    in: {}, out: { email: t.opt(email) },
+  }),
   read('google.dwd.members', 'Workspace users mapped to Space members by email, with exclusion and mailbox state', {
     in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
   }),

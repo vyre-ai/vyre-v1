@@ -11,6 +11,8 @@ import type { EventName } from "../../../packages/contracts/src/types.ts";
 import { MemoryDb } from "./db.ts";
 
 export const NOW = 1_760_000_000_000;
+/** the work address the person who makes a mount is matched to; every Drive and Graph call is made as it */
+export const ME = "noah@firm.test";
 export const TRACE = "0123456789abcdef0123456789abcdef";
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -259,9 +261,17 @@ export class FakeGoogle {
     if (typeof f["id"] === "string" && typeof f["modifiedTime"] === "string") this.modified.set(f["id"], f["modifiedTime"]);
   }
 
+  /** the Drive feed's start page token; unset, the call fails and a mount scans (an older Drive, or a refused scope) */
+  startToken: string | undefined;
+
   call(cap: string, i: Row): unknown {
+    if (cap === "google.dwd.my_account") return { email: ME };
     this.calls.push({ cap, input: i });
     if (this.failWith) throw this.failWith;
+    if (cap === "google.drive.changes_start_token") {
+      if (this.startToken === undefined) throw vyreErr("provider.bad_response", "No start token.");
+      return { startPageToken: this.startToken };
+    }
     if (cap === "google.drive.list_files") {
       const pages = this.listings.get(String(i["parentId"])) ?? [{ files: [] }];
       const at = i["pageToken"] === undefined ? 0 : Number(String(i["pageToken"]).replace("page", "")) - 1;
@@ -323,6 +333,7 @@ export class FakeGraph {
   }
 
   call(cap: string, i: Row): unknown {
+    if (cap === "ms.consent.my_account") return { email: ME };
     this.calls.push({ cap, input: i });
     if (this.failWith) throw this.failWith;
     if (cap === "ms.drive.delta") {

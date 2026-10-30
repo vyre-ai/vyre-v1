@@ -453,11 +453,13 @@ function recOf(row: Row): MountRec {
   const deviceId = opt("device_id");
   const localPath = opt("local_path");
   const cursor = opt("cursor");
+  const account = opt("account");
   return {
     id: str(row["id"]),
     folderId: str(row["folder_id"]),
     kind: str(row["kind"]) as MountKind,
     ...(connectionId !== undefined ? { connectionId } : {}),
+    ...(account !== undefined ? { account } : {}),
     ...(ref !== undefined ? { ref } : {}),
     ...(path !== undefined ? { path } : {}),
     ...(branch !== undefined ? { branch } : {}),
@@ -652,6 +654,13 @@ const sameSource = (row: Row, s: SourceIn): boolean =>
   str(row["kind"]) === s.kind && str(row["connection_id"]) === (s.connectionId ?? "") && str(row["ref"]) === (s.ref ?? "") && str(row["path"]) === (s.path ?? "")
   && str(row["device_id"]) === (s.deviceId ?? "") && str(row["local_path"]) === (s.localPath ?? "");
 
+/** The work address a cloud mount will sync as: the one the person making it is matched to. None when the provider is not set up for them; the pass then fails with the provider's own words. */
+async function accountOf(ctx: Ctx, kind: MountKind): Promise<string | null> {
+  const cap = kind === "google_drive" ? "google.dwd.my_account" : kind === "sharepoint" || kind === "onedrive" ? "ms.consent.my_account" : undefined;
+  if (cap === undefined) return null;
+  try { return optStr(obj(await ctx.call(cap, {})), "email") ?? null; } catch { return null; }
+}
+
 async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; folderId: string; runId: string }> {
   const o = record(ctx, input);
   const into = reqStr(ctx, o, "into");
@@ -671,7 +680,7 @@ async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; f
   const mountId = nid(ctx, "mnt");
   const fields: Row = {
     id: mountId, folder_id: folderId, kind: source.kind, connection_id: source.connectionId ?? null, ref: source.ref ?? null, path: source.path ?? null, branch: source.branch ?? null,
-    device_id: source.deviceId ?? null, local_path: source.localPath ?? null, name, mode, review_changes: review ? 1 : 0, pull_only: 0, state: "idle", cursor: null, owner: ctx.principal.id,
+    device_id: source.deviceId ?? null, local_path: source.localPath ?? null, name, mode, review_changes: review ? 1 : 0, pull_only: 0, state: "idle", cursor: null, owner: ctx.principal.id, account: await accountOf(ctx, source.kind),
     last_sync_at: null, stale_since: null, next_sync_at: null, conflicts: 0, error: null, created_at: now, updated_at: now, deleted_at: null,
   };
   const cols = Object.keys(fields);

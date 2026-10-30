@@ -12366,6 +12366,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/dwd/my_account",
+    "cap": "google.dwd.my_account",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/dwd/probe",
     "cap": "google.dwd.probe",
     "v": 1,
@@ -18276,6 +18294,24 @@ export const routes: Route[] = [
     "module": "microsoft",
     "effects": "read",
     "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/consent/my_account",
+    "cap": "ms.consent.my_account",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "read",
+    "permission": null,
     "level": "view",
     "resource": {
       "type": "space"

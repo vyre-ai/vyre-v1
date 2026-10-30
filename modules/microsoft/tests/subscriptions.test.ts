@@ -413,5 +413,5 @@ test("health is healthy with a latency, degraded when Microsoft struggles, down 
 test("the handler map covers exactly the capabilities the microsoft manifest declares", () => {
   const declared = registry.capabilities.filter((c) => c.module === "microsoft").map((c) => c.name).sort();
   assert.deepEqual(Object.keys(handlers).sort(), declared);
-  assert.equal(declared.length, 48);
+  assert.equal(declared.length, 49);
 });

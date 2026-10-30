@@ -19,6 +19,7 @@ export const handlers: Record<string, Handler> = {
   "ms.consent.setup": (ctx, i) => h.consentSetup(ctx, i),
   "ms.consent.verify": (ctx, i) => h.consentVerify(ctx, i),
   "ms.consent.members": (ctx, i) => h.consentMembers(ctx, i),
+  "ms.consent.my_account": (ctx) => h.consentMyAccount(ctx),
   "ms.consent.set_excluded": (ctx, i) => h.consentExclude(ctx, i),
   "ms.consent.disable": (ctx) => h.consentDisable(ctx),
   "ms.health": (ctx) => h.health(ctx),

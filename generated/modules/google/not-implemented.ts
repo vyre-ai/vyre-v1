@@ -34,6 +34,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.drive.watch_changes": async (ctx) => { throw new VyreErr(notImplemented("google.drive.watch_changes", ctx.trace)); },
   "google.dwd.disable": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.disable", ctx.trace)); },
   "google.dwd.members": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.members", ctx.trace)); },
+  "google.dwd.my_account": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.my_account", ctx.trace)); },
   "google.dwd.probe": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.probe", ctx.trace)); },
   "google.dwd.scopes": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.scopes", ctx.trace)); },
   "google.dwd.set_excluded": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.set_excluded", ctx.trace)); },

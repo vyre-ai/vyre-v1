@@ -85137,6 +85137,56 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "email": "maya@example.com"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.dwd.my_account",
+      "output": {
+        "properties": {
+          "email": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Workspace address the caller is matched to, if any (a Drive mount names it so it syncs as the person, not as an admin)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "write",
       "emits": [
@@ -117109,6 +117159,56 @@
         "mcp": {
           "toolset": "engineer"
         }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "email": "maya@example.com"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "microsoft",
+      "name": "ms.consent.my_account",
+      "output": {
+        "properties": {
+          "email": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The Microsoft 365 address the caller is matched to, if any (a OneDrive or SharePoint mount names it so it syncs as the person, not as an admin)",
+      "surfaces": {
+        "http": "auto"
       },
       "v": 1
     },
@@ -172940,6 +173040,7 @@
         "google.dwd.scopes",
         "google.dwd.setup",
         "google.dwd.probe",
+        "google.dwd.my_account",
         "google.dwd.members",
         "google.dwd.set_excluded",
         "google.dwd.disable",
@@ -173224,6 +173325,7 @@
         "ms.consent.policy_snippet",
         "ms.consent.setup",
         "ms.consent.verify",
+        "ms.consent.my_account",
         "ms.consent.members",
         "ms.consent.set_excluded",
         "ms.consent.disable",

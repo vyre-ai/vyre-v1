@@ -56,6 +56,9 @@ const capabilities = [
     in: { as: t.opt(email), policyConfirmed: t.opt(t.bool()) }, out: { ok: t.bool(), missingPermissions: t.arr(t.str()), detail: t.opt(t.str()) },
     perm: 'connectors.manage', emits: ['microsoft.consent_verified'], audit: 'always', tool: 'engineer', errors: ['provider.auth_failed'],
   }),
+  read('ms.consent.my_account', 'The Microsoft 365 address the caller is matched to, if any (a OneDrive or SharePoint mount names it so it syncs as the person, not as an admin)', {
+    in: {}, out: { email: t.opt(email) },
+  }),
   read('ms.consent.members', 'Tenant users mapped to Space members by email, with exclusion and mailbox state', {
     in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
   }),

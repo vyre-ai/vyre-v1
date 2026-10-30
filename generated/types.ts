@@ -11827,6 +11827,10 @@ export type GoogleDwdMembersOut = {
   next?: string;
   total?: number;
 };
+export type GoogleDwdMyAccountIn = Record<string, unknown>;
+export type GoogleDwdMyAccountOut = {
+  email?: string;
+};
 export type GoogleDwdProbeIn = {
   as?: string;
 };
@@ -17218,6 +17222,10 @@ export type MsConsentMembersOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type MsConsentMyAccountIn = Record<string, unknown>;
+export type MsConsentMyAccountOut = {
+  email?: string;
 };
 export type MsConsentPolicySnippetIn = Record<string, unknown>;
 export type MsConsentPolicySnippetOut = {
@@ -28099,6 +28107,7 @@ export interface CapMap {
   "google.drive.watch_changes": { in: GoogleDriveWatchChangesIn; out: GoogleDriveWatchChangesOut };
   "google.dwd.disable": { in: GoogleDwdDisableIn; out: GoogleDwdDisableOut };
   "google.dwd.members": { in: GoogleDwdMembersIn; out: GoogleDwdMembersOut };
+  "google.dwd.my_account": { in: GoogleDwdMyAccountIn; out: GoogleDwdMyAccountOut };
   "google.dwd.probe": { in: GoogleDwdProbeIn; out: GoogleDwdProbeOut };
   "google.dwd.scopes": { in: GoogleDwdScopesIn; out: GoogleDwdScopesOut };
   "google.dwd.set_excluded": { in: GoogleDwdSetExcludedIn; out: GoogleDwdSetExcludedOut };
@@ -28422,6 +28431,7 @@ export interface CapMap {
   "ms.consent.disable": { in: MsConsentDisableIn; out: MsConsentDisableOut };
   "ms.consent.link": { in: MsConsentLinkIn; out: MsConsentLinkOut };
   "ms.consent.members": { in: MsConsentMembersIn; out: MsConsentMembersOut };
+  "ms.consent.my_account": { in: MsConsentMyAccountIn; out: MsConsentMyAccountOut };
   "ms.consent.policy_snippet": { in: MsConsentPolicySnippetIn; out: MsConsentPolicySnippetOut };
   "ms.consent.set_excluded": { in: MsConsentSetExcludedIn; out: MsConsentSetExcludedOut };
   "ms.consent.setup": { in: MsConsentSetupIn; out: MsConsentSetupOut };

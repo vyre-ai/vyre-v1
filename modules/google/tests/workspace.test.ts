@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   calendarList, calendarStopWatch, calendarWatch, docBatch, docCreate, docGet, driveChanges, driveCopy, driveCreateFolder, driveDownload, driveExport, driveGet, driveList,
-  drivePermissions, driveShare, driveStopWatch, driveTrash, driveUpload, driveWatch, dwdDisable, dwdMembers, dwdProbe, dwdScopes, dwdSetExcluded, dwdSetup, dwdStatus,
+  drivePermissions, driveShare, driveStopWatch, driveTrash, driveUpload, driveWatch, dwdDisable, dwdMembers, dwdMyAccount, dwdProbe, dwdScopes, dwdSetExcluded, dwdSetup, dwdStatus,
   eventCreate, eventDelete, eventGet, eventRespond, eventsList, eventUpdate, freeBusy, health, meetEntries, meetRecordings, meetRecords, meetSubscribe, meetTranscripts,
   receivePush, sheetAppend, sheetBatch, sheetCreate, sheetGet, sheetUpdate, sheetValues,
 } from "../handlers/index.ts";
@@ -192,6 +192,21 @@ test("a call acts as the caller's mapped address; another address needs an admin
   agent.on("GET", PROFILE, { body: { emailAddress: MAYA, historyId: "1" } });
   await getProfile(agent.ctx, act);   // an agent acts for the person it works for, and the log says who
   assert.deepEqual(agent.rows(`SELECT subject, actor FROM google_read_log`), [{ subject: MAYA, actor: "usr_maya01" }]);
+});
+
+test("my_account names the address the caller is matched to, and nothing for a stranger or an excluded member", async () => {
+  const h = harness({ members });
+  seedDelegation(h, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
+  assert.deepEqual(await dwdMyAccount(h.ctx), { email: MAYA });
+  check("google.dwd.my_account", await dwdMyAccount(h.ctx));
+  const stranger = harness({ principal: { kind: "person", id: "usr_nobody" } });
+  seedDelegation(stranger);
+  assert.deepEqual(await dwdMyAccount(stranger.ctx), {});
+  const agent = harness({ principal: { kind: "agent", id: "agt_scout01" }, actingFor: "usr_sam01" });
+  seedDelegation(agent, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
+  assert.deepEqual(await dwdMyAccount(agent.ctx), { email: SAM }, "an agent gets the address of the person it works for");
+  h.ctx.db.run(`UPDATE google_member SET excluded = ? WHERE email = ?`, 1, MAYA);
+  assert.deepEqual(await dwdMyAccount(h.ctx), {}, "an excluded member has no account to act as");
 });
 
 test("a person's own calls are logged under that person; a second member's under theirs", async () => {

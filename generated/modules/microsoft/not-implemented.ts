@@ -20,6 +20,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "ms.consent.disable": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.disable", ctx.trace)); },
   "ms.consent.link": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.link", ctx.trace)); },
   "ms.consent.members": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.members", ctx.trace)); },
+  "ms.consent.my_account": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.my_account", ctx.trace)); },
   "ms.consent.policy_snippet": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.policy_snippet", ctx.trace)); },
   "ms.consent.set_excluded": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.set_excluded", ctx.trace)); },
   "ms.consent.setup": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.setup", ctx.trace)); },
