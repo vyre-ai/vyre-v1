@@ -4,15 +4,13 @@ import { useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
-import { SignInPanel } from "../ai-signin/SignInPanel.tsx";
-import { SIGNIN_BUTTONS } from "../ai-signin/flow.ts";
-import { API_KEYS, saveApiKey, startSubscription } from "./connect-ai.ts";
+import { API_KEYS, SUBSCRIPTIONS, finishSubscription, saveApiKey, startSubscription } from "./connect-ai.ts";
 import type { SignInFlow } from "./connect-ai.ts";
 
-export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string } }): ReactElement {
+export function ConnectAiCard({ call, connected, onConnected }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void }): ReactElement {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
   const [mode, setMode] = useState<"tiles" | "key">("tiles");
-  const [flow, setFlow] = useState<(SignInFlow & { provider: string }) | null>(initialFlow ?? null);
+  const [flow, setFlow] = useState<(SignInFlow & { provider: string }) | null>(null);
   const [provider, setProvider] = useState(API_KEYS[0]!.key);
   const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,16 +41,15 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
   return (
     <View testID="ai-tiles" style={s.col}>
       {/* ui-rows-lint: not a list (sign-in choices are tiles, not list rows) */}
+      <View style={s.row}>{SUBSCRIPTIONS.map((o) => (
+        <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={`${o.label}: ${o.help}`} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}`)), provider: o.key }))} style={[s.tile, flow?.provider === o.key && s.tileOn]}><Text style={s.tileText}>{o.label}</Text></Pressable>
+      ))}</View>
       {flow ? (
-        <SignInPanel call={call as never} flow={flow} onCancel={() => { setFlow(null); setError(""); }} onDone={(p) => { setFlow(null); onConnected(p.id); }} />
-      ) : (
         <View style={s.col}>
-          {/* ui-rows-lint: not a list (sign-in choices are buttons, not list rows) */}
-          {SIGNIN_BUTTONS.map((o) => (
-            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`)), provider: o.key }))} style={[s.signin, busy && s.off]}><Text style={s.tileText}>{o.button}</Text></Pressable>
-          ))}
+          <Text testID="ai-instruction" style={s.dim}>{flow.instruction}</Text>
+          <Pressable testID="ai-sub-done" accessibilityRole="button" disabled={busy} onPress={() => void run(async () => onConnected(await finishSubscription(call, flow.flowId)))} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{busy ? "Checking" : "Done"}</Text></Pressable>
         </View>
-      )}
+      ) : null}
       {error ? <Text testID="ai-error" style={s.err}>{error}</Text> : null}
       <Pressable testID="ai-use-key" accessibilityRole="link" onPress={() => { setMode("key"); setError(""); }}><Text style={s.link}>Use an API key instead</Text></Pressable>
     </View>
@@ -63,7 +60,6 @@ const s = StyleSheet.create({
   col: { gap: 10 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   tile: { minHeight: 40, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--win)" as string },
-  signin: { minHeight: 42, paddingHorizontal: 18, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "flex-start", justifyContent: "center", backgroundColor: "var(--win)" as string },
   tileOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   tileText: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   input: { height: 40, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, color: "var(--ink)" as string, fontSize: 14 },

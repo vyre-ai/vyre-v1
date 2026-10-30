@@ -31,6 +31,6 @@ test("the post-join page never labels an unverified provider connected or render
   assert.match(out, /Save API key/);
   assert.doesNotMatch(out, /fixture-private-key|account is connected/);
   const sub = renderToStaticMarkup(<JoinProviderSetup stored={stored} ai={{ choice: "sub" }} onOpen={() => undefined} onClearSecret={() => undefined} />);
-  assert.match(sub, /Claude|ChatGPT/);
+  assert.match(sub, /Claude Code|Codex/);
   assert.doesNotMatch(sub, /account is connected|Connected as/);
 });
