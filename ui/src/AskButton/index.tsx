@@ -224,6 +224,7 @@ export function AskPicker(props: PickerProps): ReactElement {
         title={agent.name}
         {...(entry.note !== undefined && entry.note !== "" ? { note: entry.note } : {})}
         hovered={index === active}
+        accentLit
         leading={<View style={styles.faceSlot}>{renderFace(agent, 22)}</View>}
         {...(entry.current === true ? { trailing: <MenuIcon icon="check" color="var(--ink-3)" size={14} /> } : {})}
         onPress={() => onChoose(agent)}
