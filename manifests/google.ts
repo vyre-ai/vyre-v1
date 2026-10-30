@@ -52,7 +52,7 @@ const capabilities = [
   }),
   write('google.dwd.setup', 'Store the service account JSON (Vault item Google_DWD), map members by email and, with auto-connect on, create their Pending mail and calendar connections', {
     in: { vaultItem: id.handle, adminEmail: email, domain: t.opt(t.str()) }, out: { configured: t.bool(), scopes: t.arr(t.str()), mappedMembers: t.int(), connected: t.int() },
-    perm: 'connectors.manage', risk: 'high', emits: ['google.dwd_configured'], idem: 'key', audit: 'always', tool: 'engineer', errors: ['provider.auth_failed', 'validation.precondition_failed'],
+    perm: 'connectors.manage', risk: 'high', emits: ['google.dwd_configured'], idem: 'key', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['provider.auth_failed', 'validation.precondition_failed', 'permission.on_hold'],
   }),
   write('google.dwd.probe', 'Mint a token for a probe user and call users.getProfile to prove the delegation and scopes', {
     in: { as: t.opt(email) }, out: { ok: t.bool(), email: t.opt(email), scopesMissing: t.arr(t.str()), detail: t.opt(t.str()) },
@@ -62,11 +62,11 @@ const capabilities = [
     in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
   }),
   write('google.dwd.set_excluded', 'Exclude a member from delegation, or include them again (excluded members never get a connection)', {
-    in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer',
+    in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['permission.on_hold'],
   }),
   write('google.dwd.disable', 'Turn delegation off and stop every member sync', {
     in: {}, out: { disabled: t.bool() }, perm: 'connectors.manage', risk: 'high', emits: ['google.dwd_revoked'], audit: 'always', tool: 'engineer',
-    gate: { act: 'delete', when: "actor.kind != 'person'" },
+    gate: { act: 'connection_change', when: "actor.kind != 'person'" },
   }),
   read('google.health', 'Health probe: mint a token for the probe user and call users.getProfile', { in: { as: t.opt(email) }, out: healthOut }),
   write('google.receive_push', 'Record a verified Google push (Gmail Pub/Sub, Calendar channel, Drive changes, Meet events) after dedupe', {

@@ -11,7 +11,7 @@ Turn delegation off and stop every member sync
 | Grant level | edit |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

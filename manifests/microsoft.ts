@@ -50,7 +50,7 @@ const capabilities = [
   }),
   write('ms.consent.setup', 'Store the app registration (Vault item Microsoft_App), map members by email and, with auto-connect on, create their Pending mail and calendar connections', {
     in: { vaultItem: id.handle, tenantId: t.str(), domain: t.opt(t.str()) }, out: { configured: t.bool(), mappedMembers: t.int(), connected: t.int() },
-    perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_configured'], idem: 'key', audit: 'always', tool: 'engineer', errors: ['provider.auth_failed', 'validation.precondition_failed'],
+    perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_configured'], idem: 'key', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['provider.auth_failed', 'validation.precondition_failed', 'permission.on_hold'],
   }),
   write('ms.consent.verify', 'Call GET /organization and check consent and the access policy for a probe member', {
     in: { as: t.opt(email), policyConfirmed: t.opt(t.bool()) }, out: { ok: t.bool(), missingPermissions: t.arr(t.str()), detail: t.opt(t.str()) },
@@ -60,10 +60,10 @@ const capabilities = [
     in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
   }),
   write('ms.consent.set_excluded', 'Exclude a member from the connection, or include them again (excluded members never get a connection)', {
-    in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer',
+    in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['permission.on_hold'],
   }),
   write('ms.consent.disable', 'Turn the Microsoft connection off and stop every member sync', {
-    in: {}, out: { disabled: t.bool() }, perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_revoked'], audit: 'always', tool: 'engineer', gate: { act: 'delete', when: "actor.kind != 'person'" },
+    in: {}, out: { disabled: t.bool() }, perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_revoked'], audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" },
   }),
   read('ms.health', 'Health probe: GET /organization', { in: {}, out: healthOut }),
   write('ms.receive_notification', 'Record a verified Graph change notification (answers the validationToken handshake) after dedupe', {
