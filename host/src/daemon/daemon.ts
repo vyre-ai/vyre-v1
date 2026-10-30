@@ -803,7 +803,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       closers.push(() => hookRunner.pump().catch(() => {}));   // finish the pass in flight before the databases close
       closers.push(() => projectionRunner.pump().catch(() => {}));
       await hookRunner.start();
-      syncAccess = async (force) => {
+      // One sync at a time. Each access.sync call reads the module's tables when it begins and returns a snapshot of what it read plus its own events; two overlapping calls each missed the other's
+      // events, and whichever was adopted last could drop a record's resource, so a read that followed a create answered "Access changed while reading". Run one after another, each begins where the last ended.
+      let syncChain: Promise<void> = Promise.resolve();
+      const runSync = async (force?: boolean): Promise<void> => {
         if (noAccessModule) return;
         const events = accessPending;
         if (!events.length && !force && access.adopted() && !accessStale) return;
@@ -824,6 +827,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }
         accessStale = false;
       };
+      syncAccess = (force) => { const run = syncChain.then(() => runSync(force), () => runSync(force)); syncChain = run.then(() => undefined, () => undefined); return run; };
       await syncAccess();
       // the owner of a Space this host made has not claimed it until identity holds an account for them: a fresh one-time link at every start until they do
       claimIssue = async () => {

@@ -1,0 +1,1 @@
+- Fixed a race in the daemon's access sync. Two overlapping syncs each read the module's tables when they began, and whichever finished last was adopted, which could drop a just-created record's access row so the next read answered "Access changed while reading". Syncs now run one after another.
