@@ -6,6 +6,24 @@ import { LaunchError } from "../cli/launcher.ts";
 import { lines } from "../cli/lines.ts";
 import type { CliProcess, LaunchSpec, Launcher } from "../cli/types.ts";
 
+/**
+ * The tokens inside a sign-in file map: every string long enough to be one, read through the files that are themselves JSON. The file text and the map are not secrets of their own (their braces and quotes
+ * would match every line of the engine's JSON output); the tokens in them are.
+ */
+export function credentialLeaves(json: string): string[] {
+  const out = new Set<string>();
+  const walk = (v: unknown): void => {
+    if (typeof v === "string") {
+      try { const inner = JSON.parse(v) as unknown; if (inner !== null && typeof inner === "object") { walk(inner); return; } } catch { /* plain text */ }
+      if (v.length >= 12 && !/[{}"\s]/.test(v)) out.add(v);
+    }
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v !== null && typeof v === "object") Object.values(v as Record<string, unknown>).forEach(walk);
+  };
+  try { walk(JSON.parse(json)); } catch { /* not a file map */ }
+  return [...out];
+}
+
 export interface FillWho { agentId: string; asker: string; where: Where; traceId: string }
 
 export interface FillLauncherDeps {
@@ -71,7 +89,11 @@ export function createFillLauncher(d: FillLauncherDeps): Launcher {
         throw new LaunchError("engine.account_unavailable", "The account's key is not in the Vault.");
       }
       d.onUsed?.(run.used);
-      const secrets: Secret[] = Object.entries(d.env).map(([name, handle]) => ({ handle, itemId: run.used.find((u) => u.handle === handle)?.itemId ?? handle, value: got.filled[name] ?? "" }));
+      const secrets: Secret[] = Object.entries(d.env).flatMap(([name, handle]) => {
+        const itemId = run.used.find((u) => u.handle === handle)?.itemId ?? handle;
+        const value = got.filled[name] ?? "";
+        return name === "VYRE_CRED_FILES" ? credentialLeaves(value).map((leaf) => ({ handle, itemId, value: leaf })) : [{ handle, itemId, value }];
+      });
       const scrubber = createScrubber(secrets);
       return {
         pid: started.pid,

@@ -2,11 +2,14 @@
 // opener from them. A CLI engine (Claude Code, Codex, Grok) runs as a local process with the key filled into its environment and reaches Vyre over the loopback MCP endpoint, where the
 // agent's tools run through the invoke pipeline. An API-key driver gets the agent's role as its system prompt and no tools yet: running its tools needs the engine's tool runner (callTool),
 // which is a separate packet; until then a chat on an API key answers in words only.
-import { createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
+import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { SandboxError } from "../../sandbox/src/index.ts";
 import { openMcpBridge } from "./mcp-bridge.ts";
 import { enginePath } from "./sandbox-default.ts";
 import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
+import { placeCredentialFiles, takeCredentialFiles } from "./credential-files.ts";
+import type { Placed } from "./credential-files.ts";
+import type { CliProcess, LaunchSpec } from "../../agent/src/drivers/cli/types.ts";
 import { nativePlugins } from "./plugin-native.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
@@ -101,6 +104,24 @@ export async function writeMemoryGuide(call: OpenerHost["call"], dir: string, sp
   for (const f of GUIDE_FILES) fs.writeFileSync(path.join(dir, f), text, { mode: 0o644 });
 }
 
+/**
+ * Start a CLI engine for a turn inside the sandbox. A sign-in kept in files (Codex, Grok) arrives in the environment under VYRE_CRED_FILES, filled by the Vault; it is taken out of the environment and put in the
+ * engine's own home for the life of the process, and removed when the process ends or fails to start. `wrapOf` is the sandbox wrap; a test passes its own.
+ */
+export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: readonly string[], o: { wrapOf?: typeof sandboxWrap } = {}): Promise<CliProcess> {
+  const { env, files } = takeCredentialFiles(spec.env);
+  let placed: Placed | undefined;
+  if (files !== undefined) {
+    if (spec.cwd === undefined) throw new LaunchError("engine.account_unavailable", "The engine has no work folder to keep its sign-in in.");
+    try { placed = placeCredentialFiles(planned.dataDir, spec.cwd, files); } catch (e) { throw new LaunchError("engine.account_unavailable", e instanceof Error ? e.message : "The sign-in files could not be put in place."); }
+  }
+  try {
+    const proc = await createLocalLauncher({ wrap: (o.wrapOf ?? sandboxWrap)(planned, { homeFromScratch: placed !== undefined }), baseEnv: launcherEnv() }).spawn({ ...spec, env, argv });
+    if (placed) { const p = placed; void proc.exited.then(() => p.release(), () => p.release()); }
+    return proc;
+  } catch (e) { placed?.release(); throw e; }
+}
+
 /** Builds the opener; the runtime keeps it for the life of the daemon and calls close() on shutdown. */
 export function buildOpener(h: OpenerHost): SessionOpener {
   const system = roleBlocks(h.call);
@@ -120,8 +141,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     launcher: {
       spawn: async (spec) => {
         const swap = spec.argv[0] !== undefined ? h.cliCommand?.[spec.argv[0]] : undefined;
-        const argv = swap ? [...swap, ...spec.argv.slice(1)] : spec.argv;
-        return createLocalLauncher({ wrap: sandboxWrap(await plan()), baseEnv: launcherEnv() }).spawn({ ...spec, argv });
+        return spawnCli(await plan(), spec, swap ? [...swap, ...spec.argv.slice(1)] : spec.argv);
       },
     },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).

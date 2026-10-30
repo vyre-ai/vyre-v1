@@ -26,6 +26,8 @@ export interface BwrapWallOptions {
   node?: string;
   /** Extra read-only folders for the program being run. */
   programRead?: readonly string[];
+  /** A folder inside the scratch folder that is bound where the sandbox's home is, instead of an empty one: the engine's sign-in files are in it. */
+  home?: string;
 }
 
 export interface WalledCommand {
@@ -51,7 +53,11 @@ export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly
   const prefix = nodePrefix(node);
   for (const p of [...SYSTEM_RO, ...(prefix ? [prefix] : []), ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
   a.push("--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64");
-  a.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", HOME);
+  a.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp");
+  if (o.home !== undefined) {
+    if (checked.scratch === undefined || !(o.home === checked.scratch || o.home.startsWith(`${checked.scratch}${path.sep}`))) throw new SandboxError("sandbox.policy", "the home folder must be inside the scratch folder");
+    a.push("--bind", o.home, HOME);
+  } else a.push("--tmpfs", HOME);
   for (const m of checked.mounts) a.push(m.mode === "rw" ? "--bind" : "--ro-bind", m.host, m.host);
   if (checked.scratch !== undefined) a.push("--bind", checked.scratch, checked.scratch);
   a.push("--ro-bind", o.wallDir, GUEST_DIR);

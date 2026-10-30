@@ -117,3 +117,17 @@ test("CLI install roots: the folder of the link and the prefix above it, never t
   assert.ok(roots.includes("/opt/homebrew/Cellar/codex/1.0"));
   assert.ok(roots.includes("/Users/dana/bin"));
 });
+
+test("bwrap with sign-in files: the scratch folder's home is bound as the sandbox's home instead of an empty one, and without the option the home stays empty", () => {
+  const cwd = workFolder(data, "usr_dana", "thr_home");
+  const withHome = sandboxWrap(bw, { homeFromScratch: true })(["codex", "exec"], { env, cwd });
+  const pairs = (argv: string[], flag: string): string[][] => argv.flatMap((x, i) => (x === flag ? [[argv[i + 1] as string, argv[i + 2] as string]] : []));
+  const bound = pairs(withHome, "--bind").find((p) => p[1] === "/home/agent");
+  assert.ok(bound, "a bind onto the sandbox home");
+  assert.equal(path.basename(bound[0] as string), "home");
+  assert.ok((bound[0] as string).startsWith(path.join(data, "scratch")), "the bound folder is inside the person's scratch folder");
+  assert.ok(!pairs(withHome, "--tmpfs").some((p) => p[0] === "/home/agent"), "no empty home on top of it");
+  const plain = sandboxWrap(bw)(["codex", "exec"], { env, cwd });
+  assert.ok(plain.some((x, i) => x === "--tmpfs" && plain[i + 1] === "/home/agent"));
+  assert.ok(!pairs(plain, "--bind").some((p) => p[1] === "/home/agent"));
+});

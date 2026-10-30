@@ -4,6 +4,9 @@
 // minting and the provider's HTTP are fakes. The host half of the same packet (vault lookup and MCP minting through invoke) is host/tests/engine.turns.test.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLocalLauncher } from "../src/drivers/cli/index.ts";
 import type { Launcher } from "../src/drivers/cli/index.ts";
@@ -20,6 +23,11 @@ import type { Lookup, ValueSource } from "../src/vault-use/index.ts";
 const FAKE_CLI = fileURLToPath(new URL("../../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
 const SECRET = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 const API_KEY = "sk-ant-api03-APIkeyVALUE9876543210zyxwvuts"; // secret-scan: fake
+const ACCESS = "codex-access-token-LIVE-0123456789abcdef"; // secret-scan: fake
+const GROK_TOKEN = "grok-session-token-LIVE-0123456789abcdef"; // secret-scan: fake
+const CODEX_FILES = JSON.stringify({ ".codex/auth.json": JSON.stringify({ tokens: { access_token: ACCESS, refresh_token: "refresh-token-LIVE-0123456789" } }) });
+const GROK_FILES = JSON.stringify({ ".grok/auth.json": JSON.stringify({ token: GROK_TOKEN }) });
+const SIGNIN_CLI = fileURLToPath(new URL("../../host/tests/fixtures/fake-cli-driver/fake-signin-cli.mjs", import.meta.url));
 const TRACE = "a".repeat(32);
 
 const value = (v: string, itemId: string): Lookup => ({ kind: "value", itemId, value: v, spaceOnly: false, injectIntoDeployments: false });
@@ -28,6 +36,8 @@ const value = (v: string, itemId: string): Lookup => ({ kind: "value", itemId, v
 const VAULT: Record<string, Lookup> = {
   "#Dana_Claude.setup_token": value(SECRET, "vit_claude"),
   "#Team_Anthropic_Key": value(API_KEY, "vit_api"),
+  "#CodexSignin.credentials": value(CODEX_FILES, "vit_codex"),
+  "#GrokSignin.credentials": value(GROK_FILES, "vit_grok"),
   "#Denied.setup_token": { kind: "denied", reason: "no_access" },
   "#Labeled.setup_token": { kind: "denied", reason: "provider_label" },
 };
@@ -38,6 +48,8 @@ const ACCOUNTS: Record<string, OpenAccount> = {
   "#Denied": { ref: "#Denied", driver: "claude_code", kind: "subscription", payer: "dana" },
   "#Labeled": { ref: "#Labeled", driver: "claude_code", kind: "subscription", payer: "dana" },
   "#CodexSub": { ref: "#CodexSub", driver: "codex", kind: "subscription", payer: "dana" },
+  "#CodexSignin": { ref: "#CodexSignin", driver: "codex", kind: "subscription", payer: "dana" },
+  "#GrokSignin": { ref: "#GrokSignin", driver: "grok", kind: "subscription", payer: "dana" },
   "#Nowhere": { ref: "#Nowhere", driver: "nonesuch", kind: "api_key", payer: "dana" },
   "#Team_Anthropic_Key": { ref: "#Team_Anthropic_Key", driver: "anthropic", kind: "api_key", payer: "dana" },
 };
@@ -220,7 +232,6 @@ const REFUSED: Array<[string, string | undefined, string]> = [
   ["an account the Vault does not know", "#Gone", "engine.account_unavailable"],
   ["an account the asker has no access to", "#Denied", "permission.no_grant"],
   ["a key the label rule keeps from this provider", "#Labeled", "permission.provider_label"],
-  ["an engine that cannot take a subscription through its environment", "#CodexSub", "engine.account_unsupported"],
   ["a driver that does not exist", "#Nowhere", "engine.unknown_driver"],
   ["a turn with no account at all", undefined, "engine.no_account"],
 ];
@@ -282,4 +293,57 @@ test("a tool the agent may not use is refused in the pipeline's words and never 
   assert.equal(invokes.length, 0);
   assert.match(JSON.stringify(f.requests[1]?.body), /agent_denied/);
   await g.opener.close();
+});
+
+// ---- Codex and Grok run on the sign-in files their Vault item holds
+
+/** The engine side of a sign-in kept in files, in one place: the files in VYRE_CRED_FILES go in a home for this process, the variable is removed, and the stand-in CLI reads them from there. */
+function filesLauncher(seen: Array<Readonly<Record<string, string>>>, homes: string[]): Launcher {
+  const base = createLocalLauncher({ wrap: (argv) => [process.execPath, SIGNIN_CLI, ...argv], baseEnv: { PATH: process.env["PATH"] ?? "" } });
+  return {
+    async spawn(spec) {
+      seen.push(spec.env);
+      const { VYRE_CRED_FILES: files, ...env } = spec.env as Record<string, string>;
+      const home = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-open-home-"));
+      homes.push(home);
+      for (const [rel, text] of Object.entries(JSON.parse(files ?? "{}") as Record<string, string>)) { fs.mkdirSync(path.dirname(path.join(home, rel)), { recursive: true }); fs.writeFileSync(path.join(home, rel), text, { mode: 0o600 }); }
+      return base.spawn({ ...spec, argv: spec.argv, env: { ...env, HOME: home } });
+    },
+  };
+}
+
+for (const [driver, ref, token, tool] of [["codex", "#CodexSignin", ACCESS, "codex"], ["grok", "#GrokSignin", GROK_TOKEN, "grok"]] as const) {
+  test(`a ${driver} turn runs on its sign-in: the files are filled from the Vault into VYRE_CRED_FILES, the engine finds them, and the token is in no reply`, async () => {
+    const seen: Array<Readonly<Record<string, string>>> = [];
+    const homes: string[] = [];
+    const g = rig({ launcher: filesLauncher(seen, homes) });
+    const found = await ask(g, "authcheck", agent(ref, { model: driver === "codex" ? "gpt-5-codex" : "grok-4" }));
+    assert.equal(found.turn.state, "completed", JSON.stringify(found.turn.error));
+    assert.match(found.reply, new RegExp(`^${tool} signed in as [0-9]+:.{4} mode 600 env none$`));
+    assert.equal(seen[0]?.["VYRE_CRED_FILES"], driver === "codex" ? CODEX_FILES : GROK_FILES, "the one place the value exists on the way in is the launcher's environment");
+    assert.equal(seen[0]?.["CODEX_API_KEY"] ?? seen[0]?.["XAI_API_KEY"], undefined, "no API key variable is set for a sign-in");
+    assert.equal(everything(g, ["T1"]).includes(token), false, "the token is in no event, turn, message or record");
+    await g.opener.close();
+    for (const h of homes) fs.rmSync(h, { recursive: true, force: true });
+  });
+
+  test(`a ${driver} engine that prints its token is scrubbed, inside the reply and on stderr`, async () => {
+    const homes: string[] = [];
+    const g = rig({ launcher: filesLauncher([], homes) });
+    const leaked = await ask(g, "leak", agent(ref, { model: driver === "codex" ? "gpt-5-codex" : "grok-4" }));
+    assert.equal(leaked.reply.includes(token), false);
+    assert.equal(everything(g, ["T1"]).includes(token), false);
+    await g.opener.close();
+    for (const h of homes) fs.rmSync(h, { recursive: true, force: true });
+  });
+}
+
+test("a Codex sign-in whose files the Vault does not hold fails the turn with engine.account_unavailable and starts no engine", async () => {
+  const g = rig();
+  const { turn } = await ask(g, "hello", agent("#CodexSub", { model: "gpt-5-codex" }));
+  assert.equal(turn.state, "failed");
+  assert.equal(turn.error?.code, "engine.account_unavailable");
+  assert.equal(g.launches.length, 0);
+  await g.opener.close();
+  assert.deepEqual(g.minted.map((m) => m.sessionId).sort(), g.closed.slice().sort(), "a token minted for a session that never started is revoked");
 });
