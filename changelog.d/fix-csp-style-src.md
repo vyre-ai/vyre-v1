@@ -1,0 +1,1 @@
+- Desktop: the app keeps its styles. Tauri no longer adds a nonce to style-src, so the browser stops ignoring unsafe-inline and the styles the app adds at runtime (RN-web and every list row) apply again.

@@ -170,3 +170,11 @@ test("Run this Mac as the Space server: one registered command with no caller in
   const caps = JSON.parse(read("capabilities", "default.json")) as { permissions: unknown[] };
   assert.ok(!JSON.stringify(caps).includes("shell:"), "still only the Rust side spawns vyred");
 });
+
+test("styles added at runtime keep working in the built app: style-src keeps unsafe-inline and Tauri is told not to add a nonce to it (a nonce makes the browser ignore unsafe-inline, and every script-made <style> is dropped)", () => {
+  const sec = (JSON.parse(read("tauri.conf.json")) as { app: { security: { csp: string; dangerousDisableAssetCspModification?: unknown } } }).app.security;
+  const style = sec.csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("style-src "));
+  assert.ok(style && style.includes("'unsafe-inline'"), "style-src allows inline styles");
+  assert.ok(!/'nonce-|'sha(256|384|512)-/.test(style ?? ""), "no nonce or hash of our own in style-src");
+  assert.ok(Array.isArray(sec.dangerousDisableAssetCspModification) && (sec.dangerousDisableAssetCspModification as string[]).includes("style-src"), "Tauri leaves style-src alone");
+});
