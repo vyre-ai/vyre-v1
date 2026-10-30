@@ -56,6 +56,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.turn.fallback": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.fallback", ctx.trace)); },
   "engine.turn.finish": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.finish", ctx.trace)); },
   "engine.turn.get": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.get", ctx.trace)); },
+  "engine.turn.record": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.record", ctx.trace)); },
   "engine.turn.record_usage": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.record_usage", ctx.trace)); },
   "engine.turn.retry": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.retry", ctx.trace)); },
   "engine.turn.start": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.start", ctx.trace)); },

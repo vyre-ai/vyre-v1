@@ -734,6 +734,7 @@ export function stubs(ctx: CallCtx) {
         fallback: call("engine.turn.fallback"),
         finish: call("engine.turn.finish"),
         get: call("engine.turn.get"),
+        record: call("engine.turn.record"),
         record_usage: call("engine.turn.record_usage"),
         retry: call("engine.turn.retry"),
         start: call("engine.turn.start"),
