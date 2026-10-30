@@ -89,7 +89,10 @@ try {
   if (Buffer.byteLength(text) > MAX_OUT) throw Object.assign(new Error("x"), { name: "OutputTooLarge" });
   finish({ ok: true, text });
 } catch (e) {
-  finish({ ok: false, name: /allocation failed|out of memory|Invalid array length/i.test(String((e && e.message) || e)) ? "OutOfMemory" : String((e && e.name) || "Error").replace(/[^A-Za-z0-9_]/g, "").slice(0, 40) });
+  const text = String((e && e.message) || e);
+  // a memory limit met by the code (the heap, or a Buffer or ArrayBuffer past the kernel's data limit, which Node raises as a RangeError) is one answer, not a thrown error of the code's own
+  const memory = /allocation failed|out of memory|Invalid array length/i.test(text) || (e instanceof RangeError && /alloc|array buffer|typed array length/i.test(text)) || /^ERR_(MEMORY_ALLOCATION_FAILED|BUFFER_TOO_LARGE)$/.test(String((e && e.code) || ""));
+  finish({ ok: false, name: memory ? "OutOfMemory" : String((e && e.name) || "Error").replace(/[^A-Za-z0-9_]/g, "").slice(0, 40) });
 }
 `;
 

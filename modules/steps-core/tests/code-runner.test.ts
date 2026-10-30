@@ -103,3 +103,19 @@ test("a name that resolves to any address on the shared net-guard list is refuse
   }
   assert.deepEqual(await answer(["93.184.216.34"])("x.example.com"), ["93.184.216.34"]);
 });
+
+test("a memory limit the code meets is one answer: the heap, a failed Buffer or ArrayBuffer allocation, and a typed array too large", () => {
+  for (const source of [
+    "throw Object.assign(new RangeError('Array buffer allocation failed'), { code: 'ERR_MEMORY_ALLOCATION_FAILED' })",
+    "throw new RangeError('Array buffer allocation failed')",
+    "throw new RangeError('Invalid typed array length: 4294967297')",
+    "throw Object.assign(new RangeError('Cannot create a Buffer larger than 9007199254740991 bytes'), { code: 'ERR_BUFFER_TOO_LARGE' })",
+    "throw new Error('FATAL: JavaScript heap out of memory')",
+  ]) {
+    const r = run(source);
+    assert.equal(r.code, "validation.bad_input", source);
+    assert.match(String(r.error), /used more than \d+ MB of memory/, source);
+  }
+  // another RangeError of the code's own stays a thrown error, named but not quoted
+  assert.equal(run("throw new RangeError('toFixed() digits argument must be between 0 and 100')").error, "The code threw RangeError.");
+});
