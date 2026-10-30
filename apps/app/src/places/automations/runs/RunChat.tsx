@@ -3,7 +3,7 @@
 // Below it, a box to ask about the run or tell an agent what to do. In the side pane it carries the Automation's name and Open in Main; in Main it carries the page header.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { CHAT, useRunsData, useScreenQuery, useThread } from "./data.tsx";
@@ -54,6 +54,9 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   const [draft, setDraft] = useState("");
   const [retried, setRetried] = useState(false);
   const sent = useRef(0);
+  const winNarrow = useWindowDimensions().width < 720;   // a phone has no room for the title beside a button
+  const [boxW, setBoxW] = useState(0);
+  const narrow = winNarrow || (boxW > 0 && boxW < 560);   // so does the side pane: the title wraps to two lines instead of truncating
   const now = data.clock().now;
   useEffect(() => {
     if (!initialUndo) return;
@@ -70,7 +73,9 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   const messages = threadQ.status === "ready" ? threadQ.data.messages : [];
   const lines: RunLine[] = [...buildLines(run, messages, steps), ...results];
   const automation = run.subject?.type === "automation" ? run.subject.id : null;
-  const automationName = automation ? data.name(automation) : run.name ?? "Run";
+  const known = automation ? data.name(automation) : "";
+  // data.name knows people and agents and gives an automation's id back as it is; then the run's own name (a test run carries its automation's name) is the better title
+  const automationName = known !== "" && known !== automation ? known : run.name ?? "Run";
   const canRetry = !retried && !retriedIds.has(run.id);
   const duration = durationSeconds(run);
 
@@ -151,8 +156,17 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   );
 
   return (
-    <View testID="run-chat" accessibilityLabel={`Run chat, ${runTitle(run)}`} style={s.frame}>
-      {wide ? (
+    <View testID="run-chat" accessibilityLabel={`Run chat, ${runTitle(run)}`} style={s.frame} onLayout={(e) => setBoxW(e.nativeEvent.layout.width)}>
+      {wide && narrow ? (
+        <View style={s.ph}>
+          <Tile size={30} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text accessibilityRole="header" numberOfLines={2} style={s.phName}>{automationName}</Text>
+            {runTitle(run) !== automationName ? <Text numberOfLines={1} style={s.phSub}>{runTitle(run)}</Text> : null}
+            {automation ? <View style={s.phOpen}><QuietButton label="Open the automation" icon="open" testID="open-automation" onPress={() => data.nav.openAutomation(automation)} /></View> : null}
+          </View>
+        </View>
+      ) : wide ? (
         <MainHead tile={<Tile size={28} />} title={automationName} meta={runTitle(run)}>
           {automation ? <QuietButton label="Open the automation" icon="open" testID="open-automation" onPress={() => data.nav.openAutomation(automation)} /> : null}
         </MainHead>
@@ -176,6 +190,7 @@ const s = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   ph: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 14, paddingBottom: 12, paddingLeft: 16, paddingRight: 14 },
   phName: { fontSize: 14, lineHeight: 18, fontWeight: "600", color: "var(--ink)" as string },
+  phOpen: { flexDirection: "row", marginTop: 6 },
   phSub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   rhead: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 6, paddingBottom: 10, paddingHorizontal: 16, flexWrap: "wrap" },
   state: { flexDirection: "row", alignItems: "center", gap: 6 },

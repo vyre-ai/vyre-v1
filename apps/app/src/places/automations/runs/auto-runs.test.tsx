@@ -99,10 +99,17 @@ test("the thread becomes lines: rows stay compact, an agent step is a turn, a si
 test("a failed run whose thread has no error row gets one from the step log", () => {
   const steps: RunStep[] = [{ step: "a", attempt: 1, state: "succeeded" }, { step: "b", attempt: 3, state: "failed", error: { code: "x", message: "Refused" } }];
   const lines = buildLines(mk({ id: "r", status: "failed" }), [], steps);
-  assert.equal(lines.length, 1);
-  assert.ok(lines[0]?.kind === "error" && lines[0].text === "Refused" && lines[0].step === "b");
-  assert.equal(buildLines(mk({ id: "r", status: "succeeded" }), [], steps).length, 0, "only a failed run");
+  const last = lines[lines.length - 1];
+  assert.ok(last?.kind === "error" && last.text === "Refused" && last.step === "b");
+  assert.equal(buildLines(mk({ id: "r", status: "succeeded" }), [], steps).some((l) => l.kind === "error"), false, "only a failed run");
   assert.equal(failedStep([], steps), "b");
+});
+
+test("a run with no thread lines shows its step log as rows, one per step", () => {
+  const steps: RunStep[] = [{ step: "find_records", attempt: 1, state: "succeeded" }, { step: "send_email", attempt: 1, state: "running" }];
+  const lines = buildLines(mk({ id: "r", status: "running" }), [], steps);
+  assert.deepEqual(lines.map((l) => l.kind === "row" ? l.text : ""), ["Find records", "Send email, running"]);
+  assert.equal(buildLines(mk({ id: "r", status: "running" }), [], []).length, 0);
 });
 
 test("history: Needs attention comes first with the failed run and its two buttons, then Yesterday and Earlier, newest first", () => {

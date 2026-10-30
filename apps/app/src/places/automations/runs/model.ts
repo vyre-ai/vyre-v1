@@ -201,12 +201,26 @@ export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messag
       out.push(line);
     }
   }
+  // a run whose thread has said nothing yet still has its step log: show each step as a row
+  if (out.length === 0) out.push(...stepRows(run, steps));
   const hasError = flat(out).some((l) => l.kind === "error");
   if (run.status === "failed" && !hasError) {
     const failed = [...steps].reverse().find((s) => s.state === "failed" && s.error);
     if (failed?.error) out.push({ kind: "error", id: `err-${failed.step}`, text: failed.error.message, detail: "", step: failed.step, retry: `Try ${failed.attempt}, failed.`, offset: Math.max(0, Math.round(((failed.endedAt ?? run.startedAt) - run.startedAt) / 1000)) });
   }
   return out;
+}
+/** One row per step from the step log (the latest attempt of each), for a run with no thread lines. */
+export function stepRows(run: Pick<Run, "startedAt">, steps: readonly RunStep[]): RunLine[] {
+  const latest = new Map<string, RunStep>();
+  for (const st of steps) latest.set(st.step, st);
+  return [...latest.values()].map((st): RunLine => {
+    const name = st.step.replace(/[_.-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+    const offset = Math.max(0, Math.round(((st.endedAt ?? st.startedAt ?? run.startedAt) - run.startedAt) / 1000));
+    if (st.state === "failed") return { kind: "row", id: `step-${st.step}`, text: `${name} failed`, icon: "x", tone: "bad", offset };
+    if (st.state === "succeeded") return { kind: "row", id: `step-${st.step}`, text: name, icon: "check", tone: "ok", offset };
+    return { kind: "row", id: `step-${st.step}`, text: `${name}, ${st.state}`, icon: "clock", tone: "muted", offset };
+  });
 }
 export function flat(lines: readonly RunLine[]): RunLine[] {
   return lines.flatMap((l) => (l.kind === "branch" ? [l, ...flat(l.lines)] : [l]));

@@ -4,7 +4,7 @@ import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
 import { useMissing } from "../hash/useMissing.ts";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { scrubAskContext } from "../../places/automations/ask/bundle.ts";
 import { AutomationsDataProvider } from "../../places/automations/canvas/data.tsx";
 import type { AutomationsData, KeysStatus } from "../../places/automations/canvas/data.tsx";
@@ -19,7 +19,8 @@ import { RunsDataProvider } from "../../places/automations/runs/data.tsx";
 import { AutomationRuns, FailedView, JourneyNewView, JourneyView, RunView, configExtras, runsData, useDirectory } from "./automations-parts.tsx";
 import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics, TemplateGallery } from "../../places/automations/operations/StudioViews.tsx";
 import { Empty } from "../../places/automations/operations/parts.tsx";
-import { AutomationsSidebarSlot } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
+import { AutomationsSidebarSlot, StudioNav } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
+import { AutomationsSidebar } from "../../places/automations/sidebar/AutomationsSidebar.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { keysFromProviders } from "../../places/automations/values/typed.ts";
 import { nameOf } from "./misc-common.ts";
@@ -114,8 +115,16 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     openRunSide: (runId) => setSideRun(runId),
     ask: (id, context) => data.nav.ask(id, context),
   }), [rt, data]);
+  const winW = useWindowDimensions().width;
+  const phone = winW > 0 && winW < 720;   // the phone has no sidebar beside the body: the list is the first screen
   const canvas = openId ? (
-    <View style={s.withSide}>
+    phone && sideRun ? (
+      // on the phone a run takes the whole screen; Close goes back to the editor
+      <View style={s.main}>
+        <View style={s.sideHead}><TextButton label="Back" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View>
+        <RunView runId={sideRun} />
+      </View>
+    ) : <View style={s.withSide}>
       <View style={s.main}>
         <AutomationCanvas
           key={`${openId}:${step ?? ""}`} automationId={openId}
@@ -140,14 +149,18 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     : openId && missing ? <NotFound what="automation" />
     : canvas
     ? canvas
+    : phone ? <PhoneList view={view} onView={setView} />
     : <View style={s.hintWrap}><Empty testID="automations-start" title="Pick an automation" next="Choose one from the list to see its steps. To make a new one, use the plus beside Personal, or start from a working template." action="Start from a template" onAction={() => setView("templates")} /></View>;
   return (
     <AutomationsDataProvider value={data}>
       <RunsDataProvider value={runs}>
         <ConfigExtrasProvider value={extras}>
           <View style={s.page} testID="automations-place">
-            <AutomationsSidebarSlot selectedId={openId} view={view} onView={setView} />
-            <View style={s.main}>{main}</View>
+            {phone ? null : <AutomationsSidebarSlot selectedId={openId} view={view} onView={setView} />}
+            <View style={s.main}>
+              {phone && view !== "automations" && !openId ? <Pressable accessibilityRole="button" testID="phone-back-to-list" onPress={() => setView("automations")} style={s.backChip}><Text style={s.backText}>{"‹ Automations"}</Text></Pressable> : null}
+              {main}
+            </View>
           </View>
         </ConfigExtrasProvider>
       </RunsDataProvider>
@@ -160,7 +173,23 @@ export default function AutomationsPlace(_props: { place: string }): ReactElemen
   return rt ? <Body rt={rt} /> : <Loading />;
 }
 
+/** The phone's first Automations screen: search, the list (Failed runs, Personal, Shared with me, Space), and the studio views (Templates, All runs ...) under it. A row opens that Automation. */
+function PhoneList({ view, onView }: { view: StudioView; onView(next: StudioView): void }): ReactElement {
+  const [q, setQ] = useState("");
+  return (
+    <View style={s.phoneList} testID="automations-phone-list">
+      <TextInput value={q} onChangeText={setQ} placeholder="Search automations" placeholderTextColor="var(--ink-3)" accessibilityLabel="Search automations" style={s.phoneSearch} testID="automations-phone-search" />
+      <AutomationsSidebar hosted query={q} selectedId={null} onChoose={() => onView("automations")} />
+      <StudioNav view={view} onView={onView} />
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
+  phoneList: { flex: 1, minHeight: 0 },
+  phoneSearch: { height: 36, marginHorizontal: 12, marginTop: 10, paddingHorizontal: 12, borderRadius: 9, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 14 },
+  backChip: { height: 36, justifyContent: "center", paddingHorizontal: 14 },
+  backText: { fontSize: 14, color: "var(--accent)" as string },
   page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
   main: { flex: 1, minWidth: 0 },
   hintWrap: { padding: 24 },

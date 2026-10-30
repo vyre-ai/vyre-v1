@@ -53,8 +53,8 @@ export const TEMPLATES: readonly Template[] = [
       nodes: [
         { id: "approve", key: "approval", title: "Ask for approval", input: { title: "Approve this message before it goes out", approver: { kind: "role", id: "rol_admin" }, timeout: "2d" }, next: ["decide"] },
         {
-          id: "decide", key: "if", title: "Was it approved", input: { condition: "steps.approve.out.decision == \"approved\"" },
-          branches: [{ label: "yes", to: "send" }, { label: "no", to: "end" }],
+          id: "decide", key: "paths", title: "Was it approved", input: { paths: [{ name: "Approved", when: "steps.approve.out.decision == \"approved\"" }], otherwise: true },
+          branches: [{ label: "Approved", when: "steps.approve.out.decision == \"approved\"", to: "send" }, { label: "Otherwise", to: "end" }],
         },
         { id: "send", key: "send_email", title: "Send the message", input: { to: [], subject: "", body: "" } },
         { id: "end", key: "stop", title: "Stop without sending", input: {} },

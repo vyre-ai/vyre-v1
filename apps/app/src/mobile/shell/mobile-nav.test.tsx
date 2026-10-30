@@ -41,8 +41,9 @@ test("pressing a tab goes to its first screen with a fresh history", () => {
 });
 
 test("no Automations, Journeys or Console on the phone", () => {
-  assert.deepEqual([...NOT_ON_PHONE].sort(), ["automations", "console", "journeys"]);
+  assert.deepEqual([...NOT_ON_PHONE].sort(), ["console", "journeys"]);
   for (const k of NOT_ON_PHONE) assert.equal(isAllowed(`${k}:anything`), false, k);
+  assert.ok(isAllowed("automations:") && isAllowed("automation:aut_1"), "Automations are on the phone, read-only in the editor");
   assert.ok(isAllowed("record:rec_1") && isAllowed("chat:c1"));
   const s = initialNav("chats");
   assert.equal(open(s, { tab: "chats", screen: "console:members" }), s, "a refused screen changes nothing");
