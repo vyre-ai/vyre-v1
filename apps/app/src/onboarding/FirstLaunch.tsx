@@ -26,7 +26,7 @@ function HalftoneV({ ink, accent }: { ink: string; accent: string }): ReactEleme
     return out;
   }, [ink, accent]);
   if (Platform.OS !== "web") return null;
-  return createElement("svg", { viewBox: "0 0 192 172", width: 132, height: 118, role: "img", "aria-label": "Vyre", "data-testid": "first-launch-mark" }, ...dots.map((d) => d));
+  return createElement("svg", { viewBox: "0 0 192 172", width: 190, height: 170, role: "img", "aria-label": "Vyre", "data-testid": "first-launch-mark" }, ...dots.map((d) => d));
 }
 
 /** Each door's drawing: a person with a lock, an envelope with a check, three people. Line art in the ink colour with the accent where it says something. */
@@ -43,18 +43,19 @@ function Art({ door, ink, accent, wash }: { door: Door; ink: string; accent: str
 
 /** One door: a tall card with a drawing, its name and its number key. */
 function DoorCard({ door, title, help, n, busy, disabled, wide, onPress }: { door: Door; title: string; help: string; n: number; busy: boolean; disabled: boolean; wide: boolean; onPress(): void }): ReactElement {
-  const { p } = useJoin();
+  const { p, mode } = useJoin();
+  const accent = mode === "dark" ? "#8B8BFF" : "#5B5BD6";
   return (
     <Pressable
       testID={`door-${door}`} accessibilityRole="button" accessibilityLabel={`${title}. ${help}`} accessibilityState={{ busy, disabled }} disabled={disabled} onPress={onPress}
       style={({ hovered, pressed }: { hovered?: boolean; pressed?: boolean }) => ({
         width: wide ? 224 : "100%", height: wide ? 236 : undefined, minHeight: wide ? undefined : 96, flexDirection: wide ? "column" : "row", alignItems: "center", justifyContent: wide ? "center" : "flex-start", gap: wide ? 22 : 16, padding: wide ? 20 : 14, borderRadius: 22,
-        backgroundColor: p.panel, borderWidth: 1, borderColor: busy || hovered === true ? p.blue : p.hair, opacity: disabled && !busy ? 0.55 : 1, transform: [{ translateY: hovered === true && !disabled ? -3 : pressed === true ? 0 : 0 }],
+        backgroundColor: p.panel, borderWidth: 1, borderColor: busy || hovered === true ? accent : p.hair, opacity: disabled && !busy ? 0.55 : 1, transform: [{ translateY: hovered === true && !disabled ? -3 : pressed === true ? 0 : 0 }],
         boxShadow: hovered === true ? "0 18px 40px -18px rgba(40,40,80,.35)" : "0 1px 2px rgba(0,0,0,.05), 0 10px 28px -16px rgba(40,40,80,.22)",
       } as object)}
     >
       <View style={{ position: "absolute", top: 12, right: 12, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 6, borderWidth: 1, borderColor: p.hair, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 11, color: p.tx2 }}>{n}</Text></View>
-      <Art door={door} ink={p.tx} accent={p.blue} wash={p.grp} />
+      <Art door={door} ink={p.tx} accent={accent} wash={p.grp} />
       <Text style={{ fontSize: 19, lineHeight: 24, fontWeight: "600", color: p.tx, letterSpacing: -0.2, flexShrink: 1 }}>{busy ? "Starting…" : title}</Text>
     </Pressable>
   );
@@ -62,11 +63,11 @@ function DoorCard({ door, title, help, n, busy, disabled, wide, onPress }: { doo
 
 /** The quiet way in for a person who already has a Space on another computer. */
 function ExistingLink({ onPress }: { onPress(): void }): ReactElement {
-  const { p } = useJoin();
+  const { p, mode } = useJoin();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap" }}>
       <Text style={{ fontSize: 14, color: p.tx2 }}>Used Vyre on another computer?</Text>
-      <Pressable testID="door-existing" accessibilityRole="button" onPress={onPress} style={{ minHeight: 32, justifyContent: "center", paddingHorizontal: 2 }}><Text style={{ fontSize: 14, fontWeight: "500", color: p.blue }}>Sign in</Text></Pressable>
+      <Pressable testID="door-existing" accessibilityRole="button" onPress={onPress} style={{ minHeight: 32, justifyContent: "center", paddingHorizontal: 2 }}><Text style={{ fontSize: 14, fontWeight: "500", color: mode === "dark" ? "#8B8BFF" : "#5B5BD6" }}>Sign in</Text></Pressable>
     </View>
   );
 }
@@ -82,7 +83,7 @@ function ErrorNote({ children }: { children: ReactNode }): ReactElement {
 }
 
 function Doors({ onDoor, onExisting }: { onDoor(door: Door): Promise<void>; onExisting(): void }): ReactElement {
-  const { p } = useJoin();
+  const { p, mode } = useJoin();
   const width = useWindowDimensions().width;
   const wide = width >= 760;
   const [busy, setBusy] = useState<Door | null>(null);
@@ -103,7 +104,7 @@ function Doors({ onDoor, onExisting }: { onDoor(door: Door): Promise<void>; onEx
   DOORS.forEach((d, i) => cards.push(<DoorCard key={d.door} door={d.door} title={d.title} help={d.help} n={i + 1} busy={busy === d.door} disabled={busy !== null} wide={wide} onPress={() => void pick(d.door)} />));
   return (
     <ScrollView style={{ width: "100%" }} contentContainerStyle={{ flexGrow: 1, alignItems: "center", justifyContent: "center", paddingVertical: 32, paddingHorizontal: 20, gap: 28 }}>
-      <HalftoneV ink={p.tx} accent={p.blue} />
+      <HalftoneV ink={p.tx} accent={mode === "dark" ? "#8B8BFF" : "#5B5BD6"} />
       <Text accessibilityRole="header" style={{ fontSize: wide ? 40 : 30, lineHeight: wide ? 46 : 36, fontWeight: "700", letterSpacing: -1, color: p.tx, textAlign: "center" }}>Welcome to Vyre</Text>
       <View style={{ flexDirection: wide ? "row" : "column", gap: 18, width: wide ? undefined : "100%", maxWidth: 420 + (wide ? 400 : 0) }}>{cards}</View>
       {error ? <ErrorNote>{error}</ErrorNote> : null}

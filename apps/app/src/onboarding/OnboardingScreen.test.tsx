@@ -28,8 +28,9 @@ test("done steps tick, skipped steps say Skipped, and a finished flow shows the 
   const all = Object.fromEntries(stepsOf("member").map((st) => [st.key, "done" as const]));
   const end = renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={all} onStep={noop} onClose={noop} device="mac" />);
   assert.ok(end.includes("You are set up") && end.includes("All done") && end.includes("Go to Home") && end.includes('data-testid="onboarding-finished"'));
-  const some = renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={{ ...all, apps: "later" }} stepKey="__none__" onStep={noop} onClose={noop} device="mac" />);
-  assert.ok(!some.includes("onboarding-finished") || some.includes('data-testid="done-set-apps"'));
+  const some = renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={{ ...all, apps: "later" }} stepKey="summary" onStep={noop} onClose={noop} device="mac" />);
+  assert.ok(some.includes('data-testid="onboarding-finished"') && some.includes('data-testid="done-set-apps"') && some.includes("1 left for later") && some.includes(">Skipped<"), "the summary names what was put off, with Set up");
+  assert.ok(!some.includes('data-testid="done-set-mine"'), "a done step has no Set up");
 });
 
 test("the steps follow the device: a browser has no sessions or folders, a phone also no Chrome and its own step is done", () => {

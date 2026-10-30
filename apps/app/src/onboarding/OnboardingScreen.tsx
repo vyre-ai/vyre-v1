@@ -57,6 +57,9 @@ function ensureCss(): void {
 }
 const anim = (spec: string): object => (web ? ({ animation: spec } as object) : {});
 
+/** The last step of the flow on this device: skipping it ends the walk, even when an earlier step was put off. */
+const isLast0 = (flow: FlowKind, key: string, device: Device): boolean => { const st = visibleSteps(flow, device); return st[st.length - 1]?.key === key; };
+
 const counted = (flow: FlowKind, progress: Progress, device: Device): { done: number; later: number; total: number } => countsOn(flow, progress, device);
 
 /** The Assistant's one line. It types itself in on the web; the full text is always what a test or a screen reader gets first. */
@@ -217,11 +220,13 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const narrow = !phone && width > 0 && width < BREAK;
   const steps = visibleSteps(p.flow, device);
   const [shown, setShown] = useState<string | null>(p.stepKey ?? null);
-  const wanted = p.stepKey ?? shown;
+  // the summary shows when every step is done, or when the last one was finished or skipped
+  const [ended, setEnded] = useState(p.stepKey === "summary");
+  const wanted = p.stepKey === "summary" ? shown : p.stepKey ?? shown;
   const current = wanted !== null && steps.some((x) => x.key === wanted) ? wanted : resumeOn(p.flow, p.progress, device);
-  const open = (key: string): void => { setShown(key); p.onOpenStep?.(key); };
+  const open = (key: string): void => { setEnded(false); setShown(key); p.onOpenStep?.(key); };
   const def = steps.find((x) => x.key === current);
-  const finished = current === null || def === undefined;
+  const finished = ended || current === null || def === undefined;
   const words = def ? scriptFor(def.card, p.flow) : null;
   const c = counted(p.flow, p.progress, device);
   useEffect(ensureCss, []);
@@ -233,8 +238,8 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   useEffect(() => { seen.current = doneNow; });
   const ctx: CardContext | null = def ? {
     step: def, flow: p.flow, device,
-    done: () => { p.onStep(def.key, "done"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "done" }, def.key, device); if (n) open(n); },
-    later: () => { p.onStep(def.key, "later"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "later" }, def.key, device); if (n) open(n); },
+    done: () => { p.onStep(def.key, "done"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "done" }, def.key, device); if (n) open(n); else setEnded(true); },
+    later: () => { p.onStep(def.key, "later"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "later" }, def.key, device); if (n && !isLast0(p.flow, def.key, device)) open(n); else setEnded(true); },
   } : null;
   // Continue moves on once the step is done; on the last step it becomes Finish
   const at = def ? steps.findIndex((x) => x.key === def.key) : -1;
@@ -242,7 +247,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const isDone = def ? stateOn(p.progress, def, device) === "done" : false;
   const next = (): void => {
     if (!def || !isDone) return;
-    if (isLast) { p.onClose?.(); return; }
+    if (isLast) { setEnded(true); return; }
     open(steps[at + 1]!.key);
   };
   const said = def ? saidFor(def.card, null) : "";
