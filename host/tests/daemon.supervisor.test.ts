@@ -254,3 +254,25 @@ test("start() ticks on a timer and stop() waits for running jobs; duplicate name
   await new Promise((r) => setTimeout(r, 30));
   assert.equal(runs, after, "stopped means stopped");
 });
+
+test("a service named once that fails its first start ends failed at once, with the cause, and is not retried; the others still start", async () => {
+  const waits: number[] = [];
+  const sup = new Supervisor({ sleep: (ms) => { waits.push(ms); return Promise.resolve(); } });
+  let tries = 0;
+  sup.add({ name: "gateway", start: () => { tries++; return Promise.reject(new Error("listen EADDRINUSE: address already in use 127.0.0.1:9")); } });
+  const other = fakeUnit();
+  sup.add({ name: "scheduler", start: () => Promise.resolve(other.unit) });
+  await sup.startAll({ once: ["gateway"] });
+  const g = sup.status("gateway")[0]!;
+  assert.equal(g.phase, "failed");
+  assert.match(g.lastExit?.error ?? "", /EADDRINUSE/);
+  assert.equal(tries, 1, "no second try");
+  assert.deepEqual(waits, [], "no backoff was waited out");
+  assert.equal(sup.status("scheduler")[0]?.phase, "running");
+  // without it the same failure goes through the backoff and the retries first
+  const slow = new Supervisor({ sleep: (ms) => { waits.push(ms); return Promise.resolve(); } });
+  let n = 0;
+  slow.add({ name: "gateway", policy: { maxRestarts: 2, windowMs: 60_000, backoffMs: [5, 5] }, start: () => { n++; return Promise.reject(new Error("no")); } });
+  await slow.startAll();
+  assert.ok(n > 1 && waits.length > 0);
+});

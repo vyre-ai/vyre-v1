@@ -1469,7 +1469,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   closers.push(() => supervisor.stopAll());
 
   try {
-    await supervisor.startAll();
+    await supervisor.startAll({ once: ["gateway"] });   // a gateway that cannot listen is a boot that cannot go on: no backoff, the cause comes straight out
     if (supervisor.status("gateway")[0]?.phase !== "running") { const g = supervisor.status("gateway")[0]; throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}${g?.lastExit?.error ? `: ${g.lastExit.error}` : ""}`); }
     await runProbes();
     reportNetwork();

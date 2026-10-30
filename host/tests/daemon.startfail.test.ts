@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const MAIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "daemon", "main.ts");
 
-test("a daemon whose gateway cannot listen exits 1 with the reason, and does not stay alive", { timeout: 60_000 }, async () => {
+test("a daemon whose gateway cannot listen exits 1 with the reason, and does not stay alive", { timeout: 15_000 }, async () => {
   const held = net.createServer();
   await new Promise<void>((r) => held.listen(0, "127.0.0.1", () => r()));
   const port = (held.address() as net.AddressInfo).port;
@@ -22,7 +22,7 @@ test("a daemon whose gateway cannot listen exits 1 with the reason, and does not
     child.stderr.on("data", (c: Buffer) => { err += c.toString("utf8"); });
     child.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
     const code = await new Promise<number | null>((resolve, reject) => {
-      const t = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`still running after 45 s\nstderr: ${err}`)); }, 45_000);
+      const t = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`still running after 8 s\nstderr: ${err}`)); }, 8_000);
       child.once("exit", (c) => { clearTimeout(t); resolve(c); });
     });
     assert.equal(code, 1);
