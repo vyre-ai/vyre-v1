@@ -67,7 +67,7 @@ jobs:
         run: |
           set -o pipefail
           npx playwright-core install webkit
-          node scripts/test-run.ts --slow --no-cache --files scripts/shots/owner-model.test.ts 2>&1 | tee owner-model.out
+          node scripts/test-run.ts --no-cache --files scripts/shots/owner-model.test.ts 2>&1 | tee owner-model.out
           grep -q '^ok .*scripts/shots/owner-model.test.ts' owner-model.out
       - name: Export the web shell and stage the sidecar
         working-directory: apps/desktop

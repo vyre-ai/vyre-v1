@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Raised from 15 to 20 (P-CI_31): GitHub-hosted runners exposed real files of 20-22 s that the self-hosted pass cache had been hiding.
-export const MAX_ENTRIES = 50;   // 49 to 50: the owner-model row check needs its own slow job, one with Chromium on Linux and one with WebKit on macOS. 48 to 49: the chat benchmark with the turn context runs 30 tasks on a seeded Space and takes about 30 s on a loaded runner. 40 to 48: the v1 release evidence adds booted live tests (Space switch, sync endpoint, recovery) that each need their own slow job. 24 to 40: with every shard on the self-hosted runners (no hosted minutes), daemon-boot and whole-app tests run past the 30 s fast cap under shared load; each gets its own slow job
+export const MAX_ENTRIES = 49;   // 48 to 49: the chat benchmark with the turn context runs 30 tasks on a seeded Space and takes about 30 s on a loaded runner. 40 to 48: the v1 release evidence adds booted live tests (Space switch, sync endpoint, recovery) that each need their own slow job. 24 to 40: with every shard on the self-hosted runners (no hosted minutes), daemon-boot and whole-app tests run past the 30 s fast cap under shared load; each gets its own slow job
 export const MAX_CAP_SEC = 120;
 export const TEST_FILE = /\.test\.(?:m?js|cjs|tsx?)$/;
 
