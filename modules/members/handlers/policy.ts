@@ -1,6 +1,7 @@
 // Sign-in policy, second-factor report and SSO providers (spec 3.13, 3.10, ARCH 7.13). TOTP itself lives in identity; this module sets the Space rule around it and reports who has it.
 // SSO is the firm's own Google or Microsoft sign-in app (OpenID Connect): providers are configured and tested here, the sign-in screens offer them, and the secret is a Vault handle, never a value stored in this module. A provider is usable only with the firm's domain set.
 import type { MembersCtx } from "../projections.ts";
+import { pinIssuer } from "../../../lib/oidc-issuer.ts";
 import { OWNER_ROLE, me, page, policyDrop, policyGet, policyPut, raise } from "../projections.ts";
 
 const ok = { ok: true } as const;
@@ -84,15 +85,14 @@ export async function ssoSet(ctx: MembersCtx, input: { provider: Sso }) {
   const p = input.provider;
   if (!SSO_KEYS.includes(p.key)) raise(tid, "validation.bad_input", "unknown provider");
   if (!p.title.trim() || !p.clientId.trim()) raise(tid, "validation.bad_input", "a provider needs a title and a client id");
-  let url: URL;
-  try { url = new URL(p.issuer); } catch { raise(tid, "validation.bad_input", "the issuer is not a web address"); }
-  if (url.protocol !== "https:") raise(tid, "validation.bad_input", "the issuer must be an https address");
+  const pin = pinIssuer(p.key, p.issuer);
+  if ("error" in pin) raise(tid, "validation.bad_input", pin.error);
   if (!/^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(p.clientSecretHandle)) raise(tid, "validation.bad_input", "the client secret is a Vault handle such as #Okta_Secret, never the value");
   const prev = providers(ctx).find((x) => x.key === p.key);
   if (prev?.enabled && !p.enabled && currentPolicy(ctx).requireSso && providers(ctx).filter((x) => x.enabled).length === 1) {
     raise(tid, "validation.precondition_failed", "single sign-on is required and this is the only provider that is on");
   }
-  const row: Sso = { key: p.key, title: p.title.trim(), issuer: p.issuer.replace(/\/+$/, ""), clientId: p.clientId.trim(), clientSecretHandle: p.clientSecretHandle, enabled: p.enabled };
+  const row: Sso = { key: p.key, title: p.title.trim(), issuer: (pin as { issuer: string }).issuer, clientId: p.clientId.trim(), clientSecretHandle: p.clientSecretHandle, enabled: p.enabled };
   if (p.domainHint?.trim()) row.domainHint = p.domainHint.trim().toLowerCase();
   policyPut(ctx, `sso:${p.key}`, row);
   ctx.emit("policy.changed", `sso.${p.key}`, { key: `sso.${p.key}`, scope: "space", kind: "sign_in", by: me(ctx).id });

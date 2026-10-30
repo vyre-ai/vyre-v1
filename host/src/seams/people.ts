@@ -12,6 +12,7 @@ import {DEFAULT_SIGN_IN_POLICY,parseSignInPolicy} from "../../../lib/sign-in-pol
 //   members.owned      routines, agents, automations, Mine vault items, records, projects, files, channels, private chats, memory and mailbox connections, through those modules' host calls (P-L7_21)
 //   spaces.directory    the role name shown in the switcher
 //   spaces.attention    Needs you from tasks (tasks.attention) and unread from chat (chat.attention), asked as the person
+import { pinIssuer } from "../../../lib/oidc-issuer.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import type { Keyring } from "./keyring.ts";
 import type { SsoTickets } from "../routes/sso-signin.ts";
@@ -71,6 +72,9 @@ export function ssoProvidersIn(db: PeopleDeps["db"]): SsoProvider[] {
     try { row = db.all("SELECT value FROM members_policy WHERE key = ?", `sso:${key}`)[0] as { value: string } | undefined; } catch { return out; }
     if (!row) continue;
     const p = JSON.parse(row.value) as SsoProvider;
+    const pin = pinIssuer(key, p.issuer);   // the issuer is fixed by the code for Google and Microsoft, whatever an old row says
+    if ("error" in pin) continue;
+    p.issuer = pin.issuer;
     if (p.enabled && p.clientId && p.clientSecretHandle && p.domainHint) out.push(p);
   }
   return out;

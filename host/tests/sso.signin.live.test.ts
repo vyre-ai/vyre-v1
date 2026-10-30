@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { bootWorld, MEMBER, OWNER } from "../../fixtures/suite/world.ts";
 import { createIdp } from "../../fixtures/suite/idp.ts";
 
-const ISSUER = "https://idp.firm.test";
+const ISSUER = "https://accounts.google.com";   // fixed by the code for Google
 const CLIENT = "firm-app-client";
 const SECRET = "client-secret-value-123";
 const DOMAIN = "firm.test";
@@ -24,6 +24,9 @@ test("sign in with the firm's own app: the right person gets a session, and ever
     await w.ok(OWNER, "vault.item.put", { folderId: folder.folder.id, name: "Sso_Secret", kind: "other", fields: [{ key: "key", value: SECRET, secret: true }], idempotencyKey: w.idem() });
     assert.equal((await w.call(MEMBER, "members.sso.set", { provider: { key: "google", title: "Google", issuer: ISSUER, clientId: CLIENT, clientSecretHandle: "#Sso_Secret", enabled: true, domainHint: DOMAIN } })).status, 403, "a member cannot set sign-in up");
     await w.ok(OWNER, "members.sso.set", { provider: { key: "google", title: "Google", issuer: ISSUER, clientId: CLIENT, clientSecretHandle: "#Sso_Secret", enabled: true, domainHint: DOMAIN } });
+    const typed = await w.ok(OWNER, "members.sso.set", { provider: { key: "google", title: "Google", issuer: "https://evil.example.com", clientId: CLIENT, clientSecretHandle: "#Sso_Secret", enabled: true, domainHint: DOMAIN } });
+    assert.equal(typed.provider.issuer, ISSUER, "an issuer typed for Google is ignored: the code fixes it");
+    assert.equal((await w.call(OWNER, "members.sso.set", { provider: { key: "microsoft", title: "Microsoft", issuer: "https://evil.example.com/x/v2.0", clientId: CLIENT, clientSecretHandle: "#Sso_Secret", enabled: false, domainHint: DOMAIN } })).status, 422, "Microsoft takes only a tenant");
 
     const options = await w.ok(OWNER, "identity.sign_in_options", {});
     assert.deepEqual(options.sso, [{ key: "google", title: "Google" }]);

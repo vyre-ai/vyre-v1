@@ -1,6 +1,9 @@
 // OpenID Connect for the firm's own sign-in app (Google, Microsoft, Okta): discovery, the authorization address with PKCE, the code exchange with the client secret from the Vault, and the check
 // of the ID token (signature against the provider's published keys, issuer, audience, expiry, nonce, and that it names an address at the firm's domain). Nothing here knows about people:
 // it answers which verified address signed in, and the caller decides who that is.
+import { lookup } from "node:dns/promises";
+import { refusesAddress } from "../../../lib/address-guard.ts";
+import { MS_SHARED_TENANTS, refusedHost } from "../../../lib/oidc-issuer.ts";
 import type { SeamFetch } from "./ports.ts";
 
 export interface Discovery { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string }
@@ -27,9 +30,42 @@ const https = (u: string | undefined, what: string): string => {
   return url.toString();
 };
 
+/** The provider's discovery document. Its issuer must be exactly the one expected (mix-up defence) before any address in it is used; only Microsoft's shared tenants may say {tenantid}. */
 export async function discover(fetch: SeamFetch, issuer: string): Promise<Discovery> {
-  const d = await json(fetch, `${https(issuer, "the issuer").replace(/\/+$/, "")}/.well-known/openid-configuration`);
-  return { issuer: text(d["issuer"]) ?? refuse("the provider names no issuer"), authorization_endpoint: https(text(d["authorization_endpoint"]), "the authorization address"), token_endpoint: https(text(d["token_endpoint"]), "the token address"), jwks_uri: https(text(d["jwks_uri"]), "the key address") };
+  const want = https(issuer, "the issuer").replace(/\/+$/, "");
+  const d = await json(fetch, `${want}/.well-known/openid-configuration`);
+  const said = (text(d["issuer"]) ?? refuse("the provider names no issuer")).replace(/\/+$/, "");
+  const shared = MS_SHARED_TENANTS.some((t) => want === `https://login.microsoftonline.com/${t}/v2.0` && said === `https://login.microsoftonline.com/{tenantid}/v2.0`);
+  if (said !== want && !shared) refuse("the provider's discovery document names a different issuer");
+  return { issuer: said, authorization_endpoint: https(text(d["authorization_endpoint"]), "the authorization address"), token_endpoint: https(text(d["token_endpoint"]), "the token address"), jwks_uri: https(text(d["jwks_uri"]), "the key address") };
+}
+
+/** A fetch for a provider whose issuer an admin typed: it dials no local or private host, by name or by what the name resolves to. */
+export function guardAddresses(fetch: SeamFetch, resolve: (host: string) => Promise<string[]> = async (h) => (await lookup(h, { all: true })).map((a) => a.address)): SeamFetch {
+  return (async (url: string, init?: Parameters<SeamFetch>[1]) => {
+    const host = new URL(url).hostname;
+    if (refusedHost(host)) throw new OidcError("that provider address is not a public one");
+    if (!/^[\d.]+$|:/.test(host) && (await resolve(host)).some((a) => refusesAddress(a))) throw new OidcError("that provider address resolves to a private one");
+    return fetch(url, init);
+  }) as SeamFetch;
+}
+
+/** The published signing keys, kept for a short time. A token signed by a key the copy lacks fetches the list once more, so a rotation works without a fetch on every sign-in. */
+export interface JwksCache { get(fetch: SeamFetch, uri: string, kid: string | undefined, now: number): Promise<Record<string, unknown>[]> }
+export function createJwksCache(ttlMs = 10 * 60_000): JwksCache {
+  const kept = new Map<string, { keys: Record<string, unknown>[]; at: number }>();
+  const pick = (keys: Record<string, unknown>[], kid: string | undefined) => keys.some((k) => k["kty"] === "RSA" && (kid === undefined || k["kid"] === kid));
+  return {
+    async get(fetch, uri, kid, now) {
+      const have = kept.get(uri);
+      if (have && now - have.at < ttlMs && pick(have.keys, kid)) return have.keys;
+      const list = await json(fetch, uri);
+      const keys = (Array.isArray(list["keys"]) ? list["keys"] : []).map(obj);
+      kept.set(uri, { keys, at: now });
+      if (kept.size > 50) kept.delete(kept.keys().next().value as string);
+      return keys;
+    },
+  };
 }
 
 /** A PKCE pair: the verifier stays with the Space, the challenge goes to the provider. */
@@ -55,19 +91,19 @@ export async function exchangeCode(fetch: SeamFetch, d: Discovery, p: { clientId
 const part = (s: string | undefined): Record<string, unknown> => { try { return obj(JSON.parse(Buffer.from(s ?? "", "base64url").toString("utf8"))); } catch { return {}; } };
 
 /** The address an ID token proves, or a refusal saying why not. The signature is checked first; nothing in an unsigned token is believed. */
-export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: string, p: { clientId: string; nonce: string; domain: string | undefined; now: number }): Promise<Verified> {
+export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: string, p: { clientId: string; nonce: string; domain: string | undefined; now: number; jwks?: JwksCache }): Promise<Verified> {
   const [h, c, s] = token.split(".");
   if (!h || !c || !s) refuse("that is not an ID token");
   const header = part(h);
   if (header["alg"] !== "RS256") refuse("the ID token is not signed with RS256");
-  const keys = await json(fetch, d.jwks_uri);
-  const jwk = (Array.isArray(keys["keys"]) ? keys["keys"] : []).map(obj).find((k) => k["kty"] === "RSA" && (header["kid"] === undefined || k["kid"] === header["kid"]));
+  const list = p.jwks ? await p.jwks.get(fetch, d.jwks_uri, text(header["kid"]), p.now) : await createJwksCache(0).get(fetch, d.jwks_uri, text(header["kid"]), p.now);
+  const jwk = list.find((k) => k["kty"] === "RSA" && (header["kid"] === undefined || k["kid"] === header["kid"]));
   if (!jwk) refuse("the provider has no key for this token");
   const key = await globalThis.crypto.subtle.importKey("jwk", { kty: "RSA", n: text(jwk!["n"]), e: text(jwk!["e"]), alg: "RS256", ext: true }, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
   const ok = await globalThis.crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, Buffer.from(s, "base64url"), new TextEncoder().encode(`${h}.${c}`));
   if (!ok) refuse("the ID token's signature is not the provider's");
   const claims = part(c);
-  const issuer = d.issuer.includes("{tenantid}") ? d.issuer.replace("{tenantid}", text(claims["tid"]) ?? "") : d.issuer;
+  const issuer = d.issuer.includes("{tenantid}") ? d.issuer.replace("{tenantid}", /^[0-9a-f-]{36}$/i.test(text(claims["tid"]) ?? "") ? text(claims["tid"])! : "") : d.issuer;
   if (claims["iss"] !== issuer) refuse("the ID token is from another issuer");
   const aud = claims["aud"];
   if (!(aud === p.clientId || (Array.isArray(aud) && aud.includes(p.clientId)))) refuse("the ID token is for another app");

@@ -1,7 +1,7 @@
 // OpenID Connect for the firm's own sign-in app: the authorization address, discovery rules and every way an ID token can be wrong. Signed with a throwaway key made in the test.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { authorizeUrl, discover, exchangeCode, OidcError, pkce, verifyIdToken } from "./oidc.ts";
+import { authorizeUrl, createJwksCache, discover, exchangeCode, guardAddresses, OidcError, pkce, verifyIdToken } from "./oidc.ts";
 import type { Discovery } from "./oidc.ts";
 import type { SeamFetch } from "./ports.ts";
 
@@ -51,9 +51,10 @@ test("a provider with no firm domain signs nobody in", async () => {
 
 test("a Microsoft issuer with the tenant placeholder matches the tenant the token names", async () => {
   const ms: Discovery = { ...D, issuer: "https://login.example.com/{tenantid}/v2.0" };
-  const t = await sign(good({ iss: "https://login.example.com/t-1/v2.0", tid: "t-1" }));
+  const T1 = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0", T2 = "1f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0";
+  const t = await sign(good({ iss: `https://login.example.com/${T1}/v2.0`, tid: T1 }));
   assert.equal((await verifyIdToken(fetchKeys, ms, t, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW })).email, "ana@firm.test");
-  const bad = await sign(good({ iss: "https://login.example.com/t-2/v2.0", tid: "t-1" }));
+  const bad = await sign(good({ iss: `https://login.example.com/${T2}/v2.0`, tid: T1 }));
   await assert.rejects(verifyIdToken(fetchKeys, ms, bad, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW }), refused(/another issuer/));
 });
 
@@ -87,4 +88,51 @@ test("the code exchange posts the secret and verifier to the token address and n
   await assert.rejects(exchangeCode(none, D, { clientId: "app", clientSecret: "shh", code: "c1", redirect: "r", verifier: "v1" }), refused(/no ID token/));
   const down: SeamFetch = (async () => ({ status: 400, headers: {}, text: async () => "{}" })) as never;
   await assert.rejects(exchangeCode(down, D, { clientId: "app", clientSecret: "shh", code: "c1", redirect: "r", verifier: "v1" }), refused(/answered 400/));
+});
+
+test("discovery whose issuer is not exactly the expected one is refused before any address in it is used", async () => {
+  const answer = (b: unknown): SeamFetch => (async () => ({ status: 200, headers: {}, text: async () => JSON.stringify(b) })) as never;
+  const doc = (issuer: string) => ({ issuer, authorization_endpoint: "https://evil.example.com/a", token_endpoint: "https://evil.example.com/t", jwks_uri: "https://evil.example.com/k" });
+  await assert.rejects(discover(answer(doc("https://evil.example.com")), ISS), refused(/different issuer/));
+  await assert.rejects(discover(answer(doc(`${ISS}.evil.example.com`)), ISS), refused(/different issuer/));
+  const ms = "https://login.microsoftonline.com/common/v2.0";
+  assert.equal((await discover(answer(doc("https://login.microsoftonline.com/{tenantid}/v2.0")), ms)).issuer, "https://login.microsoftonline.com/{tenantid}/v2.0");
+  await assert.rejects(discover(answer(doc("https://login.microsoftonline.com/{tenantid}/v2.0")), ISS), refused(/different issuer/), "only Microsoft's shared tenants may say {tenantid}");
+});
+
+test("a Microsoft token whose tenant is not an id never matches the placeholder issuer", async () => {
+  const ms: Discovery = { ...D, issuer: "https://login.example.com/{tenantid}/v2.0" };
+  const t = await sign(good({ iss: "https://login.example.com/evil/v2.0", tid: "evil" }));
+  await assert.rejects(verifyIdToken(fetchKeys, ms, t, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW }), refused(/another issuer/));
+});
+
+test("signing keys are kept for the TTL and fetched once more only for a key the copy lacks", async () => {
+  let fetched = 0;
+  const f: SeamFetch = (async () => { fetched += 1; return { status: 200, headers: {}, text: async () => JSON.stringify({ keys: [jwk] }) }; }) as never;
+  const jwks = createJwksCache(60_000);
+  const token = await sign(good());
+  const run = (now: number) => verifyIdToken(f, D, token, { clientId: "app", nonce: "n1", domain: "firm.test", now, jwks });
+  await run(NOW); await run(NOW + 1000);
+  assert.equal(fetched, 1, "the second sign-in used the kept keys");
+  await run(NOW + 61_000);
+  assert.equal(fetched, 2, "after the TTL they are fetched again");
+  const rotated = await globalThis.crypto.subtle.sign("RSASSA-PKCS1-v1_5", pair.privateKey, new TextEncoder().encode("x"));
+  assert.ok(rotated.byteLength > 0);
+  const h = b64({ alg: "RS256", kid: "k2" }), c = b64(good());
+  const s2 = await globalThis.crypto.subtle.sign("RSASSA-PKCS1-v1_5", pair.privateKey, new TextEncoder().encode(`${h}.${c}`));
+  const unknownKid = `${h}.${c}.${Buffer.from(s2).toString("base64url")}`;
+  fetched = 0;
+  await assert.rejects(verifyIdToken(f, D, unknownKid, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW + 62_000, jwks }), refused(/no key/));
+  assert.equal(fetched, 1, "an unknown key id refetches exactly once, then refuses");
+});
+
+test("a typed issuer is never dialled at a local or private address, by name or by what the name resolves to", async () => {
+  const ok: SeamFetch = (async () => ({ status: 200, headers: {}, text: async () => "{}" })) as never;
+  const g = guardAddresses(ok, async (h) => (h === "sneaky.example.com" ? ["10.0.0.5"] : ["93.184.216.34"]));
+  await assert.rejects(g("https://localhost/x"), refused(/public/));
+  await assert.rejects(g("https://127.0.0.1/x"), refused(/public/));
+  await assert.rejects(g("https://169.254.169.254/x"), refused(/public/));
+  await assert.rejects(g("https://intranet/x"), refused(/public/));
+  await assert.rejects(g("https://sneaky.example.com/x"), refused(/private/));
+  assert.equal((await g("https://idp.example.com/x")).status, 200);
 });

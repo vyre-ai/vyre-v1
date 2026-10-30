@@ -3,7 +3,8 @@
 // ticket in the URL FRAGMENT (never logged). The app then calls identity.sso_sign_in {provider, code: ticket}. The ticket names a verified address at the firm's domain and nothing else; who that is,
 // and whether they may sign in, is decided there. The return address is the Space's own origin or a loopback address.
 import http from "node:http";
-import { authorizeUrl, discover, exchangeCode, pkce, verifyIdToken } from "../seams/oidc.ts";
+import { authorizeUrl, createJwksCache, discover, exchangeCode, guardAddresses, pkce, verifyIdToken } from "../seams/oidc.ts";
+import { pinIssuer } from "../../../lib/oidc-issuer.ts";
 import type { Discovery, SsoProvider } from "../seams/oidc.ts";
 import type { SeamFetch } from "../seams/ports.ts";
 
@@ -42,6 +43,8 @@ export interface SsoSignInRouteDeps {
   /** a Vault item's value by handle, for one call */
   secret(handle: string): Promise<string>;
   fetch: SeamFetch;
+  /** the addresses a name resolves to, for a provider whose issuer an admin typed; only a test replaces it */
+  resolve?: (host: string) => Promise<string[]>;
   tickets: SsoTickets;
   now?: () => number;
   /** a refusal the person did not cause, for the server's log (never the token) */
@@ -54,6 +57,7 @@ const page = (res: http.ServerResponse, status: number, text: string, headers: R
 
 export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
   const now = deps.now ?? Date.now;
+  const jwks = createJwksCache();
   const states = new Map<string, { key: string; ret: string; nonce: string; verifier: string; disc: Discovery; exp: number }>();
   const origin = (req: http.IncomingMessage): string => {
     const proto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0]?.trim() || ((req.socket as { encrypted?: boolean }).encrypted ? "https" : "http");
@@ -64,8 +68,11 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: ht
   };
 
   async function serve(req: http.IncomingMessage, res: http.ServerResponse, key: string, leg: "start" | "callback", url: URL): Promise<void> {
-    const provider = (await deps.providers()).find((p) => p.key === key);
-    if (!provider) return page(res, 503, "That sign-in is not set up on this server.");
+    const found = (await deps.providers()).find((p) => p.key === key);
+    const pin = found ? pinIssuer(key, found.issuer) : undefined;
+    if (!found || !pin || "error" in pin) return page(res, 503, "That sign-in is not set up on this server.");
+    const provider = { ...found, issuer: pin.issuer };
+    const fetch = pin.free ? guardAddresses(deps.fetch, deps.resolve) : deps.fetch;   // an issuer an admin typed is never dialled at a private address
     const own = origin(req);
     const redirect = `${own}${PATH}/${key}/callback`;
     for (const [k, v] of states) if (v.exp < now()) states.delete(k);
@@ -74,7 +81,7 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: ht
       if (!ret) return page(res, 400, "That return address is not one this Space sends people back to.");
       if (states.size > 500) return page(res, 429, "Too many tries; wait a minute.");
       let disc: Discovery;
-      try { disc = await discover(deps.fetch, provider.issuer); } catch (e) { deps.log?.("sso discovery failed", { key, why: (e as Error).message }); return page(res, 502, "The sign-in provider did not answer."); }
+      try { disc = await discover(fetch, provider.issuer); } catch (e) { deps.log?.("sso discovery failed", { key, why: (e as Error).message }); return page(res, 502, "The sign-in provider did not answer."); }
       const state = token(), nonce = token(), pk = await pkce();
       states.set(state, { key, ret, nonce, verifier: pk.verifier, disc, exp: now() + STATE_MS });
       const secure = own.startsWith("https:") ? "; Secure" : "";
@@ -92,8 +99,8 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: ht
     const code = url.searchParams.get("code") ?? "";
     if (url.searchParams.get("error") || !code || code.length > 2000) return back("sso_error=denied");
     try {
-      const idToken = await exchangeCode(deps.fetch, rec.disc, { clientId: provider.clientId, clientSecret: await deps.secret(provider.clientSecretHandle), code, redirect, verifier: rec.verifier });
-      const who = await verifyIdToken(deps.fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now() });
+      const idToken = await exchangeCode(fetch, rec.disc, { clientId: provider.clientId, clientSecret: await deps.secret(provider.clientSecretHandle), code, redirect, verifier: rec.verifier });
+      const who = await verifyIdToken(fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now(), jwks });
       back(`sso_code=${encodeURIComponent(deps.tickets.make(key, who.email))}&sso_provider=${encodeURIComponent(key)}`);
     } catch (e) {
       deps.log?.("sso sign-in refused", { key, why: (e as Error).message });
