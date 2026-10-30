@@ -1,5 +1,6 @@
 // The Chats section head is a real control: pressing it folds the list of chats and pressing it again opens it (a click path, not markup).
 import test from "node:test";
+import { act } from "react";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import type { Node } from "../../../onboarding/test-dom.ts";
@@ -25,10 +26,19 @@ test("pressing the Chats head folds the chats and pressing it again brings them 
   assert.equal(rowIds().length, before, "open again: the chats are back");
 });
 
-test("the list itself takes the arrow keys and says so, so a click on its empty area is not a dead control", async () => {
+test("the list is a listbox that points at the row the arrow keys are on", async () => {
   installDom();
   const root = await mount(createRoot, <ChatsSidebar data={createSampleSidebar().data} window={{ start: 0, end: 500 }} />);
   const list = find(root, "chats-sidebar");
-  assert.ok(list && typeof list.props["data-noop-ok"] === "string", "marked noop-ok");
-  assert.equal(list.props.tabIndex, 0, "still reachable by Tab for the arrow keys");
+  assert.ok(list, "the list is drawn");
+  assert.equal(list.props.role, "listbox", "its true role");
+  assert.equal(list.props.tabIndex, 0, "reachable by Tab for the arrow keys");
+  assert.equal(list.props["data-noop-ok"], undefined, "no allowlist marker");
+  const onKeyDown = list.props.onKeyDown as (e: { key: string; preventDefault(): void }) => void;
+  await act(async () => { onKeyDown({ key: "ArrowDown", preventDefault() {} }); });
+  await flush();
+  const now = find(root, "chats-sidebar")!;
+  const id = now.props["aria-activedescendant"];
+  assert.equal(typeof id, "string", "arrow down puts the cursor on a row");
+  assert.ok(find(root, String(id)), `the element it names (${String(id)}) exists`);
 });

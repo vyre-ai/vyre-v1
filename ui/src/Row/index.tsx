@@ -94,6 +94,7 @@ const NativeRow = memo(function NativeRow({ id, title, titleSuffix, titleMarks, 
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       testID={id ? `row-${id}` : undefined}
+      nativeID={id ? `row-${id}` : undefined}
       style={[styles.row, { minHeight: rowHeight(note, tall) }, lit && HOVER, selected && SELECTED]}
     >
       {leading ? <View testID={id ? `row-${id}-leading` : undefined} style={styles.leading}>{leading}</View> : null}
