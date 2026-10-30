@@ -1330,6 +1330,11 @@ export function stubs(ctx: CallCtx) {
       second_factor: {
         report: call("members.second_factor.report"),
       },
+      sign_in_github: {
+        clear: call("members.sign_in_github.clear"),
+        get: call("members.sign_in_github.get"),
+        set: call("members.sign_in_github.set"),
+      },
       sign_in_policy: {
         get: call("members.sign_in_policy.get"),
         set: call("members.sign_in_policy.set"),

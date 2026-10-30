@@ -20,6 +20,15 @@ export interface OwnedItem { count: number; sample: { type: string; id: string; 
 export interface MembersCtx {
   signInMethods?: Readonly<SignInMethods>;
   spaceOwner?(): string | null;
+  /** GitHub sign-in app, from the host: the environment's client id (it wins), the address GitHub sends people back to, and the Vault write and reload of the one set here. The secret goes in and never comes out. */
+  githubApp?: {
+    envClientId(): string | null;
+    callbackUrl(): string;
+    /** Put the client secret in the Vault as a Space item (as the admin doing this) and answer its handle. */
+    storeSecret(secret: string): Promise<string>;
+    /** Read the saved app and its secret again, so the next sign-in uses it. */
+    reload(): Promise<void>;
+  };
   space: string;
   /** Absent on the pre-auth join calls (caller 'pending'). */
   principal?: { kind: string; id: string };

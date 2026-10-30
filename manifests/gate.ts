@@ -6,7 +6,7 @@
 import { defineManifest, ev, gateAct, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, principalRef, risk } from './_common.ts';
 
-const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'campaign_launch', 'secret_export', 'site_promote', 'signature_send', 'spend_raise');
+const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'campaign_launch', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change');
 const holdState = t.enm('held', 'approved', 'denied', 'expired');
 const approverRule = t.str({ description: "role:<name>, owner or asker", examples: ['role:admin'] });
 const ruleRow = t.obj({
@@ -38,6 +38,7 @@ export default defineManifest({
     gateAct('site_promote', 'Promote a site to production', 'high', 'deploy', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
     gateAct('signature_send', 'Send a document for signature', 'high', 'file'),
     gateAct('spend_raise', 'Raise a spend cap', 'medium', 'table'),
+    gateAct('signin_change', 'Change how people sign in to the Space', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
   ],
   events: [
     ev('gate.requested', 'A gated act stopped and became an Approve task with the exact preview', { p: { holdId, act: actKey, capName: t.str(), taskId: id.task, principal: principalRef, actingFor: t.opt(t.str()), runId: t.opt(id.run), expiresAt: t.ts() }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),

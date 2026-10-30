@@ -38,6 +38,9 @@ Area: space. Risk: high. Applies to: space.
 - logs.settings_set
 - mail.message.erase
 - members.second_factor.report
+- members.sign_in_github.clear
+- members.sign_in_github.get
+- members.sign_in_github.set
 - members.sign_in_policy.get
 - members.sign_in_policy.set
 - members.sso.list

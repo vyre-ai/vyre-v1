@@ -23,7 +23,14 @@ export interface PeopleDeps {
   /** run a module's host call as that module */
   call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
   /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
-  github?: GithubOAuth | null;
+  github?: GithubOAuth | null | (() => GithubOAuth | null);
+  /** the GitHub app an admin sets in the app (members.sign_in_github.*): the host writes the secret to the Vault as that admin and reloads what sign-in uses */
+  githubApp?: {
+    envClientId(): string | null;
+    callbackUrl(): string;
+    storeSecret(secret: string, as: { kind: "person" | "agent" | "service"; id: string }): Promise<string>;
+    reload(): Promise<void>;
+  };
   /** true while the access snapshot cannot be vouched for and this person is not the owner (ruling 70): sessions are not opened */
   stale?(principalId: string): boolean;
   /** the person key this node holds (ruling 62, 63); identity clears it at sign-out */
@@ -61,7 +68,8 @@ export function createGithub(o: GithubOAuth): { resolve(code: string): Promise<{
 
 export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { device?: string; principal?: { kind: string; id: string } }) => Record<string, unknown> | null {
   const spaceOwner=():string|null=>{const roots=[...d.access().allResources()].filter(row=>row.type==='space');return roots.length===1?roots[0]!.owner_id:null;};
-  const signInMethods={github:!!d.github,sso:[] as readonly string[],newMemberMfaEnrollment:false};
+  const githubNow=():GithubOAuth|null=>(typeof d.github==='function'?d.github():d.github)??null;
+  const signInMethods={get github(){return githubNow()!==null;},sso:[] as readonly string[],newMemberMfaEnrollment:false};
   const currentSignInPolicy=()=>{
     let row:{value:string}|undefined;
     try {row=d.db.all('SELECT value FROM members_policy WHERE key = ?','sign_in')[0] as {value:string}|undefined;} catch(error){if(!String(error).includes('no such table: members_policy'))throw error;}
@@ -135,7 +143,6 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
           return p.status === "active" ? "ok" : "refused";
         },
       },
-      ...(d.github ? { github: createGithub(d.github) } : {}),
       ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
       invites: {
         peek: (code: string) => d.call("members.invite_peek", { code }),
@@ -164,7 +171,15 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
     const base = extras[module];
     if (!base) return null;
     // the device the call came from, for whoami (the session row itself is the devices module's)
-    if (module === "members") return { ...base, owned: ownedFor(ctx.principal && ctx.principal.kind !== undefined ? { principal: { kind: ctx.principal.kind as "person" | "agent" | "service", id: ctx.principal.id } } : undefined) };
-    return module === "identity" && ctx.device ? { ...base, session: { deviceId: ctx.device } } : base;
+    if (module === "members") {
+      const as = ctx.principal && ctx.principal.kind !== undefined ? { kind: ctx.principal.kind as "person" | "agent" | "service", id: ctx.principal.id } : undefined;
+      const app = d.githubApp;
+      return { ...base, owned: ownedFor(as ? { principal: as } : undefined),
+        ...(app && as ? { githubApp: { envClientId: app.envClientId, callbackUrl: app.callbackUrl, storeSecret: (secret: string) => app.storeSecret(secret, as), reload: app.reload } } : {}) };
+    }
+    if (module !== "identity") return base;
+    // GitHub sign-in is read per call: the app an admin saves takes effect without a restart
+    const gh = githubNow();
+    return { ...base, ...(gh ? { github: createGithub(gh) } : {}), ...(ctx.device ? { session: { deviceId: ctx.device } } : {}) };
   };
 }

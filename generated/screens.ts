@@ -6298,6 +6298,11 @@ export const screens: ScreenIndexEntry[] = [
         "input": {},
         "live": true
       },
+      "github": {
+        "cap": "members.sign_in_github.get",
+        "input": {},
+        "live": true
+      },
       "sso": {
         "cap": "members.sso.list",
         "input": {},
@@ -6315,6 +6320,18 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "policy": "/state/policy"
         }
+      },
+      "save_github": {
+        "cap": "members.sign_in_github.set",
+        "input": {
+          "clientId": "/state/clientId",
+          "clientSecret": "/state/clientSecret"
+        }
+      },
+      "clear_github": {
+        "cap": "members.sign_in_github.clear",
+        "input": {},
+        "confirm": "Forget the GitHub app?"
       },
       "save_sso": {
         "cap": "members.sso.set",

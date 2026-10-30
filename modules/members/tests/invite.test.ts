@@ -21,8 +21,8 @@ async function invite(h: ReturnType<typeof harness>, extra: Record<string, unkno
   return { ...out, code: codeFrom(out.link) };
 }
 
-test("the module answers all 17 capabilities and the migration names its tables", () => {
-  assert.equal(Object.keys(handlers).length, 17);
+test("the module answers all 20 capabilities and the migration names its tables", () => {
+  assert.equal(Object.keys(handlers).length, 20);
   for (const [k, fn] of Object.entries(handlers)) assert.equal(typeof fn, "function", k);
   const sql = readFileSync(new URL("../migrations/0001_members.sql", import.meta.url), "utf8");
   for (const t of ["members_invites", "members_joins", "members_status", "members_policy"]) assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${t}"`));

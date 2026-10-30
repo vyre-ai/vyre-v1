@@ -17585,6 +17585,60 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/members/sign_in_github/clear",
+    "cap": "members.sign_in_github.clear",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": true,
+    "gate": "signin_change"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/sign_in_github/get",
+    "cap": "members.sign_in_github.get",
+    "v": 1,
+    "module": "members",
+    "effects": "read",
+    "permission": "policy.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/sign_in_github/set",
+    "cap": "members.sign_in_github.set",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": true,
+    "gate": "signin_change"
+  },
+  {
+    "method": "POST",
     "path": "/v1/members/sign_in_policy/get",
     "cap": "members.sign_in_policy.get",
     "v": 1,

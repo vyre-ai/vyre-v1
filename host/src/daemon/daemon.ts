@@ -193,6 +193,8 @@ export interface DaemonOptions {
   onStopped?:()=>void;
   /** GitHub sign-in (default: VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET from the environment; null: not set up) */
   githubOAuth?: GithubOAuth | null;
+  /** where the GitHub app an admin saves in the app talks to (default: github.com; only a test points these at a stand-in) */
+  githubEndpoints?: Pick<GithubOAuth, "authorizeUrl" | "tokenUrl" | "userUrl" | "fetch">;
   config: DaemonConfig;
   codeRoot?: string;
   platform?: Platform;
@@ -388,7 +390,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
-  const githubSignInRoute = createGithubSignInRoute({ oauth: () => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) });
+  // GitHub sign-in: the server environment first, then the app an admin saved (members.sign_in_github.set; its secret is read from the Vault by handle and kept in memory only)
+  let spaceGithub: GithubOAuth | null = null;
+  let reloadSpaceGithub: () => Promise<void> = async () => undefined;
+  const githubNow = (): GithubOAuth | null => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) ?? spaceGithub;
+  const githubSignInRoute = createGithubSignInRoute({ oauth: githubNow });
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
@@ -801,7 +807,29 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
-      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env) });
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, github: githubNow,
+        githubApp: {
+          envClientId: () => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env))?.clientId ?? null,
+          callbackUrl: () => `${(cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`).replace(/\/+$/, "")}/auth/github/callback`,
+          // the secret is filed in the Vault as a Space item by the admin doing this (their own Vault rights apply); only its handle comes back
+          storeSecret: async (secret, as) => {
+            const seed = { space: spaceId, principal: as, origin: "module" } as const;
+            const ask = async (cap: string, input: unknown): Promise<any> => { const r = await invokeRef(cap, input, seed); if (r.status !== "ok") throw new Error("The Vault needs approval first."); return r.output; };
+            const NAME = "GitHub sign-in client secret", field = { key: "client_secret", value: secret, secret: true };
+            const have = ((await ask("vault.items.list", { q: NAME })).items as { id: string; name: string; scope: string; handle: string }[]).find((i) => i.name === NAME && i.scope === "shared");
+            if (have) { await ask("vault.item.update", { itemId: have.id, fieldsSet: [field] }); return have.handle; }
+            const folders = (await ask("vault.folders.list", { scope: "shared" })).folders as { id: string }[];
+            const folderId = folders[0]?.id ?? (await ask("vault.folders.create", { name: "Space", scope: "shared", idempotencyKey: `gh-signin-folder-${spaceId}` })).folder.id;
+            return (await ask("vault.item.put", { folderId, name: NAME, kind: "api_key", fields: [field], spaceOnly: true, idempotencyKey: `gh-signin-secret-${Date.now()}` })).item.handle;
+          },
+          reload: () => reloadSpaceGithub(),
+        } });
+      reloadSpaceGithub = async () => {
+        const row = (() => { try { return db!.all("SELECT value FROM members_policy WHERE key = ?", "github_app")[0] as { value: string } | undefined; } catch { return undefined; } })();
+        if (!row) spaceGithub = null;
+        else { const saved = JSON.parse(row.value) as { clientId: string; secretHandle: string }; spaceGithub = { clientId: saved.clientId, clientSecret: await vaultPort.secret(saved.secretHandle, spaceId), ...(o.githubEndpoints ?? {}) }; }
+        if (loaded.serving.get("identity") === "live") await hookRunner.call("identity.set_github", { on: githubNow() !== null }).catch(() => undefined);
+      };
       // `trace`: a call the host makes on behalf of a caller keeps that caller's trace (only the principal changes), so the events it writes stay in the caller's trace
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
@@ -1051,10 +1079,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       }
 
       // the Space\'s profile row, once: its name from the event that made the Space, and where people reach it
+      await reloadSpaceGithub().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "github.signin_reload_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       if (loaded.serving.get("identity") === "live") {
         const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
         const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
-        await hookRunner.call("identity.ensure_space", { name, github: (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) !== null }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "identity.space_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+        await hookRunner.call("identity.ensure_space", { name, github: githubNow() !== null }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "identity.space_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       }
       if (loaded.serving.get("spaces") === "live") {
         const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");

@@ -218,7 +218,7 @@ Events:
 
 ### members
 
-Capabilities to implement: 17. Events to emit: 5. Contract tests that must go green: `generated/tests/members/`.
+Capabilities to implement: 20. Events to emit: 5. Contract tests that must go green: `generated/tests/members/`.
 
 Capabilities:
 - members.accept (write, grant only, level view)
@@ -231,6 +231,9 @@ Capabilities:
 - members.remove (write, members.remove, level view, gate delete)
 - members.remove_preview (read, members.remove, level view)
 - members.second_factor.report (read, policy.manage, level view)
+- members.sign_in_github.clear (write, policy.manage, level view, gate signin_change)
+- members.sign_in_github.get (read, policy.manage, level view)
+- members.sign_in_github.set (write, policy.manage, level view, gate signin_change)
 - members.sign_in_policy.get (read, policy.manage, level view)
 - members.sign_in_policy.set (write, policy.manage, level view)
 - members.sso.list (read, policy.manage, level view)

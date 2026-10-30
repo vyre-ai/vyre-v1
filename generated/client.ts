@@ -1330,6 +1330,11 @@ export function createClient(transport: Transport) {
       second_factor: {
         report: call("members.second_factor.report", 1),
       },
+      sign_in_github: {
+        clear: call("members.sign_in_github.clear", 1),
+        get: call("members.sign_in_github.get", 1),
+        set: call("members.sign_in_github.set", 1),
+      },
       sign_in_policy: {
         get: call("members.sign_in_policy.get", 1),
         set: call("members.sign_in_policy.set", 1),
