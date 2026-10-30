@@ -54,7 +54,9 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   const [draft, setDraft] = useState("");
   const [retried, setRetried] = useState(false);
   const sent = useRef(0);
-  const narrow = useWindowDimensions().width < 720;   // a phone has no room for the title beside a button
+  const winNarrow = useWindowDimensions().width < 720;   // a phone has no room for the title beside a button
+  const [boxW, setBoxW] = useState(0);
+  const narrow = winNarrow || (boxW > 0 && boxW < 560);   // so does the side pane: the title wraps to two lines instead of truncating
   const now = data.clock().now;
   useEffect(() => {
     if (!initialUndo) return;
@@ -154,7 +156,7 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   );
 
   return (
-    <View testID="run-chat" accessibilityLabel={`Run chat, ${runTitle(run)}`} style={s.frame}>
+    <View testID="run-chat" accessibilityLabel={`Run chat, ${runTitle(run)}`} style={s.frame} onLayout={(e) => setBoxW(e.nativeEvent.layout.width)}>
       {wide && narrow ? (
         <View style={s.ph}>
           <Tile size={30} />
