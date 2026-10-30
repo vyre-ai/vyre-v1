@@ -1471,6 +1471,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (supervisor.status("gateway")[0]?.phase !== "running") throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}`);
     await runProbes();
     reportNetwork();
+    // The boot checks (the scheduler's first pass) have committed events, and the consumers that react to them run after the commit. Finish that chain before the daemon reports itself started,
+    // so nothing writes in the first moments after /healthz answers: a caller that reads the head at once sees the head it will keep.
+    if (hasSpace) { await hooks?.pump(); await projections?.pump(); }
     // A relay is configured (--relay or VYRE_RELAY_URL): keep one outbound connection to it so a phone or another computer reaches this Space without a public address. The relay row in
     // network_endpoint follows the link, so network.endpoints lists it after the direct ones and reads it down when the link drops (P-L7b_16).
     if (hasSpace && db && cfg.relayUrl) {

@@ -119,7 +119,7 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
     assert.equal(ev.length, 1);
     assert.equal(ev[0]?.trace_id, traceId, "the event carries the call's trace id");
     assert.equal(ev[0]?.actor, "usr_olivia", "acting as the Space owner");
-    assert.equal(ev[0]?.seq, seedHead + 1);
+    assert.equal(ev[0]?.seq, seedHead + 1, `events after the head /healthz reported: ${(await d.log!.read({})).filter((e) => e.seq > seedHead).map((e) => `${e.seq} ${e.type}`).join(", ")}`);
     const t = d.sink.trace(traceId);
     assert.ok(t.spans.some((s) => s.name === "invoke"), "and so does its span in logs.db");
 
