@@ -42,7 +42,7 @@ test("inbox: New message is never a dead click: it opens an Ask chat with the as
   const { rt, opened } = runtime();
   inboxData(rt, () => undefined).nav.compose();
   assert.equal(opened.length, 1);
-  assert.deepEqual(opened[0], { screen: "chats.conversation", args: { with: "agt_assistant", about: "compose:email" } });
+  assert.deepEqual(opened[0], { screen: "chats.conversation", args: { with: "agt_assistant", about: "compose:email", draft: "Draft an email to " } });
 });
 
 test("inbox: opening a contact reaches the place, and the sidebar's other doors ask the shell", () => {
@@ -53,7 +53,7 @@ test("inbox: opening a contact reaches the place, and the sidebar's other doors 
   data.nav.openCall("call_1");
   data.nav.compose();
   assert.deepEqual(picked, ["elena"]);
-  assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }, { screen: "chats.conversation", args: { with: "agt_assistant", about: "compose:email" } }]);
+  assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }, { screen: "chats.conversation", args: { with: "agt_assistant", about: "compose:email", draft: "Draft an email to " } }]);
 });
 
 test("inbox: Match to a record opens the Unmatched screen in the Inbox body, not the contact list", () => {
