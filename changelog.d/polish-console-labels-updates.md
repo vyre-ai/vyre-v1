@@ -1,0 +1,1 @@
+- Console: the review sampling page names each sensitivity label next to its checkbox, and the Updates page says in words that a server not installed with vyre-server is updated outside Vyre, instead of "Couldn't load this page".
