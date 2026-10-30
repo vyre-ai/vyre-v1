@@ -14,10 +14,11 @@ export interface ClaimedSessionDeps<T extends ClaimedSession> {
 }
 
 /** Verify the claimed token against its authenticated Space before the shell can read it. */
-export function storeClaimedOwnerSession<T extends ClaimedSession>(claim: { baseUrl: string; token: string; spaceId: string }, deps: ClaimedSessionDeps<T>): Promise<StoredSession> {
+export function storeClaimedOwnerSession<T extends ClaimedSession>(claim: { baseUrl: string; token: string; spaceId: string; username?: string }, deps: ClaimedSessionDeps<T>): Promise<StoredSession> {
   return openVerifiedSession({
     baseUrl: claim.baseUrl,
     token: claim.token,
+    ...(claim.username ? { username: claim.username } : {}),
     continuity: { id: claim.spaceId },
     open: deps.open,
     getSpace: deps.getSpace,

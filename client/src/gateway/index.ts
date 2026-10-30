@@ -71,6 +71,14 @@ function errorOf(status: number, body: unknown, trace: string | null): CapError 
   return new CapError({ code, message, traceId, status, ...(details ? { details } : {}) });
 }
 
+/** A 401 that says the person's Mine vault key is locked on this computer is about the vault, not the session: the person stays signed in and the Vault asks for the password. */
+export function vaultLocked(body: unknown): boolean {
+  const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
+  if (!e) return false;
+  const d = isObj(e["details"]) ? e["details"] : null;
+  return d?.["reason"] === "vault_locked" || (typeof e["message"] === "string" && /vault key is locked/i.test(e["message"]));
+}
+
 export function createCapCaller(o: CapCallerOptions): CapCall {
   const base = o.baseUrl.replace(/\/+$/, "");
   const doFetch = o.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
@@ -96,7 +104,7 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
     });
     let body: unknown = null;
     try { body = await res.json(); } catch { /* an empty or non-JSON answer: the status decides */ }
-    if (res.status === 401 && token) o.onUnauthenticated?.();
+    if (res.status === 401 && token && !vaultLocked(body)) o.onUnauthenticated?.();
     if (res.status >= 400 || (isObj(body) && body["error"] !== undefined)) throw errorOf(res.status, body, res.headers.get("x-vyre-trace"));
     return isObj(body) ? body["data"] : undefined;
   };

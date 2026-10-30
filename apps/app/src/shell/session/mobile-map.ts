@@ -1,5 +1,5 @@
 // How the phone's screens (mobile/shell: five tabs and one history) map onto the places and the tab hash. A tab's first screen is the place itself; a screen opened on top is
-// "<type>:<id>" and the place gets that subject as its hash. Settings, My work and Starred hang off You.
+// "<type>:<id>" and the place gets that subject as its hash. Settings, My work, Starred, Apps and the Vault hang off You.
 import { formatHash, parseHash, placeForSubject } from "../hash/hash.ts";
 import type { Entry, TabId } from "../../mobile/shell/model.ts";
 import type { PlaceId } from "../rail/kits.ts";
@@ -17,6 +17,7 @@ export function tabOf(place: PlaceId): TabId {
 export function entryFor(place: PlaceId, hash: string): Entry | null {
   if (place === "automations" || place === "console") return null;
   if (place === "apps") return { tab: "you", screen: `apps:${encodeURIComponent(hash)}`, title: "Apps" };
+  if (place === "vault") return { tab: "you", screen: `vault:${encodeURIComponent(hash)}`, title: "Vault" };
   const t = parseHash(hash);
   if (t.screen === "tasks.page" && t.args.taskId) return { tab: "you", screen: `task:${t.args.taskId}` };
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
@@ -31,8 +32,8 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   const i = e.screen.indexOf(":");
   const kind = i < 0 ? e.screen : e.screen.slice(0, i);
   if (i < 0) return (TAB_PLACES as readonly string[]).includes(kind) ? { place: kind as PlaceId, hash: "" } : null;
-  if (kind === "apps") {
-    try { return { place: "apps", hash: decodeURIComponent(e.screen.slice(i + 1)) }; } catch { return null; }
+  if (kind === "apps" || kind === "vault") {
+    try { return { place: kind, hash: decodeURIComponent(e.screen.slice(i + 1)) }; } catch { return null; }
   }
   if (kind === "you") {
     const what = e.screen.slice(i + 1);

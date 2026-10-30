@@ -197,7 +197,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const people = participants(t, (id) => (id.startsWith("usr_") ? "person" : "agent"));
   const peopleMenu = (x: number, y: number): void => {
     const who: MenuEntry[] = [];
-    for (const p of people) who.push({ label: `${data.nameOf(p.id)}, ${p.role}`, onSelect: () => undefined });
+    for (const p of people) who.push({ label: p.kind === "person" ? data.nameOf(p.id) : `${data.nameOf(p.id)}, ${p.role}`, onSelect: () => undefined });
     showMenu(who, x, y);
   };
   const blockNodes: ReactElement[] = [];

@@ -8,6 +8,7 @@ import { usePlaceHash } from "../hash/context.tsx";
 import type { HashTarget } from "../hash/hash.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import { openAsk } from "./ask.ts";
+import { attemptKey } from "./files-review.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function vaultRoute(target: HashTarget): VaultRoute {
@@ -38,9 +39,20 @@ export function desktopBrowsers(invoke: Invoke | undefined = shellInvoke()): Vau
   };
 }
 
+/** The Vault calls whose contract asks for an idempotencyKey. The place's own sheets do not write one, so the shell mints one per attempt when it is missing (the daemon refuses the call without it: "/idempotencyKey: required"). */
+export const NEEDS_KEY: ReadonlySet<string> = new Set(["vault.export_env", "vault.folders.create", "vault.import", "vault.item.put", "vault.items.export_mine", "vault.request", "vault.share", "providers.add", "providers.custom_add", "providers.subscription_start"]);
+
+export function withKeys(call: ShellRuntime["call"]): ShellRuntime["call"] {
+  return ((cap: string, input?: unknown, opts?: unknown) => {
+    const plain = input !== null && typeof input === "object" && !Array.isArray(input);
+    const keyed = NEEDS_KEY.has(cap) && plain && (input as Record<string, unknown>)["idempotencyKey"] === undefined ? { ...(input as Record<string, unknown>), idempotencyKey: attemptKey() } : input;
+    return (call as (c: string, i?: unknown, o?: unknown) => Promise<unknown>)(cap, keyed, opts);
+  }) as ShellRuntime["call"];
+}
+
 export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined = desktopBrowsers()): VaultData {
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name,
+    screens: rt.screens, call: withKeys(rt.call), connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name, ...(rt.space.kind === "personal" ? { personal: true } : {}),
     nav: {
       openShare: (itemId) => rt.open({ screen: "vault.layout", args: { share: itemId } }),
       openExport: (folderId) => rt.open({ screen: "vault.export", args: { folderId } }),

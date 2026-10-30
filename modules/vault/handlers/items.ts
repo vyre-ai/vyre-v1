@@ -35,7 +35,7 @@ async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
   const theirs = (ctx.principal.id === owner && ctx.principal.kind === "person") || ctx.actingFor === owner;
   if (!theirs) return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
   const key = await currentKeyPort()?.personKey(owner);
-  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to open your Mine items." });
+  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to open your Mine items.", details: { reason: "vault_locked" } });
   return wrapKeyFromPersonKey(key);
 }
 

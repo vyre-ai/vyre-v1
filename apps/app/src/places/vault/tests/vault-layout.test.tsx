@@ -246,3 +246,12 @@ test("copy and design rules: no em dash, no emoji, every control labelled", () =
   for (const label of ["Add an item", "More", "Edit"]) assert.ok(has(out, `aria-label="${label}"`), `${label} is labelled`);
   assert.ok(has(out, 'role="menu"') || has(out, "Vault sections"), "the sidebar is a labelled menu");
 });
+
+test("a Personal Space has no Shared section and no sharing: sharing has no meaning with one person", () => {
+  const v = createSampleVault(northwind);
+  const team = html(v);
+  assert.ok(has(team, 'data-testid="vault-folders"') && has(team, ">Shared<"), "a team Space shows the Shared section");
+  const solo = clean(renderToStaticMarkup(<Vault data={{ ...v.data, personal: true }} />));
+  assert.ok(!has(solo, 'data-testid="vault-folders"') && !has(solo, ">Shared<") && !has(solo, "New shared folder"), "a Personal Space draws no Shared section");
+  assert.ok(has(solo, ">Mine<"), "Mine stays");
+});

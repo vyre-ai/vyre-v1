@@ -152,7 +152,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
     let token: string | null = null;
     let keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } | undefined;
     const result = await signInAndVerify({
-      baseUrl,
+      baseUrl, username: v.username.trim().toLowerCase(),
       discover: async () => options ?? (await anonymous("identity.sign_in_options", {}) as SignInOptions),
       signIn: async () => {
         const out = (await anonymous("identity.sign_in", {

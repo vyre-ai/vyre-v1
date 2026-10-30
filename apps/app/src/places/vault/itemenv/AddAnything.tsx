@@ -82,7 +82,10 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   const data = useVaultData();
   const folders = useScreenQuery<FoldersOut>(LAYOUT_SCREEN, "folders", {});
   const menu = useMenu();
-  const list: Folder[] = folders.status === "ready" ? folders.data.folders.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage") : [];
+  const [made, setMade] = useState<Folder[]>([]);
+  const [creating, setCreating] = useState<{ name: string; busy: boolean; error?: string } | null>(null);
+  const known: Folder[] = folders.status === "ready" ? folders.data.folders.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage") : [];
+  const list: Folder[] = [...known, ...made.filter((m) => !known.some((k) => k.id === m.id))];
   const [folderId, setFolderId] = useState<string | undefined>(lastFolderId);
   const [search, setSearch] = useState("");
   const [searchFocus, setSearchFocus] = useState(false);
@@ -97,6 +100,24 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // A new person has no Mine folder yet: make it as the sheet opens, so Add works at once and nobody meets an empty folder list.
+  const noMine = folders.status === "ready" && !folders.data.folders.some((f) => f.scope === "mine") && !made.some((f) => f.scope === "mine");
+  const makingMine = useRef(false);
+  useEffect(() => {
+    if (!noMine || makingMine.current) return;
+    makingMine.current = true;
+    data.call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: "vault-mine-default" }).then((out) => { setMade((cur) => [...cur, (out as { folder: Folder }).folder]); }, (e: unknown) => { makingMine.current = false; setError(reasonOf(e, "Could not make your Mine folder. Try again.")); });
+  }, [noMine]); // eslint-disable-line react-hooks/exhaustive-deps
+  const createFolder = (): void => {
+    if (creating === null || creating.busy) return;
+    const name = creating.name.trim();
+    if (name === "") { setCreating({ ...creating, error: "Give the folder a name." }); return; }
+    setCreating({ name, busy: true });
+    data.call("vault.folders.create", { name, scope: "mine", idempotencyKey: `vault-folder-${name}-${Date.now()}` }).then((out) => {
+      const f = (out as { folder: Folder }).folder;
+      setMade((cur) => [...cur, f]); setFolderId(f.id); setCreating(null);
+    }, (e: unknown) => setCreating({ name, busy: false, error: reasonOf(e, "Could not make that folder.") }));
+  };
   const target = folderId && list.some((f) => f.id === folderId) ? folderId : (list.find((f) => f.scope === "mine") ?? list[0])?.id;
   const folder = list.find((f) => f.id === target);
   const reel = useMemo(() => filterTemplates(search), [search]);
@@ -158,13 +179,13 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
       const out = (await data.call("vault.item.put", { folderId: target, name: name.trim(), kind, fields: plainFields(filled), ...(templateById(template) && template !== "custom" ? { template } : {}) })) as { item: { id: string; name: string } };
       onAdded(out.item.id, out.item.name, target);
     } catch (e) {
-      setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : "Could not save. Nothing was lost; try again.");
+      setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : reasonOf(e, "Could not save. Nothing was lost; try again."));
       setSaving(false);
     }
   };
 
   const folderMenu = (x: number, y: number): void => {
-    menu.show(folderEntries(list, target, setFolderId), x, y, "other");
+    menu.show([...folderEntries(list, target, setFolderId), { separator: true }, { label: "New folder…", onSelect: () => setCreating({ name: "", busy: false }) }], x, y, "other");
   };
 
   const reelTiles: ReactElement[] = [];
@@ -235,9 +256,23 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
           </View>
         </>
       ) : null}
+      {creating ? (
+        <View style={s.rowLine} testID="add-new-folder">
+          <TextInput value={creating.name} onChangeText={(v) => setCreating({ name: v, busy: false })} placeholder="Folder name" accessibilityLabel="Folder name" autoFocus onSubmitEditing={createFolder} style={[s.input, { flex: 1, minWidth: 0 }]} testID="add-new-folder-name" />
+          <Btn label={creating.busy ? "Making" : "Make folder"} onPress={createFolder} testID="add-new-folder-make" />
+          <Btn label="Cancel" onPress={() => setCreating(null)} testID="add-new-folder-cancel" />
+        </View>
+      ) : null}
+      {creating?.error ? <Text style={s.error} accessibilityRole="alert" testID="add-new-folder-error">{creating.error}</Text> : null}
       {error ? <Text style={s.error} accessibilityRole="alert" testID="add-error">{error}</Text> : null}
     </Sheet>
   );
+}
+
+/** The reason a call was refused, in the daemon's own words, or the fallback. */
+function reasonOf(e: unknown, fallback: string): string {
+  const x = e as { error?: { message?: string }; message?: string };
+  return x?.error?.message ?? (x?.message ? x.message : fallback);
 }
 
 function rectOf(e: unknown): { x: number; y: number } {

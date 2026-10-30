@@ -262,7 +262,7 @@ function ConversationView(): ReactElement {
   const peopleMenu = (x: number, y: number): void => {
     const list = participants(thread, nameOf);
     menu.show(
-      [{ head: `${list.length} in this thread` } as MenuEntry, ...collect(list, (p): MenuEntry => ({ label: `${p.name} · ${p.role}`, onSelect: () => { if (p.kind === "agent") data.nav.openAgent(p.id); } }))],
+      [{ head: `${list.length} in this thread` } as MenuEntry, ...collect(list, (p): MenuEntry => ({ label: p.kind === "person" ? p.name : `${p.name} · ${p.role}`, onSelect: () => { if (p.kind === "agent") data.nav.openAgent(p.id); } }))],
       x, y, "other", { label: "People in this thread" },
     );
   };

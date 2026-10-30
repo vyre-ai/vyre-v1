@@ -12,6 +12,9 @@ import type { PlaceId } from "../rail/kits.ts";
 import type { SpaceDef } from "../spaces/model.ts";
 import { CapError, createCapCaller } from "./caps.ts";
 import type { CapCall, RouteRow } from "./caps.ts";
+import { withVaultGate } from "./vault-gate.ts";
+import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
+import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
 import { createTurnStreams } from "./turn-streams.ts";
@@ -25,6 +28,8 @@ import type { RemoteHooks } from "./remote-hooks.ts";
 import { speed } from "../../speed/recorder.ts";
 
 export interface OpenSessionOptions {
+  /** The sign-in name this device typed, when it did. */
+  username?: string;
   /** The Space's address, e.g. https://northwind.vyre.run. */
   baseUrl: string;
   token: string;
@@ -144,7 +149,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   ]);
   const space = spaceOut.space;
   const deferred = createDeferred(who.deferred, (who as typeof who & {deferredModules?:readonly string[]}).deferredModules);
-  const me: Principal = { id: who.principal.id, name: who.name, kind: "person" };
+  const me: Principal = { id: who.principal.id, name: who.name, kind: "person", ...(o.username ? { username: o.username } : {}) };
 
   // A 401 means signed out (once, to sign-in): it is never a failure state a screen reacts to by asking again.
   const hooks = createRemoteScreenHooks({ screens, read: (cap, input) => reach(cap, input), ignoreError: (e) => e instanceof CapError && e.status === 401 });
@@ -153,11 +158,23 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     if (closed || refreshTimer !== null) return;
     refreshTimer = setTimeout(() => { refreshTimer = null; if (!closed) hooks.invalidate(); }, 120);
   };
-  const call: CapCall = async (cap, input, opts) => {
+  const unlockVault = async (password: string): Promise<void> => {
+    const got = (await reach("identity.keys_get", {})) as { keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } };
+    const { openBundle, wipe } = await loadCryptoKeys();
+    let opened: Awaited<ReturnType<typeof openBundle>>;
+    try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error("That password does not open your vault."); }
+    try {
+      if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", opened.personKey))) throw new Error("Your Mine vault opens on the computer your Space runs on, not from here.");
+    } finally { wipe(opened.personKey); wipe(opened.privateKey); }
+  };
+
+  const once: CapCall = async (cap, input, opts) => {
     const r = await reach(cap, input, opts);
     refresh();
     return r;
   };
+  // a locked vault key asks for the password in place (one prompt for every call that meets it) and tries again; it never ends the session
+  const call: CapCall = withVaultGate(once, unlockVault);
 
   const purgeListeners = new Set<(epoch: number) => void>();
   let live: LiveStatus = "offline";
@@ -270,6 +287,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       const r = await send(new URL(path, o.baseUrl).toString(), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes as unknown as BodyInit });
       if (!r.ok) throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
     },
+    unlockVault,
     connection: {
       get: () => (reachable && !(everLive && live === "offline") ? "online" : "offline"),
       subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },

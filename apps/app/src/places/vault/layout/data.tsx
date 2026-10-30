@@ -48,6 +48,8 @@ export interface VaultData {
   me: Principal;
   /** The Space's name, for handles like #Northwind_GoHighLevel. */
   spaceName: string;
+  /** A Personal Space: sharing has no meaning here, so the Share action, the Shared section and the sharing lists are not drawn. */
+  personal?: boolean;
   nav: VaultNav;
   clock(): { now: number };
   /** Copies text to the clipboard. The shell may route this through the system pasteboard. */

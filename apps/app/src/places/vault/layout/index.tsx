@@ -153,7 +153,10 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
     return () => doc.removeEventListener("keydown", onKey);
   }, [overlay, moveSelection, effectiveId, query, detailOpen, twoPane]);
 
-  const createFolder = useCallback(async (name: string) => { await data.call("vault.folders.create", { name, scope: "shared" }); showNote(`Made the folder ${name}`); }, [data, showNote]);
+  const createFolder = useCallback(async (name: string) => {
+    try { await data.call("vault.folders.create", { name, scope: "shared", idempotencyKey: `vault-folder-${name}-${Date.now()}` }); showNote(`Made the folder ${name}`); }
+    catch (e) { const x = e as { error?: { message?: string }; message?: string }; showNote(x?.error?.message ?? x?.message ?? `Could not make the folder ${name}.`); }
+  }, [data, showNote]);
 
   const sectionEntries = (): MenuEntry[] => {
     const entry = (s: Selection, label: string, n?: number): MenuEntry => ({ label: n === undefined ? label : `${label}  ${n}`, checked: sameSelection(s, selection), onSelect: () => select(s) });
@@ -252,7 +255,7 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
-      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared /> : null}
+      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared hideShared={data.personal === true} /> : null}
       {routed ?? <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>}
       {route.surface === "export" ? <ExportSheet folderId={route.folderId} folderName={folderList.find((f) => f.id === route.folderId)?.name ?? "folder"} onClose={onRouteClose} /> : null}
       {adding ? (
