@@ -203,9 +203,9 @@ test("microsoft: refusals and a handle supplied by the module's own lookup", asy
   await assert.rejects(createMsHost(wrong.deps).mintToken(wrong.ctx, { connectionId: "c" }), code("validation.bad_input"));
 });
 
-test("microsoft: appIdentity shows the client and tenant, never the secret", async () => {
+test("microsoft: appRegistration shows the client and tenant, never the secret", async () => {
   const w = world({ secret: MSAPP });
-  const id = await createMsHost(w.deps).appIdentity(w.ctx, "#Microsoft_App");
+  const id = await createMsHost(w.deps).appRegistration(w.ctx, "#Microsoft_App");
   assert.deepEqual(id, { clientId: "app-1", tenantId: "contoso.onmicrosoft.com" });
   assert.ok(!JSON.stringify(id).includes("s3cr3t"));
 });
@@ -216,6 +216,20 @@ test("microsoft: downloads are limited to Microsoft hosts", async () => {
   await assert.rejects(h.download(w.ctx, { url: "https://www.googleapis.com/x", token: "t" }), code("permission.no_grant"));
   const got = await h.download(w.ctx, { url: "https://graph.microsoft.com/v1.0/me/drive/items/1/content", token: "t" });
   assert.equal(got.size, 3);
+});
+
+test("microsoft: upload PUTs the Space file's bytes as the body, to a Microsoft host only, and returns Graph's answer", async () => {
+  const w = world({ replies: [{ status: 201, body: '{"id":"item1","name":"a.txt"}' }, { status: 403 }] });
+  const h = createMsHost(w.deps);
+  await assert.rejects(h.upload(w.ctx, { url: "https://www.googleapis.com/x", token: "t", fileId: "f" }), code("permission.no_grant"));
+  const out = await h.upload(w.ctx, { url: "https://graph.microsoft.com/v1.0/me/drive/root:/a.txt:/content", token: "tok", fileId: "fil_9" });
+  assert.deepEqual(out, { id: "item1", name: "a.txt" });
+  const req = w.sent[0]!;
+  assert.equal(req.method, "PUT");
+  assert.equal(req.headers["authorization"], "Bearer tok");
+  assert.equal(req.headers["content-type"], "text/plain");
+  assert.equal(dec.decode(req.body as Uint8Array), "file body");
+  await assert.rejects(h.upload(w.ctx, { url: "https://graph.microsoft.com/v1.0/me/drive/root:/a.txt:/content", token: "tok", fileId: "fil_9" }), code("provider.auth_failed"));
 });
 
 // ---- IMAP
