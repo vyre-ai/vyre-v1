@@ -13,9 +13,10 @@ export function tabOf(place: PlaceId): TabId {
   return (TAB_PLACES as readonly string[]).includes(place) ? (place as TabId) : "you";
 }
 
-/** The phone screen for a place and hash. Null for a place the phone does not have (Automations, Console). */
+/** The phone screen for a place and hash. Null for a place the phone does not have (Console). */
 export function entryFor(place: PlaceId, hash: string): Entry | null {
-  if (place === "automations" || place === "console") return null;
+  if (place === "console") return null;
+  if (place === "automations" && (parseHash(hash).subject === undefined)) return { tab: "you", screen: `automations:${encodeURIComponent(hash)}`, title: "Automations" };
   if (place === "apps") return { tab: "you", screen: `apps:${encodeURIComponent(hash)}`, title: "Apps" };
   const t = parseHash(hash);
   if (t.screen === "tasks.page" && t.args.taskId) return { tab: "you", screen: `task:${t.args.taskId}` };
@@ -31,8 +32,8 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   const i = e.screen.indexOf(":");
   const kind = i < 0 ? e.screen : e.screen.slice(0, i);
   if (i < 0) return (TAB_PLACES as readonly string[]).includes(kind) ? { place: kind as PlaceId, hash: "" } : null;
-  if (kind === "apps") {
-    try { return { place: "apps", hash: decodeURIComponent(e.screen.slice(i + 1)) }; } catch { return null; }
+  if (kind === "apps" || kind === "automations") {
+    try { return { place: kind, hash: decodeURIComponent(e.screen.slice(i + 1)) }; } catch { return null; }
   }
   if (kind === "you") {
     const what = e.screen.slice(i + 1);

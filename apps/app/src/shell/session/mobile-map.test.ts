@@ -7,7 +7,8 @@ test("phone: a tab's place is its first screen, an opened item is <type>:<id> un
   assert.deepEqual(entryFor("chats", "subject=thread%3Athr_1"), { tab: "chats", screen: "thread:thr_1" });
   assert.deepEqual(entryFor("records", "subject=record%3Arec_1"), { tab: "records", screen: "record:rec_1" });
   assert.equal(entryFor("settings", "")?.tab, "you");
-  assert.equal(entryFor("automations", ""), null);
+  assert.deepEqual(placeOf(entryFor("automations", "")!), { place: "automations", hash: "" }, "Automations hangs off You on a phone");
+  assert.equal(entryFor("console", ""), null);
   assert.equal(entryFor("console", ""), null);
 });
 
