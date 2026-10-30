@@ -105,6 +105,10 @@ const WORD = /[^\p{L}\p{N}]+/u;
 const wordsOf = (s: string): string[] => [...new Set(s.toLowerCase().split(WORD).filter((w) => w.length >= 2))].slice(0, 12);
 const esc = (w: string): string => w.replace(/[\\%_]/g, (c) => `\\${c}`);
 const SCAN = 4000;
+/** Messages scored for meaning in one search (the ranker takes at most 200), and the least score that counts as the same meaning. */
+const MEANING_POOL = 200;
+const MEANING_RECENT = 200;
+const MEANING_MIN = 0.35;
 const SNIPPET = 180;
 
 /** About 180 characters around the first word found, cut at word edges. */
@@ -161,6 +165,33 @@ export async function search(ctx: ChatCtx, input: { q: string; mode?: "keyword" 
     }
   }
   let usedMeaning = false;
+  if (mode !== "keyword" && meaning === null && readable.length > 0 && ctx.call) {
+    // meaning from the memory module's ranker: nothing is stored there, the words of messages this person may read are scored against the question and dropped
+    try {
+      const chunk = readable.slice(0, 500);
+      const recent = (ctx.db.all(
+        `SELECT * FROM chat_message WHERE deleted_at IS NULL AND kind IN ('text', 'agent') AND body <> '' AND thread IN (${chunk.map(() => "?").join(",")}) ORDER BY createdAt DESC LIMIT ?`, ...chunk, MEANING_RECENT,
+      ) as Row[]).map(messageOf);
+      const pool = new Map<string, MessageRec>();
+      for (const f of found.values()) if (pool.size < MEANING_POOL / 2) pool.set(f.m.id, f.m);
+      for (const m of recent) if (pool.size < MEANING_POOL && m.body.trim() !== "") pool.set(m.id, m);
+      const list = [...pool.values()];
+      if (list.length > 0) {
+        const out = (await ctx.call("memory.meaning.rank", { query, candidates: list.map((m) => ({ id: m.id, text: m.body.slice(0, 1000) })) })) as { scores?: Array<{ id: string; score: number }> } | null;
+        const scores = out?.scores ?? [];
+        if (scores.length > 0) {
+          usedMeaning = true;
+          for (const sc of scores) {
+            const m = pool.get(sc.id);
+            if (!m || !scope.has(m.thread) || !(sc.score >= MEANING_MIN)) continue;   // the ranker never widens what this person may read
+            take(m).meaning = Math.min(1, sc.score);
+          }
+        }
+      }
+    } catch (e) {
+      ctx.log.warn("chat.search: the meaning ranker is not available, answering on the words alone", { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   if (mode !== "keyword" && meaning !== null && readable.length > 0) {
     try {
       const near = await meaning({ query, threadIds: readable, limit: limit * 3 });
