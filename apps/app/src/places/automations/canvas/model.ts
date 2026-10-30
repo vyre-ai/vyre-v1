@@ -2,6 +2,8 @@
 // Everything here is data in, data out: the layout of a definition into cards and connectors, the lane a run took, the edits a person makes (add, remove, move, rename),
 // and the local check that mirrors `automations.validate`, so errors show inline while someone builds, before the server answers.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { messageSummary } from "../builder/compose.ts";
+import { LOOP_CHILD, PARALLEL_JOIN, parallelLaneMark } from "../chrome.ts";
 
 export type Automation = CapMap["automations.get"]["out"]["automation"];
 export type Definition = Automation["definition"];
@@ -17,7 +19,7 @@ export type IconKey =
   | "bolt" | "clock" | "hook" | "inbox" | "mail" | "chat" | "sheet" | "ci" | "meeting" | "stage" | "reply" | "button" | "hand" | "record"
   | "search" | "plus" | "edit" | "task" | "send" | "phone" | "ai" | "journey" | "hourglass" | "branch" | "parallel" | "loop" | "stop" | "shield" | "sign" | "code";
 
-/** The step palette as the canvas groups it. Titles match the manifest steps-core catalogue. */
+/** Glyphs and fallback titles for cards already on the canvas. The add menu loads automations.steps.list. This list is not the product catalog. */
 export const STEP_PALETTE: readonly { key: string; title: string; group: string; icon: IconKey }[] = [
   { key: "records.find", title: "Find records", group: "Data", icon: "search" },
   { key: "records.create", title: "Create a record", group: "Data", icon: "plus" },
@@ -33,12 +35,17 @@ export const STEP_PALETTE: readonly { key: string; title: string; group: string;
   { key: "loop", title: "Loop", group: "Flow", icon: "loop" },
   { key: "wait", title: "Wait", group: "Flow", icon: "hourglass" },
   { key: "stop", title: "Stop", group: "Flow", icon: "stop" },
+  { key: "transform", title: "Transform", group: "Flow", icon: "edit" },
+  { key: "collect", title: "Collect", group: "Flow", icon: "loop" },
+  { key: "group_by", title: "Group by", group: "Flow", icon: "branch" },
+  { key: "call_automation", title: "Run another automation", group: "Flow", icon: "journey" },
   { key: "start_journey", title: "Start a Journey", group: "Journeys", icon: "journey" },
   { key: "wait_stage", title: "Wait for a Journey stage", group: "Journeys", icon: "hourglass" },
   { key: "sheet.add_rows", title: "Add rows", group: "Spreadsheets", icon: "sheet" },
   { key: "sheet.find_rows", title: "Find rows", group: "Spreadsheets", icon: "search" },
   { key: "sheet.update_rows", title: "Update rows", group: "Spreadsheets", icon: "edit" },
   { key: "sign", title: "Send for signature", group: "Documents", icon: "sign" },
+  { key: "connector_request", title: "Authenticated request", group: "Data", icon: "hook" },
   { key: "code", title: "Run code", group: "Advanced", icon: "code" },
 ];
 
@@ -71,16 +78,60 @@ export function kindOfKey(key: string): StepKind {
   }
 }
 
+const PRODUCT_TITLES: Readonly<Record<string, string>> = {
+  "google.gmail.list_messages": "Google · List Gmail messages",
+  "google.gmail.send_message": "Google · Send a Gmail message",
+  "google.calendar.list_events": "Google · List calendar events",
+  "google.calendar.create_event": "Google · Create a calendar event",
+  "google.drive.list_files": "Google · List Drive files",
+  "google.drive.create_folder": "Google · Create a Drive folder",
+  "google.sheets.get_values": "Google · Read sheet cells",
+  "google.sheets.append_values": "Google · Append sheet rows",
+  "google.docs.create_document": "Google · Create a document",
+  "ms.mail.list_messages": "Microsoft · List Outlook messages",
+  "ms.mail.send_message": "Microsoft · Send an Outlook message",
+  "ms.calendar.list_events": "Microsoft · List calendar events",
+  "ms.calendar.create_event": "Microsoft · Create a calendar event",
+  "ms.drive.list_items": "Microsoft · List OneDrive or SharePoint items",
+  "ms.drive.create_folder": "Microsoft · Create a OneDrive or SharePoint folder",
+  "calendar.list_events": "Calendar · List events",
+  "calendar.create_event": "Calendar · Create an event",
+  "files.list": "Files · List files",
+  "files.get": "Files · Read file details",
+  "files.create": "Files · Create a file",
+  "files.move": "Files · Move a file",
+  "files.copy": "Files · Copy a file",
+  "files.share": "Files · Share a file",
+  "github.repos.list": "GitHub · List repositories",
+  "github.pull_request.get": "GitHub · Read a pull request",
+  "github.issue.create": "GitHub · Open an issue",
+  "github.issue.comment": "GitHub · Comment on an issue",
+  "github.issue.assign_agent": "GitHub · Assign an issue to an agent",
+  "forms.list": "Forms · List forms",
+  "forms.create": "Forms · Create a form",
+  "forms.publish": "Forms · Publish a form",
+  "records.relate": "Link records",
+};
+
 export function iconOfKey(key: string): IconKey {
   const hit = STEP_PALETTE.find((p) => p.key === key);
   if (hit) return hit.icon;
   if (key.startsWith("records.")) return "record";
-  if (key.startsWith("sheet.")) return "sheet";
+  if (key.startsWith("sheet.") || key.startsWith("files.") || key.startsWith("google.drive") || key.startsWith("google.sheets") || key.startsWith("google.docs") || key.startsWith("ms.drive")) return "sheet";
+  if (key.startsWith("google.gmail") || key.startsWith("ms.mail")) return "mail";
+  if (key.startsWith("calendar.") || key.includes(".calendar.")) return "hourglass";
+  if (key.startsWith("github.")) return "code";
+  if (key.startsWith("forms.")) return "edit";
   return "record";
 }
 
 export function titleOfKey(key: string): string {
-  return STEP_PALETTE.find((p) => p.key === key)?.title ?? key.replace(/[._]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+  return STEP_PALETTE.find((p) => p.key === key)?.title ?? PRODUCT_TITLES[key] ?? key.replace(/[._]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+/** Step group for the inspector subtitle. Unknown keys stay "Step". */
+export function groupOfKey(key: string): string {
+  return STEP_PALETTE.find((p) => p.key === key)?.group ?? "Step";
 }
 
 export function triggerMeta(key: string, config?: Record<string, unknown>): { title: string; icon: IconKey } {
@@ -141,6 +192,15 @@ export const TRIG_ROW = 54;
 const CHIP_H = 22;
 
 export type RunState = "done" | "failed" | "waiting" | "running" | "skipped" | "pending";
+export type StatusChip = "error" | "waiting" | "tested";
+
+/** A chip only for a real error, a waiting run, or a stored test sample. Never a live stamp. */
+export function stepStatusChip(id: string, issues: readonly { severity: string }[], state: RunState | undefined, tested: ReadonlySet<string> | undefined): StatusChip | null {
+  if (issues.some((issue) => issue.severity === "error") || state === "failed") return "error";
+  if (state === "waiting") return "waiting";
+  if (tested?.has(id)) return "tested";
+  return null;
+}
 
 export interface CardNode {
   id: string;
@@ -156,9 +216,10 @@ export interface CardNode {
   sub: string;
   issues: Issue[];
   state?: RunState;
+  chip?: StatusChip;
 }
 export interface Seg { x1: number; y1: number; x2: number; y2: number; lit?: boolean }
-export interface Chip { x: number; y: number; text: string; mono?: boolean; kind: "if" | "otherwise" | "each" | "lane"; lit?: boolean }
+export interface Chip { x: number; y: number; text: string; mono?: boolean; kind: "if" | "otherwise" | "each" | "lane" | "join"; lit?: boolean }
 export interface Frame { x: number; y: number; w: number; h: number; label: string }
 export interface Layout { cards: CardNode[]; segs: Seg[]; chips: Chip[]; frames: Frame[]; width: number; height: number; order: string[] }
 
@@ -170,6 +231,8 @@ export function triggerCardHeight(count: number): number {
 export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } = {}): string {
   const k = kindOfKey(n.key);
   const inp = n.input ?? {};
+  const composed = messageSummary(n.key, inp);
+  if (composed) return composed;
   if (typeof inp["summary"] === "string" && k === "plain") return inp["summary"];
   const str = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
   if (k === "paths") {
@@ -178,10 +241,16 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
     return `${c} ${c === 1 ? "path" : "paths"}${other ? " and Otherwise" : ""}, first match wins`;
   }
   if (k === "parallel") return `${n.branches?.length ?? 0} lanes at the same time, ${inp["waitFor"] === "any" ? "carry on when one finishes" : "carry on when all finish"}`;
-  if (k === "loop") return `For each item in ${str(inp["items"]) || "a list"}${inp["maxIterations"] !== undefined ? `, up to ${str(inp["maxIterations"])}` : ""}`;
+  if (k === "loop") return `For each item in ${str(inp["items"]) || "a list"}${inp["maxIterations"] !== undefined ? `, up to ${str(inp["maxIterations"])}` : ""}. ${LOOP_CHILD}`;
   if (k === "stop") return str(inp["message"]) || (inp["outcome"] === "failed" ? "The run ends as failed" : "The run ends here");
   if (k === "approval") return `${str(inp["summary"]) || "Waits for a yes"}${inp["timeout"] ? `, up to ${str(inp["timeout"])}` : ""}`;
   if (k === "wait") return str(inp["note"]) || (inp["event"] ? "Waits for an event" : inp["forDuration"] ? `Waits ${str(inp["forDuration"])}` : inp["until"] ? `Waits until ${str(inp["until"])}` : "Waits");
+  if (n.key === "connector_request") {
+    const connector = str(inp["connector"]);
+    const action = str(inp["action"]);
+    if (!connector && !action) return "Name a connector action. The step does not take a secret.";
+    return `${connector || "Connector"} · ${action || "choose an action"}`;
+  }
   if (k === "ai") {
     const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? n.ai.keyId) : "";
     const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? n.ai.backupKeyId) : "";
@@ -202,7 +271,7 @@ export function cardTitle(n: DefNode): string {
   return n.title && n.title.trim() ? n.title : titleOfKey(n.key);
 }
 
-export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?: Readonly<Record<string, RunState>>; keyName?: (id: string) => string } = {}): Layout {
+export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?: Readonly<Record<string, RunState>>; keyName?: (id: string) => string; tested?: ReadonlySet<string> } = {}): Layout {
   const by = new Map(def.nodes.map((n) => [n.id, n] as const));
   const issues = opts.issues ?? [];
   const issuesFor = (id: string): Issue[] => issues.filter((i) => i.nodeId === id);
@@ -256,6 +325,8 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
     };
     const st = stateOf(n.id);
     if (st) card.state = st;
+    const chip = stepStatusChip(n.id, card.issues, st, opts.tested);
+    if (chip) card.chip = chip;
     cards.push(card);
     order.push(n.id);
     placed.add(n.id);
@@ -297,7 +368,7 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
           const isOther = b.when === undefined;
           const litB = (stateOf(b.to) ?? "pending") !== "pending" && (stateOf(b.to) ?? "") !== "skipped";
           chips.push({
-            x: lcx, y: chipY, text: kindOfKey(n.key) === "parallel" ? b.label : isOther ? "Otherwise" : `If ${b.when}`, mono: !isOther && kindOfKey(n.key) !== "parallel",
+            x: lcx, y: chipY, text: kindOfKey(n.key) === "parallel" ? parallelLaneMark(b.label) : isOther ? "Otherwise" : `If ${b.when}`, mono: !isOther && kindOfKey(n.key) !== "parallel",
             kind: kindOfKey(n.key) === "parallel" ? "lane" : isOther ? "otherwise" : "if", lit: litB,
           });
           segs.push({ x1: lcx, y1: barY, x2: lcx, y2: chipY, lit: litB });
@@ -319,6 +390,7 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
           const open = ends2.filter((e) => !e.ended);
           for (const e of open) segs.push({ x1: e.x, y1: e.y, x2: e.x, y2: mergeY, lit: e.id ? stateOf(e.id) === "done" : false });
           if (open.length > 1) segs.push({ x1: Math.min(...open.map((e) => e.x)), y1: mergeY, x2: Math.max(...open.map((e) => e.x)), y2: mergeY });
+          if (kindOfKey(n.key) === "parallel") chips.push({ x: cx, y: mergeY, text: PARALLEL_JOIN, kind: "join" });
           // the merge bar feeds the join step, which the next turn of the loop places
           last = open.length > 0 ? "merge" : null;
           lastBottom = mergeY;
@@ -406,10 +478,18 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
   "records.find": [{ field: "type", label: "the record type" }],
   "records.create": [{ field: "type", label: "the record type" }],
   "records.update": [{ field: "recordId", label: "which record" }],
-  send_email: [{ field: "to", label: "who to send to" }],
-  send_sms: [{ field: "to", label: "who to text" }],
+  send_email: [{ field: "to", label: "who to send to" }, { field: "mailboxId", label: "a mailbox" }],
+  send_sms: [{ field: "to", label: "who to text" }, { field: "numberId", label: "a number" }],
+  connector_request: [{ field: "connector", label: "a connector" }, { field: "action", label: "an action" }, { field: "connectionId", label: "a connection" }],
   post_message: [{ field: "channelId", label: "where to post" }],
   create_task: [{ field: "title", label: "a title" }],
+  "records.relate": [{ field: "recordId", label: "which record" }, { field: "toId", label: "the record to link" }],
+  "calendar.create_event": [{ field: "title", label: "a title" }, { field: "calendarId", label: "a calendar" }],
+  "files.create": [{ field: "name", label: "a file name" }, { field: "folderId", label: "a folder" }],
+  "files.move": [{ field: "fileId", label: "a file" }, { field: "toFolderId", label: "a folder" }],
+  "github.issue.create": [{ field: "repo", label: "a repository" }, { field: "title", label: "a title" }],
+  "forms.create": [{ field: "name", label: "a name" }, { field: "recordType", label: "a record type" }],
+  "forms.publish": [{ field: "formId", label: "a form" }],
   loop: [{ field: "items", label: "the list to go through" }],
   approval: [{ field: "title", label: "what needs approval" }, { field: "approver", label: "who approves" }],
 };
@@ -428,6 +508,7 @@ export function check(def: Definition, kind: "personal" | "space" = "space"): Is
     const label = cardTitle(n);
     for (const to of [...(n.next ?? []), ...(n.branches?.map((b) => b.to) ?? [])]) if (to !== "" && !by.has(to)) out.push({ nodeId: n.id, severity: "error", message: `${label} leads to a step that no longer exists` });
     for (const req of REQUIRED[n.key] ?? []) if (blank(n.input?.[req.field])) out.push({ nodeId: n.id, severity: "error", message: `${label} needs ${req.label}` });
+    if ((n.key.startsWith("google.") || n.key.startsWith("ms.")) && blank(n.input?.["connectionId"])) out.push({ nodeId: n.id, severity: "error", message: `${label} needs a connection` });
     const k = kindOfKey(n.key);
     if (k === "paths") {
       if (!n.branches || n.branches.length === 0) out.push({ nodeId: n.id, severity: "error", message: `${label} has no paths` });
@@ -457,6 +538,13 @@ export function check(def: Definition, kind: "personal" | "space" = "space"): Is
   };
   for (const n of def.nodes) if (dfs(n.id)) { out.push({ nodeId: n.id, severity: "error", message: `${cardTitle(n)} leads back to an earlier step, so the run would never end` }); break; }
   return out;
+}
+
+/** The step that blocks turning the Automation on. A trigger blocker uses "trigger". */
+export function liveBlockerStep(issues: readonly Issue[]): string | null {
+  const error = issues.find((issue) => issue.severity === "error");
+  if (!error) return null;
+  return error.nodeId && error.nodeId.length > 0 ? error.nodeId : "trigger";
 }
 
 /** Errors first, then warnings, one per step id and text. */
@@ -648,7 +736,12 @@ export function keyChoices(keys: readonly KeyChoice[], none: string, set: (id: s
 }
 
 export const ERROR_MODES = [
-  { mode: "fail", label: "Stop the run" }, { mode: "continue", label: "Carry on" }, { mode: "retry", label: "Try again" }, { mode: "route", label: "Go to another step" },
+  { mode: "fail", label: "Stop the run" },
+  { mode: "continue", label: "Carry on" },
+  { mode: "retry", label: "Try again" },
+  { mode: "skip", label: "Skip this step" },
+  { mode: "substitute", label: "Use another result" },
+  { mode: "route", label: "Go to another step" },
 ] as const;
 
 export function setBranch(n: DefNode, index: number, patch: Partial<NonNullable<DefNode["branches"]>[number]>): NonNullable<DefNode["branches"]> {
@@ -657,7 +750,7 @@ export function setBranch(n: DefNode, index: number, patch: Partial<NonNullable<
   return out;
 }
 
-export function setTriggerConfig(def: Definition, index: number, key: string, value: string): Definition {
+export function setTriggerConfig(def: Definition, index: number, key: string, value: unknown): Definition {
   const triggers: Definition["triggers"] = [];
   def.triggers.forEach((t, i) => triggers.push(i === index ? { ...t, config: { ...(t.config ?? {}), [key]: value } } : t));
   return { ...def, triggers };

@@ -115,7 +115,11 @@ export interface InvokeDeps {
   /** deny and hold audit rows (an allow row rides in the commit) */
   audit?(row: AuditRow): void | Promise<void>;
   publish?(events: EventEnvelope[]): void;
-  idem?: { once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>): Promise<T> };
+  idem?: {
+    once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>): Promise<T>;
+    /** Write the approved result over the hold stored for the same key, so the Run's next call of that key gets what was released. */
+    settle?(principal: string, cap: string, key: string, input: unknown, result: unknown): Promise<void> | void;
+  };
   rate?: { take(key: string, spec: { n: number; perSeconds: number }, now: number): boolean };
   gate?: GateHook;
   /**
@@ -237,15 +241,19 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         }
       }
 
-      // 3 idempotency: a 'key' capability requires the key; the stored result of a repeat is returned without running anything
+      // 3 idempotency: a 'key' capability requires the key; the stored result of a repeat is returned without running anything.
+      // An approval runs under key:approved, so it is not a replay of the hold, then that result replaces the hold. The Run calls the same key again and gets what was released.
       let key: string | undefined;
+      let rawKey: string | undefined;
       if (c.idempotency === "key") {
         const k = (input as { idempotencyKey?: unknown } | null)?.idempotencyKey;
         if (typeof k !== "string" || k.length === 0) throw fail("validation.bad_input", traceId, { details: { errors: ["/idempotencyKey: required"], cap: c.name } });
+        rawKey = k;
         key = seed.approval ? `${k}:approved` : k;
       }
       const run = (): Promise<InvokeResult> => stepsFour(c, input, seed, trace, depth, collectionRateChecked);
       const result = key !== undefined && deps.idem ? await deps.idem.once(seed.principal.id, c.name, key, input, run) : await run();
+      if (seed.approval && rawKey && result.status === "ok") await deps.idem?.settle?.(seed.principal.id, c.name, rawKey, input, result);
       span(result.status === "held" ? "held" : "ok");
       return { ...result, traceId };
     } catch (e) {

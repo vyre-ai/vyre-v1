@@ -9,6 +9,7 @@ export { planUndo, ruleFor, RULES } from "./handlers/undo.ts";
 export * from "./handlers/alerts.ts";
 
 // The executor (P-L6_24): a Run that was started is driven, and driven again when a wait ends.
+import { get, resume, steps, stop } from "./handlers/engine.ts";
 import { driveFromEvent, driveRun, interruptedIds, setRunsHost, SWEEP_EVERY_MS, sweep } from "./handlers/executor.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 export { setRunsHost };
@@ -22,6 +23,12 @@ export const periodic = {
 export const hostCalls = {
   "runs.drive_run": (ctx: Parameters<typeof driveRun>[0], i: { runId: string }) => driveRun(ctx, i),
   "runs.interrupted": (ctx: Parameters<typeof interruptedIds>[0]) => interruptedIds(ctx),
+  // The live seam reads a child, lists its steps, stops an unfinished lane, and resumes a parked parent.
+  // Those names are also capabilities. The hook runner only dispatches host calls, and a host call runs as svc_host, which may see and manage a Run.
+  "runs.get": (ctx: Parameters<typeof get>[0], i: { runId: string }) => get(ctx, i),
+  "runs.steps": (ctx: Parameters<typeof steps>[0], i: { runId: string; limit?: number }) => steps(ctx, i),
+  "runs.stop": (ctx: Parameters<typeof stop>[0], i: { runId: string; reason?: string }) => stop(ctx, i),
+  "runs.resume": (ctx: Parameters<typeof resume>[0], i: { runId: string; reason?: string }) => resume(ctx, i),
 };
 /** Where the host registers its half at boot (ruling 31). */
 export const hostSeams: SeamSetters = { setRunsHost };

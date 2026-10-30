@@ -87,6 +87,7 @@ export class LogClient {
     const backend: IdemBackend = {
       get: (key) => this.call<IdemRecord | null>("idem_get", { key }),
       put: (key, principal, cap, rec) => this.call("idem_put", { key, principal, cap, rec }),
+      settle: (key, principal, cap, rec) => this.call("idem_settle", { key, principal, cap, rec }),
     };
     return createIdempotency(backend);
   }

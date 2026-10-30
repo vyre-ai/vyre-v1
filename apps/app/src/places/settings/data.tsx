@@ -25,8 +25,18 @@ export interface SpaceSecurity { totp: boolean; passkeys: readonly string[]; flo
 /** The sign-in that is the same for every Space: the password and a linked GitHub account. */
 export interface AccountSecurity { passwordChanged: string; github: string | null }
 
+/** The desktop app's own updates. Only the desktop shell supplies it; the web app and the phone update by reloading. */
+export interface DesktopUpdater {
+  /** Asks the update server whether a newer Vyre exists for this app's channel. Rejects with words for a person when the server cannot be reached. */
+  check(): Promise<{ current: string; channel: string; version: string | null; notes: string | null }>;
+  /** Downloads it, checks its signature, installs and restarts the app. Resolves only if the app did not restart; rejects with words. */
+  install(): Promise<void>;
+}
+
 export interface SettingsData {
   sessionImporter?: import("../../../../../client/src/session-import/desktop.ts").SessionImporter | undefined;
+  /** Update this desktop app (This computer). Absent in a browser. */
+  desktopUpdater?: DesktopUpdater | undefined;
   continueSession?(conversationId: string): Promise<void>;
   screens: ScreenHooks;
   call(cap: string, input: unknown): Promise<unknown>;
