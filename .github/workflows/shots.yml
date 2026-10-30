@@ -97,6 +97,12 @@ jobs:
           if grep -E "^skip |# SKIP|ℹ skipped [1-9]" real-app-e2e.out; then echo "a live test skipped; release evidence needs every one to run" >&2; exit 1; fi
       - name: Real app capture against the production export (scripts/shots/real-app.mjs, P-APP_03)
         run: node scripts/shots/real-app.mjs --dist apps/app/dist --out shots-evidence/real-app
+      - name: No dead buttons (scripts/click/dead-buttons.mjs); every button, menu item and link in the real app on WebKit under the desktop app's CSP, Personal and team Space, does something a person can see
+        run: |
+          set -o pipefail
+          npx playwright-core install --with-deps webkit
+          node scripts/click/dead-buttons.mjs --dist apps/app/dist --browser webkit --csp tauri --out shots-evidence/dead-buttons 2>&1 | tee dead-buttons.out
+          grep -q "^done in" dead-buttons.out
       - name: The export carries the daemon's registry hash (EXPO_PUBLIC_VYRE_REGISTRY_HASH)
         run: node scripts/shots/registry-hash-in-bundle.mjs apps/app/dist
       - name: No prototype seed in the production web bundle (P-UI_06b)
