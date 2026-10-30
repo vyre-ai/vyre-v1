@@ -1,0 +1,21 @@
+{
+ "note": "Fire-and-forget calls with no error handler that predate scripts/lint/no-silent-calls.ts. Burn this list down; a new entry fails the lint.",
+ "known": [
+  "apps/app/src/places/files/list/FilesList.tsx#files.restore#1",
+  "apps/app/src/places/files/list/FilesList.tsx#files.star#1",
+  "apps/app/src/places/files/list/FilesList.tsx#l.type#1",
+  "apps/app/src/places/files/list/FilesList.tsx#m.cap#1",
+  "apps/app/src/places/files/tree/FilesTree.tsx#folders.delete#1",
+  "apps/app/src/places/files/tree/FilesTree.tsx#m.cap#1",
+  "apps/app/src/places/inbox/contactlist/ContactList.tsx#cap#1",
+  "apps/app/src/places/inbox/softphone/phone.tsx#telephony.call.log_task#1",
+  "apps/app/src/places/inbox/softphone/phone.tsx#telephony.hangup#1",
+  "apps/app/src/places/records/table/TableView.tsx#records.create#1",
+  "apps/app/src/places/records/table/TableView.tsx#records.export#1",
+  "apps/app/src/places/records/table/TableView.tsx#views.save#1",
+  "apps/app/src/places/records/views-a/view.tsx#records.create#1",
+  "apps/app/src/places/records/views-a/view.tsx#views.save#1",
+  "apps/app/src/places/vault/layout/index.tsx#vault.item.mark_rotated#1",
+  "apps/app/src/places/vault/layout/index.tsx#vault.item.move#1"
+ ]
+}
