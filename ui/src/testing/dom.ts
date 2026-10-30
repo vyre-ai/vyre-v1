@@ -20,7 +20,7 @@ export function installDom(): () => void {
   g["IS_REACT_ACT_ENVIRONMENT"] = true;
   if (!had.window) g["window"] = globalThis;
   if (!had.Image) g["Image"] = class { onload: unknown; onerror: unknown; set src(_v: string) { /* never loads */ } };
-  if (!had.document) g["document"] = { createElement: () => ({ style: {}, setAttribute: () => undefined, appendChild: () => undefined }), head: { appendChild: () => undefined }, getElementById: () => null, documentElement: { getAttribute: () => null, setAttribute: () => undefined, style: {} }, addEventListener: () => undefined };
+  if (!had.document) g["document"] = { createElement: () => ({ style: {}, setAttribute: () => undefined, appendChild: () => undefined }), head: { appendChild: () => undefined }, getElementById: () => null, documentElement: { getAttribute: () => null, setAttribute: () => undefined, removeAttribute: () => undefined, style: { setProperty: () => undefined, removeProperty: () => undefined, getPropertyValue: () => "" }, classList: { add: () => undefined, remove: () => undefined } }, addEventListener: () => undefined };
   const stub = { value: () => undefined, configurable: true, enumerable: false, writable: true };
   Object.defineProperty(Object.prototype, "addEventListener", stub);
   Object.defineProperty(Object.prototype, "removeEventListener", stub);

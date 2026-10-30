@@ -366,6 +366,7 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       role="menuitem"
       aria-label={entry.label}
       aria-checked={entry.checked === true ? true : undefined}
+      aria-current={entry.checked === true ? "true" : undefined}
       onPress={(event) => { event.stopPropagation(); onChoose(); }}
       onHoverIn={onHover}
       onFocus={onHover}
