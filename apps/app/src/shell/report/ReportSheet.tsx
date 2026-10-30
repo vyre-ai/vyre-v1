@@ -1,6 +1,6 @@
 // The Report a problem sheet (screen shell.report-problem; spec 5, 3.0): one optional line "What went wrong?", an expandable "What is sent" that lists
 // exactly the bundle, Cancel and Send. After Send: "Sent, #1234" and who has it, or "Queued" when offline. Esc closes, Cmd-Enter sends.
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { createElement, useEffect, useRef, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
@@ -76,7 +76,8 @@ export function ReportSheet({ controller, online = true, autoFocus = true }: Rep
         onPress={() => controller.toggleExpanded()}
         style={styles.summary}
       >
-        <Text style={styles.summaryText}>{`${s.expanded ? "▾" : "▸"}  What is sent`}</Text>
+        <Text style={styles.summaryText}>What is sent</Text>
+        <View style={{ transform: [{ rotate: s.expanded ? "90deg" : "0deg" }] }}>{Platform.OS !== "web" ? <Text style={styles.summaryText}>{">"}</Text> : createElement("svg", { viewBox: "0 0 16 16", width: 14, height: 14, "aria-hidden": true, style: { display: "block", fill: "none", stroke: "var(--ink-4)", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" } }, createElement("path", { d: "M6 3.500L10.500 8L6 12.500" }))}</View>
       </Pressable>
       {s.expanded ? <View testID="report-facts" style={styles.facts}>{facts}</View> : null}
       {s.policy === "ask" ? (
@@ -93,7 +94,7 @@ export function ReportSheet({ controller, online = true, autoFocus = true }: Rep
 
 const styles = StyleSheet.create({
   sub: { fontSize: 13, color: "var(--ink-3)", marginTop: 6 },
-  summary: { marginTop: 12, alignSelf: "flex-start", paddingVertical: 2 },
+  summary: { marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" },
   summaryText: { fontSize: 13, color: "var(--ink-3)" },
   facts: { marginTop: 8, maxHeight: 200, overflow: "scroll" } as object,
   fr: { flexDirection: "row", paddingVertical: 3 },

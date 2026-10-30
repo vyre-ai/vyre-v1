@@ -1,10 +1,10 @@
 // ui/States: the one empty, offline and error state for every place (spec 3.0).
-// Empty and offline: an icon, one line, one primary action. Error: what, why, next, trace id, Retry, Copy trace id, Report a problem.
+// Empty and offline: an icon, one line, one primary action. Error: title, one line, Retry; trace id, Copy trace id and Report a problem behind a Details link.
 
-import { createElement } from "react";
+import { createElement, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { STATE_ICONS } from "./props.ts";
-import type { StateIcon, StateProps } from "./props.ts";
+import type { ErrorProps, StateIcon, StateProps } from "./props.ts";
 
 export type { StateProps, StateIcon } from "./props.ts";
 
@@ -62,23 +62,35 @@ function reportProblem(detail: { traceId?: string; code?: string; message: strin
   if (g.dispatchEvent && g.CustomEvent) g.dispatchEvent(new g.CustomEvent(REPORT_PROBLEM_EVENT, { detail }));
 }
 
-export function States(props: StateProps) {
-  if (props.kind === "error") {
-    return (
-      <View accessibilityRole="alert" testID="state-error" style={styles.box}>
-        <Icon name="error" />
-        <Text style={styles.title}>{props.message}</Text>
-        {props.cause ? <Text style={styles.sub} testID="state-cause">{props.cause}</Text> : null}
-        {props.next ? <Text style={styles.sub} testID="state-next">{props.next}</Text> : null}
-        {props.code || props.traceId ? <Text style={styles.trace} testID="state-trace">{[props.code, props.traceId].filter(Boolean).join("  ")}</Text> : null}
-        <View style={styles.actions}>
-          {props.retryable ? <Button label="Retry" onPress={props.onRetry} primary testID="state-retry" /> : null}
-          <Button label="Copy trace id" onPress={() => copyTrace(props.traceId)} testID="state-copy" />
-          <Button label="Report a problem" onPress={() => reportProblem({ traceId: props.traceId, code: props.code, message: props.message })} testID="state-report" />
+/** Error: title, one line, Retry. The trace id and the two help actions sit behind one quiet Details link. */
+export function ErrorState({ props, startOpen = false }: { props: ErrorProps; startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen);
+  const line = props.cause ?? props.next;
+  return (
+    <View accessibilityRole="alert" testID="state-error" style={styles.box}>
+      <Icon name="error" />
+      <Text style={styles.title}>{props.message}</Text>
+      {line ? <Text style={styles.sub} testID="state-cause">{line}</Text> : null}
+      {props.retryable ? <View style={styles.actions}><Button label="Retry" onPress={props.onRetry} primary testID="state-retry" /></View> : null}
+      <Pressable accessibilityRole="button" onPress={() => setOpen(!open)} testID="state-details" style={styles.detailsLink}>
+          <Text style={styles.detailsText}>{open ? "Hide details" : "Details"}</Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.details} testID="state-details-body">
+          {props.next && props.cause ? <Text style={styles.sub} testID="state-next">{props.next}</Text> : null}
+          {props.code || props.traceId ? <Text style={styles.trace} testID="state-trace">{[props.code, props.traceId].filter(Boolean).join("  ")}</Text> : null}
+          <View style={styles.actions}>
+            <Button label="Copy trace id" onPress={() => copyTrace(props.traceId)} testID="state-copy" />
+            <Button label="Report a problem" onPress={() => reportProblem({ traceId: props.traceId, code: props.code, message: props.message })} testID="state-report" />
+          </View>
         </View>
-      </View>
-    );
-  }
+      ) : null}
+    </View>
+  );
+}
+
+export function States(props: StateProps) {
+  if (props.kind === "error") return <ErrorState props={props} />;
   const icon: StateIcon = props.icon ?? (props.kind === "offline" ? "offline" : "search");
   return (
     <View accessibilityRole="summary" testID={`state-${props.kind}`} style={styles.box}>
@@ -92,10 +104,13 @@ export function States(props: StateProps) {
 const styles = StyleSheet.create({
   box: { flex: 1, minHeight: 200, alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 56, paddingHorizontal: 24 },
   tile: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
-  tileError: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4, backgroundColor: "color-mix(in srgb, var(--danger) 10%, transparent)" as string, borderWidth: 1, borderColor: "color-mix(in srgb, var(--danger) 25%, transparent)" as string },
+  tileError: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4, backgroundColor: "color-mix(in srgb, var(--danger) 10%, transparent)" as string, },
   glyph: { color: "var(--ink-4)" as string, fontSize: 20 },
   title: { color: "var(--ink)" as string, fontSize: 14, lineHeight: 20, fontWeight: "600", textAlign: "center" },
   sub: { color: "var(--ink-3)" as string, fontSize: 12.5, lineHeight: 18, textAlign: "center" },
+  detailsLink: { paddingVertical: 2 },
+  detailsText: { color: "var(--ink-4)" as string, fontSize: 12 },
+  details: { alignItems: "center", gap: 6 },
   trace: { color: "var(--ink-4)" as string, fontSize: 11.5, textAlign: "center" },
   actions: { flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap", justifyContent: "center" },
   btn: { height: 32, paddingHorizontal: 14, borderRadius: 8, justifyContent: "center", marginTop: 4 },
