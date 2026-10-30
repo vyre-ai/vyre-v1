@@ -236,3 +236,20 @@ test("an agent cannot start or finish a sign-in, and another person cannot finis
     assert.equal(await refusedWith(p.subscriptionComplete(h.ctx, { flowId: String(started.flowId), code: "x" })), "validation.not_found");
   } finally { u.configureVault(null); h.cleanup(); }
 });
+
+test("the person's client saved the sign-in in Mine while the flow was still open: Done with no code links it and answers the provider, and the open flow is dropped", async () => {
+  const h = harness();
+  const { port, seen } = fakeSignin([]);
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    const mine = String(out(out(await v.foldersCreate(h.ctx, { name: "Mine keys", scope: "mine", idempotencyKey: key() })).folder).id);
+    await v.itemPut(h.ctx, { folderId: mine, name: "Claude Code sign-in", kind: "ai_subscription", fields: [{ key: "setup_token", value: SECRET, secret: true }], idempotencyKey: key() } as Parameters<typeof v.itemPut>[1]);
+    assert.equal(port.active(String(started.flowId)), true, "the flow is still open");
+    const done = out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) }));
+    assert.deepEqual(contractErrors("providers.subscription_complete", "out", done), []);
+    assert.equal(out(done.provider).providerKey, "claude-code");
+    assert.equal(port.active(String(started.flowId)), false, "the open flow was dropped");
+    assert.deepEqual(seen.codes, [], "the provider was not asked for a step");
+  } finally { u.configureVault(null); h.cleanup(); }
+});
