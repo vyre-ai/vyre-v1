@@ -14,7 +14,7 @@ type NodeKind = "note" | "person" | "client" | "project" | "site" | "decision" |
 interface GNode {
   nodeId: string; kind: NodeKind; title: string; layer: Layer | null; agentId: string | null; projectId: string | null; resType: string; resId: string; link: string | null; createdAt: number;
 }
-interface GEdge { from: string; to: string; kind: "link" | "relation" | "came_from" | "mention"; label?: string; evidence?: string; at?: number }
+interface GEdge { from: string; to: string; kind: "link" | "relation" | "came_from" | "mention"; label?: string; evidence?: string; at?: number; message?: string; source?: { title: string; link?: string; kind: string } }
 
 const KIND_OF_TYPE: Readonly<Record<string, NodeKind>> = {
   person: "person", contact: "person", client: "client", company: "client", account: "client", project: "project", site: "site", decision: "decision",
@@ -181,10 +181,10 @@ async function indexChat(ctx: MemCtx, threadId: string): Promise<{ nodes: number
     let edges = 0;
     try {
       const page = (await ctx.call("chat.messages.list", { threadId, limit: 200 })) as { messages: Array<{ body?: string; enc?: unknown; createdAt?: number; at?: number }> };
-      const found: Array<{ target: string; quote: string; at: number }> = [];
-      for (const m of page.messages) {
+      const found: Array<{ target: string; quote: string; at: number; message?: string }> = [];
+      for (const m of page.messages as Array<{ messageId?: string; body?: string; enc?: unknown; createdAt?: number; at?: number }>) {
         if (typeof m.body !== "string" || (m.enc && /^enc2\.\d+\./.test(m.body))) continue;
-        for (const l of parseLinks(m.body)) found.push({ target: l.target, quote: l.evidence, at: m.createdAt ?? m.at ?? ctx.now() });
+        for (const l of parseLinks(m.body)) found.push({ target: l.target, quote: l.evidence, at: m.createdAt ?? m.at ?? ctx.now(), ...(m.messageId ? { message: m.messageId } : {}) });
       }
       edges = replaceMentions(ctx, t.kind === "run" ? "run" : "chat", threadId, "thread", threadId, found);
     } catch { /* no messages to read: the node stays */ }
@@ -204,14 +204,14 @@ function pageKeyFor(ctx: MemCtx, target: string): string {
 }
 
 /** Make the mentions of one source (a chat, a run, a record) match what it holds now. */
-function replaceMentions(ctx: MemCtx, kind: "chat" | "run" | "record", ref: string, resType: string, resId: string, found: Array<{ target: string; quote: string; at: number }>): number {
+function replaceMentions(ctx: MemCtx, kind: "chat" | "run" | "record", ref: string, resType: string, resId: string, found: Array<{ target: string; quote: string; at: number; message?: string }>): number {
   ctx.db.run("DELETE FROM memory_mentions WHERE source_kind = ? AND source_ref = ?", kind, ref);
   let n = 0;
   for (const f of found) {
     const page = pageKeyFor(ctx, f.target);
     ctx.db.run(
-      "INSERT OR IGNORE INTO memory_mentions (page_id, source_kind, source_ref, res_type, res_id, quote, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      page, kind, ref, resType, resId, f.quote.length > 240 ? `${f.quote.slice(0, 237)}...` : f.quote, f.at,
+      "INSERT OR IGNORE INTO memory_mentions (page_id, source_kind, source_ref, message_id, res_type, res_id, quote, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      page, kind, ref, f.message ?? null, resType, resId, f.quote.length > 240 ? `${f.quote.slice(0, 237)}...` : f.quote, f.at,
     );
     n++;
   }
@@ -221,7 +221,7 @@ function replaceMentions(ctx: MemCtx, kind: "chat" | "run" | "record", ref: stri
 // ---- build the graph
 
 interface Built {
-  nodes: Array<{ nodeId: string; kind: NodeKind; title: string; layer?: Layer; cluster?: string; x: number; y: number; link?: string }>;
+  nodes: Array<{ nodeId: string; kind: NodeKind; title: string; pageId?: string; layer?: Layer; cluster?: string; x: number; y: number; link?: string }>;
   edges: GEdge[];
   clusters: Array<{ name: string; hub: string; size: number }>;
 }
@@ -289,9 +289,9 @@ function pageLinkEdges(ctx: MemCtx, asOf: number | undefined): GEdge[] {
 /** Places that name a page in a [[link]]: chats, runs and records point at it. */
 function mentionEdges(ctx: MemCtx, asOf: number | undefined): GEdge[] {
   const out: GEdge[] = [];
-  for (const r of rowsOf(ctx.db, `SELECT page_id, source_kind, source_ref, quote, at FROM memory_mentions WHERE page_id NOT LIKE '~%'${asOf !== undefined ? " AND at <= ?" : ""}`, ...(asOf !== undefined ? [asOf] : []))) {
+  for (const r of rowsOf(ctx.db, `SELECT page_id, source_kind, source_ref, message_id, quote, at FROM memory_mentions WHERE page_id NOT LIKE '~%'${asOf !== undefined ? " AND at <= ?" : ""}`, ...(asOf !== undefined ? [asOf] : []))) {
     const kind = str(r["source_kind"]);
-    out.push({ from: `${kind === "run" ? "chat" : kind}:${str(r["source_ref"])}`, to: `page:${str(r["page_id"])}`, kind: "mention", ...(str(r["quote"]) ? { evidence: str(r["quote"]) } : {}), at: num(r["at"]) });
+    out.push({ from: `${kind === "run" ? "chat" : kind}:${str(r["source_ref"])}`, to: `page:${str(r["page_id"])}`, kind: "mention", ...(str(r["quote"]) ? { evidence: str(r["quote"]) } : {}), at: num(r["at"]), ...(r["message_id"] ? { message: str(r["message_id"]) } : {}) });
   }
   return out;
 }
@@ -355,7 +355,12 @@ async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
     const k = `${e.from}|${e.to}|${e.kind}|${e.label ?? ""}`;
     if (seen.has(k)) continue;
     seen.add(k);
-    edges.push(e);
+    // where the evidence comes from: the page that holds the link, or the chat, run or record that names the page (a chat links to the very message)
+    const src = byId.get(e.from);
+    if (src && (e.kind === "link" || e.kind === "mention")) {
+      const thread = src.nodeId.startsWith("chat:") ? src.nodeId.slice(5) : null;
+      edges.push({ ...e, source: { title: src.title, kind: src.kind === "chat" ? "chat" : src.nodeId.startsWith("page:") ? "page" : src.kind, ...(thread ? { link: `vyre://thread/${thread}${e.message ? `?m=${e.message}` : ""}` } : src.link ? { link: src.link } : {}) } });
+    } else edges.push(e);
   }
   edges.sort((a, b) => (a.from + a.to + a.kind + (a.label ?? "")).localeCompare(b.from + b.to + b.kind + (b.label ?? "")));
 
@@ -405,9 +410,9 @@ async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
     nodes: [...visible].sort((a, b) => a.nodeId.localeCompare(b.nodeId)).map((n) => {
       const p = pos.get(n.nodeId) ?? { x: 0, y: 0 };
       const cluster = clusterOf.get(n.nodeId);
-      return { nodeId: n.nodeId, kind: n.kind, title: n.title, ...(n.layer ? { layer: n.layer } : {}), ...(cluster ? { cluster } : {}), x: p.x, y: p.y, ...(n.link ? { link: n.link } : {}) };
+      return { nodeId: n.nodeId, kind: n.kind, title: n.title, ...(n.nodeId.startsWith("page:") ? { pageId: n.nodeId.slice(5) } : {}), ...(n.layer ? { layer: n.layer } : {}), ...(cluster ? { cluster } : {}), x: p.x, y: p.y, ...(n.link ? { link: n.link } : {}) };
     }),
-    edges,
+    edges: edges.map(({ message: _m, ...e }) => e),
     clusters: multi.map((g) => ({ name: hubOf(g).title, hub: hubOf(g).nodeId, size: g.length })),
   };
 }

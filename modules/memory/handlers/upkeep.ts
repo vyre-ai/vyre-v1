@@ -6,11 +6,12 @@
 // of the cost in micro-dollars, and no model call starts once the month's spend reaches the monthly cap (setting memory.upkeep_monthly_cap).
 // The model sees only what the scope's own key may see: Space, project and agent text with the Space or project key, and a person's own facts only when that person runs it.
 import { excerpt } from "../../../lib/md.ts";
+import { factRows } from "../enrich.ts";
 import { emitLearned, insertFact, normal } from "../factcore.ts";
 import { readPage, saveNotes } from "../pages.ts";
 import { reviewRequired, upkeepCapMicros } from "../policy.ts";
 import { trail, UPKEEP } from "../trail.ts";
-import { actorOf, ensure, factOut, loadFact, makeAccess, mintId, num, pageOf, raise, readFact, rowsOf, str, trigramSim } from "../projections.ts";
+import { actorOf, ensure, loadFact, makeAccess, mintId, num, pageOf, raise, readFact, rowsOf, str, trigramSim } from "../projections.ts";
 import type { Fact, Layer, MemCtx, Row } from "../projections.ts";
 import { canSee, trashFact } from "./lifecycle.ts";
 
@@ -350,7 +351,12 @@ export async function upkeepStatus(ctx: MemCtx, input: { limit?: number }) {
     tokensIn: num(r["tokens_in"]), tokensOut: num(r["tokens_out"]), costMicros: num(r["cost_micros"]), ...(r["stopped"] ? { stopped: str(r["stopped"]) as "cap" | "no_key" } : {}),
   }));
   const open = num(rowsOf(ctx.db, "SELECT COUNT(*) AS n FROM memory_questions WHERE status = 'open'")[0]?.["n"]);
-  return { month, spentMicros: spent, capMicros: cap, capReached: spent >= cap, modelAvailable: model !== null, openQuestions: open, runs };
+  // spend per night (UTC day), newest first, for the last 30 nights that had a run
+  const nights = rowsOf(
+    ctx.db,
+    "SELECT substr(datetime(started_at / 1000, 'unixepoch'), 1, 10) AS day, COUNT(*) AS runs, COALESCE(SUM(cost_micros), 0) AS cost, COALESCE(SUM(tokens_in), 0) AS tin, COALESCE(SUM(tokens_out), 0) AS tout FROM memory_upkeep_runs GROUP BY day ORDER BY day DESC LIMIT 30",
+  ).map((r) => ({ day: str(r["day"]), runs: num(r["runs"]), costMicros: num(r["cost"]), tokensIn: num(r["tin"]), tokensOut: num(r["tout"]) }));
+  return { month, spentMicros: spent, capMicros: cap, capReached: spent >= cap, modelAvailable: model !== null, openQuestions: open, runs, nights, ...(nights[0] ? { lastNight: nights[0] } : {}) };
 }
 
 // ---- questions: a contradiction or a stale fact, answered with one click
@@ -372,7 +378,7 @@ export async function questionsList(ctx: MemCtx, input: Page & { status?: "open"
     if (!a || (q["fact_b"] && !b)) continue;
     if (!(await canSee(ctx, access, a))) continue;
     out.push({
-      questionId: str(q["id"]), kind: str(q["kind"]), status: str(q["status"]), createdAt: num(q["created_at"]), layer: str(q["layer"]), facts: [factOut(a), ...(b ? [factOut(b)] : [])],
+      questionId: str(q["id"]), kind: str(q["kind"]), status: str(q["status"]), createdAt: num(q["created_at"]), layer: str(q["layer"]), facts: factRows(ctx, b ? [a, b] : [a]),
       ...(q["resolution"] ? { resolution: str(q["resolution"]) } : {}),
     });
   }

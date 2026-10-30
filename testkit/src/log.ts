@@ -27,6 +27,7 @@ export class InProcLog {
     return createIdempotency({
       get: (key) => this.idem.get(key, this.clock()),
       put: (key, principal, cap, rec) => this.idem.put(key, principal, cap, rec, this.clock()),
+      settle: (key, principal, cap, rec) => this.idem.settle(key, principal, cap, rec, this.clock()),
     });
   }
   async close(): Promise<void> { this.store.close(); }

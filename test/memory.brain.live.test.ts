@@ -95,6 +95,8 @@ test("memory core live: meaning search finds the Chase feed for a bank reconcili
     assert.deepEqual(found.hits.map((h) => h.factId), [chase], JSON.stringify(found));
     assert.equal(found.meaning?.state, "on");
     assert.deepEqual((await hits("bank reconciliation", "keyword")).hits, [], "words alone do not find it");
+    const ranked = (await call(d, "memory.meaning.rank", { query: "bank reconciliation", candidates: [{ id: "a", text: "The Chase feed didn't match" }, { id: "b", text: "The forecast says rain" }] })).data;
+    assert.deepEqual(ranked.scores.map((x: { id: string; score: number }) => [x.id, x.score > 0.5]), [["a", true], ["b", false]]);
     const status = (await call(d, "memory.meaning.status", {})).data;
     assert.deepEqual([status.mode, status.state, status.indexed], ["local", "on", 3]);
 

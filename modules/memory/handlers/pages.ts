@@ -1,8 +1,9 @@
 // Living pages (owner design 30 Oct 2026, ruling 4), the capabilities: read a page (its facts, its Notes, the [[links]] it makes and the places that link to it), write its Notes as a new version, list pages,
 // see and restore versions, delete a page to Trash (memory.restore brings it back), read the backlinks from chats, runs, records and other pages, and export the whole brain a reader can see as Markdown.
 // A personal page is sealed to its owner: nobody else sees it, in a read, a list, a backlink or the export.
-import { createPage, findPage, loadPage, pageRowOut, readPage, saveNotes, subjectKey, trashPage } from "../pages.ts";
+import { createPage, findPage, loadPage, movePage, pageRowOut, readPage, saveNotes, subjectKey, trashPage, updateMeta } from "../pages.ts";
 import type { Page, PageKind } from "../pages.ts";
+import { factRows } from "../enrich.ts";
 import { trail } from "../trail.ts";
 import { actorOf, ensure, factOut, makeAccess, num, openText, orNull, pageOf, raise, readFact, rowsOf, str } from "../projections.ts";
 import type { Access, Fact, Layer, MemCtx } from "../projections.ts";
@@ -37,7 +38,7 @@ const ownerFor = (ctx: MemCtx, layer: Layer, agentId: string | null, projectId: 
 
 export async function pagePut(
   ctx: MemCtx,
-  input: { pageId?: string; title?: string; kind?: PageKind; layer?: Layer; agentId?: string; projectId?: string; subjectRef?: string; notes: string; baseVersion?: number; reason?: string },
+  input: { pageId?: string; title?: string; kind?: PageKind; layer?: Layer; agentId?: string; projectId?: string; subjectRef?: string; subtitle?: string; blurb?: string; notes: string; baseVersion?: number; reason?: string },
 ) {
   ensure(ctx.db);
   const access = makeAccess(ctx);
@@ -59,7 +60,7 @@ export async function pagePut(
     if (!page) {
       if (!(await mayEdit(ctx, access, { layer, ownerRef: owner, agentId, projectId } as Page))) raise(ctx, "permission.no_grant", "You cannot add to this memory.");
       // the first Notes are version 1 of the page
-      page = createPage(ctx, { title, kind: input.kind ?? "topic", layer, ownerRef: owner, agentId, projectId, subjectRef: input.subjectRef ?? null, notes: input.notes }, { ...(input.reason ? { reason: input.reason } : {}) });
+      page = createPage(ctx, { title, kind: input.kind ?? "topic", layer, ownerRef: owner, agentId, projectId, subjectRef: input.subjectRef ?? null, notes: input.notes, subtitle: input.subtitle ?? null, blurb: input.blurb ?? null }, { ...(input.reason ? { reason: input.reason } : {}) });
       created = true;
     }
   }
@@ -68,7 +69,8 @@ export async function pagePut(
   if (!created && input.baseVersion !== undefined && input.baseVersion !== page.version) {
     raise(ctx, "validation.precondition_failed", "Someone changed this page since you opened it.", { pageId: page.id, version: page.version });
   }
-  const saved = created ? page : saveNotes(ctx, page, input.notes, { ...(input.reason ? { reason: input.reason } : {}) });
+  let saved = created ? page : saveNotes(ctx, page, input.notes, { ...(input.reason ? { reason: input.reason } : {}) });
+  if (!created && (input.subtitle !== undefined || input.blurb !== undefined)) saved = updateMeta(ctx, saved, { ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}), ...(input.blurb !== undefined ? { blurb: input.blurb } : {}) });
   const links = num(rowsOf(ctx.db, "SELECT COUNT(*) AS n FROM memory_page_links WHERE from_page = ?", saved.id)[0]?.["n"]);
   return { page: pageOut(saved), created, links };
 }
@@ -173,7 +175,7 @@ export async function pageGet(ctx: MemCtx, input: { pageId?: string; title?: str
   if (page.trashedAt !== null && page.archivedAt === null) ctx.db.run("UPDATE memory_pages SET touched_at = ? WHERE page_id = ?", ctx.now(), page.id);
   const [facts, backlinks] = await Promise.all([factsAbout(ctx, access, page), backlinksOf(ctx, access, page)]);
   const versions = num(rowsOf(ctx.db, "SELECT COUNT(*) AS n FROM memory_page_versions WHERE page_id = ?", page.id)[0]?.["n"]);
-  return { page: pageOut(page), notes: page.notes, facts: facts.map(factOut), links: linksOf(ctx, page), backlinks, versions };
+  return { page: pageOut(page), notes: page.notes, facts: factRows(ctx, facts), links: linksOf(ctx, page), backlinks, versions };
 }
 
 export async function pageList(ctx: MemCtx, input: Pg & { q?: string; layer?: Layer; kind?: PageKind; agentId?: string; projectId?: string }) {
@@ -229,6 +231,24 @@ export async function pageDelete(ctx: MemCtx, input: { pageId: string }) {
   const moved = trashPage(ctx, page, "removed");
   if (moved) ctx.emit("memory.removed", actorOf(ctx), { factIds: [], by: actorOf(ctx) });
   return { page: pageOut({ ...page, trashedAt: moved ? ctx.now() : page.trashedAt }), trashed: moved };
+}
+
+/** Change who can see a page: move it to the Space, a project, an agent or the caller's own personal layer. Its Notes, versions and links go with it. */
+export async function pageSetVisibility(ctx: MemCtx, input: { pageId: string; layer: Layer; agentId?: string; projectId?: string }) {
+  ensure(ctx.db);
+  const { page, access } = await needView(ctx, input.pageId);
+  if (!(await mayEdit(ctx, access, page))) raise(ctx, "permission.no_grant", "You cannot change this page.");
+  if (page.trashedAt !== null) raise(ctx, "validation.precondition_failed", "This page is in Trash. Restore it first.");
+  if (input.layer === "agent" && !input.agentId) raise(ctx, "validation.bad_input", "Name the agent this page belongs to.");
+  if (input.layer === "project" && !input.projectId) raise(ctx, "validation.bad_input", "Name the project this page belongs to.");
+  const agentId = input.layer === "agent" ? input.agentId ?? null : null;
+  const projectId = input.layer === "project" ? input.projectId ?? null : null;
+  const owner = ownerFor(ctx, input.layer, agentId, projectId);
+  if (page.layer === input.layer && page.ownerRef === owner) return { page: pageOut(page), moved: false };
+  if (!(await mayEdit(ctx, access, { layer: input.layer, ownerRef: owner, agentId, projectId } as Page))) raise(ctx, "permission.no_grant", "You cannot add to that memory.");
+  if (findPage(ctx, input.layer, owner, subjectKey(page.title))) raise(ctx, "validation.precondition_failed", "A page with this title is already there.", { title: page.title });
+  const moved = movePage(ctx, page, { layer: input.layer, ownerRef: owner, agentId, projectId });
+  return { page: pageOut(moved), moved: true };
 }
 
 export async function backlinks(ctx: MemCtx, input: Pg & { pageId: string }) {

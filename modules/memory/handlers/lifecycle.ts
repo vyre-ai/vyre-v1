@@ -3,6 +3,7 @@
 // for the Space's number of days (30 to 90, default 60) moves to Archive: out of all search, restorable by an admin. Only memory.erase removes content, and it leaves a contentless trail line.
 // Reading a trashed fact, finding it in Trash search or restoring it counts as touching it, which starts its days again.
 import { trashDays } from "../policy.ts";
+import { factRows } from "../enrich.ts";
 import { loadPage, pageRowOut, readPage, untrashPage } from "../pages.ts";
 import { trail, whoIs } from "../trail.ts";
 import type { Who } from "../trail.ts";
@@ -140,7 +141,7 @@ export async function trashSearch(ctx: MemCtx, input: Page & { q?: string; area?
       pages.push(pageRowOut(pg));
     }
   }
-  return { facts: p.page.map(factOut), pages, ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { facts: factRows(ctx, p.page), pages, ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 /** Reading one trashed fact counts as touching it (memory.fact.get calls this). */
@@ -183,38 +184,56 @@ export async function archiveSweep(ctx: MemCtx): Promise<{ archived: number; day
 
 // ---- the Learned feed and Undo
 
-interface LearnedRow { fact: ReturnType<typeof factOut>; at: number; actor: string; actorKind: string; sourceKind: string; sourceRef: string; sourceLink?: string; from?: string; undone: boolean }
+type What = "learned" | "merged" | "flagged";
 
-/** What memory learned, newest first, as far as the reader can see: each captured or remembered fact with its source and who learned it. */
-export async function learned(ctx: MemCtx, input: Page & { layer?: Layer; agentId?: string; projectId?: string; since?: number }) {
+/**
+ * What memory did, newest first, as far as the reader can see: facts it learned (with their source and who learned them), and what upkeep merged away or flagged. Each learned row can be undone.
+ * Filters: by layer, agent or project, by the chat, run or record a fact came from (`threadId` or `sourceRef`), by the kind of actor, by what happened, and by time.
+ */
+export async function learned(
+  ctx: MemCtx,
+  input: Page & { layer?: Layer; agentId?: string; projectId?: string; since?: number; threadId?: string; sourceRef?: string; actorKind?: string; what?: What[] },
+) {
   ensure(ctx.db);
   const access = makeAccess(ctx);
+  const want = new Set<What>(input.what && input.what.length > 0 ? input.what : ["learned", "merged", "flagged"]);
+  const actions = [...(want.has("learned") ? ["'learn'"] : []), ...(want.has("merged") ? ["'merge'"] : []), ...(want.has("flagged") ? ["'flag'"] : [])];
+  if (actions.length === 0) return { items: [], total: 0 };
   const args: unknown[] = [];
-  let sql = "SELECT * FROM memory_trail WHERE action = 'learn' AND fact_id IS NOT NULL";
+  let sql = `SELECT * FROM memory_trail WHERE action IN (${actions.join(", ")}) AND fact_id IS NOT NULL`;
   if (input.since !== undefined) { sql += " AND at >= ?"; args.push(input.since); }
+  if (input.actorKind) { sql += " AND actor_kind = ?"; args.push(input.actorKind); }
   sql += " ORDER BY at DESC, rowid DESC LIMIT 5000";
-  const items: LearnedRow[] = [];
+  const wanted = input.threadId ?? input.sourceRef;
+  const items: Array<Record<string, unknown>> = [];
+  const facts: Fact[] = [];
   const seen = new Set<string>();
   for (const t of rowsOf(ctx.db, sql, ...args)) {
     const id = str(t["fact_id"]);
-    if (seen.has(id)) continue;
+    const what: What = str(t["action"]) === "learn" ? "learned" : str(t["action"]) === "merge" ? "merged" : "flagged";
+    if (seen.has(`${what}:${id}`)) continue;
     const f = loadFact(ctx, id);
     if (!f) continue;
-    seen.add(id);
+    seen.add(`${what}:${id}`);
     if (input.layer && f.layer !== input.layer) continue;
     if (input.agentId && f.agentId !== input.agentId) continue;
     if (input.projectId && f.projectId !== input.projectId) continue;
+    if (wanted && f.sourceRef !== wanted) continue;
     if (!(await canSee(ctx, access, f))) continue;
-    let from: string | undefined;
-    try { from = (JSON.parse(str(t["detail"]) || "{}") as { from?: string }).from; } catch { from = undefined; }
+    let detail: { from?: string; mergedInto?: string; questionId?: string } = {};
+    try { detail = JSON.parse(str(t["detail"]) || "{}") as typeof detail; } catch { detail = {}; }
     const link = f.sourceLink ?? sourceLinkOf(f.sourceKind, f.sourceRef);
+    facts.push(f);
     items.push({
-      fact: factOut(f), at: num(t["at"]), actor: str(t["actor"]), actorKind: str(t["actor_kind"]), sourceKind: f.sourceKind, sourceRef: f.sourceRef, ...(link ? { sourceLink: link } : {}),
-      ...(from ? { from } : {}), undone: f.trashedAt !== null || f.status === "removed",
+      what, at: num(t["at"]), actor: str(t["actor"]), actorKind: str(t["actor_kind"]), sourceKind: f.sourceKind, sourceRef: f.sourceRef, ...(link ? { sourceLink: link } : {}),
+      ...(what === "learned" && detail.from ? { from: detail.from } : {}), undone: what === "learned" && (f.trashedAt !== null || f.status === "removed"),
+      ...(what === "merged" ? { note: detail.mergedInto ? `Merged into ${detail.mergedInto}` : "Merged as a duplicate" } : what === "flagged" ? { note: str(t["reason"]) || "Needs a look" } : {}),
+      ...(what === "merged" && detail.mergedInto ? { mergedInto: detail.mergedInto } : {}), ...(what === "flagged" && detail.questionId ? { questionId: detail.questionId } : {}),
     });
   }
-  const p = pageOf(items, input.cursor, input.limit);
-  return { items: p.page, ...(p.next ? { next: p.next } : {}), total: p.total };
+  const p = pageOf(items.map((it, i) => ({ it, f: facts[i]! })), input.cursor, input.limit);
+  const rows = factRows(ctx, p.page.map((x) => x.f));
+  return { items: p.page.map((x, i) => ({ fact: rows[i]!, ...x.it })), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 /** Undo what was learned: the fact goes to Trash with the reason "undone", so a restore brings it back. One call, for the person it was learned from, the owner of the place it lives, or an admin. */

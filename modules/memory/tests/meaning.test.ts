@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { search, erase } from "../handlers/facts.ts";
-import { meaningStatusRead } from "../handlers/meaning.ts";
+import { meaningRank, meaningStatusRead } from "../handlers/meaning.ts";
 import { setEmbedder } from "../meaning.ts";
 import { stubEmbedder } from "../fixtures/embedder.ts";
 import { contractErrors, harness, seedFact } from "../fixtures/harness.ts";
@@ -127,4 +127,19 @@ test("the setting switches to the memory key's provider, and the status line say
     assert.deepEqual(contractErrors("memory.meaning.status", "out", st), []);
     assert.deepEqual([st.state, st.model, st.indexed], ["on", "key-model", 3]);
   } finally { setEmbedder("local", null); setEmbedder("key", null); }
+});
+
+test("texts the caller holds are ranked by meaning with nothing stored", async () => {
+  const h = world();
+  const cands = [{ id: "m1", text: "The Chase feed didn't match" }, { id: "m2", text: "Rain on Friday, says the forecast" }, { id: "m3", text: "" }];
+  setEmbedder("local", null);
+  const none = await meaningRank(h.ctx, { query: "bank reconciliation", candidates: cands });
+  assert.deepEqual([none.scores, none.meaning.state], [[], "not_set_up"]);
+  setEmbedder("local", stubEmbedder());
+  try {
+    const r = await meaningRank(h.ctx, { query: "bank reconciliation", candidates: cands });
+    assert.deepEqual(contractErrors("memory.meaning.rank", "out", r), []);
+    assert.deepEqual(r.scores.map((x) => [x.id, x.score]), [["m1", 1], ["m2", 0], ["m3", 0]]);
+    assert.equal(h.rows("SELECT doc_id FROM memory_vectors WHERE doc_id IN ('m1', 'm2')").length, 0, "nothing stored");
+  } finally { setEmbedder("local", null); }
 });

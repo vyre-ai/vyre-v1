@@ -11,7 +11,7 @@ export type PageKind = "person" | "client" | "project" | "agent" | "record" | "t
 export interface Page {
   id: string; subject: string; title: string; kind: PageKind; layer: Layer; ownerRef: string; agentId: string | null; projectId: string | null; subjectRef: string | null;
   /** The Notes. Empty for a personal page the caller does not own. */
-  notes: string; enc: number; version: number; createdAt: number; updatedAt: number; trashedAt: number | null; trashReason: string | null; archivedAt: number | null;
+  notes: string; subtitle: string | null; blurb: string | null; enc: number; version: number; createdAt: number; updatedAt: number; trashedAt: number | null; trashReason: string | null; archivedAt: number | null;
 }
 
 /** The key a title is found by: case, spacing and a leading or trailing dot do not matter. */
@@ -26,18 +26,25 @@ export function readPage(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor">, 
   const owner = str(r["owner_ref"]);
   let notes = str(r["notes"]);
   let title = str(r["title"]);
+  let subtitle = orNull(r["subtitle"]);
+  let blurb = orNull(r["blurb"]);
   let subject = str(r["subject"]);
   const sealed = orNull(r["sealed"]);
   if (num(r["enc"]) === 2 && sealed !== null) {
     title = "";
     subject = "";
+    subtitle = null;
+    blurb = null;
     if (owner === actorOf(ctx)) {
-      try { const o = JSON.parse(openText(ctx, sealed)) as { t?: string; n?: string }; notes = o.n ?? ""; title = o.t ?? ""; subject = subjectKey(title); } catch { notes = ""; }
+      try {
+        const o = JSON.parse(openText(ctx, sealed)) as { t?: string; n?: string; s?: string | null; b?: string | null };
+        notes = o.n ?? ""; title = o.t ?? ""; subject = subjectKey(title); subtitle = o.s ?? null; blurb = o.b ?? null;
+      } catch { notes = ""; }
     } else notes = "";
   }
   return {
     id: str(r["page_id"]), subject, title, kind: pageKind(r["kind"]), layer, ownerRef: owner, agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]),
-    subjectRef: orNull(r["subject_ref"]), notes, enc: num(r["enc"]), version: num(r["version"]), createdAt: num(r["created_at"]), updatedAt: num(r["updated_at"]),
+    subjectRef: orNull(r["subject_ref"]), notes, subtitle, blurb, enc: num(r["enc"]), version: num(r["version"]), createdAt: num(r["created_at"]), updatedAt: num(r["updated_at"]),
     trashedAt: r["trashed_at"] === null || r["trashed_at"] === undefined ? null : num(r["trashed_at"]), trashReason: orNull(r["trash_reason"]),
     archivedAt: r["archived_at"] === null || r["archived_at"] === undefined ? null : num(r["archived_at"]),
   };
@@ -60,7 +67,8 @@ export function findPage(ctx: MemCtx, layer: Layer, owner: string, subject: stri
 }
 
 /** The sealed JSON of a personal page: its title and Notes. */
-const sealPage = (ctx: MemCtx, owner: string, title: string, notes: string): string => sealText(ctx, owner, JSON.stringify({ t: title, n: notes }));
+const sealPage = (ctx: MemCtx, owner: string, title: string, notes: string, subtitle: string | null = null, blurb: string | null = null): string =>
+  sealText(ctx, owner, JSON.stringify({ t: title, n: notes, s: subtitle, b: blurb }));
 
 // ---- links in the Notes
 
@@ -150,7 +158,7 @@ function resolvePending(ctx: MemCtx, p: Page): void {
 export interface PageSave { who?: Who; reason?: string; source?: string; runId?: string }
 
 export interface NewPage {
-  title: string; kind: PageKind; layer: Layer; ownerRef: string; agentId: string | null; projectId: string | null; subjectRef?: string | null; notes?: string;
+  title: string; kind: PageKind; layer: Layer; ownerRef: string; agentId: string | null; projectId: string | null; subjectRef?: string | null; notes?: string; subtitle?: string | null; blurb?: string | null;
 }
 
 /** Put a graph node for the page so the graph draws it. A personal page is never in the graph. */
@@ -175,8 +183,9 @@ export function createPage(ctx: MemCtx, n: NewPage, o: PageSave = {}): Page {
   const who = o.who ?? whoIs(ctx);
   const title = n.title.trim();
   ctx.db.run(
-    "INSERT INTO memory_pages (page_id, subject, title, kind, layer, owner_ref, agent_id, project_id, subject_ref, notes, sealed, enc, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
-    id, sealed ? `~${id}` : subjectKey(title), sealed ? "" : title, n.kind, n.layer, n.ownerRef, n.agentId, n.projectId, sealed ? null : n.subjectRef ?? null, sealed ? "" : notes, sealed ? sealPage(ctx, n.ownerRef, title, notes) : null, sealed ? 2 : 0, now, now,
+    "INSERT INTO memory_pages (page_id, subject, title, kind, layer, owner_ref, agent_id, project_id, subject_ref, subtitle, blurb, notes, sealed, enc, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+    id, sealed ? `~${id}` : subjectKey(title), sealed ? "" : title, n.kind, n.layer, n.ownerRef, n.agentId, n.projectId, sealed ? null : n.subjectRef ?? null, sealed ? null : n.subtitle ?? null, sealed ? null : n.blurb ?? null,
+    sealed ? "" : notes, sealed ? sealPage(ctx, n.ownerRef, title, notes, n.subtitle ?? null, n.blurb ?? null) : null, sealed ? 2 : 0, now, now,
   );
   ctx.db.run(
     "INSERT INTO memory_page_versions (page_id, version, notes, sealed, enc, by_actor, actor_kind, at, reason) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)",
@@ -186,6 +195,8 @@ export function createPage(ctx: MemCtx, n: NewPage, o: PageSave = {}): Page {
   page.notes = notes;
   page.title = title;
   page.subject = subjectKey(title);
+  page.subtitle = n.subtitle ?? null;
+  page.blurb = n.blurb ?? null;
   resolvePending(ctx, page);
   indexLinks(ctx, page, notes);
   graphNode(ctx, page);
@@ -202,7 +213,7 @@ export function saveNotes(ctx: MemCtx, p: Page, notes: string, o: PageSave = {})
   const sealed = p.layer === "person";
   ctx.db.run(
     "UPDATE memory_pages SET notes = ?, sealed = ?, enc = ?, version = ?, updated_at = ?, touched_at = NULL WHERE page_id = ?",
-    sealed ? "" : notes, sealed ? sealPage(ctx, p.ownerRef, p.title, notes) : null, sealed ? 2 : 0, version, now, p.id,
+    sealed ? "" : notes, sealed ? sealPage(ctx, p.ownerRef, p.title, notes, p.subtitle, p.blurb) : null, sealed ? 2 : 0, version, now, p.id,
   );
   ctx.db.run(
     "INSERT INTO memory_page_versions (page_id, version, notes, sealed, enc, by_actor, actor_kind, at, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -235,9 +246,66 @@ export function untrashPage(ctx: MemCtx, p: Page, from: "trash" | "archive", o: 
   return next;
 }
 
+/** Change the line under a page's title and its short description. Not a new version of the Notes; the change is on the trail. */
+export function updateMeta(ctx: MemCtx, p: Page, meta: { subtitle?: string; blurb?: string }, o: PageSave = {}): Page {
+  const subtitle = meta.subtitle !== undefined ? meta.subtitle.trim() || null : p.subtitle;
+  const blurb = meta.blurb !== undefined ? meta.blurb.trim() || null : p.blurb;
+  if (subtitle === p.subtitle && blurb === p.blurb) return p;
+  if (p.layer === "person") ctx.db.run("UPDATE memory_pages SET sealed = ?, updated_at = ? WHERE page_id = ?", sealPage(ctx, p.ownerRef, p.title, p.notes, subtitle, blurb), ctx.now(), p.id);
+  else ctx.db.run("UPDATE memory_pages SET subtitle = ?, blurb = ?, updated_at = ? WHERE page_id = ?", subtitle, blurb, ctx.now(), p.id);
+  trail(ctx, { action: "edit", pageId: p.id, layer: p.layer, ownerRef: p.ownerRef, agentId: p.agentId, projectId: p.projectId, ...(o.who ? { who: o.who } : {}), reason: o.reason ?? "page details", detail: { version: p.version } });
+  return { ...p, subtitle, blurb, updatedAt: ctx.now() };
+}
+
+/**
+ * Move a page to another layer: who may see it. Notes, versions and links go with it, sealed or opened as the new layer needs. A page that would collide with one of the same title in the new place
+ * is refused by the caller before this runs.
+ */
+export function movePage(ctx: MemCtx, p: Page, to: { layer: Layer; ownerRef: string; agentId: string | null; projectId: string | null }, o: PageSave = {}): Page {
+  const toPerson = to.layer === "person";
+  const versions = rowsOf(ctx.db, "SELECT * FROM memory_page_versions WHERE page_id = ? ORDER BY version", p.id);
+  const plain: Array<{ version: number; notes: string }> = versions.map((v) => {
+    let notes = str(v["notes"]);
+    const sealed = orNull(v["sealed"]);
+    if (num(v["enc"]) === 2 && sealed) { try { notes = openText(ctx, sealed); } catch { notes = ""; } }
+    return { version: num(v["version"]), notes };
+  });
+  ctx.db.run(
+    "UPDATE memory_pages SET layer = ?, owner_ref = ?, agent_id = ?, project_id = ?, subject = ?, title = ?, subtitle = ?, blurb = ?, subject_ref = ?, notes = ?, sealed = ?, enc = ?, updated_at = ? WHERE page_id = ?",
+    to.layer, to.ownerRef, to.agentId, to.projectId, toPerson ? `~${p.id}` : subjectKey(p.title), toPerson ? "" : p.title, toPerson ? null : p.subtitle, toPerson ? null : p.blurb, toPerson ? null : p.subjectRef,
+    toPerson ? "" : p.notes, toPerson ? sealPage(ctx, to.ownerRef, p.title, p.notes, p.subtitle, p.blurb) : null, toPerson ? 2 : 0, ctx.now(), p.id,
+  );
+  for (const v of plain) {
+    ctx.db.run("UPDATE memory_page_versions SET notes = ?, sealed = ?, enc = ? WHERE page_id = ? AND version = ?", toPerson ? "" : v.notes, toPerson ? sealText(ctx, to.ownerRef, v.notes) : null, toPerson ? 2 : 0, p.id, v.version);
+  }
+  const next: Page = { ...p, ...to, subject: subjectKey(p.title), enc: toPerson ? 2 : 0 };
+  indexLinks(ctx, next, p.notes);
+  graphNode(ctx, next);
+  if (!toPerson) resolvePending(ctx, next);
+  // a personal page leaves nothing in the shared tables; a shared one that went personal loses its vectors and mentions
+  if (toPerson) { ctx.db.run("DELETE FROM memory_vectors WHERE doc_kind = 'page' AND doc_id = ?", p.id); ctx.db.run("DELETE FROM memory_mentions WHERE page_id = ?", p.id); }
+  trail(ctx, { action: "edit", pageId: p.id, layer: to.layer, ownerRef: to.ownerRef, agentId: to.agentId, projectId: to.projectId, ...(o.who ? { who: o.who } : {}), reason: o.reason ?? "visibility changed", detail: { from: p.layer, to: to.layer } });
+  return next;
+}
+
+const VISIBLE_TO: Record<Layer, string> = {
+  person: "Only you", agent: "People who can see the agent", project: "People on the project", space: "Everyone in this Space",
+};
+/** The first line of the Notes that is not a heading or a link line, cut short: what a page says about itself when nobody wrote a description. */
+export function blurbOf(notes: string): string | null {
+  for (const raw of notes.split("\n")) {
+    const line = raw.trim();
+    if (line === "" || line.startsWith("#") || /^[A-Za-z][A-Za-z0-9 '/-]{0,40}::/.test(line)) continue;
+    return line.length > 140 ? `${line.slice(0, 137)}...` : line;
+  }
+  return null;
+}
+const cap = (s: string): string => `${s.slice(0, 1).toUpperCase()}${s.slice(1)}`;
+
 /** The contract's page row. */
 export const pageRowOut = (p: Page) => ({
   pageId: p.id, title: p.title, kind: p.kind, layer: p.layer, ownerRef: p.ownerRef, ...(p.agentId ? { agentId: p.agentId } : {}), ...(p.projectId ? { projectId: p.projectId } : {}),
   ...(p.subjectRef ? { subjectRef: p.subjectRef } : {}), version: p.version, createdAt: p.createdAt, updatedAt: p.updatedAt, ...(p.trashedAt !== null ? { trashedAt: p.trashedAt } : {}),
   ...(p.archivedAt !== null ? { archivedAt: p.archivedAt } : {}),
+  subtitle: p.subtitle ?? cap(p.kind), ...((p.blurb ?? blurbOf(p.notes)) ? { blurb: (p.blurb ?? blurbOf(p.notes)) as string } : {}), visibleTo: VISIBLE_TO[p.layer],
 });

@@ -50,6 +50,15 @@ type Out = {
       layer: "person" | "agent" | "project" | "space";
       sourceLink?: string;
       score: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
   tookMs: number;
   meaning?: {
@@ -85,6 +94,8 @@ type Out = {
   "output": {
     "hits": [
       {
+        "by": "example",
+        "byKind": "person",
         "factId": "fct_a1b2c3",
         "kind": "note",
         "layer": "person",
@@ -93,9 +104,16 @@ type Out = {
         "path": "example",
         "score": 1,
         "sourceLink": "example",
+        "sourceTitle": "example",
+        "subject": {
+          "kind": "example",
+          "pageId": "example",
+          "title": "example"
+        },
         "text": "example",
         "title": "example",
-        "trueSince": 1760000000000
+        "trueSince": 1760000000000,
+        "versions": 1
       }
     ],
     "meaning": {

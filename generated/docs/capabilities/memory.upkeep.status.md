@@ -56,6 +56,20 @@ type Out = {
       costMicros: number;
       stopped?: "cap" | "no_key";
     }>;
+  nights: Array<{
+      day: string;
+      runs: number;
+      costMicros: number;
+      tokensIn: number;
+      tokensOut: number;
+    }>;
+  lastNight?: {
+    day: string;
+    runs: number;
+    costMicros: number;
+    tokensIn: number;
+    tokensOut: number;
+  };
 };
 ```
 
@@ -78,8 +92,24 @@ type Out = {
   "output": {
     "capMicros": 1,
     "capReached": true,
+    "lastNight": {
+      "costMicros": 1,
+      "day": "example",
+      "runs": 1,
+      "tokensIn": 1,
+      "tokensOut": 1
+    },
     "modelAvailable": true,
     "month": "example",
+    "nights": [
+      {
+        "costMicros": 1,
+        "day": "example",
+        "runs": 1,
+        "tokensIn": 1,
+        "tokensOut": 1
+      }
+    ],
     "openQuestions": 1,
     "runs": [
       {

@@ -58,6 +58,15 @@ type Out = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
     }>;
   pages?: Array<{
       pageId: string;
@@ -73,6 +82,9 @@ type Out = {
       updatedAt: number;
       trashedAt?: number;
       archivedAt?: number;
+      subtitle?: string;
+      blurb?: string;
+      visibleTo?: string;
     }>;
   next?: string;
   total?: number;
@@ -106,6 +118,8 @@ type Out = {
       {
         "agentId": "agt_a1b2c3",
         "archivedAt": 1760000000000,
+        "by": "example",
+        "byKind": "person",
         "closedAt": 1760000000000,
         "factId": "fct_a1b2c3",
         "layer": "person",
@@ -116,12 +130,19 @@ type Out = {
         "sourceKind": "chat",
         "sourceLink": "example",
         "sourceRef": "example",
+        "sourceTitle": "example",
         "status": "proposed",
+        "subject": {
+          "kind": "example",
+          "pageId": "example",
+          "title": "example"
+        },
         "text": "example",
         "trashReason": "example",
         "trashedAt": 1760000000000,
         "validFrom": 1760000000000,
-        "validTo": 1760000000000
+        "validTo": 1760000000000,
+        "versions": 1
       }
     ],
     "next": "example",
@@ -129,6 +150,7 @@ type Out = {
       {
         "agentId": "agt_a1b2c3",
         "archivedAt": 1760000000000,
+        "blurb": "example",
         "createdAt": 1760000000000,
         "kind": "person",
         "layer": "person",
@@ -136,10 +158,12 @@ type Out = {
         "pageId": "example",
         "projectId": "prj_a1b2c3",
         "subjectRef": "example",
+        "subtitle": "example",
         "title": "example",
         "trashedAt": 1760000000000,
         "updatedAt": 1760000000000,
-        "version": 1
+        "version": 1,
+        "visibleTo": "example"
       }
     ],
     "total": 1
