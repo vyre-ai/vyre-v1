@@ -70,7 +70,9 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   const messages = threadQ.status === "ready" ? threadQ.data.messages : [];
   const lines: RunLine[] = [...buildLines(run, messages, steps), ...results];
   const automation = run.subject?.type === "automation" ? run.subject.id : null;
-  const automationName = automation ? data.name(automation) : run.name ?? "Run";
+  const known = automation ? data.name(automation) : "";
+  // data.name knows people and agents and gives an automation's id back as it is; then the run's own name (a test run carries its automation's name) is the better title
+  const automationName = known !== "" && known !== automation ? known : run.name ?? "Run";
   const canRetry = !retried && !retriedIds.has(run.id);
   const duration = durationSeconds(run);
 

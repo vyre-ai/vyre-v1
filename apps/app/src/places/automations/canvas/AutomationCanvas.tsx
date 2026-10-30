@@ -584,7 +584,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           )}
         </View>
       ) : null}
-      {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <AutomationConfig automationId={a.id} />}</View> : null}
+      {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <AutomationConfig automationId={a.id} embedded />}</View> : null}
       {tab === "ask" ? (
         <AskTab
           def={def}
