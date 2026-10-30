@@ -72,7 +72,7 @@ function Greeting(): ReactElement {
   const overdue = tasks.filter((t) => t.due !== undefined && dayNumber(t.due, c.offsetMin) < today).length;
   const bits = summaryBits(needs.status === "ready" ? needs.data.total : 0, dueToday, overdue);
   const calm = needs.status === "ready" && work.status === "ready" && bits.length === 0;
-  return <GreetingView sub={`${dateLine(c)}${bits.length ? ` · ${bits.join(", ")}` : calm ? " · Nothing is waiting on you" : ""}`} />;
+  return <GreetingView sub={`${dateLine(c)}${bits.length ? ` · ${bits.join(" · ")}` : calm ? " · Nothing is waiting on you" : ""}`} />;
 }
 
 function PersonalGreeting(): ReactElement {

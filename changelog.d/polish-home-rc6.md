@@ -1,0 +1,1 @@
+- Home: While you were away is quiet when there is nothing to show, the Routines count hides at 0, the My work header wraps cleanly on a phone, the greeting line uses dots, the Quick start row fits one line on a phone, and the setup card shows the steps this device can do.

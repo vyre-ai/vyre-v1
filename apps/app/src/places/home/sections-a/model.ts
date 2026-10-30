@@ -247,7 +247,7 @@ export function recordTypeLabel(type: string): string {
 // ---------------------------------------------------------------- While you were away
 
 export function digestLimit(d: Digest | null): { show: boolean; headline: string[]; items: DigestItem[] } {
-  if (!d || d.seenAt !== undefined) return { show: false, headline: [], items: [] };
+  if (!d || d.seenAt !== undefined || (d.headline.length === 0 && d.items.length === 0)) return { show: false, headline: [], items: [] };
   return { show: true, headline: d.headline.slice(0, 3), items: d.items.slice(0, DIGEST_MAX_ITEMS) };
 }
 

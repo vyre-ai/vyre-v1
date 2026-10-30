@@ -43,7 +43,7 @@ test("the five sections render from the Northwind sample, in the spec's order", 
 test("greeting: time of day, name, date and the day in a line", () => {
   const out = html(createSampleHome());
   assert.ok(has(out, "Good morning, Irfad"));
-  assert.ok(has(out, "Friday, October 24 · 7 things need you, 3 tasks due today, 2 tasks overdue"));
+  assert.ok(has(out, "Friday, October 24 · 7 things need you · 3 tasks due today · 2 tasks overdue"));
 });
 
 test("Needs you shows the top 3 in the capability's order and a link to all of them", () => {
