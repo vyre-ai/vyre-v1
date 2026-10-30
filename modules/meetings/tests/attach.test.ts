@@ -202,3 +202,21 @@ test("the summary hook: summarize starts a Run and puts a task on the agent, set
   assert.equal(await refusedWith(m.summarize(h.ctx, { meetingId: "rec_nope" })), "validation.not_found");
   assert.ok(NOW > 0);
 });
+
+test("a meeting is its watchers' alone: whoever brought it in, and whoever's calendar or call merged into it", async () => {
+  const h = harness();
+  const link = "https://meet.google.com/abc-defg-hij";
+  const first = out(await m.ingest(h.ctx, { source: "calendar", providerRef: "cev_aaaaaaaa1", calendarEventId: "cev_aaaaaaaa1", title: "Intake", startsAt: START, endsAt: START + 3_600_000, joinUrl: link, attendees: [] }));
+  const id = String(first.meetingId);
+  h.actAs("person", "usr_other01");
+  assert.equal(await refusedWith(m.get(h.ctx, { meetingId: id })), "validation.not_found", "another member does not see it");
+  assert.equal(out(await m.listMeetings(h.ctx, {})).total, 0);
+  h.actAs("service", "svc_host");
+  await m.get(h.ctx, { meetingId: id });
+  // the other member's own call to the same link merges into it, and it becomes theirs too
+  h.actAs("person", "usr_other01");
+  await m.ingest(h.ctx, { source: "meet", providerRef: "conferenceRecords/c9", title: "Google Meet", startsAt: START, endsAt: START + 3_600_000, joinUrl: link, attendees: [] });
+  assert.equal(out(await m.listMeetings(h.ctx, {})).total, 1);
+  h.actAs("person", MAYA);
+  assert.equal(out(await m.listMeetings(h.ctx, {})).total, 1);
+});

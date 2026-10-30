@@ -105,7 +105,7 @@ export function paging(ctx: Pick<MeetCtx, "trace">, o: Json): { cursor: string |
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_meetings.sql", import.meta.url)), "utf8");
+const migrationSql = ["0001_meetings.sql", "0002_meetings_watchers.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -211,9 +211,34 @@ export function saveLink(ctx: MeetCtx, l: Link): void {
 
 export interface MeetingRecord { id: string; fields: Json }
 
+/** The person a call is made for, when it is one. */
+const personOf = (ctx: MeetCtx): string | null => {
+  const id = ctx.actingFor ?? ctx.principal.id;
+  return /^usr_[a-z0-9]+$/.test(id) ? id : null;
+};
+
+/** The meeting belongs to the person making this call (and to anyone who joined it before). */
+export function addWatcher(ctx: MeetCtx, recordId: string): void {
+  const me = personOf(ctx);
+  if (!me || first(ctx.db.all(`SELECT "personId" FROM meetings_watcher WHERE "recordId" = ? AND "personId" = ?`, recordId, me))) return;
+  ctx.db.run(`INSERT INTO meetings_watcher ("recordId", "personId") VALUES (?, ?)`, recordId, me);
+}
+
+/**
+ * May this caller see this meeting? The server itself may; a person may when it is theirs. A meeting nobody owns yet (older ones, or brought in by the server for the whole Space)
+ * stays visible to everyone, so nothing that exists today disappears.
+ */
+export function canSeeMeeting(ctx: MeetCtx, recordId: string): boolean {
+  const me = personOf(ctx);
+  if (me === null) return true;   // the server, or an agent or automation not acting for a person: what it may do is decided by its own access
+  const rows = ctx.db.all(`SELECT "personId" FROM meetings_watcher WHERE "recordId" = ?`, recordId);
+  return rows.length === 0 || rows.some((r) => (r as { personId?: unknown }).personId === me);
+}
+
 /** The Meeting record, through records. A record that is not a meeting, or not there, is not found. */
 export async function meetingRecord(ctx: MeetCtx, recordId: string): Promise<MeetingRecord> {
   if (!isId("rec", recordId)) bad(ctx, "Meeting id is not valid.");
+  if (!canSeeMeeting(ctx, recordId)) return missing(ctx, "That meeting is not in this Space.");
   let rec: Json;
   try {
     rec = obj(obj(await ctx.call("records.get", { type: "meeting", recordId })).record);

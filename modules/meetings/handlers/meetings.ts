@@ -5,7 +5,7 @@
 // DECISION: ingest is idempotent: the same event or provider id again refreshes the fields (time, title, link, status) and says created false, merged false; only a new identity joining is a merge.
 // DECISION: unmerge splits one calendar event off into a Meeting of its own, built from the event. A meeting with nothing but that one event cannot be unmerged (nothing would be left behind).
 // DECISION: cancel marks the record canceled, deletes its calendar events and the Zoom meeting best-effort (a missing one is fine, a provider refusal is the caller's to see), and says so once.
-import { codeOf, bad, ensure, first, isId, isInt, isoOf, keyOf, linkFor, linkKey, links, list, meetingRecord, meetingRow, msOf, obj, paging, patchMeeting, providerOfUrl, pageOf, refuse, saveLink, text, strOrUndef } from "../projections.ts";
+import { addWatcher, canSeeMeeting, codeOf, bad, ensure, first, isId, isInt, isoOf, keyOf, linkFor, linkKey, links, list, meetingRecord, meetingRow, msOf, obj, paging, patchMeeting, providerOfUrl, pageOf, refuse, saveLink, text, strOrUndef } from "../projections.ts";
 import type { Json, Link, MeetCtx, Provider } from "../projections.ts";
 
 const WINDOW_MS = 15 * 60_000;
@@ -96,6 +96,7 @@ export async function ingest(ctx: MeetCtx, input: {
     })).record);
     const recordId = text(created["id"]);
     if (!isId("rec", recordId)) throw new Error("records.create answered no id");
+    addWatcher(ctx, recordId);
     saveLink(ctx, {
       recordId, providerRef: isCal ? null : input.providerRef, joinUrl: input.joinUrl ?? null, startsAt: input.startsAt, endsAt: input.endsAt ?? null, emails, eventIds: eventId ? [eventId] : [],
       provider, recordingFileId: null, recordingDurationSec: null, folderId: null, mergedBy: null, createdAt: ctx.now(),
@@ -105,6 +106,7 @@ export async function ingest(ctx: MeetCtx, input: {
   }
 
   const l = hit.link;
+  addWatcher(ctx, l.recordId);   // a calendar or call that merges into a meeting makes it that person's too
   const rec = await meetingRecord(ctx, l.recordId);
   const newEvent = eventId !== undefined && !l.eventIds.includes(eventId);
   const newRef = !isCal && l.providerRef !== input.providerRef;
@@ -284,7 +286,7 @@ export async function listMeetings(ctx: MeetCtx, input: { from?: number; to?: nu
     const s = msOf(f["starts_at"]) ?? 0;
     return (input.from === undefined || s >= input.from) && (input.to === undefined || s < input.to) && (input.status === undefined || (text(f["status"]) || "scheduled") === input.status)
       && (input.contactId === undefined || list(f["attendees"]).includes(input.contactId));
-  }).map((r) => meetingRow(ctx, text(r["id"]), obj(r["fields"]), linkFor(ctx, text(r["id"]))));
+  }).filter((r) => canSeeMeeting(ctx, text(r["id"]))).map((r) => meetingRow(ctx, text(r["id"]), obj(r["fields"]), linkFor(ctx, text(r["id"]))));
   picked.sort((a, b) => (b["startsAt"] as number) - (a["startsAt"] as number) || text(a["id"]).localeCompare(text(b["id"])));
   const p = pageOf(picked, cursor, limit);
   return { meetings: p.page, ...(p.next ? { next: p.next } : {}), total: p.total };
