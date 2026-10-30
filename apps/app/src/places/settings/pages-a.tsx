@@ -209,12 +209,14 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
   }, [data]);
   const mine = boxes.status === "ready" ? boxes.data.mailboxes.map((m) => ({ id: m.id, address: m.address, provider: m.provider, state: m.state })) : [];
   const suites = suiteSections(mine, calendars ?? []);
+  const firm: ReactElement[] = [];
+  suites.forEach((suite, si) => firm.push(
+    <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
+  ));
   return (
     <>
       <Section title="Through your firm" note={suites.length === 0 && boxes.status === "ready" && calendars !== null ? NOT_CONNECTED : undefined}>
-        {suites.map((suite, si) => (
-          <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />
-        ))}
+        {firm}
       </Section>
       <Section title="Mail and calendar">
         {list}
