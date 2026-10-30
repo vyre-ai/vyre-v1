@@ -1,0 +1,1 @@
+- App: the onboarding screen and the first-launch wizard are redrawn. The rail is one row per step on a fixed grid with a progress bar, the Assistant speaks as one message group, the action card is framed, the footer lines up with the content column, the preview shows what is set up so far, and the three doors are clear choices in light and dark.

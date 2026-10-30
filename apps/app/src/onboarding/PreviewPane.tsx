@@ -33,10 +33,10 @@ export function PreviewView({ preview, fallback }: { preview: Preview | null; fa
 }
 
 const s = StyleSheet.create({
-  col: { gap: 8 },
-  head: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, paddingHorizontal: 8 },
-  hint: { fontSize: 13, lineHeight: 19, color: "var(--ink-3)" as string, paddingHorizontal: 8 },
-  chip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, gap: 2 },
+  col: { gap: 10 },
+  head: { fontSize: 14, lineHeight: 20, fontWeight: "600", color: "var(--ink)" as string },
+  hint: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },
+  chip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "var(--sunk)" as string, gap: 2 },
   chipText: { fontSize: 13.5, color: "var(--ink)" as string, lineHeight: 19 },
   chipNote: { fontSize: 12, color: "var(--ink-3)" as string },
 });
