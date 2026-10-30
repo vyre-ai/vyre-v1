@@ -165,7 +165,7 @@ function handlersFor(spec: SeedSpace, ownerId: string): Record<string, Handler> 
     return {
       agent: {
         agentId: id, name, face: typeof input.face === "string" ? input.face : slug, status: "awake", ownerId: owner, folderId: `fld_${slug}`,
-        accountPolicy: "asker", toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "propose", hasComputer: false,
+        accountPolicy: "asker", accountFallback: [], toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "auto", hasComputer: false,
         templateVersion: 1, createdAt: ctx.now(),
       },
     };
