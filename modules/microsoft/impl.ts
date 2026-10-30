@@ -2,6 +2,9 @@
 // packet flips it to live once the generated contract tests pass against these handlers and the tenant proof (S11 part B) is recorded.
 // The host registers its half once at boot with setMsHost (application token from the Vault app registration, member emails, blobs): see projections.ts.
 import type { Handler } from "../../host/src/invoke.ts";
+import { hostOnly, internalOnly } from "../../host/src/ctx/host-only.ts";
+import type { Ctx } from "../../packages/contracts/src/ctx.ts";
+import type { WebhookAccept } from "../../host/src/routes/webhooks.ts";
 import * as h from "./handlers/index.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import { codecs, consumers, inline, setMsHost } from "./projections.ts";
@@ -19,7 +22,7 @@ export const handlers: Record<string, Handler> = {
   "ms.consent.set_excluded": (ctx, i) => h.consentExclude(ctx, i),
   "ms.consent.disable": (ctx) => h.consentDisable(ctx),
   "ms.health": (ctx) => h.health(ctx),
-  "ms.receive_notification": (ctx, i) => h.receiveNotification(ctx, i),
+  "ms.receive_notification": async (ctx, i) => { internalOnly(ctx, "ms.receive_notification"); return h.receiveNotification(ctx, i); },
   "ms.subscriptions.renew": (ctx) => h.renew(ctx),
   "ms.mail.list_folders": (ctx, i) => h.mailFolders(ctx, i),
   "ms.mail.list_messages": (ctx, i) => h.mailMessages(ctx, i),
@@ -65,3 +68,11 @@ export { codecs, inline, consumers };
 
 /** Where the host registers its Microsoft seam at boot (ruling 31): the loader reads this export. */
 export const hostSeams: SeamSetters = { setMsHost };
+
+/** /hooks/microsoft: the subscription's clientState is checked before anything is recorded (handlers/hook.ts); a new subscription's validation token is handed back. */
+export const hostCalls = {
+  "microsoft.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
+    hostOnly(ctx, "microsoft.accept_webhook");   // a host call: the webhook route is the only way in
+    return h.acceptHook(ctx, a);
+  },
+};

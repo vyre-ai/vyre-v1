@@ -111,7 +111,7 @@ export function bad(ctx: Pick<GoogleCtx, "trace">, message: string): never {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_google_core.sql", import.meta.url)), "utf8");
+const migrationSql = ["0001_google_core.sql", "0002_google_push.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -142,6 +142,17 @@ export function ensure(ctx: Pick<GoogleCtx, "db">): void {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
   ready.add(ctx.db);
+}
+
+/** The secret every push address carries. Made on first use and kept; `rotate` makes a new one (the watches must then be started again). */
+export function pushToken(ctx: GoogleCtx, rotate = false): string {
+  ensure(ctx);
+  const row = first(ctx.db.all(`SELECT token FROM google_push_secret WHERE id = ?`, CONFIG_ID));
+  if (row && typeof row.token === "string" && !rotate) return row.token;
+  const token = `${mintUuid(ctx.now())}${mintUuid(ctx.now())}`.replaceAll("-", "");
+  if (row) ctx.db.run(`UPDATE google_push_secret SET token = ?, created_at = ? WHERE id = ?`, token, ctx.now(), CONFIG_ID);
+  else ctx.db.run(`INSERT INTO google_push_secret (id, token, created_at) VALUES (?, ?, ?)`, CONFIG_ID, token, ctx.now());
+  return token;
 }
 
 export function config(ctx: GoogleCtx): Row | null {

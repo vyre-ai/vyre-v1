@@ -8,3 +8,4 @@ export {
   eventCreate, eventDelete, eventGet, eventRespond, eventsList, eventUpdate, freeBusy, health, meetEntries, meetRecordings, meetRecords, meetSubscribe, meetTranscripts,
   receivePush, sheetAppend, sheetBatch, sheetCreate, sheetGet, sheetUpdate, sheetValues,
 } from "./workspace.ts";
+export { acceptHook, sameSecret } from "./hook.ts";
