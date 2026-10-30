@@ -42,7 +42,8 @@ test("empty, offline and error states carry the def's lines and actions", () => 
   const failing = fakeEnv({ traceId: "tr_123", hooks: { query: () => { throw new Error("no such query"); } } });
   const error = renderToStaticMarkup(<KitScreen def={listDef} env={failing} />);
   assert.match(error, /data-testid="state-error"/);
-  for (const text of ["People did not load", "Retry", "Copy trace id", "Report a problem", "tr_123"]) assert.ok(error.includes(text), text);
+  // the trace id, Copy trace id and Report a problem sit behind the quiet Details link
+  for (const text of ["People did not load", "Retry", "Details"]) assert.ok(error.includes(text), text);
 });
 
 test("a registered builtin renders in place of a layout; an unregistered one says so", () => {

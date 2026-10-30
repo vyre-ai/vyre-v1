@@ -177,7 +177,7 @@ test("request and export query failures render truthful errors with a working re
   const requestRetry = failQuery(requests, "vault_requests.list", "requests");
   const requestOut = html(requests, { route: { surface: "requests" } });
   assert.ok(has(requestOut, "Couldn&#x27;t load Vault requests") && has(requestOut, "The Space could not answer"));
-  assert.ok(has(requestOut, 'data-testid="state-retry"') && has(requestOut, "trace-vault-read"));
+  assert.ok(has(requestOut, 'data-testid="state-retry"') && has(requestOut, "Details"));
   assert.equal(retryVaultQueries(requests.data.screens), true);
   assert.equal(requestRetry.retries(), 1);
 

@@ -74,7 +74,9 @@ export function Dialog({ title, children, actions = [], onClose, width = 440, te
           {children ? <View style={s.body}>{children}</View> : null}
           {actions.length ? (
             <View style={s.actions}>
+              {/* ui-rows-lint: not a list (the dialog's action buttons) */}
               {left.map((a) => <ActionButton key={a.label} a={a} />)}
+              {/* ui-rows-lint: not a list (the dialog's action buttons) */}
               {right.map((a) => <ActionButton key={a.label} a={a} />)}
             </View>
           ) : null}
