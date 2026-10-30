@@ -5,7 +5,7 @@ import { OnboardingScreen } from "./OnboardingScreen.tsx";
 import { stepsOf } from "./flow.ts";
 
 const noop = (): void => undefined;
-const html = (props: Partial<Parameters<typeof OnboardingScreen>[0]> = {}): string => renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Personal" progress={{}} onStep={noop} {...props} />);
+const html = (props: Partial<Parameters<typeof OnboardingScreen>[0]> = {}): string => renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Personal" progress={{}} onStep={noop} device="mac" {...props} />);
 
 test("the screen has a rail, a chat and a preview, and opens on the first open step", () => {
   const out = html();
@@ -15,22 +15,35 @@ test("the screen has a rail, a chat and a preview, and opens on the first open s
   assert.ok(out.includes("Set up  0 of 8") || out.includes("Set up&nbsp;&nbsp;0 of 8") || /Set up\s+0 of 8/.test(out));
 });
 
-test("the scripted Assistant says so and never claims to be live without an AI account", () => {
-  assert.ok(html({ stepKey: "interview" }).includes("Connect an AI account to talk to me"));
-  assert.ok(!html({ stepKey: "interview", live: true, lines: [] }).includes("scripted-note"));
+test("the Assistant says one short sentence per step, and never claims to be live without an AI account", () => {
+  const out = html({ stepKey: "interview" });
+  assert.ok(out.includes("Three quick ones.") && out.includes('data-testid="assistant-said"'));
+  assert.equal((out.match(/data-testid="line-/g) ?? []).length, 1, "one line, not three boxes");
+  assert.ok(!out.includes("scripted-note") && !out.includes("Connect an AI account to talk to me"));
 });
 
-test("done steps tick, put-off steps say Later, and a finished flow says all set", () => {
+test("done steps tick, skipped steps say Skipped, and a finished flow shows the summary with Go to Home", () => {
   const out = html({ progress: { ai: "done", interview: "later" }, stepKey: "sessions" });
-  assert.ok(out.includes('data-testid="mark-done"') && out.includes('data-testid="mark-later"') && out.includes(">Later<"));
+  assert.ok(out.includes('data-testid="mark-done"') && out.includes('data-testid="mark-later"') && out.includes(">Skipped<"));
   const all = Object.fromEntries(stepsOf("member").map((st) => [st.key, "done" as const]));
-  assert.ok(renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={all} onStep={noop} onClose={noop} />).includes("You are all set."));
+  const end = renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={all} onStep={noop} onClose={noop} device="mac" />);
+  assert.ok(end.includes("You are set up") && end.includes("All done") && end.includes("Go to Home") && end.includes('data-testid="onboarding-finished"'));
+  const some = renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={{ ...all, apps: "later" }} stepKey="__none__" onStep={noop} onClose={noop} device="mac" />);
+  assert.ok(!some.includes("onboarding-finished") || some.includes('data-testid="done-set-apps"'));
 });
 
-test("a member and a Team owner get their own steps and greeting", () => {
+test("the steps follow the device: a browser has no sessions or folders, a phone also no Chrome and its own step is done", () => {
+  const web = html({ device: "web" });
+  assert.ok(!web.includes('row-step-sessions') && !web.includes('row-step-folders') && web.includes("row-step-chrome"));
+  const phone = html({ device: "phone" });
+  assert.ok(!phone.includes("row-step-chrome") && !phone.includes('data-testid="onboarding-rail"'), "one column, no rail");
+  assert.ok(phone.includes(">Set up  1 of 5<") || /Set up\s+1 of 5/.test(phone), "Your phone counts as done on a phone");
+});
+
+test("a member and a Team owner get their own steps", () => {
   assert.ok(html({ flow: "member", spaceName: "Acme" }).includes("Your mail, calendar, files"));
   const team = html({ flow: "team", spaceName: "Acme" });
-  assert.ok(team.includes("Your organisation") && team.includes("You own it"));
+  assert.ok(team.includes("Your organisation") && team.includes("Name your Space."));
 });
 
 test("a card from the host replaces the placeholder", () => {
@@ -124,11 +137,14 @@ test("with an AI account the person's own Ask thread replaces the scripted words
   assert.equal(await findAssistant(rt as never, "usr_zzz"), null);
 });
 
-test("the bottom bar is Skip for now, Next (Done on the last step) and a quiet Finish later; no Continue to Home", () => {
+test("the bottom bar is Skip, Continue (disabled until the step is done, Finish on the last step) and a quiet Finish later", () => {
   const out = html({ stepKey: "ai", onClose: noop });
-  assert.ok(out.includes("Skip for now") && out.includes('data-testid="step-next"') && out.includes(">Next<") && out.includes("Finish later"));
-  assert.ok(!out.includes("Continue to Home") && !out.includes("Not now"));
-  assert.ok(html({ stepKey: "team", onClose: noop }).includes(">Done<"), "the last step says Done");
+  assert.ok(out.includes(">Skip<") && out.includes('data-testid="step-next"') && out.includes(">Continue<") && out.includes("Finish later"));
+  assert.ok(/aria-disabled="true"|disabled=""/.test(out), "not done: Continue is disabled");
+  assert.ok(!/aria-disabled="true"|disabled=""/.test(html({ stepKey: "ai", progress: { ai: "done" }, onClose: noop })), "done: nothing is disabled");
+  const done = html({ stepKey: "ai", progress: { ai: "done" }, onClose: noop });
+  assert.ok(!done.includes(">Skip<"), "a done step has no Skip");
+  assert.ok(html({ stepKey: "team", onClose: noop }).includes(">Finish<"), "the last step says Finish");
 });
 
 test("the preview pane shows chips, or Not yet with its hint", async () => {
