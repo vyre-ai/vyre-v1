@@ -3776,6 +3776,19 @@ export type CalendarAvailabilityOut = {
     }>;
   unknown: Array<string>;
 };
+export type CalendarConnectProviderIn = {
+  provider: "google" | "microsoft";
+  ownerId: string;
+  account: string;
+  connectionId: string;
+  remoteId?: string;
+  title?: string;
+  connected?: boolean;
+};
+export type CalendarConnectProviderOut = {
+  calendarId?: string;
+  created: boolean;
+};
 export type CalendarCreateCalendarIn = {
   title: string;
   color?: string;
@@ -13391,6 +13404,9 @@ export type InboxLinkMessageIn = {
   numberId?: string;
   campaignId?: string;
   preview?: string;
+  threadId?: string;
+  subject?: string;
+  participants?: Array<string>;
 };
 export type InboxLinkMessageOut = {
   conversationId: string;
@@ -27598,6 +27614,7 @@ export interface CapMap {
   "bookings.list": { in: BookingsListIn; out: BookingsListOut };
   "bookings.page_create": { in: BookingsPageCreateIn; out: BookingsPageCreateOut };
   "calendar.availability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut };
+  "calendar.connect_provider": { in: CalendarConnectProviderIn; out: CalendarConnectProviderOut };
   "calendar.create_calendar": { in: CalendarCreateCalendarIn; out: CalendarCreateCalendarOut };
   "calendar.create_event": { in: CalendarCreateEventIn; out: CalendarCreateEventOut };
   "calendar.delete_calendar": { in: CalendarDeleteCalendarIn; out: CalendarDeleteCalendarOut };
@@ -29332,6 +29349,12 @@ export type BookingCreatedPayload = {
   bookingId: string;
   formId: string;
   recordId: string;
+};
+export type CalendarCreatedPayload = {
+  calendarId: string;
+  provider: "google" | "microsoft" | "local";
+  ownerId: string;
+  private: boolean;
 };
 export type CalendarSyncedPayload = {
   calendarId: string;
@@ -32430,6 +32453,7 @@ export interface EventMap {
   "block.waiting": BlockWaitingPayload;
   "booking.cancelled": BookingCancelledPayload;
   "booking.created": BookingCreatedPayload;
+  "calendar.created": CalendarCreatedPayload;
   "calendar.synced": CalendarSyncedPayload;
   "calendar_event.created": CalendarEventCreatedPayload;
   "calendar_event.deleted": CalendarEventDeletedPayload;

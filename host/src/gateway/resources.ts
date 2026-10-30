@@ -24,10 +24,11 @@ const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
   inbox: null, automation_group: null, connector: null, calendar: null,
 });
 /**
- * Resource types whose birth event may name the owner (its payload `ownerId`). Opt-in per type: the capability that creates one of these decides who may assign an owner other than the caller
- * (agents.create refuses a caller who is not an owner or admin), so the registrar only records what that capability allowed.
+ * Resource types whose birth event may name the owner, and the payload pointer it does it in. Opt-in per type: the capability that creates one of these decides who may assign an owner
+ * other than the caller (agents.create refuses a caller who is not an owner or admin; connecting a member's Google or Outlook calendar and mail takes connectors.manage), so the
+ * registrar only records what that capability allowed.
  */
-const OWNER_NAMED: ReadonlySet<string> = new Set(["agent"]);
+const OWNER_NAMED: ReadonlyMap<string, string> = new Map([["agent", "/ownerId"], ["calendar", "/ownerId"], ["mailbox", "/memberId"]]);
 /** Every resource type the registrar checks ids for. */
 export const KNOWN_TYPES: readonly string[] = Object.freeze(Object.keys(ID_SHAPE));
 const ANY_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
@@ -121,8 +122,10 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         seen.add(id);
         const container = typeof given === "string" && given !== id && (deps.exists(given) || seen.has(given)) ? given : a.space;
         // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for
-        const named = OWNER_NAMED.has(s.type) ? pointer(ev.payload, "/ownerId") : undefined;
-        out.push({ id, type: s.type, parent_id: s.type === "space" ? null : container, label: 0, owner_id: typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
+        const named = OWNER_NAMED.has(s.type) ? pointer(ev.payload, OWNER_NAMED.get(s.type)!) : undefined;
+        // a calendar that says it is private (a member's own Google or Outlook calendar, a Personal one) does not inherit the Space's access: the owner has it, and anyone they share it with
+        const privateRoot = s.type === "calendar" && pointer(ev.payload, "/private") === true;
+        out.push({ id, type: s.type, parent_id: s.type === "space" || privateRoot ? null : container, label: 0, owner_id: typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
       }
       return out;
     },

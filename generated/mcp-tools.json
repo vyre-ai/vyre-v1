@@ -6891,6 +6891,65 @@
     },
     {
       "blocks": [],
+      "cap": "calendar.connect_provider",
+      "deferred": false,
+      "description": "Put a member's Google or Microsoft calendar in Calendar, owned by them and read as their account; connected false (an excluded member) removes it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "account": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft"
+            ],
+            "type": "string"
+          },
+          "remoteId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "ownerId",
+          "account",
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "name": "calendar_connect_provider",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "calendar.create_calendar",
       "deferred": false,
       "description": "Create a local calendar (for example a private Personal one)",

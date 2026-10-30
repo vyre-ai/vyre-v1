@@ -37564,8 +37564,126 @@
       "v": 1
     },
     {
+      "audit": "always",
       "effects": "write",
-      "emits": [],
+      "emits": [
+        "calendar.created"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "account": "maya@example.com",
+            "connected": true,
+            "connectionId": "con_a1b2c3",
+            "ownerId": "usr_a1b2c3",
+            "provider": "google",
+            "remoteId": "example",
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "calendarId": "cld_a1b2c3",
+            "created": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "account": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft"
+            ],
+            "type": "string"
+          },
+          "remoteId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "ownerId",
+          "account",
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "calendar",
+      "name": "calendar.connect_provider",
+      "output": {
+        "properties": {
+          "calendarId": {
+            "examples": [
+              "cld_a1b2c3"
+            ],
+            "pattern": "^cld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "created": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "created"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Put a member's Google or Microsoft calendar in Calendar, owned by them and read as their account; connected false (an excluded member) removes it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "calendar.created"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -96031,11 +96149,16 @@
             "direction": "in",
             "mailboxId": "mbx_a1b2c3",
             "numberId": "num_a1b2c3",
+            "participants": [
+              "example"
+            ],
             "preview": "example",
             "ref": {
               "id": "example",
               "kind": "mail_message"
-            }
+            },
+            "subject": "example",
+            "threadId": "example"
           },
           "name": "example",
           "output": {
@@ -96096,6 +96219,12 @@
             "pattern": "^num_[a-z0-9]+$",
             "type": "string"
           },
+          "participants": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "preview": {
             "type": "string"
           },
@@ -96118,6 +96247,12 @@
               "id"
             ],
             "type": "object"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
           }
         },
         "required": [
@@ -178183,6 +178318,54 @@
         "title": "A booking is made"
       },
       "vis": "space"
+    },
+    {
+      "module": "calendar",
+      "name": "calendar.created",
+      "payload": {
+        "properties": {
+          "calendarId": {
+            "examples": [
+              "cld_a1b2c3"
+            ],
+            "pattern": "^cld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft",
+              "local"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "calendarId",
+          "provider",
+          "ownerId",
+          "private"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/calendarId",
+        "type": "calendar"
+      },
+      "summary": "A calendar came into being: a private local one, or a member's Google or Outlook calendar connected by an admin",
+      "sv": 1,
+      "vis": "participants"
     },
     {
       "module": "calendar",

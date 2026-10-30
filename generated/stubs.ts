@@ -245,6 +245,7 @@ export function stubs(ctx: CallCtx) {
     },
     calendar: {
       availability: call("calendar.availability"),
+      connect_provider: call("calendar.connect_provider"),
       create_calendar: call("calendar.create_calendar"),
       create_event: call("calendar.create_event"),
       delete_calendar: call("calendar.delete_calendar"),

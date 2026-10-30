@@ -45,6 +45,9 @@ const manifest = defineManifest({
     }),
   ],
   events: [
+    ev('calendar.created', 'A calendar came into being: a private local one, or a member\'s Google or Outlook calendar connected by an admin', {
+      p: { calendarId: calId, provider: t.enm('google', 'microsoft', 'local'), ownerId: id.user, private: t.bool() }, subject: ['calendar', '/calendarId'], vis: 'participants',
+    }),
     ev('calendar_event.created', 'An event was created in Vyre or arrived from a provider', {
       p: { eventId: cevId, calendarId: calId, startsAt: t.ts(), attendeeCount: t.int(), source: t.enm('vyre', 'google', 'microsoft', 'booking') }, subject: ['entity', '/eventId'], label: 'subject',
       trigger: { title: 'An event is created', fields: ['/calendarId', '/source'] },
@@ -60,7 +63,7 @@ const manifest = defineManifest({
       in: { scope: t.opt(t.enm('mine', 'shared', 'all')) }, out: { calendars: t.arr(calendarRow) }, tool: 'inbox', label: 'filter',
     }),
     write('calendar.create_calendar', 'Create a local calendar (for example a private Personal one)', {
-      in: { title: t.str(), color: t.opt(t.str()), personal: t.opt(t.bool()) }, out: { calendar: calendarRow }, idem: 'key', tool: 'inbox',
+      in: { title: t.str(), color: t.opt(t.str()), personal: t.opt(t.bool()) }, out: { calendar: calendarRow }, idem: 'key', emits: ['calendar.created'], tool: 'inbox',
     }),
     write('calendar.update_calendar', 'Rename a calendar or change its colour', {
       in: { calendarId: calId, title: t.opt(t.str()), color: t.opt(t.str()) }, out: { calendar: calendarRow }, tool: 'inbox',
@@ -109,6 +112,10 @@ const manifest = defineManifest({
         allDay: t.opt(t.bool()), location: t.opt(t.str()), joinUrl: t.opt(t.str()), organizer: t.opt(email), attendees: t.opt(t.arr(attendee)), description: t.opt(t.str()),
       },
       out: { eventId: cevId, meetingId: t.opt(id.record), merged: t.bool() }, emits: ['calendar_event.created', 'calendar_event.updated', 'calendar_event.deleted'], idem: 'natural',
+    }),
+    write('calendar.connect_provider', "Put a member's Google or Microsoft calendar in Calendar, owned by them and read as their account; connected false (an excluded member) removes it", {
+      in: { provider: t.enm('google', 'microsoft'), ownerId: id.user, account: email, connectionId: id.connection, remoteId: t.opt(t.str()), title: t.opt(t.str()), connected: t.opt(t.bool()) },
+      out: { calendarId: t.opt(calId), created: t.bool() }, perm: 'connectors.manage', emits: ['calendar.created'], audit: 'always', idem: 'natural', tool: 'meta',
     }),
     read('calendar.health', 'Calendar sync health: age of the last successful sync per calendar', { in: {}, out: healthOut }),
   ],

@@ -14,6 +14,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 
 ## Capabilities that need it
 
+- calendar.connect_provider
 - connections.create
 - connectors.build
 - connectors.diff

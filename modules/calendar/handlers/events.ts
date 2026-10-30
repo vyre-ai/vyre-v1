@@ -26,6 +26,8 @@ const STALE_MS = 6 * 3_600_000;
 const PULL_BEHIND = 30 * DAY_MS;
 const PULL_AHEAD = 90 * DAY_MS;
 const MAX_PAGES = 50;
+/** The remote id of a member's default Outlook calendar: Graph names it by omitting the id. */
+export const GRAPH_DEFAULT = "default";
 const DEFAULT_LIMIT = 200;
 
 // ---- who is calling, which rows they may touch
@@ -141,6 +143,7 @@ export async function createCalendar(ctx: CalCtx, input: { title: string; color?
     `INSERT INTO calendar_list (id, title, color, provider, "connectionId", "remoteId", "ownerId", personal, state, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, title, color, "local", null, null, owner, personal ? 1 : 0, "syncing", 1, ctx.now(), null,
   );
+  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: "local", ownerId: owner, private: personal });
   return { calendar: toCalendar(calendarRow(ctx, id, "view")) };
 }
 
@@ -724,7 +727,8 @@ export async function syncNow(ctx: CalCtx, input: { calendarId: string }): Promi
   try {
     if (!connectionId || !remoteId) refuse(ctx, "This calendar has no connection to pull from. Reconnect it in Settings, Connections.");
     const cursor = strOrNull(sync, "cursor");
-    const pulled = provider === "google" ? await pullGoogle(ctx, input.calendarId, connectionId, remoteId, cursor) : await pullGraph(ctx, input.calendarId, connectionId, remoteId, cursor);
+    const account = strOrNull(first(ctx.db.all(`SELECT account FROM calendar_account WHERE "calendarId" = ?`, input.calendarId)), "account") ?? undefined;
+    const pulled = provider === "google" ? await pullGoogle(ctx, input.calendarId, connectionId, remoteId, cursor, account) : await pullGraph(ctx, input.calendarId, connectionId, remoteId, cursor, account);
     ctx.db.run(`UPDATE calendar_sync SET cursor = ?, "lastOkAt" = ?, "lastError" = ? WHERE "calendarId" = ?`, pulled.cursor, ctx.now(), null, input.calendarId);
     ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "syncing", num(cal, "version") + 1, ctx.now(), input.calendarId);
     ctx.emit("calendar.synced", `entity/${input.calendarId}`, { calendarId: input.calendarId, upserted: pulled.upserted, removed: pulled.removed }, { vis: "participants" });
@@ -732,14 +736,14 @@ export async function syncNow(ctx: CalCtx, input: { calendarId: string }): Promi
     const code = codeOf(e);
     ctx.db.run(`UPDATE calendar_sync SET "lastError" = ? WHERE "calendarId" = ?`, code || "sync_failed", input.calendarId);
     ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "error", num(cal, "version") + 1, ctx.now(), input.calendarId);
-    ctx.log.warn("calendar sync failed", { calendarId: input.calendarId, code });
+    ctx.log.warn("calendar sync failed", { calendarId: input.calendarId, code, ...(e instanceof Error ? { error: e.message.slice(0, 200) } : {}) });
   }
   return { runId };
 }
 
 const isoOf = (ts: number): string => new Date(ts).toISOString();
 
-async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string, remoteId: string, cursor: string | null): Promise<Pulled> {
+async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string, remoteId: string, cursor: string | null, account?: string): Promise<Pulled> {
   const run = async (token: string | null): Promise<Pulled> => {
     let upserted = 0;
     let removed = 0;
@@ -748,7 +752,7 @@ async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string,
     const now = ctx.now();
     for (let page = 0; page < MAX_PAGES; page++) {
       const query: Json = token ? { syncToken: token } : { timeMin: isoOf(now - PULL_BEHIND), timeMax: isoOf(now + PULL_AHEAD) };
-      const res = obj(await ctx.call("google.calendar.list_events", { connectionId, calendarId: remoteId, ...query, ...(pageToken ? { pageToken } : {}) }));
+      const res = obj(await ctx.call("google.calendar.list_events", { connectionId, calendarId: remoteId, ...(account ? { as: account } : {}), ...query, ...(pageToken ? { pageToken } : {}) }));
       for (const raw of list(res.events).map(obj)) {
         const ing = fromGoogle(calendarId, raw);
         if (!ing) continue;
@@ -771,10 +775,10 @@ async function pullGoogle(ctx: CalCtx, calendarId: string, connectionId: string,
   }
 }
 
-async function pullGraph(ctx: CalCtx, calendarId: string, connectionId: string, remoteId: string, cursor: string | null): Promise<Pulled> {
+async function pullGraph(ctx: CalCtx, calendarId: string, connectionId: string, remoteId: string, cursor: string | null, account?: string): Promise<Pulled> {
   const run = async (link: string | null): Promise<Pulled> => {
     const now = ctx.now();
-    const res = obj(await ctx.call("ms.calendar.delta", { connectionId, calendarId: remoteId, start: isoOf(now - PULL_BEHIND), end: isoOf(now + PULL_AHEAD), ...(link ? { deltaLink: link } : {}) }));
+    const res = obj(await ctx.call("ms.calendar.delta", { connectionId, ...(remoteId === GRAPH_DEFAULT ? {} : { calendarId: remoteId }), ...(account ? { as: account } : {}), start: isoOf(now - PULL_BEHIND), end: isoOf(now + PULL_AHEAD), ...(link ? { deltaLink: link } : {}) }));
     let upserted = 0;
     let removed = 0;
     for (const raw of list(res.changed).map(obj)) {
@@ -825,3 +829,51 @@ function ageOf(ms: number): string {
   return hours >= 48 ? `${Math.floor(hours / 24)} days` : `${hours} hours`;
 }
 
+
+// ---- provider calendars (calendar.connect_provider)
+
+export interface ConnectProviderIn { provider: "google" | "microsoft"; ownerId: string; account: string; connectionId: string; remoteId?: string; title?: string; connected?: boolean }
+
+/**
+ * Put a member's Google or Microsoft calendar in Calendar, owned by them (private until they share it), read as their account. Called when delegation or consent connects or includes a
+ * member. The same call again answers the same calendar; `connected: false` (a member who was excluded) removes the calendar and its events from Calendar, and including them again makes a new one.
+ */
+export async function connectProvider(ctx: CalCtx, input: ConnectProviderIn): Promise<{ calendarId?: string; created: boolean }> {
+  ensure(ctx);
+  if (input.provider !== "google" && input.provider !== "microsoft") bad(ctx, "The provider is google or microsoft.");
+  if (!isId("usr", input.ownerId)) bad(ctx, "The owner is a member id.");
+  if (!isId("con", input.connectionId)) bad(ctx, "The connection is not valid.");
+  const account = normalizeEmail(input.account ?? "");
+  if (!EMAIL.test(account)) bad(ctx, "The account is an email address.");
+  const remoteId = input.remoteId === undefined ? (input.provider === "google" ? "primary" : GRAPH_DEFAULT) : (clean(ctx, input.remoteId, "The remote id", 500, true) ?? "");
+  const have = first(ctx.db.all(
+    `SELECT * FROM calendar_list WHERE provider = ? AND "ownerId" = ? AND "connectionId" = ? AND "remoteId" = ? AND deleted_at IS NULL`, input.provider, input.ownerId, input.connectionId, remoteId,
+  ));
+  const now = ctx.now();
+  if (input.connected === false) {
+    if (!have) return { created: false };
+    const id = str(have, "id");
+    for (const e of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND deleted_at IS NULL`, id))) {
+      ctx.db.run(`UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, now, num(e, "version") + 1, now, str(e, "id"));
+      ctx.emit("calendar_event.deleted", `entity/${str(e, "id")}`, { eventId: str(e, "id"), calendarId: id });
+    }
+    ctx.db.run(`UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, num(have, "version") + 1, now, id);
+    ctx.db.run(`DELETE FROM calendar_sync WHERE "calendarId" = ?`, id);
+    return { calendarId: id, created: false };
+  }
+  if (have) {
+    if (first(ctx.db.all(`SELECT "calendarId" FROM calendar_account WHERE "calendarId" = ?`, str(have, "id")))) ctx.db.run(`UPDATE calendar_account SET account = ? WHERE "calendarId" = ?`, account, str(have, "id"));
+    else ctx.db.run(`INSERT INTO calendar_account ("calendarId", account) VALUES (?, ?)`, str(have, "id"), account);
+    return { calendarId: str(have, "id"), created: false };
+  }
+  const id = newId("cld", now);
+  const title = clean(ctx, input.title, "The title", 100, false) || (input.provider === "google" ? "Google Calendar" : "Outlook Calendar");
+  const color = COLORS[rowsOf(ctx.db.all(`SELECT id FROM calendar_list WHERE "ownerId" = ?`, input.ownerId)).length % COLORS.length] ?? "#4f6bed";
+  ctx.db.run(
+    `INSERT INTO calendar_list (id, title, color, provider, "connectionId", "remoteId", "ownerId", personal, state, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, title, color, input.provider, input.connectionId, remoteId, input.ownerId, 0, "syncing", 1, now, null,
+  );
+  ctx.db.run(`INSERT INTO calendar_account ("calendarId", account) VALUES (?, ?)`, id, account);
+  ctx.emit("calendar.created", `calendar/${id}`, { calendarId: id, provider: input.provider, ownerId: input.ownerId, private: true });
+  return { calendarId: id, created: true };
+}
