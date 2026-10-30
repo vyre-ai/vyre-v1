@@ -2,6 +2,7 @@
 // value is ever in the markup; a reveal is one logged capability call after one agreement; every write the place makes changes what the next render shows; the place opens offline
 // and draws a frame of the right size before data. Names below are the test names the packet's evidence links.
 import test from "node:test";
+import { createRoot } from "test-renderer";
 import { find, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import assert from "node:assert/strict";
 import { Dimensions } from "react-native";
@@ -182,7 +183,7 @@ test("request and export query failures render truthful errors with a working re
   assert.ok(!has(requestOut, "trace-vault-read"), "the trace id waits behind Details");
   const restore = installDom();
   try {
-    const opened = await mount(<Vault data={requests.data} route={{ surface: "requests" }} />);
+    const opened = await mount(createRoot, <Vault data={requests.data} route={{ surface: "requests" }} />);
     await press(find(opened, "state-details"));
     const shown = textOf(opened);
     assert.ok(shown.includes("trace-vault-read") && shown.includes("Copy trace id"), "Details shows the trace id and Copy trace id");

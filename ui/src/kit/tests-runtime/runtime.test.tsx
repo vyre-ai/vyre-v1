@@ -1,5 +1,6 @@
 // Kit runtime: a screen renders from a KitScreenDef (layout, builtin, every state) and its probes use the generated ids.
 import test from "node:test";
+import { createRoot } from "test-renderer";
 import { find, installDom, mount, press, textOf } from "../../testing/dom.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -51,7 +52,7 @@ test("the error's Details opens to the trace id, Copy trace id and Report a prob
   const restore = installDom();
   try {
     const failing = fakeEnv({ traceId: "tr_123", hooks: { query: () => { throw new Error("no such query"); } } });
-    const root = await mount(<KitScreen def={listDef} env={failing} />);
+    const root = await mount(createRoot, <KitScreen def={listDef} env={failing} />);
     assert.equal(find(root, "state-trace"), null, "closed at first");
     await press(find(root, "state-details"));
     const text = textOf(root);

@@ -1,7 +1,6 @@
 // Test helpers for pressing things in a rendered tree: react-native-web renders through the test renderer with the few browser pieces it asks for stubbed, a press goes
 // through the node's onClick, and the text of a tree can be read back. installDom() returns the function that puts the globals back, so a file's static-markup tests are untouched.
 import { act } from "react";
-import { createRoot } from "test-renderer";
 import type { ReactElement } from "react";
 
 export interface Node { props: Record<string, unknown>; children?: (Node | string)[] }
@@ -34,8 +33,8 @@ export function installDom(): () => void {
   };
 }
 
-/** Renders an element with the test renderer and returns its root. */
-export async function mount(el: ReactElement): Promise<Node> {
+/** Renders an element with the test renderer (pass its createRoot: only test files may import it) and returns its root. */
+export async function mount(createRoot: () => { render(el: ReactElement): void; container: unknown }, el: ReactElement): Promise<Node> {
   const r = createRoot();
   await act(async () => { r.render(el); });
   await flush();
