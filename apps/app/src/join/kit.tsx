@@ -90,7 +90,7 @@ export function Panel({ children, bar, center }: { children: ReactNode; bar?: Re
     <ScrollView style={{ width: "100%", flex: 1 }} contentContainerStyle={{ flexGrow: 1, alignItems: "center", justifyContent: "center", paddingVertical: phone ? 24 : 40, paddingHorizontal: phone ? 16 : 24 }} keyboardShouldPersistTaps="handled">
       <View
         testID="join-panel"
-        style={{ width: "100%", maxWidth: 600, backgroundColor: p.panel, borderWidth: 1, borderColor: p.hair, borderRadius: phone ? 16 : 20, padding: phone ? 20 : 32, gap: 28, ...shadow(mode === "light" ? "0 1px 2px rgba(24,24,26,.05), 0 12px 40px rgba(24,24,26,.08)" : "0 12px 48px rgba(0,0,0,.45)") }}
+        style={{ width: "100%", maxWidth: 600, backgroundColor: p.panel, borderWidth: 1, borderColor: p.hair, borderRadius: phone ? 16 : 20, padding: phone ? 20 : 28, gap: 22, ...shadow(mode === "light" ? "0 1px 2px rgba(24,24,26,.05), 0 12px 40px rgba(24,24,26,.08)" : "0 12px 48px rgba(0,0,0,.45)") }}
       >
         <View testID="auth-form-header" style={{ minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Image testID="auth-form-mark" source={{ uri: "/vyre-mark.png" }} accessible={false} style={{ width: 32, height: 32, borderRadius: 8 }} /><Text style={[base(p), { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 }]}>Vyre</Text></View>
@@ -122,7 +122,7 @@ export function Stage({ children, wide = false }: { children: ReactNode; wide?: 
   );
 }
 
-const lift = (on: boolean): ViewStyle => (web ? ({ transform: [{ translateY: on ? -6 : 0 }], transitionProperty: "transform, box-shadow, border-color", transitionDuration: "240ms", transitionTimingFunction: "cubic-bezier(.2,.8,.2,1)" } as ViewStyle) : {});
+const lift = (on: boolean): ViewStyle => (web ? ({ transform: [{ translateY: on ? -2 : 0 }], transitionProperty: "transform, box-shadow, border-color", transitionDuration: "240ms", transitionTimingFunction: "cubic-bezier(.2,.8,.2,1)" } as ViewStyle) : {});
 
 /** A big visual choice: a picture, two or three words, a number key. The hint shows on hover or keyboard focus only. On a phone it is a row. */
 export function Door({ art, title, hint, n, onPress, testID, busy, disabled }: { art: ReactNode; title: string; hint?: string; n?: string; onPress?: () => void; testID?: string; busy?: boolean; disabled?: boolean }) {
@@ -242,11 +242,11 @@ const FILLED = new Set<IconKind>(["person", "laptop"]);
 const NATIVE_GLYPH: Record<IconKind, string> = { space: "", person: "P", laptop: "L", clock: "T", ai: "*", lock: "#", key: "K", team: "T", link: "L", server: "S" };
 
 /** The app icon tile: the Space's initial on the accent, or a glyph in the accent on its tint. Left-aligned over the title, with room under it. */
-export function AppIcon({ kind, letter }: { kind: IconKind; letter?: string }) {
+export function AppIcon({ kind, letter, compact = false }: { kind: IconKind; letter?: string; compact?: boolean }) {
   const { p } = useJoin();
   const space = kind === "space";
   const tile: ViewStyle = {
-    width: 56, height: 56, borderRadius: 14, alignSelf: "flex-start", alignItems: "center", justifyContent: "center", marginBottom: 20,
+    width: compact ? 44 : 56, height: compact ? 44 : 56, borderRadius: compact ? 12 : 14, alignSelf: "flex-start", alignItems: "center", justifyContent: "center", marginBottom: compact ? 0 : 20,
     backgroundColor: space ? p.blue : p.accentWash, ...(space ? {} : { borderWidth: 1, borderColor: p.accentLine }),
   };
   let inner: ReactNode;

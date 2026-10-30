@@ -70,9 +70,11 @@ function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; spac
   const mism = !!s.confirm && s.confirm !== s.password;
   return (
     <Step id="claim-details" dir={s.dir}>
-      <AppIcon kind="space" letter={space ?? "V"} />
-      <Title title={`Set up ${space ?? "your Space"}`} sub="You are the owner. Choose how you sign in." />
-      <View style={{ gap: 18, marginTop: 28 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+        <AppIcon kind="space" letter={space ?? "V"} compact />
+        <View style={{ flex: 1, minWidth: 0 }}><Title title={`Set up ${space ?? "your Space"}`} /></View>
+      </View>
+      <View style={{ gap: 14, marginTop: 20 }}>
         <Field testID="claim-name" label="Name" value={s.name} onChange={(v) => set({ name: v })} placeholder="Your name" onSubmit={next} autoComplete="name" autoFocus valid={!!s.name.trim()} />
         <Field
           testID="claim-username" label="Username" value={s.username} onChange={(v) => set({ username: cleanUsername(v) })} placeholder="name" onSubmit={next} autoComplete="username" valid={usernameOk(s.username)}
@@ -91,8 +93,8 @@ function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; spac
         />
       </View>
       {s.error ? <ErrorLine testID="claim-error">{s.error}</ErrorLine> : null}
-      {fingerprint ? <Foot testID="claim-fingerprint" top={20}>{`Space fingerprint ${fingerprint}. It should match what the server printed.`}</Foot> : null}
-      <Foot top={20}>Vyre never sees your password. If you forget it, your recovery code gets you back in; without both, your private items are lost.</Foot>
+      {fingerprint ? <Foot testID="claim-fingerprint" top={14}>{`Space fingerprint ${fingerprint}. It should match what the server printed.`}</Foot> : null}
+      <Foot top={14}>Forget your password? Your recovery code gets you back in.</Foot>
     </Step>
   );
 }
