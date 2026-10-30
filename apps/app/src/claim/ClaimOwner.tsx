@@ -4,9 +4,9 @@
 import { useReducer, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
-import { AppIcon, Bar, Button, CheckBox, ErrorLine, FieldRow, Foot, Group, JoinFrame, Meter, Panel, Row, Step, TextButton, Title, baseText, useJoin } from "../join/kit.tsx";
+import { AppIcon, Bar, Button, CheckBox, ErrorLine, Field, Foot, JoinFrame, Meter, Panel, Step, Title, Working, baseText, useJoin } from "../join/kit.tsx";
 import { MONO } from "../join/palette.ts";
-import { FAILURE_LINE, cleanUsername, isDeadLink, meter, problemOf, strength } from "./logic.ts";
+import { FAILURE_LINE, PASSWORD_MIN, cleanUsername, isDeadLink, meter, problemOf, strength, usernameOk } from "./logic.ts";
 import type { ClaimFailure, Details, Problem } from "./logic.ts";
 
 export interface ClaimOwnerProps {
@@ -64,23 +64,35 @@ function Dead({ failure, onSignIn }: { failure: ClaimFailure; onSignIn?: () => v
 
 function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; space: string | null; fingerprint?: string | null; dispatch: (a: Action) => void; next: () => void }): ReactElement {
   const set = (patch: Partial<Details>): void => dispatch({ t: "set", patch });
-  const problem = problemOf(s);
-  const showUser = !!s.username && problem === "username";
+  // An error shows once there is something to be wrong about: a field the person has not touched is not red.
+  const userBad = !!s.username && !usernameOk(s.username);
+  const passShort = !!s.password && s.password.length < PASSWORD_MIN;
   const mism = !!s.confirm && s.confirm !== s.password;
   return (
     <Step id="claim-details" dir={s.dir}>
       <AppIcon kind="space" letter={space ?? "V"} />
       <Title title={`Set up ${space ?? "your Space"}`} sub="You are the owner. Choose how you sign in." />
-      <Group>
-        <FieldRow testID="claim-name" label="Name" value={s.name} onChange={(v) => set({ name: v })} placeholder="Required" onSubmit={next} autoComplete="name" />
-        <FieldRow testID="claim-username" label="Username" value={s.username} onChange={(v) => set({ username: cleanUsername(v) })} placeholder="name" onSubmit={next} autoComplete="username" />
-        <FieldRow testID="claim-password" label="Password" value={s.password} onChange={(v) => set({ password: v })} placeholder="Required" secure autoComplete="new-password" onSubmit={next} />
-        <FieldRow testID="claim-confirm" label="Confirm" value={s.confirm} onChange={(v) => set({ confirm: v })} placeholder="Required" secure autoComplete="new-password" onSubmit={next} />
-      </Group>
-      {showUser ? <ErrorLine testID="claim-username-error">{LINES.username}</ErrorLine> : mism ? <ErrorLine testID="claim-mismatch">{LINES.mismatch}</ErrorLine> : s.error ? <ErrorLine testID="claim-error">{s.error}</ErrorLine> : null}
-      <Meter level={meter(strength(s.password))} />
-      {fingerprint ? <Foot testID="claim-fingerprint">{`Space fingerprint ${fingerprint}. It should match what the server printed.`}</Foot> : null}
-      <Foot>Vyre never sees your password. If you forget it, your recovery code gets you back in; without both, your private items are lost.</Foot>
+      <View style={{ gap: 18, marginTop: 28 }}>
+        <Field testID="claim-name" label="Name" value={s.name} onChange={(v) => set({ name: v })} placeholder="Your name" onSubmit={next} autoComplete="name" autoFocus valid={!!s.name.trim()} />
+        <Field
+          testID="claim-username" label="Username" value={s.username} onChange={(v) => set({ username: cleanUsername(v) })} placeholder="name" onSubmit={next} autoComplete="username" valid={usernameOk(s.username)}
+          {...(userBad ? { error: LINES.username, noteTestID: "claim-username-error" } : { hint: "3 to 24 letters or digits, starting with a letter." })}
+        />
+        <View style={{ gap: 10 }}>
+          <Field
+            testID="claim-password" label="Password" value={s.password} onChange={(v) => set({ password: v })} placeholder="At least 8 characters" secure autoComplete="new-password" onSubmit={next} visibilityTestID="claim-password-toggle"
+            {...(passShort ? { error: LINES.password } : {})}
+          />
+          <Meter level={meter(strength(s.password))} />
+        </View>
+        <Field
+          testID="claim-confirm" label="Confirm password" value={s.confirm} onChange={(v) => set({ confirm: v })} placeholder="Type it again" secure autoComplete="new-password" onSubmit={next} valid={!!s.confirm && !mism}
+          {...(mism ? { error: LINES.mismatch, noteTestID: "claim-mismatch" } : {})}
+        />
+      </View>
+      {s.error ? <ErrorLine testID="claim-error">{s.error}</ErrorLine> : null}
+      {fingerprint ? <Foot testID="claim-fingerprint" top={20}>{`Space fingerprint ${fingerprint}. It should match what the server printed.`}</Foot> : null}
+      <Foot top={20}>Vyre never sees your password. If you forget it, your recovery code gets you back in; without both, your private items are lost.</Foot>
     </Step>
   );
 }
@@ -90,11 +102,13 @@ function RecoveryStep({ s, dispatch, onCopyCode, onSaveCode }: { s: State; dispa
   return (
     <Step id="claim-recovery" dir={s.dir}>
       <AppIcon kind="key" />
-      <Title title="Keep your recovery code" sub="It is the only way back in if you forget your password." />
-      <Text selectable testID="claim-code" style={[baseText(p), { marginTop: 18, textAlign: "center", fontFamily: MONO, fontSize: 20, lineHeight: 28, fontWeight: "500", letterSpacing: 1.2 }]}>{s.code}</Text>
-      <View style={{ marginTop: 18, backgroundColor: p.grp, borderRadius: 10 }}>
-        <Row><View style={{ flex: 1, alignItems: "center" }}><TextButton testID="claim-copy" label="Copy" onPress={() => onCopyCode?.(s.code)} /></View></Row>
-        <Row divider><View style={{ flex: 1, alignItems: "center" }}><TextButton testID="claim-save" label="Save…" onPress={() => onSaveCode?.(s.code)} /></View></Row>
+      <Title title="Keep your recovery code" sub="It is the only way back in if you forget your password. Store it somewhere safe, apart from your password." />
+      <View style={{ marginTop: 28, borderRadius: 14, borderWidth: 1, borderColor: p.hair, backgroundColor: p.grp, paddingVertical: 22, paddingHorizontal: 16, alignItems: "center" }}>
+        <Text selectable testID="claim-code" style={[baseText(p), { textAlign: "center", fontFamily: MONO, fontSize: 22, lineHeight: 30, fontWeight: "500", letterSpacing: 1.6 }]}>{s.code}</Text>
+      </View>
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+        <View style={{ flex: 1 }}><Button quiet testID="claim-copy" label="Copy" onPress={() => onCopyCode?.(s.code)} /></View>
+        <View style={{ flex: 1 }}><Button quiet testID="claim-save" label="Save…" onPress={() => onSaveCode?.(s.code)} /></View>
       </View>
       <CheckBox testID="claim-saved" checked={s.saved} label="I saved it" onChange={(v) => dispatch({ t: "saved", on: v })} />
     </Step>
@@ -125,11 +139,9 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
   if (s.stage === "run") {
     return (
       <JoinFrame>
-        <Panel center>
+        <Panel center bar={<Bar hideBack cont={null} />}>
           <Step id="claim-run">
-            <AppIcon kind="space" letter={props.space ?? "V"} />
-            <Title title={`Setting up ${props.space ?? "your Space"}`} />
-            <Text accessibilityLiveRegion="polite" testID="claim-working" style={{ textAlign: "center", marginTop: 14, color: "var(--ink-2)" as string }}>Creating your account…</Text>
+            <Working testID="claim-run-working" lineTestID="claim-working" title={`Setting up ${props.space ?? "your Space"}`} note="Vyre is creating your account and your Vault. On a new computer this can take a few seconds while the server starts." line="Creating your account…" />
           </Step>
         </Panel>
       </JoinFrame>
