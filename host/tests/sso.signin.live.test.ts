@@ -32,6 +32,8 @@ test("sign in with the firm's own app: the right person gets a session, and ever
     const db = new DatabaseSync(`${w.dir}/modules.db`);
     db.prepare("INSERT INTO members_invites (id, code_hash, role, \"groups\", agents, projects, channels, email, expires_at, created_by, state, accepted_by, accepted_at, created_at) VALUES (?, ?, ?, '[]', '[]', '[]', '[]', ?, ?, ?, 'accepted', ?, ?, ?)")
       .run("inv_sso0001", "hash", "rol_member", NOAH, Date.now() + 1e9, "usr_olivia", "usr_noah", Date.now(), Date.now());
+    // Noah has an account (the seed gives sessions to tokens, not accounts)
+    db.prepare("INSERT OR IGNORE INTO identity_accounts (person_id, username, name, verifier, totp_last_step, fails, locked_until, epoch, created_at) VALUES (?, ?, ?, ?, 0, 0, 0, 0, ?)").run("usr_noah", "noah", "Noah Berg", "x", Date.now());
     db.close();
 
     const own = w.d.url;
@@ -65,7 +67,7 @@ test("sign in with the firm's own app: the right person gets a session, and ever
     assert.equal((await w.call("", "identity.sso_sign_in", { provider: "google", code: ok.get("sso_code"), state: "-", ...device })).status, 401);
 
     // forgeries: each ends with an error in the fragment and no ticket
-    const refused = async (what: string, run: () => Promise<Response>) => { const r = await run(); const f = fragment(r); assert.equal(f.get("sso_code"), null, what); assert.ok(f.get("sso_error") === "refused" || r.status === 400, what); };
+    const refused = async (what: string, run: () => Promise<Response>) => { const r = await run(); if (r.status === 400) return; const f = fragment(r); assert.equal(f.get("sso_code"), null, what); assert.equal(f.get("sso_error"), "refused", what); };
     const b = await begin();
     await refused("a wrong signing key", () => callback(b.state, idp.approve(b.url, claims, { wrongKey: true }), b.cookie));
     const c = await begin();
@@ -100,6 +102,6 @@ test("sign in with the firm's own app: the right person gets a session, and ever
 
     // the secret never went anywhere it should not
     w.d.sink.flush();
-    assert.equal(JSON.stringify(w.logsLike(/./)).includes(SECRET), false, "the client secret is in no log");
+    assert.equal(JSON.stringify(w.d.sink.db.prepare("SELECT msg, attrs FROM logs").all()).includes(SECRET), false, "the client secret is in no log");
   } finally { await w.stop(); }
 });

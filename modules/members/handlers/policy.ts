@@ -1,5 +1,5 @@
 // Sign-in policy, second-factor report and SSO providers (spec 3.13, 3.10, ARCH 7.13). TOTP itself lives in identity; this module sets the Space rule around it and reports who has it.
-// SSO is reserved in v1: providers are configured and tested here, the sign-in screens offer them, and the secret is a Vault handle, never a value stored in this module.
+// SSO is the firm's own Google or Microsoft sign-in app (OpenID Connect): providers are configured and tested here, the sign-in screens offer them, and the secret is a Vault handle, never a value stored in this module. A provider is usable only with the firm's domain set.
 import type { MembersCtx } from "../projections.ts";
 import { OWNER_ROLE, me, page, policyDrop, policyGet, policyPut, raise } from "../projections.ts";
 
