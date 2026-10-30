@@ -64,5 +64,5 @@ export function SsoSections():ReactElement|null{
  const gh=useRead<{github:{callbackUrl:string}}>("members.sign_in_github.get",{});
  if(!list.data)return list.error?<ReadState error={list.error} retry={list.refresh}/>:null;
  const callback=gh.data?.github.callbackUrl??`${(globalThis as {location?:{origin?:string}}).location?.origin??""}/auth/github/callback`;
- return <>{(["google","microsoft"] as const).map(k=><SsoSection key={k} kind={k} providers={list.data!.providers} callback={callback} refresh={list.refresh}/>)}</>;
+ return <><SsoSection kind="google" providers={list.data.providers} callback={callback} refresh={list.refresh}/><SsoSection kind="microsoft" providers={list.data.providers} callback={callback} refresh={list.refresh}/></>;
 }
