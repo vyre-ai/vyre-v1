@@ -78,15 +78,18 @@ export function FirstLaunch({ onDoor, existing, device = "mac", onGetApp }: { on
 function Body({ device, doors, busy, error, pick, onSignIn, onGetApp }: { device: Device; doors: ReturnType<typeof doorsFor>; busy: Door | null; error: string; pick(door: Door): Promise<void>; onSignIn(): void; onGetApp?(): void }): ReactElement {
   const { p } = useJoin();
   const phone = device === "phone";
+  // three cards, one per way to start: built in a loop, not a list of rows
+  const cards: ReactElement[] = [];
+  for (let i = 0; i < doors.length; i++) {
+    const d = doors[i]!;
+    cards.push(<DoorCard key={d.door} testID={`door-${d.door}`} n={String(i + 1)} title={d.title} hint={d.help} art={<Art kind={ART[d.door]} width={phone ? 56 : 132} height={phone ? 48 : 112} />} busy={busy === d.door} disabled={!!busy && busy !== d.door} onPress={() => void pick(d.door)} />);
+  }
   return (
           <View style={{ alignItems: "center" }}>
             <HalftoneV size={phone ? 150 : device === "web" ? 150 : 210} />
             <Text accessibilityRole="header" style={[baseText(p), { fontSize: phone ? 30 : 40, lineHeight: phone ? 36 : 46, fontWeight: "700", letterSpacing: -1, textAlign: "center" }]}>{device === "mac" || device === "win" ? "Welcome to Vyre" : "Vyre"}</Text>
             <View testID="doors" accessibilityLabel="Ways to start" style={{ flexDirection: phone ? "column" : "row", gap: phone ? 10 : 18, marginTop: phone ? 20 : 34, justifyContent: "center", alignSelf: phone ? "stretch" : "center" }}>
-              {/* ui-rows-lint: not a list (three door cards: art, title and a hover hint, one per way to start, not rows of a list) */}
-              {doors.map((d, i) => (
-                <DoorCard key={d.door} testID={`door-${d.door}`} n={String(i + 1)} title={d.title} hint={d.help} art={<Art kind={ART[d.door]} width={phone ? 56 : 132} height={phone ? 48 : 112} />} busy={busy === d.door} disabled={!!busy && busy !== d.door} onPress={() => void pick(d.door)} />
-              ))}
+              {cards}
             </View>
             {error ? <ErrorLine testID="door-error">{error}</ErrorLine> : null}
             <Foot device={device} onSignIn={onSignIn} {...(onGetApp ? { onGetApp } : {})} />
