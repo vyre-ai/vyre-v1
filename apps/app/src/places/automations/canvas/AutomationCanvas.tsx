@@ -127,7 +127,8 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   data: ReturnType<typeof useAutomationsData>;
 }): ReactElement {
   const winW = useWindowDimensions().width;
-  const tight = winW > 0 && winW < 1180;   // beside the sidebar a 1024 window has no room for labelled buttons: icons only
+  const tight = winW > 0 && winW < 1180;
+  const phone = winW > 0 && winW < 720;   // a phone reads an Automation and runs it; building it is for a bigger window   // beside the sidebar a 1024 window has no room for labelled buttons: icons only
   const { element, show } = useMenu();
   const [draft, setDraft] = useState<Definition | null>(null);
   const undo = useRef<Definition[]>([]);
@@ -472,7 +473,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         <View style={s.kind} testID="kind"><Glyph name={a.kind === "space" ? "users" : "key"} size={13} color="var(--ink-3)" /><Text style={s.kindText}>{a.kind === "space" ? "Space" : "Personal"}</Text></View>
         {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text></View></>) : null}
         <View style={{ flex: 1 }} />
-        <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg}>
+        {phone ? null : <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg}>
           {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
           {BUILDER_MODES.map((label) => {
             const on = (label === "Advanced") === (mode === "advanced");
@@ -482,10 +483,10 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               </Pressable>
             );
           })}
-        </View>
+        </View>}
         {connectTarget ? <TextButton label={`Connect ${connectTarget.service}`} icon="key" testID="connect" onPress={() => data.nav.connect(connectTarget)} /> : null}
         {!connectTarget && blockedIssue?.setup.blocked ? <Text testID="blocked-step" style={s.needsText}>{blockedIssue.setup.blocked}</Text> : null}
-        <TextButton label="Events" icon="bolt" bare={tight} testID="events" onPress={() => setEventsOpen(true)} />
+        {phone ? null : <TextButton label="Events" icon="bolt" bare={tight} testID="events" onPress={() => setEventsOpen(true)} />}
         {hasManual ? <TextButton label="Run now" icon="bolt" bare={tight} testID="run-now" onPress={() => void runNow()} /> : null}
         <TextButton label="Test" icon="flask" bare={tight} testID="test-run" onPress={() => void test()} />
         {dirty ? <TextButton label={saving ? "Saving" : "Save"} primary disabled={saving || errors.length > 0} testID="save" onPress={() => void save()} /> : null}
@@ -494,8 +495,8 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           <Text style={s.statusText}>{statusLabel}</Text>
           <Glyph name="chevD" size={11} color="var(--ink-3)" />
         </Pressable>
-        <TextButton label="Ask" icon="sparkle" bare={tight} testID="ask" onPress={() => setTab("ask")} />
-        <IconButton icon="panel" label={paneOpen ? "Hide the side pane" : "Show the side pane"} on={paneOpen} testID="toggle-pane" onPress={onTogglePane} />
+        {phone ? null : <TextButton label="Ask" icon="sparkle" bare={tight} testID="ask" onPress={() => setTab("ask")} />}
+        {phone ? null : <IconButton icon="panel" label={paneOpen ? "Hide the side pane" : "Show the side pane"} on={paneOpen} testID="toggle-pane" onPress={onTogglePane} />}
         <IconButton icon="more" label={moreLabel(a.name)} testID="more" onPress={openMore} />
       </View>
       <SubTabs tabs={tabs} active={tab} onSelect={(k) => setTab(k as CanvasTab)} label="Automation" />

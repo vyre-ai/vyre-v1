@@ -15,10 +15,10 @@ export type { StudioView };
 
 type ListOut = CapMap["automations.list"]["out"];
 
-function Nav({ view, onView, slot }: { view: StudioView; onView(next: StudioView): void; slot: SidebarSlotApi }): ReactElement {
+export function StudioNav({ view, onView, slot }: { view: StudioView; onView(next: StudioView): void; slot?: SidebarSlotApi }): ReactElement {
   const list = useScreenQuery<ListOut>(SIDEBAR, "automations", {});
   const badge = needsBadge(list.status === "ready" ? list.data.automations.filter(needsYou).length : null);
-  const choose = (next: StudioView): void => { onView(next); slot.openBody(); };
+  const choose = (next: StudioView): void => { onView(next); slot?.openBody(); };
   return (
     <View testID="studio-nav" style={n.nav}>
       {/* ui-rows-lint: not a list (place nav buttons) */}
@@ -38,7 +38,7 @@ export function AutomationsSidebarSlot({ selectedId, view, onView }: { selectedI
       {(query, slot) => (
         <View style={n.fill}>
           <AutomationsSidebar selectedId={selectedId} hosted query={query} onChoose={() => { onView("automations"); slot.openBody(); }} />
-          <Nav view={view} onView={onView} slot={slot} />
+          <StudioNav view={view} onView={onView} slot={slot} />
         </View>
       )}
     </SidebarContent>
