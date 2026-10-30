@@ -94,7 +94,7 @@ const mutations: Mutation[] = [
   ["wait-for-event", "wait_for_used", (s) => { s.trace.splice(1, 0, { call: "tool_search", input: { query: "deploy" } }); }],
   ["secret-browser-fill", "tools_available", (s) => { s.trace.splice(0, 1); }],
   ["memory-save-own-layer", "tools_available", (s) => { delete (calls(s)[0]!.input as { sourceKind?: string }).sourceKind; }],
-  ["memory-save-own-layer", "tools_available", (s) => { calls(s)[0]!.call = "memory_remember"; }],
+  ["memory-save-own-layer", "tools_available", (s) => { calls(s)[0]!.call = "memory_save_fact"; }],
 ];
 
 for (const [id, rule, mutate] of mutations) {

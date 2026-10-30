@@ -33,8 +33,9 @@ test("the tool list is the capability list: every MCP capability and every agent
   assert.equal(g.catalog.all.length, tools.length, "the catalog joins every generated tool with its capability");
 });
 
-test("agent-optout is empty today, and pre-auth capabilities are never tools", () => {
-  assert.deepEqual([...optedOut], [], "no capability sets agent: false (docs/frozen/agent-tools.md)");
+test("agent-optout is exactly the automation plumbing and the provider check, and pre-auth capabilities are never tools", () => {
+  // host-side steps an Automation runs for itself (its HTTP step, its AI step) and the label check of an AI step's records: an agent reaches the same ends through its own tools (docs/frozen/agent-tools.md)
+  assert.deepEqual([...optedOut].sort(), ["access.provider_check", "automations.http_read", "automations.http_send", "engine.step_turn"]);
   const pre = reg.capabilities.filter((c) => c.caller === "anonymous" || c.caller === "pending").map((c) => c.name);
   assert.ok(pre.length >= 10);
   const toolCaps = new Set(tools.map((t) => t.cap));
