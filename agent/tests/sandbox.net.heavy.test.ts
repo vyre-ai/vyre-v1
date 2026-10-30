@@ -16,6 +16,15 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+/** A port nothing listens on now. A fixed random range collided with other runners on the same host (the bridge then exits 70 on EADDRINUSE). */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const s = net.createServer();
+    s.once("error", reject);
+    s.listen(0, "127.0.0.1", () => { const { port } = s.address() as net.AddressInfo; s.close(() => resolve(port)); });
+  });
+}
+
 // The agent package may not import the sandbox package (scripts/boundaries.json, layer rule). These proofs have to drive it, so the modules are loaded by path (this file is listed in rules.dynamicOk)
 // and typed by the small structural shapes below, which are the parts of @vyre/sandbox the test uses.
 interface ExecResult { exitCode: number | null; stdout: string; stderr: string; timedOut: boolean }
@@ -206,7 +215,7 @@ test("the bridge: a process that speaks proxy to 127.0.0.1:3128 reaches the host
     assert.equal(fs.statSync(wall.socket).isSocket(), true);
     assert.equal((fs.statSync(wall.socket).mode & 0o777).toString(8), "666");
     assert.equal(fs.readFileSync(path.join(wall.dir, "bridge.mjs"), "utf8").includes("net.createServer"), true);
-    const port = 41000 + Math.floor(Math.random() * 2000);
+    const port = await freePort();
     const bridge = spawn(process.execPath, [path.join(wall.dir, "bridge.mjs"), wall.socket, String(port)], { stdio: "ignore" });
     try {
       for (let i = 0; i < 100; i++) {
@@ -227,7 +236,7 @@ test("the bridge: a process that speaks proxy to 127.0.0.1:3128 reaches the host
       assert.ok(events.some((e) => e.verdict === "allow" && e.host === "allowed.test"));
     } finally { bridge.kill("SIGKILL"); }
     // With a program, the bridge starts it once it listens, and ends with its exit status.
-    const withProgram = await runHost(process.execPath, [path.join(wall.dir, "bridge.mjs"), wall.socket, String(41000 + Math.floor(Math.random() * 2000)), "--", "sh", "-c", "echo from-program; exit 7"]);
+    const withProgram = await runHost(process.execPath, [path.join(wall.dir, "bridge.mjs"), wall.socket, String(await freePort()), "--", "sh", "-c", "echo from-program; exit 7"]);
     assert.equal(withProgram.exitCode, 7);
     assert.equal(withProgram.stdout.trim(), "from-program");
   } finally {
