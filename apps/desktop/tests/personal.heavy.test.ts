@@ -102,16 +102,35 @@ async function post(url: string, token: string | null, cap: string, body: unknow
   const text = await r.text();
   return { status: r.status, body: text ? JSON.parse(text) : {} };
 }
-/** The Personal daemon's own error log (its logs.db under the data dir), newest first: a 500 answers only a trace id, and the handler's stack is here. Empty when the file cannot be read. */
-function daemonLogTail(): string {
+/**
+ * The Personal daemon's own log (its logs.db under the data dir), for a failure message: a 500 answers only a trace id, and the handler's stack is in the log. The daemon writes its log in the
+ * background, so the row for a call that has just failed is not there yet: this waits up to six seconds for an error row (level 40 or more, or a row that names the trace id), then falls back to the
+ * newest rows of any level, and says plainly when the file could not be read or held nothing, so an empty tail is never silent.
+ */
+function daemonLogTail(traceId?: string): string {
+  const path_ = path.join(data, "logs.db");
+  type Row = { level: number; cap: string | null; msg: string; attrs: string | null };
+  const show = (rows: Row[]): string => rows.map((r) => `  ${r.level} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 1200)}`).join("\n");
   try {
-    const db = new DatabaseSync(path.join(data, "logs.db"), { readOnly: true });
-    const rows = db.prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 ORDER BY id DESC LIMIT 5").all() as { level: number; cap: string | null; msg: string; attrs: string | null }[];
-    db.close();
-    return rows.length ? `\ndaemon log (errors, newest first):\n${rows.map((r) => `  ${r.level} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 900)}`).join("\n")}` : "";
-  } catch { return ""; }
+    if (!fs.existsSync(path_)) return `\ndaemon log: ${path_} does not exist (the daemon wrote none)`;
+    const deadline = Date.now() + 6_000;
+    for (;;) {
+      const db = new DatabaseSync(path_, { readOnly: true });
+      try {
+        const rows = (traceId
+          ? db.prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 OR attrs LIKE ? ORDER BY id DESC LIMIT 6").all(`%${traceId}%`)
+          : db.prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 ORDER BY id DESC LIMIT 6").all()) as Row[];
+        if (rows.length) return `\ndaemon log (errors, newest first):\n${show(rows)}`;
+        if (Date.now() > deadline) {
+          const any = db.prepare("SELECT level, cap, msg, attrs FROM logs ORDER BY id DESC LIMIT 8").all() as Row[];
+          return `\ndaemon log: no error row after 6 s; the newest ${any.length} rows of any level:\n${show(any)}`;
+        }
+      } finally { db.close(); }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+    }
+  } catch (e) { return `\ndaemon log: could not be read (${String(e).slice(0, 200)})`; }
 }
-const ok = (r: Reply, what: string): any => { assert.equal(r.status, 200, `${what}: ${r.status} ${JSON.stringify(r.body.error ?? r.body).slice(0, 400)}${r.status === 200 ? "" : daemonLogTail()}`); return r.body.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
+const ok = (r: Reply, what: string): any => { assert.equal(r.status, 200, `${what}: ${r.status} ${JSON.stringify(r.body.error ?? r.body).slice(0, 400)}${r.status === 200 ? "" : daemonLogTail((r.body.error as { traceId?: string } | undefined)?.traceId)}`); return r.body.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** What the sidecar left behind, for a failure message: the app's own output (the sidecar's stderr is in it) and the tail of every file the Personal daemon wrote under its logs folder. */
 function diagnostics(appOut: string): string {
