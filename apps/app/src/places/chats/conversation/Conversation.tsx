@@ -2,7 +2,7 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
@@ -23,7 +23,7 @@ import { MessageView } from "./MessageView.tsx";
 import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, TextButton, anchorOf } from "./parts.tsx";
 import {
-  WINDOW, beforeCursor, collect, faces, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, sendKind, stillPending, stopLabel, swapNeeded,
+  WINDOW, beforeCursor, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, sendKind, stillPending, stopLabel, swapNeeded,
   threadKindNote, timeline, titleOf, whoLine, workingAgents,
 } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
@@ -66,9 +66,20 @@ export function connectEntries(thread: Pick<Thread, "kind" | "channelId" | "thre
   return thread.kind === "channel" && open ? [{ label: "Connect an Outside Agent", onSelect: () => open(thread.channelId ?? thread.threadId) }] : [];
 }
 
+const NO_TURNS: readonly never[] = [];
+const noSub = (): (() => void) => () => undefined;
+
+/** Replies being written in this chat, re-read whenever one starts, grows a state, or is saved. */
+function useLiveTurns(data: ConversationData): readonly import("../../../shell/session/turn-streams.ts").LiveTurn[] {
+  const live = data.live;
+  const read = (): readonly import("../../../shell/session/turn-streams.ts").LiveTurn[] => (live ? live.turnsOf(data.threadId) : NO_TURNS);
+  return useSyncExternalStore(live ? live.subscribe : noSub, read, read);
+}
+
 function ConversationView(): ReactElement {
   const data = useConversationData();
   const compact = useContext(CompactContext);
+  const liveTurns = useLiveTurns(data);
   const online = useOnline();
   const menu = useMenu();
   const memoryEntries = useMemoryEntries();
@@ -132,7 +143,8 @@ function ConversationView(): ReactElement {
   // A link from memory opens the chat at one message: the window reaches back far enough to hold it, and older pages are fetched until it is there.
   const focusAt = data.focus === undefined ? -1 : byOrderIndex(all, data.focus);
   const win = lastMessages(all, focusAt >= 0 ? Math.max(shown, all.length - focusAt) : shown);
-  const writing = new Set(collect(win.rows.filter((m) => { const s = data.streamOf(m.messageId); return s !== undefined && !s.getSnapshot().done; }), (m) => m.messageId));
+  const ghosts = ghostMessages(liveTurns, win.rows, thread.threadId);
+  const writing = new Set(collect([...win.rows, ...ghosts].filter((m) => { const s = data.streamOf(m.messageId); return s !== undefined && !s.getSnapshot().done; }), (m) => m.messageId));
   const working = workingAgents(win.rows, writing);
   const isWorking = working.length > 0;
   const nameOf = data.nameOf;
@@ -156,7 +168,7 @@ function ConversationView(): ReactElement {
   const found = finding ? findMatches(win.rows, query) : [];
   const matches = found.length > 0 || focused === undefined ? found : [focused];
   const activeId = matches.length > 0 ? matches[Math.min(matchAt, matches.length - 1)] : undefined;
-  const timelineMessages = [...win.rows, ...collect(stillPending(pending, win.rows), (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i))];
+  const timelineMessages = [...win.rows, ...collect(stillPending(pending, win.rows), (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts];
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
   const items = timeline(timelineMessages, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock() });
@@ -345,6 +357,7 @@ function ConversationView(): ReactElement {
           </Pressable>
         )}
       </View>
+      {data.live ? <SettleTurns turns={liveTurns} rows={win.rows} settle={data.live.settle} /> : null}
       {activeId ? <ScrollToMessage key={`${activeId}:${matchAt}`} id={activeId} /> : null}
       {wantOlder ? <Once key={`focus:${all.length}`} run={() => { const c = beforeCursor(all); if (c !== null) setCursor(c); }} /> : null}
       {cursor !== null ? <OlderPage key={cursor} before={cursor} onPage={(page) => { setOlder((cur) => mergePages(cur, page.messages)); setOlderMore(page.hasMore); setShown((n) => n + WINDOW); setCursor(null); }} /> : null}
@@ -388,6 +401,15 @@ function Once({ run }: { run: () => void }): null {
 }
 
 /** Brings the match the person is on into view. A web page scrolls its element; a phone's list follows its own rules. */
+/** A reply whose saved message is now in the list: its row has the words, so the live stream behind it can go. */
+function SettleTurns({ turns, rows, settle }: { turns: readonly { messageId?: string | null | undefined }[]; rows: readonly Message[]; settle: (messageId: string) => void }): null {
+  useEffect(() => {
+    const have = new Set(rows.map((m) => m.messageId));
+    for (const t of turns) if (t.messageId && have.has(t.messageId)) settle(t.messageId);
+  }, [turns, rows, settle]);
+  return null;
+}
+
 function ScrollToMessage({ id }: { id: string }): null {
   useEffect(() => {
     if (Platform.OS !== "web") return;

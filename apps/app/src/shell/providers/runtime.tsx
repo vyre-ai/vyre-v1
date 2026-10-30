@@ -6,6 +6,7 @@ import type {RecordsPreviewTicket,RecordsPreviewReader} from "../../../../../cli
 import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { HomeData } from "../../places/home/sections-a/data.tsx";
+import type { TurnStreams } from "../session/turn-streams.ts";
 
 /** Where a click goes. The shell resolves a screen id (generated/screens.ts) or a subject to a place and a tab. */
 export interface ShellTarget {
@@ -31,6 +32,8 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   isDeferred(cap: string): boolean;
   open(target: ShellTarget): void;
   openUrl(url: string): void;
+  /** Agent replies as they are written, from the live socket. Absent where there is no live link (tests, a replica-only shell). */
+  turns?: TurnStreams;
 }
 
 const Ctx = createContext<ShellRuntime | null>(null);

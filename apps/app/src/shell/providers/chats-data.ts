@@ -115,7 +115,8 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     lists: composerLists(principals, rt.me.id),
     directory: candidates(principals, rt.me.id),
     newKey,
-    streamOf: () => undefined,
+    streamOf: (id) => rt.turns?.streamOf(id),
+    ...(rt.turns ? { live: { turnsOf: (t: string) => rt.turns!.turnsOf(t), subscribe: (l: () => void) => rt.turns!.subscribe(l), settle: (id: string) => rt.turns!.settle(id) } } : {}),
     copy,
     toast: () => undefined,
   };

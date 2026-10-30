@@ -15,7 +15,21 @@ export interface EngineAgentPost { actingFor?: string; threadId: string; body: s
 /** Plain ports for the session opener (agent/src/drivers/open): a Vault lookup that returns a secret for a handle, a loopback MCP token, and the scrub-miss report. */
 export type EngineSessionPorts = EngineSessionHost;
 
+/** A live turn event as the bridge reports it (modules/engine/handlers/bridge.ts StreamEvent), structural here. */
+export type EngineStreamEvent =
+  | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string }
+  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string }
+  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
+  | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
+
+/** Where a live turn frame goes: every live socket whose person `allow` says may read the thread. */
+export type PublishTurn = (frame: { t: "turn"; turn: string; delta: Record<string, unknown> }, allow: (personId: string) => boolean | Promise<boolean>) => void;
+
 export interface EngineHostSeam {
+  /** Forget who was allowed to watch turns, so the next piece of text asks again (a member left, a grant was revoked). */
+  forgetReaders?: () => void;
+  /** Live turn events, already filtered to who may read the thread. Absent: nothing streams and the reply lands whole, as before. */
+  stream?: (e: EngineStreamEvent) => void;
   /** 'host:<space>' */
   holder: string;
   call: EngineInvoke;
@@ -53,9 +67,16 @@ export interface EngineHostDeps {
   sandbox?: unknown;
   dataDir?: string;
   cli?: unknown;
+  /** The live socket's publisher; late-bound because the socket opens after the modules load. */
+  publishTurn?: () => PublishTurn | null;
   own?: (person: string) => boolean;
   openSession?: unknown;
 }
+
+/** A backstop only: the answer is also dropped the moment an event says a member or a grant went away (forgetReaders). */
+/** Events after which who may read a chat may have changed: the daemon makes the host forget who was watching. */
+export const READER_LOSS = /removed|revoked|disengaged|erased|closed|archived|left$/;
+export const READER_TTL_MS = 15_000;
 
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
 
@@ -73,6 +94,25 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
   // chat.post is a keyed write: the bridge's own message id is the key, so a replay of the same reply is one post
   // An agent has no standing of its own in a Space: it speaks for the person whose turn it is, so what it may post is what that person may (the kernel answers agent_needs_actor otherwise).
   const postAs: EngineHostSeam["postAs"] = (agentId, { actingFor, ...post }) => run("chat.post", { ...post, idempotencyKey: `brg-${post.clientId}` }, { kind: "agent", id: agentId }, actingFor);
+  // Who may watch a turn: whoever can read the thread (the same threads.get a person's own screen makes). The answer is kept a minute, so a stream of deltas asks once.
+  const seen = new Map<string, { at: number; ok: Promise<boolean> }>();
+  let epoch = 0;   // bumped when readers are forgotten, so an answer that was in flight across a removal is asked again and never trusted
+  const mayRead = (threadId: string, person: string): Promise<boolean> => {
+    const k = `${threadId}\u0000${person}`, t = (d.now ?? Date.now)();
+    const hit = seen.get(k);
+    if (hit && t - hit.at < READER_TTL_MS) return hit.ok;
+    const asked = epoch;
+    const ok = call("threads.get", { threadId }, person).then(() => true, () => false).then((yes) => (asked === epoch ? yes : mayRead(threadId, person)));
+    seen.set(k, { at: t, ok });
+    if (seen.size > 2000) for (const [key, v] of seen) if (t - v.at >= READER_TTL_MS) seen.delete(key);
+    return ok;
+  };
+  const stream: EngineHostSeam["stream"] = (e) => {
+    const pub = d.publishTurn?.();
+    if (!pub) return;
+    const { turnId, kind, ...rest } = e;
+    pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => mayRead(e.threadId, person));
+  };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}) };
+  return { holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}) };
 }

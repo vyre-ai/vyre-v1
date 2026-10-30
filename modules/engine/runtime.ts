@@ -6,6 +6,7 @@ import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { AccountQuery, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
 import { bindBridge, createBridge } from "./handlers/bridge.ts";
+import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
 import { buildOpener, roleBlocks } from "./session.ts";
@@ -48,6 +49,8 @@ export interface EngineHostSeam {
   postAs?: PostAs;
   /** The skills the turn context indexes and loads a focus skill from. Default: the built-in skills on disk (agent/skills). */
   skills?: import("./context.ts").SkillsPort;
+  /** Live turn events (text as it is written, the end, the message it became) for the host to put on the live socket. */
+  stream?: (e: StreamEvent) => void;
   /** Runs once the runtime exists and before it is bound (the chat bridge attaches here). */
   extend?: (engine: TurnEngine) => void;
 }
@@ -147,7 +150,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   closeOpener = opener ? () => opener.close() : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.stream ? { stream: h.stream } : {}), addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let live: TurnEngine | null = null;
     const turnContext = createContextBuilder({

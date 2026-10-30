@@ -29,6 +29,8 @@ export interface LiveLinkOptions {
   /** A numbered batch arrived: something in the Space changed. */
   onChange(seq: number): void;
   onStatus?(s: LiveStatus): void;
+  /** A `turn` frame: text of an agent's reply as it is written (apps/app/src/shell/session/turn-streams.ts). */
+  onTurn?(frame: unknown): void;
   /** The server told this device to purge (a revoke or an epoch bump, ARCH 5.7); the manager halts after it. */
   onPurge?(epoch: number): void;
   /** Injectable for tests. */
@@ -117,7 +119,7 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
         on: {
           status: (s) => set(toLive(s)),
           // the server's bare "something changed" tick for what the sync feed does not carry (chat, notifications, tasks, counts): re-read what is on screen
-          frame: (f) => { const t = f as { t?: unknown; seq?: unknown }; if (t.t === "changed" && typeof t.seq === "number") o.onChange(t.seq); },
+          frame: (f) => { const t = f as { t?: unknown; seq?: unknown }; if (t.t === "changed" && typeof t.seq === "number") o.onChange(t.seq); else if (t.t === "turn") o.onTurn?.(f); },
           purge: (e) => {
             // Adopt only when all three hold: no agreed epoch yet, an empty local replica (cursor 0, nothing held) and this is the first hello of this session. Anything else is a real purge.
             if (!trusted && !adopted && cursor === 0 && !(o.hasLocalData?.() ?? false)) {
