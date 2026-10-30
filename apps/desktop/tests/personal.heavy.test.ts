@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -44,6 +45,12 @@ function setup(): void {
   for (const d of ["projects", "projects-archive"]) fs.cpSync(path.join(FIXTURES, "claude", d), path.join(claude, d), { recursive: true });
   fs.cpSync(path.join(FIXTURES, "claude", "Library"), path.join(home, "Library"), { recursive: true });
   fs.cpSync(path.join(FIXTURES, "codex"), path.join(home, ".codex"), { recursive: true });
+  // Codex keeps its thread index in ~/.codex/state_5.sqlite (a `threads` table whose rollout_path names the transcript); the shell lists a Codex session from that index, never by scanning the folder.
+  // The fixture is the rollout file only, so the index is made here, the way Codex writes a row.
+  const index = new DatabaseSync(path.join(home, ".codex", "state_5.sqlite"));
+  index.exec("CREATE TABLE threads(id TEXT, rollout_path TEXT, cwd TEXT, created_at INTEGER, updated_at INTEGER, git_branch TEXT, git_origin_url TEXT)");
+  index.prepare("INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?)").run("11111111-1111-4111-8111-111111111111", "sessions/2026/10/25/rollout-11111111-1111-4111-8111-111111111111.jsonl", "/workspace/vyre", 1761382800, 1761382802, "main", null);
+  index.close();
   // The model vendor stand-in: `claude` on the PATH the sidecar builds for a Finder launch. The packaged Node (the sidecar binary beside the app's executable) runs the fake.
   const share = path.join(home, ".local", "share", "vyre-proof");
   const bin = path.join(home, ".local", "bin");
@@ -150,8 +157,10 @@ test("the built app starts Personal, claims over HTTP, imports fixture sessions 
     state.sources = proof.sources;
     const keys = (proof.sources as { sessionKey: string }[]).map((s) => s.sessionKey).sort();
     assert.deepEqual(keys, [
-      "claude:22222222-2222-4222-8222-222222222222", "claude:33333333-3333-4333-8333-333333333333", "claude:44444444-4444-4444-8444-444444444444", "codex:11111111-1111-4111-8111-111111111111",
-    ].sort(), "the shell found the fixture Claude Code and Codex sessions under the app's HOME");
+      "claude:22222222-2222-4222-8222-222222222222", "claude:44444444-4444-4444-8444-444444444444", "codex:11111111-1111-4111-8111-111111111111",
+    ].sort(), "the shell found the fixture Claude Code and Codex sessions under the app's HOME (a Claude subagent transcript is not a session of its own: it travels with its parent)");
+    const parentRead = (proof.reads as { source: { sessionKey: string }; documents: { namespace: string }[] }[]).find((r) => r.source.sessionKey === "claude:22222222-2222-4222-8222-222222222222");
+    assert.ok(parentRead?.documents.some((d) => d.namespace === "subagent:33333333-3333-4333-8333-333333333333"), "the parent's read carries its subagent transcript");
     assert.ok(proof.sources.every((s: Record<string, unknown>) => !("transcriptPath" in s)), "the native transcript path never reaches the page");
     const { desktopSessionImporter } = await import("../../../client/src/session-import/desktop.ts");
     const reads = new Map<string, unknown>((proof.reads as { source: { sessionKey: string } }[]).map((r) => [r.source.sessionKey, r]));
