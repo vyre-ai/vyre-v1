@@ -3,11 +3,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { bootCore, CORE_SPACE } from "../../../fixtures/seed/core/index.ts";
-import { fakePlatform } from "../../src/platform/index.ts";
-import type { FetchFn } from "../../src/platform/probes.ts";
-import { loadConfig } from "../../src/daemon/config.ts";
-import { startDaemon } from "../../src/daemon/daemon.ts";
+import { bootCore, CORE_SPACE } from "../seed/core/index.ts";
+import { fakePlatform } from "../../host/src/platform/index.ts";
+import type { FetchFn } from "../../host/src/platform/probes.ts";
+import { loadConfig } from "../../host/src/daemon/config.ts";
+import { startDaemon } from "../../host/src/daemon/daemon.ts";
 
 export const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
