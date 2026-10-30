@@ -8,6 +8,8 @@ export interface StoredSession {
   baseUrl: string; token: string; def: SpaceDef; personId: string;
   /** Server-supplied continuity marker. It can detect a changed response, but does not authenticate the Space. */
   marker: string;
+  /** The username typed at sign-in or claim, kept so Settings can start the handle from it. Optional: other ways in (GitHub, single sign-on, a pair code) do not type one. */
+  username?: string;
   /** The sync epoch this device agreed with the server; absent until the first live hello. */
   syncEpoch?: number;
 }
@@ -78,14 +80,14 @@ export function clearStored(store: KeyValueStore | undefined = browserStore(), b
 }
 
 /** Opens a signed-in session first, then persists only after authenticated Space ID continuity checks. */
-export async function openVerifiedSession<T extends OpenedSession>({ baseUrl, token, continuity, open, getSpace, persist = writeStored }: {
-  baseUrl: string; token: string; continuity?: SpaceContinuityHint; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void;
+export async function openVerifiedSession<T extends OpenedSession>({ baseUrl, token, continuity, open, getSpace, persist = writeStored, username }: {
+  baseUrl: string; token: string; username?: string; continuity?: SpaceContinuityHint; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void;
 }): Promise<StoredSession> {
   const real = await open();
   try {
     const actual = await getSpace();
     if (real.def.spaceId !== actual.id || (continuity?.id !== undefined && actual.id !== continuity.id) || (continuity?.marker !== undefined && actual.marker !== continuity.marker)) throw new Error("This Space no longer matches the session for this address. Check the address and try again.");
-    const stored: StoredSession = { baseUrl, token, def: real.def as SpaceDef, personId: real.me.id, marker: actual.marker };
+    const stored: StoredSession = { baseUrl, token, def: real.def as SpaceDef, personId: real.me.id, marker: actual.marker, ...(username ? { username } : {}) };
     persist(stored);
     return stored;
   } finally {
@@ -94,15 +96,15 @@ export async function openVerifiedSession<T extends OpenedSession>({ baseUrl, to
 }
 
 /** A first sign-in displays anonymous options, then records only the authenticated Space response for later continuity checks. */
-export async function signInAndVerify<T extends OpenedSession>({ baseUrl, continuity, discover, signIn, open, getSpace, persist, afterVerified }: {
-  baseUrl: string; continuity?: SpaceContinuityHint; discover: () => Promise<SignInOptions>; signIn: () => Promise<SignInAnswer>; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void; afterVerified?: (stored: StoredSession) => Promise<void> | void;
+export async function signInAndVerify<T extends OpenedSession>({ baseUrl, continuity, discover, signIn, open, getSpace, persist, afterVerified, username }: {
+  baseUrl: string; username?: string; continuity?: SpaceContinuityHint; discover: () => Promise<SignInOptions>; signIn: () => Promise<SignInAnswer>; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void; afterVerified?: (stored: StoredSession) => Promise<void> | void;
 }): Promise<{ status: "second_factor_required"; options: SignInOptions } | { status: "ok"; options: SignInOptions; stored: StoredSession }> {
   const options = await discover();
   const answer = await signIn();
   if (answer.status === "second_factor_required") return { status: answer.status, options };
   const token = answer.session?.token;
   if (!token) throw new Error("The Space did not return a session. Try again.");
-  const stored = await openVerifiedSession({ baseUrl, token, ...(continuity?{continuity}:{}), open, getSpace, ...(persist ? { persist } : {}) });
+  const stored = await openVerifiedSession({ baseUrl, token, ...(username ? { username } : {}), ...(continuity?{continuity}:{}), open, getSpace, ...(persist ? { persist } : {}) });
   await afterVerified?.(stored);
   return { status: "ok", options, stored };
 }

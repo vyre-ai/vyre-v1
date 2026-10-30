@@ -7,7 +7,7 @@ import { byId } from "./model.ts";
 import type { Ref } from "./model.ts";
 
 export type Kind = "person" | "agent" | "group" | "role" | "automation";
-export interface Principal { id: string; name: string; kind: Kind }
+export interface Principal { id: string; name: string; kind: Kind; /** The sign-in name this person chose, when this device knows it (it is never read from the Space). */ username?: string }
 
 /** Where a click goes. The shell supplies these (tabs, the right pane); Home never decides how a thing opens. */
 export interface HomeNav {

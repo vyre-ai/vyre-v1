@@ -71,15 +71,15 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
         {[
           photo ? <SettingsRow key="photo" id="profile.photo" label="Photo" first found={found === "profile.photo"} {...(photoNote ? { sub: photoNote } : {})} control={<><SmallButton label="Choose" testID="choose-photo" onPress={() => { setPhotoNote(null); data.nav.choosePhoto().then((id) => { if (id) void change(photo, id); }, (e: unknown) => setPhotoNote(e instanceof Error && e.message ? e.message : "Could not use that picture.")); }} />{photo.value ? <SmallButton label="Remove" onPress={() => void change(photo, null)} /> : null}</>} /> : null,
           rowFor(name, 1, <Field value={str(name) || data.me.name} label="Name" testID="ctl-profile.display_name" onCommit={(v) => { if (v !== (str(name) || data.me.name)) void change(name!, v); }} />, "Name"),
-          rowFor(handle, 2, <Field value={str(handle)} label="Handle" prefix="@" mono pattern={"^([a-z0-9_.-]{2,32})?$"} width={160} testID="ctl-profile.handle" onCommit={(v) => void change(handle!, v)} />, "Handle", "Letters, numbers, dots and dashes"),
-          rowFor(title, 3, <Field value={str(title)} label="Title" testID="ctl-profile.title" onCommit={(v) => void change(title!, v)} />, "Title"),
+          rowFor(handle, 2, <Field value={str(handle) || data.me.username || ""} label="Handle" placeholder="Pick a handle" prefix="@" mono pattern={"^([a-z0-9_.-]{2,32})?$"} width={160} testID="ctl-profile.handle" onCommit={(v) => { if (v !== (str(handle) || data.me.username || "")) void change(handle!, v); }} />, "Handle", "Letters, numbers, dots and dashes"),
+          rowFor(title, 3, <Field value={str(title)} label="Title" placeholder="Add a title" testID="ctl-profile.title" onCommit={(v) => void change(title!, v)} />, "Title"),
         ]}
       </Section>
       {before}
       {contact ? (
         <Section title="Contact">
-          <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<Field value={c.email ?? ""} label="Email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} />} />
-          <SettingsRow id="profile.contact.phone" label="Phone" control={<Field value={c.phone ?? ""} label="Phone" width={260} testID="ctl-profile.contact.phone" onCommit={(v) => void change(contact, { ...c, phone: v })} />} />
+          <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<Field value={c.email ?? ""} label="Email" placeholder="Add an email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} />} />
+          <SettingsRow id="profile.contact.phone" label="Phone" control={<Field value={c.phone ?? ""} label="Phone" placeholder="Add a phone number" width={260} testID="ctl-profile.contact.phone" onCommit={(v) => void change(contact, { ...c, phone: v })} />} />
         </Section>
       ) : null}
       {after}

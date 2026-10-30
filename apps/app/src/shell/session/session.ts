@@ -27,6 +27,8 @@ import type { RemoteHooks } from "./remote-hooks.ts";
 import { speed } from "../../speed/recorder.ts";
 
 export interface OpenSessionOptions {
+  /** The sign-in name this device typed, when it did. */
+  username?: string;
   /** The Space's address, e.g. https://northwind.vyre.run. */
   baseUrl: string;
   token: string;
@@ -146,7 +148,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   ]);
   const space = spaceOut.space;
   const deferred = createDeferred(who.deferred, (who as typeof who & {deferredModules?:readonly string[]}).deferredModules);
-  const me: Principal = { id: who.principal.id, name: who.name, kind: "person" };
+  const me: Principal = { id: who.principal.id, name: who.name, kind: "person", ...(o.username ? { username: o.username } : {}) };
 
   // A 401 means signed out (once, to sign-in): it is never a failure state a screen reacts to by asking again.
   const hooks = createRemoteScreenHooks({ screens, read: (cap, input) => reach(cap, input), ignoreError: (e) => e instanceof CapError && e.status === 401 });

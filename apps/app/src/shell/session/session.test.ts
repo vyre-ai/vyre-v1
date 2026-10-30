@@ -436,6 +436,14 @@ test("verification persists only after the opened session and authenticated Spac
   assert.equal(stored.marker, "marker_1");
 });
 
+test("the username typed at sign-in is kept with the stored session, so Settings can start the handle from it", async () => {
+  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => {} } as never;
+  const writes: Array<{ username?: string }> = [];
+  const make = (username?: string) => openVerifiedSession({ baseUrl: "https://northwind.test", token: "vst_1", ...(username ? { username } : {}), open: async () => real, getSpace: async () => ({ id: "spc_nw", marker: "m" }), persist: (c) => writes.push(c) });
+  assert.equal((await make("olivia")).username, "olivia");
+  assert.equal("username" in (await make()), false, "a way in that types no username stores none");
+});
+
 test("verification never persists when identity.whoami cannot open the real session", async () => {
   let writes = 0;
   await assert.rejects(openVerifiedSession({

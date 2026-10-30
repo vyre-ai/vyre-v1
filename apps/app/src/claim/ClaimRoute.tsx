@@ -30,7 +30,7 @@ export function ClaimRoute({ token, onDone, onSignIn, address, fragment, deviceC
       { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, deviceName: deviceClass==="desktop"?"Vyre desktop":"Web browser", deviceClass },
     );
     const authenticated = createCapCaller({ baseUrl, token: () => claimed.token });
-    await storeClaimedOwnerSession({ baseUrl, token: claimed.token, spaceId }, {
+    await storeClaimedOwnerSession({ baseUrl, token: claimed.token, spaceId, username: v.username.trim().toLowerCase() }, {
       open: () => openRealSession({ baseUrl, token: claimed.token }),
       getSpace: async () => {
         const current = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
