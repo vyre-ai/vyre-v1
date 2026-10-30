@@ -1,6 +1,8 @@
-// Connect your AI, as onboarding does it. A subscription sign-in or an API key ends as a provider in the person's own Mine Vault (providers.subscription_start / providers.add).
+// Connect your AI, as onboarding does it. A subscription sign-in (the provider's own, started by the server) or an API key ends as a provider in the person's own Mine Vault (providers.subscription_start / providers.add).
 // The key is typed into a secure field and goes straight to providers.add; it is never put in a chat line, an event or a card, and the Assistant sees only the provider id that comes back.
 import type { CapCall } from "../shell/session/caps.ts";
+import { startFlow } from "../ai-signin/flow.ts";
+import type { Flow } from "../ai-signin/flow.ts";
 
 export interface AiOption { key: string; label: string; help: string }
 /** Sign in with a subscription: the provider keys are the Vault's own (modules/vault/providers). */
@@ -17,23 +19,12 @@ export const API_KEYS: readonly AiOption[] = [
   { key: "openrouter", label: "OpenRouter", help: "One key, many models" },
 ];
 
-export interface SignInFlow { flowId: string; instruction: string }
+export type SignInFlow = Flow;
 
+/** Press "Sign in with X": the server starts that provider's own sign-in and answers its link (and the code to type, where the provider shows one). */
 export async function startSubscription(call: CapCall, providerKey: string, idempotencyKey: string): Promise<SignInFlow> {
   if (!SUBSCRIPTIONS.some((o) => o.key === providerKey)) throw new Error("Choose Claude, ChatGPT or Grok.");
-  const out = await call("providers.subscription_start", { providerKey, idempotencyKey }) as SignInFlow;
-  return { flowId: out.flowId, instruction: out.instruction };
-}
-
-/** Resolves with the provider id once the sign-in has finished on this computer; rejects with a plain line when it has not. */
-export async function finishSubscription(call: CapCall, flowId: string): Promise<string> {
-  try {
-    const out = await call("providers.subscription_complete", { flowId }) as { provider: { id: string } };
-    return out.provider.id;
-  } catch (e) {
-    const code = (e as { code?: string }).code;
-    throw new Error(code === "validation.precondition_failed" ? "The sign-in has not finished yet. Finish it on your computer, then press Done again." : "Could not finish the sign-in. Try again.");
-  }
+  return startFlow(call, providerKey, idempotencyKey);
 }
 
 /** The key goes to the Vault in this one call. The caller clears its field whether this resolves or rejects. */
