@@ -17,44 +17,21 @@ function personOf(ctx: VaultReqCtx): string | null {
 }
 const requesterOf = (ctx: VaultReqCtx): Ref => ({ kind: ctx.principal.kind as Ref["kind"], id: ctx.principal.id });
 
-/** The people who may decide a request: the managers of the folder, else the Space owner and its owners and admins. The requester is never one of them. */
+/** The people who may decide a request: those with Manage on the folder, else on the Space (its owners and admins). The requester is never one of them. Asked of the access module's own decider list, so an agent that cannot see the folder still reaches a real person. */
 export async function managersFor(ctx: VaultReqCtx, folderId: string | undefined, requester: string): Promise<string[]> {
-  const out = new Set<string>();
-  if (folderId) {
+  const ask = async (resource: { type: string; id: string }, why: string): Promise<string[]> => {
     try {
-      const got = asRow(await ctx.call("access.shares_of", { resource: { type: "vault_folder", id: folderId } }));
-      const shares = Array.isArray(got?.["shares"]) ? (got["shares"] as unknown[]) : [];
-      for (const s of shares) {
-        const row = asRow(s), grant = asRow(row?.["grant"]), subject = asRow(grant?.["subject"]);
-        if (subject?.["kind"] !== "person") continue;
-        if (row?.["through"] === "owner" || grant?.["level"] === "manage") out.add(String(subject["id"]));
-      }
+      const got = asRow(await ctx.call("access.deciders", { resource }));
+      return (Array.isArray(got?.["people"]) ? (got["people"] as unknown[]) : []).map(String);
     } catch (e) {
-      ctx.log.warn("vault request: the folder's shares could not be read", { folderId, error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn(`vault request: ${why} could not be read`, { error: e instanceof Error ? e.message : String(e) });
+      return [];
     }
-  }
-  if (out.size === 0 || out.size === 1 && out.has(requester)) {
-    // ruling 74: when no folder claims the key, the Space owner decides (the Space resource's owner, whatever the Space's roles are called)
-    try {
-      const got = asRow(await ctx.call("access.shares_of", { resource: { type: "space", id: ctx.space } }));
-      const shares = Array.isArray(got?.["shares"]) ? (got["shares"] as unknown[]) : [];
-      for (const s of shares) {
-        const row = asRow(s), subject = asRow(asRow(row?.["grant"])?.["subject"]);
-        if (row?.["through"] === "owner" && subject?.["kind"] === "person") out.add(String(subject["id"]));
-      }
-    } catch (e) {
-      ctx.log.warn("vault request: the Space owner could not be read", { error: e instanceof Error ? e.message : String(e) });
-    }
-    for (const roleId of ["rol_owner", "rol_admin"]) {
-      try {
-        const got = asRow(await ctx.call("access.roles.get", { roleId }));
-        const holders = Array.isArray(got?.["holders"]) ? (got["holders"] as unknown[]) : [];
-        for (const h of holders) { const r = asRow(h); if (r?.["kind"] === "person") out.add(String(r["id"])); }
-      } catch (e) {
-        ctx.log.warn("vault request: the Space managers could not be read", { roleId, error: e instanceof Error ? e.message : String(e) });
-      }
-    }
-  }
+  };
+  const out = new Set<string>(folderId ? await ask({ type: "vault_folder", id: folderId }, "the folder's managers") : []);
+  out.delete(requester);
+  // ruling 74: when no folder claims the key, or only the requester manages it, the Space's owners decide
+  if (out.size === 0) for (const p of await ask({ type: "space", id: ctx.space }, "the Space managers")) out.add(p);
   out.delete(requester);
   return [...out].sort();
 }

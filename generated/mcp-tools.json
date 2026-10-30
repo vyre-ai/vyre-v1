@@ -314,6 +314,73 @@
     },
     {
       "blocks": [],
+      "cap": "access.deciders",
+      "deferred": false,
+      "description": "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "resource": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "rec_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "space",
+                  "record_type",
+                  "record",
+                  "project",
+                  "folder",
+                  "file",
+                  "channel",
+                  "thread",
+                  "inbox",
+                  "mailbox",
+                  "vault_folder",
+                  "vault_item",
+                  "automation_group",
+                  "automation",
+                  "agent",
+                  "connector",
+                  "connection",
+                  "site",
+                  "form",
+                  "campaign",
+                  "kit",
+                  "terminal",
+                  "computer",
+                  "task",
+                  "run",
+                  "number",
+                  "domain",
+                  "calendar"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "resource"
+        ],
+        "type": "object"
+      },
+      "name": "access_deciders",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.grants.list",
       "deferred": false,
       "description": "List grants by resource, subject or source (Console Grants)",

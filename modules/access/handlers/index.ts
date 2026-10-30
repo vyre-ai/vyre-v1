@@ -1,6 +1,6 @@
 // One handler per access capability. Share and folders are handlers/share.ts (P-L7_02); requests, reviews and proposals are request.ts, review.ts and propose.ts.
 import {
-  foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, lists, share, sharesOf, unshare,
+  foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, deciders, lists, share, sharesOf, unshare,
 } from "./share.ts";
 import {
   actorsCreate, actorsEngineer, actorsList, actorsRedeem, actorsRevoke, actorsUpdate, check,
@@ -66,6 +66,7 @@ export const handlers = {
   "access.roles.update": rolesUpdate,
   "access.share": share,
   "access.shares_of": sharesOf,
+  "access.deciders": deciders,
   "access.unshare": unshare,
   "access.view_as": viewAs,
   "folders.create": foldersCreate,

@@ -7,7 +7,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { registry } from "../../generated/registry.ts";
 
 /** The part of the host Ctx these handlers use. The full Ctx satisfies it. */
-export type SettingsCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "db" | "emit" | "authorize">;
+export type SettingsCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "authorize">;
 type Code = Parameters<typeof fail>[0];
 export function raise(ctx: Pick<SettingsCtx, "trace">, code: Code, message?: string): never {
   throw fail(code, ctx.trace.traceId, message ? { message } : {});
@@ -56,6 +56,11 @@ export function refusal(def: SettingDef, value: unknown): string | null {
 export function me(ctx: SettingsCtx): string {
   if (!ctx.principal || ctx.principal.kind !== "person") raise(ctx, "auth.unauthenticated");
   return ctx.principal.id;
+}
+/** Whose settings a read is about: the person, or the person an agent acts for. An agent may read what its asker set (their time zone, their language); it changes nothing of theirs, so writes stay with `me`. */
+export function meRead(ctx: SettingsCtx): string {
+  if (ctx.principal?.kind === "agent" && ctx.actingFor) return ctx.actingFor;
+  return me(ctx);
 }
 export const byOf = (ctx: SettingsCtx): string => ctx.principal?.id ?? "system";
 

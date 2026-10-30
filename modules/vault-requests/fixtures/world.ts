@@ -17,6 +17,8 @@ export interface Script {
   items: Record<string, string[]>;
   /** the owner of the Space resource, when there is one (ruling 74: the decider of a key no folder claims) */
   spaceOwner?: string;
+  /** the folder's managers cannot be read */
+  folderUnreadable?: boolean;
   /** capabilities that should fail, with the message */
   fail: Record<string, string>;
 }
@@ -34,13 +36,11 @@ export function world(over: Partial<Script> = {}) {
     const f = script.fail[cap];
     if (f) throw new Error(f);
     switch (cap) {
-      case "access.shares_of": {
-        if ((i["resource"] as { type: string }).type === "space") return { shares: script.spaceOwner ? [{ grant: { id: "g_owner", subject: { kind: "person", id: script.spaceOwner }, level: "manage" }, through: "owner" }] : [] };
-        const folder = (i["resource"] as { id: string }).id;
-        const people = script.managers[folder] ?? [];
-        return { shares: people.map((id, n) => ({ grant: { id: `g${n}`, subject: { kind: "person", id }, level: "manage" }, through: n === 0 ? "owner" : "direct" })) };
+      case "access.deciders": {
+        if ((i["resource"] as { type: string }).type === "space") return { people: [...new Set([...(script.spaceOwner ? [script.spaceOwner] : []), ...script.owners, ...script.admins])] };
+        if (script.folderUnreadable) throw new Error("no access");
+        return { people: script.managers[(i["resource"] as { id: string }).id] ?? [] };
       }
-      case "access.roles.get": return { holders: (i["roleId"] === "rol_owner" ? script.owners : script.admins).map((id) => ({ kind: "person", id })) };
       case "tasks.create": return { task: { id: `tsk_${++task}` } };
       case "tasks.transition": return { task: { id: i["taskId"] } };
       case "vault.item.get": {

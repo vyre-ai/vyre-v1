@@ -21,6 +21,7 @@ export function stubs(ctx: CallCtx) {
         update: call("access.actors.update"),
       },
       check: call("access.check"),
+      deciders: call("access.deciders"),
       grants: {
         list: call("access.grants.list"),
         update: call("access.grants.update"),

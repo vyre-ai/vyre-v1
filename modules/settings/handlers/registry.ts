@@ -1,6 +1,6 @@
 // Settings capabilities (spec 3.9, ARCH 7.9): the registry rows of every module's SettingDef, read for the person asking; changes that save as they are made and hand back the previous
 // value so Undo is one more call; the Space-wide rows and the owner floor; Cmd-F; Copy from another Space; and the Kit choice. A value no schema accepts is refused with a sentence.
-import { COPY_KEY, DEFAULT_KIT, PAGES, byOf, comparable, defOf, defs, drop, effective, floorOf, meetsFloor, me, pageOf, put, raise, refusal, rowOut, search, stored } from "../projections.ts";
+import { COPY_KEY, DEFAULT_KIT, PAGES, byOf, comparable, defOf, defs, drop, effective, floorOf, meetsFloor, me, meRead, pageOf, put, raise, refusal, rowOut, search, stored } from "../projections.ts";
 import type { CopyField, SettingsCtx } from "../projections.ts";
 
 // ---- reads
@@ -12,7 +12,7 @@ export async function pages(_ctx: SettingsCtx, _input: Record<string, never>) {
 }
 
 export async function list(ctx: SettingsCtx, input: { page?: string; scope?: "space" | "person" }) {
-  const person = me(ctx);
+  const person = meRead(ctx);
   const rows = [];
   for (const d of defs) {
     if (input.scope && d.scope !== input.scope) continue;
@@ -25,7 +25,7 @@ export async function list(ctx: SettingsCtx, input: { page?: string; scope?: "sp
 }
 
 export async function get(ctx: SettingsCtx, input: { key: string }) {
-  return { row: rowOut(ctx, defOf(ctx, input.key), me(ctx)) };
+  return { row: rowOut(ctx, defOf(ctx, input.key), meRead(ctx)) };
 }
 
 export async function searchRows(_ctx: SettingsCtx, input: { q: string }) {

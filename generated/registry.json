@@ -21706,6 +21706,72 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "resource": {
+              "id": "rec_a1b2c3",
+              "type": "space"
+            }
+          },
+          "name": "example",
+          "output": {
+            "people": [
+              "usr_a1b2c3"
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_5a61e4f5d1"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.deciders",
+      "output": {
+        "properties": {
+          "people": {
+            "items": {
+              "examples": [
+                "usr_a1b2c3"
+              ],
+              "pattern": "^usr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "people"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "ref": "/resource",
+        "type": "dynamic"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "permission.role_lacks_permission",
         "validation.bad_input"
       ],
