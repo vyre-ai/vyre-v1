@@ -1,7 +1,7 @@
 // The Run code step's sandbox (spec 2.12, 4.17). The code runs in the same bubblewrap sandbox the engine uses for CLI engines (sandbox/src/net/bwrap.ts): a new process, its own namespaces, files read-only
 // except one folder made for this run, and a network that is only a unix socket to an egress proxy. The proxy lets through the hosts the step names and nothing else, resolves each name once and refuses a
 // private, loopback or metadata address, so a name that points inside is refused (the same rule as the public fetcher). With no hosts named the proxy allows nothing and the code has no network at all.
-//   limits   10 seconds of processor time (ulimit -t), a 30 second wall clock for the run, a 64 MB V8 heap and a 192 MB kernel data limit (RLIMIT_DATA, which also covers Buffers and ArrayBuffers; 128 MB for the code plus the runtime's own), 1 MB of output.
+//   limits   10 seconds of processor time (ulimit -t), a 30 second wall clock for the run, a 64 MB V8 heap and a 640 MB kernel data limit (RLIMIT_DATA, which also covers Buffers and ArrayBuffers; V8 reserves its 128 MB code range, and more to align it, before any code runs, so a limit near the heap size stops Node at start: "Failed to reserve virtual memory for CodeRange"; the heap flag is what bounds the code's own objects), 1 MB of output.
 //   node     --permission with the run folder as the only readable and writable path: no child process, no worker, no other file, as a second wall inside the first.
 //   never    node:vm. Where bwrap is not available the step is refused (codeAvailability says why); nothing falls back to running the code in the daemon.
 // The input and the source are files in the run folder; the result is a file in it. No environment variable, key or Vault value of the daemon reaches the process.
@@ -29,13 +29,13 @@ export interface CodeHost {
   /** Tests only: when the sandbox ends without a result, the exit status, signal and the sandbox's own stderr go into the error message. Never set by a host that serves people. */
   diagnose?: boolean;
   heapMb?: number;
-  /** The kernel limit on the process's data (RLIMIT_DATA: heap, Buffers and ArrayBuffers). Default 192 MB: 128 MB for the code plus the runtime's own. */
+  /** The kernel limit on the process's data (RLIMIT_DATA: heap, Buffers and ArrayBuffers). Default 640 MB: V8's code range reservation, the 64 MB heap, thread stacks and the runtime's own come first, and the rest is what Buffers may take. */
   dataMb?: number;
   /** Tests: how the egress proxy resolves a name and dials an address (a stand-in for the internet). Default: the system's. */
   egress?: NetWallOptions["egress"];
 }
 
-export const LIMITS = Object.freeze({ cpuSeconds: 10, wallMs: 30_000, heapMb: 64, dataMb: 192, outputBytes: 1_000_000, sourceChars: 20_000, hosts: 10 });
+export const LIMITS = Object.freeze({ cpuSeconds: 10, wallMs: 30_000, heapMb: 64, dataMb: 640, outputBytes: 1_000_000, sourceChars: 20_000, hosts: 10 });
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"];
 const MAX_LOGS = 50;
 const MAX_LOG = 500;
