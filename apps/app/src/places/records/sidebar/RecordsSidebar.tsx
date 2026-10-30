@@ -11,7 +11,7 @@ import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { StarredGroup } from "../starred/index.ts";
 import type { StarsOut } from "../starred/index.ts";
 import { useOptionalRecordsData, useRecordsData, useScreenQuery } from "./data.tsx";
-import { SCREENS, compact, effectiveType, sortedViews, typeGroups } from "./model.ts";
+import { MANAGE_TYPE, SCREENS, compact, effectiveType, sortedViews, typeGroups } from "./model.ts";
 import { Glyph, TypeTile, typeHue, typeIcon } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useRecordsState } from "./state.tsx";
@@ -98,6 +98,8 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   }
 
   const manage: ReactElement[] = [];
+  const agentType = types.status === "ready" ? types.data.types.find((t) => t.key === MANAGE_TYPE) : undefined;
+  if (agentType && hit(agentType.plural)) manage.push(<SideRow key="agents" id={`type:${MANAGE_TYPE}`} title={agentType.plural} glyph={typeIcon(agentType.icon)} selected={open === MANAGE_TYPE && state.viewId === null} trailing={<Text style={styles.count} testID={`count-${MANAGE_TYPE}`}>{compact(agentType.rowCount)}</Text>} onPress={() => { dispatch({ type: "open", key: MANAGE_TYPE }); choose(); }} />);
   if (hit("Record types")) manage.push(<SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={data.screen === "records.types"} onPress={() => { data.nav.openRecordTypes(); choose(); }} />);
   if (hit("Schema map")) manage.push(<SideRow key="map" id="manage:map" title="Schema map" glyph="schema" selected={data.screen === "records.schema-map"} onPress={() => { data.nav.openSchemaMap(); choose(); }} />);
 
