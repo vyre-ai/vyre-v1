@@ -10,7 +10,7 @@ import type { Hit } from "../src/shell/cmdk/model.ts";
 import { createGateSearch, gateActions, hashOfHit, placeOfHit } from "../src/shell/cmdk/gate.ts";
 import type { GateNav } from "../src/shell/cmdk/gate.ts";
 import type { ShellRuntime } from "../src/shell/providers/runtime.tsx";
-import { SessionGate, signInInvite } from "../src/shell/session/SessionGate.tsx";
+import { ConnectSpaceWelcome, SessionGate, signInInvite } from "../src/shell/session/SessionGate.tsx";
 import { JoinFlow } from "../src/join/JoinFlow.tsx";
 import { shellKey } from "../src/shell/spaces/keys.ts";
 
@@ -134,10 +134,35 @@ test("the real SessionGate draws its blank frame before a stored session is read
   assert.ok(typeof out === "string");
 });
 
-test("the packaged shell with no stored Space offers Connect a Space, not tauri as a host", () => {
+/** Render `el` as the packaged desktop shell sees it: window.__TAURI__ present, as the Tauri webview sets it. */
+function asPackaged<T>(run: () => T): T {
+  const g = globalThis as { __TAURI__?: unknown };
+  const had = "__TAURI__" in g;
+  const before = g.__TAURI__;
+  g.__TAURI__ = { core: { invoke: async () => undefined } };
+  try { return run(); } finally { if (had) g.__TAURI__ = before; else delete g.__TAURI__; }
+}
+
+test("the packaged shell with no stored Space opens on the three doors, and never offers tauri as a host", () => {
+  const out = asPackaged(() => renderToStaticMarkup(<SessionGate baseUrl={null} />).replaceAll("<!-- -->", ""));
+  assert.ok(out.includes("Welcome to Vyre"), "the first launch screen");
+  for (const door of ["door-me", "door-invited", "door-team"]) assert.ok(out.includes(`data-testid="${door}"`), `${door} is offered`);
+  for (const [door, text] of [["door-me", "Just me"], ["door-invited", "I was invited"], ["door-team", "My team"]]) assert.ok(out.includes(text), `${door} reads ${text}`);
+  assert.ok(!out.includes('data-testid="door-server"') && !out.includes('data-testid="door-get-app"'), "a desktop has no server door and no Get Vyre door");
+  assert.ok(!out.includes("tauri"), "tauri is never offered as a host");
+});
+
+test("a browser with no stored Space is offered to join or set up a server, and tauri is not offered as a host", () => {
   const out = renderToStaticMarkup(<SessionGate baseUrl={null} />).replaceAll("<!-- -->", "");
+  assert.ok(out.includes('data-testid="door-invited"') && out.includes('data-testid="door-server"'));
+  assert.ok(!out.includes('data-testid="door-me"'), "no Just me door without the app");
+  assert.ok(!out.includes("tauri"));
+});
+
+test("the Connect a Space screen behind Sign in still takes a Space address, with a sign-in action and no tauri", () => {
+  const out = renderToStaticMarkup(<ConnectSpaceWelcome onConnect={() => undefined} onGetStarted={() => undefined} />).replaceAll("<!-- -->", "");
   assert.ok(out.includes("Connect a Space"));
-  assert.ok(out.includes('data-testid="space-address"'), "a fresh desktop can enter the Space address");
+  assert.ok(out.includes('data-testid="space-address"'), "a desktop can enter the Space address");
   assert.ok(out.includes('data-testid="resolve-space"'), "the address has a sign-in action");
   assert.ok(!out.includes("tauri"));
 });
