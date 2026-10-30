@@ -166,6 +166,8 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
     if (filter === "people" && people.length < 2) continue;
     if (filter === "agents" && agents.length === 0) continue;
     const last = lastMessage(ctx.db, t.id);
+    // a chat nobody has written in is not a chat yet: opening an agent makes the thread, and it should not pile up as "New chat" rows
+    if (t.kind === "chat" && t.title === undefined && last === null && agents.length > 0 && people.length < 2) continue;
     const lastAt = last?.createdAt ?? t.createdAt;
     const title = t.title ?? (t.channelId ? channelBy(ctx.db, t.channelId)?.name : undefined) ?? (t.kind === "ask" ? "Ask" : "New chat");
     const row: Record<string, unknown> = { threadId: t.id, kind: t.kind, title, agents, unread: 0, working: false, starred: false, lastAt };

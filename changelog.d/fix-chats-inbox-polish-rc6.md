@@ -1,0 +1,1 @@
+- Fixed the Chats and Inbox polish. Opening an agent no longer leaves an empty "New chat" row in the sidebar until you write something. A Personal Space has no Computer tab in the agent pane. The Inbox on a phone shows its list first, then what you open, with a way back, and the Inbox sidebar has its title. Empty Chats and Inbox use short lines with one action.

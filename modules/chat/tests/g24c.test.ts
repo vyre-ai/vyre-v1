@@ -189,6 +189,14 @@ test("recent groups the asker's threads by day with the newest first, shows no p
   assert.equal(await failure(() => g["chat.recent"]!(hn.ctx, { filter: "all" })), "none");
 });
 
+test("recent leaves out an agent chat nobody has written in, and lists it once someone does", async () => {
+  const hn = harness();
+  const empty = await chat(hn);
+  assert.deepEqual((await run(hn, "chat.recent", hn.ctx, {})).today.map((x: any) => x.threadId), [], "opening an agent makes the thread, which is not a chat yet");
+  await say(hn.ctx, empty, "Draft the welcome email");
+  assert.deepEqual((await run(hn, "chat.recent", hn.ctx, {})).today.map((x: any) => x.threadId), [empty]);
+});
+
 test("composer.suggest lists the people and agents of a thread, and the channels the asker can see", async () => {
   const hn = harness();
   const c = await room(hn);

@@ -16,7 +16,7 @@ export interface FirstList { screen: string; query: string; state?: Record<strin
 
 /** The main list of each place, by the place's id in the app routes (src/startup/places.ts). Each is a live query of a generated screen. */
 export const FIRST_LISTS: Readonly<Record<string, FirstList>> = {
-  chat: { screen: "chats.sidebar", query: "recent", title: "Chats", empty: "No chats yet. Start one with your assistant.", icon: "chat" },
+  chat: { screen: "chats.sidebar", query: "recent", title: "Chats", empty: "No chats yet.", icon: "chat" },
   mail: { screen: "inbox.contact-list", query: "rows", title: "Inbox", empty: "Nothing in your inbox.", icon: "inbox" },
   records: { screen: "records.saved-views", query: "views", title: "Records", empty: "No saved views yet.", icon: "records" },
   files: { screen: "files.list", query: "items", title: "Files", empty: "No files here yet.", icon: "files" },

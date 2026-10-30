@@ -167,7 +167,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   }
   else if (threadId === null && recent.status === "ready") {
     // A Space with no chats yet: the shared empty state with the way to start one, not a skeleton for ever.
-    main = <States kind="empty" title="No chats yet. Start one with your assistant." icon="chat" action={{ label: "New chat", onPress: () => go.agentChat(rt.assistant.id) }} />;
+    main = <States kind="empty" title="No chats yet." icon="chat" action={{ label: "New chat", onPress: () => go.agentChat(rt.assistant.id) }} />;
   } else if (threadId === null && recent.status === "loading" && recent.error) {
     main = <States kind="error" message="Couldn't load your chats" cause={recent.error.message} {...(recent.error.traceId ? { traceId: recent.error.traceId } : {})} retryable />;
   } else main = <ConversationLoading />;
