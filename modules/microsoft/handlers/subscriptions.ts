@@ -393,6 +393,7 @@ export async function consentVerify(ctx: MsCtx, input: { as?: string; policyConf
   const cfg = config(ctx);
   const connectionId = strOrNull(cfg, "connectionId");
   if (!cfg || !connectionId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft 365 is not set up." });
+  forgetTokens();   // the permissions a token carries are fixed when it is issued: asking again is how a consent given a minute ago shows up
   const org = await apiRaw(ctx, { cap: "ms.consent.verify", connectionId, tenant: true, url: `${GRAPH}/organization`, query: { $select: "id" } });
   const token = org.token;
   const roles = rolesOf(token);
