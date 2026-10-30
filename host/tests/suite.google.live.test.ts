@@ -127,7 +127,9 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
   try {
     // 1 the key goes to the Vault by handle; the admin page reads status and scopes
     const folder = await w.ok(OWNER, "vault.folders.create", { name: "Company connections", scope: "shared", idempotencyKey: w.idem() });
+    await w.ok(OWNER, "access.labels.set", { resource: { type: "vault_folder", id: folder.folder.id }, label: "restricted" });   // as the setup page files it: Restricted, so only Owner and Admin reach the key (host/tests/sso-secret.live.test.ts)
     const item = await w.ok(OWNER, "vault.item.put", { folderId: folder.folder.id, name: "Google_DWD", kind: "other", fields: [{ key: "key", value: KEY_JSON, secret: true }], idempotencyKey: w.idem() });
+    await w.ok(OWNER, "access.labels.set", { resource: { type: "vault_item", id: item.item.id }, label: "restricted" });
     assert.equal(item.item.handle, "#Google_DWD");
     assert.equal(JSON.stringify(item).includes("PRIVATE KEY"), false, "the Vault never answers with the key");
     const before = await w.ok(OWNER, "google.dwd.status");
