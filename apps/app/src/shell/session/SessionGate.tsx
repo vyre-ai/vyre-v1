@@ -17,6 +17,8 @@ import { Welcome } from "../../join/Welcome.tsx";
 import { completeReset } from "../../join/reset.ts";
 import {completeRecovery} from "../../join/recover.ts";
 import { SpaceEntry } from "../../join/SpaceEntry.tsx";
+import { FirstLaunch } from "../../onboarding/FirstLaunch.tsx";
+import { wantTeamNext } from "../../onboarding/doors.ts";
 import { clearLock, consumeBrowserInvite, inviteAppLink, VYRE_DOWNLOADS, entryTarget, isMacShell, readLock } from "./entry.ts";
 import type { EntryTarget, LockedIdentity } from "./entry.ts";
 import { ensureMacServer, ensurePersonalSpace } from "../../../../../client/src/connection/desktop-link.ts";
@@ -24,7 +26,7 @@ import type { Invoke } from "../../../../../client/src/connection/desktop-link.t
 import { mark } from "../../startup/marks.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { createCapCaller } from "./caps.ts";
-import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, desktopBridge, previewDesktopJoin, redeemDesktopPair } from "./desktop.ts";
+import { acceptDesktopJoin, consumeDesktopBootstrap, consumeDesktopRoute, desktopBridge, pairFromUrl, previewDesktopJoin, redeemDesktopPair } from "./desktop.ts";
 import type { DesktopRoute } from "./desktop.ts";
 import type { LoadVoiceDevice } from "./phone.ts";
 import { openRealSession } from "./session.ts";
@@ -240,6 +242,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [desktopRoute, setDesktopRoute] = useState<DesktopRoute | null>(null);
   const [entry, setEntry] = useState(false);
+  const [entryStart, setEntryStart] = useState<'choice'|'join'>('choice');
   const [personalClaim,setPersonalClaim]=useState<{address:string;token:string;fragment:string}|null>(null);
   const [locked, setLocked] = useState<LockedIdentity|null>(null);
   const [returnSession, setReturnSession] = useState<StoredSession|null>(null);
@@ -253,7 +256,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     const stored = readStored(undefined, baseUrl ?? undefined);
     const href=(globalThis as {location?:{href?:string}}).location?.href;
     const incoming=href?entryTarget(href):null;
-    if(baseUrl!==null&&incoming?.kind==='join'){setDesktopRoute(incoming);setPhase({kind:'signin'});}
+    const phonePair=href&&baseUrl&&!stored?pairFromUrl(href,baseUrl):null;
+    if(phonePair){const loc=(globalThis as {location?:{pathname:string;hash:string};history?:History}).location;const url=new URL(href!);url.searchParams.delete('pair');globalThis.history?.replaceState(null,'',url.pathname+url.search+(loc?.hash??''));setDesktopRoute(phonePair);setPhase({kind:'signin'});}
+    else if(baseUrl!==null&&incoming?.kind==='join'){setDesktopRoute(incoming);setPhase({kind:'signin'});}
     else if(stored?.def.kind==='personal'&&isLoopbackUrl(stored.baseUrl)&&bridge){
       const invoke=(globalThis as {__TAURI__?:{core?:{invoke?:Invoke}}}).__TAURI__?.core?.invoke;
       if(invoke){let alive=true;setPhase({kind:'opening-personal'});setLoadedAddress(baseUrl);setReady(true);void ensurePersonalSpace(invoke).then(async local=>{if(local.spaceId!==stored.def.spaceId||local.claimUrl)throw new Error('Personal Space identity changed');const resumed=await resumePersonal(local,stored,open);if(alive){setConnectedAddress(local.address);setPhase({kind:'shell',stored:resumed});}}).catch(()=>{if(alive){setPhase({kind:'signin'});setNotice(true);}});return()=>{alive=false;};}
@@ -298,15 +303,18 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const invoke=(globalThis as {__TAURI__?:{core?:{invoke?:Invoke}}}).__TAURI__?.core?.invoke;
   const createPersonal=async():Promise<void>=>{if(!invoke)throw new Error('Desktop shell required');const local=await ensurePersonalSpace(invoke);if(local.claimUrl){const link=new URL(local.claimUrl);setPersonalClaim({address:local.address,token:link.pathname.slice('/claim/'.length),fragment:link.hash});setEntry(false);}else {const old=readStoredSpace(local.spaceId);if(old?.def.kind==='personal'&&isLoopbackUrl(old.baseUrl)){const stored=await resumePersonal(local,old,open);setConnectedAddress(local.address);signedIn(stored);}else await chooseEntry({kind:'signin',address:local.address});}};
   const createMacServer=async():Promise<void>=>{if(!invoke)throw new Error('Desktop shell required');const local=await ensureMacServer(invoke);if(local.claimUrl){const link=new URL(local.claimUrl);setPersonalClaim({address:local.address,token:link.pathname.slice('/claim/'.length),fragment:link.hash});setEntry(false);}else await chooseEntry({kind:'signin',address:local.address});};
+  // first launch on the desktop app: three doors; elsewhere (and for a person who already has a Space) the plain connect screen
+  const connectScreen=<ConnectSpaceWelcome onConnect={connectSpace} onGetStarted={()=>{setEntryStart('choice');setEntry(true);}} />;
+  const firstScreen=invoke?<FirstLaunch existing={connectScreen} onDoor={async door=>{if(door==='invited'){setEntryStart('join');setEntry(true);return;}wantTeamNext(door==='team');await createPersonal();}} />:connectScreen;
   if(personalClaim)return <Suspense fallback={null}><LocalClaim deviceClass="desktop" token={personalClaim.token} address={personalClaim.address} fragment={personalClaim.fragment} onDone={()=>{const stored=readStored(undefined,personalClaim.address);if(stored){setConnectedAddress(personalClaim.address);setPersonalClaim(null);signedIn(stored);}}} onSignIn={()=>{const address=personalClaim.address;setPersonalClaim(null);void chooseEntry({kind:'signin',address});}}/></Suspense>;
-  if(entry)return <SpaceEntry {...(invoke?{onCreatePersonal:createPersonal}:{})} {...(invoke&&isMacShell()?{onCreateMacServer:createMacServer}:{})} onTarget={chooseEntry} onBack={()=>{setEntry(false);setDesktopRoute(null);const previous=returnSession??readStored(undefined,baseUrl??undefined);if(previous){activateAddress(previous,true);setConnectedAddress(previous.baseUrl);consumeBrowserInvite();setDesktopRoute(null);setPhase({kind:'shell',stored:previous});}setReturnSession(null);}}/>;
-  if (loadedAddress !== baseUrl || !ready) return baseUrl ? <View style={styles.fill} /> : <ConnectSpaceWelcome onConnect={connectSpace} onGetStarted={()=>setEntry(true)} />;
+  if(entry)return <SpaceEntry startAt={entryStart} {...(invoke?{onCreatePersonal:createPersonal}:{})} {...(invoke&&isMacShell()?{onCreateMacServer:createMacServer}:{})} onTarget={chooseEntry} onBack={()=>{setEntry(false);setDesktopRoute(null);const previous=returnSession??readStored(undefined,baseUrl??undefined);if(previous){activateAddress(previous,true);setConnectedAddress(previous.baseUrl);consumeBrowserInvite();setDesktopRoute(null);setPhase({kind:'shell',stored:previous});}setReturnSession(null);}}/>;
+  if (loadedAddress !== baseUrl || !ready) return baseUrl ? <View style={styles.fill} /> : firstScreen;
   if(phase.kind==='opening-personal')return <JoinFrame><Panel><Step id="opening-personal"><Title title="Opening your Personal Space" sub="Starting the Space on this computer…"/></Step></Panel></JoinFrame>;
   if (phase.kind === "shell") return <Suspense fallback={<View style={styles.fill} />}><SignedInShell key={phase.stored.baseUrl+phase.stored.personId} stored={phase.stored} open={open} onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)} onHub={onHub} voice={props.voice} onSwitchSpace={id=>void switchSpace(id)} onAddSpace={()=>{setReturnSession(phase.stored);setEntry(true);}} onLocked={(identity)=>{clearStored();setReturnSession(null);setLocked(identity);setNotice(false);setPhase({kind:'signin'});}} /></Suspense>;
   if (desktopRoute?.kind === "pair") return <DesktopPairScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} />;
   if (desktopRoute?.kind === "join") return <DesktopJoinScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} onBack={()=>setEntry(true)} deviceClass={bridge?"desktop":"web"} />;
   const activeAddress = desktopRoute?.address ?? connectedAddress ?? locked?.address ?? baseUrl;
-  if (!activeAddress) return <ConnectSpaceWelcome onConnect={connectSpace} onGetStarted={()=>setEntry(true)} />;
+  if (!activeAddress) return firstScreen;
   return <SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} onBack={()=>{if(returnSession){activateAddress(returnSession,true);setConnectedAddress(returnSession.baseUrl);setPhase({kind:'shell',stored:returnSession});setReturnSession(null);}else setEntry(true);}} {...(locked?{unlock:true}:{})} />;
 }
 

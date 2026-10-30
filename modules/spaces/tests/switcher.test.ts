@@ -9,7 +9,7 @@ import { codeOf, harness } from "../fixtures/db.ts";
 import { MAYA, OMAR } from "../fixtures/seed.ts";
 
 test("every spaces capability has a handler and the migration tables exist", () => {
-  assert.equal(Object.keys(handlers).length, 16);
+  assert.equal(Object.keys(handlers).length, 19);
   const sql = readFileSync(new URL("../migrations/0001_spaces.sql", import.meta.url), "utf8");
   for (const t of ["spaces_profile", "spaces_star", "spaces_follow", "spaces_onboarding", "spaces_onboarding_state"]) assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${t}"`));
 });
@@ -98,4 +98,21 @@ test("the tile takes its counts from an attention source that answers later", as
   const h = harness();
   const tile = await handlers["spaces.switcher"]({ ...h.as(MAYA), attention: { of: async () => ({ needsYou: 2, unread: 5 }) } }, {});
   assert.deepEqual([tile.needsYou, tile.unread], [2, 5]);
+});
+
+test("the onboarding screen keeps each flow's steps per person: done, put off, open again, seen once", async () => {
+  const h = harness();
+  const fresh = await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "personal" });
+  assert.deepEqual(fresh, { seen: false, steps: [] });
+  await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "ai", state: "done" });
+  await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "interview", state: "later" });
+  await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "interview", state: "done" });
+  await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "ai", state: "open" });
+  await handlers["spaces.onboarding.seen"](h.as(MAYA), { flow: "personal" });
+  assert.deepEqual(await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "personal" }), { seen: true, steps: [{ key: "interview", state: "done" }] });
+  assert.deepEqual(await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "member" }), { seen: false, steps: [] }, "flows are separate");
+  assert.deepEqual(await handlers["spaces.onboarding.flow"](h.as(OMAR), { flow: "personal" }), { seen: false, steps: [] }, "people are separate");
+  await assert.rejects(handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "nope" as never, step: "ai", state: "done" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "team", step: "Bad Step!", state: "done" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(handlers["spaces.onboarding.flow"](h.anon, { flow: "team" }), (e) => codeOf(e) === "auth.unauthenticated");
 });

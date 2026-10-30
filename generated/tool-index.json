@@ -6386,8 +6386,26 @@
     },
     {
       "deferred": false,
+      "name": "spaces_onboarding_flow",
+      "summary": "My onboarding screen for one flow (personal, team or member): each step done or put off, and whether the screen has opened for me",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "spaces_onboarding_get",
       "summary": "The first-run checklist for me: steps done, steps left",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_onboarding_mark",
+      "summary": "Mark an onboarding step done, put it off, or open it again",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_onboarding_seen",
+      "summary": "Note that the onboarding screen has opened for me once, so it does not open by itself again",
       "toolset": "meta"
     },
     {

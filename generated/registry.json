@@ -147182,6 +147182,104 @@
       ],
       "examples": [
         {
+          "input": {
+            "flow": "personal"
+          },
+          "name": "example",
+          "output": {
+            "seen": true,
+            "steps": [
+              {
+                "key": "ai",
+                "state": "done"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "flow": {
+            "enum": [
+              "personal",
+              "team",
+              "member"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "spaces",
+      "name": "spaces.onboarding.flow",
+      "output": {
+        "properties": {
+          "seen": {
+            "type": "boolean"
+          },
+          "steps": {
+            "items": {
+              "properties": {
+                "key": {
+                  "examples": [
+                    "ai"
+                  ],
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "done",
+                    "later"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "state"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "seen",
+          "steps"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "My onboarding screen for one flow (personal, team or member): each step done or put off, and whether the screen has opened for me",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
           "input": {},
           "name": "example",
           "output": {
@@ -147252,6 +147350,158 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "The first-run checklist for me: steps done, steps left",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "flow": "personal",
+            "state": "done",
+            "step": "ai"
+          },
+          "name": "example",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "flow": {
+            "enum": [
+              "personal",
+              "team",
+              "member"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "later",
+              "open"
+            ],
+            "type": "string"
+          },
+          "step": {
+            "examples": [
+              "ai"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow",
+          "step",
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "spaces",
+      "name": "spaces.onboarding.mark",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Mark an onboarding step done, put it off, or open it again",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "flow": "personal"
+          },
+          "name": "example",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "flow": {
+            "enum": [
+              "personal",
+              "team",
+              "member"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "spaces",
+      "name": "spaces.onboarding.seen",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Note that the onboarding screen has opened for me once, so it does not open by itself again",
       "surfaces": {
         "http": "auto",
         "mcp": {
