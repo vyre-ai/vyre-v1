@@ -45,13 +45,14 @@ test("the sections run: checklist on top, then Needs you down to Routines, then 
   assert.ok(at(done, 'data-testid="s-routines"') < at(done, 'data-testid="s-today"') && at(done, 'data-testid="s-today"') < at(done, 'data-testid="s-starred"') && at(done, 'data-testid="s-starred"') < at(done, 'data-testid="s-ask"'));
 });
 
+// the test page is a browser, so the steps are the six a browser shows (no sessions or folders)
 test("Home draws the person's onboarding steps and the count follows their progress", () => {
   setup("personal");
   const h = createSampleHomeB("personal");
-  assert.ok(has(html(h), ">0 of 8<"));
+  assert.ok(has(html(h), ">0 of 6<"));
   setup("personal", { ai: "done" });
   const out = html(h);
-  assert.ok(has(out, ">1 of 8<"));
+  assert.ok(has(out, ">1 of 6<"));
   assert.ok(has(out, 'data-testid="first-setup-interview"') && has(out, 'data-testid="first-go-setup-interview"'));
   assert.ok(!has(out, 'data-testid="first-go-setup-ai"'), "a done step has no button");
   setup("personal", { ai: "done", interview: "later" });
@@ -189,7 +190,7 @@ test("Personal Space: no Today without a calendar, no project row, and the assis
   const out = html(createSampleHomeB("personal"));
   assert.ok(!has(out, 'data-testid="s-today"'), "Today needs a connected calendar");
   assert.ok(has(out, 'data-testid="s-first"') && !has(out, "Open your first project"));
-  assert.ok(has(out, ">0 of 8<"));
+  assert.ok(has(out, ">0 of 6<"));
   assert.ok(has(out, 'data-testid="ask-locked"'));
 });
 

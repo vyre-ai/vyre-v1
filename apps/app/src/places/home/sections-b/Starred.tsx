@@ -15,6 +15,7 @@ import { isPersonal, useExtras } from "./data.tsx";
 import { STARRED_LIMIT, TODAY_SCREEN, splitForSpace, starRows, teamOnlyWhat, terminalIds } from "./model.ts";
 import type { StarRow } from "./model.ts";
 import { Icon, ListRow } from "./parts.tsx";
+import { useAllClear, useSectionKind } from "../sections-a/allclear.ts";
 
 type StarsOut = CapMap["stars.list"]["out"];
 type StatusOut = CapMap["terminal.status"]["out"];
@@ -65,7 +66,10 @@ export function Starred(): ReactElement | null {
   }
 
   // A Personal Space draws no empty section (the prototype's Personal Home is the checklist, the assistant and what exists).
-  if (isPersonal(extras) && stars.status === "ready" && split.rows.length === 0 && split.blocked.length === 0) return null;
+  const personalBlank = isPersonal(extras) && stars.status === "ready" && split.rows.length === 0 && split.blocked.length === 0;
+  useSectionKind("starred", personalBlank ? null : stars.status === "loading" ? "loading" : split.rows.length || split.blocked.length ? "items" : "empty");
+  const clear = useAllClear();
+  if (personalBlank || clear) return null;
   const more = split.rows.length - STARRED_LIMIT;
   return (
     <Section id="s-starred">

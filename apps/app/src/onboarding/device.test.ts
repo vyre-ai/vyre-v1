@@ -41,3 +41,12 @@ test("the device is a phone by width, the desktop app by its Tauri bridge (Mac o
     if (nav) Object.defineProperty(globalThis, "navigator", nav); else delete (globalThis as { navigator?: unknown }).navigator;
   }
 });
+
+test("the Home checklist rows follow the device: a browser has no sessions or folders, a phone no Chrome and its phone step is done", async () => {
+  const { setupRows } = await import("./SetupRows.tsx");
+  const keys = (d: "mac" | "web" | "phone"): string[] => setupRows("personal", {}, d).map((r) => r.key);
+  assert.ok(keys("mac").includes("sessions") && keys("mac").includes("folders") && keys("mac").includes("chrome"));
+  assert.ok(!keys("web").includes("sessions") && !keys("web").includes("folders") && keys("web").includes("chrome"));
+  assert.ok(!keys("phone").includes("chrome") && !keys("phone").includes("sessions"));
+  assert.equal(setupRows("personal", {}, "phone").find((r) => r.key === "phone")?.state, "done");
+});
