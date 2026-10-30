@@ -210,7 +210,7 @@ test("fail closed: when the module cannot take a suspension, the suspended perso
     assert.equal((await tryAdmin()).status, 200, "an admin acts");
 
     // reads still work but the module can no longer persist, so no sync can succeed
-    d.db!.run("CREATE TRIGGER authz_block BEFORE DELETE ON access_meta BEGIN SELECT RAISE(ABORT, 'blocked'); END");
+    d.db!.run("CREATE TRIGGER authz_block BEFORE UPDATE ON access_meta BEGIN SELECT RAISE(ABORT, 'blocked'); END");
     const suspended = await post(OWNER_TOKEN, "/v1/members/suspend", { personId: "usr_noah" });
     assert.equal(suspended.status, 200, JSON.stringify(suspended.body));
     const held = await tryAdmin();

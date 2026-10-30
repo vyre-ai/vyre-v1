@@ -64,3 +64,24 @@ test("two calls that both change the same row: the later write wins, and the epo
   assert.equal(fresh.fieldLabels.get("seed_cursor"), 40, "the cursor of events folded in does not move back");
   assert.ok(fresh.epoch >= storeA.epoch, "nor does the epoch");
 });
+
+test("a persist that fails leaves the store owing its rows: the next persist writes the whole difference, so the tables heal", () => {
+  const h = harness();
+  const shared = h.db;
+  const flaky = { fail: false };
+  const db: Db = {
+    all: (sql, ...a) => shared.all(sql, ...a),
+    run: (sql, ...a) => { if (flaky.fail && /access_principals/.test(sql)) throw new Error("blocked"); return shared.run(sql, ...a); },
+  };
+  const ctx = { ...h.ctx, db };
+  const store = storeOf(ctx);
+  store.principals.set("usr_noah", { id: "usr_noah", kind: "person", name: "Noah", status: "suspended", createdAt: 1 });
+  store.grants.set("grn_x", grant("grn_x"));
+  flaky.fail = true;
+  assert.throws(() => changed(ctx, store, "label"), /blocked/);
+  flaky.fail = false;
+  changed(ctx, store, "label");                        // the next write retries everything the failed one owed
+  const fresh = storeOf(callOn(h.ctx, shared));
+  assert.equal(fresh.principals.get("usr_noah")?.status, "suspended", "the suspension reached the tables");
+  assert.ok(fresh.grants.has("grn_x"), "and so did the rows written before the failure point");
+});
