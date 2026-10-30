@@ -498,9 +498,32 @@ const oldAssistantNames = (rawName: string | undefined): Array<string | null> =>
   return [first === "" ? null : `${first} Assistant`, base === "" ? null : `${base} Assistant`];
 };
 
+/** The names an assistant has by default for a person called `raw`, in both styles: "<First> Assistant" before the possessive rule, "<First>’s Assistant" after. Position 0 is the first name, 1 the full name. */
+const defaultsOf = (raw: string | undefined): Array<{ slot: 0 | 1; name: string }> => {
+  const old = oldAssistantNames(raw);
+  const out: Array<{ slot: 0 | 1; name: string }> = [];
+  old.forEach((n, i) => { if (n !== null) out.push({ slot: i as 0 | 1, name: n }); });
+  assistantNames("usr_000000", raw).slice(0, 2).forEach((n, i) => out.push({ slot: i as 0 | 1, name: n }));
+  return out;
+};
+
+/** Rename one person's assistant when its name still exactly equals a default of `from`; the new name is the same default for `to`. A name the person chose, or one that is taken, is left alone. */
+async function renameFollowing(ctx: AgentsCtx, a: AgentRec, from: string | undefined, to: string | undefined): Promise<boolean> {
+  const hit = defaultsOf(from).find((d) => d.name === a.name);
+  const target = hit === undefined ? undefined : assistantNames(a.ownerId, to)[hit.slot];
+  if (target === undefined || target === a.name || agentByName(ctx.db, target)) return false;
+  try {
+    await update({ ...ctx, actingFor: a.ownerId }, { agentId: a.id, patch: { name: target } });
+    return true;
+  } catch (e) {
+    ctx.log.warn("agents: an assistant could not be renamed", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    return false;
+  }
+}
+
 /**
- * Spaces made before the possessive rule hold assistants called "Irfad Assistant". One whose name still exactly equals that old default is renamed to "Irfad’s Assistant" through the normal update (the
- * agent.toml, the folder and the display name follow). One the person renamed, or whose new name is taken, is left alone. Safe to run again: after the rename nothing matches.
+ * Boot: Spaces made before the possessive rule hold assistants called "Irfad Assistant". One whose name still exactly equals that old default is renamed to "Irfad’s Assistant" through the normal update
+ * (the agent.toml, the folder and the display name follow). Runs once at start; after the rename nothing matches.
  */
 export async function renameOldAssistants(ctx: AgentsCtx): Promise<string[]> {
   ensure(ctx.db);
@@ -510,18 +533,21 @@ export async function renameOldAssistants(ctx: AgentsCtx): Promise<string[]> {
   const done: string[] = [];
   for (const a of mine) {
     const who = listed.principals?.find((p) => p.id === a.ownerId);
-    if (!who) continue;
-    const i = oldAssistantNames(who.name).findIndex((n) => n === a.name);
-    const target = i < 0 ? undefined : assistantNames(a.ownerId, who.name)[i];
-    if (target === undefined || target === a.name || agentByName(ctx.db, target)) continue;
-    try {
-      await update({ ...ctx, actingFor: a.ownerId }, { agentId: a.id, patch: { name: target } });
-      done.push(a.id);
-    } catch (e) {
-      ctx.log.warn("agents: an assistant could not be renamed", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
-    }
+    if (who && await renameFollowing(ctx, a, who.name, who.name)) done.push(a.id);
   }
   return done;
+}
+
+export interface SettingChangedEvent { payload: { key?: string; scope?: string; person?: string; before?: unknown; after?: unknown } }
+
+/** A person changed their display name: an assistant still wearing the default for the old name takes the default for the new one. */
+export async function onDisplayNameChanged(ctx: AgentsCtx, event: SettingChangedEvent): Promise<string[]> {
+  const { key, scope, person, before, after } = event.payload;
+  if (key !== "profile.display_name" || scope !== "person" || typeof person !== "string" || !person.startsWith("usr_")) return [];
+  ensure(ctx.db);
+  const text = (v: unknown): string => (typeof v === "string" ? v : "");
+  const a = allAgents(ctx.db).find((x) => x.ownerId === person && isAssistant(x));
+  return a && await renameFollowing(ctx, a, text(before), text(after)) ? [a.id] : [];
 }
 
 export interface PrincipalEvent { payload: { principalId?: string; kind?: string; name?: string } }

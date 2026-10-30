@@ -2,10 +2,10 @@
 // Also here: what the module reads from the event log. `consumers` lists, by name, the events each one reads and what it does with one; the host runs them after commit, at least once, so each is safe to repeat.
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { onFileVersion, onPersonCreated, onTurn, renameOldAssistants, restoreAgentFiles } from "./handlers/crud.ts";
+import { onFileVersion, onDisplayNameChanged, onPersonCreated, onTurn, renameOldAssistants, restoreAgentFiles } from "./handlers/crud.ts";
 import { onMessageReceived } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
-import type { FileVersionEvent, PrincipalEvent, TurnEvent } from "./handlers/crud.ts";
+import type { FileVersionEvent, PrincipalEvent, SettingChangedEvent, TurnEvent } from "./handlers/crud.ts";
 import type { AgentsCtx } from "./projections.ts";
 import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -15,8 +15,8 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 /** The boot check: right after start, then every 15 seconds, each agent's AGENT.md and agent.toml are in its folder; a missing one is put back from the agent record (P-L5_30). */
 export const periodic = {
   "agents.agent_files": { everyMs: 15_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => restoreAgentFiles(ctx) },
-  /** The boot rename: an assistant still called "<First> Assistant" becomes "<First>’s Assistant"; one the person renamed is left alone. */
-  "agents.assistant_names": { everyMs: 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => renameOldAssistants(ctx) },
+  /** Once at boot (the interval is a week, so it does not repeat in practice): an assistant still called "<First> Assistant" becomes "<First>’s Assistant"; one the person renamed is left alone. */
+  "agents.assistant_names": { everyMs: 7 * 24 * 3_600_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => renameOldAssistants(ctx) },
 };
 
 export { restoreAgentFiles };
@@ -30,6 +30,11 @@ export const consumers = {
   "agents.ensure_assistant": {
     on: ["principal.created"],
     run: (ctx: AgentsCtx, event: PrincipalEvent): Promise<string[]> => onPersonCreated(ctx, event),
+  },
+  /** A person changed their display name: an assistant still wearing the default for the old name follows to the new one. */
+  "agents.assistant_rename": {
+    on: ["settings.changed"],
+    run: (ctx: AgentsCtx, event: SettingChangedEvent): Promise<string[]> => onDisplayNameChanged(ctx, event),
   },
   /** A person saved agent.toml or AGENT.md in Files: a text that passes becomes what the next run uses, one that does not raises agent.config_error and the last good version keeps running. */
   "agents.config_watch": {

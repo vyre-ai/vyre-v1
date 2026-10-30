@@ -84,3 +84,19 @@ test("on boot an assistant still called by the old default is renamed with its f
   const folder = hn.world.calls.filter((c) => c.cap === "files.folder.rename").map((c) => (c.input as { name: string }).name);
   assert.ok(folder.includes("Dana’s Assistant"), "the folder followed the name");
 });
+
+test("a changed display name moves an assistant that wears the default; one the person renamed stays", async () => {
+  const { handlers } = await import("../impl.ts");
+  const get = handlers["agents.get"] as unknown as (c: unknown, i: unknown) => Promise<{ agent: { name: string } }>;
+  const update = handlers["agents.update"] as unknown as (c: unknown, i: unknown) => Promise<unknown>;
+  const changed = consumers["agents.assistant_rename"].run;
+  const hn = harness();
+  const [dana] = await run(hn.person(DANA), born(DANA, "Dana Reyes"));
+  const [leo] = await run(hn.person(LEO), born(LEO, "Leo James"));
+  await update(hn.person(LEO), { agentId: leo!, patch: { name: "Scout" } });
+  const ev = (person: string, before: string, after: string, key = "profile.display_name") => ({ payload: { key, scope: "person", person, before, after } });
+  assert.deepEqual(await changed(hn.ctx, ev(DANA, "Dana Reyes", "Ines Reyes")), [dana]);
+  assert.equal((await get(hn.person(DANA), { agentId: dana! })).agent.name, "Ines’ Assistant");
+  assert.deepEqual(await changed(hn.ctx, ev(LEO, "Leo James", "Leon James")), [], "a name the person chose is kept");
+  assert.deepEqual(await changed(hn.ctx, ev(DANA, "Ines Reyes", "Ines Reyes", "profile.title")), [], "other settings are ignored");
+});
