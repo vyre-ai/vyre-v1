@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { learned } from "../handlers/lifecycle.ts";
-import { claimOf, isNearDuplicate, maintain, questionResolve, questionsList, setUpkeepModel, upkeepStatus } from "../handlers/upkeep.ts";
+import { claimOf, isNearDuplicate, maintain, parseActions, promptOf, questionResolve, questionsList, setUpkeepModel, upkeepStatus } from "../handlers/upkeep.ts";
 import type { UpkeepModel, UpkeepRequest } from "../handlers/upkeep.ts";
 import { createPage } from "../pages.ts";
 import { assertEventsConform, asPerson, codeOf, contractErrors, DAY, harness, NOW, seedFact } from "../fixtures/harness.ts";
@@ -162,6 +162,7 @@ test("model: no key for a place leaves it to the rules; with no model bound the 
     assert.deepEqual([out.modelUsed, out.costMicros, out.stopped], [false, 0, "no_key"]);
   } finally { setUpkeepModel(null); }
   const bare = rulesWorld();
+  seedFact(bare, { id: "fct_z", layer: "agent", agentId: "agt_intake", text: "Dana wants oat milk", learnedAt: NOW - DAY, validFrom: NOW - DAY });
   const out = await maintain(bare.ctx, {});
   assert.deepEqual([out.merged, out.modelUsed, out.stopped], [2, false, "no_key"]);
   const only = rulesWorld();
@@ -220,4 +221,50 @@ test("model: personal facts are sent only when their owner runs upkeep, and a Sp
     const trailDump = JSON.stringify(h.rows("SELECT * FROM memory_trail"));
     assert.ok(!trailDump.includes("oat milk") && !trailDump.includes("Pattern for person"), "the trail holds no personal words");
   } finally { setUpkeepModel(null); }
+});
+
+test("the default model runs on the scope's own key through the engine: each place asks memory.key.resolve, no key leaves it to the rules, tokens are metered and the cap stops it", async () => {
+  const seen: string[] = [];
+  const h = harness({
+    admin: true, settings: { "memory.upkeep_monthly_cap": 0.05 },
+    respond: {
+      "memory.key.resolve": (i) => {
+        seen.push(`${String(i["layer"])}:${String(i["ownerRef"])}`);
+        return i["ownerRef"] === "prj_nokey" ? { reason: "no_key" } : { key: { accountRef: i["ownerRef"] === "prj_b" ? "#Project_B_Key" : "#Space_Key", provider: "anthropic", source: "space", model: "claude-haiku-5-5" } };
+      },
+      "engine.complete": (i) => {
+        h.advance(0);
+        return { text: `Here you go: {"actions": [{"type": "create", "text": "Pattern on ${String(i["accountRef"])}", "kind": "pattern"}, {"type": "delete", "id": "fct_ghost"}, {"type": "oops"}]}`, tokensIn: 10_000, tokensOut: 1_000 };
+      },
+    },
+  });
+  for (const p of ["prj_a", "prj_b", "prj_nokey", "prj_c"]) {
+    seedFact(h, { id: `fct_${p}1`, layer: "project", projectId: p, text: `${p} one`, learnedAt: NOW - DAY });
+    seedFact(h, { id: `fct_${p}2`, layer: "project", projectId: p, text: `${p} two`, learnedAt: NOW - DAY });
+  }
+  const out = await maintain(h.ctx, {});
+  assert.deepEqual(seen, ["project:prj_a", "project:prj_b"], "places are asked in turn until the cap; the rest are not asked at all");
+  const calls = h.calls("engine.complete");
+  assert.deepEqual(calls.map((c) => c.input["accountRef"]), ["#Space_Key", "#Project_B_Key"], "each place runs on its own resolved account");
+  assert.ok(calls.every((c) => c.input["model"] === "claude-haiku-5-5" && String(c.input["prompt"]).startsWith("Tasks:")));
+  // 10000 tokens in at 3 and 1000 out at 15 micro-dollars each is 45000 a call; the cap is 50000, so the second call is the last
+  assert.equal(out.costMicros, 90_000);
+  assert.equal(out.stopped, "cap");
+  assert.deepEqual(h.rows("SELECT text FROM memory_facts WHERE source_ref LIKE 'upkeep_%' ORDER BY text").map((r) => r["text"]), ["Pattern on #Project_B_Key", "Pattern on #Space_Key"], "the valid action of each answer was applied; the unknown id and the unknown type were dropped");
+  const nokey = harness({ admin: true, respond: { "memory.key.resolve": () => ({ reason: "no_key" }) } });
+  seedFact(nokey, { id: "fct_n1", layer: "project", projectId: "prj_nokey", text: "n one", learnedAt: NOW - DAY });
+  seedFact(nokey, { id: "fct_n2", layer: "project", projectId: "prj_nokey", text: "n two", learnedAt: NOW - DAY });
+  const rules = await maintain(nokey.ctx, {});
+  assert.deepEqual([rules.modelUsed, rules.costMicros, rules.stopped], [false, 0, "no_key"], "a place with no key stays with the rules");
+});
+
+test("an answer is read for the actions in it and nothing else", () => {
+  assert.deepEqual(parseActions('sure {"actions":[{"type":"merge","keep":"a","drop":["b"]},{"type":"create"},{"type":"tidy_page","pageId":"p","notes":"n","reason":"r"}]} bye'), [
+    { type: "merge", keep: "a", drop: ["b"] }, { type: "tidy_page", pageId: "p", notes: "n", reason: "r" },
+  ]);
+  assert.deepEqual(parseActions("no json here"), []);
+  assert.deepEqual(parseActions('{"actions": "nope"}'), []);
+  const p = promptOf({ tasks: ["patterns"], scope: { layer: "space", ownerRef: "spc", agentId: null, projectId: null }, facts: [{ id: "fct_1", text: "Dana likes oat milk", kind: "preference", learnedAt: NOW, sourceKind: "chat", sourceRef: "t" }], corrections: [], pages: [], now: NOW });
+  assert.match(p, /^Tasks: patterns\./);
+  assert.match(p, /- fct_1 \[preference, .*\] Dana likes oat milk/);
 });

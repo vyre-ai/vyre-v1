@@ -64,7 +64,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   closeOpener = null;
   host = h;
   building = null;
-  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); }
+  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; }
 }
 
 export function engineHost(): EngineHostSeam | null { return host; }
@@ -94,6 +94,33 @@ async function unblock(h: EngineHostSeam, db: Db, info: { threadId: string; turn
 async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: ResolvedAccount | null): Promise<void> {
   if (turn.tokensIn + turn.tokensOut === 0) return;
   await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: 0, ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
+}
+
+export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string }
+export interface CompleteOut { text: string; tokensIn: number; tokensOut: number }
+let completer: ((i: CompleteIn) => Promise<CompleteOut>) | null = null;
+/** One request and one answer on an account, through the same opener the turn engine uses: for jobs that need a model but are not a chat (memory upkeep). Null before the runtime exists. */
+export const completerOf = (): typeof completer => completer;
+
+/** Run one turn of a pseudo-agent on the account and collect its text and token counts. */
+async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => number): Promise<CompleteOut> {
+  const n = now();
+  const threadId = `oneshot_${n.toString(36)}`;
+  const agent = { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" as const, ...(i.system ? { role: i.system } : {}), ...(i.model ? { model: i.model } : {}), accountRef: i.account.ref };
+  const session = await openSession({ threadId, agent, asker: i.account.payer, turnId: `trn_${n.toString(36)}`, traceId: "0".repeat(32), account: i.account });
+  let text = "";
+  let tokensIn = 0;
+  let tokensOut = 0;
+  try {
+    const trigger = { id: `msg_${n.toString(36)}`, threadId, threadSeq: 1, author: { kind: "person" as const, id: i.account.payer }, mentions: [], depth: 0, body: i.prompt };
+    for await (const ev of session.send({ threadId, turnId: `trn_${n.toString(36)}`, agent, trigger, history: [], listeners: [], asker: i.account.payer })) {
+      if (ev.type === "text") text += ev.text;
+      else if (ev.type === "usage") { tokensIn += ev.inputTokens; tokensOut += ev.outputTokens; }
+      else if (ev.type === "error") throw new Error(`${ev.code}: ${ev.message}`);
+      else if (ev.type === "done") break;
+    }
+  } finally { await session.close().catch(() => undefined); }
+  return { text, tokensIn, tokensOut };
 }
 
 let defaultBuilt: DefaultSandbox | null = null;
@@ -129,6 +156,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     });
     bridge?.attach(engine);
     h.extend?.(engine);
+    completer = (i) => oneShot(openSession, i, now);
     bindEngine(engine);
     bindOpener(opener);
     bindBridge(bridge);

@@ -41,10 +41,61 @@ export type UpkeepAction =
 export interface UpkeepUsage { inTokens: number; outTokens: number; costMicros?: number }
 export interface UpkeepResult { actions: UpkeepAction[]; usage: UpkeepUsage }
 /** Resolve the key for the request's scope and ask the model. Answer null when the scope has no key; the run then stays rule-based for it. */
-export type UpkeepModel = (req: UpkeepRequest) => Promise<UpkeepResult | null>;
+export type UpkeepModel = (req: UpkeepRequest, ctx: MemCtx) => Promise<UpkeepResult | null>;
 
+/** A model bound by a test or a host that runs its own. Without one, upkeep asks memory.key.resolve for the scope's account and runs the model through engine.complete on it. */
 let model: UpkeepModel | null = null;
 export function setUpkeepModel(fn: UpkeepModel | null): void { model = fn; }
+
+// ---- the default model: the scope's own key, through the engine
+
+const SYSTEM = "You tidy a shared memory for a team. You are given facts (id, text, kind), recent corrections and pages. Answer with one JSON object {\"actions\": [...]} and nothing else. Each action is one of: " +
+  "{\"type\":\"merge\",\"keep\":id,\"drop\":[ids],\"text\":optional merged wording,\"reason\":why} for facts that say the same thing in different words; " +
+  "{\"type\":\"create\",\"text\":a new fact,\"kind\":\"pattern\"|\"preference\",\"from\":[ids it comes from],\"reason\":why} only for something that holds across three or more facts; " +
+  "{\"type\":\"correct\",\"id\":id,\"text\":the right wording,\"reason\":why} when a recent correction shows a similar fact is wrong; " +
+  "{\"type\":\"delete\",\"id\":id,\"reason\":why} for a fact that is clearly obsolete; " +
+  "{\"type\":\"tidy_page\",\"pageId\":id,\"notes\":the page notes, fixed and tidied, every [[link]] kept,\"reason\":why}. " +
+  "Use only ids you were given. When nothing needs doing answer {\"actions\":[]}.";
+
+export function promptOf(req: UpkeepRequest): string {
+  const lines = [`Tasks: ${req.tasks.join(", ")}.`, `Place: ${req.scope.layer} memory.`, "", "Facts:"];
+  for (const f of req.facts) lines.push(`- ${f.id} [${f.kind ?? "fact"}, ${new Date(f.learnedAt).toISOString().slice(0, 10)}] ${f.text.replace(/\s+/g, " ")}`);
+  if (req.corrections.length > 0) { lines.push("", "Recent corrections:"); for (const c of req.corrections) lines.push(`- ${c.factId}: was "${c.was}" now "${c.now}"`); }
+  if (req.pages.length > 0) { lines.push("", "Pages:"); for (const p of req.pages) lines.push(`## ${p.id} ${p.title}`, p.notes); }
+  return lines.join("\n");
+}
+
+const isStr = (v: unknown): v is string => typeof v === "string" && v !== "";
+/** The actions in a model's answer: the first JSON object in the text, each action checked for the fields its type needs. Anything else is dropped. */
+export function parseActions(text: string): UpkeepAction[] {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return [];
+  let obj: unknown;
+  try { obj = JSON.parse(text.slice(start, end + 1)); } catch { return []; }
+  const list = (obj as { actions?: unknown }).actions;
+  if (!Array.isArray(list)) return [];
+  const out: UpkeepAction[] = [];
+  for (const a of list as Array<Record<string, unknown>>) {
+    const reason = isStr(a["reason"]) ? { reason: a["reason"] } : {};
+    if (a["type"] === "merge" && isStr(a["keep"]) && Array.isArray(a["drop"]) && (a["drop"] as unknown[]).every(isStr)) out.push({ type: "merge", keep: a["keep"], drop: a["drop"] as string[], ...(isStr(a["text"]) ? { text: a["text"] } : {}), ...reason });
+    else if (a["type"] === "create" && isStr(a["text"])) out.push({ type: "create", text: a["text"], ...(isStr(a["kind"]) ? { kind: a["kind"] } : {}), ...(Array.isArray(a["from"]) ? { from: (a["from"] as unknown[]).filter(isStr) } : {}), ...reason });
+    else if (a["type"] === "correct" && isStr(a["id"]) && isStr(a["text"])) out.push({ type: "correct", id: a["id"], text: a["text"], ...reason });
+    else if (a["type"] === "delete" && isStr(a["id"])) out.push({ type: "delete", id: a["id"], ...reason });
+    else if (a["type"] === "tidy_page" && isStr(a["pageId"]) && isStr(a["notes"])) out.push({ type: "tidy_page", pageId: a["pageId"], notes: a["notes"], ...reason });
+  }
+  return out;
+}
+
+async function keyedModel(req: UpkeepRequest, ctx: MemCtx): Promise<UpkeepResult | null> {
+  let key: { accountRef?: string; model?: string } | undefined;
+  try {
+    key = ((await ctx.call("memory.key.resolve", { layer: req.scope.layer, ownerRef: req.scope.ownerRef, ...(req.scope.agentId ? { agentId: req.scope.agentId } : {}), ...(req.scope.projectId ? { projectId: req.scope.projectId } : {}) })) as { key?: typeof key }).key;
+  } catch { return null; }   // no key capability, or the key cannot be resolved for this caller: rules only
+  if (!key?.accountRef) return null;
+  const out = (await ctx.call("engine.complete", { accountRef: key.accountRef, ...(key.model ? { model: key.model } : {}), system: SYSTEM, prompt: promptOf(req) })) as { text: string; tokensIn: number; tokensOut: number };
+  return { actions: parseActions(out.text), usage: { inTokens: out.tokensIn, outTokens: out.tokensOut } };
+}
 
 /** An estimate when the seam reports tokens but no cost: 3 dollars per million tokens in, 15 out (micro-dollars per token). */
 export const estimateMicros = (u: UpkeepUsage): number => u.costMicros ?? Math.round(u.inTokens * 3 + u.outTokens * 15);
@@ -216,7 +267,6 @@ const MAX_FACTS_PER_CALL = 120;
 const NOTE_CHARS = 4000;
 
 async function modelUpkeep(ctx: MemCtx, facts: Fact[], runId: string, c: Counters, run: { tokensIn: number; tokensOut: number; cost: number; stopped: string | null; used: boolean }): Promise<void> {
-  if (!model) { run.stopped = "no_key"; return; }
   const cap = await upkeepCapMicros(ctx);
   const month = monthOf(ctx.now());
   const before = num(rowsOf(ctx.db, "SELECT COALESCE(SUM(cost_micros), 0) AS s FROM memory_upkeep_runs WHERE month = ?", month)[0]?.["s"]);
@@ -242,7 +292,7 @@ async function modelUpkeep(ctx: MemCtx, facts: Fact[], runId: string, c: Counter
       pages: pageRows.map((r) => ({ id: str(r["page_id"]), title: str(r["title"]), notes: str(r["notes"]).slice(0, NOTE_CHARS) })), now: ctx.now(),
     };
     let res: UpkeepResult | null;
-    try { res = await model(req); } catch (e) { ctx.log.warn("memory upkeep model failed for a place", { reason: e instanceof Error ? e.name : "error" }); continue; }
+    try { res = await (model ?? keyedModel)(req, ctx); } catch (e) { ctx.log.warn("memory upkeep model failed for a place", { reason: e instanceof Error ? e.name : "error" }); continue; }
     if (res === null) { withoutKey++; continue; }
     asked++;
     run.used = true;
@@ -356,7 +406,7 @@ export async function upkeepStatus(ctx: MemCtx, input: { limit?: number }) {
     ctx.db,
     "SELECT substr(datetime(started_at / 1000, 'unixepoch'), 1, 10) AS day, COUNT(*) AS runs, COALESCE(SUM(cost_micros), 0) AS cost, COALESCE(SUM(tokens_in), 0) AS tin, COALESCE(SUM(tokens_out), 0) AS tout FROM memory_upkeep_runs GROUP BY day ORDER BY day DESC LIMIT 30",
   ).map((r) => ({ day: str(r["day"]), runs: num(r["runs"]), costMicros: num(r["cost"]), tokensIn: num(r["tin"]), tokensOut: num(r["tout"]) }));
-  return { month, spentMicros: spent, capMicros: cap, capReached: spent >= cap, modelAvailable: model !== null, openQuestions: open, runs, nights, ...(nights[0] ? { lastNight: nights[0] } : {}) };
+  return { month, spentMicros: spent, capMicros: cap, capReached: spent >= cap, modelAvailable: true, openQuestions: open, runs, nights, ...(nights[0] ? { lastNight: nights[0] } : {}) };
 }
 
 // ---- questions: a contradiction or a stale fact, answered with one click

@@ -7,6 +7,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.account.resolve": Handler<"engine.account.resolve", X>;
   "engine.accounts.list": Handler<"engine.accounts.list", X>;
+  "engine.complete": Handler<"engine.complete", X>;
   "engine.defaults.get": Handler<"engine.defaults.get", X>;
   "engine.defaults.set": Handler<"engine.defaults.set", X>;
   "engine.health": Handler<"engine.health", X>;

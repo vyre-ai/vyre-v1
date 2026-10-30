@@ -622,6 +622,7 @@ export function stubs(ctx: CallCtx) {
       accounts: {
         list: call("engine.accounts.list"),
       },
+      complete: call("engine.complete"),
       defaults: {
         get: call("engine.defaults.get"),
         set: call("engine.defaults.set"),

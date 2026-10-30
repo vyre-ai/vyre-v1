@@ -622,6 +622,7 @@ export function createClient(transport: Transport) {
       accounts: {
         list: call("engine.accounts.list", 1),
       },
+      complete: call("engine.complete", 1),
       defaults: {
         get: call("engine.defaults.get", 1),
         set: call("engine.defaults.set", 1),

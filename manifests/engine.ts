@@ -241,6 +241,10 @@ export default defineManifest({
     read('engine.use_policy.export', 'Export the AI use policy (models, providers, label rules, limits, accounts) as a file', {
       out: { fileId: id.file }, perm: 'policy.manage', level: 'manage', audit: 'always', risk: 'medium', tool: 'meta',
     }),
+    write('engine.complete', 'One request and one answer on an account the caller can run on, for work that is not a chat (memory upkeep); returns the text and the token counts and posts nothing', {
+      in: { accountRef: t.str(), prompt: t.str(), system: t.opt(t.str()), model: t.opt(t.str()) }, out: { text: t.str(), tokensIn: t.int(), tokensOut: t.int() },
+      perm: null, level: 'use', idem: 'none', risk: 'low', errors: ['validation.not_found', 'internal.unavailable'],
+    }),
     read('engine.pool.status', 'Warm engine pool: sessions per driver, warm hits, evictions', {
       out: { sessions: t.arr(t.obj({ driver: driverId, warm: t.int(), max: t.int(), hits: t.int(), misses: t.int() })), totalWarm: t.int() }, perm: null, level: 'manage', tool: 'engineer',
     }),

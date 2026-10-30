@@ -38,6 +38,14 @@ export const standIn: OpenSession = async () => {
     async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
       const body = String(input.trigger?.body ?? "");
       const m = /TOOL (\w+) (\{.*\})/.exec(body);
+      if (!m && body.startsWith("Tasks:")) {
+        // an upkeep request: answer like a model would, with one pattern fact drawn from the first fact listed, and report the tokens
+        const first = /^- (fct_[a-z0-9]+) /m.exec(body)?.[1];
+        yield { type: "text", text: JSON.stringify({ actions: first ? [{ type: "create", text: "Pattern noticed by the stand-in", kind: "pattern", from: [first], reason: "seen more than once" }] : [] }) };
+        yield { type: "usage", inputTokens: 1_200, outputTokens: 80 };
+        yield { type: "done" };
+        return;
+      }
       if (!m) { yield { type: "text", text: defaultPrompt(input, true) }; yield { type: "done" }; return; }
       // a tool outside the default set is found with tool_search before it can be called, as a model must do
       const first = `call_${waiting.size + 1}`;

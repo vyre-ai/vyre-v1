@@ -8304,6 +8304,24 @@ export const routes: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/engine/complete",
+    "cap": "engine.complete",
+    "v": 1,
+    "module": "engine",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/engine/defaults/get",
     "cap": "engine.defaults.get",
     "v": 1,

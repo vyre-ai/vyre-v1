@@ -8129,6 +8129,17 @@ export type EngineAccountsListOut = {
       keyless?: boolean;
     }>;
 };
+export type EngineCompleteIn = {
+  accountRef: string;
+  prompt: string;
+  system?: string;
+  model?: string;
+};
+export type EngineCompleteOut = {
+  text: string;
+  tokensIn: number;
+  tokensOut: number;
+};
 export type EngineDefaultsGetIn = Record<string, unknown>;
 export type EngineDefaultsGetOut = {
   provider?: string;
@@ -28683,6 +28694,7 @@ export interface CapMap {
   "email_builder.versions": { in: EmailBuilderVersionsIn; out: EmailBuilderVersionsOut };
   "engine.account.resolve": { in: EngineAccountResolveIn; out: EngineAccountResolveOut };
   "engine.accounts.list": { in: EngineAccountsListIn; out: EngineAccountsListOut };
+  "engine.complete": { in: EngineCompleteIn; out: EngineCompleteOut };
   "engine.defaults.get": { in: EngineDefaultsGetIn; out: EngineDefaultsGetOut };
   "engine.defaults.set": { in: EngineDefaultsSetIn; out: EngineDefaultsSetOut };
   "engine.health": { in: EngineHealthIn; out: EngineHealthOut };

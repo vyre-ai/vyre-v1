@@ -7,6 +7,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "engine.account.resolve": async (ctx) => { throw new VyreErr(notImplemented("engine.account.resolve", ctx.trace)); },
   "engine.accounts.list": async (ctx) => { throw new VyreErr(notImplemented("engine.accounts.list", ctx.trace)); },
+  "engine.complete": async (ctx) => { throw new VyreErr(notImplemented("engine.complete", ctx.trace)); },
   "engine.defaults.get": async (ctx) => { throw new VyreErr(notImplemented("engine.defaults.get", ctx.trace)); },
   "engine.defaults.set": async (ctx) => { throw new VyreErr(notImplemented("engine.defaults.set", ctx.trace)); },
   "engine.health": async (ctx) => { throw new VyreErr(notImplemented("engine.health", ctx.trace)); },
