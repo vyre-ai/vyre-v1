@@ -22,5 +22,6 @@ type Payload = {
   kind: "login" | "api_key" | "env" | "card" | "note" | "totp" | "ssh_key" | "ai_subscription" | "other";
   folderId: string;
   scope: "mine" | "shared";
+  name?: string;
 };
 ```

@@ -36,7 +36,7 @@ test("a Mine item is sealed under its owner's item key (enc=2); lists and get ca
   const made = out(await v.itemPut(h.ctx, { folderId: mine, name: "Dana Lawmatics", kind: "api_key", fields: [{ key: "username", value: "dana" }, { key: "api_key", value: SECRET }], idempotencyKey: "put-1" }));
   const item = out(made.item);
   assert.deepEqual([item.scope, item.owner, item.handle, item.fieldKeys, item.yourLevel, item.label, item.createdAt, item.spaceOnly], ["mine", MAYA, "#Dana_Lawmatics", ["username", "api_key"], "manage", 0, NOW, false]);
-  assert.deepEqual(h.named("vault.item_created")[0]?.payload, { itemId: item.id, kind: "api_key", folderId: mine, scope: "mine" });
+  assert.deepEqual(h.named("vault.item_created")[0]?.payload, { itemId: item.id, kind: "api_key", folderId: mine, scope: "mine", name: "Dana Lawmatics" });
 
   const sealed = secretRow(h, String(item.id));
   assert.equal(sealed.enc, 2, "Mine rows are enc=2");

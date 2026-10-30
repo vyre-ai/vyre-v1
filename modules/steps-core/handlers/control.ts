@@ -4,10 +4,14 @@
 // DECISION: a step is idempotent through the key the engine hands it (run:step:attempt); that key goes to every capability that takes an idempotencyKey.
 // DECISION: an outward act that the Gate holds parks the Run as waiting for approval on the Gate's task; when the task is decided the engine calls the step again with the same key and the
 // capability returns what the released act did.
-// DECISION: Parallel and Loop run their lanes and iterations through the host (`env.lane`, `env.body`); this file owns the join: the lanes run together, the step ends when they settle, and a
-// lane that failed fails the step by name after the others have finished.
+// DECISION: Parallel and Loop do not run inner steps. The host starts one child Run per lane or iteration and calls the step again with those Runs' states. This step only joins.
+// A lane or iteration that failed fails the step by name once every required child is terminal. `prepare` asks a Loop for its iteration keys before any child exists.
 // DECISION: a Wait that is resumed and has no way to tell why (no startedAt from the engine) is over; a Wait that is cancelled by one of its cancel-on events is ended by the engine, not here.
+// A relative milestone that is already past succeeds with missed output so later outward steps can be skipped. An anchor id is re-read from the calendar when the wait resumes.
 import { registry } from "../../../generated/registry.ts";
+import { collectItems, groupItems, transformValue } from "./data-steps.ts";
+import { nextOpen } from "./hours.ts";
+import type { OpenHours } from "./hours.ts";
 import { SHEET_STEPS } from "./sheets.ts";
 import { clean, durationMs, evalExpr, momentMs, raise, render, stepError, truthy } from "../projections.ts";
 import type { Scope, StepsCtx } from "../projections.ts";
@@ -30,8 +34,24 @@ export interface WaitSpec {
   timeoutAt?: number;
   /** events that cancel the wait and end the Run */
   cancelOn?: string[];
+  /** calendar event this milestone follows; a matching delete ends the wait */
+  anchorId?: string;
+  /** another Run this step is waiting on */
+  runId?: string;
 }
-export interface StepResult { output?: unknown; next?: string | null; wait?: WaitSpec }
+export interface LoopIteration { iterationKey: string; iterationIndex: number; item: unknown }
+/** One child Run as the host last read it. `id` is the lane id or the iteration key. */
+export interface ChildReport {
+  id: string;
+  runId?: string;
+  status: string;
+  error?: string;
+  laneId?: string;
+  iterationKey?: string;
+  iterationIndex?: number;
+  held?: boolean;
+}
+export interface StepResult { output?: unknown; next?: string | null; wait?: WaitSpec; prepare?: { iterations: LoopIteration[] } }
 export interface StepCall {
   attempt: number;
   /** run:step:attempt */
@@ -47,14 +67,16 @@ export interface StepCall {
   /** a loop iteration */
   item?: unknown;
   index?: number;
+  /** Loop only: return iteration keys and do not join */
+  prepare?: boolean;
+  /** child Runs the host already started for this Parallel or Loop */
+  children?: ChildReport[];
+  /** wake time recorded when this step last parked, used if the anchor cannot be re-read */
+  priorAt?: number;
 }
 export interface StepEnv {
   ctx: StepsCtx;
-  run: { id: string; label?: string; automation?: string };
-  /** run one lane of a Parallel step to its end; rejects when the lane fails */
-  lane?: (name: string) => Promise<void>;
-  /** run the steps of a Loop for one item; rejects when they fail */
-  body?: (item: unknown, index: number) => Promise<unknown>;
+  run: { id: string; label?: string; automation?: string; depth?: number };
   defaults?: { mailboxId?: string; numberId?: string };
   /** AI and code steps run in the agent and sandbox services */
   ai?: (node: StepNode, input: Record<string, unknown>, call: StepCall) => Promise<StepResult>;
@@ -106,70 +128,187 @@ function stopStep(i: In): StepResult {
   return { output: { stopped: true, ...(typeof i.message === "string" && i.message ? { message: i.message } : {}) }, next: null };
 }
 
-// ---- Parallel and Loop ----
+// ---- Parallel and Loop (coordinators: the host owns the child Runs) ----
 
-/** Resolves with the index of the first promise to succeed; rejects with every reason once all have failed. */
-function firstSuccess(ps: Promise<void>[]): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const reasons: unknown[] = [];
-    let left = ps.length;
-    ps.forEach((p, k) => p.then(() => resolve(k), (e) => { reasons[k] = e; if (--left === 0) reject(reasons); }));
-  });
-}
-const reasonOf = (e: unknown): string => { const m = (e as { message?: unknown } | null)?.message; return typeof m === "string" && m ? m : "it did not finish"; };
+const TERMINAL = new Set(["succeeded", "failed", "stopped"]);
+const LOOP_HARD_MAX = 1000;
+const LOOP_DEFAULT_MAX = 500;
+const childWait = (env: StepEnv, nodeId: string): WaitSpec => ({
+  reason: "background", on: "child runs",
+  event: { event: "run.child_terminal", filter: { parentRunId: env.run.id, containerNodeId: nodeId } },
+});
+const openChild = (c: ChildReport): boolean => !TERMINAL.has(c.status);
+const childReason = (c: ChildReport | undefined): string => c?.error?.trim() ? c.error : "it did not finish";
 
-async function parallelStep(env: StepEnv, i: In): Promise<StepResult> {
-  const names = (i.branches ?? []) as string[];
-  if (!env.lane) throw stepError("run.no_lanes", "This run cannot run lanes side by side here.", false);
-  const lanes = names.map((n) => env.lane!(n));
+function parallelStep(env: StepEnv, node: StepNode, i: In, call: StepCall): StepResult {
+  const children = call.children;
+  if (!children) throw stepError("run.no_lanes", "This run cannot run lanes side by side here.", false);
+  if (children.length === 0) return { output: { finished: [] } };
+  const open = children.filter(openChild);
   if (i.waitFor === "any") {
-    // the first lane to finish ends the step; the others carry on in the host
-    try { return { output: { finished: [names[await firstSuccess(lanes)]!] } }; }
-    catch (reasons) { throw stepError("run.branch_failed", `No lane finished: ${reasonOf((reasons as unknown[]).find((r) => r !== undefined))}`, false); }
+    const won = children.find((c) => c.status === "succeeded");
+    if (open.length > 0) return { wait: childWait(env, node.id) };
+    if (won) return { output: { finished: [won.id] } };
+    const first = children.find((c) => c.status === "failed") ?? children[0];
+    throw stepError("run.branch_failed", `No lane finished: ${childReason(first)}`, false);
   }
-  // all: the step ends when every lane has settled, so a failed lane never leaves another one running unobserved
-  const settle = await Promise.allSettled(lanes);
-  const failed = names.filter((_n, k) => settle[k]!.status === "rejected");
+  if (open.length > 0) return { wait: childWait(env, node.id) };
+  const failed = children.filter((c) => c.status === "failed");
   if (failed.length > 0) {
-    const first = settle.find((s): s is PromiseRejectedResult => s.status === "rejected")!.reason;
-    throw stepError("run.branch_failed", `${failed.length === 1 ? `The lane ${failed[0]}` : `${failed.length} lanes`} did not finish: ${reasonOf(first)}`, false);
+    const first = failed[0]!;
+    const who = failed.length === 1 ? `The lane ${first.id}` : `${failed.length} lanes`;
+    throw stepError("run.branch_failed", `${who} did not finish: ${childReason(first)}`, false);
   }
-  return { output: { finished: names } };
+  const stopped = children.find((c) => c.status === "stopped");
+  if (stopped) throw stepError("run.branch_failed", `The lane ${stopped.id} did not finish: ${childReason(stopped)}`, false);
+  return { output: { finished: children.map((c) => c.id) } };
 }
 
-async function loopStep(env: StepEnv, i: In, scope: Scope): Promise<StepResult> {
+/** Stable key for one item. An object id is used until it repeats, then the index is prefixed. */
+export function iterationKey(item: unknown, index: number, seen: Set<string>): string {
+  let key = String(index);
+  if (item && typeof item === "object" && !Array.isArray(item)) {
+    const id = (item as { id?: unknown }).id;
+    if (typeof id === "string" && id.length > 0) key = id;
+  }
+  if (seen.has(key)) key = `${index}:${key}`;
+  seen.add(key);
+  return key;
+}
+
+function loopItems(i: In, scope: Scope): unknown[] {
   const items = valueOf(i.items, scope);
   if (!Array.isArray(items)) throw stepError("validation.bad_input", "Loop needs a list to go through.");
-  const max = typeof i.maxIterations === "number" ? i.maxIterations : 1000;
-  if (items.length > max) throw stepError("run.loop_too_large", `The list has ${items.length} items and the loop allows ${max}. Raise the limit or narrow the list.`, false);
-  if (!env.body) throw stepError("run.no_body", "This loop has no steps to run.", false);
-  const width = Math.max(1, Math.min(typeof i.concurrency === "number" ? i.concurrency : 1, 20));
-  const results: unknown[] = new Array(items.length).fill(null);
-  let nextIndex = 0;
-  const state: { failure?: { index: number; message: string } } = {};
-  const worker = async (): Promise<void> => {
-    while (!state.failure) {
-      const k = nextIndex++;
-      if (k >= items.length) return;
-      try { results[k] = (await env.body!(items[k], k)) ?? null; }
-      catch (e) { state.failure ??= { index: k, message: (e as { message?: string } | null)?.message ?? "it failed" }; }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(width, items.length) }, () => worker()));
-  if (state.failure) throw stepError("run.loop_failed", `Item ${state.failure.index + 1} of ${items.length} failed: ${state.failure.message}`, false);
+  const requested = typeof i.maxIterations === "number" ? i.maxIterations : LOOP_DEFAULT_MAX;
+  if (requested > LOOP_HARD_MAX) throw stepError("run.loop_too_large", "A loop allows at most 1000 iterations.", false);
+  if (items.length > requested) throw stepError("run.loop_too_large", `The list has ${items.length} items and the loop allows ${requested}. Raise the limit or narrow the list.`, false);
+  return items;
+}
+
+function loopStep(env: StepEnv, node: StepNode, i: In, scope: Scope, call: StepCall): StepResult {
+  const items = loopItems(i, scope);
+  if (call.prepare || items.length === 0) {
+    if (items.length === 0) return { output: { iterations: 0, results: [] } };
+    const seen = new Set<string>();
+    const iterations = items.map((item, iterationIndex) => ({ iterationKey: iterationKey(item, iterationIndex, seen), iterationIndex, item }));
+    if (call.prepare) return { prepare: { iterations } };
+  }
+  const children = call.children;
+  if (!children) throw stepError("run.no_body", "This loop has no steps to run.", false);
+  if (children.some(openChild)) return { wait: childWait(env, node.id) };
+  const byIndex = (a: ChildReport, b: ChildReport) => (a.iterationIndex ?? 0) - (b.iterationIndex ?? 0);
+  const failed = children.filter((c) => c.status === "failed").sort(byIndex);
+  if (failed.length > 0) {
+    const f = failed[0]!;
+    throw stepError("run.loop_failed", `Item ${(f.iterationIndex ?? 0) + 1} of ${items.length} failed: ${childReason(f)}`, false);
+  }
+  const stopped = children.filter((c) => c.status !== "succeeded").sort(byIndex);
+  if (stopped.length > 0) {
+    const f = stopped[0]!;
+    throw stepError("run.loop_failed", `Item ${(f.iterationIndex ?? 0) + 1} of ${items.length} failed: ${childReason(f)}`, false);
+  }
+  const results = children.slice().sort(byIndex).map((c) => ({ iterationKey: c.iterationKey ?? c.id, status: c.status, ...(c.runId ? { runId: c.runId } : {}) }));
   return { output: { iterations: items.length, results } };
 }
 
 // ---- Wait and Wait for a Journey stage ----
 
 const WAIT_CANCEL = ["record.deleted"];
+const MISSED = { missed: true, skipTimeSensitive: true, reason: "milestone_passed" } as const;
 
-function waitStep(env: StepEnv, call: StepCall, i: In): StepResult {
+function zoneOffsetMs(utcMs: number, timeZone: string): number {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date(utcMs)).map((p) => [p.type, p.value]));
+  const hour = Number(parts.hour) === 24 ? 0 : Number(parts.hour);
+  const asUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), hour, Number(parts.minute), Number(parts.second));
+  return asUtc - utcMs;
+}
+
+/** A civil datetime in `timeZone` as UTC milliseconds. A zoned string, or no zone, uses the ordinary parser. */
+function civilToUtc(text: string, timeZone: string | undefined, now: number): number {
+  if (!timeZone || /[zZ]|[+-]\d{2}:?\d{2}$/.test(text.trim())) return momentMs(text, now);
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(text.trim());
+  if (!m) return momentMs(text, now);
+  const utcGuess = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0));
+  let off = zoneOffsetMs(utcGuess, timeZone);
+  off = zoneOffsetMs(utcGuess - off, timeZone);
+  return utcGuess - off;
+}
+
+function isMilestone(i: In, hasEvent: boolean): boolean {
+  return i.anchorId !== undefined || i.direction === "before" || i.direction === "after" || (i.at !== undefined && i.forDuration === undefined && i.until === undefined && !hasEvent);
+}
+
+async function anchorBase(env: StepEnv, anchorId: string): Promise<number | undefined> {
+  if (!env.ctx.call) return undefined;
+  const got = (await env.ctx.call("calendar.get_event", { eventId: anchorId })) as { event?: { startsAt?: unknown } } | null;
+  const raw = got?.event?.startsAt;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw) return momentMs(raw, env.ctx.now());
+  return undefined;
+}
+
+function milestoneWaitSpec(label: string, at: number, anchorId: string | undefined): WaitSpec {
+  return clean({
+    reason: "background" as const, on: label, at, anchorId,
+    event: anchorId ? { event: "calendar_event.updated", filter: { eventId: anchorId } } : undefined,
+    cancelOn: WAIT_CANCEL,
+  });
+}
+
+async function milestoneStep(env: StepEnv, call: StepCall, i: In): Promise<StepResult> {
+  const now = env.ctx.now();
+  const off = i.offset !== undefined ? durationMs(String(i.offset)) : 0;
+  const sign = i.direction === "before" ? -1 : 1;
+  const apply = (base: number): number => base + sign * off;
+  const anchorId = typeof i.anchorId === "string" && i.anchorId ? i.anchorId : undefined;
+  const fromInput = (): number | undefined => {
+    if (i.at === undefined) return undefined;
+    const base = typeof i.at === "number" ? i.at : civilToUtc(String(i.at), typeof i.timezone === "string" ? i.timezone : undefined, now);
+    return apply(base);
+  };
+  if (call.resumed && anchorId) {
+    let fresh: number | undefined;
+    try { const base = await anchorBase(env, anchorId); if (base !== undefined) fresh = apply(base); } catch { /* keep the parked time */ }
+    if (fresh === undefined) {
+      if (typeof call.priorAt === "number" && call.priorAt > now) return { wait: milestoneWaitSpec("a milestone", call.priorAt, anchorId) };
+      return { output: { resumedBy: "time", at: now } };
+    }
+    if (fresh > now) return { wait: milestoneWaitSpec("a milestone", fresh, anchorId) };
+    // The parked time arrived on schedule. A milestone that moved earlier than that, and is already past, was missed.
+    const arrived = typeof call.priorAt === "number" && fresh >= call.priorAt - 1000;
+    if (arrived) return { output: { resumedBy: "time", at: now } };
+    return { output: { ...MISSED } };
+  }
+  let target = fromInput();
+  if (target === undefined && anchorId) {
+    const base = await anchorBase(env, anchorId);
+    if (base !== undefined) target = apply(base);
+  }
+  if (target === undefined) throw stepError("validation.bad_input", "Wait needs a time it can read.");
+  if (target <= now) return { output: { ...MISSED } };
+  return { wait: milestoneWaitSpec("a milestone", target, anchorId) };
+}
+
+function openHours(raw: unknown): OpenHours | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw stepError("validation.bad_input", "Open hours need a time zone, days, a start, and an end.", false);
+  const h = raw as Record<string, unknown>;
+  const days = Array.isArray(h.days) ? h.days.filter((day): day is number => typeof day === "number") : [];
+  return { timezone: typeof h.timezone === "string" ? h.timezone : "", days, start: typeof h.start === "string" ? h.start : "", end: typeof h.end === "string" ? h.end : "" };
+}
+
+async function waitStep(env: StepEnv, call: StepCall, i: In): Promise<StepResult> {
   const now = env.ctx.now();
   const start = call.startedAt ?? now;
   const hasEvent = i.event && typeof i.event === "object" && typeof i.event.event === "string";
+  if (isMilestone(i, hasEvent)) return milestoneStep(env, call, i);
   if (i.forDuration === undefined && i.until === undefined && !hasEvent) throw stepError("validation.bad_input", "Wait needs a duration, a time or an event.");
-  const at = i.forDuration !== undefined ? start + durationMs(String(i.forDuration)) : i.until !== undefined ? momentMs(i.until, start) : undefined;
+  const rawAt = i.forDuration !== undefined ? start + durationMs(String(i.forDuration)) : i.until !== undefined ? momentMs(i.until, start) : undefined;
+  const hours = openHours(i.hours);
+  const at = rawAt !== undefined && hours ? nextOpen(rawAt, hours) : rawAt;
   const timeoutAt = hasEvent ? start + durationMs(String(i.timeout ?? DAY30)) : undefined;
   const label = hasEvent ? `event ${i.event.event}` : i.forDuration !== undefined ? `${i.forDuration}` : "a time";
   if (call.resumed) {
@@ -229,6 +368,26 @@ async function approvalStep(env: StepEnv, node: StepNode, call: StepCall, i: In)
   return { wait: { reason: "approval", taskId, on: "an approval", cancelOn: ["task.withdrawn"] } };
 }
 
+/** Start another Automation and wait until that Run finishes. The same step key returns the same Run. */
+export async function callAutomation(env: StepEnv, call: StepCall, i: In): Promise<StepResult> {
+  if (!env.ctx.call) throw stepError("internal.unavailable", "Runs are not available right now.", true);
+  const automationId = typeof i.automationId === "string" ? i.automationId : "";
+  const trigger = typeof i.trigger === "string" ? i.trigger : "";
+  if (!automationId || !trigger) throw stepError("validation.bad_input", "Run another automation needs an automation and a trigger.", false);
+  const depth = (env.run.depth ?? 0) + 1;
+  const origin = env.run.automation ? `automation:${env.run.automation}` : undefined;
+  const fired = await env.ctx.call("automations.fire", clean({
+    automationId, trigger, payload: i.payload && typeof i.payload === "object" && !Array.isArray(i.payload) ? i.payload : {},
+    depth, idempotencyKey: call.key, ...(origin ? { origin } : {}),
+  })) as { runId?: string; dropped?: string };
+  if (fired.dropped || !fired.runId) throw stepError("validation.precondition_failed", `That automation did not start${fired.dropped ? `: ${fired.dropped}` : "."}`, false);
+  const got = await env.ctx.call("runs.get", { runId: fired.runId }) as { run?: { status?: string; summary?: string } };
+  const status = got?.run?.status ?? "queued";
+  if (status === "succeeded") return { output: { runId: fired.runId, status } };
+  if (status === "failed" || status === "stopped") throw stepError("step.failed", got?.run?.summary || "The other automation did not finish.", false);
+  return { wait: { reason: "background", on: automationId, runId: fired.runId } };
+}
+
 // ---- capability-call steps ----
 
 interface Adapter {
@@ -238,11 +397,14 @@ interface Adapter {
 }
 const people = (v: unknown): { address: string }[] => (Array.isArray(v) ? v : v === undefined ? [] : [v]).map((a) => ({ address: String(a) }));
 const looksHtml = (s: string): boolean => /^\s*</.test(s);
-
-async function firstOf(env: StepEnv, cap: string, listKey: string): Promise<string | undefined> {
-  const r = (await env.ctx.call!(cap, {})) as Record<string, { id?: string }[] | undefined>;
-  return r?.[listKey]?.[0]?.id;
-}
+const SECRET_KEY = /(secret|password|authorization|cookie|token|api[-_]?key|credential)/i;
+const SECRET_VALUE = /^(bearer\s+|sk-|key_)/i;
+const holdsSecret = (value: unknown): boolean => {
+  if (typeof value === "string") return SECRET_VALUE.test(value.trim());
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((item) => holdsSecret(item));
+  return Object.entries(value as Record<string, unknown>).some(([key, item]) => SECRET_KEY.test(key) || holdsSecret(item));
+};
 
 const ADAPTERS: Record<string, Adapter> = {
   "records.create": { cap: "records.create", output: (o) => ({ recordId: o?.record?.id ?? o?.recordId }) },
@@ -259,8 +421,8 @@ const ADAPTERS: Record<string, Adapter> = {
   },
   send_email: {
     cap: (i) => (i.draftOnly === true ? "mail.draft" : "mail.send"),
-    input: async (i, env, call) => {
-      const mailboxId = i.mailboxId ?? env.defaults?.mailboxId ?? (await firstOf(env, "mail.mailbox.list", "mailboxes"));
+    input: (i, _env, call) => {
+      const mailboxId = i.mailboxId;
       if (!mailboxId) throw stepError("validation.precondition_failed", "Send an email needs a mailbox. Pick one in the step.", false);
       const body = String(i.body ?? "");
       return {
@@ -270,12 +432,27 @@ const ADAPTERS: Record<string, Adapter> = {
     },
     output: (o) => ({ messageId: o?.messageId ?? o?.draftId, ...(o?.threadId ? { threadId: o.threadId } : {}) }),
   },
+  connector_request: {
+    cap: "connectors.run",
+    input: (i) => {
+      const connector = typeof i.connector === "string" ? i.connector : "";
+      const action = typeof i.action === "string" ? i.action : "";
+      const connectionId = typeof i.connectionId === "string" ? i.connectionId : "";
+      if (!connector || !action) throw stepError("validation.bad_input", "Name the connector and the action.", false);
+      if (!connectionId) throw stepError("validation.precondition_failed", "An authenticated request needs a connection. The step does not take a secret.", false);
+      if (holdsSecret(i.input)) throw stepError("validation.bad_input", "An authenticated request cannot hold a secret. Use the connection.", false);
+      const body = i.input && typeof i.input === "object" && !Array.isArray(i.input) ? i.input as Record<string, unknown> : {};
+      return { key: connector, action, connectionId, input: body, ...(i.dryRun === true ? { dryRun: true } : {}) };
+    },
+    output: (o) => ({ output: o?.output ?? null, dryRun: o?.dryRun === true }),
+  },
   send_sms: {
     cap: "telephony.send_sms",
-    input: async (i, env, call) => {
-      const numberId = i.numberId ?? env.defaults?.numberId ?? (await firstOf(env, "telephony.number.list", "numbers"));
+    input: (i, _env, call) => {
+      const numberId = i.numberId;
       if (!numberId) throw stepError("validation.precondition_failed", "Send a text needs a number. Pick one in the step.", false);
-      return { numberId, to: i.to, body: i.body, ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key };
+      const media = Array.isArray(i.mediaFileIds) ? i.mediaFileIds.filter((id) => typeof id === "string" && id.length > 0) : [];
+      return { numberId, to: i.to, body: i.body, ...(media.length > 0 ? { mediaFileIds: media } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key };
     },
     output: (o) => ({ messageId: o?.smsId ?? o?.messageId }),
   },
@@ -311,6 +488,9 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
   const ad = ADAPTERS[node.key];
   const cap = ad ? (typeof ad.cap === "function" ? ad.cap(i) : ad.cap) : def.cap;
   if (!cap) throw stepError("internal.unexpected", `The step ${node.key} has no capability.`, false);
+  if ((node.key.startsWith("google.") || node.key.startsWith("ms.") || node.key.startsWith("github.")) && holdsSecret(i)) {
+    throw stepError("validation.bad_input", "This step cannot hold a secret. Use the connection.", false);
+  }
   let input: Record<string, unknown> = ad?.input ? await ad.input(i, env, call) : { ...i };
   // every capability that takes a key gets the step's own, so a retry of the same attempt is the same act
   if (!("idempotencyKey" in input) && "idempotencyKey" in ((CAPS.get(cap)?.input as { properties?: object } | undefined)?.properties ?? {})) input = { ...input, idempotencyKey: call.key };
@@ -338,11 +518,15 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
     case "if": return ifStep(node, input, scope);
     case "paths": return pathsStep(node, input, scope);
     case "stop": return stopStep(input);
-    case "parallel": return parallelStep(env, input);
-    case "loop": return loopStep(env, input, scope);
+    case "parallel": return parallelStep(env, node, input, call);
+    case "loop": return loopStep(env, node, input, scope, call);
     case "wait": return waitStep(env, call, input);
     case "wait_stage": return waitStage(env, call, input);
     case "approval": return approvalStep(env, node, call, input);
+    case "transform": return { output: { value: transformValue(input.value, input.mapping ?? {}) } };
+    case "collect": return { output: collectItems(input.items, input.fields) };
+    case "group_by": return { output: { groups: groupItems(input.items, String(input.by ?? "")) } };
+    case "call_automation": return callAutomation(env, call, input);
     default: break;
   }
   if (def.kind === "ai") {

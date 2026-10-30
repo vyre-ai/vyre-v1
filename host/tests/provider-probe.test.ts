@@ -98,6 +98,15 @@ test("a provider key is only sent to its own provider, and a refused key says so
   assert.match(seen[0]!, /^https:\/\/api\.anthropic\.com\/v1\/models/);
 });
 
+test("blockedAddress: the shared list refuses reserved and wrapped forms, on the own computer too where they are never right", () => {
+  for (const ip of ["224.0.0.1", "255.255.255.255", "198.18.0.1", "192.0.0.5", "ff02::1", "64:ff9b:1::1", "::ffff:e000:1"]) {
+    assert.ok(blockedAddress(ip, false), `${ip} off the own computer`);
+    assert.ok(blockedAddress(ip, true), `${ip} on the own computer`);
+  }
+  for (const ip of ["100.64.0.1", "::", "::ffff:6440:1", "2002:6440:1::1", "64:ff9b::6440:1"]) assert.ok(blockedAddress(ip, false), `${ip} off the own computer`);
+  assert.equal(blockedAddress("8.8.8.8", false), null);
+});
+
 test("a custom endpoint is probed at its own base (/models, its key as a bearer), through the same guard; OpenCode Go at its own model list", async () => {
   const { probe, fetched } = probeOn(false, { "llm.acme.test": ["93.184.216.34"] });
   const custom = await probe({ providerKey: "custom-acme", engine: "custom", connection: "api_key", caller: "usr_a", apiKey: KEY, address: "https://llm.acme.test/v1" });
