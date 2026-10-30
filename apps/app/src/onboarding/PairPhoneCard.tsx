@@ -6,7 +6,7 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { pairLink } from "../shell/session/desktop.ts";
 
 export async function makePairLink(call: CapCall, address: string, idempotencyKey: string): Promise<{ link: string; expiresAt: number }> {
-  const out = await call("identity.pair_create", { purpose: "app", idempotencyKey }) as { code: string; expiresAt: number };
+  const out = await call("identity.pair_create", { purpose: "phone", idempotencyKey }) as { code: string; expiresAt: number };
   return { link: pairLink(address, out.code), expiresAt: out.expiresAt };
 }
 
