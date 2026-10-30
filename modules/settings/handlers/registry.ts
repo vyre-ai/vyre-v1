@@ -2,6 +2,7 @@
 // value so Undo is one more call; the Space-wide rows and the owner floor; Cmd-F; Copy from another Space; and the Kit choice. A value no schema accepts is refused with a sentence.
 import { COPY_KEY, DEFAULT_KIT, PAGES, byOf, comparable, defOf, defs, drop, effective, floorOf, meetsFloor, me, meRead, pageOf, put, raise, refusal, rowOut, search, stored } from "../projections.ts";
 import type { CopyField, SettingsCtx } from "../projections.ts";
+import { isHostService } from "../../../lib/trust.ts";
 
 // ---- reads
 
@@ -28,13 +29,12 @@ export async function list(ctx: SettingsCtx, input: { page?: string; scope?: "sp
  * Who may read a Space-wide setting: a person; one of the Space's own agents (as the person it acts for when it has one); an outside actor only when it acts for a person; and the host's own service.
  * A tenant's automation principal (any other service) and an actor acting for no one are refused. A person's own setting always needs the person.
  */
-const HOST_SERVICE = "svc_host";
 function spaceReader(ctx: SettingsCtx): string {
   const p = ctx.principal;
   if (p?.kind === "person") return p.id;
   if (p?.kind === "agent") return ctx.actingFor ?? p.id;
   if (p?.kind === "actor" && ctx.actingFor) return ctx.actingFor;
-  if (p?.kind === "service" && p.id === HOST_SERVICE) return p.id;
+  if (isHostService(p)) return p!.id;
   return raise(ctx, "auth.unauthenticated");
 }
 

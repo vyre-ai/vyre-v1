@@ -183,8 +183,12 @@ function apply(ctx: AccessCtx, store: AccessStore, events: readonly LogEvent[]):
 }
 
 const GRANTED = new WeakSet<AccessSnapshot>();
+/**
+ * The rol_* role an older event names by its old built-in name, for the roles a person can be removed from. Not "owner": the Space owner is never removed, and a Space seeded with the old
+ * names keeps the owner's grants under "owner".
+ */
+const LEGACY_ROLE: Readonly<Record<string, string>> = { admin: "rol_admin", manager: "rol_developer", member: "rol_member", temp: "rol_guest" };
 /** the Space level each built-in role carries in a Space nothing was seeded in, the same as the seeded roles. Guest (and Temp) get nothing Space-wide: they only hold per-resource grants. */
-const LEGACY_ROLE: Readonly<Record<string, string>> = { owner: "rol_owner", admin: "rol_admin", manager: "rol_developer", member: "rol_member", temp: "rol_guest" };
 const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = { rol_owner: "manage", rol_admin: "manage", rol_developer: "edit", rol_member: "edit" };
 
 /**

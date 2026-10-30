@@ -60,17 +60,13 @@ test("Vault hashes route share, export, Advanced, and requests into their real s
   assert.match(requests, /data-testid="vault-request-decline-req_twilio"/);
 });
 
-test("Vault Ask an agent starts an Ask pane on the item and opens its thread", async () => {
+test("Vault Ask an agent opens the one Ask door: the agent and the item, which the Chats place turns into the person's Ask thread", () => {
   const s = createSampleVault();
-  const opened: string[] = [];
-  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
-  const base = sampleRuntime({ screens: s.data.screens, call: s.data.call, opened });
-  const rt = { ...base, call: async (cap: string, input: unknown) => { calls.push({ cap, input: input as Record<string, unknown> }); return { thread: { threadId: "thr_ask" } }; }, open: (t: { subject?: { id: string } }) => void opened.push(t.subject?.id ?? "?") };
+  const opens: Array<{ screen?: string; args?: Record<string, unknown> }> = [];
+  const base = sampleRuntime({ screens: s.data.screens, call: s.data.call });
+  const rt = { ...base, open: (t: { screen?: string; args?: Record<string, unknown> }) => void opens.push(t) };
   vaultData(rt as never).nav.ask?.("agt_intake", "chat", { kind: "vault_item", id: "vit_ghl", title: "GoHighLevel" });
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(calls[0]?.cap, "chat.start");
-  assert.deepEqual([calls[0]?.input["kind"], calls[0]?.input["scopeType"], calls[0]?.input["scopeId"], calls[0]?.input["title"]], ["ask", "vault_item", "vit_ghl", "GoHighLevel"]);
-  assert.deepEqual(opened, ["thr_ask"]);
+  assert.deepEqual(opens, [{ screen: "chats.conversation", args: { with: "agt_intake", about: "vault_item:vit_ghl" } }]);
 });
 
 test("the Vault policy page has its route and its Advanced row", () => {

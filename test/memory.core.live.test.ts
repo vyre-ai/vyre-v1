@@ -36,7 +36,9 @@ test("memory core live: auto capture, Learned feed and Undo, Trash and restore (
     assert.equal(undone.status, 200, JSON.stringify(undone.data));
     assert.equal(undone.data.trashed, true);
     const gone = await say(d, keeper.id, "which folders do I prefer for client invoices?", "k2");
-    assert.doesNotMatch(gone.reply, /purple folders/, "an undone fact is not recalled");
+    // exact recall may still quote the person's own earlier words (the message is not a fact and Undo does not touch it); what must be gone is the fact
+    const withoutQuotes = gone.reply.split("\n").filter((l: string) => !/^- Quote \[/.test(l)).join("\n");
+    assert.doesNotMatch(withoutQuotes, /purple folders/, "an undone fact is not recalled");
     assert.equal((await call(d, "memory.trash.search", { q: "purple folders" })).data.facts[0]?.trashReason, "undone");
     assert.equal((await call(d, "memory.restore", { factId: purple.fact.factId })).status, 200);
     const back = await say(d, keeper.id, "which folders do I prefer for client invoices?", "k3");

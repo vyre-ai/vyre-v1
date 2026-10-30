@@ -61,16 +61,12 @@ test("the review components' clicks go through the shell: Review changes, Compar
   assert.deepEqual(opened, ["files.diff", "files.diff", "files.commit-diff", "files.history"]);
 });
 
-test("Ask about this file starts an Ask pane on it and opens the thread", async () => {
-  const opened: string[] = [];
-  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
-  const base = sampleRuntime({ screens: createSampleFiles().data.screens, call: async () => ({}), opened });
-  const rt: ShellRuntime = { ...base, call: async (cap, input) => { calls.push({ cap, input: input as Record<string, unknown> }); return { thread: { threadId: "thr_new" } }; }, open: (t) => void opened.push(JSON.stringify(t.subject)) };
+test("Ask about this file opens the one Ask door: the agent and the file, which the Chats place turns into the person's Ask thread", () => {
+  const opens: Array<{ screen?: string; args?: Record<string, unknown> }> = [];
+  const base = sampleRuntime({ screens: createSampleFiles().data.screens, call: async () => ({}) });
+  const rt: ShellRuntime = { ...base, open: (t) => void opens.push(t as { screen?: string; args?: Record<string, unknown> }) };
   reviewData(rt).nav.ask?.("agt_assistant", "chat", { kind: "file", id: "fil_1", title: "AGENT.md" });
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(calls[0]?.cap, "chat.start");
-  assert.deepEqual([calls[0]?.input["kind"], calls[0]?.input["scopeType"], calls[0]?.input["scopeId"]], ["ask", "file", "fil_1"]);
-  assert.deepEqual(opened, ['{"type":"thread","id":"thr_new"}']);
+  assert.deepEqual(opens, [{ screen: "chats.conversation", args: { with: "agt_assistant", about: "file:fil_1" } }]);
 });
 
 test("an agent's agent.toml is found as the agent file; any other file is not", async () => {
