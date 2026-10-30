@@ -321,18 +321,34 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
   const now = ctx.now();
   const autoConnect = await autoConnectPolicy(ctx);
   forgetTokens();
-  await host.mintToken(ctx, { connectionId });   // proves the client id and secret before anything is mapped; consent itself is checked by verify
+  // The host finds the Vault handle of a connection in this row, so it is written before the token is asked for; it stays as configured as it was until the credentials are proved.
+  const wasConfigured = cfg ? num(cfg, "configured") : 0;
   if (cfg) {
     ctx.db.run(
       `UPDATE microsoft_config SET "connectionId" = ?, "vaultItem" = ?, "tenantId" = ?, domain = ?, "clientId" = ?, configured = ?, "autoConnect" = ?, updated_at = ? WHERE id = ?`,
-      connectionId, input.vaultItem, input.tenantId, domain, app.clientId, 1, autoConnect ? 1 : 0, now, CONFIG_ID,
+      connectionId, input.vaultItem, input.tenantId, domain, app.clientId, wasConfigured, autoConnect ? 1 : 0, now, CONFIG_ID,
     );
   } else {
     ctx.db.run(
       `INSERT INTO microsoft_config (id, "connectionId", "vaultItem", "tenantId", domain, "clientId", configured, "consentGiven", "policyConfirmed", "autoConnect", "lastVerifyAt", "nextRenewAt", updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      CONFIG_ID, connectionId, input.vaultItem, input.tenantId, domain, app.clientId, 1, 0, 0, autoConnect ? 1 : 0, null, null, now,
+      CONFIG_ID, connectionId, input.vaultItem, input.tenantId, domain, app.clientId, 0, 0, 0, autoConnect ? 1 : 0, null, null, now,
     );
   }
+  try {
+    await host.mintToken(ctx, { connectionId });   // proves the client id and secret before anything is mapped; consent itself is checked by verify
+  } catch (e) {
+    // a registration Microsoft will not sign in with configures nothing: the row goes back to what it was (or away, when there was none)
+    if (!cfg) ctx.db.run(`DELETE FROM microsoft_config WHERE id = ?`, CONFIG_ID);
+    else {
+      ctx.db.run(
+        `UPDATE microsoft_config SET "vaultItem" = ?, "tenantId" = ?, domain = ?, "clientId" = ?, "autoConnect" = ?, updated_at = ? WHERE id = ?`,
+        strOrNull(cfg, "vaultItem"), strOrNull(cfg, "tenantId"), strOrNull(cfg, "domain"), strOrNull(cfg, "clientId"), num(cfg, "autoConnect"), num(cfg, "updated_at"), CONFIG_ID,
+      );
+    }
+    forgetTokens();
+    throw e;
+  }
+  ctx.db.run(`UPDATE microsoft_config SET configured = ?, updated_at = ? WHERE id = ?`, 1, now, CONFIG_ID);
 
   const mapped: { userId: string; email: string }[] = [];
   for (const m of await host.memberEmails(ctx)) {
