@@ -102,7 +102,16 @@ async function post(url: string, token: string | null, cap: string, body: unknow
   const text = await r.text();
   return { status: r.status, body: text ? JSON.parse(text) : {} };
 }
-const ok = (r: Reply, what: string): any => { assert.equal(r.status, 200, `${what}: ${r.status} ${JSON.stringify(r.body.error ?? r.body).slice(0, 400)}`); return r.body.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
+/** The Personal daemon's own error log (its logs.db under the data dir), newest first: a 500 answers only a trace id, and the handler's stack is here. Empty when the file cannot be read. */
+function daemonLogTail(): string {
+  try {
+    const db = new DatabaseSync(path.join(data, "logs.db"), { readOnly: true });
+    const rows = db.prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 ORDER BY id DESC LIMIT 5").all() as { level: number; cap: string | null; msg: string; attrs: string | null }[];
+    db.close();
+    return rows.length ? `\ndaemon log (errors, newest first):\n${rows.map((r) => `  ${r.level} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 900)}`).join("\n")}` : "";
+  } catch { return ""; }
+}
+const ok = (r: Reply, what: string): any => { assert.equal(r.status, 200, `${what}: ${r.status} ${JSON.stringify(r.body.error ?? r.body).slice(0, 400)}${r.status === 200 ? "" : daemonLogTail()}`); return r.body.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** What the sidecar left behind, for a failure message: the app's own output (the sidecar's stderr is in it) and the tail of every file the Personal daemon wrote under its logs folder. */
 function diagnostics(appOut: string): string {

@@ -15,11 +15,13 @@ export const REPO = path.resolve(HERE, "..", "..", "..");
 
 /** Workspaces the device daemon loads, and docs/frozen, whose agent-tools.md the MCP and engine modules read at start (a daemon with the Space role cannot start its gateway without it). Every other workspace keeps only its package.json so `npm ci` can resolve the lockfile. */
 export const RUNTIME_DIRS = ["lib", "manifest", "contracts", "kernel", "host", "sync", "client", "agent", "sandbox", "modules", "connectors", "generated", "manifests", "packages", "relay/client", "testkit", "docs/frozen"] as const;
+/** Single files outside those directories that staged modules read by a path relative to their own file (new URL("../../perf/budgets.json", import.meta.url)); apps/desktop/tests/stage-runtime.test.ts finds any that are missing here. */
+export const STAGE_FILES = ["perf/budgets.json", "images/agent-computer/seccomp.json"] as const;
 export const ROOT_FILES = ["package.json", "package-lock.json", "tsconfig.base.json", "LICENSE", "NOTICE"] as const;
 /** Never staged, whatever the directory: tests, screenshots, caches and build output. */
 export const SKIP = /(^|\/)(node_modules|\.git|target|dist|coverage|__screens__|tests?|golden|fixtures)(\/|$)|\.test\.(ts|js|mjs|tsx)$|\.heavy\.test\./;
 
-export type StagePlan = { copyDirs: string[]; packageOnly: string[]; rootFiles: string[] };
+export type StagePlan = { copyDirs: string[]; packageOnly: string[]; rootFiles: string[]; files: string[] };
 
 /** From the root package.json workspaces list: which directories are copied whole and which keep only package.json. */
 export function plan(workspaces: string[], exists: (rel: string) => boolean = () => true): StagePlan {
@@ -31,7 +33,7 @@ export function plan(workspaces: string[], exists: (rel: string) => boolean = ()
   const want = new Set<string>(RUNTIME_DIRS);
   const copyDirs = [...want].filter((d) => exists(d));
   const packageOnly = dirs.filter((d) => !want.has(d) && !copyDirs.some((c) => d === c || d.startsWith(`${c}/`)));
-  return { copyDirs, packageOnly, rootFiles: [...ROOT_FILES].filter((f) => exists(f)) };
+  return { copyDirs, packageOnly, rootFiles: [...ROOT_FILES].filter((f) => exists(f)), files: [...STAGE_FILES].filter((f) => exists(f)) };
 }
 
 /** The Rust target triple of this machine, as Tauri names external binaries. */
@@ -102,6 +104,10 @@ function main(): void {
   for (const d of p.copyDirs) {
     fs.mkdirSync(path.join(runtime, d), { recursive: true });
     copyTree(path.join(REPO, d), path.join(runtime, d), d);
+  }
+  for (const f of p.files) {
+    fs.mkdirSync(path.dirname(path.join(runtime, f)), { recursive: true });
+    fs.copyFileSync(path.join(REPO, f), path.join(runtime, f));
   }
   for (const d of p.packageOnly) {
     fs.mkdirSync(path.join(runtime, d), { recursive: true });
