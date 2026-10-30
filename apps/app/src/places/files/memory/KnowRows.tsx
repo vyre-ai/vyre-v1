@@ -288,7 +288,7 @@ const r = StyleSheet.create({
   sep: { fontSize: 12.5, color: "var(--ink-4)" as string },
   warn: { color: "var(--warn)" as string, fontWeight: "500" },
   edit: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 4 },
-  input: { flexGrow: 1, flexBasis: 260, minWidth: 200, height: 30, borderRadius: 8, paddingHorizontal: 10, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 13.5 },
+  input: { flexGrow: 1, flexBasis: 260, minWidth: 200, height: 30, borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13.5 },
   btn: { height: 28, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center", alignItems: "center" },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },

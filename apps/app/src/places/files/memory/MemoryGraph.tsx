@@ -416,7 +416,7 @@ const m = StyleSheet.create({
   away: { position: "fixed" as "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 40 },
   picker: { position: "absolute", top: 32, left: 0, width: 280, padding: 6, borderRadius: 10, zIndex: 50, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" } as object,
   pickHead: { paddingTop: 4, paddingBottom: 6, lineHeight: 16, paddingHorizontal: 9, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
-  pickFind: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 3, marginBottom: 4, paddingHorizontal: 8, borderRadius: 7, backgroundColor: "var(--sunk)" as string },
+  pickFind: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 3, marginBottom: 4, paddingHorizontal: 8, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   pickList: { maxHeight: 300, overflow: "scroll" as "hidden" },
   pickRow: { height: 30, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, borderRadius: 6 },
   pickName: { flex: 1, fontSize: 13, color: "var(--ink)" as string },

@@ -627,7 +627,7 @@ const c = StyleSheet.create({
 
 const n = StyleSheet.create({
   wrap: { position: "relative" },
-  input: { minHeight: 110, padding: 12, borderRadius: 9, borderWidth: 1, borderColor: "var(--accent)", backgroundColor: "var(--sunk)", color: "var(--ink)", fontSize: 14.5, lineHeight: 20, outlineStyle: "none" },
+  input: { minHeight: 110, padding: 12, borderRadius: 9, borderWidth: 1, borderColor: "var(--accent)", backgroundColor: "var(--field)", color: "var(--ink)", fontSize: 14.5, lineHeight: 20, outlineStyle: "none" },
   menu: { position: "absolute", zIndex: 40, minWidth: 220, maxWidth: 320, padding: 5, borderRadius: 10, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string, borderWidth: 1, borderColor: "var(--line)" as string } as never,
   item: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, height: 28, paddingHorizontal: 9, borderRadius: 6 },
   itemOn: { backgroundColor: "var(--hover)" as string },

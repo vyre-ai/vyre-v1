@@ -1,0 +1,1 @@
+- App: text fields have their own fill and edge tokens (--field, --field-line). In the dark skins a field is a step lighter than its card with a visible 1px edge, so the Settings inputs no longer render as black blocks, and a focused field shows the accent ring.

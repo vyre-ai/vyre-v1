@@ -358,7 +358,7 @@ const st = StyleSheet.create({
   skRow: { height: 28, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 8 },
   skMark: { width: 20, height: 20, borderRadius: 5, backgroundColor: "var(--hover)" as string },
   skBar: { height: 10, borderRadius: 5, backgroundColor: "var(--hover)" as string },
-  search: sx({ height: 34, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 11, borderRadius: 8, backgroundColor: "var(--sunk)", boxShadow: "inset 0 0 0 1px var(--line)" }),
+  search: sx({ height: 34, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 11, borderRadius: 8, backgroundColor: "var(--field)", boxShadow: "inset 0 0 0 1px var(--field-line)" }),
   searchFocus: sx({ boxShadow: "inset 0 0 0 1px var(--accent-line), 0 0 0 3px var(--accent-wash)" }),
   searchInput: sx({ flex: 1, minWidth: 0, height: 34, color: "var(--ink)", fontSize: 13.5, outlineStyle: "none" }),
 });

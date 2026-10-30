@@ -131,8 +131,8 @@ export function Rows({ label, pairs, onCommit, keyLabel = "Name", valueLabel = "
 export const f = StyleSheet.create({
   field: { gap: 4 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  input: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, paddingHorizontal: 9, fontSize: 13, color: "var(--ink)" as string },
-  choice: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
+  input: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, paddingHorizontal: 9, fontSize: 13, color: "var(--ink)" as string },
+  choice: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
   choiceText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   hint: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   group: { gap: 8, paddingTop: 6 },

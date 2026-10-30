@@ -9,6 +9,8 @@ const EXPECTED: readonly string[] = [
   "--rail",
   "--raised",
   "--sunk",
+  "--field",
+  "--field-line",
   "--ink",
   "--ink-2",
   "--ink-3",
