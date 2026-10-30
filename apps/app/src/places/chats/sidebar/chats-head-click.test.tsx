@@ -24,3 +24,11 @@ test("pressing the Chats head folds the chats and pressing it again brings them 
   await flush();
   assert.equal(rowIds().length, before, "open again: the chats are back");
 });
+
+test("the list itself takes the arrow keys and says so, so a click on its empty area is not a dead control", async () => {
+  installDom();
+  const root = await mount(createRoot, <ChatsSidebar data={createSampleSidebar().data} window={{ start: 0, end: 500 }} />);
+  const list = find(root, "chats-sidebar");
+  assert.ok(list && typeof list.props["data-noop-ok"] === "string", "marked noop-ok");
+  assert.equal(list.props.tabIndex, 0, "still reachable by Tab for the arrow keys");
+});

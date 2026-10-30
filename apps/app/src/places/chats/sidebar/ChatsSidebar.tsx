@@ -362,7 +362,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     </Pressable>
   );
   return (
-    <View testID="chats-sidebar" accessibilityRole="list" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown }}>
+    <View testID="chats-sidebar" accessibilityRole="list" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown, dataSet: { noopOk: "the list takes the arrow keys; its rows and toggles are the controls" } }}>
       {headBusy || !inHeader ? (
         <View style={st.top} testID="sidebar-head" accessibilityLabel={`Chats, ${data.space.name}`}>
           {data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
