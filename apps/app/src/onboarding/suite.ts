@@ -28,10 +28,20 @@ export async function connections(call: CapCall): Promise<{ google: Probe<Connec
 
 export const stepDoneBy = (c: { google: Probe<Connection>; microsoft: Probe<Connection> }): boolean => [c.google, c.microsoft].some((p) => p.kind === "ready" && p.value.ok);
 
-/** Step 4 (sign-in for the domain): members.sso.list shows what is set today; the new names come from the suite when built. */
-export async function ssoProviders(call: CapCall): Promise<Probe<{ provider: string }[]>> {
-  const r = await probe<{ providers?: { provider: string }[]; sso?: { provider: string }[] }>(call, "members.sso.list");
-  return r.kind === "ready" ? { kind: "ready", value: r.value.providers ?? r.value.sso ?? [] } : r;
+export interface SsoProvider { key: "google" | "microsoft" | "okta"; title: string; enabled: boolean; domainHint?: string }
+
+/** Step 4: the sign-in providers set for this Space (members.sso.list). Set up and tested in the Console (members.sso.set, members.sso.test); only existing members and accepted invites can sign in. */
+export async function ssoProviders(call: CapCall): Promise<Probe<SsoProvider[]>> {
+  const r = await probe<{ providers?: SsoProvider[] }>(call, "members.sso.list");
+  return r.kind === "ready" ? { kind: "ready", value: (r.value.providers ?? []).map((p) => ({ key: p.key, title: p.title, enabled: p.enabled, ...(p.domainHint ? { domainHint: p.domainHint } : {}) })) } : r;
+}
+
+/** A provider signs people in only when it is on and names the firm's domain. Without the domain it signs nobody in. */
+export const ssoWorks = (p: SsoProvider): boolean => p.enabled && !!p.domainHint;
+export const ssoLine = (p: SsoProvider): string => !p.enabled ? `${p.title}: set up but off.` : !p.domainHint ? `${p.title}: on, but it needs your domain or it signs nobody in.` : `${p.title}: on for ${p.domainHint}.`;
+
+export async function testSso(call: CapCall, key: SsoProvider["key"]): Promise<{ ok: boolean; detail?: string }> {
+  try { return (await call("members.sso.test", { key })) as { ok: boolean; detail?: string }; } catch { return { ok: false, detail: "Could not run the test." }; }
 }
 
 export interface DirectoryPerson { email: string; name?: string; suspended: boolean; userId?: string; source: "google" | "microsoft" }

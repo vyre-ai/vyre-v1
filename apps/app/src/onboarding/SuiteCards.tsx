@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
-import { connections, createInviteLink, directory, draftInvites, importable, importPeople, invites, memberRoleId, ownMailbox, sendDrafts, ssoProviders, stepDoneBy } from "./suite.ts";
+import { connections, createInviteLink, directory, draftInvites, importable, importPeople, invites, memberRoleId, ownMailbox, sendDrafts, ssoProviders, ssoWorks, ssoLine, stepDoneBy, testSso } from "./suite.ts";
 import type { DirectoryPage, DirectoryPerson, ImportResult, MailSender, Probe, SendOutcome } from "./suite.ts";
 
 const NOT_YET = "This part is not set up yet. You can come back to it from the checklist.";
@@ -29,12 +29,19 @@ export function WorkspaceCard({ call, onOpenConsole, onDone }: { call: CapCall; 
 
 export function SignInDomainCard({ call, onOpenConsole, onDone }: { call: CapCall; onOpenConsole(): void; onDone(): void }): ReactElement {
   const [p, setP] = useState<Awaited<ReturnType<typeof ssoProviders>> | null>(null);
+  const [tested, setTested] = useState<Record<string, string>>({});
   useEffect(() => { let off = false; void ssoProviders(call).then((r) => { if (!off) setP(r); }); return () => { off = true; }; }, [call]);
+  const list = p?.kind === "ready" ? p.value : [];
   return (
     <View testID="signin-domain-card" style={s.col}>
-      <Text style={s.line}>Let people sign in with their work account for your domain, in the same app.</Text>
-      {p === null ? <Text style={s.dim}>Checking</Text> : <Text style={s.dim}>{p.kind === "ready" ? (p.value.length ? `Turned on: ${p.value.map((x) => x.provider).join(", ")}.` : "Not turned on yet.") : line(p, "")}</Text>}
-      <Buttons><Go id="signin-open" label="Open sign-in settings" onPress={onOpenConsole} /><Go id="signin-done" label="Done" ghost onPress={onDone} /></Buttons>
+      <Text style={s.line}>Let people sign in with their work account for your domain, in the same app. Only existing members and people with an accepted invite can sign in.</Text>
+      {p === null ? <Text style={s.dim}>Checking</Text> : p.kind !== "ready" ? <Text style={s.dim}>{line(p, "")}</Text> : list.length === 0 ? <Text testID="signin-none" style={s.dim}>Not turned on yet. Set up Google or Microsoft in the Console.</Text> : list.map((x) => (
+        <View key={x.key} style={s.col}>
+          <Text testID={`sso-${x.key}`} style={s.dim}>{ssoLine(x)}</Text>
+          <Buttons><Go id={`sso-test-${x.key}`} label="Test it" ghost onPress={() => void testSso(call, x.key).then((r) => setTested((t) => ({ ...t, [x.key]: r.ok ? "The test passed." : r.detail ?? "The test did not pass." })))} />{tested[x.key] ? <Text style={s.dim}>{tested[x.key]}</Text> : null}</Buttons>
+        </View>
+      ))}
+      <Buttons><Go id="signin-open" label="Open sign-in settings" onPress={onOpenConsole} />{list.some(ssoWorks) ? <Go id="signin-done" label="Done" ghost onPress={onDone} /> : <Go id="signin-done" label="Skip" ghost onPress={onDone} />}</Buttons>
     </View>
   );
 }

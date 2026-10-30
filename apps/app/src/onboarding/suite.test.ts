@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { connections, createInviteLink, directory, draftInvites, importable, importPeople, ownMailbox, probe, sendDrafts, ssoProviders, stepDoneBy } from "./suite.ts";
+import { ssoLine, ssoWorks, testSso, connections, createInviteLink, directory, draftInvites, importable, importPeople, ownMailbox, probe, sendDrafts, ssoProviders, stepDoneBy } from "./suite.ts";
 import type { CapCall } from "../shell/session/caps.ts";
 
 const fake = (answers: Record<string, unknown>) => { const calls: Array<[string, any]> = []; return { calls, call: (async (c: string, i: any) => { calls.push([c, i]); if (!(c in answers)) throw Object.assign(new Error("no"), { code: "validation.unknown_capability" }); const a = answers[c]; if (a instanceof Error) throw a; return a; }) as unknown as CapCall }; };
@@ -22,7 +22,7 @@ test("Google is done when configured and the live test passed; Microsoft when co
 });
 
 test("sign-in providers and the directory come from the suite's names and are honest when absent", async () => {
-  assert.deepEqual(await ssoProviders(fake({ "members.sso.list": { providers: [{ provider: "google" }] } }).call), { kind: "ready", value: [{ provider: "google" }] });
+  assert.deepEqual(await ssoProviders(fake({ "members.sso.list": { providers: [{ key: "google", title: "Google", issuer: "i", clientId: "c", clientSecretHandle: "h", enabled: true, domainHint: "acme.com" }] } }).call), { kind: "ready", value: [{ key: "google", title: "Google", enabled: true, domainHint: "acme.com" }] });
   assert.equal((await directory(fake({}).call)).kind, "not_yet");
   const dir = await directory(fake({ "google.directory.list": { people: [{ email: "a@x.y", name: "A", suspended: false }, { email: "b@x.y", suspended: true }, { email: "c@x.y", suspended: false, userId: "usr_c" }] } }).call);
   assert.equal(dir.kind === "ready" && dir.value.people.length, 3);
@@ -78,4 +78,14 @@ test("a send the Gate holds or one that fails is reported per person and does no
   const call = (async (c: string) => { if (c !== "mail.send") return {}; n++; if (n === 1) return { status: "held", suppressed: [] }; if (n === 2) throw new Error("no"); return { status: "sent", suppressed: [] }; }) as never;
   const out = await sendDrafts(call, { mailboxId: "m", address: "a" }, [{ to: "1@x.y", subject: "s", text: "t" }, { to: "2@x.y", subject: "s", text: "t" }, { to: "3@x.y", subject: "s", text: "t" }], "k");
   assert.deepEqual(out.map((o) => o.status), ["held", "failed", "sent"]);
+});
+
+test("a sign-in provider works only when it is on and names the domain; the line says what is missing", async () => {
+  assert.equal(ssoWorks({ key: "google", title: "Google", enabled: true, domainHint: "acme.com" }), true);
+  assert.equal(ssoWorks({ key: "google", title: "Google", enabled: true }), false);
+  assert.equal(ssoWorks({ key: "microsoft", title: "Microsoft", enabled: false, domainHint: "acme.com" }), false);
+  assert.match(ssoLine({ key: "google", title: "Google", enabled: true }), /signs nobody in/);
+  assert.match(ssoLine({ key: "google", title: "Google", enabled: true, domainHint: "acme.com" }), /on for acme\.com/);
+  assert.deepEqual(await testSso(fake({ "members.sso.test": { ok: true } }).call, "google"), { ok: true });
+  assert.equal((await testSso(fake({}).call, "google")).ok, false, "a missing capability reads as a failed test, not a crash");
 });
