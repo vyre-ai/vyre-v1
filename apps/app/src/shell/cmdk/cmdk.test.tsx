@@ -13,6 +13,8 @@ import { ACTIONS, LOCAL_HITS, SERVER_HITS, createSampleData } from "./sample.ts"
 import { KEYBOARD_MAP, formatCombo, keyboardRows, matchShortcut } from "../keyboard/map.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/** Waits for what the test needs to be true, not for a guessed time: a timer can fire late on a busy machine, so a fixed sleep is flaky. */
+const until = async (cond: () => boolean, ms = 5000): Promise<void> => { const t = Date.now(); while (!cond()) { if (Date.now() - t > ms) throw new Error("timed out waiting for the search to settle"); await wait(5); } };
 const titles = (c: CmdKController): string[] => c.getState().rows.flatMap((r) => (r.type === "hit" ? [r.hit.title] : r.type === "action" ? [r.action.title] : r.type === "skin" ? [r.name] : []));
 
 test("prefixes route to kinds: @ people and agents, # chats and records, / files, > actions", () => {
@@ -63,7 +65,7 @@ test("local results never wait on the server; the server hits merge in when they
   assert.ok(first.includes("Referral fee log") && first.includes("Referral agreement.pdf"), "local rows are drawn in the same task as the keystroke");
   assert.ok(!first.includes("Referral policy 2026.docx"));
   assert.equal(c.getState().serverStatus, "loading");
-  await wait(220);
+  await until(() => c.getState().serverStatus === "done");
   const after = titles(c);
   assert.equal(c.getState().serverStatus, "done");
   assert.ok(after.includes("Referral policy 2026.docx") && after.includes("#referrals"));
@@ -76,9 +78,10 @@ test("a late answer for an older query is dropped", async () => {
   const { data } = createSampleData({ serverDelayMs: 100 });
   const c = new CmdKController(data);
   c.setRaw("referral");
-  await wait(70);
+  await wait(10);
   c.setRaw("renewal");
-  await wait(220);
+  // the older query's answer was due first (it was sent first, with the same delay), so once the newer one has landed the older one has already been dropped or applied
+  await until(() => c.getState().serverStatus === "done");
   assert.ok(!titles(c).includes("Referral policy 2026.docx"));
   c.dispose();
 });
@@ -118,7 +121,7 @@ test("type filters narrow the results and the menu counts come from everything f
   const { data } = createSampleData({ serverDelayMs: 20 });
   const c = new CmdKController(data);
   c.setRaw("referral");
-  await wait(120);
+  await until(() => c.getState().serverStatus === "done");
   const counts = c.getState().counts;
   assert.equal(counts["files"], 2);
   assert.equal(counts["records"], 2);
@@ -236,7 +239,7 @@ test("the sheet renders the search field, a filter menu button, quiet group head
   const { data } = createSampleData({ serverDelayMs: 10 });
   const c = new CmdKController(data);
   c.setRaw("referral");
-  await wait(100);
+  await until(() => c.getState().serverStatus === "done");
   const html = renderToStaticMarkup(<CmdKBody controller={c} autoFocus={false} />);
   assert.match(html, /data-testid="cmdk-input"/);
   assert.match(html, /data-testid="cmdk-filter"/);
