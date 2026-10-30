@@ -19,6 +19,7 @@ test("a Space setting is readable by a person, an agent, the host service and an
   for (const bad of [as(h, { kind: "service", id: "svc_tenant_automation" }), as(h, { kind: "actor", id: "act_outside" })]) {
     await assert.rejects(() => get(bad, key), (e) => codeOf(e) === "auth.unauthenticated");
   }
-  // a person's own setting still needs the person
-  await assert.rejects(() => get(as(h, { kind: "agent", id: "agt_intake" }, "usr_dana"), "profile.timezone"), (e) => codeOf(e) === "auth.unauthenticated");
+  // a person's own setting needs the person; an agent reads the setting of the person it acts for (their time zone, their language) and an agent acting for no one reads none
+  assert.equal((await get(as(h, { kind: "agent", id: "agt_intake" }, "usr_dana"), "profile.timezone")).row.key, "profile.timezone");
+  await assert.rejects(() => get(as(h, { kind: "agent", id: "agt_intake" }), "profile.timezone"), (e) => codeOf(e) === "auth.unauthenticated");
 });

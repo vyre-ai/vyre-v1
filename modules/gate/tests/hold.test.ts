@@ -186,12 +186,12 @@ test("rules: scope checks, never loosening, the defaults list, one event", async
   await refused(set({ scope: "agent", agentId: bot.id, afterHours: 9 }), "validation.precondition_failed", "would_loosen");
   await set({ scope: "agent", agentId: bot.id, afterHours: 4 });
   const all = (await h.call("gate.rules.list", {}, owner)).rules;
-  assert.equal(all.filter((x: { scope: string }) => x.scope === "space").length, 13, "every act has a Space rule, stored or default");
+  assert.equal(all.filter((x: { scope: string }) => x.scope === "space").length, 14, "every act has a Space rule, stored or default");
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "send" && x.scope === "space").afterHours, 8);
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "pay" && x.scope === "space").approvers, "owner");
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent" }, owner)).rules.map((x: { agentId: string }) => x.agentId), [bot.id]);
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent", agentId: bot2.id }, owner)).rules, []);
-  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 13);
+  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 14);
 });
 
 test("the gate settings change the defaults", async () => {
