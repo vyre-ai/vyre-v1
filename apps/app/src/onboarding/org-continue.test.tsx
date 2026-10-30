@@ -2,26 +2,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
+import { find, flush, installDom, press, typeInto } from "./test-dom.ts";
+import type { Node } from "./test-dom.ts";
 import { createRoot } from "test-renderer";
 import type { ReactElement } from "react";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
 import { KitPickCard } from "./KitPickCard.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-// react-native-web wants a browser: it reads window and listens on its host nodes. The test renderer has neither, so give it the two stand-ins it asks for.
-(globalThis as { window?: unknown }).window ??= globalThis;
-(globalThis as { Image?: unknown }).Image ??= class { onload: unknown; onerror: unknown; set src(_v: string) { /* never loads */ } };
-(globalThis as { document?: unknown }).document ??= { createElement: () => ({ style: {}, setAttribute: () => undefined, appendChild: () => undefined }), head: { appendChild: () => undefined }, getElementById: () => null, documentElement: { getAttribute: () => null, setAttribute: () => undefined, style: {} }, addEventListener: () => undefined };
-Object.defineProperty(Object.prototype, "addEventListener", { value: () => undefined, configurable: true, enumerable: false, writable: true });
-Object.defineProperty(Object.prototype, "removeEventListener", { value: () => undefined, configurable: true, enumerable: false, writable: true });
-
-interface Node { props: Record<string, unknown>; children?: Node[] }
-const find = (n: Node, id: string): Node | null => {
-  if (n.props?.["data-testid"] === id || n.props?.testID === id) return n;
-  for (const c of n.children ?? []) { if (typeof c === "object") { const f = find(c as Node, id); if (f) return f; } }
-  return null;
-};
 
 function setup(opts: { failUpdate?: boolean } = {}) {
   const calls: { cap: string; input: unknown }[] = [];
@@ -40,13 +27,10 @@ function setup(opts: { failUpdate?: boolean } = {}) {
   );
   return { calls, steps, screen };
 }
-const press = async (n: Node | null): Promise<void> => { assert.ok(n, "node present"); await act(async () => { (n!.props.onClick as (e: unknown) => void)({ stopPropagation() {}, preventDefault() {}, altKey: false, target: { getAttribute: () => null }, currentTarget: { getAttribute: () => null }, nativeEvent: {} }); }); };
-const flush = async (): Promise<void> => { await act(async () => { await new Promise((r) => setTimeout(r, 20)); }); };
 
-const typeName = async (root: Node, value: string): Promise<void> => {
-  await act(async () => { (find(root, "org-name")!.props.onChange as (e: unknown) => void)({ target: { value }, nativeEvent: { text: value }, currentTarget: { value } }); });
-};
+const typeName = (root: Node, value: string): Promise<void> => typeInto(find(root, "org-name"), value);
 async function open(opts: { failUpdate?: boolean } = {}) {
+  installDom();
   const t = setup(opts);
   const r = createRoot();
   await act(async () => { r.render(t.screen({})); });
