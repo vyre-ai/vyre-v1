@@ -1,1 +1,0 @@
-- Settings > Memory and privacy shows an admin what memory upkeep cost last night and this month, with a monthly cap they can change (saved with Undo); at the cap upkeep follows rules only and the page says so.

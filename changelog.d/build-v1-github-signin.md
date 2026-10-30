@@ -1,1 +1,0 @@
-- GitHub sign-in is on in the app: the sign-in screen reads identity.sign_in_options and shows the GitHub button when the Space has an OAuth app and its sign-in policy allows GitHub. The Space serves the browser leg (/auth/github/start and /callback) and the app finishes with identity.github_sign_in. SSO stays off (identity.sso_sign_in is still validation.unsupported).
