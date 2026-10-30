@@ -13,6 +13,7 @@ import { EmptyLine, Section, SectionHeader, Skeleton } from "../sections-a/parts
 import { isPersonal, useExtras } from "./data.tsx";
 import { TODAY_SCREEN, dayWindow, todayCount, todayRows } from "./model.ts";
 import { GoButton, ListRow } from "./parts.tsx";
+import { useAllClear, useSectionKind } from "../sections-a/allclear.ts";
 
 type Out = CapMap["calendar.list_events"]["out"];
 export const TODAY_SECTION = 5;
@@ -29,7 +30,9 @@ export function Today(): ReactElement | null {
   const list = q.status === "ready" && !hidden ? todayRows(q.data.events, c) : [];
   const keyList = rowKeysBy("today", list, (r) => r.id).join("|");
   useEffect(() => { sel.register(TODAY_SECTION, keyList && !hidden ? keyList.split("|") : []); }, [keyList, hidden]);
-  if (hidden) return null;
+  useSectionKind("today", hidden ? null : q.status === "loading" ? "loading" : list.length ? "items" : "empty");
+  const clear = useAllClear();
+  if (hidden || clear) return null;
 
   const rows: ReactElement[] = [];
   for (const r of list) {

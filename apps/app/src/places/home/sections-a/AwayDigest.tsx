@@ -12,6 +12,7 @@ import { DIGEST_KIND_LABEL, digestLimit, rowKeysBy, whenLabel } from "./model.ts
 import type { DigestItem } from "./model.ts";
 import { EmptyLine, Glyph, HRow, LinkButton, RowText, Section, SectionHeader, Skeleton } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
+import { useAllClear, useSectionKind } from "./allclear.ts";
 
 export const AWAY_SCREEN = "home.away-digest";
 type Out = CapMap["home.digest"]["out"];
@@ -54,6 +55,8 @@ export function AwayDigest(): ReactElement {
   const lines: ReactElement[] = [];
   shown.headline.forEach((h, i) => lines.push(<Text key={i} style={local.headline} testID={`away-line-${i}`}>{h}</Text>));
 
+  useSectionKind("away", q.status === "loading" ? "loading" : shown.show ? "items" : "empty");
+  if (useAllClear()) return null;
   return (
     <Section id="s-away">
       <SectionHeader id="away" title="While you were away" count={shown.show ? shown.items.length : undefined}>

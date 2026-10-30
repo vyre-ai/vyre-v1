@@ -200,7 +200,7 @@ export function MyWork(): ReactElement {
   const dueN = dueCount(tasks, clock);
   return (
     <Section id="s-work">
-      <SectionHeader id="work" title="My work" count={open.status === "ready" ? `${total} · ${dueN} due` : undefined}>
+      <SectionHeader id="work" title="My work" count={open.status === "ready" && total > 0 ? `${total} · ${dueN} due` : undefined}>
         {total > MY_WORK_LIMIT ? <LinkButton label={`All ${total} in My work`} onPress={() => data.nav.openMyWork()} testID="work-all" /> : null}
         <LinkButton label="+ New task" onPress={() => setAdding(true)} testID="work-new" />
         <View style={local.seg} accessibilityRole="radiogroup" accessibilityLabel="My work layout">

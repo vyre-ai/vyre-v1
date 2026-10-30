@@ -11,6 +11,7 @@ import {
 import type { HomeData } from "./sections-a/index.ts";
 import { Glyph, LinkButton, Section, SectionHeader, Skeleton } from "./sections-a/parts.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
+import { AllClear } from "./sections-a/AllClear.tsx";
 
 export { HomeDataProvider } from "./sections-a/index.ts";
 export type { HomeData, HomeNav } from "./sections-a/index.ts";
@@ -105,6 +106,7 @@ function Page({ top, bottom, personal }: { top?: ReactNode; bottom?: ReactNode; 
       <View {...clearOnClick(() => sel.select(null))} style={styles.col}>
         <Greeting />
         {top}
+        <AllClear />
         <NeedsYouTop3 />
         <MyWork />
         <ProjectsAtRisk />
