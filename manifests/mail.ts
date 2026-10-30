@@ -100,7 +100,7 @@ const manifest = defineManifest({
     ev('mail_draft.discarded', 'A draft was discarded', { p: { draftId: emlId }, subject: ['entity', '/draftId'] }),
     ev('mailbox.created', 'A shared, agent or service mailbox was created', { p: { mailboxId: id.mailbox, kind: mailboxKind, address: email }, subject: ['mailbox', '/mailboxId'] }),
     ev('mailbox.connected', 'A mailbox connection was created (Pending until the first sync); one notice per member', {
-      p: { mailboxId: id.mailbox, memberId: t.opt(id.user), provider, auto: t.bool() }, subject: ['mailbox', '/mailboxId'], vis: 'participants',
+      p: { mailboxId: id.mailbox, memberId: t.opt(id.user), provider, auto: t.bool(), private: t.opt(t.bool()) }, subject: ['mailbox', '/mailboxId'], vis: 'participants',
     }),
     ev('mailbox.paused', 'The owner paused a mailbox; filing stops', { p: { mailboxId: id.mailbox }, subject: ['mailbox', '/mailboxId'], vis: 'participants' }),
     ev('mailbox.resumed', 'The owner resumed a mailbox', { p: { mailboxId: id.mailbox }, subject: ['mailbox', '/mailboxId'], vis: 'participants' }),

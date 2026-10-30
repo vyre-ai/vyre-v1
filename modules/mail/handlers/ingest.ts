@@ -486,8 +486,9 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
     if (ownerId) logRead(ctx, id, ownerId, "login");
   }
   ctx.db.run(`INSERT INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`, input.idempotencyKey, "connect", id);
-  const payload: { mailboxId: string; provider: string; auto: boolean; memberId?: string } = { mailboxId: id, provider: input.provider, auto: false };
+  const payload: { mailboxId: string; provider: string; auto: boolean; memberId?: string; private?: boolean } = { mailboxId: id, provider: input.provider, auto: false };
   if (ownerId && isId("usr", ownerId)) payload.memberId = ownerId;
+  if (privacy === "private") payload.private = true;   // a private mailbox does not inherit the Space's access
   ctx.emit("mailbox.connected", `mailbox/${id}`, payload, { vis: "participants" });
   const row = loadMailbox(ctx, id);
   if (!row) bad(ctx, "Mailbox does not exist.");
