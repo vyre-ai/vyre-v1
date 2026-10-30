@@ -168,7 +168,7 @@ const templates = templatesOf({
 test("templates: a row says what starts it, lists its steps when opened and what to set up first", () => {
   assert.equal(templatesOf({ templates: 1 }), null);
   const closed = text(renderToStaticMarkup(<TemplateList templates={templates} open={null} busy={false} onToggle={() => undefined} onUse={() => undefined} />));
-  assert.ok(closed.includes("Weekly digest") && closed.includes("Every Monday at 9:00") && closed.includes("Count what came in.") && !closed.includes("Use template"));
+  assert.ok(closed.includes("Weekly digest") && closed.includes("Every Monday at 9:00") && closed.includes("Count what came in.") && closed.includes("Use template"), "every row carries a visible Use template");
   const open = text(renderToStaticMarkup(<TemplateList templates={templates} open="weekly_digest" busy={false} onToggle={() => undefined} onUse={() => undefined} />));
   assert.ok(open.includes("1. Find recent records") && open.includes("2. Send the digest") && open.includes("Choose the mailbox") && open.includes("Use template"));
   const log: string[] = [];
