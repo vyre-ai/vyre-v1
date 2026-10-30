@@ -5,6 +5,7 @@
 import { createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { SandboxError } from "../../sandbox/src/index.ts";
 import { openMcpBridge } from "./mcp-bridge.ts";
+import { enginePath } from "./sandbox-default.ts";
 import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
@@ -14,6 +15,14 @@ import type { McpPort, SessionOpener } from "../../agent/src/drivers/open/index.
 import type { ValueSource, VaultRunDeps } from "../../agent/src/vault-use/index.ts";
 import { recallText } from "../../agent/src/turn-engine/recall.ts";
 import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
+
+/** What every engine process gets from the daemon's environment: the launcher's short list, with a PATH that finds the CLIs an app started from the Finder would not see. */
+function launcherEnv(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const k of ["HOME", "LANG", "TMPDIR"]) { const v = process.env[k]; if (v !== undefined) out[k] = v; }
+  out["PATH"] = enginePath(process.env, process.env["HOME"] ?? "/");
+  return out;
+}
 
 /** The ports the host builds (host/src/seams/engine-session.ts), as the module sees them: structural, so neither side imports the other. */
 export interface EngineSessionPorts { source: ValueSource; reportMiss: VaultRunDeps["reportMiss"]; mcp: McpPort }
@@ -82,7 +91,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
       spawn: async (spec) => {
         const swap = spec.argv[0] !== undefined ? h.cliCommand?.[spec.argv[0]] : undefined;
         const argv = swap ? [...swap, ...spec.argv.slice(1)] : spec.argv;
-        return createLocalLauncher({ wrap: sandboxWrap(await plan()) }).spawn({ ...spec, argv });
+        return createLocalLauncher({ wrap: sandboxWrap(await plan()), baseEnv: launcherEnv() }).spawn({ ...spec, argv });
       },
     },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).

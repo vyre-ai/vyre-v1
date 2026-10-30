@@ -3,7 +3,7 @@
 // opener (Vault fill, pool), the default sandbox plan (bubblewrap with the network wall on the Linux runner), the work folder and the socket MCP bridge are the production ones. Fakes: the CLI program
 // itself (host/tests/fixtures/fake-cli-driver/fake-cli.mjs, swapped in for `claude` through the engine host's `cli` option and exposed read-only in the sandbox), the Vault value, the minted MCP session,
 // and the capabilities the engine calls on other modules. Asserted: the reply lands in the chat thread through the bridge, once, under the engine's message id; usage is recorded with the Vault item.
-// Runs only with VYRE_HEAVY_DOCKER=1 (the l2-heavy job); with it on, a missing bwrap fails the test.
+// Runs only with VYRE_HEAVY_DOCKER=1 (the l2-heavy job); with it on, a missing bwrap fails the test. On a Mac it runs with VYRE_HEAVY_MAC=1 (the desktop job's sandbox leg), against Seatbelt.
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -18,8 +18,9 @@ import { closeDefaultSandbox, ensureRuntime } from "../runtime.ts";
 import { harness } from "../fixtures/harness.ts";
 import type { EngineHostSeam } from "../runtime.ts";
 
-const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
-const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1";
+const MAC = process.platform === "darwin";
+const ON = MAC ? process.env["VYRE_HEAVY_MAC"] === "1" : process.env["VYRE_HEAVY_DOCKER"] === "1";
+const skip: string | false = ON ? false : MAC ? "needs VYRE_HEAVY_MAC=1" : "needs VYRE_HEAVY_DOCKER=1";
 const FAKE_CLI = fileURLToPath(new URL("../../../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
 const THREAD = "thr_cli";
 /** A real process takes real time: wait on the clock, not on event-loop turns. */
@@ -36,7 +37,7 @@ fs.chmodSync(data, 0o755);
 after(async () => { await closeDefaultSandbox(); fs.rmSync(data, { recursive: true, force: true }); });
 
 test("a message to an agent on a Claude Code account streams a reply into the chat, from a CLI running in the sandbox, and the usage is recorded against the Vault item", { skip }, async () => {
-  assert.equal(spawnSync("bwrap", ["--version"]).status, 0, "bwrap is not installed");
+  if (!MAC) assert.equal(spawnSync("bwrap", ["--version"]).status, 0, "bwrap is not installed");
   const mcp = http.createServer((_q, r) => { r.writeHead(200, { "content-type": "application/json" }); r.end("{}"); });
   await new Promise<void>((ok) => mcp.listen(0, "127.0.0.1", ok));
   const calls: Array<{ cap: string; input: Record<string, unknown>; as: string | undefined }> = [];

@@ -207,7 +207,9 @@
       "ui/src/theme/theme.firstframe.test.ts",
       "host/src/loader.ts",
       "agent/tests/sandbox.heavy.test.ts",
-      "agent/tests/sandbox.net.heavy.test.ts"
+      "agent/tests/sandbox.net.heavy.test.ts",
+      "apps/desktop/tests/personal.heavy.test.ts",
+      "apps/desktop/src-tauri/ci/bundle-check.ts"
     ],
     "ignoreImports": [
       "manifest/gen/scaffold/index.ts"
