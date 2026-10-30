@@ -12810,7 +12810,7 @@ export type IdentityKeysPutOut = {
   ok: boolean;
 };
 export type IdentityPairCreateIn = {
-  purpose: "app" | "extension" | "daemon";
+  purpose: "app" | "phone" | "extension" | "daemon";
   idempotencyKey: string;
 };
 export type IdentityPairCreateOut = {

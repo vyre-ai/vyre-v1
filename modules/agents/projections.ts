@@ -839,7 +839,11 @@ export function seesAll(ctx: AgentsCtx): boolean {
   const row = (ctx.db.all("SELECT allAgents FROM agents_visibility WHERE principal = ?", askerOf(ctx)) as Row[])[0];
   return row !== undefined && Number(row["allAgents"]) === 1 && allows(ctx, "access.manage", "manage", "space", null);
 }
+/** A person's private assistant: made at their account (agents.ensure_assistant) with the role "assistant". It is theirs alone. */
+export const isAssistant = (a: Pick<AgentRec, "config">): boolean => a.config.description === "assistant";
 export function canSee(ctx: AgentsCtx, a: AgentRec): boolean {
+  // the assistant is private even from the Space's admins and from anyone it was shared with: other people neither see, mention nor open it
+  if (isAssistant(a)) return a.ownerId === askerOf(ctx);
   return a.ownerId === askerOf(ctx) || allows(ctx, null, "view", "agent", a.id) || seesAll(ctx);
 }
 /** An agent the caller may see, or the same answer as for one that is not there (what exists is not leaked). */

@@ -2,7 +2,7 @@
 //   One message in a thread or channel, numbered by the thread (gap-free), with its hop depth, its blocks and its mentions. The turn engine reads message.received (ids and counts only, never the
 //   text) and routes to the lead agent or the @mentioned agents; this module does not start turns. People get message.mentioned, message.direct and thread.replied.
 import {
-  MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, threadBy,
+  MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy,
 } from "../projections.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 
@@ -116,6 +116,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   if (body.trim() === "" && blocks.length === 0 && attachments.length === 0) raise(ctx, "validation.bad_input", "Write something, or attach a file.");
   if (body.length > MAX_BODY) raise(ctx, "validation.bad_input", `A message can hold at most ${MAX_BODY} characters.`);
   const mentions = cleanMentions(ctx, input.mentions);
+  await refuseUnseenAgents(ctx, mentions.filter((m) => m.kind === "agent").map((m) => m.id));
   if (input.via !== undefined && author.kind !== "agent") raise(ctx, "validation.bad_input", "Only an agent posts on a routine.");
 
   // A resent message (the offline queue replays) carries the id the device gave it: the same id in the same thread is the same message.

@@ -31,3 +31,17 @@ test("reassign, pause and delete act on the right table and say how many they to
   assert.equal(hostCalls["agents.reassign_owned"](ctx, { person: "usr_a", kind: "agents", action: "reassign" }), 0, "no one to give it to: nothing moves");
   assert.equal(hostCalls["agents.reassign_owned"](ctx, { person: "usr_a", kind: "files", action: "delete" }), 0, "not a kind of this module");
 });
+
+test("a person's private assistant is not listed for the removal wizard and is deleted with them, never handed on", () => {
+  const assistant = JSON.stringify({ description: "assistant" });
+  const helper = JSON.stringify({ description: "Does things" });
+  const rowsOf = [{ id: "agt_a", name: "Dana Assistant", config: assistant }, { id: "agt_h", name: "Helper", config: helper }];
+  const ran: { sql: string; args: unknown[] }[] = [];
+  const ctx = { now: () => 1000, db: { all: (sql: string) => (/agents_agent/.test(sql) ? rowsOf : []), run: (sql: string, ...args: unknown[]) => { ran.push({ sql, args }); return { changes: 1 }; } } } as unknown as Ctx;
+  const out = hostCalls["agents.owned_by"](ctx, { person: "usr_a" });
+  assert.deepEqual(out.agents.ids, ["agt_h"], "only the helper is the person's to hand on");
+  hostCalls["agents.reassign_owned"](ctx, { person: "usr_a", kind: "agents", action: "reassign", to: "usr_b" });
+  assert.match(ran[0]!.sql, /SET "deletedAt"/);
+  assert.equal(ran[0]!.args[2], "agt_a", "the assistant is deleted");
+  assert.ok(ran.slice(1).every((r) => !r.args.includes("agt_a")), "and not reassigned");
+});

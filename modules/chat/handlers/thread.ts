@@ -7,7 +7,7 @@
 //   chat.answer_block / chat.approve_plan   answers to the blocks that park a turn; the engine reads block.answered and queues the wake
 import {
   MAX_NAME, addAgent, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
-  mintId, patchBlockInMessage, planBy, raise, threadBy, threadOut,
+  mintId, patchBlockInMessage, planBy, raise, refuseUnseenAgents, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
 import { canSpeak, deliver, isDirect } from "./post.ts";
@@ -77,6 +77,7 @@ export async function start(ctx: ChatCtx, input: StartInput) {
   ensure(ctx.db);
   const asker = askerOf(ctx);
   const agentIds = uniqueIds(ctx, input.agentIds, "agt_", "an agent");
+  await refuseUnseenAgents(ctx, agentIds);
   const personId = input.personId;
   if (personId !== undefined) {
     if (!personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { id: personId });

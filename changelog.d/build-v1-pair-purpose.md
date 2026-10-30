@@ -1,0 +1,1 @@
+- A pair code now opens only the kind of device it was made for. The new `phone` purpose redeems only as a phone, `extension` only as the extension, `daemon` only as a daemon; `app` keeps desktop, web and phone. A refused redeem does not spend the code, so it stays good for the right device, and the refusal reads like any wrong code.
