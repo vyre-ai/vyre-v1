@@ -6,7 +6,8 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import { ShellIcon } from "../rail/icons.tsx";
 import type { StatusLine } from "../spaces/hub.ts";
-import { skinMenuEntries, skinName, syncLabel } from "./model.ts";
+import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
+import { SYSTEM_ICON, SYSTEM_SKIN, skinMenuEntries, skinName, skinSwatch, syncLabel } from "./model.ts";
 
 export const TITLE_BAR_HEIGHT = 38;
 
@@ -68,7 +69,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
         label={skinName(props.skin)}
         hideLabel={compact}
         onPress={(x, y) => show(skinMenuEntries(props.skin, props.onSkin), x, y, "other", { label: "Skin" })}
-        lead={null}
+        lead={<MenuIcon icon={props.skin === SYSTEM_SKIN ? SYSTEM_ICON : skinSwatch(props.skin)} />}
         tail={<ShellIcon name="chev" size={10} color="var(--ink-4)" />}
         title="Skin, just for you in this Space"
       />
