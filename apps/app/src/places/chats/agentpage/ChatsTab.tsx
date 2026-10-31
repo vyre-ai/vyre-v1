@@ -1,5 +1,6 @@
 // Agent page > Chats (spec 3.2): what the agent is working on, the chats it is in (newest first), and what it is linked to. A click opens the chat in place.
 import type { ReactElement } from "react";
+import { View } from "react-native";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { Face, Icon, LeadIcon, PaneList } from "../rightpane/parts.tsx";
@@ -25,7 +26,7 @@ export function ChatsTab({ summary, window }: { summary: Summary; window?: Virtu
   else if (list.length === 0) entries.push({ key: "no-chats", type: "empty", text: `No chats with ${data.agent.name} yet. Press Chat to start one.`, testID: "chats-empty" });
   for (const t of list) {
     entries.push({
-      key: `c-${t.threadId}`, type: "row", title: t.title ?? "New chat", note: chatNote(t, clock), leading: <Face name={data.agent.name} seedId={data.agent.agentId} size={16} />,
+      key: `c-${t.threadId}`, type: "row", title: t.title ?? "New chat", note: chatNote(t, clock), leading: <View style={{ marginRight: 8 }}><Face name={data.agent.name} seedId={data.agent.agentId} size={16} /></View>,
       onPress: () => data.nav.openChat(t.threadId), testID: `chat-${t.threadId}`,
       menu: [{ label: "Open", onSelect: () => data.nav.openChat(t.threadId) }, { label: "Open to the Side", onSelect: () => data.nav.openThread(t.threadId, "side") }],
     });

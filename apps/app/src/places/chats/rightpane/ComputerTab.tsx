@@ -167,7 +167,7 @@ function Thumb({ dark, person }: { dark: boolean; person: boolean }): ReactEleme
 }
 
 const st = StyleSheet.create({
-  thumb: { width: 38, height: 26, borderRadius: 4, paddingHorizontal: 4, paddingTop: 4, gap: 3, backgroundColor: "#1c1d21" as string, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  thumb: { width: 38, height: 26, marginRight: 10, borderRadius: 4, paddingHorizontal: 4, paddingTop: 4, gap: 3, backgroundColor: "#1c1d21" as string, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
   thumbDark: { backgroundColor: "#0c0d0f" as string },
   thumbMine: { borderColor: "var(--accent)" as string },
   thumbBar: { height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.28)" as string },

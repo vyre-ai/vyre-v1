@@ -124,7 +124,7 @@ export function EmptyLine({ text }: { text: string }): ReactElement {
 export const s = StyleSheet.create({
   pulse: { position: "absolute", left: -3, top: -3, borderWidth: 1.5, borderColor: "var(--accent)" as string, opacity: 0.55 },
   presence: { position: "absolute", right: -2, bottom: -2, width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string, borderWidth: 1.5, borderColor: "var(--side)" as string },
-  lead: { width: 18, height: 18, alignItems: "center", justifyContent: "center" },
+  lead: { width: 18, height: 18, marginRight: 6, alignItems: "center", justifyContent: "center" },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },
   badge: { minWidth: 17, height: 17, paddingHorizontal: 5, borderRadius: 9, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center", marginLeft: 6 },
   badgeText: { fontSize: 11, fontWeight: "600", color: "var(--accent)" as string },
