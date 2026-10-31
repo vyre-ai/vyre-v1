@@ -26,12 +26,14 @@ const freePort = (): Promise<number> => new Promise((resolve, reject) => {
 
 /** Null (with the reason) when this machine cannot run the journeys: no web export, no Chromium. */
 export async function browserOrSkip(): Promise<{ dist: string; chromium: import("playwright-core").BrowserType; exe: string } | string> {
+  const required = process.env["VYRE_REQUIRE_CHROME"] === "1";
+  const refuse = (why: string): string => { if (required) throw new Error(`${why} (VYRE_REQUIRE_CHROME=1: release evidence may not skip)`); return why; };
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) return "VYRE_APP_DIST is not set: build the web export (apps/app: npx expo export --platform web --output-dir dist) and point it there";
+  if (!dist) return refuse("VYRE_APP_DIST is not set: the release-evidence job builds the web export and points it there");
   const pw = await import("playwright-core");
   const chromium = pw.chromium ?? (pw as unknown as { default: typeof pw }).default.chromium;
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
-  if (!fs.existsSync(exe)) return `no Chromium at ${exe}`;
+  if (!fs.existsSync(exe)) return refuse(`no Chromium at ${exe}`);
   return { dist, chromium, exe };
 }
 
