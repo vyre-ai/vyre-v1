@@ -233,6 +233,7 @@ export function stubs(ctx: CallCtx) {
       undelete: call("automations.undelete"),
       update: call("automations.update"),
       validate: call("automations.validate"),
+      vault_usage: call("automations.vault_usage"),
       versions: call("automations.versions"),
       webhook_url: {
         get: call("automations.webhook_url.get"),
@@ -2100,9 +2101,12 @@ export function stubs(ctx: CallCtx) {
     },
     tasks: {
       act: call("tasks.act"),
+      ask: call("tasks.ask"),
       assign: call("tasks.assign"),
+      block: call("tasks.block"),
       count_needs_you: call("tasks.count_needs_you"),
       create: call("tasks.create"),
+      decide: call("tasks.decide"),
       delegate: call("tasks.delegate"),
       dependencies: {
         add: call("tasks.dependencies.add"),
@@ -2123,7 +2127,9 @@ export function stubs(ctx: CallCtx) {
       my_work: call("tasks.my_work"),
       needs_you: call("tasks.needs_you"),
       release: call("tasks.release"),
+      review: call("tasks.review"),
       snooze: call("tasks.snooze"),
+      submit: call("tasks.submit"),
       take: call("tasks.take"),
       transition: call("tasks.transition"),
       update: call("tasks.update"),

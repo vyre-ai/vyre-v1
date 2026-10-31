@@ -56,6 +56,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.undelete": Handler<"automations.undelete", X>;
   "automations.update": Handler<"automations.update", X>;
   "automations.validate": Handler<"automations.validate", X>;
+  "automations.vault_usage": Handler<"automations.vault_usage", X>;
   "automations.versions": Handler<"automations.versions", X>;
   "automations.webhook_url.get": Handler<"automations.webhook_url.get", X>;
   "automations.webhook_url.rotate": Handler<"automations.webhook_url.rotate", X>;

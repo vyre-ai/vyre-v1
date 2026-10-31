@@ -4620,6 +4620,14 @@
                         "backupKeyId": {
                           "type": "string"
                         },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
                         "escalateTo": {
                           "properties": {
                             "id": {
@@ -4646,6 +4654,13 @@
                           "type": "object"
                         },
                         "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
                           "type": "string"
                         },
                         "nudgeMinutes": {
@@ -6137,6 +6152,14 @@
                         "backupKeyId": {
                           "type": "string"
                         },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
                         "escalateTo": {
                           "properties": {
                             "id": {
@@ -6163,6 +6186,13 @@
                           "type": "object"
                         },
                         "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
                           "type": "string"
                         },
                         "nudgeMinutes": {
@@ -6433,6 +6463,14 @@
                         "backupKeyId": {
                           "type": "string"
                         },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
                         "escalateTo": {
                           "properties": {
                             "id": {
@@ -6459,6 +6497,13 @@
                           "type": "object"
                         },
                         "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
                           "type": "string"
                         },
                         "nudgeMinutes": {
@@ -6645,6 +6690,29 @@
         "type": "object"
       },
       "name": "automations_validate",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.vault_usage",
+      "deferred": false,
+      "description": "Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "handle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_vault_usage",
       "planMode": "allowed",
       "toolset": "automations",
       "v": 1
@@ -20407,7 +20475,8 @@
               "site_promote",
               "signature_send",
               "spend_raise",
-              "signin_change"
+              "signin_change",
+              "approve"
             ],
             "type": "string"
           },
@@ -20499,7 +20568,8 @@
               "site_promote",
               "signature_send",
               "spend_raise",
-              "signin_change"
+              "signin_change",
+              "approve"
             ],
             "type": "string"
           },
@@ -20592,7 +20662,8 @@
               "site_promote",
               "signature_send",
               "spend_raise",
-              "signin_change"
+              "signin_change",
+              "approve"
             ],
             "type": "string"
           },
@@ -47653,6 +47724,218 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.ask",
+      "deferred": false,
+      "description": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "question": {
+            "examples": [
+              "Which of the two dates is right?"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "group",
+                  "role",
+                  "automation"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "taskId",
+          "question"
+        ],
+        "type": "object"
+      },
+      "name": "task_ask",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.block",
+      "deferred": false,
+      "description": "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "reason": {
+            "examples": [
+              "I cannot open the client folder"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "name": "task_block",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.decide",
+      "deferred": false,
+      "description": "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "name": "task_decide",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.review",
+      "deferred": false,
+      "description": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fixes": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "note": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "send_back"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "name": "task_review",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.submit",
+      "deferred": false,
+      "description": "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "outputs": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "summary": {
+            "examples": [
+              "Drafted the letter and checked the dates"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "name": "task_submit",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.act",
       "deferred": false,
       "description": "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
@@ -47951,6 +48234,12 @@
               "signature"
             ],
             "type": "string"
+          },
+          "notes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
           },
           "parentTaskId": {
             "examples": [
