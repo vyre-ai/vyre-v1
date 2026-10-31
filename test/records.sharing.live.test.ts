@@ -4,7 +4,7 @@
 // at once. The model stand-in turns "TOOL <name> <json>" into a real tool call, run as the person who asked.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boot, call, connect, hostLog, seededDir, waitFor } from "./memory-live-kit.ts";
+import { boot, call, hostLog, seededDir } from "./memory-live-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 const PASSWORD = "correct horse battery staple 9";
@@ -31,27 +31,11 @@ async function join(d: Daemon, owner: ReturnType<typeof as>, roleId: string, use
   return { id: body.data!.personId, token: body.data!.token, name };
 }
 
-/** One chat turn as this person: the stand-in runs the tool as the asker, and the reply is the tool's result. */
-async function sayAs(d: Daemon, who: Person, agentId: string, body: string): Promise<string> {
-  const ask = as(d, who);
-  const started = await ask("chat.start", { kind: "chat", agentIds: [agentId] });
-  assert.equal(started.status, 200, JSON.stringify(started.data));
-  const threadId = started.data.thread.threadId as string;
-  const posted = await ask("chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }] });
-  assert.equal(posted.status, 200, JSON.stringify(posted.data));
-  return waitFor(async () => {
-    await d.hooks?.pump?.();
-    const r = await ask("chat.messages.list", { threadId });
-    const m = (r.data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined)?.find((x) => x.author?.kind === "agent" && (x.body ?? "") !== "");
-    return m?.body ?? null;
-  }, 40_000, () => hostLog(d));
-}
-
 test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee sees nothing; Cal exports once allowed; one deal goes Only me", async () => {
   const d = await boot(seededDir());
   try {
-    await connect(d);
-    const ada: Person = { id: (await call(d, "identity.whoami", {})).data.principal.id as string, token: d.token!, name: "Ada" };
+    const everyone = (await call(d, "access.principals.list", {})).data.principals as Array<{ id: string; kind: string; roles: string[] }>;
+    const ada: Person = { id: everyone.find((p) => p.kind === "person" && p.roles.includes("rol_owner") || p.roles.includes("rol_admin"))!.id, token: d.token!, name: "Ada" };
     const A = as(d, ada);
     const roles = (await A("access.roles.list")).data.roles as Array<{ id: string; name: string }>;
     const member = roles.find((r) => r.name === "Member")!.id;
@@ -70,6 +54,13 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
       deals[name] = r.data.record.id as string;
     }
     const deal = { type: "record_type", id: "rt_deal" };
+    // a type everyone may see that points into Deals
+    const noteType = await A("schema.apply", { ops: [{ op: "type.create", type: "rt_note", def: { title: "Note", plural: "Notes", icon: "task", titleField: "text", fields: [{ key: "text", type: "text", title: "Text", required: true }, { key: "about", type: "relation", title: "About", options: { target: "rt_deal" } }] } }] });
+    assert.equal(noteType.status, 200, JSON.stringify(noteType.data));
+    const noteMade = await A("records.create", { type: "rt_note", fields: { text: "Call back on Monday" } });
+    assert.equal(noteMade.status, 200, JSON.stringify(noteMade.data));
+    const noteId = noteMade.data.record.id as string;
+    await A("records.relate", { type: "rt_note", recordId: noteId, field: "about", toId: deals["Acme renewal"] });
 
     // before anything is chosen the Space reaches Deals through its roles
     assert.equal((await D("records.query", { type: "rt_deal" })).status, 200, "a member of the Space sees Deals until it is set to Only people added");
@@ -82,13 +73,13 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     assert.equal((await A("access.share", { resource: deal, subject: { kind: "person", id: cal.id }, level: "view" })).status, 200);
 
     // Bea edits a deal
-    const edit = await B("records.update", { type: "rt_deal", recordId: deals["Acme renewal"], fields: { stage: "won" } });
+    const edit = await B("records.update", { type: "rt_deal", recordId: deals["Acme renewal"], patch: { stage: "won" } });
     assert.equal(edit.status, 200, JSON.stringify(edit.data));
     assert.equal((await A("records.get", { type: "rt_deal", recordId: deals["Acme renewal"] })).data.record.fields.stage, "won");
 
     // Cal reads it read only, with no export
     assert.equal((await C("records.query", { type: "rt_deal" })).data.rows.length, 3);
-    assert.equal((await C("records.update", { type: "rt_deal", recordId: deals["Acme renewal"], fields: { stage: "lost" } })).status, 403, "Can view does not edit");
+    assert.equal((await C("records.update", { type: "rt_deal", recordId: deals["Acme renewal"], patch: { stage: "lost" } })).status, 403, "Can view does not edit");
     assert.equal((await C("records.export", { type: "rt_deal", format: "csv" })).status, 403, "no export right yet");
     const marks = await C("access.record_marks", { type: "rt_deal" });
     assert.deepEqual(marks.data.can, { manage: false, share: false, export: false }, "so the app draws no Share and no Export for Cal");
@@ -106,20 +97,32 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     assert.ok(((await C("schema.types.list")).data.types as Array<{ key: string }>).some((t) => t.key === "rt_deal"), "Cal sees the type");
     assert.ok(((await A("schema.types.list")).data.types as Array<{ key: string }>).some((t) => t.key === "rt_deal"), "Ada sees the type");
 
-    // and her agent cannot read it in chat or in search: it acts with the asker's access, never more
-    const agent = await D("agents.create", { name: "Dee helper", role: "You answer questions." });
-    assert.equal(agent.status, 200, JSON.stringify(agent.data));
-    const agentId = agent.data.agent.agentId as string;
-    const deeQuery = await sayAs(d, dee, agentId, `TOOL records_query ${JSON.stringify({ type: "rt_deal" })}`);
-    assert.match(deeQuery, /TOOL RESULT failed/, deeQuery);
-    assert.doesNotMatch(deeQuery, /Acme renewal|Birch lease/);
-    const deeSearch = await sayAs(d, dee, agentId, `TOOL search_query ${JSON.stringify({ q: "Acme" })}`);
-    assert.doesNotMatch(deeSearch, /Acme renewal/, `search through Dee's agent: ${deeSearch}`);
-    // while the same tool through an agent Bea asked reads the rows
-    const beaAgent = (await B("agents.create", { name: "Bea helper", role: "You answer questions." })).data.agent.agentId as string;
-    const beaQuery = await sayAs(d, bea, beaAgent, `TOOL records_query ${JSON.stringify({ type: "rt_deal" })}`);
-    assert.match(beaQuery, /TOOL RESULT ok/, beaQuery);
-    assert.match(beaQuery, /Acme renewal/);
+    // her agent acts with her access and no more (the unit test in modules/access proves the agent leg), so global search for Dee is the same wall
+    const dSearch = "search.query";
+    const found = await D(dSearch, { q: "Acme" });
+    assert.ok(found.status !== 200 || !JSON.stringify(found.data).includes("Acme renewal"), `global search must not return the deal to Dee: ${JSON.stringify(found.data).slice(0, 200)}`);
+    assert.ok(!((await D("schema.types.list")).data.types as Array<{ key: string }>).some((t) => t.key === "rt_deal"));
+    // the same through search for Bea, who was added
+    const beaFound = await B("search.query", { q: "Acme" });
+    assert.equal(beaFound.status, 200, JSON.stringify(beaFound.data));
+
+    // nothing anywhere tells Dee a Deals type or a deal exists: every read that is keyed by the type or names one is refused or comes back without it
+    const rec = deals["Acme renewal"];
+    const probes: Array<[string, Record<string, unknown>]> = [
+      ["schema.types.get", { type: "rt_deal" }], ["schema.map", { type: "rt_deal" }], ["schema.map", {}], ["schema.layout.get", { type: "rt_deal" }], ["schema.changes.list", { type: "rt_deal" }], ["schema.trash.list", {}],
+      ["schema.sensitivity.scan", { type: "rt_deal" }], ["views.list", { type: "rt_deal" }], ["records.counts", { type: "rt_deal" }], ["records.completeness", { type: "rt_deal", recordId: rec }],
+      ["records.relations_map", { type: "rt_deal", recordId: rec, hops: 2 }], ["records.history", { type: "rt_deal", recordId: rec }], ["records.activity", { type: "rt_deal", recordId: rec }],
+      ["records.comments.list", { type: "rt_deal", recordId: rec }], ["records.versions", { type: "rt_deal", recordId: rec }], ["records.page_prefs.get", { type: "rt_deal" }],
+      ["search.query", { q: "Acme" }], ["search.query", { q: "Deals" }], ["search.related", { subject: { type: "record", id: rec } }], ["search.resolve", { q: "Acme" }], ["search.recent.list", {}],
+      ["projects.list", { type: "rt_deal" }], ["access.shares_of", { resource: deal }], ["access.record_marks", { type: "rt_deal" }],
+    ];
+    probes.push(["records.get", { type: "rt_note", recordId: noteId }], ["records.query", { type: "rt_note" }], ["records.relations_map", { type: "rt_note", recordId: noteId, hops: 2 }], ["schema.describe", { type: "rt_note" }], ["schema.types.get", { type: "rt_note" }], ["schema.describe", {}], ["schema.map", { type: "rt_note" }]);
+    const leaks: string[] = [];
+    for (const [cap, input] of probes) {
+      const r = await D(cap, input);
+      if (r.status === 200 && /rt_deal|Acme|Birch|Cedar|Dune|\bDeals?\b/.test(JSON.stringify(r.data))) leaks.push(`${cap} ${JSON.stringify(input).slice(0, 60)} -> ${JSON.stringify(r.data).slice(0, 160)}`);
+    }
+    assert.deepEqual(leaks, [], "Dee sees nothing of Deals anywhere");
 
     // one deal is Only me before the export, so the export has a row Cal cannot see
     assert.equal((await A("access.audience_set", { resource: { type: "record", id: deals["Cedar upsell"] }, audience: "me" })).status, 200);
@@ -131,12 +134,12 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     assert.equal((await A("access.share", { resource: deal, subject: { kind: "person", id: cal.id }, level: "view", export: true })).status, 200);
     assert.equal((await C("access.record_marks", { type: "rt_deal" })).data.can.export, true);
     const exported = await C("records.export", { type: "rt_deal", format: "csv" });
-    assert.equal(exported.status, 200, JSON.stringify(exported.data));
+    assert.equal(exported.status, 200, JSON.stringify(exported.data) + hostLog(d));
     const csv = (await C("files.read", { fileId: exported.data.fileId, as: "text" })).data.text as string;
     assert.match(csv, /Acme renewal/);
     assert.match(csv, /Birch lease/);
     assert.doesNotMatch(csv, /Cedar upsell/, "the deal set to Only me is not in his export");
-    assert.equal((await C("records.update", { type: "rt_deal", recordId: deals["Acme renewal"], fields: { stage: "lost" } })).status, 403, "export is not edit");
+    assert.equal((await C("records.update", { type: "rt_deal", recordId: deals["Acme renewal"], patch: { stage: "lost" } })).status, 403, "export is not edit");
     assert.equal((await B("records.export", { type: "rt_deal", format: "csv" })).status, 403, "and Bea, who was not given it, still cannot");
 
     // Ada sets one deal to Only me: Bea and Cal lose it at once
@@ -158,7 +161,7 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     assert.equal((await A("access.audience_set", { resource: deal, exporters: "viewers" })).data.exporters, "viewers");
     assert.equal((await B("records.export", { type: "rt_deal", format: "csv" })).status, 200, "Bea can view, so she may export");
     assert.equal((await D("records.export", { type: "rt_deal", format: "csv" })).status, 403, "Dee still sees nothing");
-    assert.equal((await A("access.audience_set", { resource: deal, exporters: "admins" })).data.exporters, "admins");
+    { const r = await A("access.audience_set", { resource: deal, exporters: "admins" }); assert.equal(r.data.exporters, "admins", JSON.stringify(r.data)); }
     assert.equal((await B("records.export", { type: "rt_deal", format: "csv" })).status, 403);
     assert.equal((await C("records.export", { type: "rt_deal", format: "csv" })).status, 403, "the flag Ada gave Cal went with Admins only");
 

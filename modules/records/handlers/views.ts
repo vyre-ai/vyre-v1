@@ -118,6 +118,8 @@ export function createViewHandlers(deps: RvDeps): ViewHandlers {
               if (!nodes.has(id)) {
                 const to = await store.get(refType(item, fallback), id);
                 if (!to) continue;   // gone or in Trash: no node, no edge
+                // a record the caller may not see is not drawn, and nothing says it is there
+                if (ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "record", id }).effect !== "allow") continue;
                 nodes.set(id, { recordId: id, type: to.type, title: titleOf(to), hop });
                 next.push(to);
               }

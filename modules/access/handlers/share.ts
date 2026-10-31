@@ -655,8 +655,7 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
     if (input.exporters === "chosen") row["exportChosen"] = true; else delete row["exportChosen"];
     if (input.exporters === "admins") {
       for (const g of store.grants.values()) if (g.resource.id === res.id && g.conditions.export) {
-        delete g.conditions.export;
-        ctx.emit("grant.updated", g.id, { grantId: g.id, level: g.level });
+        delete g.conditions.export;   // the flag is a field of the grant the module already holds; access.changed below tells everyone
       }
     }
   }
@@ -693,6 +692,8 @@ export async function recordMarks(ctx: ShareCtx, input: { type: string }) {
     if (r.type !== "record") continue;
     const home = r.row?.["audience"] === "added" || r.row?.["audience"] === "me" ? r.parentId : snap.chain(r.id)?.find((c) => c.type === "record_type")?.id;
     if (home !== input.type) continue;
+    // a row the caller cannot see is not named to them
+    if (callerLevel(ctx, store, r) === null) continue;
     const audience = audienceOf(r), n = direct.get(r.id) ?? 0, mine = r.ownerId !== ctx.principal.id && named(r.id, false);
     if (audience === "space" && n === 0 && !mine) continue;
     rows.push({ id: r.id, audience, direct: n, mine });

@@ -103,18 +103,25 @@ export function createDescribeHandlers(deps: SchemaDeps): DescribeHandlers {
    * (reason not_found: nothing registered it) stays visible, as it was before types had access.
    */
   const seen = (ctx: SchemaCtx, key: string): boolean => {
-    if (!ctx.authorize) return true;
+    // the host's own consumers (search indexing, sync) read types as a service and see all of them
+    if (!ctx.authorize || ctx.actor === undefined || ctx.actor.startsWith("svc_") || ctx.actor === "system") return true;
     const d = ctx.authorize({ perm: null, level: "view" }, { type: "record_type", id: key });
     return d.effect === "allow" || d.reason === "not_found";
   };
   const visible = (ctx: SchemaCtx, defs: Map<string, TypeDefT>): TypeDefT[] => [...defs.values()].filter((d) => seen(ctx, d.key));
+  /** A visible type that points into a type the caller was not given does not show the pointing field: its target would name the hidden type. */
+  const shown = (ctx: SchemaCtx, d: TypeDefT): TypeDetail => {
+    const out = detailOf(d);
+    if (!ctx.authorize) return out;
+    return { ...out, fields: out.fields.filter((f) => f.type !== "relation" || typeof f.options?.["target"] !== "string" || seen(ctx, f.options["target"] as string)) };
+  };
   const mustSee = (ctx: SchemaCtx, key: string): void => { if (!seen(ctx, key)) refuse(ctx, "permission.no_grant", `You do not have access to ${key}.`); };
 
   return {
     "schema.describe": async (ctx, input) => {
       const defs = await ready();
-      if (input.type !== undefined) { const d = need(ctx, defs, input.type); mustSee(ctx, d.key); return { types: [detailOf(d)] }; }
-      return { types: visible(ctx, defs).map(detailOf) };
+      if (input.type !== undefined) { const d = need(ctx, defs, input.type); mustSee(ctx, d.key); return { types: [shown(ctx, d)] }; }
+      return { types: visible(ctx, defs).map((d) => shown(ctx, d)) };
     },
 
     "schema.types.list": async (ctx, input) => {
@@ -133,7 +140,7 @@ export function createDescribeHandlers(deps: SchemaDeps): DescribeHandlers {
       return { types, ...(start + limit < rows.length ? { next: String(start + limit) } : {}), total: rows.length };
     },
 
-    "schema.types.get": async (ctx, input) => { const d = need(ctx, await ready(), input.type); mustSee(ctx, d.key); return { type: detailOf(d) }; },
+    "schema.types.get": async (ctx, input) => { const d = need(ctx, await ready(), input.type); mustSee(ctx, d.key); return { type: shown(ctx, d) }; },
 
     "schema.map": async (ctx, input) => {
       const all = await ready();
@@ -174,7 +181,7 @@ export function createDescribeHandlers(deps: SchemaDeps): DescribeHandlers {
       viewKinds: deps.registry.viewKinds.map((v) => ({ key: v.key, title: v.title, needs: (v.needs ?? []).map((n) => ({ fieldType: n.fieldType, as: n.as })) })),
     }),
 
-    "schema.changes.list": async (_ctx, input) => {
+    "schema.changes.list": async (ctx, input) => {
       ensureTables(tx);
       const where: string[] = [];
       const args: unknown[] = [];
@@ -182,7 +189,9 @@ export function createDescribeHandlers(deps: SchemaDeps): DescribeHandlers {
       const rows = tx.all<{ change_id: string; at: number; by: string; summary: string; destructive: number; types: string }>(
         `SELECT change_id, at, by, summary, destructive, types FROM sc_changes ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY at DESC, rowid DESC`, ...args,
       ).map((r) => ({ changeId: r.change_id, at: r.at, by: r.by, summary: r.summary, destructive: r.destructive === 1, types: JSON.parse(r.types) as string[] }))
-        .filter((c) => input.type === undefined || c.types.includes(input.type));
+        .filter((c) => input.type === undefined || c.types.includes(input.type))
+        // a change that touched a type the caller was not given says that the type exists
+        .filter((c) => c.types.every((k) => seen(ctx, k)));
       const { start, limit } = pageOf(input);
       return { changes: rows.slice(start, start + limit), ...(start + limit < rows.length ? { next: String(start + limit) } : {}), total: rows.length };
     },

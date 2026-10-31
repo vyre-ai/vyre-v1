@@ -54,10 +54,16 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
   const result=authorize(snapshot,{principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,cap:seed.readCap,input:seed.readInput,action:{perm:null,level:"view"},resource:{type:"record",id:row.id},row:{...row.data,id:row.id,owner_id:resource.owner_id},now:ports.now()});
   return result.effect==="allow"?result:null;
  }
+ // a relation value is a reference (vyre://<space>/<type>/<id>) to a record: one the caller may not see is not in the list, so the value cannot say it exists
+ function seeable(seed:ReadSeed,value:unknown):unknown{
+  if(!Array.isArray(value))return value;
+  const snapshot=ports.snapshot();
+  return value.filter(item=>{const urn=item&&typeof item==="object"?(item as Record<string,unknown>)["urn"]:undefined;if(typeof urn!=="string")return true;const id=urn.split("/").pop()!;const resource=snapshot.resource(id);if(!resource||resource.type!=="record")return true;return authorize(snapshot,{principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,action:{perm:null,level:"view"},resource:{type:"record",id},now:ports.now()}).effect==="allow";});
+ }
  function fields(seed:ReadSeed,row:StoredRecord,original:Record<string,unknown>,trace:string){
   const result=decision(seed,row);if(!result)throw fail("permission.no_grant",trace);
   const snapshot=ports.snapshot(),hidden=new Set(result.scope?.hiddenFields??[]);let ceiling=result.scope?.labelCeiling??-1;if(seed.provider)for(const policy of snapshot.policies())if(policy.kind==="provider_label")ceiling=Math.min(ceiling,policy.allow[seed.provider]??policy.defaultMax??Infinity);
-  return Object.fromEntries(Object.entries(original).filter(([key])=>!hidden.has(key)&&seed.labels?.[key]!==undefined&&seed.labels[key]<=ceiling&&snapshot.fieldLabel(row.type,key)<=ceiling&&snapshot.fieldLabel("record",key)<=ceiling));
+  return Object.fromEntries(Object.entries(original).filter(([key])=>!hidden.has(key)&&seed.labels?.[key]!==undefined&&seed.labels[key]<=ceiling&&snapshot.fieldLabel(row.type,key)<=ceiling&&snapshot.fieldLabel("record",key)<=ceiling).map(([key,value])=>[key,seeable(seed,value)]));
  }
  return{
   async collection(cap:string,input:unknown,seed:ReadSeed,req:Req,trace:string):Promise<{finish():unknown}|null>{

@@ -176,3 +176,18 @@ test("the caller's rights come back with the shares, so the app draws Share and 
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view", export: true });
   assert.equal((await recordMarks(r.as("usr_cal"), { type: "deal" })).can.export, true);
 });
+
+test("an agent acts with the asker's access, never more: Dee's agent cannot read Deals, Bea's can", async () => {
+  const r = rig();
+  putPrincipal(r.store, { id: "agt_helper", kind: "agent", name: "Helper", owner: "usr_dee" });
+  r.store.setRoles("agt_helper", ["rol_member"]);
+  r.store.bump();
+  await audienceSet(r.ctx, { resource: deal, audience: "added" });
+  await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "edit" });
+  await share(r.ctx, { resource: deal, subject: { kind: "agent", id: "agt_helper" }, level: "edit" });   // an agent can be added to the sheet like a person
+  const asks = (asker: string, resource: { type: string; id: string }): boolean =>
+    authorize(r.store.snapshot(), { principal: "agt_helper", actingFor: asker, action: { perm: null, level: "view" }, resource, now: NOW }).effect === "allow";
+  assert.ok(!asks("usr_dee", deal) && !asks("usr_dee", one), "Dee was not added, so the agent added to the sheet still reads nothing for her");
+  assert.ok(asks("usr_bea", deal) && asks("usr_bea", one), "Bea was");
+  assert.ok(!authorize(r.store.snapshot(), { principal: "agt_helper", actingFor: "usr_bea", action: { perm: "records.export", level: "view" }, resource: deal, now: NOW }).effect.startsWith("allow"), "and her agent has no export either");
+});
