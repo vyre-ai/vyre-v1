@@ -47,7 +47,15 @@ export function NumberSheet({ rt, onDone, onCancel }: { rt: FlowProps["rt"]; onD
   useEffect(() => {
     let off = false;
     void Promise.resolve().then(() => rt.call("telephony.number.import", { idempotencyKey: attemptKey() })).then(
-      (r) => { const list = ((r as { numbers?: NumberOut[] }).numbers ?? []); if (off) return; if (list[0]) onDone(claimed(list[0])); else setBusy(false); },
+      async (r) => {
+        const fresh = ((r as { numbers?: NumberOut[] }).numbers ?? []);
+        if (off) return;
+        if (fresh[0]) { onDone(claimed(fresh[0])); return; }
+        // nothing new came in: a number the Space already has still counts
+        const have = ((await rt.call("telephony.number.list", {}).catch(() => ({}))) as { numbers?: NumberOut[] }).numbers ?? [];
+        if (off) return;
+        if (have[0]) onDone(claimed(have[0])); else setBusy(false);
+      },
       (e) => { if (!off) { setLine(reason(e, "Twilio did not answer. Check the Account SID and Auth Token.")); setBusy(false); } },
     );
     return () => { off = true; };

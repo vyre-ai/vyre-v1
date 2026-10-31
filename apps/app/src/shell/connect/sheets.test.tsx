@@ -123,7 +123,7 @@ test("Twilio: the account's own numbers come in and the first is claimed; with n
   await flush();
   assert.deepEqual(done, [{ id: "num_1", title: "+14155550100", app: "twilio" }]);
   const none: { cap: string; input: unknown }[] = [];
-  const empty = { call: async (cap: string, input?: unknown) => { none.push({ cap, input }); if (cap === "telephony.number.import") return { imported: 0, numbers: [] }; if (cap === "telephony.number.search") return { available: [{ e164: "+14155550111" }] }; if (cap === "telephony.number.buy") return {}; return {}; }, openUrl: () => undefined, open: () => undefined } as unknown as ShellRuntime;
+  const empty = { call: async (cap: string, input?: unknown) => { none.push({ cap, input }); if (cap === "telephony.number.import") return { imported: 0, numbers: [] }; if (cap === "telephony.number.list") return { numbers: [] }; if (cap === "telephony.number.search") return { available: [{ e164: "+14155550111" }] }; if (cap === "telephony.number.buy") return {}; return {}; }, openUrl: () => undefined, open: () => undefined } as unknown as ShellRuntime;
   const d2: Connected[] = [];
   const root = await mount(createRoot, <NumberSheet rt={empty} onDone={(a) => d2.push(a)} onCancel={() => undefined} />);
   await flush();
@@ -175,4 +175,12 @@ test("the Dropbox sheet starts the sign-in with its own capability, opens the ad
   await press(find(root, "connect-signed-in"));
   await flush();
   assert.deepEqual(done, [{ id: "con_dbx1", title: "maya@firm.example", app: "dropbox" }]);
+});
+
+test("Twilio: a number the Space already has counts as claimed when nothing new comes in", async () => {
+  const done: Connected[] = [];
+  const rt = { call: async (cap: string) => (cap === "telephony.number.import" ? { imported: 0, numbers: [] } : cap === "telephony.number.list" ? { numbers: [{ numberId: "num_7", e164: "+14155550123" }] } : {}), openUrl: () => undefined, open: () => undefined } as unknown as ShellRuntime;
+  await mount(createRoot, <NumberSheet rt={rt} onDone={(a) => done.push(a)} onCancel={() => undefined} />);
+  await flush();
+  assert.deepEqual(done, [{ id: "num_7", title: "+14155550123", app: "twilio" }]);
 });
