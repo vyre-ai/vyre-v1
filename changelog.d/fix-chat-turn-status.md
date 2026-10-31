@@ -1,3 +1,0 @@
-- A reply that could not be made now says why in plain words, with a button to fix it (for example "Connect your AI to get replies."), instead of an empty card labelled "turn status".
-- A reply that stalls with no word from the AI is stopped after ten minutes and says so, instead of staying on "working" forever.
-- Your private assistant is now "<First>’s Assistant" everywhere, including Spaces made before; the rename also catches Spaces where it was missed at start-up. A name you chose yourself is never changed.

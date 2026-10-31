@@ -1,1 +1,0 @@
-- Fixed: the phone pairing link no longer uses this computer's own address. A local-only Space now says a phone cannot reach it yet and offers a Team Space.

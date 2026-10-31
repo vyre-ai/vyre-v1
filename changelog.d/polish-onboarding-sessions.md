@@ -1,1 +1,0 @@
-- Bring your sessions now shows each session's name, folder, date and source, newest first, with Select all, a "3 of 41 selected" count, a folder filter and an "Import 3" button.

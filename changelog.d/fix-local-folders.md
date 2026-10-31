@@ -1,5 +1,0 @@
-- A folder you pick from this computer is added at once. In onboarding, Local folders mounts each pick as soon as the dialog closes (Adding, then Added, or Retry if it fails), and removing an added row unmounts it; Continue only moves on.
-- In Files, Connect a folder > This computer opens the system folder dialog and mounts the pick live only. The old in-dialog browser was always empty, because the server cannot list a computer's folders. On the web and the phone it says local folders are added from the Mac or PC app.
-- A new Space now has somewhere to mount: the folders a mount can go into start with Personal.
-- A mounted folder shows in the Files sidebar under Space, with its source mark.
-- A Personal Space no longer shows Shared with me.

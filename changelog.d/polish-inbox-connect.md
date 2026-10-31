@@ -1,1 +1,0 @@
-- An Inbox with nothing connected now says "Connect a channel" with Gmail, Outlook, Other email and Twilio, instead of "No messages yet." and a New message button. The pencil, the plus and the Dialer open the same choice until something can send; after that the normal empty Inbox returns with New message. Settings, Connections also has Connect Twilio.
