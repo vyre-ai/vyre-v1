@@ -12,6 +12,7 @@ import type { Principal } from "../../home/sections-a/data.tsx";
 import type { ChatsSidebarData } from "../sidebar/data.tsx";
 import type { ComposerFill, ConversationData } from "../conversation/data.tsx";
 import type { ChatRightPaneData } from "../rightpane/data.tsx";
+import { errorCode } from "./live.ts";
 import { LOCAL_PREFIX } from "../sidebar/model.ts";
 import { openSession } from "../terminal/session.ts";
 import { anchorOfFocus } from "./route.ts";
@@ -30,6 +31,19 @@ import type { TerminalData } from "../terminal/data.ts";
 type RecentOut = CapMap["chat.recent"]["out"];
 type ThreadOut = CapMap["threads.get"]["out"];
 type ComputersOut = CapMap["computers.list"]["out"];
+
+/** The button beside a line the place shows. */
+export interface LineAction { label: string; run(): void }
+
+export const NEEDS_TEAM_LINE = "Agent computers need a Team Space";
+
+export const COMPUTER_UNREACHED = "Could not reach the computer. Try again.";
+
+/** What to say when an agent's computer cannot be opened: no failure means the list has no computer for it; a refusal for a Personal Space; anything else is the connection. */
+export function computerLine(failure: unknown, name: string): string {
+  if (failure === null) return `${name} has no computer yet.`;
+  return errorCode(failure) === "permission.needs_team" ? NEEDS_TEAM_LINE : COMPUTER_UNREACHED;
+}
 
 let keySeq = 0;
 /** A fresh idempotency key for one write. */
@@ -67,8 +81,8 @@ export interface Go {
   togglePane(): void;
   /** Opens the pane (leaves it open when it already is). */
   openPane(): void;
-  /** A line the place shows for a moment. */
-  say(text: string): void;
+  /** A line the place shows for a moment, with an action beside it when there is one. */
+  say(text: string, action?: LineAction): void;
 }
 
 const copy = (text: string): void => {
@@ -225,7 +239,7 @@ export async function broughtSummary(rt: Pick<ShellRuntime, "call">, threadId: s
 }
 
 /** The place's doors over `act`. A thread that is a helper opens as the helper chat; a computer is found from its agent; a terminal on a computer is the open one or a new one. */
-export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: string) => string, say: (text: string) => void): Go {
+export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: string) => string, say: (text: string, action?: LineAction) => void): Go {
   return {
     chat: (threadId) => act({ t: "chat", threadId }),
     message: (threadId, messageId) => act({ t: "chat", threadId, focus: messageId }),
@@ -246,13 +260,19 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
     },
     computer: (computerId, chat = false) => act({ t: "layer", layer: { kind: "computer", computerId, chat } }),
     computerOfAgent: (agentId) => {
+      const needsTeam = (): void => say(NEEDS_TEAM_LINE, { label: "Add a Space", run: () => rt.open({ screen: "spaces.switcher", args: { create: "team" } }) });
+      // a Personal Space has no agent computers: answer without asking the server
+      if (rt.space.kind === "personal") { needsTeam(); return; }
       void rt.call("computers.list", {}).then(
         (out) => {
           const c = (out as ComputersOut).computers.find((x) => x.agentId === agentId);
           if (c) act({ t: "layer", layer: { kind: "computer", computerId: c.computerId, chat: false } });
-          else say(`${nameOf(agentId)} has no computer yet.`);
+          else say(computerLine(null, nameOf(agentId)));
         },
-        () => say("Could not reach the computer. Try again."),
+        (e: unknown) => {
+          if (errorCode(e) === "permission.needs_team") needsTeam();
+          else say(computerLine(e, nameOf(agentId)));
+        },
       );
     },
     terminal: (terminalId) => act({ t: "terminal", terminalId }),
