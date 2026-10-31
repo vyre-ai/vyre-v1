@@ -213,6 +213,11 @@ export function openingTitle(first: string): string | undefined {
   const add = /^Add (.+?) to Automations\./.exec(first);
   if (add) return `Add ${add[1]} to Automations`;
   if (/^Build a connector\b/.test(first)) return "Build a connector";
+  const sync = /^Sync (.+?) to Records\./.exec(first);
+  if (sync) return `Sync ${sync[1]} to Records`;
+  if (/^Bring my CRM into Records\./.test(first)) return "Bring my CRM into Records";
+  const edit = /^Change how (.+?) syncs to Records\./.exec(first);
+  if (edit) return `Change how ${edit[1]} syncs to Records`;
   return undefined;
 }
 
