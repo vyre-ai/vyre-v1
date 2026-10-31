@@ -179,9 +179,10 @@ export function popupData(rt: ShellRuntime, go: Go, o: { computerId: string; age
   };
 }
 
-export function terminalData(rt: ShellRuntime, go: Go, o: { agent?: { agentId: string; name: string; computerId?: string }; owner?: string; newKey: () => string }): TerminalData {
+export function terminalData(rt: ShellRuntime, go: Go, o: { agent?: { agentId: string; name: string; computerId?: string }; owner?: string; nameOf?: (id: string) => string; newKey: () => string }): TerminalData {
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, space: { id: rt.space.id, name: rt.space.name }, ...(o.owner ? { owner: o.owner } : {}), ...(o.agent ? { agent: o.agent } : {}),
+    team: rt.space.kind !== "personal", ...(o.nameOf ? { nameOf: o.nameOf } : {}),
     newKey: o.newKey, clock: rt.clock,
     nav: { openTerminal: (id) => go.terminal(id), closeTab: () => go.closeTerminal(), openList: () => go.terminals(), openRules: () => go.rules(), openAgent: (id) => go.agent(id) },
   };
@@ -349,11 +350,12 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
 }
 
 /** The agent's pane: its Computer tab pops the computer out and opens a terminal on it, its Threads tab opens a helper as the helper chat. */
-export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent, fill?: ComposerFill): ChatRightPaneData {
+export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent, fill?: ComposerFill, terminal?: TerminalData): ChatRightPaneData {
   const base = paneData(rt, chatsActions(go, fill), threadId, agent);
   return {
     ...base,
     agent,
+    ...(terminal ? { terminal } : {}),
     nav: {
       ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),
       openTerminal: (id: string) => go.terminalOfComputer(id), openAgentPage: (id: string) => go.agent(id),

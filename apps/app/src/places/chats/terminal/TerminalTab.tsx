@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Terminal, hostMenu } from "../../../../../../ui/src/Terminal/index.tsx";
+import { Terminal, hostChoiceMenu, hostMenu } from "../../../../../../ui/src/Terminal/index.tsx";
 import type { TerminalHost, TerminalSource, TerminalViewProps } from "../../../../../../ui/src/Terminal/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -18,6 +18,8 @@ import type { TerminalData } from "./data.ts";
 import { chipLabel, uiHost, uiState } from "./model.ts";
 import type { TerminalRow } from "./model.ts";
 import { askServerAccess, attach, closeSession, createSender, openSession, toggleStar } from "./session.ts";
+import { openHostCall } from "./hosts.ts";
+import { useHosts } from "./useHosts.ts";
 import type { SessionDeps } from "./session.ts";
 
 type GetOut = CapMap["terminal.get"]["out"];
@@ -37,6 +39,11 @@ export function sessionProps(row: TerminalRow, o: { replay: string; source?: Ter
   };
 }
 
+/** The key of the host a session runs on, as the host list names it. */
+export function hostKeyOf(row: Pick<TerminalRow, "host" | "deviceId" | "computerId">): string {
+  return row.host === "space_server" ? "server" : row.host === "agent_computer" ? `agent:${row.computerId ?? ""}` : `device:${row.deviceId ?? ""}`;
+}
+
 export function TerminalLoading(): ReactElement {
   return <View testID="terminal-loading" accessibilityLabel="Loading" style={st.root}><View style={st.bar} /><View style={st.screen} /></View>;
 }
@@ -47,6 +54,7 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
   const stars = useLive<StarsOut>(data.screens, STARS_SCREEN, "stars", {});
   const online = useOnline(data.connection);
   const menu = useMenu();
+  const hosts = useHosts(data);
   const [att, setAtt] = useState<Attach>({ status: "loading" });
   const [again, setAgain] = useState(0);
   const [note, setNote] = useState<string | undefined>(undefined);
@@ -80,6 +88,15 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
       (e: unknown) => { if (h === "server" && isRefusal(e)) setServerLocked(true); else setNote(errorWords(e, "Could not open it.")); },
     );
   }, [deps, who, data.nav]);
+  const pickHost = useCallback((key: string): void => {
+    const h = hosts.find((x) => x.key === key);
+    if (!h) return;
+    const c = openHostCall(h, data.newKey());
+    void (data.call(c.cap, c.input) as Promise<{ terminal: { terminalId: string } }>).then(
+      (o) => data.nav.openTerminal(o.terminal.terminalId),
+      (e: unknown) => { if (h.kind === "server" && isRefusal(e)) setServerLocked(true); else setNote(errorWords(e, "Could not open it.")); },
+    );
+  }, [hosts, data]);
   const onGap = useCallback((): void => setAgain((n) => n + 1), []);
 
   if (q.status === "loading") return <TerminalLoading />;
@@ -93,7 +110,7 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
     { label: "Interrupt", onSelect: () => void sender.interrupt() },
     { separator: true },
     { head: "New terminal on" },
-    ...hostMenu(host, false, openOn),
+    ...(hosts.length > 0 ? hostChoiceMenu(hosts, hostKeyOf(row), pickHost) : hostMenu(host, false, openOn)),
     { separator: true },
     { label: "All Terminals", onSelect: () => data.nav.openList() },
     { label: "Terminal Rules", onSelect: () => data.nav.openRules() },
@@ -136,6 +153,7 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
         {...sessionProps(row, { replay: att.replay, source: att.source, starred, ...(online ? (note !== undefined ? { note } : {}) : { note: "Offline" }) })}
         onInput={(d) => void sender.input(d)} onResize={(c, r) => void sender.resize(c, r)} onInterrupt={() => void sender.interrupt()}
         onStar={star} onGap={onGap} onHost={openOn}
+        {...(hosts.length > 0 ? { hosts, hostKey: hostKeyOf(row), onPickHost: pickHost } : {})}
       />
       {menu.element}
     </View>

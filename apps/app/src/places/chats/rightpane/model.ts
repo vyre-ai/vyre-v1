@@ -2,7 +2,7 @@
 // agent's folder is walked. The pane follows the agent of the open chat (spec 3.2); nothing here reads the replica, so the tests drive every rule directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type TabKey = "computer" | "threads" | "files" | "memory" | "routines";
+export type TabKey = "computer" | "threads" | "files" | "terminal" | "memory" | "routines";
 export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "computer", title: "Computer" },
   { key: "threads", title: "Threads" },
@@ -10,6 +10,10 @@ export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "memory", title: "Knows" },
   { key: "routines", title: "Routines" },
 ];
+/** The sixth tab, shown only where the shell has a terminal; it sits after Files. */
+export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", title: "Terminal" };
+/** The tabs of a pane: the five, with Terminal after Files when the shell has one. */
+export const tabsOf = (terminal: boolean): readonly { key: TabKey; title: string }[] => (terminal ? [...TABS.slice(0, 3), TERMINAL_TAB, ...TABS.slice(3)] : TABS);
 export const DEFAULT_TAB: TabKey = "computer";
 
 /* ---------- the tab strip at a narrow width ---------- */

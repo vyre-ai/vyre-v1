@@ -32,6 +32,10 @@ export interface TerminalData {
   owner?: string;
   /** The agent of the open chat: a new agent-computer session opens on its computer. */
   agent?: { agentId: string; name: string; computerId?: string };
+  /** A Team Space also has its server and agent computers; a Personal Space has only computers. */
+  team?: boolean;
+  /** An agent's name for the host list ("Intake's computer"). */
+  nameOf?(agentId: string): string;
   newKey(): string;
   clock(): { now: number; offsetMin: number };
   nav: TerminalNav;
