@@ -17,6 +17,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "network.my_computer_decline": Handler<"network.my_computer_decline", X>;
   "network.my_computer_remove": Handler<"network.my_computer_remove", X>;
   "network.my_computers": Handler<"network.my_computers", X>;
+  "network.phone": Handler<"network.phone", X>;
+  "network.phone_claim": Handler<"network.phone_claim", X>;
+  "network.phone_release": Handler<"network.phone_release", X>;
   "network.public_hostnames": Handler<"network.public_hostnames", X>;
   "network.relay_set": Handler<"network.relay_set", X>;
   "network.server_approve": Handler<"network.server_approve", X>;

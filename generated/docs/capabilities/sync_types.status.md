@@ -26,6 +26,7 @@ The Sync page of a synced type: last pass, counts, failures, pushes waiting, whe
 ```ts
 type In = {
   type: string;
+  account?: string;
 };
 ```
 
@@ -43,6 +44,14 @@ type Out = {
   paused: boolean;
   deletes: "off" | "soft" | "travel";
   conflict: "newest" | "source" | "vyre" | "ask";
+  account?: string;
+  accounts?: Array<{
+      account: string;
+      state: string;
+      records: number;
+      estimate?: number;
+      pending: number;
+    }>;
   polling: {
     activeSec: number;
     idleSec: number;
@@ -84,9 +93,20 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "type": "contact"
   },
   "output": {
+    "account": "example",
+    "accounts": [
+      {
+        "account": "example",
+        "estimate": 1,
+        "pending": 1,
+        "records": 1,
+        "state": "example"
+      }
+    ],
     "app": {
       "domain": "example",
       "key": "hubspot",

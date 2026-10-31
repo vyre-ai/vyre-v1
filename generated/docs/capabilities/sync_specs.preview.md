@@ -31,6 +31,7 @@ type In = {
       domain: string;
       docsUrl?: string;
       logoHint?: string;
+      account?: string;
     };
     auth: {
       vaultHandle: string;
@@ -105,6 +106,7 @@ type In = {
         webhook?: {
           events: Array<string>;
           subscribePath?: string;
+          evidence?: string;
           manualUrl?: boolean;
           signature?: string;
         };
@@ -154,6 +156,11 @@ type Out = {
       status: number;
     }>;
   summary: string;
+  size: {
+    records: number;
+    bytes: number;
+    text: string;
+  };
   types: Array<{
       type: string;
       remote: string;
@@ -197,6 +204,7 @@ type Out = {
   "input": {
     "spec": {
       "app": {
+        "account": "example",
         "docsUrl": "example",
         "domain": "api.example.com",
         "logoHint": "example",
@@ -302,6 +310,7 @@ type Out = {
             "events": [
               "example"
             ],
+            "evidence": "example",
             "manualUrl": true,
             "signature": "example",
             "subscribePath": "example"
@@ -352,6 +361,11 @@ type Out = {
         "type": "contact"
       }
     ],
+    "size": {
+      "bytes": 1,
+      "records": 1,
+      "text": "about 180 MB"
+    },
     "summary": "example",
     "types": [
       {

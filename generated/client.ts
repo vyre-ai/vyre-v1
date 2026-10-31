@@ -21,6 +21,10 @@ export function createClient(transport: Transport) {
         update: call("access.actors.update", 1),
       },
       check: call("access.check", 1),
+      connector_builder: {
+        grant: call("access.connector_builder.grant", 1),
+        status: call("access.connector_builder.status", 1),
+      },
       deciders: call("access.deciders", 1),
       grants: {
         list: call("access.grants.list", 1),
@@ -173,6 +177,7 @@ export function createClient(transport: Transport) {
       },
       analytics: call("automations.analytics", 1),
       connector_card: call("automations.connector_card", 1),
+      connector_levels: call("automations.connector_levels", 1),
       connector_offer: {
         accept: call("automations.connector_offer.accept", 1),
         decline: call("automations.connector_offer.decline", 1),
@@ -512,6 +517,7 @@ export function createClient(transport: Transport) {
       pause: call("connections.pause", 1),
       reconnect: call("connections.reconnect", 1),
       resume: call("connections.resume", 1),
+      set_secret: call("connections.set_secret", 1),
       test: call("connections.test", 1),
       update: call("connections.update", 1),
     },
@@ -1615,6 +1621,9 @@ export function createClient(transport: Transport) {
       my_computer_decline: call("network.my_computer_decline", 1),
       my_computer_remove: call("network.my_computer_remove", 1),
       my_computers: call("network.my_computers", 1),
+      phone: call("network.phone", 1),
+      phone_claim: call("network.phone_claim", 1),
+      phone_release: call("network.phone_release", 1),
       public_hostnames: call("network.public_hostnames", 1),
       relay_set: call("network.relay_set", 1),
       server_approve: call("network.server_approve", 1),

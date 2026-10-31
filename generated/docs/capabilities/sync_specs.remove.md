@@ -26,6 +26,7 @@ Stop syncing an app into Records and remove its connector and connection; keep i
 ```ts
 type In = {
   type: string;
+  account?: string;
   records: "keep" | "remove";
 };
 ```
@@ -55,6 +56,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "records": "keep",
     "type": "contact"
   },
