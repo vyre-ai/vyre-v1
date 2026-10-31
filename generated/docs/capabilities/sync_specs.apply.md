@@ -31,6 +31,7 @@ type In = {
       domain: string;
       docsUrl?: string;
       logoHint?: string;
+      account?: string;
     };
     auth: {
       vaultHandle: string;
@@ -105,6 +106,7 @@ type In = {
         webhook?: {
           events: Array<string>;
           subscribePath?: string;
+          evidence?: string;
           manualUrl?: boolean;
           signature?: string;
         };
@@ -130,6 +132,7 @@ type In = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      audience?: "space" | "added" | "me";
     };
   };
   idempotencyKey: string;
@@ -148,7 +151,8 @@ type Out = {
       syncTypeId: string;
       runId?: string;
     }>;
-  live: "polling";
+  live: "polling" | "webhook";
+  webhookUrl?: string;
 };
 ```
 
@@ -172,6 +176,7 @@ type Out = {
     "idempotencyKey": "idem_1",
     "spec": {
       "app": {
+        "account": "example",
         "docsUrl": "example",
         "domain": "api.example.com",
         "logoHint": "example",
@@ -277,6 +282,7 @@ type Out = {
             "events": [
               "example"
             ],
+            "evidence": "example",
             "manualUrl": true,
             "signature": "example",
             "subscribePath": "example"
@@ -284,6 +290,7 @@ type Out = {
         }
       ],
       "plan": {
+        "audience": "space",
         "backfill": "later",
         "conflicts": "newest",
         "firstPull": {
@@ -303,7 +310,8 @@ type Out = {
         "type": "contact"
       }
     ],
-    "version": "example"
+    "version": "example",
+    "webhookUrl": "example"
   }
 }
 ```

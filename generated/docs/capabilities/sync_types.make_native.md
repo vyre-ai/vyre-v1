@@ -26,6 +26,7 @@ Detach a synced type and keep it as a native type with its ids, history and attr
 ```ts
 type In = {
   type: string;
+  account?: string;
 };
 ```
 
@@ -52,6 +53,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "type": "contact"
   },
   "output": {

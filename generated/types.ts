@@ -117,6 +117,20 @@ export type AccessCheckOut = {
     decisionId: string;
   };
 };
+export type AccessConnectorBuilderGrantIn = {
+  agentId: string;
+};
+export type AccessConnectorBuilderGrantOut = {
+  roleId: string;
+  created: boolean;
+};
+export type AccessConnectorBuilderStatusIn = {
+  agentId: string;
+};
+export type AccessConnectorBuilderStatusOut = {
+  allowed: boolean;
+  canGrant: boolean;
+};
 export type AccessDecidersIn = {
   resource: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -2122,6 +2136,13 @@ export type AutomationsConnectorCardIn = {
 };
 export type AutomationsConnectorCardOut = {
   messageId: string;
+};
+export type AutomationsConnectorLevelsIn = Record<string, unknown>;
+export type AutomationsConnectorLevelsOut = {
+  levels: Array<{
+      actionKey: string;
+      level: "draft" | "tested";
+    }>;
 };
 export type AutomationsConnectorOfferAcceptIn = {
   itemId: string;
@@ -7429,6 +7450,7 @@ export type ConnectionsCreateOut = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
   authUrl?: string;
 };
@@ -7456,6 +7478,7 @@ export type ConnectionsGetOut = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
 };
 export type ConnectionsListIn = {
@@ -7479,6 +7502,7 @@ export type ConnectionsListOut = {
       lastSyncAt?: number;
       createdAt: number;
       handles: Array<string>;
+      filled: Array<string>;
     }>;
   next?: string;
   total?: number;
@@ -7500,6 +7524,29 @@ export type ConnectionsResumeIn = {
 };
 export type ConnectionsResumeOut = {
   ok: boolean;
+};
+export type ConnectionsSetSecretIn = {
+  connectionId: string;
+  slot: string;
+  handle: string;
+};
+export type ConnectionsSetSecretOut = {
+  connection: {
+    connectionId: string;
+    connector: string;
+    title: string;
+    owner: {
+      kind: "person" | "space";
+      id: string;
+    };
+    state: "pending" | "active" | "paused" | "needs_reconnect" | "failing";
+    pausedBy?: string;
+    scopes: Array<string>;
+    lastSyncAt?: number;
+    createdAt: number;
+    handles: Array<string>;
+    filled: Array<string>;
+  };
 };
 export type ConnectionsTestIn = {
   connectionId: string;
@@ -7529,6 +7576,7 @@ export type ConnectionsUpdateOut = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
 };
 export type ConnectorsBuildIn = {
@@ -7682,6 +7730,7 @@ export type ConnectorsOutboxCancelOut = {
 };
 export type ConnectorsOutboxListIn = {
   type?: string;
+  account?: string;
   state?: "pending" | "sent" | "failed" | "canceled" | "undone";
   cursor?: string;
   limit?: number;
@@ -7763,6 +7812,7 @@ export type ConnectorsRunOut = {
 export type ConnectorsSyncNowIn = {
   syncTypeId?: string;
   type?: string;
+  account?: string;
   connectionId?: string;
   mode?: "incremental" | "reconcile" | "backfill" | "dry_run";
   runAutomations?: boolean;
@@ -20375,6 +20425,27 @@ export type NetworkMyComputersOut = {
       };
     }>;
 };
+export type NetworkPhoneIn = Record<string, unknown>;
+export type NetworkPhoneOut = {
+  state: "none" | "claiming" | "claimed" | "releasing" | "failed";
+  name?: string;
+  nickname?: string;
+  url?: string;
+  link?: string;
+  online: boolean;
+  detail?: string;
+};
+export type NetworkPhoneClaimIn = {
+  name: string;
+  nickname?: string;
+};
+export type NetworkPhoneClaimOut = {
+  state: "claiming";
+};
+export type NetworkPhoneReleaseIn = Record<string, unknown>;
+export type NetworkPhoneReleaseOut = {
+  state: "none" | "releasing";
+};
 export type NetworkPublicHostnamesIn = Record<string, unknown>;
 export type NetworkPublicHostnamesOut = {
   hosts: Array<{
@@ -26111,6 +26182,7 @@ export type SyncSpecsApplyIn = {
       domain: string;
       docsUrl?: string;
       logoHint?: string;
+      account?: string;
     };
     auth: {
       vaultHandle: string;
@@ -26185,6 +26257,7 @@ export type SyncSpecsApplyIn = {
         webhook?: {
           events: Array<string>;
           subscribePath?: string;
+          evidence?: string;
           manualUrl?: boolean;
           signature?: string;
         };
@@ -26210,6 +26283,7 @@ export type SyncSpecsApplyIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      audience?: "space" | "added" | "me";
     };
   };
   idempotencyKey: string;
@@ -26223,10 +26297,12 @@ export type SyncSpecsApplyOut = {
       syncTypeId: string;
       runId?: string;
     }>;
-  live: "polling";
+  live: "polling" | "webhook";
+  webhookUrl?: string;
 };
 export type SyncSpecsBackfillIn = {
   type: string;
+  account?: string;
   idempotencyKey: string;
 };
 export type SyncSpecsBackfillOut = {
@@ -26234,6 +26310,7 @@ export type SyncSpecsBackfillOut = {
 };
 export type SyncSpecsGetIn = {
   type?: string;
+  account?: string;
   connector?: string;
 };
 export type SyncSpecsGetOut = {
@@ -26243,6 +26320,7 @@ export type SyncSpecsGetOut = {
       domain: string;
       docsUrl?: string;
       logoHint?: string;
+      account?: string;
     };
     auth: {
       vaultHandle: string;
@@ -26317,6 +26395,7 @@ export type SyncSpecsGetOut = {
         webhook?: {
           events: Array<string>;
           subscribePath?: string;
+          evidence?: string;
           manualUrl?: boolean;
           signature?: string;
         };
@@ -26342,6 +26421,7 @@ export type SyncSpecsGetOut = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      audience?: "space" | "added" | "me";
     };
   };
   connector: string;
@@ -26359,6 +26439,7 @@ export type SyncSpecsPreviewIn = {
       domain: string;
       docsUrl?: string;
       logoHint?: string;
+      account?: string;
     };
     auth: {
       vaultHandle: string;
@@ -26433,6 +26514,7 @@ export type SyncSpecsPreviewIn = {
         webhook?: {
           events: Array<string>;
           subscribePath?: string;
+          evidence?: string;
           manualUrl?: boolean;
           signature?: string;
         };
@@ -26458,6 +26540,7 @@ export type SyncSpecsPreviewIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      audience?: "space" | "added" | "me";
     };
   };
 };
@@ -26477,6 +26560,11 @@ export type SyncSpecsPreviewOut = {
       status: number;
     }>;
   summary: string;
+  size: {
+    records: number;
+    bytes: number;
+    text: string;
+  };
   types: Array<{
       type: string;
       remote: string;
@@ -26503,6 +26591,7 @@ export type SyncSpecsPreviewOut = {
 };
 export type SyncSpecsRemoveIn = {
   type: string;
+  account?: string;
   records: "keep" | "remove";
 };
 export type SyncSpecsRemoveOut = {
@@ -26592,6 +26681,7 @@ export type SyncSpecsValidateIn = {
       domain: string;
       docsUrl?: string;
       logoHint?: string;
+      account?: string;
     };
     auth: {
       vaultHandle: string;
@@ -26666,6 +26756,7 @@ export type SyncSpecsValidateIn = {
         webhook?: {
           events: Array<string>;
           subscribePath?: string;
+          evidence?: string;
           manualUrl?: boolean;
           signature?: string;
         };
@@ -26691,6 +26782,7 @@ export type SyncSpecsValidateIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      audience?: "space" | "added" | "me";
     };
   };
 };
@@ -26712,6 +26804,7 @@ export type SyncSpecsValidateOut = {
 };
 export type SyncTypesConfirmDeletesIn = {
   type: string;
+  account?: string;
   decision: "mark_removed" | "keep";
 };
 export type SyncTypesConfirmDeletesOut = {
@@ -26719,6 +26812,7 @@ export type SyncTypesConfirmDeletesOut = {
 };
 export type SyncTypesCreateIn = {
   type: string;
+  account?: string;
   connectionId: string;
   remote: string;
   fields: Array<{
@@ -26728,6 +26822,7 @@ export type SyncTypesCreateIn = {
       transform?: string;
       relation?: string;
       inverse?: string;
+      constant?: string;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -26745,6 +26840,7 @@ export type SyncTypesCreateOut = {
   syncedType: {
     syncTypeId: string;
     type: string;
+    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -26756,6 +26852,7 @@ export type SyncTypesCreateOut = {
         transform?: string;
         relation?: string;
         inverse?: string;
+        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -26804,17 +26901,20 @@ export type SyncTypesFieldHistoryOut = {
       historyId: string;
       value: unknown;
       at?: number;
-      replacedBy: "app" | "you";
+      replacedBy: "app" | "you" | "push";
+      by?: string;
       actor: string;
     }>;
 };
 export type SyncTypesGetIn = {
   type: string;
+  account?: string;
 };
 export type SyncTypesGetOut = {
   syncedType: {
     syncTypeId: string;
     type: string;
+    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -26826,6 +26926,7 @@ export type SyncTypesGetOut = {
         transform?: string;
         relation?: string;
         inverse?: string;
+        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -26856,6 +26957,7 @@ export type SyncTypesListOut = {
   syncedTypes: Array<{
       syncTypeId: string;
       type: string;
+      account?: string;
       connector: string;
       connectionId: string;
       remote: string;
@@ -26867,6 +26969,7 @@ export type SyncTypesListOut = {
           transform?: string;
           relation?: string;
           inverse?: string;
+          constant?: string;
         }>;
       match: Array<string>;
       createAtSource: boolean;
@@ -26892,6 +26995,7 @@ export type SyncTypesListOut = {
 };
 export type SyncTypesLogIn = {
   type: string;
+  account?: string;
   cursor?: string;
   limit?: number;
 };
@@ -26908,18 +27012,21 @@ export type SyncTypesLogOut = {
 };
 export type SyncTypesMakeNativeIn = {
   type: string;
+  account?: string;
 };
 export type SyncTypesMakeNativeOut = {
   ok: boolean;
 };
 export type SyncTypesPauseIn = {
   type: string;
+  account?: string;
 };
 export type SyncTypesPauseOut = {
   ok: boolean;
 };
 export type SyncTypesPreviewIn = {
   type: string;
+  account?: string;
   direction?: "pull" | "push" | "both";
 };
 export type SyncTypesPreviewOut = {
@@ -26995,12 +27102,14 @@ export type SyncTypesRestoreFieldOut = {
 };
 export type SyncTypesResumeIn = {
   type: string;
+  account?: string;
 };
 export type SyncTypesResumeOut = {
   ok: boolean;
 };
 export type SyncTypesReviewSchemaIn = {
   type: string;
+  account?: string;
   accept: Array<string>;
   ignore: Array<string>;
 };
@@ -27010,6 +27119,7 @@ export type SyncTypesReviewSchemaOut = {
 };
 export type SyncTypesSchemaChangesIn = {
   type: string;
+  account?: string;
 };
 export type SyncTypesSchemaChangesOut = {
   changes: Array<{
@@ -27021,6 +27131,7 @@ export type SyncTypesSchemaChangesOut = {
 };
 export type SyncTypesStatusIn = {
   type: string;
+  account?: string;
 };
 export type SyncTypesStatusOut = {
   type: string;
@@ -27033,6 +27144,14 @@ export type SyncTypesStatusOut = {
   paused: boolean;
   deletes: "off" | "soft" | "travel";
   conflict: "newest" | "source" | "vyre" | "ask";
+  account?: string;
+  accounts?: Array<{
+      account: string;
+      state: string;
+      records: number;
+      estimate?: number;
+      pending: number;
+    }>;
   polling: {
     activeSec: number;
     idleSec: number;
@@ -27042,6 +27161,7 @@ export type SyncTypesStatusOut = {
   estimate?: number;
   filter?: string;
   canBackfill: boolean;
+  catchingUp?: boolean;
   lastRun?: {
     at: number;
     summary: string;
@@ -27067,6 +27187,7 @@ export type SyncTypesUndoPushOut = {
 };
 export type SyncTypesUpdateIn = {
   type: string;
+  account?: string;
   fields?: Array<{
       key: string;
       remote: string;
@@ -27074,6 +27195,7 @@ export type SyncTypesUpdateIn = {
       transform?: string;
       relation?: string;
       inverse?: string;
+      constant?: string;
     }>;
   match?: Array<string>;
   createAtSource?: boolean;
@@ -27090,6 +27212,7 @@ export type SyncTypesUpdateOut = {
   syncedType: {
     syncTypeId: string;
     type: string;
+    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -27101,6 +27224,7 @@ export type SyncTypesUpdateOut = {
         transform?: string;
         relation?: string;
         inverse?: string;
+        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -32069,6 +32193,8 @@ export interface CapMap {
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
+  "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
+  "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
   "access.deciders": { in: AccessDecidersIn; out: AccessDecidersOut };
   "access.grants.list": { in: AccessGrantsListIn; out: AccessGrantsListOut };
   "access.grants.update": { in: AccessGrantsUpdateIn; out: AccessGrantsUpdateOut };
@@ -32165,6 +32291,7 @@ export interface CapMap {
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
   "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
+  "automations.connector_levels": { in: AutomationsConnectorLevelsIn; out: AutomationsConnectorLevelsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
   "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
   "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
@@ -32418,6 +32545,7 @@ export interface CapMap {
   "connections.pause": { in: ConnectionsPauseIn; out: ConnectionsPauseOut };
   "connections.reconnect": { in: ConnectionsReconnectIn; out: ConnectionsReconnectOut };
   "connections.resume": { in: ConnectionsResumeIn; out: ConnectionsResumeOut };
+  "connections.set_secret": { in: ConnectionsSetSecretIn; out: ConnectionsSetSecretOut };
   "connections.test": { in: ConnectionsTestIn; out: ConnectionsTestOut };
   "connections.update": { in: ConnectionsUpdateIn; out: ConnectionsUpdateOut };
   "connectors.build": { in: ConnectorsBuildIn; out: ConnectorsBuildOut };
@@ -33209,6 +33337,9 @@ export interface CapMap {
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
   "network.my_computer_remove": { in: NetworkMyComputerRemoveIn; out: NetworkMyComputerRemoveOut };
   "network.my_computers": { in: NetworkMyComputersIn; out: NetworkMyComputersOut };
+  "network.phone": { in: NetworkPhoneIn; out: NetworkPhoneOut };
+  "network.phone_claim": { in: NetworkPhoneClaimIn; out: NetworkPhoneClaimOut };
+  "network.phone_release": { in: NetworkPhoneReleaseIn; out: NetworkPhoneReleaseOut };
   "network.public_hostnames": { in: NetworkPublicHostnamesIn; out: NetworkPublicHostnamesOut };
   "network.relay_set": { in: NetworkRelaySetIn; out: NetworkRelaySetOut };
   "network.server_approve": { in: NetworkServerApproveIn; out: NetworkServerApproveOut };
