@@ -222,9 +222,24 @@ export function linkFieldOps(o: { type: string; plural: string; name: string; to
   return { key, ops: [{ op: "relation.add", type: o.type, field: key, def: { to: o.to.key, inverse: back, title, inverseTitle: o.plural } }] };
 }
 
+/** What a sensitivity suggestion found, said in a few words. */
+export function sensitiveKind(kind: string): string {
+  return kind === "id_number" ? "an ID number" : kind === "card" ? "a card number" : kind === "bank" ? "a bank number" : kind === "health" ? "health information" : "sensitive data";
+}
+
 /** Rename shows a new name; the key stays, so nothing that reads the field breaks. */
 export const renameFieldOps = (type: string, field: string, name: string): SchemaOp[] => [{ op: "field.update", type, field, def: { title: name.trim() } }];
 export const retypeFieldOps = (type: string, field: string, toType: string): SchemaOp[] => [{ op: "field.retype", type, field, toType }];
+/** Field types whose values can be sealed after the fact (the schema module moves them into the Vault, one way). */
+export const SEALABLE = new Set(["text", "longtext", "email", "phone", "number", "url"]);
+export const canSeal = (field: Pick<FieldDef, "type">): boolean => SEALABLE.has(field.type);
+/** Why this field cannot be sealed, or null. */
+export function sealBlocked(type: Pick<TypeDetail, "system">, titleField: string, key: string): string | null {
+  if (type.system) return "Built in fields keep their type";
+  if (key === titleField) return "This field names the record, so it stays readable";
+  return null;
+}
+export const sealFieldOps = (type: string, field: string): SchemaOp[] => [{ op: "field.retype", type, field, toType: "sealed" }];
 export const dropFieldOps = (type: string, field: string): SchemaOp[] => [{ op: "field.drop", type, field }];
 export const requiredOps = (type: string, field: string, required: boolean): SchemaOp[] => [{ op: "field.update", type, field, def: { required } }];
 
@@ -242,7 +257,7 @@ export function moveFieldOps(type: string, order: readonly string[], field: stri
 const NO_RETYPE_FROM = new Set(["relation", "sealed", "files", "signature", "button", "lookup", "rollup", "formula", "autonumber", "created_time", "created_by", "modified_time", "modified_by"]);
 const NO_RETYPE_TO = new Set([...NO_RETYPE_FROM, "ai"]);
 /** Types a person can start a new field with (the others need setup the Console keeps). */
-export const ADDABLE = ["text", "longtext", "number", "money", "datetime", "duration", "checkbox", "rating", "person", "email", "phone", "url", "address", "choice", "multichoice", "status", "files"] as const;
+export const ADDABLE = ["text", "longtext", "number", "money", "datetime", "duration", "checkbox", "rating", "person", "email", "phone", "url", "address", "choice", "multichoice", "status", "files", "sealed"] as const;
 
 export function addableTypes(all: readonly FieldTypeInfo[]): FieldTypeInfo[] {
   return ADDABLE.flatMap((k) => all.find((t) => t.key === k) ?? []);
@@ -316,7 +331,8 @@ export async function commitChange(call: Call, staged: Staged): Promise<{ ok: tr
 export const valuesWord = (n: number): string => `${n} ${n === 1 ? "value" : "values"}`;
 
 /** The one confirm line before a destructive change, with the count schema.diff gave. */
-export function confirmLine(kind: "field.drop" | "field.retype" | "type.drop", name: string, rows: number): string {
+export function confirmLine(kind: "field.drop" | "field.retype" | "field.seal" | "type.drop", name: string, rows: number): string {
+  if (kind === "field.seal") return `Seal ${name}? ${valuesWord(rows)} move into the Vault. This cannot be undone: they cannot be turned back into plain text here, and only people who may reveal Vault values can read them.`;
   if (kind === "type.drop") return `Delete ${name}? ${rows} ${rows === 1 ? "record goes" : "records go"} to Trash for ${TRASH_DAYS} days.`;
   if (kind === "field.drop") return `Delete ${name}? ${valuesWord(rows)} go to Trash for ${TRASH_DAYS} days, and you can restore the field until then.`;
   return `Change the type of ${name}? ${valuesWord(rows)} will be converted, and any that cannot be are cleared.`;
