@@ -116,6 +116,8 @@ async function resolveOne(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedA
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
 function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<ResolvedAccount | null> {
+  // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
+  if (h.openSession) return (q) => resolveOne(h, q);
   return createRunnableAccount({
     call: h.call, resolve: (q) => resolveOne(h, q), ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
     ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
