@@ -422,10 +422,29 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
 export async function triggersList(): Promise<unknown> {
   return { triggers: registry.triggers.map((t) => ({ key: t.key, title: t.title, payload: t.payload, sample: t.sample, personalOk: t.personalOk, allowSelfTrigger: t.allowSelfTrigger })) };
 }
+const SCHEMA_DEFS = (registry as unknown as { $defs?: Record<string, unknown> }).$defs ?? {};
+/** Put each `$ref` of an input schema in place, so a client that has no `$defs` table (the step panel) can still draw a field for every property. The depth is capped, so a cycle ends. */
+export function inlineRefs(schema: unknown, depth = 0): unknown {
+  if (depth > 6 || !schema || typeof schema !== "object" || Array.isArray(schema)) return schema;
+  const rec = schema as Record<string, unknown>;
+  const ref = rec["$ref"];
+  if (typeof ref === "string") {
+    const hit = SCHEMA_DEFS[ref.replace(/^#\/\$defs\//, "")];
+    return hit === undefined ? schema : inlineRefs(hit, depth + 1);
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rec)) {
+    if (k === "properties" && v && typeof v === "object") out[k] = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([name, p]) => [name, inlineRefs(p, depth + 1)]));
+    else if (k === "items") out[k] = inlineRefs(v, depth + 1);
+    else out[k] = v;
+  }
+  return out;
+}
+
 export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
   const hidden = await hiddenSteps(ctx);
   const steps = registry.steps.filter((s) => !hidden.has(s.key) && (!input.category || s.category === input.category));
-  return { steps: steps.map((s) => clean({ key: s.key, title: s.title, category: s.category, kind: s.kind, input: s.input, output: s.output, effects: s.effects, gateAct: s.gateAct })) };
+  return { steps: steps.map((s) => clean({ key: s.key, title: s.title, category: s.category, kind: s.kind, input: inlineRefs(s.input), output: s.output, effects: s.effects, gateAct: s.gateAct })) };
 }
 
 // ---- create, update, versions ----

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useConnectVersion } from "../../../../shell/connect/context.ts";
 import { useOptionalAutomationsData } from "../data.tsx";
-import { agentPicks, vaultPicks, whoPicks } from "./picks.ts";
-import type { AgentPick, VaultPick, WhoPick } from "./picks.ts";
+import { agentPicks, refPicks, vaultPicks, whoPicks } from "./picks.ts";
+import type { AgentPick, RefPick, VaultPick, WhoPick } from "./picks.ts";
 
 export type Load<T> = { state: "loading" } | { state: "ready"; items: T[] } | { state: "unavailable" };
 
@@ -29,3 +29,7 @@ export const useWhoPicks = (): Load<WhoPick> => useLoaded(async (call) => {
   const [people, groups] = await Promise.all([call("access.principals.list", { kind: "person", status: "active" }), call("access.groups.list", {}).catch(() => ({ groups: [] }))]);
   return whoPicks(people, groups);
 });
+
+const REF_CAP = { types: "schema.types.list", forms: "forms.list", journeys: "journeys.list" } as const;
+/** The record types, forms or Journeys a trigger can be narrowed to. */
+export const useRefPicks = (kind: "types" | "forms" | "journeys"): Load<RefPick> => useLoaded(async (call) => refPicks(kind, await call(REF_CAP[kind], {})));

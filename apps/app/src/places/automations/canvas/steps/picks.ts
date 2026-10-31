@@ -40,3 +40,19 @@ export function whoPicks(people: unknown, groups: unknown): WhoPick[] {
   return out;
 }
 
+
+export interface RefPick { value: string; label: string }
+
+/** Record types, forms and Journeys a trigger can be narrowed to, as value and name. */
+export function refPicks(kind: "types" | "forms" | "journeys", out: unknown): RefPick[] {
+  const key = kind === "types" ? "types" : kind;
+  const rows = rec(out) && Array.isArray(out[key]) ? out[key] : [];
+  const picks: RefPick[] = [];
+  for (const raw of rows) {
+    if (!rec(raw)) continue;
+    const value = kind === "types" ? text(raw["key"]) : kind === "forms" ? text(raw["formId"]) : text(raw["id"]);
+    const label = kind === "types" ? text(raw["title"]) : text(raw["name"]);
+    if (value !== "") picks.push({ value, label: label || value });
+  }
+  return picks;
+}

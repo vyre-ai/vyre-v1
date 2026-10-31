@@ -9,7 +9,7 @@ import type { Definition } from "./model.ts";
 import { LEAD_FOLLOW_UP } from "../sidebar/sample.ts";
 
 const linear = (): Definition => ({
-  triggers: [{ key: "schedule" }], start: ["a"],
+  triggers: [{ key: "schedule", config: { cron: "0 9 * * *", timezone: "UTC", missed: "skip" } }], start: ["a"],
   nodes: [{ id: "a", key: "records.find", input: { type: "person" }, next: ["b"] }, { id: "b", key: "send_email", input: { to: "x@y.z", mailboxId: "mbx_main" }, next: ["c"] }, { id: "c", key: "stop", input: {} }],
 });
 
@@ -171,8 +171,9 @@ test("card text: the title falls back to the step's name and the second line say
   assert.equal(titleOfKey("google.gmail.list_messages"), "Google · List Gmail messages");
   assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "g", key: "google.gmail.list_messages", input: {} }] }).some((i) => /needs a connection/.test(i.message)));
   assert.ok(check({ triggers: [{ key: "manual" }], nodes: [{ id: "c", key: "connector_request", input: {} }] }).some((i) => /needs a connector/.test(i.message)));
-  assert.equal(describeTrigger({ key: "record_change", filter: { where: "Source is Meta" } }), "Only when Source is Meta");
-  assert.equal(describeTrigger({ key: "form_submit" }), "Every time");
+  assert.equal(describeTrigger({ key: "record_change", filter: { type: "lead", where: "Source is Meta" } }), "A lead changes, only when Source is Meta");
+  assert.equal(describeTrigger({ key: "record_change", filter: { where: "Source is Meta" } }), "Not set up", "a record trigger with no type is not set up");
+  assert.equal(describeTrigger({ key: "form_submit" }), "Any form is submitted");
 });
 
 test("adding a step after another keeps the chain: what followed now follows the new step", () => {
@@ -301,7 +302,7 @@ test("a schedule trigger reads in words, and a cron line it does not know is lef
   assert.equal(cronWords("0 * * * *"), "Every hour");
   assert.equal(cronWords("0 9 1 * *"), "On day 1 of each month at 9:00");
   assert.equal(cronWords("5 4 * 2 *"), null);
-  assert.equal(describeTrigger({ key: "schedule", config: { cron: "0 9 * * 1", timezone: "UTC", missed: "skip" } } as never), "Every Monday at 9:00");
+  assert.equal(describeTrigger({ key: "schedule", config: { cron: "0 9 * * 1", timezone: "UTC", missed: "skip" } } as never), "Every Monday at 09:00, UTC");
 });
 
 test("only an Automation with a Run by hand trigger offers Run now", async () => {
