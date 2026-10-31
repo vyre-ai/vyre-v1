@@ -9,6 +9,7 @@ import { acceptConnectorOffer, connectorOffers, declineConnectorOffer } from "./
 import { httpRead, httpSend } from "./http-step.ts";
 import { openDocument } from "./open-document.ts";
 import { openMcp } from "./open-mcp.ts";
+import { vaultUsage } from "./vault-usage.ts";
 import { connectorShares, shareConnector } from "./connector-share.ts";
 import { tryConnectorRead } from "./try-read.ts";
 import { migrateRuns, migrationPreview } from "./migrate.ts";
@@ -68,6 +69,7 @@ export const handlers = {
   "automations.triggers.list": triggersList,
   "automations.undelete": undelete,
   "automations.update": update,
+  "automations.vault_usage": vaultUsage,
   "automations.validate": validate,
   "automations.versions": versions,
   "automations.webhook_url.get": webhookGet,

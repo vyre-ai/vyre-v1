@@ -1,6 +1,6 @@
 // The Automations start page: what the body shows when no Automation is open. With none yet it is a calm, centred "Automate something" with three ways in (a template, a blank
 // Automation, ask Vyre) and a few popular templates from the same catalogue the Templates page reads. With some, the heading is "Pick an automation" and the three ways in are smaller.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAutomationsData, useScreenQuery, SIDEBAR } from "../canvas/data.tsx";
@@ -40,6 +40,18 @@ export function popularTemplates(all: readonly TemplateItem[] | null): TemplateI
   return (all ?? []).slice(0, POPULAR_COUNT);
 }
 
+export interface ConnectorOffer { itemId: string; appName: string; text: string }
+
+/** The open offers out of automations.connector_offers. Anything else is none. */
+export function offersOf(out: unknown): ConnectorOffer[] {
+  const rows = (out as { offers?: unknown } | null)?.offers;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((r) => {
+    const o = r as Record<string, unknown> | null;
+    return o && typeof o["itemId"] === "string" && typeof o["appName"] === "string" ? [{ itemId: o["itemId"], appName: o["appName"], text: typeof o["text"] === "string" ? o["text"] : `Set up ${o["appName"]} for Automations?` }] : [];
+  });
+}
+
 export interface StartViewProps {
   /** True when the person already has Automations: the heading becomes "Pick an automation" and the choices shrink. */
   hasAutomations: boolean;
@@ -48,10 +60,14 @@ export interface StartViewProps {
   note?: string | null;
   onChoose(choice: StartChoice): void;
   onUseTemplate(t: TemplateItem): void;
+  /** Vault items saved lately that can become a connector. Each has Set up (starts the session) and Not now (final). */
+  offers?: readonly ConnectorOffer[];
+  onSetUp?(offer: ConnectorOffer): void;
+  onDecline?(offer: ConnectorOffer): void;
 }
 
 /** The page itself, with no data of its own. */
-export function AutomationsStartView({ hasAutomations, templates, busy = false, note = null, onChoose, onUseTemplate }: StartViewProps): ReactElement {
+export function AutomationsStartView({ hasAutomations, templates, busy = false, note = null, onChoose, onUseTemplate, offers = [], onSetUp, onDecline }: StartViewProps): ReactElement {
   const tiles = hasAutomations ? [] : popularTemplates(templates);
   return (
     <ScrollView testID="automations-start" style={s.scroll} contentContainerStyle={s.center} accessibilityLabel={hasAutomations ? "Pick an automation" : "Automate something"}>
@@ -71,6 +87,25 @@ export function AutomationsStartView({ hasAutomations, templates, busy = false, 
             </Pressable>
           ))}
         </View>
+        {offers.length > 0 && onSetUp ? (
+          <View style={s.offers} testID="automations-start-offers">
+            {/* ui-rows-lint: not a list (at most a few one-line offers under the start choices) */}
+            {offers.slice(0, 3).map((o) => (
+              <View key={o.itemId} style={s.offer} testID={`offer-${o.itemId}`}>
+                <Glyph name="key" size={15} color="var(--accent)" />
+                <Text numberOfLines={1} style={s.offerText}>{o.text}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Set up ${o.appName}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`offer-setup-${o.itemId}`} onPress={() => onSetUp(o)} style={[s.offerBtn, pointer]}>
+                  <Text style={s.offerBtnText}>Set up</Text>
+                </Pressable>
+                {onDecline ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Not now for ${o.appName}`} testID={`offer-decline-${o.itemId}`} onPress={() => onDecline(o)} style={[s.offerQuiet, pointer]}>
+                    <Text style={s.offerQuietText}>Not now</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
         {tiles.length > 0 ? (
           <View style={s.popular} testID="automations-start-popular">
             <Text accessibilityRole="header" style={s.popHead}>Popular templates</Text>
@@ -104,6 +139,12 @@ export function AutomationsStart({ onTemplates, onAsk }: { onTemplates(): void; 
   const catalog = useCall("automations.templates.list", {}, templatesOf);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [offers, setOffers] = useState<ConnectorOffer[]>([]);
+  useEffect(() => {
+    let live = true;
+    void data.call("automations.connector_offers", {}).then((out) => { if (live) setOffers(offersOf(out)); }, () => undefined);
+    return () => { live = false; };
+  }, [data]);
   const run = async (work: () => Promise<unknown>): Promise<void> => {
     if (busy) return;
     setBusy(true);
@@ -124,6 +165,16 @@ export function AutomationsStart({ onTemplates, onAsk }: { onTemplates(): void; 
       templates={catalog.phase === "ready" ? catalog.value : null}
       busy={busy} note={note} onChoose={choose}
       onUseTemplate={(t) => void run(() => startFromTemplate(data, t.key))}
+      offers={offers}
+      {...(data.nav.setUpConnector ? { onSetUp: (o: ConnectorOffer) => void run(async () => {
+        await data.call("automations.connector_offer.accept", { itemId: o.itemId });
+        setOffers((all) => all.filter((x) => x.itemId !== o.itemId));
+        await data.nav.setUpConnector!(o);
+      }) } : {})}
+      onDecline={(o) => void run(async () => {
+        await data.call("automations.connector_offer.decline", { itemId: o.itemId });
+        setOffers((all) => all.filter((x) => x.itemId !== o.itemId));
+      })}
     />
   );
 }
@@ -151,5 +202,12 @@ export const START_STYLE = StyleSheet.create({
   tileTitle: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   tileLine: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   note: { fontSize: 13, color: "var(--danger)" as string, textAlign: "center" },
+  offers: { width: "100%", maxWidth: 520, gap: 6 },
+  offer: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "var(--accent-wash)" as string },
+  offerText: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
+  offerBtn: { height: 26, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  offerBtnText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent-ink)" as string },
+  offerQuiet: { height: 26, paddingHorizontal: 6, justifyContent: "center" },
+  offerQuietText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });
 const s = START_STYLE;

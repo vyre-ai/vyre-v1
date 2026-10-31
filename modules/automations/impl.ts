@@ -25,6 +25,7 @@ import type { AutoCtx, RunScope } from "./projections.ts";
 type Row = Record<string, unknown>;
 const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => { try { return ctx.db.all(sql, ...a) as Row[]; } catch { return []; } };
 const kept = (r: Row[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
+const CONNECTOR_KINDS: ReadonlySet<string> = new Set(["api_key", "env", "login", "other"]);
 export const consumers = {
   "automations.connector_offer": {
     on: ["vault.item_created"],
@@ -33,6 +34,8 @@ export const consumers = {
       const itemId = typeof payload["itemId"] === "string" ? payload["itemId"] : "";
       const name = typeof payload["name"] === "string" ? payload["name"] : "";
       if (itemId === "") return;
+      // a card, a note, a code, an SSH key or an AI account is not an app to connect
+      if (typeof payload["kind"] === "string" && !CONNECTOR_KINDS.has(payload["kind"])) return;
       recordSavedItem(ctx.db as OfferDb, { itemId, name, fieldKeys: [] }, ctx.now());
     },
   },

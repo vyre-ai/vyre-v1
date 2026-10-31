@@ -13,6 +13,7 @@ import type { Folder, Item, Share } from "../layout/model.ts";
 import { Btn, Glyph, IconBtn, LogoTile, Mono } from "../layout/parts.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { MASK, formatEnv, keysOf } from "./env.ts";
+import { AutomationsRow } from "./AutomationsRow.tsx";
 import { WhoCanUse } from "./WhoCanUse.tsx";
 import { createRevealStore } from "./reveal.ts";
 import type { RevealStore } from "./reveal.ts";
@@ -234,6 +235,8 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
             {!online ? <Text style={s.note} testID="env-offline">Revealing needs a connection. Names stay available offline.</Text> : null}
             {rv.error ? <Text style={s.error} accessibilityRole="alert" testID="env-error">{rv.error}</Text> : null}
           </View>
+
+          <AutomationsRow item={{ id: itemId, name: item.name, handle: item.handle, kind: item.kind, yourLevel: item.yourLevel }} />
 
           {rot ? (
             <View style={s.row} testID="item-rotation">

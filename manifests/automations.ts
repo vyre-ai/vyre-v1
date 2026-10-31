@@ -380,6 +380,11 @@ export default defineManifest({
       errors: ['permission.needs_approval', 'provider.network', 'validation.precondition_failed', 'validation.too_large', 'permission.no_grant'],
       agent: false,
     }),
+    read('automations.vault_usage', 'Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.', {
+      in: { handle: t.opt(id.handle) },
+      out: { uses: t.arr(t.obj({ handle: id.handle, automations: t.arr(t.obj({ automationId: id.automation, name: t.str(), status: t.str(), steps: t.arr(t.obj({ nodeId: t.str(), title: t.str() })) })) })) },
+      tool: 'automations',
+    }),
     read('automations.connector_offers', 'Open connector setup offers. Each one names an app. A Vault value is not included.', {
       in: {},
       out: { offers: t.arr(t.obj({ itemId: id.vaultItem, appName: t.str(), text: t.str() })) },

@@ -8,6 +8,8 @@ import { useMissing } from "../hash/useMissing.ts";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { scrubAskContext } from "../../places/automations/ask/bundle.ts";
+import { connectorOpening } from "../../places/vault/itemenv/automations.ts";
+import { openAsk } from "./ask.ts";
 import { AutomationsDataProvider } from "../../places/automations/canvas/data.tsx";
 import type { AutomationsData, KeysStatus } from "../../places/automations/canvas/data.tsx";
 import type { KeyChoice } from "../../places/automations/canvas/model.ts";
@@ -114,6 +116,13 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       rt.open({ screen: route.screen, args: route.args });
     },
     openKeys: () => rt.open({ screen: "vault.providers" }),
+    setUpConnector: async (offer) => {
+      // the offer holds an item id and a name; the handle comes from the Vault, which never sends a value
+      const got = (await rt.call("vault.item.get", { itemId: offer.itemId })) as { item?: { handle?: string; name?: string } } | null;
+      const handle = got?.item?.handle;
+      if (!handle) throw new Error("Vyre could not find that Vault item. It may have moved to Trash.");
+      openAsk(rt, "assistant", { kind: "vault_item", id: offer.itemId, title: offer.appName }, undefined, connectorOpening({ name: got?.item?.name ?? offer.appName, handle }));
+    },
   }, keys, keysStatus, accounts, lastPicks), [rt, opened, keys, keysStatus, accounts, lastPicks]);
   const directory = useDirectory(rt);
   const extras = useMemo(() => configExtras(directory, {

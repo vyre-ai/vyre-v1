@@ -14,6 +14,8 @@ export interface CatalogStep {
   output?: unknown;
   effects?: string;
   note?: string;
+  /** Input the step starts with: a connector someone built, its action and the connection bound to the Vault key. */
+  preset?: Record<string, unknown>;
 }
 
 export interface CatalogTrigger {
@@ -69,7 +71,7 @@ function rankOf(item: { key?: string }): number {
   return at === -1 ? 700 : at;
 }
 
-const GROUP_ORDER = ["Suggested", "Vyre", "Connected apps", "AI and code", "Logic", "Data & transforms", "Human input", "Sub-Automations", "Preview"];
+const GROUP_ORDER = ["Suggested", "Vyre", "Your connectors", "Connected apps", "AI and code", "Logic", "Data & transforms", "Human input", "Sub-Automations", "Preview"];
 
 export function menuGroups<T extends { group: string }>(items: readonly T[]): { head: string; items: T[] }[] {
   const buckets = new Map<string, T[]>();
@@ -140,6 +142,41 @@ export function triggersFromRuntime(out: unknown): CatalogTrigger[] | null {
   return triggers;
 }
 
+/** `list_invoices` as a title. */
+function actionTitle(action: string): string {
+  const words = action.replace(/[_.-]+/g, " ").trim();
+  return words === "" ? action : `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+}
+
+/**
+ * The connectors someone built (not the ones Vyre ships), one step per action, already pointing at the connection bound to the Vault key. A connector with no active connection
+ * lists nothing: its steps would have nothing to run on. Names and keys only; a Vault value never comes through here.
+ */
+export function connectorSteps(connectorsOut: unknown, connectionsOut: unknown): CatalogStep[] {
+  const connectors = (connectorsOut as { connectors?: unknown } | null)?.connectors;
+  const connections = (connectionsOut as { connections?: unknown } | null)?.connections;
+  if (!Array.isArray(connectors) || !Array.isArray(connections)) return [];
+  const steps: CatalogStep[] = [];
+  for (const c of connectors) {
+    const row = c as Record<string, unknown> | null;
+    if (!row || row["builtin"] === true || row["state"] !== "live" || typeof row["key"] !== "string" || !Array.isArray(row["actions"])) continue;
+    const title = typeof row["title"] === "string" && row["title"] !== "" ? row["title"] : row["key"];
+    const bound = connections.find((x) => {
+      const k = x as Record<string, unknown> | null;
+      return !!k && k["connector"] === row["key"] && k["state"] === "active" && typeof k["connectionId"] === "string";
+    }) as Record<string, unknown> | undefined;
+    if (!bound) continue;
+    for (const action of row["actions"]) {
+      if (typeof action !== "string") continue;
+      steps.push({
+        key: "connector_request", title: `${title}: ${actionTitle(action)}`, category: "send", group: "Your connectors", availability: "available", effects: "outward",
+        preset: { connector: row["key"], action, connectionId: bound["connectionId"] },
+      });
+    }
+  }
+  return steps;
+}
+
 export interface ProductCatalog {
   steps: CatalogStep[];
   triggers: CatalogTrigger[];
@@ -147,14 +184,16 @@ export interface ProductCatalog {
 
 export async function loadProductCatalog(call: (cap: string, input: unknown) => Promise<unknown>): Promise<{ ok: true; catalog: ProductCatalog } | { ok: false; message: string }> {
   try {
-    const [stepsOut, triggersOut] = await Promise.all([
+    const [stepsOut, triggersOut, built] = await Promise.all([
       call("automations.steps.list", {}),
       call("automations.triggers.list", {}),
+      // a person who cannot manage connectors, or a server without them, simply has no Your connectors group
+      Promise.all([call("connectors.list", { state: "live" }), call("connections.list", {})]).catch(() => null),
     ]);
     const steps = stepsFromRuntime(stepsOut);
     const triggers = triggersFromRuntime(triggersOut);
     if (!steps || !triggers) return { ok: false, message: "The step catalog did not return a list." };
-    return { ok: true, catalog: { steps, triggers } };
+    return { ok: true, catalog: { steps: [...steps, ...(built ? connectorSteps(built[0], built[1]) : [])], triggers } };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "The step catalog is not available." };
   }

@@ -10,7 +10,7 @@ const dirs = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirect
 const gen = loadGenerated();
 const text = (dir: string): string => readFileSync(new URL(`${dir}/SKILL.md`, root), "utf8");
 /** Words in backticks that look like a tool name (snake_case with an underscore) but are block types or fields. */
-const NOT_TOOLS = new Set(["secret_input", "sources_kind"]);
+const NOT_TOOLS = new Set(["secret_input", "sources_kind", "diff_card"]);
 
 test("the places each have a focus skill, and the manual, loops and computer skills are there", () => {
   for (const n of ["working-in-vyre", "focus-records", "focus-files", "focus-automations", "focus-vault", "focus-inbox", "focus-apps", "focus-console", "agent-loops", "agent-computer"]) assert.ok(dirs.includes(n), n);

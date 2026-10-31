@@ -289,6 +289,14 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
     "vault.item.mark_rotated": (i: { itemId: string }) => { log(i.itemId, "rotated"); return { item: strip(touch(i.itemId, { lastRotatedAt: SAMPLE_NOW })) }; },
     "vault.item.delete": (i: { itemId: string }) => { touch(i.itemId, { trashed: true } as Partial<ItemRow>); log(i.itemId, "deleted"); return { ok: true }; },
     "vault.item.restore": (i: { itemId: string }) => { touch(i.itemId, { trashed: false } as Partial<ItemRow>); log(i.itemId, "restored"); return { item: strip(find(i.itemId)) }; },
+    "providers.list": () => ({ providers: rows<Provider & Row>("providers") as Provider[] }),
+    // two Automations whose HTTP steps name the GoHighLevel key by handle; every other handle is unused
+    "automations.vault_usage": (i: { handle?: string }) => ({
+      uses: i.handle === "#Northwind_GHL" ? [{ handle: "#Northwind_GHL", automations: [
+        { automationId: "aut_leads", name: "New lead to GoHighLevel", status: "on", steps: [{ nodeId: "n2", title: "Create contact" }] },
+        { automationId: "aut_nightly", name: "Nightly pipeline sync", status: "draft", steps: [{ nodeId: "n1", title: "List opportunities" }, { nodeId: "n4", title: "Update stage" }] },
+      ] }] : [],
+    }),
     "vault.generate": () => ({ value: "Kq7#vXm2Lp9wRt4Zc8Yn", strength: "strong" }),
     "vault.folders.create": (i: { name: string; scope: Folder["scope"]; parentId?: string }) => {
       const f = fld(`fld_new${++seq}`, i.name, i.scope, 0, "manage", space.me.id);
@@ -326,6 +334,7 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
     openShare: (id) => void opened.push(`share:${id}`), openExport: (id) => void opened.push(`export:${id}`), openAdvanced: () => void opened.push("advanced"), ask: (agentId, mode, about) => void opened.push(`ask:${agentId}:${mode}:${about.id}`),
     openBackups: () => void opened.push("backups"), openDevices: () => void opened.push("devices"), openOutsideActors: () => void opened.push("outside-actors"), openPolicy: () => void opened.push("policy"),
     openRequests: () => void opened.push("requests"), openAgent: (id) => void opened.push(`agent:${id}`),
+    addToAutomations: (item) => void opened.push(`automate:${item.id}:${item.handle}`), openAutomation: (id) => void opened.push(`automation:${id}`), openAddProvider: () => void opened.push("add-provider"),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 

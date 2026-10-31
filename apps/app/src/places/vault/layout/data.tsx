@@ -25,6 +25,12 @@ export interface VaultNav {
   openAgent(agentId: string): void;
   /** Starts a new thread (or hands the task over) with an agent about an item. Without it Ask still lists the agents and does nothing. */
   ask?(agentId: string, mode: "chat" | "do", about: { kind: string; id: string; title: string }): void;
+  /** Add to Automations: starts the person's assistant on a connector built from this item. The shell puts the app name and the handle in the first message. */
+  addToAutomations?(item: { id: string; name: string; handle: string }): void;
+  /** An Automation that uses an item, opened in Automations. */
+  openAutomation?(automationId: string): void;
+  /** The Add an AI account sheet, for a blocker that says to connect one. */
+  openAddProvider?(): void;
 }
 
 /** The desktop app's way to put Vyre for Chrome into Chrome (no Web Store listing yet). Only the desktop shell supplies it; the web app and the phone have no Advanced row for it. */
