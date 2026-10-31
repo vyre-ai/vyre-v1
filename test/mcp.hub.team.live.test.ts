@@ -137,12 +137,14 @@ test("Team: the admin connects with a Shared key; each member's agent runs on th
 
     // the admins get one item, however many calls fail; it closes when a call works again
     await ask("usr_noah", "list channels", "team-dead2");
-    const mine = async () => ((await api("usr_olivia", "tasks.list", { scope: "all", kinds: ["unblock"], states: ["todo", "doing"] })).data.tasks as Array<{ title: string; summary?: string; assigned: { kind: string; id: string } }>).filter((t) => /Composio key/.test(t.title));
+    const mine = async () => ((await api("usr_olivia", "tasks.list", { scope: "all", kinds: ["unblock"], states: ["todo", "doing"] })).data.tasks as Array<{ title: string; summary?: string; assigned: { kind: string; id: string }; workingNotes: Record<string, string>; createdBy: string }>).filter((t) => /Composio key/.test(t.title));
     const items = await mine();
     assert.equal(items.length, 1, JSON.stringify(items));
     assert.equal(items[0]!.title, "Replace the Composio key");
     assert.deepEqual(items[0]!.assigned, { kind: "role", id: "admin" });
     assert.ok(!JSON.stringify(items).includes(HUB_KEY));
+    assert.equal(items[0]!.createdBy, "svc_host", "made by the host, not by the member whose call failed");
+    assert.deepEqual([items[0]!.workingNotes["origin"], items[0]!.workingNotes["fix"], items[0]!.workingNotes["hub"]], ["Composio", "replace_key", "composio"]);
     state.revoked = false;
     assert.match(await ask("usr_noah", "list channels", "team-back"), /^GOT/);
     assert.equal((await mine()).length, 0, "the item closed when another member's call worked: the host closes it, not the person whose call failed");

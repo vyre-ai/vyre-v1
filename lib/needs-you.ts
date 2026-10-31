@@ -11,6 +11,11 @@ export interface NeedsYou {
   summary?: string;
   /** The connection's owner, or `{ kind: "role", id: "admin" }` when the key is Shared. */
   to: Assignee;
+  /** Who the item is from, as a person reads it: "Composio" for a hub, "Vyre" by default. Never a person's name. */
+  from?: string;
+  /** What the primary button does ("replace_key" opens the Replace key sheet); more notes the item carries for its screen. */
+  fix?: string;
+  notes?: Record<string, string>;
 }
 
 interface Row { id: string; state: string; source?: { kind: string; id: string } }
@@ -26,7 +31,7 @@ export async function connectionNeedsYou(call: Call, n: NeedsYou): Promise<void>
   try {
     if ((await open(call, n.id)).length > 0) return;
     await call("tasks.create", {
-      kind: "unblock", title: n.title, ...(n.summary ? { summary: n.summary } : {}), assigned: n.to, source: sourceOf(n.id),
+      kind: "unblock", title: n.title, ...(n.summary ? { summary: n.summary } : {}), assigned: n.to, source: sourceOf(n.id), notes: { origin: n.from ?? "Vyre", connection: n.id, ...(n.fix ? { fix: n.fix } : {}), ...(n.notes ?? {}) },
       idempotencyKey: globalThis.crypto.randomUUID(),
     });
   } catch { /* the connection's own error already tells the caller */ }

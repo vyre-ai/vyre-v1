@@ -3,3 +3,5 @@ Connect an app hub. One card in Settings, Connections (and in Console, Plugins f
 When a hub key is revoked or a sign-in ends, the Space's admins get one item in Needs you ("Replace the Composio key") instead of a failure on every call. It closes itself when the connection answers again. The same small helper is available to any connection, for example a CRM key.
 
 When an agent wants to change something through an app hub, the approval card in the chat now reads "Ops wants to send message in Slack" with the fields it will send and "Runs through Composio", instead of the tool's internal name.
+
+Needs you reads right for requests Vyre makes itself. A hub key that stopped working shows "From Composio" (or "From Vyre"), is assigned to "Admins", and its main button is "Replace key", which opens a small sheet in place and puts the new key in the same Vault item. There is no Take button and no "Open its computer" for requests that did not come from an agent's run. Approval cards say "send a message" and "create a task", never a tool's or capability's own name.

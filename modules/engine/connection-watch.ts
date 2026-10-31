@@ -25,7 +25,7 @@ export async function watchConnection(spec: ServerSpec, outcome: "ok" | { error:
   const hub = hubById(spec.hub);
   await connectionNeedsYou(call, {
     id, title: hub ? `Replace the ${hub.name} key` : `Sign in to ${spec.name} again`,
-    summary: hub ? `${hub.name} stopped accepting the key. Apps through it are paused until it is replaced.` : `${spec.name} ended the sign-in.`,
-    to: { kind: "role", id: "admin" },
+    summary: hub ? "Stopped accepting the key. Apps through it are paused until it is replaced." : "Ended the sign-in.",
+    to: { kind: "role", id: "admin" }, from: hub ? hub.name : spec.name, ...(hub ? { fix: "replace_key", notes: { hub: hub.id } } : {}),
   });
 }

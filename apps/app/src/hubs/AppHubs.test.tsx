@@ -42,3 +42,10 @@ test("the hub says where it runs once; apps show collapsed with their tool count
   assert.doesNotMatch(t, /Asks first|Reads|Disconnect/);
   assert.match(t, /Connect an app hub/);
 });
+
+test("the Replace key sheet finds the Vault item a header points at", async () => {
+  const { handleOf } = await import("./ReplaceKey.tsx");
+  assert.deepEqual(handleOf("#Composio_key.api_key"), { item: "Composio_key", field: "api_key" });
+  assert.deepEqual(handleOf("Bearer #Pipedream_key.api_key"), { item: "Pipedream_key", field: "api_key" });
+  assert.equal(handleOf("plain text"), null);
+});
