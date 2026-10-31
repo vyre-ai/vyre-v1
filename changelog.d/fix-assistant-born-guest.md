@@ -1,0 +1,1 @@
+- The person's private assistant is born with its person's reach even when it is made before their account is active in the access snapshot: it was born Guest with no Space grant, so it could neither read their AI key nor post, and a chat with it never answered. It is upgraded to a Member agent once its person may edit the Space (at boot and after each access sync).
