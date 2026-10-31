@@ -131,14 +131,9 @@ test("the Finish setup entry shows the handled count, reopens the first open ste
   assert.equal(find(g.container as never, "resume-chip"), null);
 });
 
-test("on the phone the Finish setup entry floats above the places bar instead of covering Inbox and Records", async () => {
+test("on the phone the Finish setup entry never floats over the page; the computer keeps the pill", async () => {
   const { ResumeChip } = await import("./ResumeChip.tsx");
-  const bottomOf = (compact: boolean): string => {
-    const html = renderToStaticMarkup(<ResumeChip flow="personal" progress={{ ai: "done" }} device={compact ? "phone" : "mac"} compact={compact} onOpen={noop} />);
-    const tag = html.slice(0, html.indexOf(">"));
-    const found = /r-bottom-\w+/.exec(tag);
-    assert.ok(found, "the chip sets its bottom offset");
-    return found[0];
-  };
-  assert.notEqual(bottomOf(true), bottomOf(false), "the phone chip sits higher than the computer chip");
+  const draw = (compact: boolean): string => renderToStaticMarkup(<ResumeChip flow="personal" progress={{ ai: "done" }} device={compact ? "phone" : "mac"} compact={compact} onOpen={noop} />);
+  assert.equal(draw(true), "", "the phone shows setup as a row on the You page instead");
+  assert.match(draw(false), /Finish setup, 1 of/);
 });

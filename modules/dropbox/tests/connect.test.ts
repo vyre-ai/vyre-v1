@@ -27,10 +27,11 @@ test("app.set names the Vault item and keeps the public key only; status shows t
   assert.deepEqual(set, { configured: true, appKey: APP_KEY, webhooks: true });
   const status = out(await d.appStatus(h.ctx));
   assert.deepEqual(contractErrors("dropbox.app.status", "out", status), []);
-  assert.deepEqual(status, { configured: true, appKey: APP_KEY, vaultItem: "#Dropbox_App", redirectUri: "https://space.vyre.test/oauth/callback" });
+  assert.deepEqual(status, { configured: true, appKey: APP_KEY, vaultItem: "#Dropbox_App", redirectUri: "https://space.vyre.test/oauth/callback", webhooks: true, webhookUri: "https://space.vyre.test/hooks/dropbox" });
   assert.ok(!JSON.stringify(h.rows(`SELECT * FROM dropbox_config`)).includes("appsecret_not_real"), "the secret is never kept");
   await d.appSet(h.ctx, { vaultItem: "#Dropbox_NoSecret" });
   assert.equal(h.rows(`SELECT * FROM dropbox_config`).length, 1, "set again replaces, never adds");
+  assert.equal(out(await d.appStatus(h.ctx))["webhooks"], false, "without an app secret change notices cannot be verified");
   assert.equal(out(await d.appSet(h.ctx, { vaultItem: "#Dropbox_NoSecret" }))["webhooks"], false);
   assert.equal(await refusedWith(d.appSet(h.ctx, { vaultItem: "Dropbox_App" })), "validation.bad_input");
   assert.equal(await refusedWith(d.appSet(h.ctx, { vaultItem: "#Dropbox_Missing" })), "provider.auth_failed");

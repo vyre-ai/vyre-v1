@@ -209,3 +209,27 @@ test("a disabled item is drawn but cannot be landed on, and keeps its reason for
   assert.deepEqual(selectableIndices(entries), [0, 2]);
   assert.equal(moveActive(entries, 0, "ArrowDown"), 2);
 });
+
+// ---- search, leading element, pinned row (the step picker)
+
+test("a typed search keeps matching rows, drops a group with none, matches keywords and always keeps a pinned row", async () => {
+  const { filterMenuEntries } = await import("./props.ts");
+  const items: MenuEntry[] = [
+    { head: "Vyre" }, { label: "Find records" }, { label: "Create task" },
+    { head: "Your connectors" }, { label: "Acme: List invoices", keywords: "acme invoicing" },
+    { head: "AI and code" }, { label: "Run code" },
+    { separator: true }, { label: "Build a connector", pinned: true },
+  ];
+  const labels = (q: string): string[] => filterMenuEntries(items, q).map((e) => ("head" in e ? `# ${e.head}` : "separator" in e ? "---" : e.label));
+  assert.equal(labels("").length, items.length);
+  assert.deepEqual(labels("task"), ["# Vyre", "Create task", "---", "Build a connector"]);
+  assert.deepEqual(labels("invoicing"), ["# Your connectors", "Acme: List invoices", "---", "Build a connector"]);
+  assert.deepEqual(labels("zzz"), ["Build a connector"], "only the pinned row, and no stray separator");
+});
+
+test("a menu with search draws the field, a leading element and the pinned row", () => {
+  const html = renderToStaticMarkup(<Menu source="other" search="Search steps" width={320} items={[{ head: "Vyre" }, { label: "Find records", leading: <span data-logo="x" /> }, { label: "Build a connector", pinned: true }]} />);
+  assert.match(html, /placeholder="Search steps"/);
+  assert.match(html, /data-logo="x"/);
+  assert.match(html, /Build a connector/);
+});

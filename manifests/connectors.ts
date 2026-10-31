@@ -37,6 +37,7 @@ const connectionRow = t.obj({
   owner: t.obj({ kind: t.enm('person', 'space'), id: t.str() }),
   state: t.enm('pending', 'active', 'paused', 'needs_reconnect', 'failing'), pausedBy: t.opt(t.str()),
   scopes: t.arr(t.str()), lastSyncAt: t.opt(t.ts()), createdAt: t.ts(),
+  handles: t.arr(id.handle, { description: 'The Vault handles this connection uses. Names only, never a value.' }),
 });
 
 const syncedTypeRow = t.obj({

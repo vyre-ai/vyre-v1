@@ -7,7 +7,7 @@ import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
-import { Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Help,  Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { Tick } from "./ai-controls.tsx";
 
 type Markets = CapMap["plugins.marketplaces.list"]["out"];
@@ -45,7 +45,7 @@ export function PluginsPage(): ReactElement {
   const install = (m: string, plugin: string): void => void action.run("plugins.install", { marketplaceId: m, plugin, scope: target === "space" ? "space" : "agent", ...(target === "space" ? {} : { agentId: target }), idempotencyKey: attempt() }, (out: { plugin: Plugin }) => `${out.plugin.name} installed`).then((out) => { if (out) setOpenPlugin((out as { plugin: Plugin }).plugin.pluginId); });
   return <View testID="console-plugins">
     {action.note ? <Note>{action.note}</Note> : null}
-    <Note>Skills, commands and tools for agents. They run in the agent's sandbox.</Note>
+    <Help>Skills, commands and tools for agents. They run in the agent's sandbox.</Help>
     <Section title="Marketplaces" count={markets.data.marketplaces.length}><Group>
       {markets.data.marketplaces.length === 0 ? <Row id="mk-none" title="No marketplace yet" note="Add a git address (https) or a folder on this server that holds .claude-plugin/marketplace.json." /> : markets.data.marketplaces.map((m) =>
         <Row key={m.marketplaceId} id={`mk-${m.name}`} title={m.name} note={`${n(m.plugins, "plugin")} · ${m.owner} · ${m.allowed ? "Allowed" : "Not allowed"}${m.warnings.length ? ` · ${n(m.warnings.length, "warning")}` : ""}`}
@@ -88,7 +88,7 @@ export function PluginsPage(): ReactElement {
       </Actions>
     </Group></Section> : null}
     <Section title="Outside tools" count={connections.data?.connections.length ?? ""}><Group>
-      <Note>Connect an MCP server by its https address or a sandbox command.</Note>
+      <Help>Connect an MCP server by its https address or a sandbox command.</Help>
       {(connections.data?.connections ?? []).map((c) => <Row key={c.connectionId} id={`conn-${c.name}`} title={c.name} note={c.url ?? `${c.command ?? ""} ${c.args.join(" ")}`.trim()} trailing={<Button label="Disconnect" disabled={action.busy} onPress={() => void action.run("plugins.connection.remove", { connectionId: c.connectionId, idempotencyKey: attempt() }, "Disconnected")} />} />)}
       <Field label="Name" testID="conn-name" value={conn.name} onChange={(v) => setConn({ ...conn, name: v })} />
       <Field label="Address (https) or leave empty and give a command" testID="conn-url" value={conn.url} onChange={(v) => setConn({ ...conn, url: v })} />

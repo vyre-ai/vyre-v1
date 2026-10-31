@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   EXAMPLE_SCHEMA, answerKindOf, authOf, bodyKindOf, headerProblem, hostsOf, joinHandle, pairsOf, recordOf, setAnswerKind, setAuth, setBodyKind, setHosts, setJsonBody, setMethod, setSchemaText, setTimeoutMinutes,
-  splitHandle, typedText, withAi, withField,
+  sameKeySteps, splitHandle, typedText, withAi, withField,
 } from "./edits.ts";
 
 test("rows become a record: blanks go, the last same name wins, no rows removes the key, and typed values stay typed", () => {
@@ -90,4 +90,16 @@ test("the AI step's own settings: timeout in minutes, answer kind and the JSON s
   assert.deepEqual(withAi({ keyId: "#K" }, "reviewer", { kind: "person", id: "usr_a" }), { keyId: "#K", reviewer: { kind: "person", id: "usr_a" } });
   assert.deepEqual(withAi({ keyId: "#K", reviewer: { kind: "person", id: "usr_a" } }, "reviewer", undefined), { keyId: "#K" });
   assert.deepEqual(withField({ a: 1 }, "a", undefined), {});
+});
+
+test("the other steps that sign with the same Vault item are named by title, or by kind without one", () => {
+  const nodes = [
+    { id: "a", key: "http_request", input: { auth: { kind: "bearer", handle: "#Acme_API.api_key" } } },
+    { id: "b", key: "http_request", title: "Read invoices", input: { auth: { kind: "bearer", handle: "#Acme_API" } } },
+    { id: "c", key: "http_request", input: { auth: { kind: "bearer", handle: "#Other" } } },
+    { id: "d", key: "http_request", input: {} },
+  ];
+  assert.deepEqual(sameKeySteps(nodes, "a", "#Acme_API"), ["Read invoices"]);
+  assert.deepEqual(sameKeySteps(nodes, "b", "#Acme_API"), ["http_request"]);
+  assert.deepEqual(sameKeySteps(nodes, "a", ""), []);
 });

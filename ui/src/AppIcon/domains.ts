@@ -1,9 +1,22 @@
 // Which brand a web address or a name belongs to. Same table as the prototype's vault (TPLDOM, DOMKEY, BRANDKEY).
 
 import { BRANDS } from "./brands.ts";
+import { TOOL_FILES } from "./toolfiles.ts";
 
 /** Brand keys whose mark lives under another name in BRANDS (the prototype's BRANDKEY). ghl has no mark and draws a letter. */
-const MARK_KEY: Record<string, string | null> = { db: "postgresql", postgres: "postgresql", aws: "amazonwebservices", ghl: null };
+const MARK_KEY: Record<string, string | null> = { db: "postgresql", postgres: "postgresql", aws: "amazonwebservices" };
+
+/** Brand keys the vault and the prototype use for a file in public/tools under another name. */
+const TOOL_ALIAS: Record<string, string> = { ghl: "gohighlevel", highlevel: "gohighlevel" };
+
+/** The file key in public/tools for a brand key, or null. A brand with an inline mark in BRANDS uses that instead. */
+export function toolKey(brand: string): string | null {
+  const k = TOOL_ALIAS[brand] ?? brand;
+  return k in TOOL_FILES ? k : null;
+}
+
+/** Words that are also tool names but read as ordinary words in an item's name; they match only when they are the whole name. */
+const COMMON_WORDS = new Set(["box", "close", "canvas", "circle", "bear", "buffer", "coda", "linear", "apple", "amazon", "front", "loom", "monday", "gusto", "ramp", "drata", "plaid", "gong", "rippling", "retool"]);
 
 /** The key into BRANDS for a brand key, or null when the brand has no mark. */
 export function markKey(brand: string): string | null {
@@ -50,6 +63,11 @@ export function brandForName(name: string): string | null {
   for (const w of words) {
     const k = alias[w] ?? w;
     if (markKey(k) || k in MARK_KEY || k in TPLDOM) return k;
+  }
+  // an app that ships only as a file in public/tools: any word of the name, unless it is an ordinary word that is not the whole name
+  for (const w of words) {
+    const k = alias[w] ?? w;
+    if (toolKey(k) && (!COMMON_WORDS.has(k) || words.length === 1)) return k;
   }
   return null;
 }

@@ -14,7 +14,7 @@ import type { Variant } from "../../../apps/app/src/places/files/runbook/sample.
 
 export const title = "Files: mounts and runbooks";
 
-const SOURCES: readonly SourceId[] = ["google_drive", "microsoft", "local", "github"];
+const SOURCES: readonly SourceId[] = ["google_drive", "microsoft", "onedrive", "sharepoint", "local", "github"];
 const VARIANTS: readonly Variant[] = ["fresh", "ran", "fail", "running"];
 const noop = (): void => undefined;
 

@@ -3,7 +3,7 @@
 // list_folder cursor, so every pass after the first reads only what changed (and a cursor Dropbox no longer knows falls back to one full read).
 // Dropbox names an item's parent only by path. A batch of changes names the folders it holds, and any other parent is asked for once per pass.
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import type { BrowseItem, Downloaded, MountRec, PullBatch, Provider, RemoteItem, Uploaded } from "./providers.ts";
+import type { BrowseItem, Downloaded, MountRec, PullBatch, Provider, RemoteItem, Revision, Uploaded } from "./providers.ts";
 
 type Row = Record<string, unknown>;
 
@@ -18,6 +18,24 @@ const ROOT = "/";
 
 const rootOf = (m: { ref?: string }): string => m.ref ?? ROOT;
 const connection = (m: { connectionId?: string }): Row => (m.connectionId !== undefined ? { connectionId: m.connectionId } : {});
+
+const stamp = (v: unknown): number | undefined => {
+  const t = typeof v === "string" ? Date.parse(v) : Number.NaN;
+  return Number.isFinite(t) ? t : undefined;
+};
+
+/** A listed entry as a mount item. Dropbox's revision is both what changes with the content and what a write is conditional on. */
+function itemOf(e: Row, parentId: string | undefined): RemoteItem | undefined {
+  const id = text(e["id"]);
+  if (id === undefined) return undefined;
+  const size = whole(e["size"]);
+  const rev = text(e["rev"]);
+  const at = stamp(e["modified"]);
+  return {
+    id, name: text(e["name"]) ?? id, ...(parentId !== undefined ? { parentId } : {}), isFolder: e["isFolder"] === true,
+    ...(size !== undefined ? { size } : {}), ...(rev !== undefined ? { version: rev, revision: rev } : {}), ...(at !== undefined ? { modifiedAt: at } : {}),
+  };
+}
 
 const parentPathOf = (pathLower: string): string => pathLower.slice(0, Math.max(0, pathLower.lastIndexOf("/")));
 
@@ -92,13 +110,8 @@ async function pull(ctx: Ctx, m: MountRec): Promise<PullBatch> {
     const pathLower = text(e["pathLower"]);
     // the mounted folder itself comes back in a listing of its own path only as a child list, never as an entry; an entry outside it is not ours
     if (id === undefined || pathLower === undefined || (rootPath !== "" && !pathLower.startsWith(`${rootPath}/`))) continue;
-    const parentId = await parentOf(pathLower);
-    const size = whole(e["size"]);
-    const version = text(e["rev"]);
-    items.push({
-      id, name: text(e["name"]) ?? id, ...(parentId !== undefined ? { parentId } : {}), isFolder: e["isFolder"] === true,
-      ...(size !== undefined ? { size } : {}), ...(version !== undefined ? { version } : {}),
-    });
+    const it = itemOf(e, await parentOf(pathLower));
+    if (it) items.push(it);
   }
   return { items, removed, full, ...(got.cursor !== undefined ? { cursor: got.cursor } : {}) };
 }
@@ -112,18 +125,58 @@ export const dropbox: Provider = {
     return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, ...(text(res["mime"]) !== undefined ? { mime: text(res["mime"]) as string } : {}) };
   },
   async upload(ctx, m, a): Promise<Uploaded> {
-    // An existing file is replaced on the revision this mount last saw; a new one goes into its folder. Without a recorded revision the file's current one is used.
-    const base = (a as { ifVersion?: string }).ifVersion;
+    // An existing file is replaced on the revision the write was based on; a file that moved on since is left as it is and the answer says so (the engine keeps both).
     let path: string;
-    let rev = base;
+    let rev = a.ifMatch?.revision;
     if (a.remoteId !== undefined) {
       const there = await metadata(ctx, m, a.remoteId);
       path = text(there["path"]) ?? "";
       rev ??= text(there["rev"]);
     } else path = `${await pathOfFolder(ctx, m, a.parentRemote)}/${a.name}`;
-    const res = obj(await ctx.call("dropbox.files.upload", { ...connection(m), fileId: a.fileId, path, ...(rev !== undefined ? { rev } : {}) }));
-    const entry = obj(res["entry"]);
-    return { remoteId: text(entry["id"]) ?? a.remoteId ?? "", ...(text(entry["rev"]) !== undefined ? { version: text(entry["rev"]) as string } : {}) };
+    try {
+      const res = obj(await ctx.call("dropbox.files.upload", { ...connection(m), fileId: a.fileId, path, ...(rev !== undefined ? { rev } : {}) }));
+      const entry = obj(res["entry"]);
+      const now = text(entry["rev"]);
+      return { remoteId: text(entry["id"]) ?? a.remoteId ?? "", ...(now !== undefined ? { version: now, revision: now } : {}) };
+    } catch (e) {
+      if (a.remoteId !== undefined && obj(obj(e)["error"])["code"] === "validation.version_conflict") return { remoteId: a.remoteId, stale: true };
+      throw e;
+    }
+  },
+  hookPath: "/hooks/dropbox",
+  async stat(ctx, m, remoteId): Promise<RemoteItem | undefined> {
+    try { return itemOf(await metadata(ctx, m, remoteId), undefined); } catch (e) {
+      if (obj(obj(e)["error"])["code"] === "validation.not_found") return undefined;
+      throw e;
+    }
+  },
+  /**
+   * Dropbox has one webhook address per app, set in its console, not a channel per folder. So a mount is "watched" when the app can verify notices (it holds an app secret), and the channel is the
+   * Dropbox account: a notice names accounts, and mounts.nudge wakes every mount whose channel is that account. The channel never expires.
+   */
+  async watch(ctx, m): Promise<{ id: string; expiresAt: number } | undefined> {
+    const status = obj(await ctx.call("dropbox.app.status", {}));
+    if (status["webhooks"] !== true) return undefined;
+    const accounts = list(obj(await ctx.call("dropbox.account.list", {}))["connections"]).map(obj);
+    const mine = accounts.find((a) => a["connectionId"] === m.connectionId);
+    const accountId = mine === undefined ? undefined : text(mine["accountId"]);
+    return accountId === undefined ? undefined : { id: `dbx:${accountId}`, expiresAt: 0 };
+  },
+  async unwatch(): Promise<void> {
+    // nothing is held at Dropbox for one mount
+  },
+  async revisions(ctx, m, remoteId): Promise<Revision[]> {
+    const res = obj(await ctx.call("dropbox.files.list_revisions", { ...connection(m), path: remoteId, limit: 50 }));
+    return list(res["revisions"]).map((r) => {
+      const o = obj(r);
+      const at = stamp(o["modified"]);
+      const size = whole(o["size"]);
+      return { id: text(o["rev"]) ?? "", ...(at !== undefined ? { at } : {}), ...(size !== undefined ? { size } : {}) };
+    }).filter((r) => r.id !== "");
+  },
+  async revisionBlob(ctx, m, a): Promise<Downloaded> {
+    const res = obj(await ctx.call("dropbox.files.download", { ...connection(m), path: a.remoteId, rev: a.revisionId }));
+    return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, ...(text(res["mime"]) !== undefined ? { mime: text(res["mime"]) as string } : {}) };
   },
   async createFolder(ctx, m, a): Promise<Uploaded> {
     const res = obj(await ctx.call("dropbox.files.create_folder", { ...connection(m), path: `${await pathOfFolder(ctx, m, a.parentRemote)}/${a.name}` }));

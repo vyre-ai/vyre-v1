@@ -26,7 +26,7 @@ const SCOPES = [
 ];
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 const gmailMessage = t.obj({ id: t.str(), threadId: t.str(), labelIds: t.arr(t.str()), snippet: t.opt(t.str()), historyId: t.opt(t.str()), internalDate: t.opt(t.ts()), payload: t.opt(t.rec()) });
-const driveFile = t.obj({ id: t.str(), name: t.str(), mimeType: t.str(), parents: t.opt(t.arr(t.str())), modifiedTime: t.opt(t.str()), size: t.opt(t.int()), webViewLink: t.opt(t.str()), driveId: t.opt(t.str()) });
+const driveFile = t.obj({ id: t.str(), name: t.str(), mimeType: t.str(), parents: t.opt(t.arr(t.str())), modifiedTime: t.opt(t.str()), size: t.opt(t.int()), webViewLink: t.opt(t.str()), driveId: t.opt(t.str()), headRevisionId: t.opt(t.str()), lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) });
 const gcalEvent = t.obj({
   id: t.str(), status: t.opt(t.str()), summary: t.opt(t.str()), start: t.rec(), end: t.rec(), location: t.opt(t.str()), hangoutLink: t.opt(t.str()),
   attendees: t.opt(t.arr(t.obj({ email, responseStatus: t.opt(t.str()), optional: t.opt(t.bool()) }))), organizer: t.opt(t.rec()), updated: t.opt(t.str()),
@@ -136,7 +136,9 @@ const capabilities = [
   gr('google.drive.download_file', 'Download a Drive file into a blob', { fileId: t.str() }, { blobId: id.blob, size: t.int(), mimeType: t.str() }, { tool: 'files', deferred: true }),
   gr('google.drive.export_file', 'Export a Google document, sheet or slide as PDF, DOCX, XLSX or text', { fileId: t.str(), mimeType: t.str({ examples: ['application/pdf'] }) }, { blobId: id.blob, size: t.int() }, { tool: 'files', deferred: true }),
   gr('google.drive.get_permissions', 'Who a Drive file is shared with', { fileId: t.str() }, { permissions: t.arr(t.obj({ id: t.str(), role: t.str(), type: t.str(), emailAddress: t.opt(email) })) }, { tool: 'files', deferred: true }),
-  gw('google.drive.upload_file', 'Upload a Space file into Drive', { name: t.str(), parentId: t.opt(t.str()), fileId: id.file }, { file: driveFile }, { gate: 'post', tool: 'files', deferred: true }),
+  gw('google.drive.upload_file', 'Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision', { name: t.str(), parentId: t.opt(t.str()), fileId: id.file, remoteId: t.opt(t.str()), ifRevision: t.opt(t.str()) }, { file: driveFile, stale: t.opt(t.bool()) }, { gate: 'post', tool: 'files', deferred: true }),
+  gr('google.drive.list_revisions', 'The revisions Drive keeps of a file, with who saved each', { fileId: t.str() }, { revisions: t.arr(t.obj({ id: t.str(), modifiedTime: t.str(), size: t.opt(t.int()), lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) })) }, { tool: 'files', deferred: true }),
+  gr('google.drive.download_revision', 'Download one revision of a Drive file into a blob', { fileId: t.str(), revisionId: t.str() }, { blobId: id.blob, size: t.int(), mimeType: t.str() }, { tool: 'files', deferred: true }),
   gw('google.drive.create_folder', 'Create a Drive folder', { name: t.str(), parentId: t.opt(t.str()) }, { file: driveFile }, { gate: 'post', tool: 'files', deferred: true }),
   gw('google.drive.copy_file', 'Copy a Drive file', { fileId: t.str(), name: t.opt(t.str()), parentId: t.opt(t.str()) }, { file: driveFile }, { gate: 'post', tool: 'files', deferred: true }),
   gw('google.drive.share_file', 'Share a Drive file with people; Google emails them', { fileId: t.str(), emails: t.arr(email, { minItems: 1 }), role: t.enm('reader', 'commenter', 'writer'), notify: t.opt(t.bool()) }, { shared: t.bool() }, { gate: 'send', tool: 'files', deferred: true }),

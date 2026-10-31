@@ -3,12 +3,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import manifest from "../../../manifests/dropbox.ts";
+import mountsManifest from "../../../manifests/mounts.ts";
 import { handlers, hostCalls } from "../impl.ts";
 import * as d from "../handlers/index.ts";
 import { useContract, APP_SECRET, NOW, codeOf, harness, refusedWith } from "../fixtures/harness.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 
-useContract(manifest);
+useContract(manifest, [mountsManifest]);
 
 const BODY = JSON.stringify({ list_folder: { accounts: ["dbid:AAH4f99T0taONIb", "dbid:BBB"] }, delta: { users: [1, 2] } });
 
@@ -48,15 +49,24 @@ test("receive_webhook records a delivery once and says which accounts changed", 
   const input = { eventId: "e".repeat(32), accounts: ["dbid:AAH4f99T0taONIb"], at: NOW };
   assert.deepEqual(await d.receiveWebhook(h.ctx, input), { accepted: true });
   assert.deepEqual(await d.receiveWebhook(h.ctx, input), { accepted: true });
+  assert.deepEqual(h.calls("mounts.nudge").map((c) => c.input), [{ source: "dropbox", channelId: "dbx:dbid:AAH4f99T0taONIb" }], "the mounts on that account are woken once, with the account as the channel");
   assert.deepEqual(h.named("dropbox.changes_received").map((e) => e.payload), [{ eventId: "e".repeat(32), accounts: ["dbid:AAH4f99T0taONIb"] }], "the second delivery changes nothing");
   assert.equal(h.rows(`SELECT * FROM dropbox_event`).length, 1);
   h.advance(25 * 3600_000);
   await d.receiveWebhook(h.ctx, { ...input, eventId: "f".repeat(32) });
   assert.deepEqual(h.rows(`SELECT "eventId" FROM dropbox_event`).map((r) => r["eventId"]), ["f".repeat(32)], "events older than a day are forgotten");
-  assert.equal(await refusedWith(Promise.resolve().then(() => d.receiveWebhook(h.ctx, { accounts: [] }))), "validation.bad_input");
+  assert.equal(await refusedWith(d.receiveWebhook(h.ctx, { accounts: [] })), "validation.bad_input");
 });
 
 const host = (h: ReturnType<typeof harness>): Ctx => ({ ...h.ctx, principal: { kind: "service", id: "svc_host" }, origin: "hook", depth: 0 }) as never;
+
+test("a mount that cannot be woken does not fail the notice: the poll still finds the change", async () => {
+  const h = harness();
+  h.script("mounts.nudge", () => { throw h.err("internal.unavailable", "down"); });
+  assert.deepEqual(await d.receiveWebhook(h.ctx, { eventId: "n".repeat(32), accounts: ["dbid:A", "dbid:B"], at: NOW }), { accepted: true });
+  assert.equal(h.calls("mounts.nudge").length, 2, "every account was tried");
+  assert.equal(h.named("dropbox.changes_received").length, 1);
+});
 
 test("the host call checks the signature with the app secret from the Vault, then records the delivery", async () => {
   const h = harness();

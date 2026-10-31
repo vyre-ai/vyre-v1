@@ -38,12 +38,13 @@ export function foldersQuery(rt: ShellRuntime): LiveQuery<readonly FolderNode[]>
 export interface MemoryView { view: KnowRoute | null; open(v: KnowRoute | null): void }
 
 /** Where Connect a folder goes: the place opens the mount sheet into this folder (null: the top of the Space). */
-export interface MountDoor { connect(into: string | null): void }
+export interface MountDoor { connect(into: string | null): void; live?(): void; liveView?: boolean }
 
 export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountDoor): FilesData {
   return {
     ...(rt.space.kind === "personal" ? { personal: true } : {}),
     ...(memory ? { memoryView: memory.view } : {}),
+    ...(mounts?.liveView ? { liveView: true } : {}),
     screens: rt.screens,
     live: (cap, input) => capLive(rt, cap, input as Record<string, unknown>),
     folders: foldersQuery(rt),
@@ -56,12 +57,14 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
       shareFolder: (folderId) => rt.open({ screen: "spaces.switcher", args: { share: folderId } }),
       renameEntry: (kind, id, current) => rt.open({ screen: "files.list", args: { rename: id, kind, current } }),
       ...(mounts ? { connectFolder: (into: string | null) => mounts.connect(into) } : {}),
+      ...(mounts?.live ? { openLive: () => mounts.live?.() } : {}),
       newFolder: (scope, parentId) => rt.open({ screen: "files.list", args: { newFolder: scope, ...(parentId ? { parentId } : {}) } }),
       openMemory: () => (memory ? memory.open({ v: "learned" }) : rt.open({ screen: "files.memory-proposed" })),
       openGraph: () => (memory ? memory.open({ v: "graph" }) : rt.open({ screen: "files.memory-graph" })),
       openKnow: (route) => (memory ? memory.open(route) : rt.open({ screen: "files.knowledge", args: routeToArgs(route) })),
       ...(memory ? { leaveMemory: () => memory.open(null) } : {}),
       resolveConflict: (fileId) => rt.open({ screen: "shell.conflicts-tab", args: { entity: "file", recordId: fileId } }),
+      openExternal: (url) => rt.openUrl(url),
     },
   };
 }

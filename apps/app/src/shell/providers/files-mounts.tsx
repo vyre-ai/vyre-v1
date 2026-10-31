@@ -5,19 +5,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MountSheet, MountsDataProvider, UnmountSheet } from "../../places/files/mounts/index.ts";
-import type { Accounts, MountRow, MountsData } from "../../places/files/mounts/index.ts";
+import { Mark } from "../../places/files/mounts/icons.tsx";
+import { accountKey } from "../../places/files/mounts/model.ts";
+import type { Accounts, MountRow, MountsData, SourceId } from "../../places/files/mounts/index.ts";
+import { connectGithub, loadAccounts, mountLine, peopleOf, thisDevice, writableFolders } from "./files-mounts-data.ts";
 import { useOpenConnect } from "../connect/index.ts";
-import { loadAccounts, mountLine, peopleOf, thisDevice, writableFolders } from "./files-mounts-data.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
-export type MountRequest = { kind: "mount"; into: string | null } | { kind: "unmount"; mount: MountRow };
+export type MountRequest = { kind: "mount"; into: string | null; source?: SourceId } | { kind: "unmount"; mount: MountRow };
 
 /** What the sheet needs, read from the Space when it opens: who is connected, the folders a mount can go into, the people it can be shared with. */
 export function useMountsData(rt: ShellRuntime): MountsData | null {
-  const [loaded, setLoaded] = useState<{ accounts: Accounts; folders: Array<{ id: string; name: string }> } | null>(null);
   const openConnect = useOpenConnect();
-  // bumped when Dropbox was just connected in place, so the accounts are read again
-  const [connectedAt, setConnectedAt] = useState(0);
+  const [loaded, setLoaded] = useState<{ accounts: Accounts; folders: Array<{ id: string; name: string }> } | null>(null);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -25,7 +25,7 @@ export function useMountsData(rt: ShellRuntime): MountsData | null {
       if (live) setLoaded({ accounts, folders });
     })();
     return () => { live = false; };
-  }, [rt, connectedAt]);
+  }, [rt]);
   const people = useMemo(() => {
     const s = rt.principals.getSnapshot();
     return s.status === "ready" ? peopleOf(s.data, rt.me.id) : [];
@@ -36,23 +36,40 @@ export function useMountsData(rt: ShellRuntime): MountsData | null {
   }, [rt]);
   return useMemo(() => loaded && ({
     call: rt.call, space: { name: rt.space.name, ...(everyone ? { everyoneGroupId: everyone } : {}) }, accounts: loaded.accounts, folders: loaded.folders, people,
-    // a source with no connection: Connections in Settings, where Google and Microsoft are connected and the GitHub App is installed
-    connect: (source) => {
-      // Dropbox signs in over the sheet; the rest are connected in Settings
-      if (source === "dropbox" && openConnect) { void openConnect({ kind: "connector", service: "dropbox" }).then((a) => { if (a) setConnectedAt((n) => n + 1); }); return; }
-      rt.open({ screen: "mail.connections", args: { kind: source === "google_drive" ? "gmail" : source === "microsoft" ? "outlook" : source } });
+    // A source with no connection: Google and Microsoft sign in right here (connect in place) and the new account is read back; the GitHub App is installed from Connections in Settings.
+    connect: async (source) => {
+      if (source === "github") {
+        const got = await connectGithub(rt.call, (url) => rt.openUrl(url));
+        if (got === "not_set_up") { rt.open({ screen: "mail.connections", args: { kind: "github" } }); return null; }
+        return got;
+      }
+      // Dropbox signs in over the sheet with its own capabilities; the account it made is read back
+      if (source === "dropbox") {
+        if (!openConnect) return null;
+        const got = await openConnect({ kind: "connector", service: "dropbox" });
+        if (!got) return null;
+        const acc = (await loadAccounts(rt.call, null)).dropbox;
+        return acc.connected ? acc : { label: got.title, connected: true, connectionId: got.id };
+      }
+      if (!openConnect) { rt.open({ screen: "mail.connections", args: { kind: source === "google_drive" ? "gmail" : "outlook" } }); return null; }
+      const got = await openConnect({ kind: "connector", service: source === "google_drive" ? "google" : "microsoft" });
+      if (!got) return null;
+      const fresh = await loadAccounts(rt.call, null);
+      const acc = fresh[source === "google_drive" ? "google_drive" : "microsoft"];
+      return acc.connected ? acc : { label: got.title, connected: true, connectionId: got.id };
     },
   }), [rt, loaded, people, everyone, openConnect]);
 }
 
 /** The sheets over the Files place: the mount sheet, or the Unmount sheet for a mounted folder. */
-export function MountSheets({ rt, request, onClose, onChanged }: { rt: ShellRuntime; request: MountRequest | null; onClose(): void; onChanged(): void }): ReactElement | null {
+export function MountSheets({ rt, request, onClose, onChanged, onMounted }: { rt: ShellRuntime; request: MountRequest | null; onClose(): void; onChanged(): void; onMounted?(info: { folderId: string; name: string }): void }): ReactElement | null {
   const data = useMountsData(rt);
   if (!request || !data) return null;
   return (
     <MountsDataProvider value={data}>
       {request.kind === "mount"
-        ? <MountSheet into={request.into ?? undefined} onClose={onClose} onMounted={(info) => { onChanged(); onClose(); rt.open({ subject: { type: "folder", id: info.folderId } }); }} />
+        ? <MountSheet into={request.into ?? undefined} onClose={onClose} {...(request.source && data.accounts[accountKey(request.source)].connected ? { initial: { step: 2 as const, source: request.source } } : {})}
+            onMounted={(info) => { onChanged(); onClose(); if (onMounted) onMounted({ folderId: info.folderId, name: info.name }); else rt.open({ subject: { type: "folder", id: info.folderId } }); }} />
         : <UnmountSheet mount={request.mount} onClose={onClose} onRemoved={() => { onChanged(); onClose(); }} />}
     </MountsDataProvider>
   );
@@ -99,6 +116,7 @@ export function MountStrip({ rt, mount, onUnmount, onChanged }: { rt: ShellRunti
   );
   return (
     <View style={st.strip} testID="mount-strip" accessibilityRole="summary" accessibilityLabel={`${line.source}. ${line.state}. ${line.detail}`}>
+      <Mark kind={mount.kind === "google_drive" ? "google_drive" : mount.kind} size={22} />
       <View style={st.text}>
         <Text numberOfLines={1} style={st.title}>{line.source}</Text>
         <Text numberOfLines={2} style={st.note}><Text style={line.tone === "bad" ? st.bad : line.tone === "warn" ? st.warn : st.ok}>{line.state}</Text>{`  ${said ?? line.detail}`}</Text>

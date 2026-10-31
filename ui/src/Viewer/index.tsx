@@ -251,6 +251,8 @@ export interface ViewerViewProps extends ViewerProps {
   onInfo?: () => void;
   onHistory?: () => void;
   onMore?: () => void;
+  /** A file that lives at a provider (Google Docs, Word, Excel, Dropbox): one press opens it in the provider's own editor. `label` reads "Open in Google Docs". */
+  openIn?: { label: string; onOpen: () => void };
   onBoxes?: (boxes: readonly MarkupBox[]) => void;
   onStrokes?: (strokes: readonly Stroke[]) => void;
   onEdit?: (blocks: readonly DocBlock[]) => void;
@@ -368,6 +370,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
             ))}
           </View>
         </View>
+      ) : null}
+      {props.openIn !== undefined ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={props.openIn.label} testID="vw-open-in" onPress={props.openIn.onOpen}
+          style={({ hovered }: { hovered?: boolean }) => [s.openIn, hovered === true && s.toolOver]}><Text style={s.openInText} numberOfLines={1}>{props.openIn.label}</Text></Pressable>
       ) : null}
       {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
       {iconBtn("Details", ICON.info, "vw-info", () => { setDetailsOpen((o) => !o); props.onInfo?.(); }, detailsOpen)}
@@ -610,6 +616,8 @@ const s = StyleSheet.create({
   tile: { width: 28, height: 28, borderRadius: 6, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
   tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
   iconBtn: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  openIn: { height: 28, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center", flexShrink: 1 },
+  openInText: { color: "var(--ink-2)" as string, fontSize: 12.5, fontWeight: "500" },
   modeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   saved: { color: "var(--ok)" as string, fontSize: 12 },
   seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },

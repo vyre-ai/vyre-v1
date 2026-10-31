@@ -15,6 +15,8 @@ import type { ChatsNav, ChatsSidebarData, Connection } from "./data.tsx";
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (m: number, d: number, h: number, min = 0): number => Date.UTC(2025, m - 1, d, h, min, 0);
 const DAY = 86_400_000;
+/** You, in every sample Space. */
+export const ME = "usr_irfad";
 
 export interface SampleThread { threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string }
 export interface SampleSpace {
@@ -24,7 +26,10 @@ export interface SampleSpace {
   otherNeedsYou: boolean;
   agents: { agentId: string; name: string; starred: boolean; working?: boolean }[];
   threads: SampleThread[];
-  channels: { channelId: string; name: string; unread: number; visibility: "public" | "invite"; project?: boolean }[];
+  channels: { channelId: string; name: string; unread: number; visibility: "public" | "invite"; project?: boolean; /** false: a public channel you have not joined (it is for Browse, not the list) */ joined?: boolean; topic?: string }[];
+  /** The people a channel can add (access.principals.list) and the projects it can link (projects.list). */
+  people?: { id: string; name: string; title?: string }[];
+  projects?: { recordId: string; title: string }[];
   needs: { taskId: string; title: string; kind: "approve" | "review" | "unblock"; by: string }[];
   needsTotal: number;
 }
@@ -70,6 +75,11 @@ export const northwind: SampleSpace = {
     { taskId: "tsk_n7", title: "Month-end export is waiting on a sign-in", kind: "unblock", by: "agt_billing" },
   ],
   needsTotal: 7,
+  people: [
+    { id: "usr_maya", name: "Maya Chen", title: "Partner" }, { id: "usr_omar", name: "Omar Haddad", title: "Paralegal" }, { id: "usr_priya", name: "Priya Nair", title: "Office manager" },
+    { id: "usr_lena", name: "Lena Brandt" }, { id: "usr_tom", name: "Tom Okafor" },
+  ],
+  projects: [{ recordId: "rec_rivera", title: "Rivera matter" }, { recordId: "rec_atp", title: "ATP Q4 campaign" }],
 };
 
 /** A prototype clock string: "8:41" is today at 08:41, "Yesterday" yesterday midday, a weekday name the Monday before. */
@@ -167,8 +177,8 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
   });
   replica.resolve("channels.list", (_t, input) => { refuse("channels.list", input); return {
     channels: (replica.rows("channels") as unknown as SampleSpace["channels"]).map((c): Channel => ({
-      channelId: c.channelId, mainThreadId: `th_${c.channelId}`, name: c.name, visibility: c.visibility, archived: false, members: [], agents: [], unread: c.unread, createdAt: at(10, 1, 9),
-      ...(c.project ? { recordId: `rec_${c.channelId}` } : {}),
+      channelId: c.channelId, mainThreadId: `th_${c.channelId}`, name: c.name, visibility: c.visibility, archived: false, members: c.joined === false ? [] : [{ kind: "person", id: ME }], agents: [], unread: c.unread, createdAt: at(10, 1, 9),
+      ...(c.topic ? { topic: c.topic } : {}), ...(c.project ? { recordId: `rec_${c.channelId}` } : {}),
     })),
   }; });
   replica.resolve("agents.list", (_t, input) => {
@@ -213,6 +223,22 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       return { unread: 0 };
     },
     "tasks.act": (i: { taskId: string }) => { replica.remove("needs", [i.taskId]); return { task: {} }; },
+    "access.principals.list": () => ({
+      principals: (space.people ?? []).map((p) => ({ id: p.id, kind: "person", name: p.name, status: "active", roles: [], groups: [], createdAt: at(10, 1, 9), ...(p.title ? { title: p.title } : {}) })),
+    }),
+    "projects.list": () => ({ projects: (space.projects ?? []).map((p) => ({ projectId: `prj_${p.recordId}`, recordId: p.recordId, type: "matter", title: p.title, status: "active" })) }),
+    "channels.create": (i: { name: string; visibility: "public" | "invite"; topic?: string; recordId?: string }) => {
+      const rows = replica.rows("channels") as unknown as SampleSpace["channels"];
+      if (rows.some((c) => c.name === i.name)) throw Object.assign(new Error("A channel with that name already exists."), { code: "validation.bad_input" });
+      const channelId = `new_${i.name}`;
+      replica.put("channels", [{ id: channelId, channelId, name: i.name, unread: 0, visibility: i.visibility, ...(i.topic ? { topic: i.topic } : {}), ...(i.recordId ? { project: true } : {}) }]);
+      return { channel: { channelId, mainThreadId: `th_${channelId}`, name: i.name, visibility: i.visibility, archived: false, members: [], agents: [], unread: 0, createdAt: SAMPLE_NOW } };
+    },
+    "channels.join": (i: { channelId: string }) => {
+      const c = (replica.rows("channels") as unknown as SampleSpace["channels"]).find((x) => x.channelId === i.channelId);
+      if (c) replica.put("channels", [{ id: c.channelId, ...c, joined: true }]);
+      return { channel: {} };
+    },
   };
 
   const nav: ChatsNav = {
@@ -232,8 +258,8 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       return w(input);
     },
     connection,
-    space: { name: space.name, otherNeedsYou: space.otherNeedsYou, assistant: space.assistant },
-    nav,
+    space: { name: space.name, otherNeedsYou: space.otherNeedsYou, ...(space.id === "personal" ? { personal: true } : {}), assistant: space.assistant },
+    nav, me: { id: ME },
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };
   return {

@@ -36,6 +36,7 @@ export function harness(opts: HarnessOptions = {}) {
   const requests: Req[] = [];
   const routes: { method: string; match: string | RegExp; reply: Reply | ((r: Req) => Reply) }[] = [];
   const minted: { sub: string; scopes: string[] }[] = [];
+  const uploads: { url: string; method?: string; metadata: Record<string, unknown> }[] = [];
   const refusedScopes = new Set<string>();
   const ingests: Record<string, unknown>[] = [];
   const ingestState = { fail: false, deduped: new Set<string>() };
@@ -119,12 +120,15 @@ export function harness(opts: HarnessOptions = {}) {
     async fileBytes(_c, fileId) { return { name: `${fileId}.txt`, mime: "text/plain", bytes: new TextEncoder().encode("file body") }; },
     async putBlob(_c, bytes) { return `blb_${bytes.byteLength}b`; },
     async download(_c, a) { return { blobId: "blb_download", size: 42, mime: a.mime ?? "application/pdf" }; },
-    async upload(_c, a) { return { id: "up1", name: String(a.metadata.name), mimeType: "text/plain" }; },
+    async upload(_c, a) {
+      uploads.push({ url: a.url, ...(a.method !== undefined ? { method: a.method } : {}), metadata: a.metadata });
+      return { id: "up1", name: String(a.metadata.name), mimeType: "text/plain", headRevisionId: "rev_new", lastModifyingUser: { displayName: "Maya Lin", emailAddress: "maya@vyre.test" } };
+    },
   };
   setGoogleHost(host);
 
   return {
-    ctx, emitted, called, scheduled, requests, minted, ingests, refuseScope: (s: string) => refusedScopes.add(s), ingestState,
+    ctx, emitted, called, scheduled, requests, minted, uploads, ingests, refuseScope: (s: string) => refusedScopes.add(s), ingestState,
     on(method: string, match: string | RegExp, reply: Reply | ((r: Req) => Reply) = {}) { routes.push({ method, match, reply }); },
     advance(ms: number) { clock += ms; },
     rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },

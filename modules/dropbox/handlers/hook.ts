@@ -3,7 +3,7 @@
 //   a POST         x-dropbox-signature is the hex HMAC-SHA256 of the raw body under the app secret. The check comes first; a body that is not a Dropbox change is refused after it.
 // DECISION: Dropbox sends no event id and no time, so the id is the hash of the body: the same delivery twice is one event, and two different deliveries are two.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { bad, ensure, first, list, needConfig, needHost, obj, text } from "../projections.ts";
+import { bad, codeOf, ensure, first, list, needConfig, needHost, obj, text } from "../projections.ts";
 import type { DropboxCtx } from "../projections.ts";
 
 const utf8 = (v: string) => new TextEncoder().encode(v);
@@ -43,8 +43,11 @@ export async function webhookSecret(ctx: DropboxCtx): Promise<string> {
   return needHost(ctx).appSecret(ctx, needConfig(ctx).vaultItem);
 }
 
-/** Record a verified delivery once, and say which accounts changed. Mounts on those accounts read their change feeds. */
-export function receiveWebhook(ctx: DropboxCtx, input: unknown) {
+/**
+ * Record a verified delivery once, and say which accounts changed. Every mount on those accounts is woken (mounts.nudge, by the channel the provider named: dbx:<account>), so a change in Dropbox
+ * reaches Vyre within a pass instead of waiting for the next poll. Waking is best effort: a mount that cannot run a pass now still has its poll.
+ */
+export async function receiveWebhook(ctx: DropboxCtx, input: unknown) {
   ensure(ctx);
   const i = obj(input);
   const eventId = text(i["eventId"]);
@@ -55,6 +58,9 @@ export function receiveWebhook(ctx: DropboxCtx, input: unknown) {
   // events older than a day have done their job; the table stays small
   ctx.db.run(`DELETE FROM dropbox_event WHERE "at" < ?`, ctx.now() - 24 * 3600_000);
   ctx.emit("dropbox.changes_received", `entity/${eventId}`, { eventId, accounts });
+  for (const account of accounts) {
+    try { await ctx.call("mounts.nudge", { source: "dropbox", channelId: `dbx:${account}` }); } catch (e) { ctx.log.warn("dropbox change did not wake its mounts", { code: codeOf(e) }); }
+  }
   return { accepted: true };
 }
 

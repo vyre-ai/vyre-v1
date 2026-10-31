@@ -19,8 +19,8 @@ const entry = t.obj({
 const account = t.obj({ connectionId: conn, ownerKind: t.enm('person', 'space'), accountId: t.str(), email: t.opt(t.str()), name: t.opt(t.str()) });
 
 const capabilities = [
-  read('dropbox.app.status', 'Whether the Dropbox app is set up on this server, its key and the address Dropbox sends people back to', {
-    in: {}, out: { configured: t.bool(), appKey: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()) },
+  read('dropbox.app.status', 'Whether the Dropbox app is set up on this server, its key, the address Dropbox sends people back to, and whether change notices can be verified (the address to give Dropbox for them)', {
+    in: {}, out: { configured: t.bool(), appKey: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()), webhooks: t.opt(t.bool()), webhookUri: t.opt(t.str()) },
   }),
   write('dropbox.app.set', 'Name the Vault item that holds the Dropbox app key (and secret, for change notices)', {
     in: { vaultItem: id.handle }, out: { configured: t.bool(), appKey: t.str(), webhooks: t.bool() }, perm: 'connectors.manage', audit: 'always', errors: ['provider.auth_failed'],

@@ -179,7 +179,7 @@ test("GitHub and local browse: repositories the App can reach (private ones mark
 
 test("agents work in a mounted folder like in any folder: an agent can mount, sync and list, and its edits go out like a person's", async () => {
   const w = harness({ principal: { kind: "agent", id: "agt_scout" } });
-  const added = await call(w, "mounts.add", { into: "fld_into", source: { kind: "google_drive", connectionId: "con_g", ref: "root_drv" }, name: "Shared" });
+  const added = await call(w, "mounts.add", { into: "fld_into", source: { kind: "google_drive", connectionId: "con_g", ref: "root_drv" }, name: "Shared", mode: "server_copy" });
   const mountId = String(added["mountId"]);
   const folderId = String(added["folderId"]);
   assert.equal(w.mountRow(mountId)["owner"], "agt_scout");

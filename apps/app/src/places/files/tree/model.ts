@@ -53,6 +53,8 @@ export interface Line {
   updatedBy: string | null;
   thumb: boolean;
   source: string | null;
+  /** The file's type as the files module guessed it (a Google-native file is kept as its export, so this says which Google app it came from). */
+  mime?: string;
   /** What the line holds, for a folder. */
   items: number;
   folderId: string | null;
@@ -63,7 +65,7 @@ export interface Line {
 }
 
 export function fileLine(f: FileRow): Line {
-  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, items: 0, folderId: f.folderId, ...(f.starred === true ? { starred: true } : {}), ...(f.conflict === true ? { conflict: true } : {}) };
+  return { key: `file:${f.fileId}`, type: "file", id: f.fileId, name: f.name, kind: f.kind, size: f.size, updatedAt: f.updatedAt, updatedBy: f.updatedBy, thumb: f.thumb, source: f.source?.provider ?? null, mime: f.mime, items: 0, folderId: f.folderId, ...(f.starred === true ? { starred: true } : {}), ...(f.conflict === true ? { conflict: true } : {}) };
 }
 
 export function folderLine(f: FolderRow): Line {

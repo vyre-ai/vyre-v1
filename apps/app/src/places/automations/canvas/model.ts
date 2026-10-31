@@ -633,6 +633,12 @@ function startingInput(key: string): Record<string, unknown> {
   return {};
 }
 
+/** A new step that starts with a connector, its action and its connection filled in (a connector someone built, picked from Your connectors). */
+export function withPreset(def: Definition, id: string, preset: Record<string, unknown> | undefined): Definition {
+  if (!preset) return def;
+  return { ...def, nodes: def.nodes.map((n) => (n.id === id ? { ...n, input: { ...n.input, ...preset } } : n)) };
+}
+
 /** Insert a new step after `afterId` (or first, after the trigger, when null). The step that came next now follows the new one. */
 export function addAfter(def: Definition, afterId: string | null, key: string): { def: Definition; id: string } {
   const d = clone(def);

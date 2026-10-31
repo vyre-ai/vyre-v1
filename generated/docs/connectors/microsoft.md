@@ -62,6 +62,10 @@ Key microsoft, module microsoft. Mode oauth_app, owned by a space. Auth client_c
 - ms.drive.download_item
 - ms.drive.delta
 - ms.drive.upload_item
+- ms.drive.list_versions
+- ms.drive.download_version
+- ms.drive.subscribe
+- ms.drive.unsubscribe
 - ms.drive.create_folder
 - ms.drive.share_item
 - ms.drive.delete_item

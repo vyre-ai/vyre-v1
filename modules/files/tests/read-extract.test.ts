@@ -92,3 +92,35 @@ test("when the text cannot be taken out, the read says so and does not hand back
     }
   }
 });
+
+test("a file of a live mount is an empty placeholder: reading it opens it first, and only an empty file asks the mounts", async () => {
+  let opened = 0;
+  let fileId = "";
+  let ctxRef!: Ctx;
+  const w = world((cap, input) => {
+    if (cap === "mounts.open") {
+      opened += 1;
+      // the mount fetches the provider's copy: a new version with the bytes
+      return call(ctxRef, "files.write", { fileId: input["fileId"], content: { text: "PK-fetched" }, reason: "Fetched from the provider", idempotencyKey: "fetch-1" }).then(() => ({ mounted: true, fetched: true }));
+    }
+    if (cap === "previews.text") return call(ctxRef, "files.read", { fileId: input["fileId"], as: "base64" }).then((r: Obj) => ({ text: `text of ${Buffer.from(r.base64, "base64").toString()}`, truncated: false, source: "office" }));
+    return undefined;
+  });
+  ctxRef = w.ctx;
+  fileId = await make(w.ctx, "plan.docx", undefined, "");
+  const r = await call(w.ctx, "files.read", { fileId, as: "text" });
+  assert.equal(r.text, "text of PK-fetched", "the placeholder was opened and then read");
+  assert.equal(opened, 1);
+  await call(w.ctx, "files.read", { fileId, as: "text" });
+  assert.equal(opened, 1, "a file with content is not opened again");
+  const plain = await make(w.ctx, "note.md", "text/markdown", "# Hi");
+  await call(w.ctx, "files.read", { fileId: plain, as: "text" });
+  assert.equal(opened, 1);
+  // an empty file that is not mounted, or a mount that cannot be reached, reads as the empty file it is
+  const lone = world(() => undefined);
+  const none = await make(lone.ctx, "empty.txt", "text/plain", "");
+  assert.equal((await call(lone.ctx, "files.read", { fileId: none, as: "text" })).text, "");
+  const down = world((cap) => { if (cap === "mounts.open") throw new VyreErr({ code: "provider.unavailable" as never, message: "down", retryable: true, traceId: "0".repeat(32), next: [] }); return undefined; });
+  const stuck = await make(down.ctx, "stuck.md", "text/markdown", "");
+  assert.equal((await call(down.ctx, "files.read", { fileId: stuck, as: "text" })).text, "");
+});

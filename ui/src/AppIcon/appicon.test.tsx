@@ -41,15 +41,15 @@ test("stroke marks keep their strokes", () => {
   assert.match(html, /stroke="currentColor"/);
 });
 
-test("db and aws reach the postgres and amazon marks; ghl has none and draws a letter", () => {
+test("db and aws reach the postgres and amazon marks; ghl draws its own icon file", () => {
   assert.equal(markKey("db"), "postgresql");
   assert.equal(markKey("aws"), "amazonwebservices");
-  assert.equal(markKey("ghl"), null);
+  assert.equal(markKey("ghl"), null, "no inline mark; the tools file is used");
   assert.match(renderToStaticMarkup(<AppIcon brand="db" />), /data-appicon="postgresql"/);
   const ghl = renderToStaticMarkup(<AppIcon brand="ghl" name="GoHighLevel" />);
-  assert.match(ghl, /data-appicon="letter"/);
-  assert.match(ghl, />G</);
-  assert.doesNotMatch(ghl, /<svg/);
+  assert.match(ghl, /data-appicon="gohighlevel"/);
+  assert.match(ghl, /src="\/tools\/gohighlevel\.png"/);
+  assert.doesNotMatch(ghl, />G</);
 });
 
 test("an unknown app draws the first letter of its name", () => {
@@ -94,4 +94,15 @@ test("the tile takes the size it is given and carries a label", () => {
   assert.match(html, /width:40px/);
   assert.match(html, /height:40px/);
   assert.match(html, /aria-label="Slack"/);
+});
+
+test("an app that ships only as a file in public/tools is found by name, and an ordinary word inside a longer name is not", async () => {
+  const { brandForName, toolKey } = await import("./index.tsx");
+  assert.equal(brandForName("Clio"), "clio");
+  assert.equal(brandForName("Clio Manage key"), "clio");
+  assert.equal(toolKey("clio"), "clio");
+  assert.equal(brandForName("Postgres box"), "db", "the postgres mark wins");
+  assert.equal(brandForName("Spare box key"), null, "box is an ordinary word here");
+  assert.equal(brandForName("Box"), "box", "but the whole name is the app");
+  assert.match(renderToStaticMarkup(<AppIcon brand="clio" name="Clio" />), /\/tools\/clio\.png/);
 });

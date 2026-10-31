@@ -4,6 +4,7 @@ import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 
 export const ICON = {
   chev: ["M4 6l4 4 4-4"],
@@ -79,6 +80,7 @@ export function Badge({ n, testID }: { n: number; testID?: string }): ReactEleme
 export function Tool({ icon, label, onPress, active = false, testID }: { icon: IconName; label: string; onPress: (x: number, y: number) => void; active?: boolean; testID?: string }): ReactElement {
   const [over, setOver] = useState(false);
   return (
+    <Tooltip text={label}>
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} testID={testID}
       onPress={(e) => {
@@ -91,6 +93,7 @@ export function Tool({ icon, label, onPress, active = false, testID }: { icon: I
     >
       <Glyph name={icon} size={14} color={over || active ? "var(--ink)" : "var(--ink-3)"} />
     </Pressable>
+    </Tooltip>
   );
 }
 

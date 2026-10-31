@@ -10,6 +10,10 @@ import { Empty, Lead } from "../shell/ui.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import { People } from "../pages/Access.tsx";
 import { ConsoleShell } from "../shell/ConsoleShell.tsx";
+import { AgentsRegister } from "../pages/Agents.tsx";
+import { PAGES } from "../shell/nav.ts";
+import { PATHS } from "../shell/glyphs.tsx";
+import { hasTip, openSheet } from "./sheet-helper.tsx";
 
 const noop = (): void => undefined;
 const draw = (el: React.ReactElement, rows: Record<string, unknown> = {}): string => {
@@ -38,9 +42,31 @@ test("Lead gives a Row's leading slot its gap", () => {
   assert.match(out, /r-marginRight-/, "a right margin is set");
 });
 
-test("a disabled Create invite says why beside it", () => {
-  const people = draw(<People />, { "access.principals.list": { principals: [] }, "access.roles.list": { roles: [] }, "access.groups.list": { groups: [] } });
-  assert.ok(people.includes("Pick a role first"), "Create invite names what is missing");
+test("Invite a person is a button that opens a sheet, and the disabled Create says why as its tooltip", async () => {
+  const rows = { "access.principals.list": { principals: [] }, "access.roles.list": { roles: [] }, "access.groups.list": { groups: [] } };
+  const out = await openSheet(<People />, rows, "console-invite-open");
+  assert.ok(!out.before.includes("Create invite"), "no form on the page");
+  assert.ok(out.text.includes("Create invite") && hasTip(out.root, "Pick a role first"), "the tooltip names what is missing");
+  assert.ok(!out.text.includes("Pick a role first"), "and no sentence sits on the page");
+});
+
+test("Agents: New agent opens a sheet with a model picker, and rows carry a face and a status dot", async () => {
+  const agents = { agents: [{ agentId: "agt_intake", name: "Intake", status: "active", role: "Books consults", hasComputer: true, ownerId: "usr_irfad", folderId: "fld_a" }] };
+  const rows = { "agents.list": agents, "engine.models.list": { models: [{ provider: "anthropic", model: "claude-opus-5-5", title: "Opus 5.5", driver: "claude_code", allowed: true }] } };
+  const out = await openSheet(<AgentsRegister />, rows, "agent-new");
+  assert.ok(!out.before.includes("Role line"), "the create form is not open on the page");
+  assert.ok(out.text.includes("New agent") && out.text.includes("Role line") && hasTip(out.root, "Name the agent first"));
+  assert.ok(out.find("status-active"), "status is a dot with a word");
+  assert.ok(out.text.includes("Active") && !out.text.includes("active ·"), "capitalised, not in the note");
+  assert.ok(out.find("row-object-row-agt_intake-leading"), "the row has a leading face");
+  assert.ok(out.text.includes("Model") && out.text.includes("Default"), "Model is a picker that starts on Default, not a text field");
+});
+
+test("every Console page has its own icon", () => {
+  const icons = PAGES.map((p) => p.icon);
+  const dupes = icons.filter((icon, i) => icons.indexOf(icon) !== i);
+  assert.deepEqual(dupes, []);
+  for (const icon of icons) assert.ok(PATHS[icon], `${icon} is drawn`);
 });
 
 test("on a phone the page title is the way to another page, and the Space name is not cut to a letter", () => {

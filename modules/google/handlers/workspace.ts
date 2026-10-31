@@ -310,6 +310,10 @@ export async function receivePush(
   for (const k of ["mailbox", "historyId", "channelId", "resourceState", "resourceId"] as const) if (input[k] !== undefined) payload[k] = input[k];
   ctx.emit("google.push_received", "connector/google", payload);
   if (input.kind === "gmail" && input.mailbox) await pullAndSchedule(ctx, normalizeEmail(input.mailbox), input.messageId);
+  // a Drive change notice wakes the mounts that watch that channel; the first notice after a watch opens ("sync") only says the channel works
+  if (input.kind === "drive" && input.channelId && input.resourceState !== "sync") {
+    await ctx.call("mounts.nudge", { source: "google", channelId: input.channelId }).catch((e: unknown) => ctx.log.warn("google drive nudge failed", { code: codeOf(e) }));
+  }
   return { accepted: true };
 }
 
@@ -474,15 +478,25 @@ export async function calendarStopWatch(ctx: GoogleCtx, a: Act & { channelId: st
 
 // ---- Drive
 
-const FILE_FIELDS = "id,name,mimeType,parents,modifiedTime,size,webViewLink,driveId";
+const FILE_FIELDS = "id,name,mimeType,parents,modifiedTime,size,webViewLink,driveId,headRevisionId,lastModifyingUser(displayName,emailAddress)";
 const mapFile = (f: Record<string, unknown>) => {
   const out: Record<string, unknown> = { id: text(f.id) ?? "", name: text(f.name) ?? "", mimeType: text(f.mimeType) ?? "" };
   if (Array.isArray(f.parents)) out.parents = f.parents.filter((x): x is string => typeof x === "string");
   for (const k of ["modifiedTime", "webViewLink", "driveId"] as const) if (text(f[k]) !== undefined) out[k] = text(f[k]);
   const size = int(f.size);
   if (size !== undefined) out.size = size;
+  if (text(f.headRevisionId) !== undefined) out.headRevisionId = text(f.headRevisionId);
+  const who = mapUser(obj(f.lastModifyingUser));
+  if (who) out.lastModifyingUser = who;
   return out;
 };
+/** Drive's person, as the name and address shown for "last edited by". */
+function mapUser(u: Record<string, unknown>): { name?: string; email?: string } | undefined {
+  const out: { name?: string; email?: string } = {};
+  if (text(u.displayName) !== undefined) out.name = text(u.displayName);
+  if (text(u.emailAddress) !== undefined) out.email = text(u.emailAddress);
+  return out.name !== undefined || out.email !== undefined ? out : undefined;
+}
 const shared = { supportsAllDrives: true } as const;
 const quote = (s: string): string => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
@@ -531,13 +545,48 @@ export async function drivePermissions(ctx: GoogleCtx, a: Act & { fileId: string
   };
 }
 
-export async function driveUpload(ctx: GoogleCtx, a: Act & { name: string; parentId?: string; fileId: string }) {
+/**
+ * Send a Space file to Drive. Without `remoteId` it is a new file; with it the file's content is replaced in place (a new revision).
+ * `ifRevision` makes the replace conditional: Drive has no If-Match, so the head revision is read first and a file that moved on is left alone (`stale`, with its current metadata).
+ */
+export async function driveUpload(ctx: GoogleCtx, a: Act & { name: string; parentId?: string; fileId: string; remoteId?: string; ifRevision?: string }) {
+  if (a.remoteId !== undefined && a.ifRevision !== undefined) {
+    const now = mapFile(await g(ctx, a, "google.drive.upload_file", "drive", { url: `${DRIVE}/files/${enc(a.remoteId)}`, query: { fields: FILE_FIELDS, ...shared } }));
+    if (now.headRevisionId !== a.ifRevision) return { file: now, stale: true };
+  }
   const { token } = await bearer(ctx, { cap: "google.drive.upload_file", connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}), scope: "drive" });
-  const answered = await needHost(ctx).upload(ctx, {
-    url: `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`, token, fileId: a.fileId,
-    metadata: { name: a.name, ...(a.parentId ? { parents: [a.parentId] } : {}) },
-  });
+  const base = "https://www.googleapis.com/upload/drive/v3/files";
+  const answered = a.remoteId !== undefined
+    ? await needHost(ctx).upload(ctx, { url: `${base}/${enc(a.remoteId)}?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`, token, fileId: a.fileId, metadata: {}, method: "PATCH" })
+    : await needHost(ctx).upload(ctx, {
+      url: `${base}?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`, token, fileId: a.fileId,
+      metadata: { name: a.name, ...(a.parentId ? { parents: [a.parentId] } : {}) },
+    });
   return { file: mapFile(obj(answered)) };
+}
+
+/** The revisions Drive keeps of a file, newest last. */
+export async function driveRevisions(ctx: GoogleCtx, a: Act & { fileId: string }) {
+  const r = await g(ctx, a, "google.drive.list_revisions", "drive", {
+    url: `${DRIVE}/files/${enc(a.fileId)}/revisions`, bulk: true, query: { pageSize: 200, fields: "revisions(id,modifiedTime,size,lastModifyingUser(displayName,emailAddress))" },
+  });
+  return {
+    revisions: list(r.revisions).map((x) => {
+      const o = obj(x);
+      const rev: Record<string, unknown> = { id: text(o.id) ?? "", modifiedTime: text(o.modifiedTime) ?? "" };
+      const size = int(o.size);
+      if (size !== undefined) rev.size = size;
+      const who = mapUser(obj(o.lastModifyingUser));
+      if (who) rev.lastModifyingUser = who;
+      return rev;
+    }),
+  };
+}
+
+export async function driveRevisionDownload(ctx: GoogleCtx, a: Act & { fileId: string; revisionId: string }) {
+  const { token } = await bearer(ctx, { cap: "google.drive.download_revision", connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}), scope: "drive" });
+  const got = await needHost(ctx).download(ctx, { url: `${DRIVE}/files/${enc(a.fileId)}/revisions/${enc(a.revisionId)}?alt=media`, token });
+  return { blobId: got.blobId, size: got.size, mimeType: got.mime };
 }
 
 export async function driveCreateFolder(ctx: GoogleCtx, a: Act & { name: string; parentId?: string }) {

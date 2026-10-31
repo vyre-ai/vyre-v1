@@ -24,6 +24,7 @@ class FakeDropbox {
   private log: { seq: number; entry: Row }[] = [];
   private seq = 0;
   pageSize = 100;
+  webhooks = true;
   private made = 0;
 
   constructor() {
@@ -94,7 +95,17 @@ class FakeDropbox {
       this.listing = this.under(path, i["recursive"] === true);
       return this.page(0, path);
     }
-    if (cap === "dropbox.files.download") return { blobId: `blb_dbx_${String(i["path"]).replace(/\W/g, "")}`, size: 7, mime: "application/octet-stream" };
+    if (cap === "dropbox.files.download") {
+      const n = this.find(String(i["path"]));
+      // content is the revision, so a test can see which one was fetched
+      return { blobId: `blb_dbx_${String(i["path"]).replace(/\W/g, "")}_${String(i["rev"] ?? n?.rev ?? "x")}`, size: 7, mime: "application/octet-stream" };
+    }
+    if (cap === "dropbox.files.list_revisions") {
+      const n = this.find(String(i["path"]));
+      return { revisions: [{ id: n?.id ?? "", name: n?.name ?? "", path: n?.path ?? "", pathLower: (n?.path ?? "").toLowerCase(), isFolder: false, rev: n?.rev ?? "", size: n?.size ?? 0, modified: "2026-10-20T10:00:00Z", webUrl: "" }, { id: n?.id ?? "", name: n?.name ?? "", path: n?.path ?? "", pathLower: "", isFolder: false, rev: "r0", size: 4, modified: "2026-10-01T10:00:00Z", webUrl: "" }], deleted: false };
+    }
+    if (cap === "dropbox.app.status") return { configured: true, webhooks: this.webhooks };
+    if (cap === "dropbox.account.list") return { connections: [{ connectionId: "con_d", ownerKind: "person", accountId: "dbid:AAH4" }] };
     if (cap === "dropbox.files.create_folder") {
       const path = String(i["path"]);
       const n: Node = { id: `id:new${++this.made}`, name: path.slice(path.lastIndexOf("/") + 1), path, isFolder: true };
@@ -160,7 +171,7 @@ test("the first pass reads the mounted folder in full (paged), with parents by i
   const batch = await providerOf("dropbox").pull!(w.ctx, mount());
   assert.equal(batch.full, true);
   assert.match(String(batch.cursor), /^feed:\d+$/, "the cursor is the feed's, kept for the next pass");
-  assert.deepEqual(batch.items.map((x) => [x.id, x.isFolder, x.version, x.size]).sort(), [["id:deck", false, "d1", 90], ["id:q4", true, undefined, undefined], ["id:report", false, "r1", 1200]]);
+  assert.deepEqual(batch.items.map((x) => [x.id, x.isFolder, x.version, x.revision, x.size]).sort(), [["id:deck", false, "d1", "d1", 90], ["id:q4", true, undefined, undefined, undefined], ["id:report", false, "r1", "r1", 1200]]);
   const byId = Object.fromEntries(batch.items.map((x) => [x.id, x.parentId]));
   assert.deepEqual(byId, { "id:q4": "id:sales", "id:deck": "id:q4", "id:report": "id:sales" });
   assert.equal(batch.items.find((x) => x.id === "id:report")?.version, "r1");
@@ -244,10 +255,13 @@ test("download, upload, new folder and delete use the connection and carry the p
   assert.match(String(fresh.version), /^u/);
   db.calls.length = 0;
 
-  // an existing file is replaced on the revision the mount last saw, or on the current one when none is recorded
-  await p.upload!(w.ctx, m, { fileId: "fil_2", name: "Report.docx", parentRemote: "id:sales", remoteId: "id:report", ...({ ifVersion: "r1" } as object) });
+  // an existing file is replaced on the revision the write was based on, or on the current one when none is recorded
+  const sent = await p.upload!(w.ctx, m, { fileId: "fil_2", name: "Report.docx", parentRemote: "id:sales", remoteId: "id:report", ifMatch: { revision: "r1" } });
   assert.deepEqual(db.calls.at(-1)?.input, { connectionId: "con_d", fileId: "fil_2", path: "/Sales/Report.docx", rev: "r1" });
-  await expectCode("validation.version_conflict", () => p.upload!(w.ctx, m, { fileId: "fil_2", name: "Report.docx", parentRemote: "id:sales", remoteId: "id:report", ...({ ifVersion: "stale" } as object) }));
+  assert.deepEqual([sent.remoteId, sent.stale, sent.revision === sent.version, typeof sent.revision], ["id:report", undefined, true, "string"], "the new revision is the version and the revision");
+  // a file that moved on is left alone and the answer says nothing was written: the engine keeps both copies
+  const late = await p.upload!(w.ctx, m, { fileId: "fil_2", name: "Report.docx", parentRemote: "id:sales", remoteId: "id:report", ifMatch: { revision: "stale" } });
+  assert.deepEqual(late, { remoteId: "id:report", stale: true });
   db.calls.length = 0;
   await p.upload!(w.ctx, m, { fileId: "fil_3", name: "Deck.pptx", parentRemote: "id:q4", remoteId: "id:deck" });
   assert.equal(db.calls.at(-1)?.input["rev"], "d1", "no recorded revision: the current one");
@@ -278,7 +292,7 @@ test("browse lists the top of the account after a row that mounts all of it, the
 
 test("a Dropbox mount from add to the second sync: files land in the folder, a change comes in as a new version", async () => {
   const { w, db } = world();
-  const added = await call(w, "mounts.add", { into: "fld_into", source: { kind: "dropbox", connectionId: "con_d", ref: "id:sales" }, name: "Sales (Dropbox)" });
+  const added = await call(w, "mounts.add", { into: "fld_into", source: { kind: "dropbox", connectionId: "con_d", ref: "id:sales" }, name: "Sales (Dropbox)", mode: "server_copy" });
   const mountId = String(added["mountId"]);
   assert.equal(w.mountRow(mountId)["kind"], "dropbox");
   assert.deepEqual(w.files.paths(), ["Sales (Dropbox)/Q4/Deck.pptx", "Sales (Dropbox)/Report.docx"]);
@@ -296,4 +310,65 @@ test("a Dropbox mount from add to the second sync: files land in the folder, a c
   await expectCode("validation.bad_input", () => call(w, "mounts.add", { into: "fld_into", source: { kind: "dropbox", ref: "id:sales" } }));
   await expectCode("validation.bad_input", () => call(w, "mounts.add", { into: "fld_into", source: { kind: "dropbox", connectionId: "con_d" } }));
   await expectCode("validation.duplicate", () => call(w, "mounts.add", { into: "fld_into", source: { kind: "dropbox", connectionId: "con_d", ref: "id:sales" } }));
+});
+
+test("stat answers the item as Dropbox holds it now, or nothing when it is gone", async () => {
+  const { w, db } = world();
+  const p = providerOf("dropbox");
+  const now = await p.stat!(w.ctx, mount(), "id:report");
+  assert.deepEqual([now?.id, now?.revision, now?.version, now?.size, now?.isFolder], ["id:report", "r1", "r1", 1200, false]);
+  db.drop("id:report");
+  assert.equal(await p.stat!(w.ctx, mount(), "id:report"), undefined);
+});
+
+test("history lists Dropbox's revisions and fetches one revision's bytes", async () => {
+  const { w, db } = world();
+  const p = providerOf("dropbox");
+  const revs = await p.revisions!(w.ctx, mount(), "id:report");
+  assert.deepEqual(revs.map((r) => [r.id, r.size]), [["r1", 1200], ["r0", 4]]);
+  assert.equal(typeof revs[0]?.at, "number");
+  const blob = await p.revisionBlob!(w.ctx, mount(), { remoteId: "id:report", revisionId: "r0" });
+  assert.match(blob.blobId, /_r0$/);
+  assert.deepEqual(db.calls.at(-1)?.input, { connectionId: "con_d", path: "id:report", rev: "r0" });
+});
+
+test("a mount on an account whose app verifies change notices is watched by the account; without them it is polled", async () => {
+  const { w, db } = world();
+  const p = providerOf("dropbox");
+  assert.equal(p.hookPath, "/hooks/dropbox");
+  assert.deepEqual(await p.watch!(w.ctx, mount(), { address: "https://space.example/hooks/dropbox", channelId: "chn_1" }), { id: "dbx:dbid:AAH4", expiresAt: 0 });
+  db.webhooks = false;
+  assert.equal(await p.watch!(w.ctx, mount(), { address: "https://space.example/hooks/dropbox", channelId: "chn_2" }), undefined);
+  await p.unwatch!(w.ctx, mount(), { id: "dbx:dbid:AAH4" });
+});
+
+test("live by default: the tree arrives as placeholders, opening fetches once, and a change by a person in Dropbox is fetched on the next open", async () => {
+  const { w, db } = world();
+  const added = await call(w, "mounts.add", { into: "fld_into", source: { kind: "dropbox", connectionId: "con_d", ref: "id:sales" }, name: "Sales (Dropbox)" });
+  const mountId = String(added["mountId"]);
+  assert.equal(((await call(w, "mounts.get", { mountId }))["mount"] as Row)["mode"], "live_only");
+  const fileId = w.files.fileNamed("Report.docx").id;
+  assert.equal(w.files.text(fileId), "", "an empty placeholder");
+  assert.equal(db.calls.some((c) => c.cap === "dropbox.files.download"), false, "nothing was fetched");
+  const first = await call(w, "mounts.open", { fileId });
+  assert.equal(first["fetched"], true);
+  assert.deepEqual(db.calls.filter((c) => c.cap === "dropbox.files.download").map((c) => c.input["path"]), ["id:report"]);
+  const again = await call(w, "mounts.open", { fileId });
+  assert.equal(again["fetched"], false, "the cached copy is the revision Dropbox holds");
+  db.edit("id:report", "r2");
+  const changed = await call(w, "mounts.open", { fileId });
+  assert.equal(changed["fetched"], true, "Dropbox moved on, so the new revision is fetched");
+});
+
+test("a notice for an account wakes the mounts watched on it, and no others", async () => {
+  const { w } = world();
+  w.settings["mounts.public_address"] = "https://space.example";
+  const added = await call(w, "mounts.add", { into: "fld_into", source: { kind: "dropbox", connectionId: "con_d", ref: "id:sales" }, name: "Sales (Dropbox)" });
+  const mountId = String(added["mountId"]);
+  assert.equal(w.mountRow(mountId)["watch_id"], "dbx:dbid:AAH4", "the pass kept a channel for the account");
+  const hit = await call(w, "mounts.nudge", { source: "dropbox", channelId: "dbx:dbid:AAH4" });
+  assert.deepEqual([hit["mounts"], hit["passes"]], [1, 1]);
+  const miss = await call(w, "mounts.nudge", { source: "dropbox", channelId: "dbx:dbid:SOMEONE" });
+  assert.deepEqual([miss["mounts"], miss["passes"]], [0, 0]);
+  await expectCode("validation.bad_input", () => call(w, "mounts.nudge", { source: "dropbox" }));
 });

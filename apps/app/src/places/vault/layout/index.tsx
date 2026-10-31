@@ -225,7 +225,7 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
         <View style={s.search}>
           <Glyph name="search" size={14} />
           <TextInput ref={(r) => { searchRef.current = r as unknown as { focus?: () => void } | null; }} value={query} onChangeText={setQuery} placeholder="Search" accessibilityLabel="Search the Vault" style={s.searchInput} testID="vault-search" />
-          <Text style={s.kbd}>⌘F</Text>
+          {twoPane ? <Text style={s.kbd}>⌘F</Text> : null}
         </View>
       </View>
       {!loading && selection.kind === "health" && health.status === "ready" && visible.length > 0 ? (
@@ -487,7 +487,7 @@ const s = StyleSheet.create({
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
   lineSlot: { height: 32, paddingHorizontal: 18, justifyContent: "center" },
   offline: { fontSize: 12, color: "var(--ink-3)" as string, paddingHorizontal: 18, paddingBottom: 8 },
-  routed: { flex: 1, minWidth: 0, padding: 24, gap: 10 },
+  routed: { flex: 1, minWidth: 0, maxWidth: 760, padding: 24, gap: 10 },
   routedHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   routedTitle: { fontSize: 20, fontWeight: "600", color: "var(--ink)" as string },
   routedIntro: { fontSize: 13, color: "var(--ink-3)" as string },

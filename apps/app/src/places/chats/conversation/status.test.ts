@@ -33,4 +33,5 @@ test("an unknown failure is a plain sentence with Retry on its turn; a timeout s
 test("stopped and parked turns are quiet lines", () => {
   assert.deepEqual(statusView(block({ state: "cancelled", turnId: "x" })), { kind: "note", id: "b1", text: "Stopped." });
   assert.deepEqual(statusView(block({ state: "waiting", turnId: "x" })), { kind: "note", id: "b1", text: "Waiting for your approval." });
+  assert.deepEqual(statusView(block({ state: "waiting", turnId: "x", taskId: "tsk_1" })), { kind: "approval", id: "b1", taskId: "tsk_1" }, "a hold with its task is answered in the chat");
 });

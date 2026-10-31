@@ -30,6 +30,29 @@ export async function loadAccounts(call: Call, device?: { id: string; name: stri
   };
 }
 
+const WEB = "https://github.com";
+
+/**
+ * Connect GitHub without leaving the sheet: open the App's install page, then ask for installations until one appears, and hand its account back. With no App set up (an admin makes it in
+ * Connections) there is no page to open and the answer is "not_set_up", so the shell can send the person there. `sleep` and `tries` are the polling clock; the signal stops it when the sheet closes.
+ */
+export async function connectGithub(call: Call, openUrl: (url: string) => void, o: { sleep?: (ms: number) => Promise<void>; tries?: number; everyMs?: number; signal?: AbortSignal } = {}): Promise<{ label: string; connected: true } | "not_set_up" | null> {
+  const app = await (call("github.app.get", {}) as Promise<{ slug?: string }>).then((a) => a, () => null);
+  if (!app?.slug) return "not_set_up";
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const read = (): Promise<string | null> => (call("github.installations.list", {}) as Promise<{ installations: Array<{ account: string }> }>).then((r) => r.installations[0]?.account ?? null, () => null);
+  const already = await read();
+  if (already) return { label: already, connected: true };
+  openUrl(`${WEB}/apps/${encodeURIComponent(app.slug)}/installations/new`);
+  for (let i = 0; i < (o.tries ?? 72); i++) {
+    await sleep(o.everyMs ?? 2500);
+    if (o.signal?.aborted) return null;
+    const account = await read();
+    if (account) return { label: account, connected: true };
+  }
+  return null;
+}
+
 /** This computer: the device the person is signed in on, when it can hold a folder. */
 export async function thisDevice(call: Call): Promise<{ id: string; name: string } | null> {
   try {

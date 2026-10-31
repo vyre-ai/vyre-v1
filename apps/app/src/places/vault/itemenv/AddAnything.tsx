@@ -169,7 +169,7 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   const started = fields.length > 0;
   const filled = fields.filter((f) => f.key && f.value !== "");
   const canSave = name.trim() !== "" && filled.length > 0 && target !== undefined && !saving;
-  // a disabled Add always says why, in one quiet line
+  // a disabled Add always says why, as its tooltip
   const whyNot = name.trim() === "" ? "Give it a name" : filled.length === 0 ? "Give it a value" : target === undefined ? "Choose a folder" : null;
   const keys = fields.map((f) => f.key).filter(Boolean);
   const dup = keys.find((k, i) => keys.indexOf(k) !== i);
@@ -228,7 +228,7 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
         </Pressable>
         <View style={{ flex: 1 }} />
         <Btn label="Cancel" onPress={onClose} testID="add-cancel" />
-        <Btn label={saving ? "Saving" : "Add"} primary disabled={!canSave} onPress={() => { void save(); }} testID="add-save" />
+        <Btn label={saving ? "Saving" : "Add"} primary disabled={!canSave} {...(whyNot ? { why: whyNot } : {})} onPress={() => { void save(); }} testID="add-save" />
       </>}
     >
       {menu.element}
@@ -251,7 +251,6 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
             <Text style={s.label}>Name</Text>
             <TextInput value={name} onChangeText={(v) => { setName(v); setNameTouched(true); }} placeholder="Name this item" accessibilityLabel="Name" style={s.input} testID="add-name" />
             {name.trim() ? <Text style={s.handle} testID="add-handle">{handleFor(data.spaceName, name)}</Text> : null}
-            {whyNot ? <Text style={s.handle} testID="add-why">{whyNot}</Text> : null}
           </View>
           <View style={s.field}>
             <Text style={s.label}>Fields</Text>

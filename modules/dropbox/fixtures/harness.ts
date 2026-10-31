@@ -13,8 +13,11 @@ import { memoryDb } from "./memory-db.ts";
 /** The part of manifests/dropbox.ts the harness checks against. A fixture may not import a manifest (B7: only a test may), so each test file hands it over with useContract(). */
 export interface Contract { events?: { name: string; payload: JsonSchema }[]; capabilities?: { name: string; input: JsonSchema; output: JsonSchema }[] }
 let contract: Contract | null = null;
-export function useContract(m: Contract): void {
+let others: Contract[] = [];
+/** `also`: manifests of other modules the handlers call whose frozen contract has moved on in the manifest but not yet in generated/ (until the next regeneration). */
+export function useContract(m: Contract, also: Contract[] = []): void {
   contract = m;
+  others = also;
 }
 const frozen = (): Contract => {
   if (!contract) throw new Error("call useContract(manifest) first: the harness checks events and answers against the dropbox manifest");
@@ -104,6 +107,7 @@ export function harness(o: Options = {}) {
       },
     }),
     "vault.item.delete": () => ({ ok: true }),
+    "mounts.nudge": () => ({ mounts: 1, passes: 1 }),
   };
 
   const ctx: DropboxCtx = {
@@ -125,7 +129,7 @@ export function harness(o: Options = {}) {
     async call(cap, input) {
       const body = (input ?? {}) as Record<string, unknown>;
       called.push({ cap, input: body });
-      const d = registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
+      const d = others.flatMap((o) => o.capabilities ?? []).find((c) => c.name === cap) ?? registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
       if (!d) throw new Error(`${cap} is not in the registry`);
       const misfit = validate(d.input, body, "", registry.$defs);
       if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
@@ -162,6 +166,8 @@ export function harness(o: Options = {}) {
     advance(ms: number) { clock += ms; },
     rows(sql: string, ...args: unknown[]) { return ctx.db.all(sql, ...args) as Record<string, string | number | null>[]; },
     named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
+    /** A refusal as another module would throw it. */
+    err(code: string, message: string): Error { return fail(code as never, TRACE, { message }); },
     calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
     api(): Seen[] { return requests.filter((r) => r.host.endsWith("dropboxapi.com")); },
     /** The app set up and an account connected, as app.set and connect.complete would have left them. */

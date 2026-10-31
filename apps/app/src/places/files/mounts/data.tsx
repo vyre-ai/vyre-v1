@@ -3,7 +3,7 @@
 import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { Call } from "./actions.ts";
-import type { Accounts, Person, SourceId } from "./model.ts";
+import type { Account, Accounts, Person, SourceId } from "./model.ts";
 
 export interface MountsData {
   /** One capability call as the signed-in person; rejects with the capability's error. */
@@ -14,8 +14,8 @@ export interface MountsData {
   /** The Into picker: folders the person can write to. */
   folders: readonly { id: string; name: string }[];
   people: readonly Person[];
-  /** A source with no connection sends the person to connect it (Settings > Connections). */
-  connect(source: SourceId): void;
+  /** A source with no connection is connected in place (the sign-in sheet over this one). Resolves with the new account, or null when the person left without finishing. */
+  connect(source: SourceId): Promise<Account | null>;
 }
 
 const Ctx = createContext<MountsData | null>(null);

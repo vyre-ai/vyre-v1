@@ -138,7 +138,7 @@ export interface QuestionOption { id: string; label: string }
 export function questionOptions(d: Record<string, unknown>): QuestionOption[] {
   const raw = d.options;
   if (!Array.isArray(raw)) return [];
-  return raw.map((o, i) => (isRec(o) ? { id: str(o.id) || String(i), label: str(o.label) || str(o.id) } : { id: String(o), label: String(o) })).filter((o) => o.label !== "");
+  return raw.map((o, i) => (isRec(o) ? { id: str(o.id) || str(o.key) || String(i), label: str(o.label) || str(o.id) } : { id: String(o), label: String(o) })).filter((o) => o.label !== "");
 }
 
 export interface PlanStep { id: string; text: string; done: boolean }

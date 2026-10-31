@@ -19,6 +19,8 @@ export interface FilesViewerData {
   agentFor?(fileId: string): string | undefined;
   /** Another file of the same folder opens in this viewer. */
   openFile?(fileId: string): void;
+  /** Open an address outside Vyre (a mounted file in its provider's editor); without it the viewer shows no Open in button. */
+  openUrl?(url: string): void;
   /** Files in the same folder, for the strip under an image. */
   siblings?(folderId: string): readonly { id: string; title: string }[];
 }

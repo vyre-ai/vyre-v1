@@ -319,3 +319,13 @@ test('another person cannot consume a personal OAuth state or exchange its code'
  await assert.rejects(k.hs['connections.complete_auth'](k.ctx,{state,code:'fixture-code'}),code('permission.no_grant'));assert.equal(k.sent.length,0);assert.ok(k.tx.get('SELECT state FROM cn_oauth WHERE state = ?',state));k.ctx.actor=actor;
  k.state.reply=()=>({status:200,body:{access_token:'fixture-token'}});assert.equal((await k.hs['connections.complete_auth'](k.ctx,{state,code:'fixture-code'})).connectionId,made.connection.connectionId);
 });
+
+test("a connection lists the Vault handles it uses, never a value, so a Vault item can say what depends on it", async () => {
+  const k = kit();
+  k.install(ACME);
+  const made = await create(k);
+  assert.deepEqual(made.connection.handles, ["#AcmeHook", "#AcmeKey"]);
+  const listed = await k.hs["connections.list"](k.ctx, {});
+  assert.deepEqual(listed.connections[0]!.handles, ["#AcmeHook", "#AcmeKey"]);
+  assert.equal(JSON.stringify(listed).includes(SECRET), false);
+});

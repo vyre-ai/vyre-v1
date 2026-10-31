@@ -3,7 +3,7 @@ export {
   createDraft, getAttachment, getMessage, getProfile, getThread, listHistory, listLabels, listMessages, modifyLabels, pullMailbox, sendMessage, stopWatch, trashMessage, watch,
 } from "./gmail.ts";
 export {
-  calendarList, calendarStopWatch, calendarWatch, docBatch, docCreate, docGet, driveChanges, driveCopy, driveCreateFolder, driveDownload, driveExport, driveGet, driveList,
+  calendarList, calendarStopWatch, calendarWatch, docBatch, docCreate, docGet, driveChanges, driveCopy, driveCreateFolder, driveDownload, driveExport, driveGet, driveList, driveRevisionDownload, driveRevisions,
   drivePermissions, driveShare, driveStartToken, driveStopWatch, driveTrash, driveUpload, driveWatch, dwdDisable, dwdMapMember, dwdMembers, dwdMyAccount, dwdProbe, dwdScopes, dwdSetExcluded, dwdSetup, dwdStatus,
   eventCreate, eventDelete, eventGet, eventRespond, eventsList, eventUpdate, freeBusy, health, meetEntries, meetRecordings, meetRecords, meetSubscribe, meetTranscripts,
   receivePush, sheetAppend, sheetBatch, sheetCreate, sheetGet, sheetUpdate, sheetValues,

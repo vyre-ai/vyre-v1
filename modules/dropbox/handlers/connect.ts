@@ -28,8 +28,14 @@ const accountRow = (a: Account) => ({ connectionId: a.connectionId, ownerKind: a
 export async function appStatus(ctx: DropboxCtx) {
   const cfg = config(ctx);
   if (!cfg) return { configured: false };
-  const base = await needHost(ctx).publicUrl(ctx).catch(() => undefined);
-  return { configured: true, appKey: str(cfg, "appKey"), vaultItem: str(cfg, "vaultItem"), ...(base ? { redirectUri: `${base.replace(/\/+$/, "")}/oauth/callback` } : {}) };
+  const host = needHost(ctx);
+  const base = (await host.publicUrl(ctx).catch(() => undefined))?.replace(/\/+$/, "");
+  // change notices can be verified when the app has a secret; the address to give Dropbox for them is this Space's /hooks/dropbox
+  const webhooks = await host.app(ctx, str(cfg, "vaultItem")).then((a) => a.hasSecret, () => false);
+  return {
+    configured: true, appKey: str(cfg, "appKey"), vaultItem: str(cfg, "vaultItem"), webhooks,
+    ...(base ? { redirectUri: `${base}/oauth/callback`, webhookUri: `${base}/hooks/dropbox` } : {}),
+  };
 }
 
 export async function appSet(ctx: DropboxCtx, input: unknown) {

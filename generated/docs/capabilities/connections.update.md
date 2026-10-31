@@ -48,6 +48,7 @@ type Out = {
     scopes: Array<string>;
     lastSyncAt?: number;
     createdAt: number;
+    handles: Array<string>;
   };
 };
 ```
@@ -77,6 +78,9 @@ type Out = {
       "connectionId": "con_a1b2c3",
       "connector": "hubspot",
       "createdAt": 1760000000000,
+      "handles": [
+        "#Dana_Lawmatics"
+      ],
       "lastSyncAt": 1760000000000,
       "owner": {
         "id": "example",
