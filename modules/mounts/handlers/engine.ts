@@ -9,6 +9,13 @@
 // Review changes defaults on for git and cloud mounts (setting files.review_changes): the folder flag is set on the new folder, and an agent's writes are staged by the files module as for any folder.
 // Google-native documents are kept as export snapshots and never uploaded back (edits go through the Google API).
 //
+// Live Folders: a cloud mount defaults to live_only. The pass keeps the tree and the metadata (name, revision, last editor) from the provider and creates a file as an empty placeholder; the content is fetched
+// when the file is opened (mounts.open) and cached by the provider's version, so a file is downloaded again only when it changed there. A server_copy mount fetches content in every pass as before.
+// Push: after a pass the mount keeps a watch channel open at the provider (Drive changes.watch, a Graph drive subscription) when the Space has a public address (setting mounts.public_address). A notice
+// reaches mounts.nudge, which runs a pass. Without an address a mount polls: every 30 s while an app showing it said so in the last two minutes (mounts.nudge from the client), else every 5 min.
+// Writes are conditional: an upload names the version it was based on. If the file moved on, nothing is overwritten: the Vyre edit is uploaded as "<name> (<who>'s edit)", the item is flagged as a conflict
+// until the next pull brings the provider's copy in, and mount.conflict is emitted. Every upload is noted (mounts_revision) with who made the edit, so mounts.history can name an agent where the provider only knows the account.
+//
 // Lag: stale_since is when the oldest unsynced change was first seen. A pass that leaves nothing waiting clears it, a failed pass starts it. The lag health reads it for every live mount.
 
 import { mintUuid } from "../../../lib/ids.ts";
@@ -17,7 +24,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { pushMoves } from "./outbound-moves.ts";
 import { PROVIDER_LABEL, isCloud, providerOf } from "./providers.ts";
-import type { MountKind, MountMode, MountRec, Provider, PullBatch, RemoteItem } from "./providers.ts";
+import type { IfMatch, MountKind, MountMode, MountRec, Person, Provider, PullBatch, RemoteItem, Revision } from "./providers.ts";
 
 type Row = Record<string, unknown>;
 
@@ -25,6 +32,12 @@ type Row = Record<string, unknown>;
 export const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 /** A local mount whose device has not reported for this long reads as device_offline. */
 export const DEVICE_OFFLINE_MS = 15 * 60 * 1000;
+/** While an app shows a mount that has no push channel, it is polled this often. */
+export const LIVE_POLL_MS = 30 * 1000;
+/** An app that said it shows a mount counts as watching for this long. */
+export const CLIENT_FRESH_MS = 2 * 60 * 1000;
+/** A push channel is replaced when it would expire before the next two passes. */
+const WATCH_MARGIN_MS = 2 * SYNC_INTERVAL_MS;
 /** Lag (seconds) where the health turns degraded and down. */
 export const LAG_DEGRADED_S = 5 * 60;
 export const LAG_DOWN_S = 60 * 60;
@@ -152,7 +165,17 @@ interface NewItem {
   remoteVersion?: string | null;
   version?: number | null;
   dirty?: boolean;
+  /** the remote version the content in Vyre was fetched at (null: a placeholder) */
+  cachedVersion?: string | null;
+  meta?: RemoteMeta;
 }
+
+/** What the provider says about an item besides its content: the revision a write is conditional on, and who last edited it. */
+interface RemoteMeta { remote_rev: string | null; editor_name: string | null; editor_email: string | null; modified_at: number | null }
+
+const metaOf = (item: RemoteItem): RemoteMeta => ({
+  remote_rev: item.revision ?? null, editor_name: item.editor?.name ?? null, editor_email: item.editor?.email ?? null, modified_at: item.modifiedAt ?? null,
+});
 
 function insertItem(ctx: Ctx, mountId: string, n: NewItem): Row {
   const row: Row = {
@@ -166,6 +189,9 @@ function insertItem(ctx: Ctx, mountId: string, n: NewItem): Row {
     is_folder: n.isFolder ? 1 : 0,
     native: n.native ? 1 : 0,
     remote_version: n.remoteVersion ?? null,
+    cached_version: n.cachedVersion ?? null,
+    ...(n.meta ?? { remote_rev: null, editor_name: null, editor_email: null, modified_at: null }),
+    dirty_by: null,
     synced_version: n.version ?? null,
     local_version: n.version ?? null,
     dirty: n.dirty ? 1 : 0,
@@ -206,8 +232,9 @@ async function filesCreateFolder(ctx: Ctx, parentId: string, name: string, revie
   return str(obj(r["folder"])["folderId"]);
 }
 
-async function filesCreate(ctx: Ctx, folderId: string, name: string, blobId: string, mime?: string, kind?: string): Promise<{ fileId: string; version: number }> {
-  const r = obj(await ctx.call("files.create", { idempotencyKey: `mnt_${mintUuid(ctx.now())}`, folderId, name, content: { blobId }, ...(mime !== undefined ? { mime } : {}), ...(kind !== undefined ? { kind } : {}) }));
+/** `blobId` undefined makes an empty placeholder (a live file that has not been opened). */
+async function filesCreate(ctx: Ctx, folderId: string, name: string, blobId: string | undefined, mime?: string, kind?: string): Promise<{ fileId: string; version: number }> {
+  const r = obj(await ctx.call("files.create", { idempotencyKey: `mnt_${mintUuid(ctx.now())}`, folderId, name, ...(blobId !== undefined ? { content: { blobId } } : {}), ...(mime !== undefined ? { mime } : {}), ...(kind !== undefined ? { kind } : {}) }));
   const file = obj(r["file"]);
   return { fileId: str(file["fileId"]), version: num(file["version"]) };
 }
@@ -245,6 +272,9 @@ async function trashLocal(ctx: Ctx, rows: Row[], top: Row): Promise<void> {
   dropItems(ctx, rows, below);
 }
 
+/** A cloud mount whose content is fetched when a file is opened. */
+const isLive = (m: Pick<MountRec, "kind" | "mode">): boolean => m.mode === "live_only" && isCloud(m.kind);
+
 // ---- applying a pulled batch --------------------------------------------------------------------------------
 
 interface Applied { pulled: number; conflicts: number }
@@ -253,6 +283,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
   let pulled = 0;
   let conflicts = 0;
   const label = provider.label;
+  const live = isLive(m);
   const root = rows.find((r) => isNull(r["parent_key"]));
   if (!root) return fail(ctx, "internal.unexpected", "The mount lost its root.");
   if (batch.rootId !== undefined && isNull(root["remote_id"])) patchItem(ctx, root, { remote_id: batch.rootId });
@@ -292,13 +323,14 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     }
     if (!provider.download) return;
     if (!row) {
-      const dl = await provider.download(ctx, m, { remoteId: item.id, name: item.name, ...(item.mime !== undefined ? { mime: item.mime } : {}), ...(item.native ? { native: true } : {}) });
-      const mime = dl.mime ?? (item.native ? undefined : item.mime);
-      const made = await withFreeName(item.name, label, (n) => filesCreate(ctx, parentFolder, n, dl.blobId, mime, item.native ? "google_native" : undefined));
+      // a live mount creates the file empty: the content is fetched when it is opened
+      const dl = live ? undefined : await provider.download(ctx, m, { remoteId: item.id, name: item.name, ...(item.mime !== undefined ? { mime: item.mime } : {}), ...(item.native ? { native: true } : {}) });
+      const mime = dl ? dl.mime ?? (item.native ? undefined : item.mime) : item.native ? undefined : item.mime;
+      const made = await withFreeName(item.name, label, (n) => filesCreate(ctx, parentFolder, n, dl?.blobId, mime, item.native ? "google_native" : undefined));
       if (made.renamed) conflicts += 1;
       const created = insertItem(ctx, m.id, {
         remoteId: item.id, parentKey: str(parent["item_key"]), fileId: made.value.fileId, name: item.name, isFolder: false, native: item.native === true,
-        remoteVersion: item.version ?? null, version: made.value.version,
+        remoteVersion: item.version ?? null, cachedVersion: dl ? item.version ?? null : null, version: made.value.version, meta: metaOf(item),
       });
       rows.push(created);
       index.set(item.id, created);
@@ -324,10 +356,18 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         }
         return;
       }
+      if (live) {
+        // the copy in Vyre is now stale; it is fetched again the next time the file is opened
+        patchItem(ctx, row, { remote_version: item.version, ...metaOf(item) });
+        pulled += 1;
+        return;
+      }
       const dl = await provider.download(ctx, m, { remoteId: item.id, name: item.name, ...(item.mime !== undefined ? { mime: item.mime } : {}), ...(item.native ? { native: true } : {}) });
       const version = await filesWrite(ctx, str(row["file_id"]), dl.blobId, `Synced from ${label}`);
-      patchItem(ctx, row, { remote_version: item.version, synced_version: version, local_version: version, dirty: 0, conflict: 0 });
+      patchItem(ctx, row, { remote_version: item.version, cached_version: item.version, ...metaOf(item), synced_version: version, local_version: version, dirty: 0, conflict: 0 });
       pulled += 1;
+    } else if (isNull(row["remote_rev"]) && item.revision !== undefined) {
+      patchItem(ctx, row, metaOf(item));
     }
   };
 
@@ -370,7 +410,21 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
 
 // ---- pushing what changed in Vyre ---------------------------------------------------------------------------
 
-interface Pushed { pushed: number; held: number; errors: string[] }
+interface Pushed { pushed: number; held: number; errors: string[]; kept: number }
+
+/** The name a Vyre edit is kept under when the file moved on at the provider: "Report (Noah's edit).docx". */
+function copyName(name: string, who: string): string {
+  const dot = name.lastIndexOf(".");
+  const tag = ` (${who}'s edit)`;
+  return dot > 0 ? `${name.slice(0, dot)}${tag}${name.slice(dot)}` : `${name}${tag}`;
+}
+
+/** Who made the edit, for a name: the mount's account (the person who made it) as a first name. */
+function whoLabel(m: MountRec): string {
+  const local = (m.account ?? "").split("@")[0] ?? "";
+  const first = local.split(/[._-]/)[0] ?? "";
+  return first.length > 0 ? `${first.charAt(0).toUpperCase()}${first.slice(1)}` : "Vyre";
+}
 
 const depthOf = (rows: readonly Row[], row: Row): number => {
   let d = 0;
@@ -379,7 +433,7 @@ const depthOf = (rows: readonly Row[], row: Row): number => {
 };
 
 async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): Promise<Pushed> {
-  const res: Pushed = { pushed: 0, held: 0, errors: [] };
+  const res: Pushed = { pushed: 0, held: 0, errors: [], kept: 0 };
   if (!provider.pushes || m.pullOnly) return res;
   const settle = (e: unknown): void => {
     if (codeOf(e) === "permission.needs_approval") res.held += 1;
@@ -415,8 +469,30 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
     const parent = parentRemote(f);
     if (parent === undefined || !provider.upload) continue;
     try {
-      const up = await provider.upload(ctx, m, { fileId: str(f["file_id"]), name: str(f["name"]), parentRemote: parent, ...(isNull(f["remote_id"]) ? {} : { remoteId: str(f["remote_id"]) }) });
-      patchItem(ctx, f, { remote_id: up.remoteId, remote_version: up.version ?? f["remote_version"] ?? null, synced_version: f["local_version"] ?? null, dirty: 0 });
+      const remoteId = isNull(f["remote_id"]) ? undefined : str(f["remote_id"]);
+      // a change to a file that already exists there is sent with the version it was based on
+      const based: IfMatch = { ...(isNull(f["remote_version"]) ? {} : { version: str(f["remote_version"]) }), ...(isNull(f["remote_rev"]) ? {} : { revision: str(f["remote_rev"]) }) };
+      const up = await provider.upload(ctx, m, { fileId: str(f["file_id"]), name: str(f["name"]), parentRemote: parent, ...(remoteId !== undefined ? { remoteId } : {}), ...(remoteId !== undefined && based.revision !== undefined ? { ifMatch: based } : {}) });
+      if (up.stale) {
+        // the file changed there since the last pull: keep both, never overwrite
+        const kept = copyName(str(f["name"]), whoLabel(m));
+        await provider.upload(ctx, m, { fileId: str(f["file_id"]), name: kept, parentRemote: parent });
+        patchItem(ctx, f, { dirty: 0, conflict: 1, synced_version: f["local_version"] ?? null, dirty_by: null });
+        ctx.emit("mount.conflict", `folder/${m.folderId}`, { mountId: m.id, folderId: m.folderId, fileId: str(f["file_id"]), name: str(f["name"]), keptAs: kept });
+        res.kept += 1;
+        continue;
+      }
+      const by = isNull(f["dirty_by"]) ? ctx.principal.id : str(f["dirty_by"]);
+      patchItem(ctx, f, {
+        remote_id: up.remoteId, remote_version: up.version ?? f["remote_version"] ?? null, cached_version: up.version ?? f["remote_version"] ?? null, remote_rev: up.revision ?? f["remote_rev"] ?? null,
+        ...(up.editor !== undefined ? { editor_name: up.editor.name ?? null, editor_email: up.editor.email ?? null } : {}),
+        synced_version: f["local_version"] ?? null, dirty: 0, dirty_by: null,
+      });
+      if (up.revision !== undefined) {
+        ctx.db.run("DELETE FROM mounts_revision WHERE mount_id = ? AND remote_id = ? AND revision_id = ?", m.id, up.remoteId, up.revision);
+        ctx.db.run("INSERT INTO mounts_revision (mount_id, remote_id, revision_id, by_actor, at) VALUES (?, ?, ?, ?, ?)", m.id, up.remoteId, up.revision, by, ctx.now());
+      }
+      ctx.emit("mount.file_sent", `folder/${m.folderId}`, { mountId: m.id, folderId: m.folderId, fileId: str(f["file_id"]), name: str(f["name"]), ...(up.revision !== undefined ? { revisionId: up.revision } : {}), by });
       res.pushed += 1;
     } catch (e) {
       settle(e);
@@ -475,11 +551,21 @@ function recOf(row: Row): MountRec {
 
 interface PassResult { pulled: number; pushed: number; conflicts: number; failed: boolean }
 
+/** How soon the next pass is due: a push channel leaves the 5 minute backstop, a mount an app is showing is polled every 30 s, anything else every 5 minutes. */
+function intervalFor(ctx: Ctx, row: Row): number {
+  if (hasPush(ctx, row)) return SYNC_INTERVAL_MS;
+  return clientNear(ctx, row) ? LIVE_POLL_MS : SYNC_INTERVAL_MS;
+}
+
+const hasPush = (ctx: Ctx, row: Row): boolean => !isNull(row["watch_id"]) && (isNull(row["watch_expires"]) || num(row["watch_expires"]) > ctx.now());
+const clientNear = (ctx: Ctx, row: Row): boolean => !isNull(row["client_seen_at"]) && ctx.now() - num(row["client_seen_at"]) <= CLIENT_FRESH_MS;
+
 async function scheduleNext(ctx: Ctx, row: Row): Promise<void> {
   const now = ctx.now();
   if (str(row["kind"]) === "local" || row["state"] === "paused") return;
-  if (!isNull(row["next_sync_at"]) && num(row["next_sync_at"]) > now) return;
-  const at = now + SYNC_INTERVAL_MS;
+  const at = now + intervalFor(ctx, row);
+  // a pass already queued sooner than that stays; one queued later (the app just arrived) is overtaken
+  if (!isNull(row["next_sync_at"]) && num(row["next_sync_at"]) > now && num(row["next_sync_at"]) <= at) return;
   try {
     await ctx.schedule(at, "mounts.sync_now", { mountId: str(row["id"]) });
     patchMount(ctx, row, { next_sync_at: at });
@@ -488,8 +574,42 @@ async function scheduleNext(ctx: Ctx, row: Row): Promise<void> {
   }
 }
 
+// ---- push channels ------------------------------------------------------------------------------------------
+
+/** The Space's public address, when it has one: the setting mounts.public_address. Without it a mount cannot be pushed to and is polled. */
+async function publicAddress(ctx: Ctx): Promise<string | undefined> {
+  try {
+    const v = obj(obj(await ctx.call("settings.get", { key: "mounts.public_address" }))["row"])["value"];
+    return typeof v === "string" && /^https:\/\//.test(v) ? v.replace(/\/+$/, "") : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Keep a push channel open for a cloud mount, replacing one that is about to expire. Never fails a pass: a mount that cannot be pushed to is polled. */
+async function ensureWatch(ctx: Ctx, row: Row, m: MountRec, provider: Provider): Promise<void> {
+  if (!provider.watch || !isCloud(m.kind) || row["state"] === "paused") return;
+  const soon = !isNull(row["watch_expires"]) && num(row["watch_expires"]) - ctx.now() < WATCH_MARGIN_MS;
+  if (!isNull(row["watch_id"]) && !soon) return;
+  const base = await publicAddress(ctx);
+  if (base === undefined || provider.hookPath === undefined) return;
+  try {
+    const fresh = await provider.watch(ctx, m, { address: `${base}${provider.hookPath}`, channelId: nid(ctx, "chn") });
+    if (fresh === undefined) return;
+    const old = { id: row["watch_id"], resource: row["watch_resource"] };
+    patchMount(ctx, row, { watch_id: fresh.id, watch_resource: fresh.resource ?? null, watch_expires: provider.watchRenewsItself ? null : fresh.expiresAt > 0 ? fresh.expiresAt : null });
+    if (!isNull(old.id) && provider.unwatch) await provider.unwatch(ctx, m, { id: str(old.id), ...(isNull(old.resource) ? {} : { resource: str(old.resource) }) }).catch(() => undefined);
+  } catch {
+    if (soon) patchMount(ctx, row, { watch_id: null, watch_resource: null, watch_expires: null });
+  }
+}
+
+/** Mounts with a pass already waiting behind the running one: a burst of push notices needs one more pass, not one each. */
+const queued = new Set<string>();
+
 async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
   return exclusive(`mount:${mountId}`, async () => {
+    queued.delete(mountId);
     const row = mountRow(ctx, mountId);
     if (row["state"] === "paused") return fail(ctx, "validation.precondition_failed", "This mount is paused. Resume it first.");
     const m = recOf(row);
@@ -501,6 +621,7 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     let conflicts = 0;
     let pushed = 0;
     let held = 0;
+    let kept = 0;
     const errors: string[] = [];
     try {
       if (m.kind === "github") {
@@ -517,6 +638,7 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
         const sent = await pushAll(ctx, m, provider, rows);
         pushed = sent.pushed;
         held = sent.held;
+        kept = sent.kept;
         errors.push(...sent.errors);
       }
     } catch (e) {
@@ -532,6 +654,11 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     const leftover = provider.pushes && !m.pullOnly && (held > 0 || waiting(itemsOf(ctx, m.id)) > 0);
     patchMount(ctx, row, { state: "idle", error: null, last_sync_at: now, stale_since: leftover ? (isNull(row["stale_since"]) ? now : row["stale_since"]) : null, updated_at: now });
     ctx.emit("mount.synced", `folder/${m.folderId}`, { mountId: m.id, folderId: m.folderId, pulled, pushed, conflicts: conflictCount(ctx, row), ms: Math.max(0, now - started) });
+    await ensureWatch(ctx, row, recOf(row), provider);
+    if (kept > 0) {
+      // a Vyre edit was kept as a copy: one more pass brings in the provider's version and the copy
+      try { await ctx.schedule(now + 1000, "mounts.sync_now", { mountId: m.id }); } catch { /* the next scheduled pass does it */ }
+    }
     await scheduleNext(ctx, row);
     return { pulled, pushed, conflicts, failed: false };
   });
@@ -572,6 +699,13 @@ function viewOf(ctx: Ctx, row: Row): Row {
     pendingChanges: waiting(itemsOf(ctx, str(row["id"]))),
     conflicts: conflictCount(ctx, row),
   };
+  if (isCloud(kind)) {
+    // the Files strip says "Live" while changes arrive on their own, else "Synced <lastSyncAt>"
+    const push = hasPush(ctx, row);
+    const idle = row["state"] === "idle" || row["state"] === "syncing";
+    out["liveVia"] = push ? "push" : "poll";
+    out["live"] = idle && (push || (clientNear(ctx, row) && !isNull(row["last_sync_at"]) && ctx.now() - num(row["last_sync_at"]) <= 2 * LIVE_POLL_MS));
+  }
   if (!isNull(row["ref"])) out["ref"] = str(row["ref"]);
   if (!isNull(row["last_sync_at"])) out["lastSyncAt"] = num(row["last_sync_at"]);
   if (!isNull(row["device_id"])) out["fromDevice"] = str(row["device_id"]);
@@ -667,9 +801,11 @@ async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; f
   const source = sourceOf(ctx, o);
   const modeIn = optStr(o, "mode");
   if (modeIn !== undefined && modeIn !== "server_copy" && modeIn !== "live_only") fail(ctx, "validation.bad_input", "mode must be server_copy or live_only.");
-  if (modeIn === "live_only" && source.kind !== "local") fail(ctx, "validation.bad_input", "Only a folder on your computer can be live only.");
+  if (modeIn === "live_only" && source.kind === "github") fail(ctx, "validation.bad_input", "A GitHub repository is always a copy.");
   if (liveMounts(ctx).some((r) => sameSource(r, source))) fail(ctx, "validation.duplicate", "That is already mounted.");
-  const mode: MountMode = source.kind === "local" ? (modeIn === "live_only" || modeIn === "server_copy" ? modeIn : await localDefaultMode(ctx)) : "server_copy";
+  // a cloud folder is live by default (tree and metadata from the provider, content fetched on open); a synced copy is a choice
+  const mode: MountMode = source.kind === "local" ? (modeIn === "live_only" || modeIn === "server_copy" ? modeIn : await localDefaultMode(ctx))
+    : isCloud(source.kind) ? (modeIn === "server_copy" ? "server_copy" : "live_only") : "server_copy";
   const reviewIn = o["reviewChanges"];
   const review = typeof reviewIn === "boolean" ? reviewIn : await settingFlag(ctx, source.kind === "github" ? "git" : isCloud(source.kind) ? "cloud_mount" : "plain");
   const repoName = source.ref !== undefined ? baseName(source.ref) : "";
@@ -761,10 +897,15 @@ async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
   const mode = optStr(o, "mode");
   if (mode !== undefined) {
     if (mode !== "server_copy" && mode !== "live_only") fail(ctx, "validation.bad_input", "mode must be server_copy or live_only.");
-    if (mode === "live_only" && str(row["kind"]) !== "local") fail(ctx, "validation.bad_input", "Only a folder on your computer can be live only.");
+    if (mode === "live_only" && str(row["kind"]) === "github") fail(ctx, "validation.bad_input", "A GitHub repository is always a copy.");
     if (mode !== row["mode"]) {
       patch["mode"] = mode;
       fields.push("mode");
+      if (mode === "server_copy" && isCloud(str(row["kind"]) as MountKind)) {
+        // becoming a copy: every file whose content was never fetched, or is stale, reads as changed, and the rescan brings it in
+        for (const it of itemsOf(ctx, str(row["id"]))) if (!flag(it["is_folder"]) && !isNull(it["remote_version"]) && it["cached_version"] !== it["remote_version"]) patchItem(ctx, it, { remote_version: null });
+        patch["cursor"] = null;
+      }
     }
   }
   if (typeof o["reviewChanges"] === "boolean" && (o["reviewChanges"] ? 1 : 0) !== row["review_changes"]) {
@@ -786,6 +927,9 @@ async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
   if (fields.length > 0) {
     patchMount(ctx, row, { ...patch, updated_at: ctx.now() });
     ctx.emit("mount.updated", `folder/${str(row["folder_id"])}`, { mountId: str(row["id"]), folderId: str(row["folder_id"]), fields });
+    if (patch["cursor"] === null) {
+      try { await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]) }); } catch { /* the next pass brings the content in */ }
+    }
   }
   return { mount: viewOf(ctx, row) };
 }
@@ -954,6 +1098,178 @@ async function localReport(ctx: Ctx, input: unknown): Promise<{ applied: number;
   });
 }
 
+// ---- opening a file, its history, who edited it, push notices ----------------------------------------------
+
+function itemOfFile(ctx: Ctx, fileId: string): Row | undefined {
+  return (ctx.db.all("SELECT * FROM mounts_item WHERE file_id = ?", fileId) as Row[]).find((r) => !isNull(r["remote_id"]));
+}
+
+/** The live mount a file belongs to, with its provider; undefined when the file is not in a mount (or the mount was removed). */
+function mountOfItem(ctx: Ctx, item: Row): { row: Row; m: MountRec; provider: Provider } | undefined {
+  const row = (ctx.db.all("SELECT * FROM mounts_mount WHERE id = ?", item["mount_id"]) as Row[])[0];
+  if (!row || !isNull(row["deleted_at"])) return undefined;
+  const m = recOf(row);
+  return { row, m, provider: providerOf(m.kind) };
+}
+
+const personOut = (name: unknown, email: unknown): Row => ({ ...(isNull(name) ? {} : { name: str(name) }), ...(isNull(email) ? {} : { email: str(email) }) });
+
+function sourceView(ctx: Ctx, item: Row, row: Row): Row {
+  const kind = str(row["kind"]) as MountKind;
+  const out: Row = {
+    mountId: str(row["id"]), provider: PROVIDER_LABEL[kind], remoteId: str(item["remote_id"]),
+    cached: flag(item["is_folder"]) || (!isNull(item["cached_version"]) && item["cached_version"] === item["remote_version"]),
+    conflict: flag(item["conflict"]),
+  };
+  if (!isNull(item["remote_rev"])) out["revisionId"] = str(item["remote_rev"]);
+  if (!isNull(item["modified_at"])) out["modifiedAt"] = num(item["modified_at"]);
+  const editor = personOut(item["editor_name"], item["editor_email"]);
+  if (Object.keys(editor).length > 0) out["lastEditedBy"] = editor;
+  return out;
+}
+
+/** Opening a file in a live mount: ask the provider what it holds now and fetch the content only if the copy in Vyre is not that version. */
+async function mountsOpen(ctx: Ctx, input: unknown): Promise<Row> {
+  const fileId = reqStr(ctx, record(ctx, input), "fileId");
+  const first = itemOfFile(ctx, fileId);
+  const owner = first ? mountOfItem(ctx, first) : undefined;
+  if (!first || !owner) return { mounted: false, fetched: false };
+  if (!maySee(ctx, owner.row)) fail(ctx, "permission.no_grant", "You cannot see that mount.");
+  const { row, m, provider } = owner;
+  let fetched = false;
+  let staged: string | undefined;
+  let offline = false;
+  if (isLive(m) && provider.download && !flag(first["is_folder"])) {
+    await exclusive(`mount:${m.id}`, async () => {
+      const item = (ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, first["item_key"]) as Row[])[0] ?? first;
+      let fresh: RemoteItem | undefined;
+      try { fresh = provider.stat ? await provider.stat(ctx, m, str(item["remote_id"])) : undefined; } catch { offline = true; }
+      const want = fresh?.version ?? (isNull(item["remote_version"]) ? undefined : str(item["remote_version"]));
+      if (fresh) patchItem(ctx, item, { name: item["name"], ...metaOf(fresh) });
+      if (flag(item["dirty"]) || want === undefined || item["cached_version"] === want) return;
+      if (flag(item["native"]) && fresh?.mime === undefined) return;
+      const dl = await provider.download!(ctx, m, { remoteId: str(item["remote_id"]), name: str(item["name"]), ...(fresh?.mime !== undefined ? { mime: fresh.mime } : {}), ...(flag(item["native"]) ? { native: true } : {}) });
+      const r = obj(await ctx.call("files.write", { fileId, content: { blobId: dl.blobId }, reason: `Fetched from ${provider.label}` }));
+      if (typeof r["changesetId"] === "string") {
+        // an agent's write in a Review changes folder waits for approval; the content is not in the file yet
+        staged = r["changesetId"];
+        return;
+      }
+      const version = num(obj(r["file"])["version"]);
+      patchItem(ctx, item, { remote_version: want, cached_version: want, synced_version: version, local_version: version, dirty: 0, conflict: 0 });
+      fetched = true;
+    });
+  }
+  const now = (ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, first["item_key"]) as Row[])[0] ?? first;
+  return { mounted: true, fetched, ...(staged !== undefined ? { changesetId: staged } : {}), ...(offline ? { offline: true } : {}), source: sourceView(ctx, now, row) };
+}
+
+/** The provider's history of a file, newest first, with the person or agent behind each revision Vyre sent. */
+async function mountsHistory(ctx: Ctx, input: unknown): Promise<Row> {
+  const fileId = reqStr(ctx, record(ctx, input), "fileId");
+  const item = itemOfFile(ctx, fileId);
+  const owner = item ? mountOfItem(ctx, item) : undefined;
+  if (!item || !owner || !owner.provider.revisions) return fail(ctx, "validation.precondition_failed", "This file has no history to show.");
+  if (!maySee(ctx, owner.row)) fail(ctx, "permission.no_grant", "You cannot see that mount.");
+  const list_ = await owner.provider.revisions(ctx, owner.m, str(item["remote_id"]));
+  const notes = ctx.db.all("SELECT * FROM mounts_revision WHERE mount_id = ? AND remote_id = ?", owner.m.id, item["remote_id"]) as Row[];
+  const NEAR_MS = 2 * 60 * 1000;
+  const noteOf = (r: Revision): Row | undefined =>
+    notes.find((n) => n["revision_id"] === r.id)
+    ?? (r.at === undefined ? undefined : notes.filter((n) => Math.abs(num(n["at"]) - (r.at as number)) <= NEAR_MS).sort((a, b) => Math.abs(num(a["at"]) - (r.at as number)) - Math.abs(num(b["at"]) - (r.at as number)))[0]);
+  const ordered = [...list_].sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+  const revisions = ordered.map((r, i) => {
+    const note = noteOf(r);
+    const by: Person & { actor?: string } = { ...(r.by ?? {}), ...(note ? { actor: str(note["by_actor"]) } : {}) };
+    return { revisionId: r.id, ...(r.at !== undefined ? { at: r.at } : {}), ...(r.size !== undefined ? { size: r.size } : {}), ...(Object.keys(by).length > 0 ? { by } : {}), current: i === ordered.length - 1 };
+  }).reverse();
+  return { revisions };
+}
+
+/** Put an earlier revision back as the newest one. The content is written to the Vyre file like any edit and goes out in the same pass, conditional like every other write. */
+async function mountsRestore(ctx: Ctx, input: unknown): Promise<Row> {
+  const o = record(ctx, input);
+  const fileId = reqStr(ctx, o, "fileId");
+  const revisionId = reqStr(ctx, o, "revisionId");
+  const item = itemOfFile(ctx, fileId);
+  const owner = item ? mountOfItem(ctx, item) : undefined;
+  if (!item || !owner || !owner.provider.revisionBlob) return fail(ctx, "validation.precondition_failed", "This file has no history to restore from.");
+  const d = ctx.authorize({ perm: "files.write", level: "edit" }, { type: "file", id: fileId });
+  if (d.effect === "deny") fail(ctx, "permission.no_grant", d.reason);
+  if (d.effect === "hold") fail(ctx, "permission.needs_approval", d.reason);
+  const { row, m, provider } = owner;
+  const dl = await provider.revisionBlob!(ctx, m, { remoteId: str(item["remote_id"]), revisionId });
+  const r = obj(await ctx.call("files.write", { fileId, content: { blobId: dl.blobId }, reason: `Restored from ${provider.label} history` }));
+  if (typeof r["changesetId"] === "string") return { restored: false, changesetId: r["changesetId"] };
+  const version = num(obj(r["file"])["version"]);
+  await exclusive(`mount:${m.id}`, async () => {
+    const at = (ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, item["item_key"]) as Row[])[0] ?? item;
+    patchItem(ctx, at, { local_version: version, dirty: 1, dirty_by: ctx.principal.id, conflict: 0 });
+    if (isNull(row["stale_since"])) patchMount(ctx, row, { stale_since: ctx.now() });
+  });
+  const pass = await runPass(ctx, m.id);
+  return { restored: !pass.failed };
+}
+
+/** Last edited by, for the rows of a file list. */
+async function mountsEditors(ctx: Ctx, input: unknown): Promise<Row> {
+  const ids = list(record(ctx, input)["fileIds"]).filter((v): v is string => typeof v === "string").slice(0, 200);
+  const editors: Row[] = [];
+  const seen = new Map<string, boolean>();
+  for (const fileId of ids) {
+    const item = itemOfFile(ctx, fileId);
+    const owner = item ? mountOfItem(ctx, item) : undefined;
+    if (!item || !owner) continue;
+    const mountId = owner.m.id;
+    if (!seen.has(mountId)) seen.set(mountId, maySee(ctx, owner.row));
+    if (seen.get(mountId) !== true) continue;
+    const who = personOut(item["editor_name"], item["editor_email"]);
+    editors.push({ fileId, provider: PROVIDER_LABEL[owner.m.kind], ...who, ...(isNull(item["modified_at"]) ? {} : { at: num(item["modified_at"]) }) });
+  }
+  return { editors };
+}
+
+/** Something happened that a pass should hear about: a provider push notice (Drive channel, Graph subscription), or an app saying it shows a mount. */
+async function mountsNudge(ctx: Ctx, input: unknown): Promise<Row> {
+  const o = record(ctx, input);
+  const source = reqStr(ctx, o, "source");
+  if (source === "client") {
+    const only = optStr(o, "mountId");
+    const rows = liveMounts(ctx).filter((r) => isCloud(str(r["kind"]) as MountKind) && r["state"] !== "paused" && (only === undefined || r["id"] === only) && maySee(ctx, r));
+    let ran = 0;
+    for (const row of rows) {
+      patchMount(ctx, row, { client_seen_at: ctx.now() });
+      // without a push channel a mount is only as fresh as its last pass: an app that shows it asks for one when 30 s have gone by
+      if (!hasPush(ctx, row) && (isNull(row["last_sync_at"]) || ctx.now() - num(row["last_sync_at"]) >= LIVE_POLL_MS) && !queued.has(str(row["id"]))) {
+        queued.add(str(row["id"]));
+        await runPass(ctx, str(row["id"]));
+        ran += 1;
+      } else {
+        await scheduleNext(ctx, row);
+      }
+    }
+    return { mounts: rows.length, passes: ran };
+  }
+  if (source !== "google" && source !== "microsoft") return fail(ctx, "validation.bad_input", "source must be google, microsoft or client.");
+  const channel = optStr(o, source === "google" ? "channelId" : "subscriptionId");
+  if (channel === undefined) return fail(ctx, "validation.bad_input", source === "google" ? "channelId is required." : "subscriptionId is required.");
+  const rows = liveMounts(ctx).filter((r) => r["watch_id"] === channel);
+  const replacedBy = optStr(o, "replacedBy");
+  if (replacedBy !== undefined) {
+    // Graph lost the subscription and the microsoft module made another: the mount follows it
+    for (const row of rows) patchMount(ctx, row, { watch_id: replacedBy });
+    return { mounts: rows.length, passes: 0 };
+  }
+  let ran = 0;
+  for (const row of rows) {
+    if (row["state"] === "paused" || queued.has(str(row["id"]))) continue;
+    queued.add(str(row["id"]));
+    await runPass(ctx, str(row["id"]));
+    ran += 1;
+  }
+  return { mounts: rows.length, passes: ran };
+}
+
 // ---- health -------------------------------------------------------------------------------------------------
 
 async function mountsLag(ctx: Ctx, _input: unknown): Promise<Row> {
@@ -983,4 +1299,9 @@ export const engineHandlers = {
   "mounts.resume": (ctx: Ctx, input: unknown) => mountsResume(ctx, input),
   "mounts.local_report": (ctx: Ctx, input: unknown) => localReport(ctx, input),
   "mounts.lag": (ctx: Ctx, input: unknown) => mountsLag(ctx, input),
+  "mounts.open": (ctx: Ctx, input: unknown) => mountsOpen(ctx, input),
+  "mounts.history": (ctx: Ctx, input: unknown) => mountsHistory(ctx, input),
+  "mounts.restore": (ctx: Ctx, input: unknown) => mountsRestore(ctx, input),
+  "mounts.editors": (ctx: Ctx, input: unknown) => mountsEditors(ctx, input),
+  "mounts.nudge": (ctx: Ctx, input: unknown) => mountsNudge(ctx, input),
 };

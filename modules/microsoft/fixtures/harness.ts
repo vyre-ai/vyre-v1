@@ -39,10 +39,11 @@ export function harness(opts: HarnessOptions = {}) {
   const called: Called[] = [];
   const scheduled: { at: number; cap: string; input: Record<string, unknown> }[] = [];
   const requests: Req[] = [];
+  const uploads: { url: string; ifMatch?: string }[] = [];
   const routes: { method: string; match: string | RegExp; reply: Reply | ((r: Req) => Reply) }[] = [];
   const ingests: Record<string, unknown>[] = [];
   const ingestState = { fail: false, deduped: new Set<string>() };
-  const state = { mints: 0, mintFails: false, roles: opts.roles ?? PERMISSIONS };
+  const state = { mints: 0, mintFails: false, roles: opts.roles ?? PERMISSIONS, eTag: "etag1" };
   let clock = NOW;
   let seq = 0;
 
@@ -124,12 +125,16 @@ export function harness(opts: HarnessOptions = {}) {
     async fileBytes(_c, fileId) { return { name: `${fileId}.txt`, mime: "text/plain", bytes: new TextEncoder().encode("file body") }; },
     async putBlob(_c, bytes) { return `blb_${bytes.byteLength}b`; },
     async download(_c, a) { return { blobId: "blb_download", size: 42, mime: a.mime ?? "application/octet-stream" }; },
-    async upload(_c, a) { return { id: "up1", name: decodeURIComponent(/:\/([^/]+):\/content$/.exec(a.url)?.[1] ?? ""), size: 9 }; },
+    async upload(_c, a) {
+      uploads.push({ url: a.url, ...(a.ifMatch !== undefined ? { ifMatch: a.ifMatch } : {}) });
+      if (a.ifMatch !== undefined && a.ifMatch !== state.eTag) throw fail("validation.version_conflict", ctx.trace.traceId, { details: { status: 412, what: "upload" } });
+      return { id: "up1", name: decodeURIComponent(/:\/([^/]+):\/content$/.exec(a.url)?.[1] ?? ""), size: 9, eTag: "etag2", lastModifiedBy: { user: { displayName: "Maya Lin", email: "maya@vyre.test" } } };
+    },
   };
   setMsHost(host);
 
   return {
-    ctx, emitted, called, scheduled, requests, ingests, ingestState, state,
+    ctx, emitted, called, scheduled, requests, uploads, ingests, ingestState, state,
     on(method: string, match: string | RegExp, reply: Reply | ((r: Req) => Reply) = {}) { routes.push({ method, match, reply }); },
     advance(ms: number) { clock += ms; },
     rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },
