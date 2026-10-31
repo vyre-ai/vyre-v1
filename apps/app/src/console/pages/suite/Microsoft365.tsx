@@ -111,13 +111,13 @@ export function Microsoft365Page(): ReactElement {
         <Field label="Directory (tenant) ID" value={tenantId} onChange={setTenant} testID="ms-tenant" />
         <Field label="Application (client) ID" value={clientId} onChange={setClientId} testID="ms-client-id" />
         <Field label="Client secret value" value={secret} onChange={setSecret} secure testID="ms-secret" />
-        <Actions><Button label={stored ? "Replace credentials in the Vault" : "Save to the Vault"} disabled={act.busy || !secret} testID="ms-save" onPress={() => void saveCredentials()} /></Actions>
+        <Actions><Button label={stored ? "Replace credentials in the Vault" : "Save to the Vault"} disabled={act.busy || !secret} why={!secret?"Paste the secret first":undefined} testID="ms-save" onPress={() => void saveCredentials()} /></Actions>
         {stored ? <Para>The credentials are in the Vault as {MICROSOFT_HANDLE}.</Para> : null}
       </Step>
       <Step n={4} title="Connect" state={stateOf(3)}>
-        <Para>Vyre signs in with the saved credentials and matches your members by email. Type your firm's email domain to match only addresses on it; leave it empty to match everyone.</Para>
+        <Para>Vyre matches your members by email. Type an email domain to match only it, or leave it empty.</Para>
         <Field label="Email domain (optional)" value={domain} onChange={setDomain} testID="ms-domain" />
-        <Actions><Button label={configured ? "Connect again" : "Connect Microsoft 365"} disabled={act.busy || !stored} testID="ms-connect" onPress={() => void connect()} /></Actions>
+        <Actions><Button label={configured ? "Connect again" : "Connect Microsoft 365"} disabled={act.busy || !stored} why={!stored?"Save credentials first":undefined} testID="ms-connect" onPress={() => void connect()} /></Actions>
         {!stored ? <Para>Save the credentials in step 3 first.</Para> : null}
       </Step>
       <Step n={5} title="Grant admin consent" state={stateOf(4)}>
@@ -125,15 +125,15 @@ export function Microsoft365Page(): ReactElement {
         {link.data ? <OpenLink url={link.data.url} label="Open the admin consent page" testID="link-consent" /> : <Para>Connect in step 4 and the consent link appears here.</Para>}
       </Step>
       <Step n={6} title="Limit the app to the members you include" state={stateOf(5)}>
-        <Para>Without this, the app could read any mailbox in your tenant. The first part runs in Exchange Online PowerShell and limits the app to the members below and no one else. The second part runs in Microsoft Teams PowerShell and lets the app read Teams transcripts of those members' meetings only. Run both as a tenant admin.</Para>
+        <Para>Without this, the app could read any mailbox in your tenant. Run both parts as a tenant admin: the first limits the app to the members below, the second lets it read their Teams transcripts.</Para>
         <OpenLink url={MICROSOFT_LINKS.exchangePowerShell} label="How to connect to Exchange Online PowerShell" testID="link-powershell" />
         <OpenLink url={MICROSOFT_LINKS.teamsPowerShell} label="How to connect to Microsoft Teams PowerShell" testID="link-teams-powershell" />
         {snippet.data ? <CodeBlock value={snippet.data.snippet} testID="policy-snippet" /> : <Para>Connect in step 4 and the script appears here, filled in with your members.</Para>}
         <Actions><Button label={ranPolicy || s.policyConfirmed ? "Marked as done" : "I ran this"} disabled={!snippet.data || ranPolicy || s.policyConfirmed} testID="ms-policy-done" onPress={() => setRanPolicy(true)} /></Actions>
       </Step>
       <Step n={7} title="Check the connection" state={stateOf(6)}>
-        <Para>Vyre signs in as the app, reads which permissions were granted, and tries one included member's mailbox. It names anything missing.</Para>
-        <Actions><Button label="Check connection" disabled={act.busy || !configured} testID="ms-check" onPress={() => void verify()} /></Actions>
+        <Para>Vyre checks the granted permissions and names anything missing.</Para>
+        <Actions><Button label="Check connection" disabled={act.busy || !configured} why={!configured?"Connect first":undefined} testID="ms-check" onPress={() => void verify()} /></Actions>
       </Step>
     </StepsCard>
   );
@@ -151,7 +151,7 @@ export function Microsoft365Page(): ReactElement {
       />
       {confirmOff ? (
         <Section title="Turn off Microsoft 365?">
-          <Para>Vyre stops syncing mail, calendars and files for every member. The credentials stay in the Vault. You can connect again at any time.</Para>
+          <Para>Syncing stops for every member. The credentials stay in the Vault.</Para>
           <Actions>
             <Button label="Turn off" danger testID="ms-off-confirm" onPress={() => void off()} />
             <Button label="Keep it on" testID="ms-off-cancel" onPress={() => setConfirmOff(false)} />

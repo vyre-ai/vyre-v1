@@ -8,7 +8,7 @@ import { useConsoleData, useScreenQuery } from "../../shell/data.tsx";
 import { activityTitle, ago, money } from "../../shell/format.ts";
 import { Dot, Glyph } from "../../shell/glyphs.tsx";
 import type { Tone } from "../../shell/glyphs.tsx";
-import { Empty, Group, LinkButton, Section, pointer } from "../../shell/ui.tsx";
+import { Empty, Group, Lead, LinkButton, Section, pointer } from "../../shell/ui.tsx";
 
 type Out = CapMap["console.overview"]["out"];
 type Attention = Out["attention"][number];
@@ -61,7 +61,7 @@ export function Overview(): ReactElement {
               id={`attn-${a.kind}-${a.ref ?? i}`}
               title={a.title}
               note={`${ATTENTION_SENTENCE[a.kind]} since ${ago(now, a.since)}${compact ? `. ${a.next}` : ""}`}
-              leading={<Glyph name="warn" size={16} color="var(--warn)" />}
+              leading={<Lead><Glyph name="warn" size={16} color="var(--warn)" /></Lead>}
               {...(compact ? {} : { trailing: <LinkButton label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`attn-go-${i}`} /> })}
               onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
             />
@@ -89,7 +89,7 @@ export function Overview(): ReactElement {
                 key={`${e.at}-${i}`}
                 id={`act-${i}`}
                 title={activityTitle(who, e.action, e.resource ? data.name(e.resource) : undefined)}
-                leading={<Avatar name={who} size={22} />}
+                leading={<Lead><Avatar name={who} size={22} /></Lead>}
                 trailing={<Text style={s.time}>{ago(now, e.at)}</Text>}
                 onPress={() => data.nav.openPage("audit")}
               />

@@ -2,6 +2,7 @@
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
+import { Glyph } from "./glyphs.tsx";
 
 export const web = Platform.OS === "web";
 export const pointer = (web ? { cursor: "pointer" } : {}) as ViewStyle;
@@ -33,8 +34,20 @@ export function LinkButton({ label, onPress, testID }: { label: string; onPress:
   );
 }
 
-export function Empty({ children, testID }: { children: ReactNode; testID?: string }): ReactElement {
-  return <View style={s.empty} testID={testID}><Text style={s.emptyText}>{children}</Text></View>;
+/** A designed empty state: an icon on a quiet tile, two or three words, and at most one action. */
+export function Empty({ children, testID, icon = "data", action }: { children: ReactNode; testID?: string; icon?: string; action?: { label: string; onPress: () => void } }): ReactElement {
+  return (
+    <View style={s.empty} testID={testID}>
+      <View style={s.emptyTile}><Glyph name={icon} size={18} color="var(--ink-3)" /></View>
+      <Text style={s.emptyText}>{children}</Text>
+      {action ? <Pressable accessibilityRole="button" testID={testID ? `${testID}-action` : "empty-action"} onPress={action.onPress} style={[s.emptyAction, pointer]}><Text style={s.emptyActionText}>{action.label}</Text></Pressable> : null}
+    </View>
+  );
+}
+
+/** The leading slot of a Row: the icon or face, with the gap the text needs. The shared Row sets none. */
+export function Lead({ children }: { children: ReactNode }): ReactElement {
+  return <View style={s.lead}>{children}</View>;
 }
 
 const s = StyleSheet.create({
@@ -44,6 +57,10 @@ const s = StyleSheet.create({
   count: { fontSize: 12, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
   group: { padding: 4, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
   link: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
-  empty: { minHeight: 40, justifyContent: "center", paddingHorizontal: 12 },
-  emptyText: { fontSize: 13, color: "var(--ink-3)" as string },
+  empty: { alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 28, paddingHorizontal: 16 },
+  emptyTile: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  emptyText: { fontSize: 13, fontWeight: "500", color: "var(--ink-2)" as string, textAlign: "center" },
+  emptyAction: { height: 28, paddingHorizontal: 12, borderRadius: 7, justifyContent: "center", backgroundColor: "var(--ink)" as string },
+  emptyActionText: { fontSize: 12.5, fontWeight: "500", color: "var(--win)" as string },
+  lead: { marginRight: 10, alignItems: "center", justifyContent: "center" },
 });

@@ -12,7 +12,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useConsoleData, useScreenQuery } from "../../shell/data.tsx";
 import { ago } from "../../shell/format.ts";
 import { Glyph } from "../../shell/glyphs.tsx";
-import { Empty, pointer } from "../../shell/ui.tsx";
+import { Empty, Lead, pointer } from "../../shell/ui.tsx";
 import { CLASSES, NO_FILTER, classIcon, classLabel, isFiltered, rowTitle, snapshotLines, stateOf } from "./model.ts";
 import type { AuditClass, AuditFilter, AuditRow } from "./model.ts";
 
@@ -111,7 +111,7 @@ export function Audit({ initialFilter = NO_FILTER, initialOpen = null }: AuditPr
                     title={rowTitle(r, name)}
                     note={`${classLabel(r.class)}${r.resource ? `, ${r.resource.type.replace(/_/g, " ")}` : ""}`}
                     selected={open === r.id}
-                    leading={<Avatar name={name(r.actor.id)} size={26} />}
+                    leading={<Lead><Avatar name={name(r.actor.id)} size={26} /></Lead>}
                     trailing={<View style={s.trail}><Text style={s.time}>{ago(now, r.at)}</Text><Glyph name={classIcon(r.class)} size={14} color="var(--ink-3)" /></View>}
                     onPress={() => setOpen(r.id)}
                     domProps={menuTrigger((x, y) => menu.show(rowMenu(r), x, y, "context", { label: "Audit event" }))}

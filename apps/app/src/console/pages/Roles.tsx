@@ -6,7 +6,7 @@ import { permissions } from "../../../../../generated/permissions.ts";
 import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/ObjectPage/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
-import { Group, Section } from "../shell/ui.tsx";
+import { Group, Lead, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { capital, count } from "../shell/format.ts";
 import { Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
@@ -52,7 +52,7 @@ function PhoneMatrix({ roles, drafts, onChange, onOpen, disabled, roleId, onRole
     {areas.map((area) => <Section key={area} title={capital(area)}><Group>{permissions.filter((entry) => entry.area === area).map((permission) => {
       const on = held.includes(permission.key);
       return <Row key={permission.key} id={`permission-${permission.key}`} title={permission.title} note={`${permission.risk === "high" ? "High" : permission.risk === "medium" ? "Medium" : "Low"} risk`}
-        leading={<Text accessibilityLabel={`${permission.risk} risk`} style={{ color: permission.risk === "high" ? "var(--danger)" : permission.risk === "medium" ? "var(--warn)" : "var(--ink-3)" }}>●</Text>}
+        leading={<Lead><Text accessibilityLabel={`${permission.risk} risk`} style={{ color: permission.risk === "high" ? "var(--danger)" : permission.risk === "medium" ? "var(--warn)" : "var(--ink-3)" }}>●</Text></Lead>}
         trailing={<Pressable accessibilityRole="checkbox" accessibilityLabel={`${role.name}: ${permission.title}`} accessibilityState={{ checked: on, disabled: disabled || role.builtIn }} disabled={disabled || role.builtIn} onPress={() => onChange(role, permission.key)} testID={`matrix-${role.id}-${permission.key}`} style={{ minWidth: 44, minHeight: 32, alignItems: "center", justifyContent: "center" }}><Text style={{ color: role.builtIn ? "var(--ink-3)" : "var(--accent)", fontSize: 18 }}>{on ? "☑" : "☐"}</Text></Pressable>}
         onPress={() => setDetails(`${permission.title}. Applies to ${permission.appliesTo.join(", ")}.`)} />;
     })}</Group></Section>)}

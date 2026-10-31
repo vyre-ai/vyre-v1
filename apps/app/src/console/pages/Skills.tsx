@@ -66,12 +66,12 @@ export function SkillsPage(): ReactElement {
       return <Section title={s.name}><Group><Note>{s.description}</Note><Actions><Button label="Remove skill" danger testID="skill-remove" disabled={action.busy} onPress={() => void action.run("skills.remove", { name: s.name, ...(s.agentId ? { agentId: s.agentId } : {}), idempotencyKey: attempt() }, "Skill removed").then(() => setOpen(null))} /></Actions></Group></Section>;
     })() : null}
     <Section title="Add a skill"><Group>
-      <Note>Paste a SKILL.md, or choose the file. It starts with a name and a description between two --- lines, then the instructions.</Note>
+      <Note>Paste a SKILL.md or choose the file.</Note>
       <SkillBox value={text} onChange={setText} />
       <Actions>
         <Button label="Use the template" onPress={() => setText(TEMPLATE)} />
         <PickFile label="Upload a SKILL.md" onText={(t) => setText(t)} />
-        <Button label="Add skill" testID="skill-add" disabled={action.busy || text.trim() === ""} onPress={add} />
+        <Button label="Add skill" testID="skill-add" disabled={action.busy || text.trim() === ""} why={text.trim()===""?"Add the skill text":undefined} onPress={add} />
       </Actions>
     </Group></Section>
     <Section title="Built in to Vyre" count={shipped.length}><Group>{shipped.map(row)}</Group></Section>
