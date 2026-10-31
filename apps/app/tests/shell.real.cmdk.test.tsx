@@ -12,6 +12,8 @@ import type { GateNav } from "../src/shell/cmdk/gate.ts";
 import type { ShellRuntime } from "../src/shell/providers/runtime.tsx";
 import { ConnectSpaceWelcome, SessionGate, signInInvite } from "../src/shell/session/SessionGate.tsx";
 import { JoinFlow } from "../src/join/JoinFlow.tsx";
+import { createRoot } from "test-renderer";
+import { find, flush, installDom, mount, textOf } from "../../../ui/src/testing/dom.ts";
 import { shellKey } from "../src/shell/spaces/keys.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -143,13 +145,22 @@ function asPackaged<T>(run: () => T): T {
   try { return run(); } finally { if (had) g.__TAURI__ = before; else delete g.__TAURI__; }
 }
 
-test("the packaged shell with no stored Space opens on the three doors, and never offers tauri as a host", () => {
-  const out = asPackaged(() => renderToStaticMarkup(<SessionGate baseUrl={null} />).replaceAll("<!-- -->", ""));
-  assert.ok(out.includes("Welcome to Vyre"), "the first launch screen");
-  for (const door of ["door-me", "door-invited", "door-team"]) assert.ok(out.includes(`data-testid="${door}"`), `${door} is offered`);
-  for (const [door, text] of [["door-me", "Just me"], ["door-invited", "I was invited"], ["door-team", "My team"]]) assert.ok(out.includes(text), `${door} reads ${text}`);
-  assert.ok(!out.includes('data-testid="door-server"') && !out.includes('data-testid="door-get-app"'), "a desktop has no server door and no Get Vyre door");
-  assert.ok(!out.includes("tauri"), "tauri is never offered as a host");
+test("the packaged shell with no stored Space opens on the three doors once the window is read, and never offers tauri as a host", async () => {
+  // the static page and the first client render are the browser's frame; the desktop app's doors draw right after mount, so the test mounts and waits for that frame
+  const restore = installDom();
+  const g = globalThis as { __TAURI__?: unknown };
+  const had = "__TAURI__" in g, before = g.__TAURI__;
+  g.__TAURI__ = { core: { invoke: async () => undefined } };
+  try {
+    const root = await mount(createRoot, <SessionGate baseUrl={null} />);
+    await flush(); await flush();
+    const text = textOf(root);
+    assert.ok(text.includes("Welcome to Vyre"), "the first launch screen");
+    for (const door of ["door-me", "door-invited", "door-team"]) assert.ok(find(root, door), `${door} is offered`);
+    for (const [door, words] of [["door-me", "Just me"], ["door-invited", "I was invited"], ["door-team", "My team"]]) assert.ok(text.includes(words), `${door} reads ${words}`);
+    assert.ok(!find(root, "door-server") && !find(root, "door-get-app"), "a desktop has no server door and no Get Vyre door");
+    assert.ok(!text.includes("tauri"), "tauri is never offered as a host");
+  } finally { if (had) g.__TAURI__ = before; else delete g.__TAURI__; restore(); }
 });
 
 test("a browser with no stored Space is offered to join or set up a server, and tauri is not offered as a host", () => {
