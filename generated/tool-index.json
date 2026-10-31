@@ -6080,6 +6080,12 @@
     },
     {
       "deferred": false,
+      "name": "records_activity",
+      "summary": "What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "records_as_of",
       "summary": "Read a record as it was at a time",
       "toolset": "records"
@@ -6088,6 +6094,36 @@
       "deferred": false,
       "name": "records_bulk_upsert",
       "summary": "Create or update many records by match key, quietly (no automations unless asked)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_add",
+      "summary": "Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_delete",
+      "summary": "Delete your own comment (or any, with manage on the record)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_edit",
+      "summary": "Edit your own comment",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_list",
+      "summary": "Comments on a record as threads (a root comment and its replies, oldest first); resolved threads only when asked for",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_resolve",
+      "summary": "Resolve a comment thread or reopen it",
       "toolset": "records"
     },
     {

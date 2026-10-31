@@ -1776,9 +1776,17 @@ export function createClient(transport: Transport) {
       test: call("providers.test", 1),
     },
     records: {
+      activity: call("records.activity", 1),
       as_of: call("records.as_of", 1),
       bulk_upsert: call("records.bulk_upsert", 1),
       changes: call("records.changes", 1),
+      comments: {
+        add: call("records.comments.add", 1),
+        delete: call("records.comments.delete", 1),
+        edit: call("records.comments.edit", 1),
+        list: call("records.comments.list", 1),
+        resolve: call("records.comments.resolve", 1),
+      },
       completeness: call("records.completeness", 1),
       counts: call("records.counts", 1),
       create: call("records.create", 1),
