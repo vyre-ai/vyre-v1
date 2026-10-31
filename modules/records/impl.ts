@@ -178,13 +178,12 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
   });
   const inner = opened.store;
   const host = opened.host;
-  let typeCache: readonly TypeDef[] | null = null;
-  const allTypes = async (): Promise<readonly TypeDef[]> => {
-    if (!typeCache) typeCache = await inner.types();
-    return typeCache;
-  };
+  // Types are read from the store every time, never kept: schema.apply (and sync, and replay) define types through the Space store without passing this wrapper,
+  // so a copy kept here went stale and a type made after the first record write answered "no type" (rc.7 owner bug). One indexed read of one row is cheap.
+  const allTypes = async (): Promise<readonly TypeDef[]> => inner.types();
   const needType = async (type: string): Promise<TypeDef> => {
-    const def = typeNamed(await allTypes(), type);
+    const row = /^[a-z][a-z0-9_]{0,62}$/.test(type) ? host.tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type) : undefined;
+    const def = row ? (JSON.parse(row.def) as TypeDef) : typeNamed(await allTypes(), type);
     if (!def) throw new StoreError("unknown_type", `no type ${type}`);
     return def;
   };
@@ -197,7 +196,7 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
         const t = have.find((x) => x.name === name);
         if (t?.["protected"] === true) throw new RecordsError("protected", `type ${name} is protected and cannot be dropped`);
       }
-      try { return await inner.define(diff); } finally { typeCache = null; }
+      return inner.define(diff);
     },
     async create(type, id, data) {
       const def = await needType(type);

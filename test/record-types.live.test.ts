@@ -19,8 +19,11 @@ for (const name of ["Deals", "Company", "People", "Matter", "Status"]) {
     try {
       // the app has read records before a person makes a type (the table, the counts), so the records module has already looked at the types
       await ok(d, "records.query", { type: "contact" });
+      // a record made before the type exists fills the records module's type cache (the owner's Space had made records and failed creates before)
+      await ok(d, "records.create", { type: "contact", fields: { name: "Before" } });
+      assert.equal((await call(d, "records.create", { idempotencyKey: `rt-miss-${++n}`, type: "no_such_type_yet", fields: { name: "x" } })).status !== 200, true);
       const taken = ((await ok(d, "schema.types.list", {})).types as Array<{ key: string }>).map((t) => t.key);
-      const made = createTypeOps({ name, plural: "", icon: "table", takenKeys: taken, starters: ["amount", "owner"] });
+      const made = createTypeOps({ name, plural: "", icon: "table", takenKeys: taken, starters: ["amount", "owner"], connect: [{ key: "contact", title: "Contact", plural: "Contacts" }] });
       const preview = await ok(d, "schema.diff", { ops: made.ops });
       assert.deepEqual(preview.problems, []);
       await ok(d, "schema.apply", applyInput(preview, made.ops));
