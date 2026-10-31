@@ -21,7 +21,7 @@ export interface SyncPageNav {
   /** After Remove: the type is gone or plain, so the page goes back to Records. */
   closed(): void;
 }
-export interface SyncPageProps { type: string; call: Call; nav: SyncPageNav; now?: () => number; /** The title of the record type, for the header. */ title?: string }
+export interface SyncPageProps { type: string; call: Call; nav: SyncPageNav; now?: () => number; /** Only a person who manages connections gets the buttons; anyone else reads the page. Default true. */ canManage?: boolean; /** The title of the record type, for the header. */ title?: string }
 
 let keys = 0;
 const key = (cap: string, type: string): string => `${cap}:${type}:${Date.now()}:${++keys}`;
@@ -50,7 +50,7 @@ function Stat({ label, value, tip, bad = false, testID }: { label: string; value
   );
 }
 
-export function SyncPage({ type, call, nav, now = Date.now, title }: SyncPageProps): ReactElement {
+export function SyncPage({ type, call, nav, now = Date.now, title, canManage = true }: SyncPageProps): ReactElement {
   const status = usePolled(async () => (await call("sync_types.status", { type })) as TypeStatus, `status:${type}`, 6000);
   const outbox = usePolled(async () => {
     const [failed, pending, sent] = await Promise.all([call("connectors.outbox.list", { type, state: "failed", limit: 5 }), call("connectors.outbox.list", { type, state: "pending", limit: 5 }), call("connectors.outbox.list", { type, state: "sent", limit: 3 })]);
@@ -155,7 +155,7 @@ export function SyncPage({ type, call, nav, now = Date.now, title }: SyncPagePro
           </View>
         ) : null}
 
-        <View style={s.actions} testID="sync-actions">
+        {canManage ? <View style={s.actions} testID="sync-actions">
           {st.paused
             ? <Btn label="Resume" primary testID="sync-resume" onPress={() => void act("sync_types.resume", { type }, "Resumed.")} disabled={busy} />
             : <Btn label="Pause" testID="sync-pause" onPress={() => void act("sync_types.pause", { type }, "Paused. Nothing moves until you resume.")} disabled={busy} />}
@@ -163,7 +163,7 @@ export function SyncPage({ type, call, nav, now = Date.now, title }: SyncPagePro
           <Btn label="Edit mapping" testID="sync-edit" onPress={() => nav.editMapping({ app: st.app.title, type })} disabled={!st.spec} why="This type was not made from a sync spec" />
           <View style={{ flex: 1 }} />
           <Btn label="Remove" danger testID="sync-remove" onPress={() => setRemoving(true)} disabled={busy} />
-        </View>
+        </View> : null}
       </ScrollView>
       {removing ? (
         <Dialog

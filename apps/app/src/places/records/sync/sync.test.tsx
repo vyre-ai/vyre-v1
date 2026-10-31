@@ -159,3 +159,12 @@ test("the earlier values of a field are a menu: who replaced each, and Restore f
   assert.deepEqual(pushed.map((m) => ("head" in m ? m.head : "label" in m ? m.label : "-")), ["Earlier values of phone", "Sent to Ledger by Dana via Vyre 2 s ago", "Sent +1 555"]);
   assert.deepEqual(historyMenu({ title: "Name", app: "Ledger", now: NOW, entries: [], show: String, onRestore: () => undefined }), [{ head: "No earlier values of name" }]);
 });
+
+test("a member reads the page without its buttons", async () => {
+  const s = server();
+  const root = await mount(createRoot, <SyncPage type="person" call={s.call} nav={nav().nav} now={() => NOW} canManage={false} />);
+  await settle();
+  assert.match(textOf(root), /1,240 of 4,812/);
+  assert.equal(find(root, "sync-actions"), null);
+  assert.equal(find(root, "sync-pause"), null);
+});

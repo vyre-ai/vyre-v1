@@ -40,6 +40,18 @@ export function useCanEditSchema(rt: ShellRuntime | null): boolean {
   return personal ? true : can;
 }
 
+/** May this person manage connections (the Sync page's buttons, Edit mapping, Remove)? A member sees the dot and nothing more. connectors.list needs the permission, so its answer is the test. */
+export function useCanManageSync(rt: ShellRuntime | null): boolean {
+  const [can, setCan] = useState(false);
+  useEffect(() => {
+    if (!rt) return;
+    let live = true;
+    void rt.call("connectors.list", { limit: 1 }).then(() => { if (live) setCan(true); }, () => { if (live) setCan(false); });
+    return () => { live = false; };
+  }, [rt]);
+  return can;
+}
+
 function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): ReactElement {
   const { target, opened } = usePlaceHash();
   const id = useOpenedId(["record", "contact", "project"], ["recordId", "projectId"]);
@@ -69,16 +81,20 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   }), [rt, dispatch, opened, canEdit, target.screen]);
   const types = useScreenQuery<CapMap["schema.types.list"]["out"]>(SCREENS.types, "types");
   const type = target.args.type ?? effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : []));
+  const canSync = useCanManageSync(rt);
   const data = useMemo(() => {
     const base = recordsData(rt, target.screen, canEdit);
-    return { ...base, askVyre: makeAskVyre(ask, { type, screen: target.screen }), nav: { ...base.nav, openRecord: (recordId: string) => {
+    const { openSync, bringInCrm, ...plainNav } = base.nav;
+    const nav = canSync ? base.nav : plainNav;
+    void openSync; void bringInCrm;
+    return { ...base, askVyre: makeAskVyre(ask, { type, screen: target.screen }), nav: { ...nav, openRecord: (recordId: string) => {
       const open = (): void => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} });
       // an Agents row opens the agent's own page; a row with no agent behind it opens the "not set up" page
       if (type !== "agent") { open(); return; }
       void agentOfRecord(rt.call, recordId).then((r) => { if ("agent" in r) openAgent(rt, r.agent.agentId); else open(); }, open);
     } } };
-  }, [rt, type, target.screen, canEdit]);
-  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: editMappingOpening(a) } }), closed: () => opened({}) }} /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{pane.open ? <AskPane about={pane.about} onClose={() => ask({ type: "close" })}><RecordsAssistant rt={rt} about={pane.about} /></AskPane> : null}</View></RecordsDataProvider>;
+  }, [rt, type, target.screen, canEdit, canSync]);
+  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: editMappingOpening(a) } }), closed: () => opened({}) }} canManage /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{pane.open ? <AskPane about={pane.about} onClose={() => ask({ type: "close" })}><RecordsAssistant rt={rt} about={pane.about} /></AskPane> : null}</View></RecordsDataProvider>;
 }
 
 export default function RecordsPlace(_props: { place: string }): ReactElement {
