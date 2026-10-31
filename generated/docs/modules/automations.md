@@ -4,13 +4,14 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (57)
+## Capabilities (58)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
 - [automations.alerts.set](../capabilities/automations.alerts.set.md): Set error alerts: who, when (every failure or after N in a row), where (Needs you, DM, channel), and the escalation chain
 - [automations.analytics](../capabilities/automations.analytics.md): Outcomes from runs: totals, success rate, a daily series, the busiest automations and where failures stop
 - [automations.connector_card](../capabilities/automations.connector_card.md): Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.
+- [automations.connector_levels](../capabilities/automations.connector_levels.md): Which connector actions were tried against the real app (tested) and which were not (draft). Keys only.
 - [automations.connector_offer.accept](../capabilities/automations.connector_offer.accept.md): Accept a connector setup offer. Accepting is final for that Vault item.
 - [automations.connector_offer.decline](../capabilities/automations.connector_offer.decline.md): Decline a connector setup offer. Declining is final for that Vault item.
 - [automations.connector_offers](../capabilities/automations.connector_offers.md): Open connector setup offers. Each one names an app. A Vault value is not included.

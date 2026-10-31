@@ -4506,6 +4506,21 @@
     },
     {
       "blocks": [],
+      "cap": "automations.connector_levels",
+      "deferred": false,
+      "description": "Which connector actions were tried against the real app (tested) and which were not (draft). Keys only.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connector_levels",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.connector_offer.accept",
       "deferred": false,
       "description": "Accept a connector setup offer. Accepting is final for that Vault item.",
@@ -13223,6 +13238,44 @@
       "name": "connections_resume",
       "planMode": "blocked",
       "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "connections.set_secret",
+      "deferred": false,
+      "description": "Fill one empty secret slot of a connection from a Vault handle (a name such as #Resend_Webhook.secret, never a value). The last empty slot turns a pending API connection active.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "handle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "slot",
+          "handle"
+        ],
+        "type": "object"
+      },
+      "name": "connections_set_secret",
+      "planMode": "blocked",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -32510,7 +32563,7 @@
         "type": "object"
       },
       "name": "memory_facts_remove",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -32540,7 +32593,7 @@
         "type": "object"
       },
       "name": "memory_forget",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -33557,7 +33610,7 @@
         "type": "object"
       },
       "name": "memory_propose",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -33761,7 +33814,7 @@
         "type": "object"
       },
       "name": "memory_remember",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -33787,7 +33840,7 @@
         "type": "object"
       },
       "name": "memory_restore",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -34013,7 +34066,7 @@
         "type": "object"
       },
       "name": "memory_undo",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -37090,6 +37143,68 @@
       },
       "name": "network_my_computers",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.phone",
+      "deferred": false,
+      "description": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_phone",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.phone_claim",
+      "deferred": false,
+      "description": "Claim a name like alex.vyre.run once, so a phone reaches this computer there while it is on and online. The relay only passes sealed bytes",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "examples": [
+              "alex"
+            ],
+            "type": "string"
+          },
+          "nickname": {
+            "examples": [
+              "home-laptop"
+            ],
+            "maxLength": 40,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "network_phone_claim",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.phone_release",
+      "deferred": false,
+      "description": "Give up the phone address. The name stays reserved to this computer",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_phone_release",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -57202,7 +57317,7 @@
         "type": "object"
       },
       "name": "vault_request",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },
@@ -57228,7 +57343,7 @@
         "type": "object"
       },
       "name": "vault_requests_cancel",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },
@@ -57624,7 +57739,7 @@
         "type": "object"
       },
       "name": "vault_use",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },

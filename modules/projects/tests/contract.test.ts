@@ -11,8 +11,8 @@ import { mkChain, mkProject, run } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects");
 
-test("the handler table covers exactly the 27 capabilities of the projects manifest", () => {
-  assert.equal(mine.length, 27);
+test("the handler table covers exactly the 28 capabilities of the projects manifest", () => {
+  assert.equal(mine.length, 28);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -88,6 +88,9 @@ const scenarios: Scenario[] = [
   { cap: "projects.unpin_file", run: (hn) => run(hn, "projects.unpin_file", { projectId: NONE, fileId: "fil_a" }), expect: "validation.not_found" },
   { cap: "projects.file_chat", setup: withProject, run: (hn, p) => run(hn, "projects.file_chat", { projectId: p.projectId, threadId: "thr_mine" }) },
   { cap: "projects.file_chat", setup: withProject, run: (hn, p) => run(hn, "projects.file_chat", { projectId: p.projectId, threadId: "thr_missing" }), expect: "validation.not_found" },
+  { cap: "projects.files_folder", setup: (hn) => (hn.world.handlers["records.create"]!({ type: "contact", fields: { name: "Ada" } }) as { record: { id: string } }).record, run: (hn, r) => run(hn, "projects.files_folder", { type: "contact", recordId: r.id }) },
+  { cap: "projects.files_folder", setup: (hn) => (hn.world.handlers["records.create"]!({ type: "contact", fields: { name: "Ada" } }) as { record: { id: string } }).record, run: (hn, r) => run(hn, "projects.files_folder", { recordId: r.id, create: false }) },
+  { cap: "projects.files_folder", run: (hn) => run(hn, "projects.files_folder", { type: "contact", recordId: "rec_none" }), expect: "validation.not_found" },
   { cap: "projects.share_out", setup: withProject, run: (hn, p) => run(hn, "projects.share_out", { projectId: p.projectId, expiresAt: NOW + DAY }) },
   { cap: "projects.share_out", setup: withProject, run: (hn, p) => run(hn, "projects.share_out", { projectId: p.projectId, expiresAt: NOW - DAY }), expect: "validation.bad_input" },
   { cap: "projects.share_out", setup: withProject, run: (hn, p) => run(hn, "projects.share_out", { projectId: p.projectId, expiresInDays: 7 }) },

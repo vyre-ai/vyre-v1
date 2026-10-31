@@ -122,6 +122,15 @@ export async function say(d: Daemon, agentId: string, body: string, key: string)
   return { threadId, reply };
 }
 
+/** Like `say`, in a chat set to Auto: for a test that is about what an agent does with a change (a record, a routine, a setting). A new chat asks first before such a change, which the test would otherwise wait on. */
+export async function sayAuto(d: Daemon, agentId: string, body: string, key: string): Promise<{ threadId: string; reply: string }> {
+  const started = await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: `${key}-start` });
+  assert.equal(started.status, 200, JSON.stringify(started.data));
+  const threadId = started.data.thread.threadId as string;
+  await call(d, "threads.set_mode", { threadId, mode: "auto", idempotencyKey: `${key}-auto` });
+  return { threadId, reply: await post(d, threadId, agentId, body, key) };
+}
+
 /** Post in a thread and wait for the next agent reply. */
 export async function post(d: Daemon, threadId: string, agentId: string, body: string, key: string, extra: Record<string, unknown> = {}): Promise<string> {
   const before = ((await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ threadSeq?: number }> | undefined)?.length ?? 0;

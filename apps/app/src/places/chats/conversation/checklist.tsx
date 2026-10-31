@@ -3,7 +3,6 @@
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
-import { Row } from "../../../../../../ui/src/Row/index.tsx";
 
 export interface ChecklistRow { text: string; done: boolean }
 export interface ChecklistData { title: string; rows: ChecklistRow[] }

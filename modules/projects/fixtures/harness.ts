@@ -63,6 +63,7 @@ export function fakeWorld(clock: { t: number }) {
   const agents = new Map<string, Record<string, unknown>>();
   const trashed: string[] = [];
   const handlers: Record<string, Handler> = {
+    "schema.types.list": () => ({ types: [...types.values()].map((t) => ({ key: t.key })).concat([{ key: "contact" }]) }),
     "schema.types.get": (i) => { const t = types.get(i.type) ?? fail("validation.not_found", "no such type"); return { type: { ...t, plural: t.title, icon: "x", label: 0, system: false, fields: [], version: 1 } }; },
     "schema.describe": () => ({ types: [...types.values()].map((t) => ({ ...t, fields: t.template ? [{ key: "status", type: "status", title: "Status", options: { stages: [{ key: "planning" }, { key: "active" }, { key: "done" }] } }] : [] })) }),
     "records.create": (i, o) => keyed(o, "rc", () => { const id = next("rec"); const r = { id, type: i.type, fields: { ...i.fields } }; records.set(id, r); return { record: recordOut(r) }; }),

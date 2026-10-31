@@ -125,7 +125,7 @@ export default defineManifest({
     // ---- use by handle
     write('vault.use', 'Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values', {
       in: { item: t.str({ description: 'Item name or id', examples: ['Dana_Lawmatics'] }), fields: t.opt(t.arr(fieldKey)), purpose: t.opt(t.str()) },
-      out: { handle: id.handle, itemId: id.vaultItem, fields: t.arr(fieldKey) }, on: ['vault_item', '/item'], resolve: 'name', level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
+      out: { handle: id.handle, itemId: id.vaultItem, fields: t.arr(fieldKey) }, on: ['vault_item', '/item'], resolve: 'name', level: 'use', emits: ['vault.used'], audit: 'sensitive', agent: { planMode: 'allowed' }, tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
     }),
     write('vault.fill', 'Fill a handle into a process at the last moment (env, request header, browser field, terminal) and scrub it from the output; the value stays in the filler', {
       in: { handle: handleField, target: t.obj({ kind: t.enm('env', 'http_header', 'browser', 'terminal', 'file', 'git_credential', 'container_env', 'route_auth'), ref: t.str() }), returnValue: t.opt(t.bool()) },

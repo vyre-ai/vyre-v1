@@ -30,15 +30,22 @@ export type Gate =
   | { state: "offline" }
   | { state: "no_use" }
   | { state: "no_ai" }
-  | { state: "ai_signin" };
+  | { state: "ai_signin" }
+  | { state: "no_builder" }
+  | { state: "ask_admin" }
+  | { state: "asked" };
 
 /** What stops the session from starting, worst first. A person sees one sentence and one button for it. */
-export function gateFor(a: { online: boolean; yourLevel: string; accounts: readonly AiAccount[] | null }): Gate {
+export interface BuilderStatus { allowed: boolean; canGrant: boolean }
+
+export function gateFor(a: { online: boolean; yourLevel: string; accounts: readonly AiAccount[] | null; builder?: BuilderStatus | null; asked?: boolean }): Gate {
   if (!a.online) return { state: "offline" };
   if (a.yourLevel === "view") return { state: "no_use" };
   if (a.accounts === null) return { state: "ready" };
   if (a.accounts.length === 0) return { state: "no_ai" };
   if (!a.accounts.some((x) => x.state === "ok")) return { state: "ai_signin" };
+  // building a connector needs connectors.manage, which an assistant gets from the Connector builder role: an admin gives it in one tap, anyone else asks an admin
+  if (a.builder && !a.builder.allowed) return a.builder.canGrant ? { state: "no_builder" } : a.asked === true ? { state: "asked" } : { state: "ask_admin" };
   return { state: "ready" };
 }
 
@@ -47,6 +54,9 @@ export const GATE_TEXT: Readonly<Record<Exclude<Gate["state"], "ready">, { text:
   no_use: { text: "You can see this item but not use it. Ask for use access first.", fix: "Ask for access" },
   no_ai: { text: "Building a connector runs on your own AI account. Connect one first.", fix: "Connect an AI account" },
   ai_signin: { text: "Your AI account needs signing in again before it can build a connector.", fix: "Sign in again" },
+  no_builder: { text: "Your assistant needs permission to build connectors.", fix: "Allow" },
+  ask_admin: { text: "Your assistant needs permission to build connectors. An admin can allow it.", fix: "Ask an admin" },
+  asked: { text: "An admin has been asked. This turns on when they allow it.", fix: "Check again" },
 };
 
 export interface UsedBy { automationId: string; name: string; status: string; steps: { nodeId: string; title: string }[] }

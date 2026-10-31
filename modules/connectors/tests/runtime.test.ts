@@ -31,7 +31,7 @@ const run = (k: Kit, id: string, action: string, input: unknown = {}, dryRun?: b
 test("every capability of the connectors manifest (framework, connections, synced types, sync engine) has a handler", () => {
   const raw = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string; module: string }[] };
   const names = raw.capabilities.filter((c) => c.module === "connectors").map((c) => c.name).sort();
-  assert.equal(names.length, 59);
+  assert.equal(names.length, 60);
   assert.deepEqual(Object.keys(loaderHandlers).sort(), names);
   assert.deepEqual(Object.keys(kit().hs).sort(), names);
 });

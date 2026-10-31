@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { defaultPrompt } from "../agent/src/drivers/cli/prompt.ts";
 import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agent/src/turn-engine/types.ts";
-import { boot, call, connect, hostLog, makeAgent, post, say, scriptedModel, seededDir, waitFor } from "./support/live.ts";
+import { boot, call, connect, hostLog, makeAgent, post, say, sayAuto, scriptedModel, seededDir, waitFor } from "./support/live.ts";
 
 const standIn: OpenSession = async () => ({
   warm: true,
@@ -74,7 +74,7 @@ test("loops: an agent sets, lists, changes and stops its own schedules and watch
     const channelId = chan.data.channel.channelId as string;
     const list = async (): Promise<Routine[]> => (await call(d, "agents.routines.list", { agentId: id })).data.routines as Routine[];
 
-    const first = await say(d, id, "every Monday 9am send me the overdue invoices", "loop1");
+    const first = await sayAuto(d, id, "every Monday 9am send me the overdue invoices", "loop1");
     assert.equal(first.reply, "scheduled");
     assert.deepEqual((await list()).map((r) => [r.title, r.cron, r.enabled]), [["Overdue invoices", "0 9 * * 1", true]]);
 
@@ -175,8 +175,8 @@ test("API chats apply the agent's deny list and plan mode to their tools, as the
     await connect(d);
     const open = await makeAgent(d, "Open");
     const closed = await makeAgent(d, "Closed", "You may not write records.", { toolsDenied: ["records_create"] });
-    assert.equal((await say(d, open, "Ada Open", "dl1")).reply, "created");
-    assert.match((await say(d, closed, "Bea Closed", "dl2")).reply, /^refused /, "the deny list is applied");
+    assert.equal((await sayAuto(d, open, "Ada Open", "dl1")).reply, "created");
+    assert.match((await sayAuto(d, closed, "Bea Closed", "dl2")).reply, /^refused /, "the deny list is applied");
     const rows = (await call(d, "records.query", { type: "contact", limit: 50 })).data.rows as Array<{ fields: { name: string } }>;
     assert.ok(rows.some((r) => r.fields.name === "Ada Open") && !rows.some((r) => r.fields.name === "Bea Closed"));
     // plan mode: the agent reads and plans, and changes nothing
@@ -285,7 +285,7 @@ test("settings: an agent reads the asker's time zone and cannot change it", asyn
     await connect(d);
     const agent = await makeAgent(d, "Clock");
     await call(d, "settings.set", { key: "profile.timezone", value: "Asia/Karachi" });
-    assert.equal((await say(d, agent, "what is my zone", "tz")).reply, "Asia/Karachi kept");
+    assert.equal((await sayAuto(d, agent, "what is my zone", "tz")).reply, "Asia/Karachi kept");
     assert.equal((await call(d, "settings.get", { key: "profile.timezone" })).data.row.value, "Asia/Karachi");
   } finally { await d.stop(); }
 });

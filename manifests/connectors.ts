@@ -38,6 +38,7 @@ const connectionRow = t.obj({
   state: t.enm('pending', 'active', 'paused', 'needs_reconnect', 'failing'), pausedBy: t.opt(t.str()),
   scopes: t.arr(t.str()), lastSyncAt: t.opt(t.ts()), createdAt: t.ts(),
   handles: t.arr(id.handle, { description: 'The Vault handles this connection uses. Names only, never a value.' }),
+  filled: t.arr(t.str(), { description: 'The secret slots that hold a Vault handle. A slot the connector declares and this list lacks is still empty.' }),
 });
 
 const syncedTypeRow = t.obj({
@@ -209,6 +210,7 @@ export default defineManifest({
       out: { connection: connectionRow, authUrl: t.opt(t.str()) }, make: ['connection', '/connector'], perm: 'connectors.manage', emits: ['connection.created', 'connection.pending'], audit: 'always', tool: 'automations',
     }),
     write('connections.update', 'Rename a connection or change its scopes', { in: { connectionId: id.connection, title: t.opt(t.str()), scopes: t.opt(t.arr(t.str())) }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], level: 'manage', tool: 'engineer' }),
+    write('connections.set_secret', 'Fill one empty secret slot of a connection from a Vault handle (a name such as #Resend_Webhook.secret, never a value). The last empty slot turns a pending API connection active.', { in: { connectionId: id.connection, slot: t.str(), handle: id.handle }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], level: 'manage', audit: 'always', tool: 'automations' }),
     write('connections.pause', 'The owner pauses a connection; syncing and actions stop', { in: { connectionId: id.connection }, out: { ok: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', emits: ['connection.paused'], tool: 'engineer' }),
     write('connections.resume', 'The owner resumes a connection', { in: { connectionId: id.connection }, out: { ok: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', emits: ['connection.resumed'], tool: 'engineer' }),
     write('connections.reconnect', 'Start signing in again; returns the provider sign-in address when one is needed', { in: { connectionId: id.connection }, out: { authUrl: t.opt(t.str()) }, on: ['connection', '/connectionId'], level: 'manage', tool: 'engineer' }),

@@ -21,3 +21,11 @@ export function storedLevel(db: LevelDb, actionKey: string): "draft" | "tested" 
   const level = rows[0]?.level;
   return level === "draft" || level === "tested" ? level : undefined;
 }
+
+/** Every action with a recorded level, by key. An action with no row was never tried. */
+export function allLevels(db: LevelDb): { actionKey: string; level: "draft" | "tested" }[] {
+  const rows = db.all(`SELECT action_key, level FROM automations_connector_levels ORDER BY action_key`) as { action_key?: unknown; level?: unknown }[];
+  const out: { actionKey: string; level: "draft" | "tested" }[] = [];
+  for (const r of rows) if (typeof r.action_key === "string" && (r.level === "draft" || r.level === "tested")) out.push({ actionKey: r.action_key, level: r.level });
+  return out;
+}

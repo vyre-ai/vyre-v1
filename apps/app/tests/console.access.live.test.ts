@@ -9,6 +9,11 @@ import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-
 
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
 const PASSWORD = "fixture password 123";
+/** Open a Model picker in the open sheet and choose the entry at `index` (0 is the default). */
+async function pickModel(page: Page, label: string, index: number): Promise<void> {
+  await page.getByRole("button", { name: label, exact: true }).click();
+  await page.getByRole("menuitem").nth(index).click();
+}
 const MATRIX = [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900], ["paper", "phone", 390, 844], ["graphite", "phone", 390, 844]] as const;
 
 test("production Console Access: People directory, person object, groups, devices and bulk actions", async (t) => {
@@ -93,12 +98,14 @@ test("production Console Access: People directory, person object, groups, device
 
     await t.test("the invite form names the Role, defaults to Member, and Create invite makes a real one-time link", async () => {
       await goPeople();
+      // the invite form is a sheet behind Invite a person
+      await page.getByTestId("console-invite-open").click(); await page.getByTestId("invite-sheet").waitFor();
       assert.equal(await page.getByRole("button", { name: "Role", exact: true }).innerText(), "Member");
       await page.getByRole("button", { name: "Role", exact: true }).click();
       assert.ok(await page.getByRole("menuitem", { name: "Guest", exact: true }).count());
       await page.getByRole("menuitem", { name: "Guest", exact: true }).click();
       assert.equal(await page.getByRole("button", { name: "Role", exact: true }).innerText(), "Guest");
-      await page.getByTestId("console-invite-create").click(); await page.getByTestId("console-invite-link").waitFor();
+      await page.getByTestId("invite-sheet").getByRole("button", { name: "Create invite", exact: true }).click(); await page.getByTestId("console-invite-link").waitFor();
       assert.match(await page.getByTestId("console-invite-link").innerText(), /^https?:\/\//);
     });
 
@@ -194,12 +201,14 @@ test("production Console Access: People directory, person object, groups, device
     await t.test("an outside actor: create with a role, redeem the one-time token, edit its roles, revoke, and the credential stops working", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
       await goTo(page, "actors", "Outside actors", "Agents and actors"); await page.getByTestId("console-outside-actors").waitFor();
-      await page.getByRole("button", { name: "Name", exact: true }).count();
-      await page.getByLabel("Name", { exact: true }).fill("Claude Code");
+      // Connect a tool opens a sheet: name, provider and role, then Create issues the one-time token
+      await page.getByTestId("actor-new").click(); const sheet = page.getByRole("dialog");
+      await sheet.getByLabel("Name", { exact: true }).fill("Claude Code");
       await page.getByRole("button", { name: "Provider", exact: true }).click(); await page.getByRole("menuitem", { name: "Anthropic", exact: true }).click();
       await page.getByRole("button", { name: "Role", exact: true }).click(); await page.getByRole("menuitem", { name: "Developer", exact: true }).click();
-      await page.getByTestId("actor-create").click(); await page.getByTestId("actor-token").waitFor();
+      await sheet.getByRole("button", { name: "Create", exact: true }).click(); await page.getByTestId("actor-token").waitFor();
       const oneTime = await page.getByTestId("actor-token").innerText();
+      await sheet.getByRole("button", { name: "Done", exact: true }).click();
       const listed = (await api("access.actors.list", {})).actors as { id: string; name: string; status: string; roles: string[] }[];
       const actor = listed.find((a) => a.name === "Claude Code")!;
       assert.match(await page.getByTestId(`row-object-row-${actor.id}`).innerText(), /Anthropic · Pending/, "the row reads Provider · Status");
@@ -228,25 +237,29 @@ test("production Console Access: People directory, person object, groups, device
     await t.test("an agent's lifecycle: create, edit model, account and tools, pause and resume, hand over, delete and undo", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
       await goTo(page, "agents", "Agents register", "Agents and actors"); await page.getByTestId("console-agents").waitFor();
+      // New agent opens a sheet
+      await page.getByTestId("agent-new").click(); await page.getByTestId("agent-new-sheet").waitFor();
       await page.getByTestId("agent-name").fill("Intake Bot"); await page.getByLabel("Role line", { exact: true }).fill("Use me when a new inquiry arrives.");
-      await page.getByLabel("Model (optional)", { exact: true }).fill("model-a");
-      await page.getByTestId("agent-create").click(); await page.getByText("Agent created").first().waitFor();
+      // the model is a picker of the models the Space can run: the first one after Default
+      await pickModel(page, "Model", 1);
+      await page.getByTestId("agent-new-sheet").getByRole("button", { name: "Create", exact: true }).click(); await page.getByText("Agent created").first().waitFor();
       const agent = ((await api("agents.list", {})).agents as { agentId: string; name: string }[]).find((a) => a.name === "Intake Bot")!;
       const read = async (): Promise<any> => (await api("agents.get", { agentId: agent.agentId })).agent; // eslint-disable-line @typescript-eslint/no-explicit-any
-      assert.equal((await read()).model, "model-a"); assert.equal((await read()).ownerId, (await api("identity.whoami", {})).principal.id);
+      const createdModel = (await read()).model; assert.ok(createdModel, "the picked model is saved"); assert.equal((await read()).ownerId, (await api("identity.whoami", {})).principal.id);
       const openAgent = async (p: Page = page): Promise<void> => { await p.getByTestId(`row-object-row-${agent.agentId}`).click(); await p.getByTestId("object-page-" + agent.agentId).waitFor(); };
       await openAgent();
       await page.getByTestId("object-action-edit").click(); await page.getByTestId("agent-edit-sheet").waitFor();
-      await page.getByTestId("agent-edit-model").fill("model-b"); await page.getByLabel("Fallback model", { exact: true }).fill("model-c");
+      await pickModel(page, "Model", 2); await pickModel(page, "Fallback model", 1);
       await page.getByRole("button", { name: "Account", exact: true }).click(); await page.getByRole("menuitem", { name: "A shared key from the Vault", exact: true }).click();
       await page.getByTestId("agent-edit-key").fill("#Team_Anthropic_Key");
       await page.getByLabel("Tools allowed (comma separated)", { exact: true }).fill("records.read, files.read"); await page.getByLabel("Tools denied (comma separated)", { exact: true }).fill("terminal");
       await page.getByTestId("agent-save").click(); await page.getByText("Agent updated").first().waitFor();
       const saved = await read();
-      assert.deepEqual([saved.model, saved.fallbackModel, saved.accountPolicy, saved.accountKey, saved.toolsAllowed, saved.toolsDenied], ["model-b", "model-c", "key", "#Team_Anthropic_Key", ["records.read", "files.read"], ["terminal"]]);
+      assert.ok(saved.model && saved.model !== createdModel, "the model was changed"); assert.ok(saved.fallbackModel, "a fallback model was picked");
+      assert.deepEqual([saved.accountPolicy, saved.accountKey, saved.toolsAllowed, saved.toolsDenied], ["key", "#Team_Anthropic_Key", ["records.read", "files.read"], ["terminal"]]);
       await page.getByRole("tab", { name: /^Configuration/ }).click(); await page.getByTestId("agent-configuration").waitFor();
       const config = await page.getByTestId("agent-configuration").innerText();
-      assert.match(config, /model-b/); assert.match(config, /#Team_Anthropic_Key/); assert.match(config, /records\.read, files\.read/); assert.match(config, /terminal/);
+      assert.ok(config.includes(saved.model)); assert.match(config, /#Team_Anthropic_Key/); assert.match(config, /records\.read, files\.read/); assert.match(config, /terminal/);
       await matrix("agent-configuration", async (p) => { await goTo(p, "agents", "Agents register", "Agents and actors"); await p.getByTestId("console-agents").waitFor(); await openAgent(p); await p.getByRole("tab", { name: /^Configuration/ }).click(); await p.getByTestId("agent-configuration").waitFor(); });
       await page.getByRole("tab", { name: /^Overview/ }).click(); await page.getByTestId("agent-pause-reason").fill("Cost review");
       await page.getByTestId("object-action-pause").click(); await page.getByText("Agent paused").first().waitFor();

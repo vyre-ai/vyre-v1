@@ -162,18 +162,18 @@ export default defineManifest({
         layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), text: t.str(), validFrom: t.opt(t.ts()), sourceKind, sourceRef: t.str(), threadId: t.opt(id.thread),
         kind: t.opt(t.str({ description: 'Fact kind, for example preference', examples: ['preference'] })),
       },
-      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], tool: 'memory', mcpName: 'memory_propose', agent: { planMode: 'blocked', blocks: ['memory_saved'] }, errors: ['permission.provider_label'],
+      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], tool: 'memory', mcpName: 'memory_propose', agent: { planMode: 'allowed', blocks: ['memory_saved'] }, errors: ['permission.provider_label'],
     }),
     write('memory.remember', 'Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule', {
       in: {
         text: t.str(), layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), kind: t.opt(t.str({ examples: ['preference'] })), threadId: t.opt(id.thread),
         sourceRef: t.opt(t.str({ description: 'The source id of what this came from, for example a quote ref' })),
       },
-      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], tool: 'memory', mcpName: 'memory_remember', agent: { planMode: 'blocked', blocks: ['memory_saved'] },
+      out: { fact: factRow, merged: t.bool() }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], tool: 'memory', mcpName: 'memory_remember', agent: { planMode: 'allowed', blocks: ['memory_saved'] },
       errors: ['permission.provider_label'], cli: 'vyre memory remember', idem: 'natural',
     }),
     write('memory.forget', 'Forget facts by id: they stop being recalled and stay in history', {
-      in: { factIds: t.arr(id.fact, { minItems: 1 }) }, out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', mcpName: 'memory_forget', agent: { planMode: 'blocked' }, audit: 'sensitive', risk: 'medium',
+      in: { factIds: t.arr(id.fact, { minItems: 1 }) }, out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', mcpName: 'memory_forget', agent: { planMode: 'allowed' }, audit: 'sensitive', risk: 'medium',
       cli: 'vyre memory forget', idem: 'natural',
     }),
     write('memory.recall.record', 'Record which facts and quotes recall handed the agent for one message (ids only), for memory.used; the engine writes this as the person whose message it was', {
@@ -195,7 +195,7 @@ export default defineManifest({
     }),
     write('memory.facts.remove', 'Remove facts from answers (closed off, kept in history), one at a time or all at once for a layer or agent', {
       in: { factIds: t.opt(t.arr(id.fact)), scope: t.opt(t.obj({ layer, agentId: t.opt(id.agent), fromMe: t.opt(t.bool()) })) },
-      out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', audit: 'sensitive', risk: 'medium',
+      out: { removed: t.int() }, emits: ['memory.removed'], agent: { planMode: 'allowed' }, tool: 'memory', audit: 'sensitive', risk: 'medium',
     }),
     write('memory.erase', 'Erase completely: delete facts from history; open to the source person or an admin; the audit entry records who and when, never what', {
       in: { factIds: t.opt(t.arr(id.fact)), pageIds: t.opt(t.arr(t.str())), scope: t.opt(t.obj({ layer, agentId: t.opt(id.agent), sourceRef: t.opt(t.str()), subject: t.opt(t.str()) })), reason: t.opt(t.str()) },
@@ -269,10 +269,10 @@ export default defineManifest({
       agent: { planMode: 'allowed' },
     }),
     write('memory.undo', 'Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back', {
-      in: factT, out: { fact: factRow, trashed: t.bool() }, emits: ['memory.removed'], tool: 'memory', offline: 'queue', errors: ['validation.not_found', 'validation.precondition_failed'],
+      in: factT, out: { fact: factRow, trashed: t.bool() }, emits: ['memory.removed'], agent: { planMode: 'allowed' }, tool: 'memory', offline: 'queue', errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     write('memory.restore', 'Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact', {
-      in: { factId: t.opt(id.fact), pageId: t.opt(t.str()) }, out: { fact: t.opt(factRow), page: t.opt(pageRow), restoredFrom: t.enm('trash', 'archive') }, emits: ['memory.restored', 'memory.page_restored'], tool: 'memory', mcpName: 'memory_restore', agent: { planMode: 'blocked' },
+      in: { factId: t.opt(id.fact), pageId: t.opt(t.str()) }, out: { fact: t.opt(factRow), page: t.opt(pageRow), restoredFrom: t.enm('trash', 'archive') }, emits: ['memory.restored', 'memory.page_restored'], tool: 'memory', mcpName: 'memory_restore', agent: { planMode: 'allowed' },
       errors: ['validation.not_found', 'validation.precondition_failed', 'permission.role_lacks_permission'],
     }),
     read('memory.trash.search', 'Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show', {

@@ -11,8 +11,8 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const hostIds = new Set((JSON.parse(readFileSync(root + 'host/modules.json', 'utf8')) as { modules: Array<{ id: string }> }).modules.map((m) => m.id));
 const modules = all.filter((m) => hostIds.has(m.id));
 
-test('72 module manifests exist and every require names an existing manifest', () => {
-  assert.equal(modules.length, 72);
+test('73 module manifests exist and every require names an existing manifest', () => {
+  assert.equal(modules.length, 73);
   const ids = new Set(all.map((m) => m.id));
   for (const m of all) for (const r of Object.keys(m.requires ?? {})) assert.ok(ids.has(r), `${m.id} requires missing manifest ${r}`);
 });

@@ -236,7 +236,7 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
             {rv.error ? <Text style={s.error} accessibilityRole="alert" testID="env-error">{rv.error}</Text> : null}
           </View>
 
-          <AutomationsRow item={{ id: itemId, name: item.name, handle: item.handle, kind: item.kind, yourLevel: item.yourLevel }} />
+          <AutomationsRow item={{ id: itemId, name: item.name, handle: item.handle, kind: item.kind, yourLevel: item.yourLevel, folderId: item.folderId }} />
 
           {rot ? (
             <View style={s.row} testID="item-rotation">

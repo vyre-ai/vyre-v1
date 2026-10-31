@@ -1,0 +1,130 @@
+name: relay-deploy
+# The one gated deploy of the relay Worker (relay.vyre.run) and of phone access (<name>.vyre.run). Nothing here runs until a person dispatches it, and the real deploy waits for the
+# `deploy` environment's required reviewer after the build job's tests, bundle and dry run have passed. The Cloudflare token is the environment secret CLOUDFLARE_API_TOKEN and the account id
+# the environment variable CLOUDFLARE_ACCOUNT_ID; the token is never in the build job.
+#
+#   gh workflow run relay-deploy.yml --ref main -f target=staging -f sha=<sha>
+#   gh workflow run relay-deploy.yml --ref main -f target=production -f sha=<sha> -f edge=apply
+#
+# staging:    the Worker `vyre-relay-stage` on phone-stage.vyre.run, with its own Durable Objects and one name (relay/worker/wrangler.stage.toml). The live relay is not touched.
+# production: the Worker `vyre-relay` (relay.vyre.run). edge=apply then adds the wildcard route and the proxied wildcard record (relay/worker/edge.mjs), and the job compares every other
+#             host of the zone before and after; edge=remove takes them away again, which is the way back.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "staging (vyre-relay-stage on phone-stage.vyre.run) or production (vyre-relay on relay.vyre.run)"
+        required: true
+        type: choice
+        options: [staging, production]
+      sha:
+        description: "The commit to deploy (40 hex). It must be on an origin branch."
+        required: true
+        type: string
+      edge:
+        description: "production only: apply or remove the wildcard route and DNS record (relay/worker/edge.mjs)"
+        required: false
+        default: none
+        type: choice
+        options: [none, apply, remove]
+permissions:
+  contents: read
+concurrency:
+  group: relay-deploy
+  cancel-in-progress: false
+env:
+  # wrangler is installed once from tools/wrangler/package-lock.json (npm ci --ignore-scripts), never resolved fresh
+  W: ${{ github.workspace }}/tools/wrangler/node_modules/.bin/wrangler
+  ESBUILD: ${{ github.workspace }}/tools/wrangler/node_modules/.bin/esbuild
+  CONFIG: ${{ inputs.target == 'staging' && 'wrangler.stage.toml' || 'wrangler.toml' }}
+jobs:
+  build:
+    name: build, test and dry run (no credentials, nothing is changed)
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
+      - name: the sha is on an origin branch
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          printf %s "$SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "::error::sha must be 40 hex characters"; exit 1; }
+          git fetch -q origin '+refs/heads/*:refs/remotes/origin/*'
+          [ -n "$(git branch -r --contains "$SHA")" ] || { echo "::error::$SHA is not on any origin branch"; exit 1; }
+          echo "deploying $(git rev-parse --short=12 HEAD): $(git log -1 --format=%s)"
+      - name: wrangler, from the lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix tools/wrangler && "$W" --version
+      - name: tests (relay Worker, phone shell, wildcard edge)
+        run: node --test relay/worker/tests/*.test.js relay/client/shell/bridge.test.js
+      - name: bundle the phone shell
+        run: |
+          rm -rf relay/worker/shell-dist
+          "$ESBUILD" relay/client/shell/boot.js relay/client/shell/sw.js --bundle --format=iife --target=es2022 --minify --outdir=relay/worker/shell-dist/__vyre
+          ls -l relay/worker/shell-dist/__vyre
+      - name: relay/worker, dry run
+        working-directory: relay/worker
+        run: |
+          "$W" deploy --dry-run -c "$CONFIG" --outdir /tmp/relay-out 2>&1 | tee /tmp/relay-dry.txt
+          grep -E "ROUTES|HOSTS|ASSETS" /tmp/relay-dry.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shell-dist
+          path: relay/worker/shell-dist
+          if-no-files-found: error
+          retention-days: 2
+  deploy:
+    name: deploy (waits for the deploy environment's reviewer)
+    needs: build
+    runs-on: [self-hosted, linux, v1]
+    environment: deploy
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: shell-dist
+          path: relay/worker/shell-dist
+      - name: wrangler, from the lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix tools/wrangler && "$W" --version
+      - name: the credentials are there
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error::the deploy environment has no CLOUDFLARE_API_TOKEN secret"; exit 1; }
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is not set (a variable, not a secret)"; exit 1; }
+          "$W" whoami 2>&1 | sed -E 's/[A-Za-z0-9._-]*@[A-Za-z0-9._-]*/<email>/' | head -12
+      - name: hosts of the zone, before
+        if: ${{ inputs.target == 'production' && inputs.edge != 'none' }}
+        run: node relay/worker/edge.mjs --snapshot | tee /tmp/hosts-before.json
+      - name: relay/worker
+        working-directory: relay/worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          "$W" deploy -c "$CONFIG"
+      - name: wildcard route and record (edge=${{ inputs.edge }})
+        if: ${{ inputs.target == 'production' && inputs.edge != 'none' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          node relay/worker/edge.mjs --${{ inputs.edge }}
+          # the route is live within seconds; the record takes a moment to be answered everywhere
+          sleep 45
+          node relay/worker/edge.mjs --snapshot | tee /tmp/hosts-after.json
+          if [ "${{ inputs.edge }}" = apply ] && ! diff /tmp/hosts-before.json /tmp/hosts-after.json; then
+            echo "::error::a host of the zone answers differently with the wildcard in place; removing it again"
+            node relay/worker/edge.mjs --remove
+            exit 1
+          fi
+      - name: what is live
+        run: |
+          for u in ${{ inputs.target == 'production' && 'https://relay.vyre.run/health' || 'https://phone-stage.vyre.run/health' }}; do
+            printf '%s -> HTTP %s\n' "$u" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$u")"
+          done

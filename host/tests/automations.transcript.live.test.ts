@@ -150,7 +150,9 @@ test("a try_read response from the app never enters an agent turn transcript", a
     assert.equal(read.status, 200, read.text);
     assert.equal(read.data["level"], "tested", read.text);
     assert.equal(sent.length, 1, "the host made the one read");
-    assert.deepEqual(Object.keys(read.data).sort(), ["level"], "the reply is the level only");
+    // the reply is the level and the app's HTTP status code (so the agent can say tested or failed), never the app's body
+    assert.deepEqual(Object.keys(read.data).sort(), ["level", "status"], "the reply is the level and the status only");
+    assert.equal(typeof read.data["status"], "number", "the status is the bare HTTP code");
     noSecret(read.text, "try_read reply");
     assert.equal(read.text.includes(BODY), false, `the app's response reached the reply: ${read.text}`);
 

@@ -32,6 +32,8 @@ export interface MenuItem {
   leading?: ReactNode;
   /** More words a typed search matches besides the label (an app name for one of its actions). */
   keywords?: string;
+  /** A small dot after the label; its text is the tooltip and the screen reader label (an untested action). */
+  mark?: string;
   /** Stays in the list whatever is typed in the search (a closing "Build a connector" row). */
   pinned?: boolean;
 }

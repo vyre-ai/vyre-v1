@@ -16,6 +16,8 @@ export interface CatalogStep {
   note?: string;
   /** Input the step starts with: a connector someone built, its action and the connection bound to the Vault key. */
   preset?: Record<string, unknown>;
+  /** A connector action that was never tried against the real app. The picker marks it with a dot. */
+  untested?: boolean;
 }
 
 export interface CatalogTrigger {
@@ -152,7 +154,9 @@ function actionTitle(action: string): string {
  * The connectors someone built (not the ones Vyre ships), one step per action, already pointing at the connection bound to the Vault key. A connector with no active connection
  * lists nothing: its steps would have nothing to run on. Names and keys only; a Vault value never comes through here.
  */
-export function connectorSteps(connectorsOut: unknown, connectionsOut: unknown): CatalogStep[] {
+export function connectorSteps(connectorsOut: unknown, connectionsOut: unknown, levelsOut?: unknown): CatalogStep[] {
+  const levels = (levelsOut as { levels?: unknown } | null | undefined)?.levels;
+  const tested = Array.isArray(levels) ? new Set(levels.flatMap((l) => { const r = l as { actionKey?: unknown; level?: unknown } | null; return r && r.level === "tested" && typeof r.actionKey === "string" ? [r.actionKey] : []; })) : null;
   const connectors = (connectorsOut as { connectors?: unknown } | null)?.connectors;
   const connections = (connectionsOut as { connections?: unknown } | null)?.connections;
   if (!Array.isArray(connectors) || !Array.isArray(connections)) return [];
@@ -171,6 +175,8 @@ export function connectorSteps(connectorsOut: unknown, connectionsOut: unknown):
       steps.push({
         key: "connector_request", title: `${title}: ${actionTitle(action)}`, category: "send", group: "Your connectors", availability: "available", effects: "outward",
         preset: { connector: row["key"], action, connectionId: bound["connectionId"] },
+        // with no levels to read nothing is claimed; with them, an action nobody tried says so
+        ...(tested !== null && !tested.has(`${String(row["key"])}.${action}`) ? { untested: true } : {}),
       });
     }
   }
@@ -188,12 +194,12 @@ export async function loadProductCatalog(call: (cap: string, input: unknown) => 
       call("automations.steps.list", {}),
       call("automations.triggers.list", {}),
       // a person who cannot manage connectors, or a server without them, simply has no Your connectors group
-      Promise.all([call("connectors.list", { state: "live" }), call("connections.list", {})]).catch(() => null),
+      Promise.all([call("connectors.list", { state: "live" }), call("connections.list", {}), call("automations.connector_levels", {}).catch(() => undefined)]).catch(() => null),
     ]);
     const steps = stepsFromRuntime(stepsOut);
     const triggers = triggersFromRuntime(triggersOut);
     if (!steps || !triggers) return { ok: false, message: "The step catalog did not return a list." };
-    return { ok: true, catalog: { steps: [...steps, ...(built ? connectorSteps(built[0], built[1]) : [])], triggers } };
+    return { ok: true, catalog: { steps: [...steps, ...(built ? connectorSteps(built[0], built[1], built[2]) : [])], triggers } };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "The step catalog is not available." };
   }

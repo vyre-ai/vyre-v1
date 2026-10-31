@@ -6,14 +6,28 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { phoneCanReach, pairLink } from "../shell/session/desktop.ts";
 import { QrCode } from "./QrCode.tsx";
 
-export async function makePairLink(call: CapCall, address: string, idempotencyKey: string): Promise<{ link: string; expiresAt: number }> {
-  const out = await call("identity.pair_create", { purpose: "phone", idempotencyKey }) as { code: string; expiresAt: number };
-  return { link: pairLink(address, out.code), expiresAt: out.expiresAt };
+/** This computer's phone address (Settings > Computers > Phone access), when it has claimed one: the https name and the box key its link carries. */
+export interface PhoneAddress { url: string; boxKey: string }
+export async function phoneAddressOf(call: CapCall): Promise<PhoneAddress | null> {
+  try {
+    const p = await call("network.phone", {}) as { state?: string; url?: string; link?: string };
+    const key = /#box=([A-Za-z0-9_-]{43})$/.exec(p.link ?? "")?.[1];
+    return p.state === "claimed" && typeof p.url === "string" && key ? { url: p.url, boxKey: key } : null;
+  } catch { return null; }
 }
 
-export function PairPhoneCard({ call, address, onPaired, onTeamSpace }: { call: CapCall; address: string; onPaired?(): void; onTeamSpace?(): void }): ReactElement {
-  if (!phoneCanReach(address)) return <PhoneUnreachable onTeamSpace={onTeamSpace} />;
-  return <PairPhoneLive call={call} address={address} onPaired={onPaired} />;
+export async function makePairLink(call: CapCall, address: string, idempotencyKey: string, phone?: PhoneAddress | null): Promise<{ link: string; expiresAt: number }> {
+  const out = await call("identity.pair_create", { purpose: "phone", idempotencyKey }) as { code: string; expiresAt: number };
+  return { link: phone ? pairLink(phone.url, out.code, phone.boxKey) : pairLink(address, out.code), expiresAt: out.expiresAt };
+}
+
+export function PairPhoneCard({ call, address, onPaired, onTeamSpace }: { call: CapCall; address: string; onPaired?(): void; onTeamSpace?(): void }): ReactElement | null {
+  // a Space on this computer alone has nothing a phone can open, unless the computer has claimed a vyre.run name: then the link is that name's
+  const [phone, setPhone] = useState<PhoneAddress | null | undefined>(phoneCanReach(address) ? null : undefined);
+  useEffect(() => { if (phone === undefined) void phoneAddressOf(call).then(setPhone); }, [call, phone]);
+  if (phone === undefined) return null;
+  if (!phone && !phoneCanReach(address)) return <PhoneUnreachable onTeamSpace={onTeamSpace} />;
+  return <PairPhoneLive call={call} address={address} phone={phone} onPaired={onPaired} />;
 }
 
 // This Space lives on this computer only: no relay name and no network address, so a phone has nothing to open. What is offered is what works today: a server that holds the Space.
@@ -33,7 +47,7 @@ function PhoneUnreachable({ onTeamSpace }: { onTeamSpace: (() => void) | undefin
   );
 }
 
-function PairPhoneLive({ call, address, onPaired }: { call: CapCall; address: string; onPaired: (() => void) | undefined }): ReactElement {
+function PairPhoneLive({ call, address, phone, onPaired }: { call: CapCall; address: string; phone: PhoneAddress | null; onPaired: (() => void) | undefined }): ReactElement {
   const attempt = useRef(0);
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,7 +55,7 @@ function PairPhoneLive({ call, address, onPaired }: { call: CapCall; address: st
   const make = async (): Promise<void> => {
     if (busy) return;
     setBusy(true); setError("");
-    try { setLink((await makePairLink(call, address, `${Date.now()}:${attempt.current++}`)).link); } catch { setError("Could not make a pairing link. Try again."); } finally { setBusy(false); }
+    try { setLink((await makePairLink(call, address, `${Date.now()}:${attempt.current++}`, phone)).link); } catch { setError("Could not make a pairing link. Try again."); } finally { setBusy(false); }
   };
   // the code is made when the step opens, so the QR is there to scan at once
   useEffect(() => { void make(); }, []);

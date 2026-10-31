@@ -338,19 +338,32 @@ export interface RelayBoxOptions {
   onState: (s: { state: RelayState; rttMs?: number; at: number }) => void;
   log?: (m: string) => void;
   pingMs?: number;
+  /** Tests: the WebSocket class the links use (default: the platform's). */
+  WebSocket?: typeof WebSocket;
 }
+/** The relay's answer to a phone-address message: `{ t: "host", op, status, name?, label? }` with the fields it knows. */
+export interface HostReply { op: string; status: string; name?: string; label?: string }
 export interface RelayBox {
   /** the route id, once the keys are loaded */
   ready: Promise<{ route: string; deviceUrl: string; boxKey: string }>;
+  /** The phone address (<name>.vyre.run) this box holds at the relay, over the authenticated control link. Each call waits for the link and for the relay's answer; a link that does not come up answers "unavailable". */
+  host: {
+    claim(name: string, label: string): Promise<HostReply>;
+    release(): Promise<HostReply>;
+    status(): Promise<HostReply>;
+  };
   stop(): void;
   readonly open: number;
 }
+
+const HOST_WAIT_MS = 15_000;
 
 const BACKOFF_MIN = 1000, BACKOFF_MAX = 5 * 60_000, DIAL_MS = 30_000;
 
 export function startRelayBox(o: RelayBoxOptions): RelayBox {
   const log = o.log ?? (() => {});
   const base = o.relayUrl.replace(/^http/, "ws").replace(/\/+$/, "");
+  const WS = o.WebSocket ?? WebSocket;
   const pingMs = o.pingMs ?? 20_000;
   let stopped = false;
   let control: WebSocket | null = null;
@@ -361,6 +374,8 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   let connected = false;
   let lastPingAt = 0, rtt: number | undefined;
   const data = new Map<string, WebSocket>();
+  /** phone-address asks waiting for the relay's answer, by op */
+  const asking = new Map<string, Array<(r: HostReply) => void>>();
   let keys: Keys | null = null;
   let route = "";
   const state = (s: RelayState): void => { connected = s === "healthy"; o.onState({ state: s, ...(rtt !== undefined ? { rttMs: rtt } : {}), at: Date.now() }); };
@@ -368,7 +383,7 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   function connect(): void {
     if (stopped || !keys) return;
     const k = keys;
-    const ws = new WebSocket(`${base}/v1/box?route=${route}`);
+    const ws = new WS(`${base}/v1/box?route=${route}`);
     control = ws;
     let missed = 0, settled = false;
     const dial = setTimeout(() => gone(1006, "dial timed out"), DIAL_MS);
@@ -415,6 +430,11 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
         lastPingAt = Date.now();
         try { ws.send("ping"); } catch { /* closing */ }
         for (const c of Array.isArray(m.waiting) ? m.waiting : []) openData(String(c));
+      } else if (m.t === "host") {
+        const r = m as unknown as HostReply;
+        const waiting = asking.get(String(r.op));
+        const next = waiting?.shift();
+        if (next) next({ op: String(r.op), status: String(r.status), ...(typeof r.name === "string" ? { name: r.name } : {}), ...(typeof r.label === "string" ? { label: r.label } : {}) });
       } else if (m.t === "open") openData(String(m.c));
       else if (m.t === "close") { data.get(String(m.c))?.close(1000); data.delete(String(m.c)); }
     };
@@ -425,7 +445,7 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   function openData(c: string): void {
     if (stopped || !keys || data.has(c) || !/^[A-Za-z0-9_-]{1,64}$/.test(c)) return;
     const k = keys;
-    const ws = new WebSocket(`${base}/v1/box?route=${route}&c=${encodeURIComponent(c)}&t=${encodeURIComponent(ticket)}`);
+    const ws = new WS(`${base}/v1/box?route=${route}&c=${encodeURIComponent(c)}&t=${encodeURIComponent(ticket)}`);
     ws.binaryType = "arraybuffer";
     data.set(c, ws);
     const transport = {
@@ -465,8 +485,33 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   })();
   ready.catch((e: unknown) => log(`relay: could not start: ${(e as Error).message}`));
 
+  /** One phone-address message on the control link, and the relay's one answer. The link may still be coming up (the first dial, a reconnect), so it waits a while for it. */
+  function askHost(op: "claim" | "release" | "status", extra: Record<string, string>): Promise<HostReply> {
+    const unavailable: HostReply = { op, status: "unavailable" };
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (r: HostReply): void => { if (settled) return; settled = true; clearTimeout(timer); clearInterval(poll); const q = asking.get(op); if (q) { const i = q.indexOf(done); if (i >= 0) q.splice(i, 1); } resolve(r); };
+      const timer = setTimeout(() => done(unavailable), HOST_WAIT_MS);
+      let sent = false;
+      const trySend = (): void => {
+        if (sent || stopped || !control || control.readyState !== 1 || !connected) return;
+        sent = true;
+        asking.set(op, [...(asking.get(op) ?? []), done]);
+        try { control.send(JSON.stringify({ t: `host.${op}`, ...extra })); } catch { done(unavailable); }
+      };
+      const poll = setInterval(trySend, 100);
+      poll.unref?.();
+      trySend();
+    });
+  }
+
   return {
     ready,
+    host: {
+      claim: (name, label) => askHost("claim", { name, label }),
+      release: () => askHost("release", {}),
+      status: () => askHost("status", {}),
+    },
     get open() { return data.size; },
     stop() {
       stopped = true;

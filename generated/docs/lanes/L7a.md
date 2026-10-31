@@ -6,7 +6,7 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 
 ### access
 
-Capabilities to implement: 60. Events to emit: 18. Contract tests that must go green: `generated/tests/access/`.
+Capabilities to implement: 62. Events to emit: 18. Contract tests that must go green: `generated/tests/access/`.
 
 Capabilities:
 - access.actors.create (write, access.manage, level view)
@@ -16,6 +16,8 @@ Capabilities:
 - access.actors.set_engineer_mcp (write, access.manage, level view)
 - access.actors.update (write, access.manage, level view)
 - access.check (read, access.manage, level view)
+- access.connector_builder.grant (write, access.manage, level view)
+- access.connector_builder.status (read, grant only, level view)
 - access.deciders (read, grant only, level view)
 - access.grants.list (read, access.manage, level view)
 - access.grants.update (write, grant only, level view)

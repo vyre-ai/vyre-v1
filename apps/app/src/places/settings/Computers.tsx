@@ -10,6 +10,7 @@ import { useSettingsData } from "./data.tsx";
 import { addressKind, emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
 import type { HostInfo, ServerInfo, Sheet } from "./computers-model.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Tip, pointer } from "./ui.tsx";
+import { PhoneAccessSection } from "./PhoneAccess.tsx";
 
 const WHERE = "Any Linux machine or Mac that stays on. A small cloud server from Hetzner or DigitalOcean works.";
 const LAN_ONLY = "Works only while the server and this computer are on the same network. Over plain http the server can run agent computers, but not your chats: those need an https address.";
@@ -190,6 +191,7 @@ export function ComputersSection(): ReactElement {
   return (
     <>
       <ComputersBody hosts={hosts} servers={servers} removing={removing} onAdd={() => { setError(""); setSheet(emptySheet()); }} onAskRemove={setRemoving} onRemove={(id) => void remove(id)} />
+      <PhoneAccessSection />
       {sheet ? (
         <AddServerSheet
           sheet={sheet} servers={servers} busy={busy} error={error} now={now}

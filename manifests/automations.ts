@@ -391,6 +391,9 @@ export default defineManifest({
       out: { messageId: t.str() },
       tool: 'automations', agent: { planMode: 'blocked' },
     }),
+    read('automations.connector_levels', 'Which connector actions were tried against the real app (tested) and which were not (draft). Keys only.', {
+      in: {}, out: { levels: t.arr(t.obj({ actionKey: t.str(), level: t.enm('draft', 'tested') })) }, tool: 'automations', agent: { planMode: 'allowed' },
+    }),
     read('automations.vault_usage', 'Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.', {
       in: { handle: t.opt(id.handle) },
       out: { uses: t.arr(t.obj({ handle: id.handle, automations: t.arr(t.obj({ automationId: id.automation, name: t.str(), status: t.str(), steps: t.arr(t.obj({ nodeId: t.str(), title: t.str() })) })) })) },

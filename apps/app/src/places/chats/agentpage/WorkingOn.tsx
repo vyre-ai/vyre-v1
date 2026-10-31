@@ -1,4 +1,4 @@
-// "Working on" on the agent page (work baton): the tasks whose baton is with this agent right now, each with where it is in its steps. Nothing is drawn when the agent holds none, so a page of
+// "Tasks it holds" on the agent page (work baton; the Chats tab already has its own "Working on"): the tasks whose baton is with this agent right now, each with where it is in its steps. Nothing is drawn when the agent holds none, so a page of
 // an agent that does no task work stays as it was. A tap opens the task. Read through tasks.list as the person looking; a list that cannot be read draws nothing.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
@@ -40,8 +40,8 @@ export function WorkingOn(): ReactElement | null {
   }, [data, agentId]);
   if (held.length === 0) return null;
   return (
-    <View testID="working-on" accessibilityLabel="Working on" style={s.box}>
-      <Text accessibilityRole="header" style={s.head}>{`Working on  ${held.length}`}</Text>
+    <View testID="working-on" accessibilityLabel="Tasks it holds" style={s.box}>
+      <Text accessibilityRole="header" style={s.head}>{`Tasks it holds  ${held.length}`}</Text>
       {/* ui-rows-lint: not a list (the few tasks the agent holds, under its header) */}
       {held.slice(0, SHOWN).map(({ task, doing }) => <Row key={task.id} id={`working-${task.id}`} title={task.title} note={doing} onPress={data.nav.openTask ? () => data.nav.openTask!(task.id) : undefined} />)}
       {held.length > SHOWN ? <Text style={s.more}>{`${held.length - SHOWN} more`}</Text> : null}

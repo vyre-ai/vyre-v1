@@ -549,6 +549,8 @@ export async function runMode(mode: "before" | "after", only?: readonly string[]
       const task = TASKS.find((t) => t.id === id)!;
       const started = await call(d, "chat.start", { kind: "chat", agentIds: [world.agentId], idempotencyKey: `bn-${mode}-${id}-s` });
       const threadId = started.data.thread.threadId as string;
+      // the bench measures whether the model finds and uses the right tool, not the Ask first prompt a new chat starts with, so every task runs in Auto
+      await call(d, "threads.set_mode", { threadId, mode: "auto", idempotencyKey: `bn-${mode}-${id}-auto` });
       const before = ((await call(d, "chat.messages.list", { threadId })).data.messages as unknown[]).length;
       const posted = await call(d, "chat.post", { threadId, body: task.prompt, mentions: [{ kind: "agent", id: world.agentId }], idempotencyKey: `bn-${mode}-${id}-p`, ...(task.screen ? { screen: task.screen(world) } : {}) });
       assert.equal(posted.status, 200, JSON.stringify(posted.data));
