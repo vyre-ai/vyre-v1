@@ -224,3 +224,13 @@ test("a deliverable that is more than simple fields keeps its raw shape editor",
   const out = panel({ id: "t", key: "ai", input: { prompt: "p", outputSchema: { type: "object", properties: { a: { type: "object", properties: { b: { type: "string" } } } } } }, ai: { mode: "task", agentId: "agt_x" } });
   assert.ok(has(out, 'data-testid="field-schema"') && !has(out, 'data-testid="rows-deliverable"'));
 });
+
+test("the card of a task step says it is an agent's task, not whose account it runs on", () => {
+  const def: Definition = { triggers: [{ key: "manual" }], nodes: [
+    { id: "t", key: "ai", input: { prompt: "Draft the letter" }, ai: { mode: "task", agentId: "agt_x" }, next: ["u"] },
+    { id: "u", key: "ai", input: { prompt: "Draft the letter" }, ai: { mode: "task", agentId: "agt_x", reviewer: { kind: "person", id: "usr_m" } } },
+  ] };
+  const subs = Object.fromEntries(layout(def, {}).cards.filter((c) => c.node).map((c) => [c.id, c.sub]));
+  assert.equal(subs["t"], "Draft the letter. An agent's task");
+  assert.equal(subs["u"], "Draft the letter. An agent's task, with a check before it goes on");
+});
