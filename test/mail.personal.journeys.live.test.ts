@@ -6,10 +6,10 @@
 //   3 A revoked sign-in: Home shows one Fix item, Fix opens Connect a mailbox, signing in again clears it.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ask, connectClaude, unlockVault, until } from "../../../test/support/mail-world.ts";
-import { bootScreens, browserOrSkip, open, seat, shoot } from "../../../test/support/mail-browser.ts";
-import type { Screens, Seat } from "../../../test/support/mail-browser.ts";
-import { standIn } from "../../../test/memory-live-kit.ts";
+import { ask, connectClaude, unlockVault, until } from "./support/mail-world.ts";
+import { bootScreens, browserOrSkip, open, seat, shoot } from "./support/mail-browser.ts";
+import type { Screens, Seat } from "./support/mail-browser.ts";
+import { standIn } from "./memory-live-kit.ts";
 
 const OUT = "shots-evidence/personal-mail";
 const CLIENT = { id: "e2e-client.apps.googleusercontent.com", secret: "e2e-client-secret-GOCSPX" };
