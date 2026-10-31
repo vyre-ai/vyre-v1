@@ -80,6 +80,11 @@ test("a web address or a name finds its brand", () => {
   assert.equal(brandForName("Stripe webhooks"), "stripe");
   assert.equal(brandForName("Postgres · Northwind prod"), "db");
   assert.equal(brandForName("Rivera client portal"), null);
+  // every AI provider in Add an AI provider draws its own mark, never a letter
+  for (const [name, key] of [["Codex", "openai"], ["ChatGPT", "openai"], ["Grok", "grok"], ["xAI", "xai"], ["OpenRouter", "openrouter"], ["Google Gemini", "googlegemini"], ["OpenCode Go", "opencode"], ["Local model", "localmodel"], ["Claude Code", "claude"], ["Anthropic", "anthropic"], ["OpenAI", "openai"]] as const) {
+    assert.equal(brandForName(name), key, name);
+    assert.ok(markKey(key), `${name} has a mark`);
+  }
 });
 
 test("the tile takes the size it is given and carries a label", () => {
