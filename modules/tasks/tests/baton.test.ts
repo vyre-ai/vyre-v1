@@ -219,3 +219,11 @@ test("the baton is for work tasks: a request is answered with tasks.act", async 
   const id = (await h.call("tasks.create", newTask({ kind: "approve", assigned: alice }), me)).task.id as string;
   await refused(h.call("tasks.decide", { taskId: id, verdict: "approve" }, { id: alice.id }), "validation.precondition_failed", "not_work");
 });
+
+test("a task starts with the notes it is given, so the agent woken the moment it exists already has its brief", async () => {
+  const h = withThreads();
+  const id = (await h.call("tasks.create", newTask({ assigned: bot, notes: { brief: "Goal\nDraft it.", done_means: "[\"Names the client\"]", decision_id: "dec_x", payload_hash: "h" } }), me)).task.id as string;
+  assert.deepEqual(notes(h, id), { brief: "Goal\nDraft it.", done_means: "[\"Names the client\"]" }, "the keys a held act owns are never taken from here");
+  const t = findTask(h.db, id)!;
+  assert.equal(t.decisionId, undefined);
+});
