@@ -83,3 +83,15 @@ test("with a channel connected the pencil composes and the Dialer opens the dial
   await press(find(root, "inbox-dialer"));
   assert.deepEqual(s.opened, ["compose", "dialer"]);
 });
+
+test("with the connect door, each tile opens its own sheet in place (Gmail, Outlook, Other email, Twilio) and navigates nowhere", async () => {
+  installDom();
+  const { ConnectCtx } = await import("../../../shell/connect/context.ts");
+  const needs: unknown[] = [];
+  const s = createSampleInbox(none);
+  const door = { open: async (need: unknown) => { needs.push(need); return null; }, version: 0 };
+  const root = await mount(createRoot, <ConnectCtx.Provider value={door as never}><InboxDataProvider value={s.data}><ConnectChannel /></InboxDataProvider></ConnectCtx.Provider>);
+  for (const k of ["gmail", "outlook", "imap", "twilio"]) await press(find(root, `connect-${k}`));
+  assert.deepEqual(needs, [{ kind: "mailbox", provider: "google" }, { kind: "mailbox", provider: "microsoft" }, { kind: "mailbox", provider: "imap" }, { kind: "number" }]);
+  assert.deepEqual(s.opened.filter((o) => o.startsWith("connect:")), [], "the old navigation is not used when the door exists");
+});

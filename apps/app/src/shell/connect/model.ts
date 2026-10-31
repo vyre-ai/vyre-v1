@@ -4,7 +4,8 @@
 import type { MenuEntry, MenuItem } from "../../../../../ui/src/Menu/props.ts";
 
 export type ConnectNeed =
-  | { kind: "mailbox" }
+  /** `provider` picks the sheet's first tab: Gmail, Outlook or an IMAP mailbox (Other email). */
+  | { kind: "mailbox"; provider?: "google" | "microsoft" | "imap" }
   | { kind: "ai" }
   | { kind: "key"; app?: string }
   | { kind: "number" }
