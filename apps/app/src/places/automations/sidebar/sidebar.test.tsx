@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AutomationsSidebar } from "./AutomationsSidebar.tsx";
+import { StudioNav } from "./AutomationsSidebarSlot.tsx";
 import type { SidebarProps } from "./AutomationsSidebar.tsx";
 import { AutomationsDataProvider } from "../canvas/data.tsx";
 import { allGroupKeys, failedTotal, journeyNote, matches, needsYou, nextId, noteOf, sectionsOf, visibleOrder } from "./model.ts";
@@ -149,4 +150,11 @@ test("a failed write says so in a sentence and leaves the list as it was", async
   s.failNext("automations.move");
   await assert.rejects(() => s.data.call("automations.move", { automationId: "aut_score" }), /automations.move failed/);
   assert.equal(lists(s).autos.find((a) => a.id === "aut_score")!.groupId, "agr_sales");
+});
+
+test("the studio nav marks the selected item as the current page, and only that one", () => {
+  const s = createSampleAutomations(northwind);
+  const out = renderToStaticMarkup(<AutomationsDataProvider value={s.data}><StudioNav view="automations" onView={() => undefined} /></AutomationsDataProvider>);
+  assert.equal((out.match(/aria-current="page"/g) ?? []).length, 1, "exactly one nav item is current");
+  assert.match(out, /aria-current="page"[^>]*data-testid="nav-automations"|data-testid="nav-automations"[^>]*aria-current="page"/);
 });
