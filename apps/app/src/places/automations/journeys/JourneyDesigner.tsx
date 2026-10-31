@@ -217,7 +217,7 @@ function Body({ journey: j, counts, versions, tab, setTab, sel, choose, canDesig
         <Text numberOfLines={1} style={s.meta}>{plural(total, "record")}{over ? `  ·  ${over} late` : ""}</Text>
         <View style={{ flex: 1 }} />
         {canDesign ? null : <View testID="view-only" style={s.viewOnly}><Glyph name="lock" size={13} color="var(--ink-3)" /><Text style={s.viewOnlyText}>View only</Text><Text style={s.viewOnlyDim}>needs the Design Journeys role</Text></View>}
-        <TextButton label="Open records in Records" icon="records" primary testID="open-records" onPress={() => extras.openRecords?.(j.recordType)} />
+        <TextButton label="Open board" icon="records" primary testID="open-records" onPress={() => extras.openRecords?.(j.recordType)} />
         {ask}
       </View>
       <SubTabs label="Journey" active={tab} onSelect={(k) => setTab(k as DesignerTab)} tabs={[{ key: "stages", label: "Stages", note: String(stages.length) }, { key: "fields", label: "Fields", note: String(fieldCount) }, ...(canDesign ? [{ key: "settings", label: "Settings" }] : [])]} />

@@ -14,6 +14,7 @@ import { useRecordsState } from "../sidebar/state.tsx";
 import { chosen, clearClauses, countSpec, isEdited, optionValue, optionsOf, setSort, sortable, toSaved, toggleHidden, toggleOption } from "../table/model.ts";
 import { each, filterable, toggleable } from "./model.ts";
 import type { FieldDef, TableViewState, TypeDef } from "./model.ts";
+import type { JourneyBinding } from "../journey/model.ts";
 
 /** One kind of view in the switch: the packet's own kinds, or one a later part supplies. */
 export interface KindDef { kind: string; label: string }
@@ -28,6 +29,8 @@ export interface ViewCtx {
   kind: string;
   kinds: readonly KindDef[];
   onKind: (kind: string) => void;
+  /** Set when the type is a Journey's: its board runs on the stage field and moves and adds through the Journeys module. */
+  journey?: JourneyBinding;
 }
 
 export interface ViewState {
@@ -212,7 +215,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
       )}
       {extra}
       {slim ? null : <KindSwitch ctx={ctx} />}
-      <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={() => st.newRecord()} />
+      {ctx.journey ? null : <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={() => st.newRecord()} />}
       {online ? null : <Text style={s.offline} accessibilityRole="alert" testID="records-offline">Offline</Text>}
       {menu.element}
     </View>

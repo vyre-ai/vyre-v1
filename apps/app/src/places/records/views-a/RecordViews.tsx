@@ -11,6 +11,8 @@ import { SCREENS, effectiveType, typeGroups } from "../sidebar/model.ts";
 import { useRecordsState } from "../sidebar/state.tsx";
 import { TableLoading, TableView } from "../table/index.ts";
 import { fromSaved } from "../table/model.ts";
+import { JourneyBoard } from "../journey/JourneyBoard.tsx";
+import { isJourneyDef } from "../journey/model.ts";
 import { BoardView } from "./BoardView.tsx";
 import { GalleryView } from "./GalleryView.tsx";
 import { ListView } from "./ListView.tsx";
@@ -50,7 +52,9 @@ function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: 
   const key = `${type}:${saved?.viewId ?? ""}`;
   if (!def) return <TableLoading />;
   const savedKind = saved ? kindOf(saved, known) : null;
-  const active = picked && picked.key === key ? picked.kind : savedKind ?? (kind && known.includes(kind) ? kind : "table");
+  // a Journey type opens on its board; the table stays in the switch
+  const journey = isJourneyDef(def);
+  const active = picked && picked.key === key ? picked.kind : savedKind ?? (kind && known.includes(kind) ? kind : journey ? "board" : "table");
   const base: TableViewState = { ...fromSaved(saved), ...view };
   const ctx: ViewCtx = { type, def, views: list, saved, base, kind: active, kinds, onKind: (k) => setPicked({ key, kind: k }) };
   // On the phone the table is its list: a face or icon, the title and one line, in the shared Row (no columns to scroll sideways).
@@ -58,6 +62,7 @@ function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: 
   if (active === "table") return <TableView key={key} type={type} {...(view ? { view } : {})} headerExtra={<KindSwitch ctx={ctx} />} />;
   const extra = (extraKinds ?? []).find((k) => k.kind === active);
   if (extra) return <Fragment key={`${key}:${active}`}>{extra.render(ctx)}</Fragment>;
+  if (active === "board" && journey) return <JourneyBoard key={key} ctx={ctx} />;
   return active === "board" ? <BoardView key={key} ctx={ctx} /> : active === "gallery" ? <GalleryView key={key} ctx={ctx} /> : <ListView key={key} ctx={ctx} />;
 }
 

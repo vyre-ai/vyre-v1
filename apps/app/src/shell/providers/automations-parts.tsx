@@ -57,9 +57,10 @@ export function useDirectory(rt: ShellRuntime): ConfigDirectory {
   }), [list, loaded]);
 }
 
-export function configExtras(directory: ConfigDirectory, nav: Pick<AutomationsNav, "openAutomation"> & { openRuns(id: string): void }): ConfigExtras {
+export function configExtras(directory: ConfigDirectory, nav: Pick<AutomationsNav, "openAutomation"> & { openRuns(id: string): void; openRecords?(recordType: string, stage?: string): void }): ConfigExtras {
   return {
     directory,
+    ...(nav.openRecords ? { openRecords: nav.openRecords } : {}),
     openAutomation: nav.openAutomation,
     openRuns: nav.openRuns,
   };

@@ -10,6 +10,8 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
+import { JourneyStepper } from "../journey/JourneyStepper.tsx";
+import { isJourneyDef } from "../journey/model.ts";
 import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
@@ -353,6 +355,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
       ) : null}
       <View style={wide ? p.split : p.stack}>
         <ScrollView style={p.sheet} contentContainerStyle={p.sheetIn} testID="record-sheet">
+          {isJourneyDef(def) ? <JourneyStepper type={type} row={row} def={def} /> : null}
           <Pressable accessibilityRole="button" accessibilityLabel="Edit title" testID="title" onPress={() => fieldProps.onEdit(def.fields.find((f) => f.key === def.titleField)!)}>
             {editing?.key === def.titleField
               ? <TextInput autoFocus value={editing.text} onChangeText={fieldProps.onText} accessibilityLabel="Title" testID={`edit-${def.titleField}`} onBlur={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onSubmitEditing={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setEditing(null); }} style={p.titleInput} />
