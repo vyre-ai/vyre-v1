@@ -104,7 +104,7 @@ test("the wired panel: usage is asked for the account in use and again for the a
     await flush();
     assert.ok(s.calls.some((c) => c.cap === "threads.agent.configure" && c.input["accountRef"] === "#key"));
     assert.equal(find(root, "meter-session"), null, "an API key reports no session: no meter");
-    assert.ok(find(root, "model-gpt-5"), "the models of the new account");
+    assert.ok(find(root, "row-model-gpt-5"), "the models of the new account");
     await press(find(root, "model-effort-max"));
     await press(find(root, "model-fallback"));
     await flush();

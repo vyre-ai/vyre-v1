@@ -147,7 +147,7 @@ test("the account flyout lists only the connected accounts, by the names given, 
     assert.ok(!list.includes("Grok"), "a provider that is not connected is not listed");
     await press(find(root, "row-model-account-#gpt"));
     assert.deepEqual(log, ["account:#gpt"]);
-    assert.ok(find(root, "model-gpt-5"), "the models follow the account's provider");
+    assert.ok(find(root, "row-model-gpt-5"), "the models follow the account's provider");
     assert.equal(find(root, "row-model-opus"), null);
     assert.ok(find(root, "model-panel"), "picking an account keeps the panel open");
     await press(find(root, "model-account"));
