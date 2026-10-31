@@ -48,6 +48,8 @@ function titleOf(sel: Selection, folders: readonly Folder[]): string {
   return sel.kind === "folder" ? (folders.find((f) => f.id === sel.folderId)?.name ?? "Folder") : TITLES[sel.kind];
 }
 
+const EMPTY_TITLE: Partial<Record<Selection["kind"], string>> = { keys: "No keys yet", logins: "No logins yet", cards: "No cards yet", mine: "Nothing of yours yet", folder: "This folder is empty" };
+
 interface QuietNote { id: number; text: string; undo: (() => Promise<void> | void) | undefined }
 const LINE_MS = 9000;
 
@@ -232,7 +234,10 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
         <View style={s.empty} testID="vault-empty">
           {all.length === 0
             ? <States kind="empty" title="Your vault is empty" icon="files" action={{ label: "Add an item", onPress: () => setAdding({}) }} />
-            : <States kind="empty" title={query ? `Nothing matches ${query}` : selection.kind === "health" ? "Nothing needs attention" : "Nothing here yet"} icon="search" />}
+            : query ? <States kind="empty" title={`Nothing matches ${query}`} icon="search" action={{ label: "Clear search", onPress: () => setQuery("") }} />
+            : selection.kind === "health" ? <States kind="empty" title="Nothing needs attention" icon="done" />
+            : selection.kind === "providers" ? <States kind="empty" title="No AI providers yet" icon="chat" action={{ label: "Add a provider", onPress: () => setAddingProvider(true) }} />
+            : <States kind="empty" title={EMPTY_TITLE[selection.kind] ?? "Nothing here yet"} icon="files" action={{ label: "Add an item", onPress: () => setAdding({}) }} />}
         </View>
       ) : (
         <ItemList items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} />
@@ -265,7 +270,7 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
-      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared hideShared={data.personal === true} /> : null}
+      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared hideShared={data.personal === true} /> : null}
       {routed ?? <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>}
       {route.surface === "export" ? <ExportSheet folderId={route.folderId} folderName={folderList.find((f) => f.id === route.folderId)?.name ?? "folder"} onClose={onRouteClose} /> : null}
       {adding ? (
@@ -349,16 +354,16 @@ function AdvancedView({ onClose }: { onClose(): void }): ReactElement {
   const { nav, browsers } = useVaultData();
   const [chrome, setChrome] = useState(false);
   const rows = [
-    ["Backups", "Review, verify, restore, or run encrypted Space backups", nav.openBackups],
-    ["Devices", "See and revoke the computers that can open this Vault", nav.openDevices],
-    ["Outside agents", "Create, scope, or revoke access for Claude Code, Codex, and other tools", nav.openOutsideActors],
-    ["Policy", "Who may export a folder, the longest a download link lasts, and whether a reveal asks why", nav.openPolicy],
-    ...(browsers ? [["Browsers", "Fill and save logins in Chrome with Vyre for Chrome", () => setChrome(true)] as const] : []),
+    ["Backups", "Verify, restore or run backups", nav.openBackups, "clock"],
+    ["Devices", "Computers that can open the Vault", nav.openDevices, "lock"],
+    ["Outside agents", "Claude Code, Codex and other tools", nav.openOutsideActors, "braces"],
+    ["Policy", "Exports, link length, reveal reasons", nav.openPolicy, "health"],
+    ...(browsers ? [["Browsers", "Fill logins in Chrome", () => setChrome(true), "globe"] as const] : []),
   ] as const;
   return (
     <View style={s.routed} testID="vault-advanced">
       <View style={s.routedHead}><Btn label="Back" icon="back" onPress={onClose} /><Text accessibilityRole="header" style={s.routedTitle}>Advanced</Text></View>
-      {rows.map(([title, sub, open]) => <Row key={title} id={`vault-advanced-${title.toLowerCase().replace(/\s+/g, "-")}`} title={title} note={sub} tall onPress={open} trailing={<Glyph name="chevron" />} />)}
+      {rows.map(([title, sub, open, icon]) => <Row key={title} id={`vault-advanced-${title.toLowerCase().replace(/\s+/g, "-")}`} title={title} note={sub} onPress={open} leading={<View style={{ marginRight: 12 }}><Glyph name={icon} size={16} color="var(--ink-2)" /></View>} trailing={<Glyph name="chevron" />} />)}
       {chrome && browsers ? <ChromeSheet browsers={browsers} onClose={() => setChrome(false)} /> : null}
     </View>
   );

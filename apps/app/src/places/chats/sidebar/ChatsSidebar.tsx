@@ -313,7 +313,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
             {(over) => (
               <Row
                 id={e.key} title={e.item.task.title} selected={sel} onPress={() => open(e)}
-                leading={<View style={{ marginRight: 6 }}><Face name={who} seedId={e.item.task.createdBy} kind="agent" size={16} /></View>}
+                leading={<View style={{ marginRight: 6 }}><Face name={who} seedId={e.item.task.createdBy} kind="agent" size={18} /></View>}
                 trailing={over && e.item.task.actions.length && k.tone === "accent"
                   ? <Tool icon="check" label={`${e.item.task.actions[0]!.label} ${e.item.task.title}`} onPress={() => guard(api.act(e.item))} testID={`need-act-${e.item.task.id}`} />
                   : <Text style={[st.kind, k.tone === "warn" && st.kindWarn]}>{k.label}</Text>}

@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (65)
+## Capabilities (67)
 
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
 - [google.calendar.delete_event](../capabilities/google.calendar.delete_event.md): Delete an event; Google tells the attendees
@@ -25,15 +25,17 @@ Requires: mail.
 - [google.drive.copy_file](../capabilities/google.drive.copy_file.md): Copy a Drive file
 - [google.drive.create_folder](../capabilities/google.drive.create_folder.md): Create a Drive folder
 - [google.drive.download_file](../capabilities/google.drive.download_file.md): Download a Drive file into a blob
+- [google.drive.download_revision](../capabilities/google.drive.download_revision.md): Download one revision of a Drive file into a blob
 - [google.drive.export_file](../capabilities/google.drive.export_file.md): Export a Google document, sheet or slide as PDF, DOCX, XLSX or text
 - [google.drive.get_file](../capabilities/google.drive.get_file.md): Read Drive file metadata
 - [google.drive.get_permissions](../capabilities/google.drive.get_permissions.md): Who a Drive file is shared with
 - [google.drive.list_changes](../capabilities/google.drive.list_changes.md): Drive changes since a page token (mount sync and mount lag)
 - [google.drive.list_files](../capabilities/google.drive.list_files.md): List or search Drive files and folders (My Drive and Shared Drives)
+- [google.drive.list_revisions](../capabilities/google.drive.list_revisions.md): The revisions Drive keeps of a file, with who saved each
 - [google.drive.share_file](../capabilities/google.drive.share_file.md): Share a Drive file with people; Google emails them
 - [google.drive.stop_watch](../capabilities/google.drive.stop_watch.md): Close a Drive watch channel
 - [google.drive.trash_file](../capabilities/google.drive.trash_file.md): Move a Drive file to Trash
-- [google.drive.upload_file](../capabilities/google.drive.upload_file.md): Upload a Space file into Drive
+- [google.drive.upload_file](../capabilities/google.drive.upload_file.md): Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision
 - [google.drive.watch_changes](../capabilities/google.drive.watch_changes.md): Open a Drive changes.watch channel
 - [google.dwd.disable](../capabilities/google.dwd.disable.md): Turn delegation off and stop every member sync
 - [google.dwd.map_member](../capabilities/google.dwd.map_member.md): Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in

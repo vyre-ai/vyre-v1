@@ -31,6 +31,8 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
   const data = useVaultData();
   const { element, show } = useMenu();
   const [catalog, setCatalog] = useState<readonly Catalog[] | null>(null);
+  const [catalogTries, setCatalogTries] = useState(0);
+  const [catalogFailed, setCatalogFailed] = useState(false);
   const [pick, setPick] = useState<Catalog | null>(null);
   const [kind, setKind] = useState<ConnectionKind | null>(initial?.connection ?? null);
   const [scope, setScope] = useState<"mine" | "shared">("mine");
@@ -45,11 +47,12 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
 
   useEffect(() => {
     let live = true;
+    setCatalogFailed(false);
     void (data.call("providers.catalog", {}) as Promise<{ providers: Catalog[] }>)
       .then((out) => { if (!live) return; setCatalog(out.providers); const want = first.current; if (want) setPick(out.providers.find((c) => c.key === want.providerKey) ?? null); })
-      .catch((e: unknown) => { if (live) { setCatalog([]); setLine(e instanceof Error ? e.message : "The providers did not load."); } });
+      .catch(() => { if (live) { setCatalog([]); setCatalogFailed(true); } });
     return () => { live = false; };
-  }, [data]);
+  }, [data, catalogTries]);
 
   const choose = (c: Catalog): void => { setPick(c); setKind(c.connections.length === 1 ? c.connections[0]! : null); setLine(null); };
   const back = (): void => { if (kind && pick && pick.connections.length > 1) { setKind(null); } else { setPick(null); setKind(null); } setFlow(null); setSecret(""); setLine(null); };
@@ -112,7 +115,12 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
           {catalog === null ? <Text style={s.quiet} testID="provider-loading">Loading</Text> : catalog.map((c) => (
             <Row key={c.key} id={`cat:${c.key}`} title={c.name} note={connectionList(c)} leading={<View style={s.logo}><LogoTile name={c.name} size={30} /></View>} onPress={() => choose(c)} />
           ))}
-          {catalog !== null && catalog.length === 0 ? <Text style={s.quiet}>There are no providers to add.</Text> : null}
+          {catalog !== null && catalog.length === 0 ? (
+            <View style={s.empty} testID={catalogFailed ? "provider-load-failed" : "provider-none"}>
+              <Text style={s.emptyTitle}>{catalogFailed ? "Could not load providers" : "No providers to add"}</Text>
+              {catalogFailed ? <Btn label="Try again" onPress={() => setCatalogTries((t) => t + 1)} testID="provider-retry" /> : null}
+            </View>
+          ) : null}
         </View>
       ) : kind === null ? (
         <View testID="provider-kinds" accessibilityLabel="How to connect">
@@ -129,7 +137,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
         </View>
       ) : kind === "api_key" ? (
         <View style={s.stack} testID="provider-key">
-          <Text style={s.lead}>{`Paste your ${pick.name} key. It is stored once, encrypted, and never shown again.`}</Text>
+          <Text style={s.lead}>{`Paste your ${pick.name} key. It is never shown again.`}</Text>
           <TextInput accessibilityLabel="API key" testID="provider-key-input" value={secret} onChangeText={setSecret} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="Paste the key" placeholderTextColor="var(--ink-4)" style={s.input} />
           <View style={s.scopes}>
             <Text style={s.quiet}>Belongs to</Text>
@@ -156,6 +164,8 @@ const s = StyleSheet.create({
   logo: { marginRight: 10 },
   lead: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },
   body: { fontSize: 13.5, lineHeight: 20, color: "var(--ink)" as string },
+  empty: { alignItems: "center", gap: 8, paddingVertical: 28 },
+  emptyTitle: { fontSize: 13.5, fontWeight: "500", color: "var(--ink-2)" as string },
   quiet: { fontSize: 13, color: "var(--ink-3)" as string },
   error: { fontSize: 12.5, color: "var(--danger)" as string },
   code: { alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--sunk)" as string },

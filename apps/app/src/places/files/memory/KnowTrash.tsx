@@ -64,7 +64,7 @@ export function KnowTrash({ pageId }: { pageId?: string }): ReactElement {
       <KnowHeader crumbs={[{ t: "Knowledge", route: { v: "learned" } }, { t: "Trash" }]} right={right} />
       <KnowColumn
         testID="know-trash-body" label="Trash" title="Trash"
-        lede={`Facts that were deleted or merged away. Agents do not recall them, but search can find them. Anyone, or any agent, who could see a fact can restore it with one click. After ${keep} days untouched they move to Archive.`}
+        lede={`Deleted or merged facts. Restore one with a click. After ${keep} days they move to Archive.`}
       >
         <Flash flash={doing.flash} onClose={() => doing.setFlash(null)} />
         <ErrorLine text={doing.err ?? failed} />

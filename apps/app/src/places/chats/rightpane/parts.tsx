@@ -185,7 +185,7 @@ const SWITCH_ON = { backgroundColor: "var(--ok)" };
 
 export const s = StyleSheet.create({
   pulse: { position: "absolute", left: -3, top: -3, borderWidth: 1.5, borderColor: "var(--accent)" as string, opacity: 0.55 },
-  lead: { width: 18, height: 18, alignItems: "center", justifyContent: "center" },
+  lead: { width: 18, height: 18, marginRight: 6, alignItems: "center", justifyContent: "center" },
   tool: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },
   switchTrack: { width: 28, height: 16, borderRadius: 8, backgroundColor: "var(--line-2)" as string, justifyContent: "center", paddingHorizontal: 2 },

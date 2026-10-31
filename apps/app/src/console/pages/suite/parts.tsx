@@ -4,7 +4,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Dot, Glyph } from "../../shell/glyphs.tsx";
-import { Group, Section, pointer } from "../../shell/ui.tsx";
+import { Group, Lead, Section, pointer } from "../../shell/ui.tsx";
 import { Actions, Button, Field, Select } from "../shared.tsx";
 import { matchProblem, memberNote } from "./model.ts";
 import type { MemberRow, ServiceRow, Summary } from "./model.ts";
@@ -127,7 +127,7 @@ export function Services({ rows, title = "Services" }: { rows: readonly ServiceR
         {rows.map((r) => (
           <Row
             key={r.key} id={r.key} title={r.title} note={r.hint}
-            leading={<Dot tone={r.state === "healthy" ? "ok" : "warn"} label={r.state === "healthy" ? "Healthy" : "Degraded"} />}
+            leading={<Lead><Dot tone={r.state === "healthy" ? "ok" : "warn"} label={r.state === "healthy" ? "Healthy" : "Degraded"} /></Lead>}
             trailing={<Text style={[s.state, { color: (r.state === "healthy" ? "var(--ink-3)" : "var(--warn)") as string }]}>{r.state === "healthy" ? "Healthy" : "Degraded"}</Text>}
           />
         ))}
@@ -145,7 +145,7 @@ export function Members({ rows, onToggle, onUnmatch, busy }: { rows: readonly Me
         ) : rows.map((m) => (
           <Row
             key={m.email} id={m.email} title={m.email} note={memberNote(m)}
-            leading={<Dot tone={m.excluded ? "off" : m.mapped ? "ok" : "off"} label={m.excluded ? "Excluded" : m.mapped ? "Included" : "Not matched"} />}
+            leading={<Lead><Dot tone={m.excluded ? "off" : m.mapped ? "ok" : "off"} label={m.excluded ? "Excluded" : m.mapped ? "Included" : "Not matched"} /></Lead>}
             trailing={m.mapped ? <View style={{ flexDirection: "row", gap: 6 }}><Button label={m.excluded ? "Include" : "Exclude"} disabled={busy} testID={`member-toggle-${m.email}`} onPress={() => onToggle(m)} />{onUnmatch ? <Button label="Unmatch" disabled={busy} testID={`member-unmatch-${m.email}`} onPress={() => onUnmatch(m)} /> : null}</View> : undefined}
           />
         ))}
@@ -188,7 +188,7 @@ export function Directory({ people, picked, links, busy, onLoad, onToggle, onInv
         {people === null ? null : people.map((p) => (
           <Row
             key={p.email} id={p.email} title={p.name ?? p.email} note={p.userId ? `${p.email}. Already in the Space.` : p.suspended ? `${p.email}. Suspended in your directory.` : p.email}
-            leading={<Dot tone={p.userId ? "ok" : "off"} label={p.userId ? "In the Space" : "Not yet"} />}
+            leading={<Lead><Dot tone={p.userId ? "ok" : "off"} label={p.userId ? "In the Space" : "Not yet"} /></Lead>}
             trailing={p.userId || p.suspended ? undefined : <Button label={picked.has(p.email) ? "Chosen" : "Choose"} disabled={busy} testID={`directory-pick-${p.email}`} onPress={() => onToggle(p.email)} />}
           />
         ))}

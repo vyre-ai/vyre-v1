@@ -1,7 +1,7 @@
 // Files > sidebar (spec 3.5, 2.4), drawn inside the shared place sidebar (P-L9_22, which draws the title, the collapse button and the search field): Recent, Starred and Shared with me;
 // Knowledge (Memory, Graph); then Space, holding All files, the Agents folders (each agent's face), the Projects folders and the Space's other top folders. Every row is a ui/Row (a
 // ui/FolderTree SlotRow for the folders); a folder is a drop target; dropping a file or folder on a folder moves it there. The Trash is in the list's more menu.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -35,7 +35,31 @@ function NavRow({ id, title, glyph, selected, count, onPress, hint }: { id: stri
 const DEPTH_PX = 14;
 
 /** The mark of a mounted folder's source: a computer for a folder on one, the provider's mark for the rest. */
-const markOf = (provider: string): MarkKind => (/google/i.test(provider) ? "google_drive" : /microsoft|sharepoint|onedrive/i.test(provider) ? "microsoft" : /github/i.test(provider) ? "github" : "local");
+const markOf = (provider: string): MarkKind => (/google/i.test(provider) ? "google_drive" : /sharepoint/i.test(provider) ? "sharepoint" : /onedrive/i.test(provider) ? "onedrive" : /microsoft/i.test(provider) ? "microsoft" : /github/i.test(provider) ? "github" : "local");
+
+type MountState = { state: string; lastSyncAt?: number };
+
+/** The state of every mount by its folder, read when the tree opens and every half minute, so a folder that stops syncing shows a dot in the tree. */
+function useMountStates(call: (cap: string, input: unknown) => Promise<unknown>): ReadonlyMap<string, MountState> {
+  const [map, setMap] = useState<ReadonlyMap<string, MountState>>(new Map());
+  useEffect(() => {
+    let live = true;
+    const read = (): void => {
+      void call("mounts.list", {}).then((o) => {
+        if (!live) return;
+        const rows = (o as { mounts?: Array<{ folderId: string; state: string; lastSyncAt?: number }> }).mounts ?? [];
+        setMap(new Map(rows.map((m) => [m.folderId, { state: m.state, ...(m.lastSyncAt !== undefined ? { lastSyncAt: m.lastSyncAt } : {}) }])));
+      }, () => undefined);
+    };
+    read();
+    const t = setInterval(read, 30_000);
+    return () => { live = false; clearInterval(t); };
+  }, [call]);
+  return map;
+}
+
+/** What a mount's dot in the tree says; nothing for a mount that is fine. */
+const MOUNT_WORDS: Record<string, string> = { failing: "Needs attention", paused: "Paused", device_offline: "Computer offline", syncing: "Syncing" };
 
 /** A section head that opens and closes (Knowledge, Space), with the small + where the section takes a new folder. */
 function SectionHead({ id, label, open, onToggle, onAdd }: { id: string; label: string; open: boolean; onToggle(): void; onAdd?: (() => void) | undefined }): ReactElement {
@@ -78,6 +102,8 @@ interface RowCtx {
   allow: ReadonlySet<string>;
   /** Agents with a change set waiting for review: their folder shows the attention dot. */
   waiting: ReadonlySet<string>;
+  /** Mounted folders by folder id, with how each is doing. */
+  mounts: ReadonlyMap<string, MountState>;
 }
 
 const nodeOf = (f: FolderRow): FolderNode => ({
@@ -102,16 +128,22 @@ function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number
     </View>
   );
   const drop = {
+    // a folder is dragged out as "folder:<id>": onto another folder it moves, onto a chat it is shared with the chat's agents
+    draggable: true,
+    onDragStart: (e: { dataTransfer?: { setData?: (t: string, v: string) => void; effectAllowed?: string } }) => { e.dataTransfer?.setData?.("text/plain", `folder:${fid}`); if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyMove"; },
     onDragOver: (e: { preventDefault: () => void }) => { e.preventDefault(); c.setOver(fid); },
     onDragLeave: () => c.setOver((o) => (o === fid ? null : o)),
     onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => { e.preventDefault(); c.setOver(null); const item = e.dataTransfer?.getData?.("text/plain") ?? ""; if (item.length > 0) c.onDrop(item, fid, f.scope); },
   };
   const node = nodeOf(f);
+  const mountState = c.mounts.get(fid);
+  const words = mountState ? MOUNT_WORDS[mountState.state] : undefined;
+  const dot = words ? <View style={[styles.attn, mountState?.state === "failing" ? null : styles.dotCalm]} accessibilityLabel={words} testID={`mount-state-${fid}`} /> : undefined;
   return (
     <View>
       <SlotRow
         id={`folder-${fid}`} title={f.name} selected={fid === c.folderId} over={c.over === fid}
-        leadWidth={depth * DEPTH_PX + 18 + 7 + (face ? 18 : 16) + 6} lead={lead} trail={face ? (c.waiting.has(f.subject?.id ?? "") ? <View style={styles.attn} accessibilityLabel="Waiting for you" testID={`folder-attention-${fid}`} /> : undefined) : f.fileCount > 0 ? <Text style={styles.count} testID={`folder-count-${fid}`}>{f.fileCount}</Text> : undefined}
+        leadWidth={depth * DEPTH_PX + 18 + 7 + (face ? 18 : 16) + 6} lead={lead} trail={face ? (c.waiting.has(f.subject?.id ?? "") ? <View style={styles.attn} accessibilityLabel="Waiting for you" testID={`folder-attention-${fid}`} /> : undefined) : dot ? dot : f.fileCount > 0 ? <Text style={styles.count} testID={`folder-count-${fid}`}>{f.fileCount}</Text> : undefined}
         onPress={() => c.goFolder(fid)} dom={drop}
         onMenu={(x, y) => c.menu.show(folderMenu(node, isOpen, kids > 0, c.handlers), x, y, "context", { label: `Folder ${f.name}` })}
       />
@@ -150,6 +182,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const waiting = new Set<string>(open.status === "ready" ? open.data.changesets.map((x) => x.by) : []);
   const [shut, setShut] = useState<Record<string, boolean>>({});
   const [openF, setOpenF] = useState<Record<string, boolean>>({});
+  const mounts = useMountStates(data.call);
   const [over, setOver] = useState<string | null>(null);
   const q = query.trim();
   const rootRows: TreeRoots = roots.status === "ready" ? roots.data.roots : [];
@@ -171,7 +204,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
     for (const m of dropMoves(parsePayload(payload), target, () => null)) void data.call(m.cap, m.input);
   };
   const c: RowCtx = {
-    openF, setOpenF, over, setOver, folderId, goFolder, menu, onDrop, rank: rootRank(rootRows), allow: spaceRoots(rootRows), waiting,
+    mounts, openF, setOpenF, over, setOver, folderId, goFolder, menu, onDrop, rank: rootRank(rootRows), allow: spaceRoots(rootRows), waiting,
     handlers: {
       onSelect: goFolder,
       onToggle: (id, open) => setOpenF((o) => ({ ...o, [id]: open })),
@@ -221,6 +254,12 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
               />
             ) : null}
             <Kids parent={null} depth={0} c={c} query={q} />
+            {data.nav.openLive && q.length === 0 ? (
+              <SlotRow
+                id="folder-live" title="Live folders" selected={data.liveView === true} leadWidth={18 + 7 + 16 + 6}
+                lead={<View style={styles.subLead}><View style={styles.chev} /><Glyph name="link" size={16} /></View>} onPress={() => data.nav.openLive?.()}
+              />
+            ) : null}
             {data.nav.connectFolder && q.length === 0 ? (
               <SlotRow
                 id="folder-connect" title="Connect a folder…" leadWidth={18 + 7 + 16 + 6}
@@ -251,6 +290,7 @@ const styles = StyleSheet.create({
   glyph: { width: 20, alignItems: "center", justifyContent: "center", marginRight: 6 },
   trail: { flexDirection: "row", alignItems: "center", gap: 6 },
   count: { fontSize: 11.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
+  dotCalm: { backgroundColor: "var(--ink-4)" as string },
   attn: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--danger)" as string, marginRight: 4 },
   subLead: { flexDirection: "row", alignItems: "center", gap: 7 },
   chev: { width: 18, height: 22, alignItems: "center", justifyContent: "center", borderRadius: 5 },

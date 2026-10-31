@@ -22,15 +22,17 @@ export interface SidebarProps {
   canCreateShared: boolean;
   /** A Personal Space has no Shared section. */
   hideShared?: boolean;
+  /** The Advanced page (or one under it) is open, so it, not the open list, carries the highlight. */
+  advanced?: boolean;
 }
 
 const Count = ({ n }: { n: number }): ReactElement => <Text style={s.count}>{n}</Text>;
 
-export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNewFolder, onFolderMenu, canCreateShared, hideShared = false }: SidebarProps): ReactElement {
+export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNewFolder, onFolderMenu, canCreateShared, hideShared = false, advanced = false }: SidebarProps): ReactElement {
   const [naming, setNaming] = useState<string | null>(null);
   const [folderError, setFolderError] = useState<string | null>(null);
   const item = (sel: Selection, key: string, label: string, icon: IconName, n?: number): ReactElement => (
-    <Row key={key} id={`nav-${key}`} title={label} selected={sameSelection(sel, selection)} leading={<View style={s.lead}><Glyph name={icon} size={16} color={sameSelection(sel, selection) ? "var(--ink)" : "var(--ink-2)"} /></View>} trailing={n !== undefined ? <Count n={n} /> : undefined} onPress={() => onSelect(sel)} />
+    <Row key={key} id={`nav-${key}`} title={label} selected={!advanced && sameSelection(sel, selection)} leading={<View style={s.lead}><Glyph name={icon} size={16} color={sameSelection(sel, selection) ? "var(--ink)" : "var(--ink-2)"} /></View>} trailing={n !== undefined ? <Count n={n} /> : undefined} onPress={() => onSelect(sel)} />
   );
   const shared = folders.filter((f) => f.scope === "shared");
   const depthOf = (f: Folder): number => { let d = 0; let cur: Folder | undefined = f; while (cur?.parentId && d < 4) { cur = shared.find((x) => x.id === cur!.parentId); d++; } return d; };
@@ -43,7 +45,7 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
   for (const f of shared) {
     folderRows.push(
           <View key={f.id} {...menuTrigger((x, y) => onFolderMenu(f, x, y))}>
-            <Row id={`nav-folder-${f.id}`} title={f.name} selected={selection.kind === "folder" && selection.folderId === f.id}
+            <Row id={`nav-folder-${f.id}`} title={f.name} selected={!advanced && selection.kind === "folder" && selection.folderId === f.id}
               leading={<View style={[s.lead, { marginLeft: depthOf(f) * 12 }]}><Glyph name="folder" size={16} color="var(--ink-2)" /></View>} trailing={<Count n={counts.folders.get(f.id) ?? f.itemCount} />}
               onPress={() => onSelect({ kind: "folder", folderId: f.id })} />
           </View>
@@ -82,7 +84,7 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
       )}
       <View style={[s.group, { marginTop: 8 }]}>
         {item({ kind: "mine" }, "mine", "Mine", "mine", counts.mine)}
-        <Row id="nav-advanced" title="Advanced" leading={<View style={s.lead}><Glyph name="advanced" size={16} color="var(--ink-2)" /></View>} onPress={onAdvanced} />
+        <Row id="nav-advanced" title="Advanced" selected={advanced} leading={<View style={s.lead}><Glyph name="advanced" size={16} color="var(--ink-2)" /></View>} onPress={onAdvanced} />
       </View>
     </ResizableColumn>
   );

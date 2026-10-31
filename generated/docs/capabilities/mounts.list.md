@@ -51,6 +51,8 @@ type Out = {
       conflicts: number;
       fromDevice?: string;
       error?: string;
+      live?: boolean;
+      liveVia?: "push" | "poll";
     }>;
   next?: string;
   total?: number;
@@ -84,6 +86,8 @@ type Out = {
         "kind": "google_drive",
         "lagSeconds": 1,
         "lastSyncAt": 1760000000000,
+        "live": true,
+        "liveVia": "push",
         "mode": "server_copy",
         "mountId": "mnt_a1b2c3",
         "name": "example",

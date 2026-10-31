@@ -30,4 +30,4 @@ HTTP 502. Retryable: no.
 - meetings.attach_recording
 - mounts.add
 - mounts.browse
-- ms.consent.setup
+- mounts.history

@@ -1,12 +1,12 @@
 // Gate projections (ARCH 4.6, spec 2.14). The held-row store (gate_holds), the rules (gate_rules, one row per act and scope), the effective rule (the strictest of Space policy,
 // owner floor and the agent's own rule), the fixed summary line of a hold, and the exact preview blocks.
 // Durable tables: migrations/0001_gate_holds.sql. Every statement names only gate_* tables (ctx.db refuses anything else, ARCH B2).
-// The ten act kinds below mirror manifests/gate.ts gateActs (frozen, ruling 9); the contract test of this module compares them.
+// The act kinds below mirror manifests/gate.ts gateActs (frozen, ruling 9); the contract test of this module compares them.
 import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { canonical } from "../../lib/canonical.ts";
 
-export type ActKey = "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+export type ActKey = "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
 export type Risk = "low" | "medium" | "high";
 export type Mode = "hold" | "allow";
 export type Scope = "space" | "floor" | "agent";
@@ -36,6 +36,7 @@ export const ACTS: readonly ActDef[] = [
   act("signature_send", "Send a document for signature", "high", "file", "role:admin"),
   act("spend_raise", "Raise a spend cap", "medium", "table", "role:admin"),
   act("signin_change", "Change how people sign in to the Space", "high", "record_card", "asker"),
+  act("approve", "Allow this step", "medium", "doc_excerpt", "asker"),
 ];
 export const actOf = (k: string): ActDef => ACTS.find((a) => a.key === k) ?? ACTS[0]!;
 

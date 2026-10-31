@@ -1,6 +1,6 @@
 # ms.drive.upload_item
 
-Upload a Space file into OneDrive or SharePoint
+Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag
 
 | | |
 |---|---|
@@ -31,6 +31,8 @@ type In = {
   folderId?: string;
   name: string;
   fileId: string;
+  remoteId?: string;
+  ifMatch?: string;
   idempotencyKey: string;
 };
 ```
@@ -39,7 +41,7 @@ type In = {
 
 ```ts
 type Out = {
-  item: {
+  item?: {
     id: string;
     name: string;
     size?: number;
@@ -47,7 +49,13 @@ type Out = {
     folder?: boolean;
     webUrl?: string;
     parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
   };
+  stale?: boolean;
 };
 ```
 
@@ -73,18 +81,26 @@ type Out = {
     "fileId": "fil_a1b2c3",
     "folderId": "example",
     "idempotencyKey": "idem_1",
-    "name": "example"
+    "ifMatch": "example",
+    "name": "example",
+    "remoteId": "example"
   },
   "output": {
     "item": {
+      "eTag": "example",
       "folder": true,
       "id": "example",
+      "lastModifiedBy": {
+        "email": "example",
+        "name": "example"
+      },
       "lastModifiedDateTime": "example",
       "name": "example",
       "parentId": "example",
       "size": 1,
       "webUrl": "example"
-    }
+    },
+    "stale": true
   }
 }
 ```

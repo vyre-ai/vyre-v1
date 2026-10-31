@@ -123,7 +123,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
           />
           {q ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Clear the search" onPress={() => setQ("")} style={pointer}><Glyph name="x" size={12} color="var(--ink-3)" /></Pressable>
-          ) : <Text style={n.hint}>Cmd F</Text>}
+          ) : phone ? null : <Text style={n.hint}>Cmd F</Text>}
         </View>
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={n.scroll} keyboardShouldPersistTaps="handled">
@@ -190,6 +190,6 @@ const n = StyleSheet.create({
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   back: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 7 },
   title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
-  content: { paddingVertical: 20, paddingHorizontal: 20, alignItems: "center" },
+  content: { paddingTop: 16, paddingBottom: 24, paddingHorizontal: 20, alignItems: "center" },
   column: { width: "100%", maxWidth: 684 },
 });

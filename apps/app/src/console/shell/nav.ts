@@ -49,7 +49,7 @@ export const PAGES: readonly PageDef[] = [
   p("incidents", "Incidents", "AI", "warn", "ai.incidents", "console.ai-incidents"),
   p("aipolicy", "AI use policy", "AI", "audit", "policy.manage", "console.ai-spend"),
   p("domains", "Sending domains", "Comms", "mail", "comms.domains", "mail.domains"),
-  p("numbers", "Numbers", "Comms", "comms", "comms.numbers", "telephony.numbers"),
+  p("numbers", "Numbers", "Comms", "phone", "comms.numbers", "telephony.numbers"),
   p("inboxes", "Shared inboxes", "Comms", "mail", "comms.shared_send", "mail.shared-inboxes"),
   p("texting", "Texting registration", "Comms", "ok", "comms.numbers", "telephony.registration"),
   p("google", "Google Workspace", "Integrations", "plug", "connectors.manage", "google.setup"),

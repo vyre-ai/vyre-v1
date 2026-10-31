@@ -838,16 +838,23 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
 
 function HeadCell({ col, dir, first = false, onSort, onMenu }: { col: Column; dir: "asc" | "desc" | null; first?: boolean; onSort: () => void; onMenu: (x: number, y: number) => void }): ReactElement {
   const trig = menuTrigger(onMenu);
+  const [over, setOver] = useState(false);
+  // the label (sort) and the chevron (menu) are two sibling buttons in one cell: a button never holds another button
   return (
-    <Pressable
-      accessibilityRole="button" accessibilityLabel={`${col.field.title}${dir ? `, sorted ${dir === "asc" ? "ascending" : "descending"}` : ""}`} testID={`th-${col.field.key}`} onPress={onSort}
-      {...trig}
-      style={({ hovered }: { hovered?: boolean }) => [styles.th, first && STICKY(GUTTER), styles.headBg, { width: col.width }, isNumeric(col.field) && styles.tdNum, hovered === true && styles.thOver]}
+    <View
+      testID={`thc-${col.field.key}`} {...({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) } as object)}
+      style={[styles.th, first && STICKY(GUTTER), styles.headBg, { width: col.width }, isNumeric(col.field) && styles.tdNum, over && styles.thOver]}
     >
-      <Text numberOfLines={1} style={styles.thText}>{col.field.title}</Text>
-      {dir ? <Glyph name={dir === "asc" ? "asc" : "desc"} size={11} color="var(--ink-2)" /> : null}
+      <Pressable
+        accessibilityRole="button" accessibilityLabel={`${col.field.title}${dir ? `, sorted ${dir === "asc" ? "ascending" : "descending"}` : ""}`} testID={`th-${col.field.key}`} onPress={onSort}
+        {...trig}
+        style={[styles.thLabel, isNumeric(col.field) && styles.tdNum]}
+      >
+        <Text numberOfLines={1} style={styles.thText}>{col.field.title}</Text>
+        {dir ? <Glyph name={dir === "asc" ? "asc" : "desc"} size={11} color="var(--ink-2)" /> : null}
+      </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`${col.field.title} menu`} testID={`thm-${col.field.key}`} onPress={(e) => { const p = pointOf(e); onMenu(p.x, p.y); }} style={styles.thMore}><Glyph name="chevd" size={9} /></Pressable>
-    </Pressable>
+    </View>
   );
 }
 
@@ -914,6 +921,7 @@ const styles = StyleSheet.create({
   thr: { height: HEAD_H, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   headBg: { backgroundColor: "var(--win)" as string },
   th: { height: HEAD_H, flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 10, paddingRight: 4 },
+  thLabel: { flex: 1, minWidth: 0, height: HEAD_H, flexDirection: "row", alignItems: "center", gap: 5 },
   thOver: { backgroundColor: "var(--hover)" as string },
   thText: { flexShrink: 1, fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string },
   thMore: { marginLeft: "auto", width: 20, height: 20, alignItems: "center", justifyContent: "center", borderRadius: 5 },

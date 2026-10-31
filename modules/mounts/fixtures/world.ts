@@ -166,7 +166,8 @@ export class FakeFiles {
       const name = String(i["name"]);
       if (!this.folders.has(folderId)) missing("folder");
       if (this.taken(folderId, name)) dup();
-      const blobId = String(obj(i["content"])["blobId"]);
+      // no content: an empty placeholder, as a live mount makes for a file that has not been opened
+      const blobId = i["content"] === undefined ? this.blob(this.nextId("blb"), "") : String(obj(i["content"])["blobId"]);
       const id = this.nextId("fil");
       const file: FFile = { id, folderId, name, version: 1, blob: blobId, deleted: false, reasons: [], ...(typeof i["mime"] === "string" ? { mime: i["mime"] } : {}), ...(typeof i["kind"] === "string" ? { kind: i["kind"] } : {}) };
       this.files.set(id, file);
@@ -211,6 +212,8 @@ function obj(v: unknown): Row {
 
 // ---- Google Drive -------------------------------------------------------------------------------------------
 
+type FilesPort = FakeFiles;
+
 export class FakeGoogle {
   readonly calls: { cap: string; input: Row }[] = [];
   readonly uploads: { fileId: string; name: string; parentId: string }[] = [];
@@ -224,11 +227,20 @@ export class FakeGoogle {
   readonly feed = new Map<string, Row>();
   holdUploads = false;
   failWith: VyreErr | null = null;
+  /** push channels opened and closed */
+  readonly watches: { channelId: string; pageToken: string; address: string }[] = [];
+  readonly stopped: { channelId: string; resourceId: string }[] = [];
+  /** when a new channel expires (epoch ms) */
+  watchExpiry = NOW + 60 * 60 * 1000;
+  /** revisions Drive keeps per file id, oldest first */
+  readonly revisions = new Map<string, Row[]>();
+  /** uploads that replaced an existing file in place: the file id and the revision the write was conditional on */
+  readonly replaced: { remoteId: string; ifRevision?: string }[] = [];
   private seq = 0;
 
-  private readonly files: FakeFiles;
+  private readonly files: FilesPort;
 
-  constructor(files: FakeFiles) {
+  constructor(files: FilesPort) {
     this.files = files;
     this.listings.set("root_drv", [recorded("drive/root-page1.json"), recorded("drive/root-page2.json")]);
     this.listings.set("d1", [recorded("drive/folder-d1.json")]);
@@ -250,6 +262,24 @@ export class FakeGoogle {
 
   drop(id: string): void {
     for (const pages of this.listings.values()) for (const page of pages) page["files"] = (page["files"] as Row[]).filter((f) => f["id"] !== id);
+  }
+
+  find(id: string): Row | undefined {
+    for (const pages of this.listings.values()) for (const page of pages) for (const f of page["files"] as Row[]) if (f["id"] === id) return f;
+    return undefined;
+  }
+
+  /** Drive reports more about a file (head revision, last editor, modified time) as someone else saved it there. */
+  decorate(id: string, extra: Row): void {
+    const f = this.find(id);
+    if (!f) throw new Error(`no drive file ${id}`);
+    Object.assign(f, extra);
+    this.note(f);
+    if (typeof extra["headRevisionId"] === "string") {
+      const list = this.revisions.get(id) ?? [];
+      list.push({ id: extra["headRevisionId"], modifiedTime: String(f["modifiedTime"] ?? ""), ...(extra["lastModifyingUser"] ? { lastModifyingUser: extra["lastModifyingUser"] } : {}) });
+      this.revisions.set(id, list);
+    }
   }
 
   /** Drive changes a file's modified time (someone edited it there). */
@@ -290,6 +320,34 @@ export class FakeGoogle {
       const blobId = this.files.blob(`blb_g_${id}_${this.modified.get(id) ?? "0"}${cap.endsWith("export_file") ? "_x" : ""}`, `${cap.endsWith("export_file") ? "export" : "drive"}:${id}@${this.modified.get(id) ?? "0"}`);
       return { blobId, size: 10, mimeType: cap.endsWith("export_file") ? String(i["mimeType"]) : "application/octet-stream" };
     }
+    if (cap === "google.drive.get_file") {
+      const f = this.find(String(i["fileId"]));
+      if (!f) throw vyreErr("validation.not_found", "No such file.");
+      return { file: f };
+    }
+    if (cap === "google.drive.watch_changes") {
+      this.watches.push({ channelId: String(i["channelId"]), pageToken: String(i["pageToken"]), address: String(i["address"]) });
+      return { resourceId: `res_${this.watches.length}`, expiration: this.watchExpiry };
+    }
+    if (cap === "google.drive.stop_watch") {
+      this.stopped.push({ channelId: String(i["channelId"]), resourceId: String(i["resourceId"]) });
+      return { stopped: true };
+    }
+    if (cap === "google.drive.list_revisions") return { revisions: this.revisions.get(String(i["fileId"])) ?? [] };
+    if (cap === "google.drive.download_revision") {
+      return { blobId: this.files.blob(`blb_rev_${String(i["fileId"])}_${String(i["revisionId"])}`, `rev:${String(i["fileId"])}@${String(i["revisionId"])}`), size: 8, mimeType: "application/octet-stream" };
+    }
+    const inPlace = cap === "google.drive.upload_file" && typeof i["remoteId"] === "string" ? this.find(i["remoteId"]) : undefined;
+    if (inPlace) {
+      // a write to a file that exists: replaced in place as a new revision, unless the head revision is not the one the write was based on
+      if (this.holdUploads) throw vyreErr("permission.needs_approval", "Waiting for approval.");
+      if (typeof i["ifRevision"] === "string" && inPlace["headRevisionId"] !== i["ifRevision"]) return { file: inPlace, stale: true };
+      this.seq += 1;
+      this.replaced.push({ remoteId: String(i["remoteId"]), ...(typeof i["ifRevision"] === "string" ? { ifRevision: i["ifRevision"] } : {}) });
+      this.uploads.push({ fileId: String(i["fileId"]), name: String(i["name"]), parentId: String(i["parentId"]) });
+      this.decorate(String(i["remoteId"]), { modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z`, headRevisionId: `rev_up${this.seq}`, lastModifyingUser: { name: "Noah Reyes", email: ME } });
+      return { file: inPlace };
+    }
     if (cap === "google.drive.upload_file") {
       if (this.holdUploads) throw vyreErr("permission.needs_approval", "Waiting for approval.");
       this.seq += 1;
@@ -321,9 +379,22 @@ export class FakeGraph {
   readonly deltas = new Map<string, Row>();
   readonly uploads: { fileId: string; name: string; folderId: string }[] = [];
   readonly deleted: string[] = [];
+  /** drive change subscriptions opened and closed */
+  readonly subs: { subscriptionId: string; notificationUrl: string }[] = [];
+  readonly unsubscribed: string[] = [];
+  /** the eTag Graph holds per item id; a conditional write against another one is refused */
+  readonly etags = new Map<string, string>();
+  readonly versions = new Map<string, Row[]>();
+  readonly replaced: { remoteId: string; ifMatch?: string }[] = [];
   failWith: VyreErr | null = null;
 
   private readonly files: FakeFiles;
+
+  /** Graph reports more about an item in every page of the recorded delta (eTag, last editor). */
+  decorate(id: string, extra: Row): void {
+    for (const page of this.deltas.values()) for (const it of page["changed"] as Row[]) if (it["id"] === id) Object.assign(it, extra);
+    if (typeof extra["eTag"] === "string") this.etags.set(id, extra["eTag"]);
+  }
 
   constructor(files: FakeFiles) {
     this.files = files;
@@ -344,6 +415,30 @@ export class FakeGraph {
     if (cap === "ms.drive.download_item") {
       const id = String(i["itemId"]);
       return { blobId: this.files.blob(`blb_m_${id}_${this.calls.length}`, `graph:${id}#${this.calls.length}`), size: 5 };
+    }
+    if (cap === "ms.drive.get_item") {
+      for (const page of this.deltas.values()) for (const it of page["changed"] as Row[]) if (it["id"] === i["itemId"]) return { item: it };
+      throw vyreErr("validation.not_found", "No such item.");
+    }
+    if (cap === "ms.drive.subscribe") {
+      const subscriptionId = `sub${this.subs.length + 1}`;
+      this.subs.push({ subscriptionId, notificationUrl: String(i["notificationUrl"]) });
+      return { subscriptionId, expiresAt: NOW + 3 * 24 * 60 * 60 * 1000 };
+    }
+    if (cap === "ms.drive.unsubscribe") {
+      this.unsubscribed.push(String(i["subscriptionId"]));
+      return { removed: true };
+    }
+    if (cap === "ms.drive.list_versions") return { versions: this.versions.get(String(i["itemId"])) ?? [] };
+    if (cap === "ms.drive.download_version") return { blobId: this.files.blob(`blb_ver_${String(i["itemId"])}_${String(i["versionId"])}`, `ver:${String(i["itemId"])}@${String(i["versionId"])}`), size: 8 };
+    if (cap === "ms.drive.upload_item" && typeof i["remoteId"] === "string") {
+      const remoteId = i["remoteId"];
+      if (typeof i["ifMatch"] === "string" && this.etags.get(remoteId) !== i["ifMatch"]) return { stale: true };
+      this.replaced.push({ remoteId, ...(typeof i["ifMatch"] === "string" ? { ifMatch: i["ifMatch"] } : {}) });
+      this.uploads.push({ fileId: String(i["fileId"]), name: String(i["name"]), folderId: String(i["folderId"]) });
+      const eTag = `etag_up${this.replaced.length}`;
+      this.etags.set(remoteId, eTag);
+      return { item: { id: remoteId, name: String(i["name"]), eTag, lastModifiedDateTime: "2026-10-10T00:00:00Z", lastModifiedBy: { name: "Noah Reyes", email: ME } } };
     }
     if (cap === "ms.drive.upload_item") {
       this.uploads.push({ fileId: String(i["fileId"]), name: String(i["name"]), folderId: String(i["folderId"]) });

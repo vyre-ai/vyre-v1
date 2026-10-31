@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -72,7 +73,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
 
   if (load.status === "loading") return <View testID="file-viewer-loading" style={s.frame} accessibilityLabel="Loading the file"><View style={s.skHead} /><View style={s.skBody} /></View>;
-  if (load.status === "gone" || !ready) return <View testID="file-viewer-gone" style={s.frame}><View style={s.gone}><Text style={s.goneText}>That file is not here, or you may not open it.</Text></View></View>;
+  if (load.status === "gone" || !ready) return <View testID="file-viewer-gone" style={s.frame} accessibilityLabel="That file is not here, or you may not open it."><States kind="empty" title="File not available" icon="doc" /></View>;
 
   const file = ready.data.file;
   const now = d.clock().now;
@@ -118,7 +119,5 @@ const s = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   skHead: { height: 48, margin: 14, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
   skBody: { flex: 1, margin: 14, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
-  gone: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  goneText: { fontSize: 13, color: "var(--ink-3)" as string },
   note: { position: "absolute", left: 16, bottom: 14, fontSize: 12.5, color: "var(--ink-2)" as string, backgroundColor: "var(--raised)" as string, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
 });

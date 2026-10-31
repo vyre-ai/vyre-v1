@@ -3875,6 +3875,23 @@ export type AutomationsValidateOut = {
       message: string;
     }>;
 };
+export type AutomationsVaultUsageIn = {
+  handle?: string;
+};
+export type AutomationsVaultUsageOut = {
+  uses: Array<{
+      handle: string;
+      automations: Array<{
+          automationId: string;
+          name: string;
+          status: string;
+          steps: Array<{
+              nodeId: string;
+              title: string;
+            }>;
+        }>;
+    }>;
+};
 export type AutomationsVersionsIn = {
   automationId: string;
 };
@@ -7323,6 +7340,7 @@ export type ConnectionsCreateOut = {
     scopes: Array<string>;
     lastSyncAt?: number;
     createdAt: number;
+    handles: Array<string>;
   };
   authUrl?: string;
 };
@@ -7349,6 +7367,7 @@ export type ConnectionsGetOut = {
     scopes: Array<string>;
     lastSyncAt?: number;
     createdAt: number;
+    handles: Array<string>;
   };
 };
 export type ConnectionsListIn = {
@@ -7371,6 +7390,7 @@ export type ConnectionsListOut = {
       scopes: Array<string>;
       lastSyncAt?: number;
       createdAt: number;
+      handles: Array<string>;
     }>;
   next?: string;
   total?: number;
@@ -7420,6 +7440,7 @@ export type ConnectionsUpdateOut = {
     scopes: Array<string>;
     lastSyncAt?: number;
     createdAt: number;
+    handles: Array<string>;
   };
 };
 export type ConnectorsBuildIn = {
@@ -11312,7 +11333,7 @@ export type FormsUpdateOut = {
 export type GateActsListIn = Record<string, unknown>;
 export type GateActsListOut = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;
@@ -11333,7 +11354,7 @@ export type GateEffectiveRuleIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   adminOnly?: boolean;
 };
 export type GateEffectiveRuleOut = {
@@ -11363,7 +11384,7 @@ export type GateHoldsGetIn = {
 export type GateHoldsGetOut = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
     capName: string;
     taskId: string;
     runId?: string;
@@ -11380,7 +11401,7 @@ export type GateHoldsGetOut = {
 };
 export type GateHoldsListIn = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -11388,7 +11409,7 @@ export type GateHoldsListIn = {
 export type GateHoldsListOut = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       capName: string;
       taskId: string;
       runId?: string;
@@ -11410,7 +11431,7 @@ export type GateParkIn = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -11447,7 +11468,7 @@ export type GateRulesListIn = {
 };
 export type GateRulesListOut = {
   rules: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       mode: "hold" | "allow";
       approvers: string;
       peopleOnly: boolean;
@@ -11461,7 +11482,7 @@ export type GateRulesListOut = {
     }>;
 };
 export type GateRulesSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -11473,7 +11494,7 @@ export type GateRulesSetIn = {
 };
 export type GateRulesSetOut = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;
@@ -12366,6 +12387,11 @@ export type GoogleDriveCopyFileOut = {
     size?: number;
     webViewLink?: string;
     driveId?: string;
+    headRevisionId?: string;
+    lastModifyingUser?: {
+      name?: string;
+      email?: string;
+    };
   };
 };
 export type GoogleDriveCreateFolderIn = {
@@ -12385,6 +12411,11 @@ export type GoogleDriveCreateFolderOut = {
     size?: number;
     webViewLink?: string;
     driveId?: string;
+    headRevisionId?: string;
+    lastModifyingUser?: {
+      name?: string;
+      email?: string;
+    };
   };
 };
 export type GoogleDriveDownloadFileIn = {
@@ -12393,6 +12424,17 @@ export type GoogleDriveDownloadFileIn = {
   fileId: string;
 };
 export type GoogleDriveDownloadFileOut = {
+  blobId: string;
+  size: number;
+  mimeType: string;
+};
+export type GoogleDriveDownloadRevisionIn = {
+  connectionId: string;
+  as?: string;
+  fileId: string;
+  revisionId: string;
+};
+export type GoogleDriveDownloadRevisionOut = {
   blobId: string;
   size: number;
   mimeType: string;
@@ -12422,6 +12464,11 @@ export type GoogleDriveGetFileOut = {
     size?: number;
     webViewLink?: string;
     driveId?: string;
+    headRevisionId?: string;
+    lastModifyingUser?: {
+      name?: string;
+      email?: string;
+    };
   };
 };
 export type GoogleDriveGetPermissionsIn = {
@@ -12456,6 +12503,11 @@ export type GoogleDriveListChangesOut = {
         size?: number;
         webViewLink?: string;
         driveId?: string;
+        headRevisionId?: string;
+        lastModifyingUser?: {
+          name?: string;
+          email?: string;
+        };
       };
     }>;
   newStartPageToken?: string;
@@ -12480,8 +12532,29 @@ export type GoogleDriveListFilesOut = {
       size?: number;
       webViewLink?: string;
       driveId?: string;
+      headRevisionId?: string;
+      lastModifyingUser?: {
+        name?: string;
+        email?: string;
+      };
     }>;
   nextPageToken?: string;
+};
+export type GoogleDriveListRevisionsIn = {
+  connectionId: string;
+  as?: string;
+  fileId: string;
+};
+export type GoogleDriveListRevisionsOut = {
+  revisions: Array<{
+      id: string;
+      modifiedTime: string;
+      size?: number;
+      lastModifyingUser?: {
+        name?: string;
+        email?: string;
+      };
+    }>;
 };
 export type GoogleDriveShareFileIn = {
   connectionId: string;
@@ -12520,6 +12593,8 @@ export type GoogleDriveUploadFileIn = {
   name: string;
   parentId?: string;
   fileId: string;
+  remoteId?: string;
+  ifRevision?: string;
   idempotencyKey: string;
 };
 export type GoogleDriveUploadFileOut = {
@@ -12532,7 +12607,13 @@ export type GoogleDriveUploadFileOut = {
     size?: number;
     webViewLink?: string;
     driveId?: string;
+    headRevisionId?: string;
+    lastModifyingUser?: {
+      name?: string;
+      email?: string;
+    };
   };
+  stale?: boolean;
 };
 export type GoogleDriveWatchChangesIn = {
   connectionId: string;
@@ -18657,6 +18738,18 @@ export type MountsBrowseOut = {
   next?: string;
   total?: number;
 };
+export type MountsEditorsIn = {
+  fileIds: Array<string>;
+};
+export type MountsEditorsOut = {
+  editors: Array<{
+      fileId: string;
+      provider: string;
+      name?: string;
+      email?: string;
+      at?: number;
+    }>;
+};
 export type MountsGetIn = {
   mountId: string;
 };
@@ -18677,7 +18770,25 @@ export type MountsGetOut = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    live?: boolean;
+    liveVia?: "push" | "poll";
   };
+};
+export type MountsHistoryIn = {
+  fileId: string;
+};
+export type MountsHistoryOut = {
+  revisions: Array<{
+      revisionId: string;
+      at?: number;
+      size?: number;
+      current: boolean;
+      by?: {
+        name?: string;
+        email?: string;
+        actor?: string;
+      };
+    }>;
 };
 export type MountsLagIn = Record<string, unknown>;
 export type MountsLagOut = {
@@ -18709,6 +18820,8 @@ export type MountsListOut = {
       conflicts: number;
       fromDevice?: string;
       error?: string;
+      live?: boolean;
+      liveVia?: "push" | "poll";
     }>;
   next?: string;
   total?: number;
@@ -18729,6 +18842,39 @@ export type MountsLocalReportOut = {
   applied: number;
   conflicts: number;
 };
+export type MountsNudgeIn = {
+  source: "google" | "microsoft" | "client";
+  channelId?: string;
+  subscriptionId?: string;
+  replacedBy?: string;
+  mountId?: string;
+};
+export type MountsNudgeOut = {
+  mounts: number;
+  passes: number;
+};
+export type MountsOpenIn = {
+  fileId: string;
+};
+export type MountsOpenOut = {
+  mounted: boolean;
+  fetched: boolean;
+  offline?: boolean;
+  changesetId?: string;
+  source?: {
+    mountId: string;
+    provider: string;
+    remoteId: string;
+    cached: boolean;
+    conflict: boolean;
+    revisionId?: string;
+    modifiedAt?: number;
+    lastEditedBy?: {
+      name?: string;
+      email?: string;
+    };
+  };
+};
 export type MountsPauseIn = {
   mountId: string;
 };
@@ -18741,6 +18887,14 @@ export type MountsRemoveIn = {
 };
 export type MountsRemoveOut = {
   removed: boolean;
+};
+export type MountsRestoreIn = {
+  fileId: string;
+  revisionId: string;
+};
+export type MountsRestoreOut = {
+  restored: boolean;
+  changesetId?: string;
 };
 export type MountsResumeIn = {
   mountId: string;
@@ -18779,6 +18933,8 @@ export type MountsUpdateOut = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    live?: boolean;
+    liveVia?: "push" | "poll";
   };
 };
 export type MsCalendarCreateEventIn = {
@@ -19145,6 +19301,11 @@ export type MsDriveCreateFolderOut = {
     folder?: boolean;
     webUrl?: string;
     parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
   };
 };
 export type MsDriveDeleteItemIn = {
@@ -19172,6 +19333,11 @@ export type MsDriveDeltaOut = {
       folder?: boolean;
       webUrl?: string;
       parentId?: string;
+      eTag?: string;
+      lastModifiedBy?: {
+        name?: string;
+        email?: string;
+      };
     }>;
   removed: Array<string>;
   deltaLink: string;
@@ -19183,6 +19349,17 @@ export type MsDriveDownloadItemIn = {
   itemId: string;
 };
 export type MsDriveDownloadItemOut = {
+  blobId: string;
+  size: number;
+};
+export type MsDriveDownloadVersionIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  versionId: string;
+};
+export type MsDriveDownloadVersionOut = {
   blobId: string;
   size: number;
 };
@@ -19201,6 +19378,11 @@ export type MsDriveGetItemOut = {
     folder?: boolean;
     webUrl?: string;
     parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
   };
 };
 export type MsDriveListItemsIn = {
@@ -19219,8 +19401,30 @@ export type MsDriveListItemsOut = {
       folder?: boolean;
       webUrl?: string;
       parentId?: string;
+      eTag?: string;
+      lastModifiedBy?: {
+        name?: string;
+        email?: string;
+      };
     }>;
   nextSkipToken?: string;
+};
+export type MsDriveListVersionsIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+};
+export type MsDriveListVersionsOut = {
+  versions: Array<{
+      id: string;
+      lastModifiedDateTime: string;
+      size?: number;
+      lastModifiedBy?: {
+        name?: string;
+        email?: string;
+      };
+    }>;
 };
 export type MsDriveShareItemIn = {
   connectionId: string;
@@ -19235,6 +19439,26 @@ export type MsDriveShareItemOut = {
   shared: boolean;
   link?: string;
 };
+export type MsDriveSubscribeIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  notificationUrl: string;
+  idempotencyKey: string;
+};
+export type MsDriveSubscribeOut = {
+  subscriptionId: string;
+  expiresAt: number;
+};
+export type MsDriveUnsubscribeIn = {
+  connectionId: string;
+  as?: string;
+  subscriptionId: string;
+  idempotencyKey: string;
+};
+export type MsDriveUnsubscribeOut = {
+  removed: boolean;
+};
 export type MsDriveUploadItemIn = {
   connectionId: string;
   as?: string;
@@ -19242,10 +19466,12 @@ export type MsDriveUploadItemIn = {
   folderId?: string;
   name: string;
   fileId: string;
+  remoteId?: string;
+  ifMatch?: string;
   idempotencyKey: string;
 };
 export type MsDriveUploadItemOut = {
-  item: {
+  item?: {
     id: string;
     name: string;
     size?: number;
@@ -19253,7 +19479,13 @@ export type MsDriveUploadItemOut = {
     folder?: boolean;
     webUrl?: string;
     parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
   };
+  stale?: boolean;
 };
 export type MsHealthIn = Record<string, unknown>;
 export type MsHealthOut = {
@@ -30198,6 +30430,7 @@ export interface CapMap {
   "automations.undelete": { in: AutomationsUndeleteIn; out: AutomationsUndeleteOut };
   "automations.update": { in: AutomationsUpdateIn; out: AutomationsUpdateOut };
   "automations.validate": { in: AutomationsValidateIn; out: AutomationsValidateOut };
+  "automations.vault_usage": { in: AutomationsVaultUsageIn; out: AutomationsVaultUsageOut };
   "automations.versions": { in: AutomationsVersionsIn; out: AutomationsVersionsOut };
   "automations.webhook_url.get": { in: AutomationsWebhookUrlGetIn; out: AutomationsWebhookUrlGetOut };
   "automations.webhook_url.rotate": { in: AutomationsWebhookUrlRotateIn; out: AutomationsWebhookUrlRotateOut };
@@ -30727,11 +30960,13 @@ export interface CapMap {
   "google.drive.copy_file": { in: GoogleDriveCopyFileIn; out: GoogleDriveCopyFileOut };
   "google.drive.create_folder": { in: GoogleDriveCreateFolderIn; out: GoogleDriveCreateFolderOut };
   "google.drive.download_file": { in: GoogleDriveDownloadFileIn; out: GoogleDriveDownloadFileOut };
+  "google.drive.download_revision": { in: GoogleDriveDownloadRevisionIn; out: GoogleDriveDownloadRevisionOut };
   "google.drive.export_file": { in: GoogleDriveExportFileIn; out: GoogleDriveExportFileOut };
   "google.drive.get_file": { in: GoogleDriveGetFileIn; out: GoogleDriveGetFileOut };
   "google.drive.get_permissions": { in: GoogleDriveGetPermissionsIn; out: GoogleDriveGetPermissionsOut };
   "google.drive.list_changes": { in: GoogleDriveListChangesIn; out: GoogleDriveListChangesOut };
   "google.drive.list_files": { in: GoogleDriveListFilesIn; out: GoogleDriveListFilesOut };
+  "google.drive.list_revisions": { in: GoogleDriveListRevisionsIn; out: GoogleDriveListRevisionsOut };
   "google.drive.share_file": { in: GoogleDriveShareFileIn; out: GoogleDriveShareFileOut };
   "google.drive.stop_watch": { in: GoogleDriveStopWatchIn; out: GoogleDriveStopWatchOut };
   "google.drive.trash_file": { in: GoogleDriveTrashFileIn; out: GoogleDriveTrashFileOut };
@@ -31073,12 +31308,17 @@ export interface CapMap {
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };
   "mounts.add": { in: MountsAddIn; out: MountsAddOut };
   "mounts.browse": { in: MountsBrowseIn; out: MountsBrowseOut };
+  "mounts.editors": { in: MountsEditorsIn; out: MountsEditorsOut };
   "mounts.get": { in: MountsGetIn; out: MountsGetOut };
+  "mounts.history": { in: MountsHistoryIn; out: MountsHistoryOut };
   "mounts.lag": { in: MountsLagIn; out: MountsLagOut };
   "mounts.list": { in: MountsListIn; out: MountsListOut };
   "mounts.local_report": { in: MountsLocalReportIn; out: MountsLocalReportOut };
+  "mounts.nudge": { in: MountsNudgeIn; out: MountsNudgeOut };
+  "mounts.open": { in: MountsOpenIn; out: MountsOpenOut };
   "mounts.pause": { in: MountsPauseIn; out: MountsPauseOut };
   "mounts.remove": { in: MountsRemoveIn; out: MountsRemoveOut };
+  "mounts.restore": { in: MountsRestoreIn; out: MountsRestoreOut };
   "mounts.resume": { in: MountsResumeIn; out: MountsResumeOut };
   "mounts.sync_now": { in: MountsSyncNowIn; out: MountsSyncNowOut };
   "mounts.update": { in: MountsUpdateIn; out: MountsUpdateOut };
@@ -31111,9 +31351,13 @@ export interface CapMap {
   "ms.drive.delete_item": { in: MsDriveDeleteItemIn; out: MsDriveDeleteItemOut };
   "ms.drive.delta": { in: MsDriveDeltaIn; out: MsDriveDeltaOut };
   "ms.drive.download_item": { in: MsDriveDownloadItemIn; out: MsDriveDownloadItemOut };
+  "ms.drive.download_version": { in: MsDriveDownloadVersionIn; out: MsDriveDownloadVersionOut };
   "ms.drive.get_item": { in: MsDriveGetItemIn; out: MsDriveGetItemOut };
   "ms.drive.list_items": { in: MsDriveListItemsIn; out: MsDriveListItemsOut };
+  "ms.drive.list_versions": { in: MsDriveListVersionsIn; out: MsDriveListVersionsOut };
   "ms.drive.share_item": { in: MsDriveShareItemIn; out: MsDriveShareItemOut };
+  "ms.drive.subscribe": { in: MsDriveSubscribeIn; out: MsDriveSubscribeOut };
+  "ms.drive.unsubscribe": { in: MsDriveUnsubscribeIn; out: MsDriveUnsubscribeOut };
   "ms.drive.upload_item": { in: MsDriveUploadItemIn; out: MsDriveUploadItemOut };
   "ms.health": { in: MsHealthIn; out: MsHealthOut };
   "ms.mail.create_draft": { in: MsMailCreateDraftIn; out: MsMailCreateDraftOut };
@@ -32772,14 +33016,14 @@ export type FormSubmittedPayload = {
 };
 export type GateApprovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   by: string;
   forPerson?: string;
 };
 export type GateDeniedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   by: string;
   mode: "send_back" | "drop";
@@ -32787,14 +33031,14 @@ export type GateDeniedPayload = {
 };
 export type GateExpiredPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
 };
 export type GateRequestedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   capName: string;
   taskId: string;
   principal: {
@@ -32806,7 +33050,7 @@ export type GateRequestedPayload = {
   expiresAt: number;
 };
 export type GateRuleChangedPayload = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   by: string;
@@ -33535,10 +33779,25 @@ export type MicrosoftNotificationReceivedPayload = {
   changeType: "created" | "updated" | "deleted";
   tenantId?: string;
 };
+export type MountConflictPayload = {
+  mountId: string;
+  folderId: string;
+  fileId: string;
+  name: string;
+  keptAs: string;
+};
 export type MountFailedPayload = {
   mountId: string;
   folderId: string;
   error: string;
+};
+export type MountFileSentPayload = {
+  mountId: string;
+  folderId: string;
+  fileId: string;
+  name: string;
+  revisionId?: string;
+  by: string;
 };
 export type MountPausedPayload = {
   mountId: string;
@@ -35552,7 +35811,9 @@ export interface EventMap {
   "microsoft.consent_revoked": MicrosoftConsentRevokedPayload;
   "microsoft.consent_verified": MicrosoftConsentVerifiedPayload;
   "microsoft.notification_received": MicrosoftNotificationReceivedPayload;
+  "mount.conflict": MountConflictPayload;
   "mount.failed": MountFailedPayload;
+  "mount.file_sent": MountFileSentPayload;
   "mount.paused": MountPausedPayload;
   "mount.removed": MountRemovedPayload;
   "mount.resumed": MountResumedPayload;

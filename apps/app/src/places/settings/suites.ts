@@ -1,4 +1,4 @@
-// What a person sees of Google Workspace and Microsoft 365 in Settings: what is connected for them through their firm, service by service, and what to do when it is not. The firm connects
+// What a person sees of Google Workspace and Microsoft 365 in Settings: what is connected for them through their Space, service by service, and what to do when it is not. The admin connects
 // the suite once (Console, Integrations); a person never signs in to it themselves. Pure, so the rules are tested without drawing.
 
 export interface MailboxLite { id: string; address: string; provider: string; state: string }
@@ -11,7 +11,7 @@ const TITLE = { google: "Google Workspace", microsoft: "Microsoft 365" } as cons
 const MAIL_STATE: Readonly<Record<string, string>> = { pending: "Connecting", syncing: "Syncing", paused: "Paused", error: "Needs attention", disconnected: "Disconnected" };
 const CAL_STATE: Readonly<Record<string, string>> = { syncing: "Syncing", paused: "Paused", error: "Needs attention" };
 
-/** One section per suite the firm connected for this person, with a row for each of their mailboxes and calendars that comes through it. */
+/** One section per suite the admin connected for this person, with a row for each of their mailboxes and calendars that comes through it. */
 export function suiteSections(boxes: readonly MailboxLite[], calendars: readonly CalendarLite[]): SuiteSection[] {
   const out: SuiteSection[] = [];
   for (const key of ["google", "microsoft"] as const) {
@@ -24,10 +24,10 @@ export function suiteSections(boxes: readonly MailboxLite[], calendars: readonly
   return out;
 }
 
-export const NOT_CONNECTED = "Your firm has not connected Google Workspace or Microsoft 365 for you yet. Nothing is wrong. Ask your admin to open Console, Integrations and set up the one your firm uses.";
-export const THROUGH_FIRM = "Connected through your firm";
+export const NOT_CONNECTED = "Nothing connected yet. Ask your admin: Console, Integrations.";
+export const THROUGH_FIRM = "Connected by your admin";
 
 /** The line under a connected suite. */
 export function throughFirm(section: SuiteSection): string {
-  return section.rows.some((r) => r.state === "Needs attention") ? `${THROUGH_FIRM}. Something needs attention: ask your admin to check the connection in Console, Integrations.` : THROUGH_FIRM;
+  return section.rows.some((r) => r.state === "Needs attention") ? `${THROUGH_FIRM}. Needs attention: ask your admin.` : THROUGH_FIRM;
 }

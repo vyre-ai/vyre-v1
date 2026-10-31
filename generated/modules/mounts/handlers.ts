@@ -7,12 +7,17 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mounts.add": Handler<"mounts.add", X>;
   "mounts.browse": Handler<"mounts.browse", X>;
+  "mounts.editors": Handler<"mounts.editors", X>;
   "mounts.get": Handler<"mounts.get", X>;
+  "mounts.history": Handler<"mounts.history", X>;
   "mounts.lag": Handler<"mounts.lag", X>;
   "mounts.list": Handler<"mounts.list", X>;
   "mounts.local_report": Handler<"mounts.local_report", X>;
+  "mounts.nudge": Handler<"mounts.nudge", X>;
+  "mounts.open": Handler<"mounts.open", X>;
   "mounts.pause": Handler<"mounts.pause", X>;
   "mounts.remove": Handler<"mounts.remove", X>;
+  "mounts.restore": Handler<"mounts.restore", X>;
   "mounts.resume": Handler<"mounts.resume", X>;
   "mounts.sync_now": Handler<"mounts.sync_now", X>;
   "mounts.update": Handler<"mounts.update", X>;

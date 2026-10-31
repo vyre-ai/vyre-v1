@@ -8,7 +8,7 @@ import {
   MountSheet, MountsDataProvider, UnmountSheet, addInput, back, browse, canMount, canNext, chooseSource, crumbs, emptyDraft, isMounted, mountedRows, mountError, next, pick, removeMount, shareInputs,
   submitMount, togglePerson, unmountWords, walkInto, walkTo, whoLabel,
 } from "../mounts/index.ts";
-import type { BrowseItem, Draft } from "../mounts/index.ts";
+import type { Account, Accounts, BrowseItem, Draft } from "../mounts/index.ts";
 import { createSampleMounts, northwindAccounts, northwindMounts, northwindPeople } from "../mounts/sample.ts";
 import type { SampleMounts } from "../mounts/sample.ts";
 
@@ -20,14 +20,14 @@ const item = (kind: BrowseItem["kind"], ref: string, name: string, o: Partial<Br
 
 const draftAt = (src: Parameters<typeof chooseSource>[1], picked: BrowseItem, o: Partial<Draft> = {}): Draft => ({ ...next(pick(chooseSource(emptyDraft("fld_github"), src), picked)), ...o });
 
-test("step 1 lists the four sources in order, with the connected account under each; a source with no connection says Connect", () => {
+test("step 1 lists the five sources in order, with the connected account under each; a source with no connection says Connect", () => {
   const s = createSampleMounts();
   const out = html(s, <MountSheet onClose={noop} onMounted={noop} />);
-  const at = ["source:google_drive", "source:microsoft", "source:local", "source:github"].map((id) => out.indexOf(`data-testid="row-${id}"`));
-  assert.ok(at.every((i) => i >= 0), "four source rows");
+  const at = ["source:google_drive", "source:onedrive", "source:sharepoint", "source:github", "source:local"].map((id) => out.indexOf(`data-testid="row-${id}"`));
+  assert.ok(at.every((i) => i >= 0), "five source rows");
   assert.deepEqual([...at].sort((a, b) => a - b), at, "in the prototype's order");
-  for (const name of ["Google Drive", "Microsoft 365", "This computer", "GitHub", "irfad@northwind.example", "Irfad&#x27;s MacBook", "irfad7"]) assert.ok(has(out, name), name);
-  assert.ok(has(out, 'aria-label="Mount a folder"') && has(out, 'role="dialog"'));
+  for (const name of ["Google Drive", "OneDrive", "SharePoint", "This computer", "GitHub", "irfad@northwind.example", "Irfad&#x27;s MacBook", "irfad7"]) assert.ok(has(out, name), name);
+  assert.ok(has(out, 'aria-label="Connect a folder"') && has(out, 'role="dialog"'));
   const off = createSampleMounts({ accounts: { ...northwindAccounts, github: { label: "irfad7", connected: false } } });
   const o2 = html(off, <MountSheet onClose={noop} onMounted={noop} />);
   assert.ok(has(o2, "Not connected") && has(o2, ">Connect<"));
@@ -212,4 +212,41 @@ test("add then remove leaves the list as it started", async () => {
   assert.equal(s.mounts().length, before.length + 1);
   assert.deepEqual(await removeMount(s.data.call, r.mountId, true), { ok: true });
   assert.deepEqual(s.mounts().map((m) => m.mountId), before);
+});
+
+test("step 1 draws each source with its real brand logo", () => {
+  const out = html(createSampleMounts(), <MountSheet onClose={noop} onMounted={noop} />);
+  for (const brand of ["gdrive", "onedrive", "sharepoint", "github"]) assert.ok(has(out, `data-appicon="${brand}"`), brand);
+});
+
+test("OneDrive and SharePoint share the Microsoft connection and mount as their own kinds", async () => {
+  const s = createSampleMounts();
+  const od = await browse(s.data.call, chooseSource(emptyDraft("fld_github"), "onedrive"), s.data.accounts);
+  assert.ok(od.items.length > 0 && od.items.every((i) => i.kind === "onedrive"), "only OneDrive at the OneDrive root");
+  const sp = await browse(s.data.call, chooseSource(emptyDraft("fld_github"), "sharepoint"), s.data.accounts);
+  assert.ok(sp.items.length > 0 && sp.items.every((i) => i.kind === "sharepoint"), "only SharePoint at the SharePoint root");
+  const input = addInput(draftAt("sharepoint", item("sharepoint", "sp:Proposals", "Proposals")), northwindAccounts);
+  assert.equal(input?.source.kind, "sharepoint");
+  assert.equal(input?.source.connectionId, "con_ms");
+});
+
+test("connect in place: a source with no connection asks to connect, and the account it returns is the one used", async () => {
+  const off: Accounts = { ...northwindAccounts, microsoft: { label: "", connected: false } };
+  const s = createSampleMounts({ accounts: off, connectAs: { microsoft: { label: "firm@contoso.com", connected: true, connectionId: "con_new" } } });
+  const got = await s.data.connect("onedrive");
+  assert.deepEqual(s.connected, ["onedrive"]);
+  assert.equal(got?.connectionId, "con_new");
+  const input = addInput(draftAt("onedrive", item("onedrive", "od:Docs", "Docs")), { ...off, microsoft: got as Account });
+  assert.equal(input?.source.connectionId, "con_new");
+});
+
+test("OneDrive opens its one drive at once, and the crumbs do not say OneDrive twice", async () => {
+  const s = createSampleMounts();
+  const root = await browse(s.data.call, chooseSource(emptyDraft("fld_github"), "onedrive"), s.data.accounts);
+  assert.equal(root.items.length, 1, "one drive at the root");
+  const d = walkInto(chooseSource(emptyDraft("fld_github"), "onedrive"), root.items[0] as BrowseItem);
+  assert.deepEqual(crumbs(d), [], "no crumb while on the drive itself");
+  const docs = await browse(s.data.call, d, s.data.accounts);
+  const inDocs = walkInto(d, docs.items[0] as BrowseItem);
+  assert.deepEqual(crumbs(inDocs), ["OneDrive", "Documents"]);
 });

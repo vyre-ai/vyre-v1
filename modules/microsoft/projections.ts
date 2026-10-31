@@ -55,7 +55,7 @@ export interface MsHost {
   /** GET a Graph content address with the token (following Graph's redirect) and store the bytes as a blob. */
   download(ctx: MsCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
   /** PUT a Space file to a Graph content address and return Graph's JSON answer. */
-  upload(ctx: MsCtx, a: { url: string; token: string; fileId: string }): Promise<unknown>;
+  upload(ctx: MsCtx, a: { url: string; token: string; fileId: string; ifMatch?: string }): Promise<unknown>;
 }
 
 let host: MsHost | null = null;

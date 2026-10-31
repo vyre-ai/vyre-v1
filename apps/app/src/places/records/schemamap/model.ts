@@ -149,21 +149,51 @@ export interface EdgeGeometry {
   dot: [number, number];
 }
 
-/** The curve for one link, from its field row on the source card to the target card, as the prototype draws it. */
+/** A polyline with each corner rounded by a quadratic of radius r (kept inside the shorter neighbouring segment). */
+function rounded(pts: readonly [number, number][], r: number): string {
+  const n = (v: number): string => String(Math.round(v * 10) / 10);
+  let d = `M${n(pts[0]![0])} ${n(pts[0]![1])}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [px, py] = pts[i - 1]!, [x, y] = pts[i]!, [qx, qy] = pts[i + 1]!;
+    const l1 = Math.hypot(x - px, y - py), l2 = Math.hypot(qx - x, qy - y);
+    const k = Math.min(r, l1 / 2, l2 / 2);
+    if (k <= 0) { d += ` L${n(x)} ${n(y)}`; continue; }
+    d += ` L${n(x - ((x - px) / l1) * k)} ${n(y - ((y - py) / l1) * k)} Q${n(x)} ${n(y)} ${n(x + ((qx - x) / l2) * k)} ${n(y + ((qy - y) / l2) * k)}`;
+  }
+  const last = pts[pts.length - 1]!;
+  return `${d} L${n(last[0])} ${n(last[1])}`;
+}
+
+/**
+ * The route for one link, from its field row on the source card to the target card: orthogonal, with a port on one side of each card. A target beside the source is joined
+ * across the gap between them (source port on the side facing it); a target above or below leaves and enters on the right side and runs down a channel outside both cards, so no
+ * line crosses a card or loops behind one. `rowIndex` staggers the channel so links from different rows do not share a line.
+ */
 export function edgeGeometry(e: MapEdge, from: Rect, to: Rect, rowIndex: number, shown: number): EdgeGeometry {
   const sy = rowIndex >= 0 && rowIndex < shown ? from.y + HEAD_H + rowIndex * FIELD_H + FIELD_H / 2 : from.y + 20;
   const ty = to.y + 20;
-  const right = to.x + to.w / 2 > from.x + from.w / 2;
-  const dir = right ? 1 : -1;
-  const sx = right ? from.x + from.w : from.x;
-  const tx = right ? to.x : to.x + to.w;
-  const dx = Math.max(60, Math.abs(tx - sx) / 2) * dir;
+  const stagger = (((rowIndex % 5) + 5) % 5) * 6;
+  const side = to.x >= from.x + from.w + 24 ? 1 : to.x + to.w <= from.x - 24 ? -1 : 0;
+  const dir = side === 0 ? 1 : side;
+  const sx = dir === 1 ? from.x + from.w : from.x;
+  // the end of the line: on the facing side of the target, or on its right side when it is stacked with the source
+  const tdir = side === 0 ? 1 : -side;
+  const tx = tdir === 1 ? to.x + to.w : to.x;
+  let pts: [number, number][];
+  if (side === 0) {
+    const out = Math.max(from.x + from.w, to.x + to.w) + 28 + stagger;
+    pts = [[sx, sy], [out, sy], [out, ty], [tx, ty]];
+  } else {
+    const gapA = side === 1 ? sx : tx, gapB = side === 1 ? tx : sx;
+    const mid = Math.min(gapB - 12, Math.max(gapA + 12, (sx + tx) / 2 + stagger - 12));
+    pts = Math.abs(sy - ty) < 0.5 ? [[sx, sy], [tx, ty]] : [[sx, sy], [mid, sy], [mid, ty], [tx, ty]];
+  }
   const n = (v: number): string => String(Math.round(v * 10) / 10);
   return {
     from: e.from, to: e.to, field: e.field,
-    d: `M${n(sx)} ${n(sy)} C ${n(sx + dx)} ${n(sy)}, ${n(tx - dx)} ${n(ty)}, ${n(tx)} ${n(ty)}`,
+    d: rounded(pts, 8),
     crow: `M${n(sx + dir * 13)} ${n(sy)} L${n(sx)} ${n(sy - 5.5)} M${n(sx + dir * 13)} ${n(sy)} L${n(sx)} ${n(sy)} M${n(sx + dir * 13)} ${n(sy)} L${n(sx)} ${n(sy + 5.5)}`,
-    bar: `M${n(tx - dir * 11)} ${n(ty - 5.5)} L${n(tx - dir * 11)} ${n(ty + 5.5)}`,
+    bar: `M${n(tx + tdir * 11)} ${n(ty - 5.5)} L${n(tx + tdir * 11)} ${n(ty + 5.5)}`,
     dot: [sx, sy],
   };
 }

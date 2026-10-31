@@ -147,11 +147,11 @@ test("streamed deltas append once per frame", () => {
   assert.equal(store.stats().appends, 1, "one append for 100 deltas");
 });
 
-test("an error is one inline row: what, why, next, What happened, Copy trace id; Retry carries the turn", async () => {
+test("an error is one inline row: what, why, next, Details, Copy id; Retry carries the turn", async () => {
   const s = createSample("errors");
   const out = html(s);
   assert.ok(has(out, "Docs did not read fee-schedule.csv") && has(out, "Restricted data only goes to a model on your computer."));
-  for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "What happened?", "Copy trace id", "Report a problem"]) assert.ok(has(out, t), t);
+  for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "Details", "Copy id", "Report"]) assert.ok(has(out, t), t);
   assert.ok(has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"));
   await act.retryTurn(s.data, "turn_9").catch(() => undefined);
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
@@ -238,13 +238,13 @@ test("Accept and Reject are the changeset capabilities; an edit goes back as a r
   assert.ok((s.calls[3]!.input as { note: string }).note.startsWith("Suggested to Maya Chen: "));
 });
 
-test("the plan card is on the page: name, open comments, click to open beside the chat", () => {
+test("the plan card is on the page: name, open comments", () => {
   const s = createSample("idle");
   const out = html(s);
   const block = msgs(s).find((m) => m.messageId === "m4")!.blocks.find((b) => b.id === "pl1")!;
   assert.ok(isPlanFile(block));
-  inOrder(out, ['data-testid="plancard-pl1"', "Plan · 1 open comment · click to open beside the chat", "client-intake.pdf"]);
-  assert.equal(planFileLine(2), "Plan · 2 open comments · click to open beside the chat");
+  inOrder(out, ['data-testid="plancard-pl1"', "Plan · 1 open comment", "client-intake.pdf"]);
+  assert.equal(planFileLine(2), "Plan · 2 open comments");
 });
 
 test("the header has the agent chip with a face and mode mark, the participants count, search and the pane", () => {

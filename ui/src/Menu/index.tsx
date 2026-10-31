@@ -396,7 +396,7 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       {entry.leading !== undefined ? <View style={styles.leading}>{entry.leading}</View> : null}
       {entry.leading === undefined && entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
       <Text numberOfLines={1} style={[styles.label, { color: ink }]}>{entry.label}</Text>
-      {entry.count !== undefined ? <Text style={styles.count} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
+      {entry.count !== undefined ? <Text style={[styles.count, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
       {entry.checked === true ? <Text style={[styles.check, entry.count !== undefined && styles.checkAfterCount, { color: ink }]}>{"✓"}</Text> : null}
     </Pressable>
   );

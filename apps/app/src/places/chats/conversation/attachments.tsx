@@ -4,6 +4,7 @@ import { memo, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
+import { AppIcon } from "../../../../../../ui/src/AppIcon/index.tsx";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -11,6 +12,7 @@ import type { ConversationData } from "./data.tsx";
 import { Glyph } from "./parts.tsx";
 import type { GlyphName } from "./parts.tsx";
 import { PENDING_FILE, collect } from "./model.ts";
+import { BRAND_OF_MOUNT } from "./suggest.ts";
 import type { Message } from "./model.ts";
 
 type FileRow = CapMap["files.get"]["out"]["file"];
@@ -30,6 +32,77 @@ function lookup(data: Pick<ConversationData, "call">, id: string): Promise<FileR
   let p = m.get(id);
   if (!p) { p = Promise.resolve(data.call("files.get", { fileId: id })).then((r) => (r as CapMap["files.get"]["out"]).file, () => null); m.set(id, p); }
   return p;
+}
+
+type MountRow = CapMap["mounts.list"]["out"]["mounts"][number];
+
+const mountLists = new WeakMap<object, { at: number; p: Promise<MountRow[]> }>();
+/** The Space's mounts, asked for once a few seconds at a time, so a chat full of chips asks once and not once per row. */
+function mountsOf(data: Pick<ConversationData, "call">): Promise<MountRow[]> {
+  const hit = mountLists.get(data.call);
+  if (hit && Date.now() - hit.at < 10_000) return hit.p;
+  const p = Promise.resolve(data.call("mounts.list", {})).then((o) => (o as CapMap["mounts.list"]["out"]).mounts, () => [] as MountRow[]);
+  mountLists.set(data.call, { at: Date.now(), p });
+  return p;
+}
+
+/** Where a file or folder comes from, when it is in a mount: the provider's logo and the mount's name. Null for anything that is not mounted. */
+export interface MountOrigin { brand: string | undefined; provider: string; mount: string }
+
+export function originOf(mounts: readonly MountRow[], from: { mountId?: string; folderId?: string }): MountOrigin | null {
+  const m = mounts.find((x) => (from.mountId !== undefined && x.mountId === from.mountId) || (from.folderId !== undefined && x.folderId === from.folderId));
+  return m ? { brand: BRAND_OF_MOUNT[m.kind], provider: m.provider, mount: m.name } : null;
+}
+
+function useOrigin(data: Pick<ConversationData, "call">, from: { mountId?: string; folderId?: string } | null): MountOrigin | null {
+  const [o, setO] = useState<MountOrigin | null>(null);
+  const key = from ? `${from.mountId ?? ""}:${from.folderId ?? ""}` : "";
+  useEffect(() => {
+    if (!from) { setO(null); return undefined; }
+    let live = true;
+    void mountsOf(data).then((rows) => { if (live) setO(originOf(rows, from)); });
+    return () => { live = false; };
+  }, [data, key]);
+  return o;
+}
+
+/** The provider's logo and mount name on a chip: "Google Drive · Sales". */
+function OriginLine({ o }: { o: MountOrigin }): ReactElement {
+  return (
+    <View style={st.origin} testID="chip-origin">
+      {o.brand ? <AppIcon brand={o.brand} size={16} name={o.provider} /> : null}
+      <Text numberOfLines={1} style={st.sub}>{`${o.provider} \u00b7 ${o.mount}`}</Text>
+    </View>
+  );
+}
+
+/** A thing linked with # in a message that lives in a mount: a chip with the provider logo and the mount's name, a click opens it beside the chat. Other links draw nothing here. */
+export const MountRefs = memo(function MountRefs({ refs, data }: { refs: readonly LinkRef[]; data: Pick<ConversationData, "call" | "nav"> }): ReactElement | null {
+  const things = refs.filter((r) => r.kind === "file" || r.kind === "folder");
+  if (things.length === 0) return null;
+  return <View testID="mount-refs" style={st.row}>{collect(things, (r) => <MountRef key={`${r.kind}:${r.id}`} r={r} data={data} />)}</View>;
+});
+
+function MountRef({ r, data }: { r: LinkRef; data: Pick<ConversationData, "call" | "nav"> }): ReactElement | null {
+  const [file, setFile] = useState<FileRow | null | undefined>(r.kind === "file" ? undefined : null);
+  useEffect(() => {
+    if (r.kind !== "file") return undefined;
+    let live = true;
+    void lookup(data, r.id).then((f) => { if (live) setFile(f); });
+    return () => { live = false; };
+  }, [data, r.id, r.kind]);
+  const from = r.kind === "folder" ? { folderId: r.id } : file?.source ? { mountId: file.source.mountId } : null;
+  const origin = useOrigin(data, from);
+  if (!origin) return null;
+  return (
+    <Pressable testID={`mount-ref-${r.id}`} accessibilityRole="button" accessibilityLabel={`Open ${r.title}, from ${origin.provider}`} onPress={() => data.nav.openBeside(r.kind, r.id)} style={st.chip}>
+      <Glyph name="file" size={14} color="var(--ink-3)" />
+      <View style={st.chipText}>
+        <Text numberOfLines={1} style={st.name}>{r.title}</Text>
+        <OriginLine o={origin} />
+      </View>
+    </Pressable>
+  );
 }
 
 /** The chips under a message's text. */
@@ -54,6 +127,7 @@ function Chip({ id, data, menu }: { id: string; data: Pick<ConversationData, "ca
   }, [data, id, pending]);
   const name = pending ? id.slice(PENDING_FILE.length) : file === undefined ? "Loading" : file?.name ?? "File you cannot open";
   const sub = file ? sizeLine(file.size) : pending ? "Sending" : "";
+  const origin = useOrigin(data, file?.source ? { mountId: file.source.mountId } : null);
   const icon: GlyphName = file?.mime.startsWith("image/") ? "file" : "file";
   const open = (): void => { if (file) data.nav.openBeside("file", id); };
   return (
@@ -67,6 +141,7 @@ function Chip({ id, data, menu }: { id: string; data: Pick<ConversationData, "ca
       <View style={st.chipText}>
         <Text numberOfLines={1} style={st.name}>{name}</Text>
         {sub ? <Text style={st.sub}>{sub}</Text> : null}
+        {origin ? <OriginLine o={origin} /> : null}
       </View>
     </Pressable>
   );
@@ -164,7 +239,7 @@ function LinkPiece({ r, data }: { r: LinkRef; data: Pick<ConversationData, "call
           <View testID={`link-card-${r.id}`} accessibilityRole="text" pointerEvents="none" style={[st.card, { left: at.x, top: at.y }]}>
             <Text style={st.cardKind}>{kindName[r.kind] ?? "Link"}</Text>
             <Text numberOfLines={2} style={st.cardTitle}>{card === undefined ? r.title : card?.title ?? r.title}</Text>
-            <Text numberOfLines={3} style={st.cardLine}>{card === undefined ? "Loading" : card === null ? "You cannot open this" : card.line || "Click to open beside the chat"}</Text>
+            <Text numberOfLines={3} style={st.cardLine}>{card === undefined ? "Loading" : card === null ? "You cannot open this" : card.line || "Open beside the chat"}</Text>
           </View>
         </Overlay>
       ) : null}
@@ -179,6 +254,7 @@ const st = StyleSheet.create({
   chipOff: { opacity: 0.6 },
   chipText: { flexShrink: 1, minWidth: 0 },
   name: { fontSize: 13, color: "var(--ink)" as string },
+  origin: { flexDirection: "row", alignItems: "center", gap: 5 },
   sub: { fontSize: 11.5, color: "var(--ink-3)" as string },
   card: { position: "absolute", width: 280, gap: 2, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, boxShadow: "0 8px 28px rgba(0,0,0,.18)" } as object,
   cardKind: { fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", color: "var(--ink-4)" as string },

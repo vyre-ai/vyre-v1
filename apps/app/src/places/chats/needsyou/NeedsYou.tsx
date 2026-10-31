@@ -118,7 +118,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
       <View style={isWithdrawn(i) ? st.dimRow : undefined} {...menuTrigger((x, y) => menu.show(entriesFor(i), x, y, "context", { label: i.task.title }))}>
         <Row
           id={`need-${i.task.id}`} title={i.task.title} note={note} noteLead={verb} noteLeadTone={i.task.kind === "unblock" ? "warning" : "accent"} selected={sel} onPress={() => choose(i.task.id)}
-          leading={<Face name={who(i.task)} seedId={i.task.createdBy} size={26} />}
+          leading={<View style={{ marginRight: 10 }}><Face name={who(i.task)} seedId={i.task.createdBy} size={26} /></View>}
           trailing={
             <RowEnd
               time={arrivedLabel(i.task.updatedAt, clock)} lit={sel}

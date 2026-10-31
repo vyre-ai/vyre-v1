@@ -21,6 +21,8 @@ export interface RecipientsProps {
   bcc?: readonly RecipientInput[];
   /** Reply All drops this address. */
   me?: string;
+  /** A header that already says "To" (the composer's outgoing header) sets this, so the first row does not say it twice. */
+  hideToLabel?: boolean;
   onChange?: (next: Record<RecipientRow, string[]>) => void;
 }
 

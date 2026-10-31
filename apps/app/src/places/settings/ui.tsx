@@ -55,14 +55,20 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", fill }: { name:
 
 // ---------------------------------------------------------------- the card and the row
 
-export function Section({ title, note, children, testID }: { title?: string; note?: string; children: ReactNode; testID?: string }): ReactElement {
+export function Section({ title, note, help, children, testID }: { title?: string; note?: string; help?: string; children: ReactNode; testID?: string }): ReactElement {
   return (
-    <View style={s.section} testID={testID ?? (title ? `section-${title}` : undefined)} accessibilityLabel={title}>
+    <Tip help={help}><View style={s.section} testID={testID ?? (title ? `section-${title}` : undefined)} accessibilityLabel={title}>
       {title ? <Text accessibilityRole="header" style={s.sTitle}>{title}</Text> : null}
       <View style={s.card}>{children}</View>
       {note ? <Text style={s.sNote}>{note}</Text> : null}
-    </View>
+    </View></Tip>
   );
+}
+
+/** Hover help: the words a row or section used to carry as a bracket or a paragraph. A `display: contents` span carries the browser's own tooltip without touching the layout; off the web there is nothing to hover. */
+export function Tip({ help, children }: { help: string | undefined; children: ReactElement }): ReactElement {
+  if (!web || !help) return children;
+  return createElement("span", { title: help, style: { display: "contents" } }, children);
 }
 
 export interface SettingsRowProps {
@@ -80,10 +86,12 @@ export interface SettingsRowProps {
   /** The search found this row: it takes a quiet accent outline for a moment. */
   found?: boolean;
   danger?: boolean;
+  /** What the row used to say in a long title or a paragraph: shown on hover, never as a line of its own. */
+  help?: string;
 }
 
 /** One row anatomy: lead mark, label, a sub line only when it adds information, control on the right. Hover paints the whole row when it can be pressed. */
-export function SettingsRow({ id, label, sub, subAlert = false, lead, control, first = false, onPress, indent = false, found = false, danger = false }: SettingsRowProps): ReactElement {
+export function SettingsRow({ id, label, sub, subAlert = false, lead, control, first = false, onPress, indent = false, found = false, danger = false, help }: SettingsRowProps): ReactElement {
   const [over, setOver] = useState(false);
   const body = (
     <>
@@ -96,7 +104,7 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
     </>
   );
   const common = [s.row, !first && s.rowLine, indent && { paddingLeft: 28 }, found && { backgroundColor: "var(--accent-wash)" as string }] as const;
-  return onPress ? (
+  return <Tip help={help}>{onPress ? (
     <Pressable
       accessibilityRole="button" accessibilityLabel={sub ? `${label}. ${sub}` : label} testID={`row-${id}`} onPress={onPress}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} {...webOnly({ dataSet: { sid: id } })}
@@ -106,7 +114,7 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
     </Pressable>
   ) : (
     <View testID={`row-${id}`} accessibilityLabel={label} {...webOnly({ dataSet: { sid: id } })} style={common}>{body}</View>
-  );
+  )}</Tip>;
 }
 
 // ---------------------------------------------------------------- controls

@@ -53,7 +53,7 @@ export function SuggestionCard({ agentId, file, density = "regular", onApplied }
       {open.widening ? <Text style={st.warn} testID="suggestion-widening">This loosens a rule. An admin sees it in the overrides.</Text> : null}
       <DiffTab title={file} layout="unified" wordMarks files={[{ path: file, added: hunks.reduce((n, h) => n + (h.added ? h.added.split("\n").length : 0), 0), removed: hunks.reduce((n, h) => n + (h.removed ? h.removed.split("\n").length : 0), 0), body: "text", hunks }]} comments={[]} selectedPath={file} density={density} bare testID="suggestion-diff" />
       <View style={st.foot}>
-        <Text style={st.footText} testID="suggestion-foot">Nothing changes until you apply it. The old version stays in history.</Text>
+        <Text style={st.footText} testID="suggestion-foot" {...{ title: "The old version stays in History." }}>Nothing changes until you apply it.</Text>
         <Btn label="Dismiss" small disabled={busy} onPress={() => go("dismiss")} testID="suggestion-dismiss" />
         <Btn label={`Apply to ${file}`} small primary disabled={busy} onPress={() => go("apply")} testID="suggestion-apply" />
       </View>

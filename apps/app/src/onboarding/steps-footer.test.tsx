@@ -130,3 +130,10 @@ test("the Finish setup entry shows the handled count, reopens the first open ste
   await act(async () => { g.render(<ResumeChip flow="team" progress={Object.fromEntries(stepsOf("team").map((st) => [st.key, "done" as const]))} device="mac" onOpen={noop} />); });
   assert.equal(find(g.container as never, "resume-chip"), null);
 });
+
+test("on the phone the Finish setup entry never floats over the page; the computer keeps the pill", async () => {
+  const { ResumeChip } = await import("./ResumeChip.tsx");
+  const draw = (compact: boolean): string => renderToStaticMarkup(<ResumeChip flow="personal" progress={{ ai: "done" }} device={compact ? "phone" : "mac"} compact={compact} onOpen={noop} />);
+  assert.equal(draw(true), "", "the phone shows setup as a row on the You page instead");
+  assert.match(draw(false), /Finish setup, 1 of/);
+});

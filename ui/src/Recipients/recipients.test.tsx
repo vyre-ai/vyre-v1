@@ -47,6 +47,14 @@ test("the rendered field shows To with its placeholder and the Cc and Bcc button
   assert.doesNotMatch(html, /recipients-row-bcc/);
 });
 
+test("hideToLabel drops the first row's own To (a header that says it already) and keeps the Cc and Bcc labels", () => {
+  const withTo = renderToStaticMarkup(<Recipients me={ME} directory={directory} cc={["omar@northwind.example"]} />);
+  const without = renderToStaticMarkup(<Recipients me={ME} directory={directory} cc={["omar@northwind.example"]} hideToLabel />);
+  assert.ok((withTo.match(/>To</g) ?? []).length === 1 && (without.match(/>To</g) ?? []).length === 0, "the To label goes");
+  assert.match(without, />Cc</, "Cc keeps its label");
+  assert.match(without, /recipients-input-to/, "the field itself stays");
+});
+
 test("a row with addresses shows chips; Cc appears when it has people, and its button goes away", () => {
   const html = renderToStaticMarkup(<Recipients me={ME} directory={directory} to={["elena@riveraholdings.example"]} cc={[{ email: "maya@northwind.example", name: "Maya Chen" }]} />);
   assert.match(html, /data-testid="recipient-to-0"/);

@@ -304,7 +304,7 @@ function FieldLine({ view, fieldKey, secret, hasValue, value, canSee, online, bu
   const text = shown ? value : hasValue ? MASK : "";
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={`${fieldKey}${shown ? "" : ", hidden"}`} testID={`env-line-${fieldKey}`}
+      accessibilityRole="group" accessibilityLabel={`${fieldKey}${shown ? "" : ", hidden"}`} testID={`env-line-${fieldKey}`}
       onPress={canSee ? onCopy : undefined} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
       style={[s.line, over && { backgroundColor: "var(--hover)" as string }]}
     >

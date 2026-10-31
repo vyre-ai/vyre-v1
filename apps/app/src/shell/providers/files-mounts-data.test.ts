@@ -35,3 +35,28 @@ test("a set-up App: the installation names the account", async () => {
   const a = await loadAccounts(c.call, null);
   assert.deepEqual([a.github.connected, a.github.label], [true, "acme"]);
 });
+
+test("connect GitHub in place: open the install page, poll until the installation appears, then hand its account back", async () => {
+  const { connectGithub } = await import("./files-mounts-data.ts");
+  const opened: string[] = [];
+  let reads = 0;
+  const call = async (cap: string): Promise<unknown> => {
+    if (cap === "github.app.get") return { slug: "vyre-acme" };
+    reads += 1;
+    return { installations: reads >= 4 ? [{ account: "acme" }] : [] };
+  };
+  const got = await connectGithub(call, (u) => opened.push(u), { sleep: async () => undefined });
+  assert.deepEqual(got, { label: "acme", connected: true });
+  assert.deepEqual(opened, ["https://github.com/apps/vyre-acme/installations/new"]);
+});
+
+test("connect GitHub in place: an installation that already exists opens no page; no App set up says so; giving up returns null", async () => {
+  const { connectGithub } = await import("./files-mounts-data.ts");
+  const opened: string[] = [];
+  const has = async (cap: string): Promise<unknown> => (cap === "github.app.get" ? { slug: "s" } : { installations: [{ account: "acme" }] });
+  assert.deepEqual(await connectGithub(has, (u) => opened.push(u), { sleep: async () => undefined }), { label: "acme", connected: true });
+  assert.equal(opened.length, 0);
+  assert.equal(await connectGithub(async () => { throw new Error("not set up"); }, () => undefined), "not_set_up");
+  const none = async (cap: string): Promise<unknown> => (cap === "github.app.get" ? { slug: "s" } : { installations: [] });
+  assert.equal(await connectGithub(none, () => undefined, { sleep: async () => undefined, tries: 3 }), null);
+});

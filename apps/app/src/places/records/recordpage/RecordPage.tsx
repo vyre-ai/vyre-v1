@@ -199,7 +199,7 @@ function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; de
   const now = data.now();
   const entries = hq.status === "ready" ? hq.data.entries : [];
   const lines: ReactElement[] = [];
-  entries.forEach((e, i) => lines.push(<Row key={`${e.hlc}:${i}`} id={`act:${i}`} title={activityLine(e, def, data.nameOf)} note={e.reason ?? ""} leading={<Face name={data.nameOf(e.actor)} size={20} />} />));
+  entries.forEach((e, i) => lines.push(<Row key={`${e.hlc}:${i}`} id={`act:${i}`} title={activityLine(e, def, data.nameOf)} note={e.reason ?? ""} leading={<View style={{ marginRight: 8 }}><Face name={data.nameOf(e.actor)} size={20} /></View>} />));
   const facts: ReactElement[] = [];
   if (mq.status === "ready") for (const f of mq.data.facts) facts.push(<Row key={f.factId} id={`fact:${f.factId}`} title={f.text} note={`${f.layer} · ${ago(f.learnedAt, now)}`} onPress={() => data.nav.openSource(f.sourceLink ?? f.sourceRef)} />);
   const notes: ReactElement[] = [];
@@ -479,7 +479,7 @@ const p = StyleSheet.create({
   peekRow: { flexDirection: "row", justifyContent: "space-between", gap: 14 },
   peekLabel: { fontSize: 12, color: "var(--ink-3)" as string },
   peekValue: { fontSize: 12, color: "var(--ink-2)" as string, flexShrink: 1 },
-  more: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingVertical: 8, paddingHorizontal: 4 },
+  more: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingVertical: 8, paddingHorizontal: 0 },
   flash: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, paddingVertical: 7, backgroundColor: "var(--accent-wash)" as string },
   flashBad: { backgroundColor: "var(--sunk)" as string },
   flashText: { flex: 1, fontSize: 12.5, color: "var(--ink)" as string },

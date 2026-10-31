@@ -71,7 +71,7 @@ async function push(w: World, mountId: string): Promise<{ moved: number; held: n
 }
 
 async function addDrive(w: World): Promise<{ mountId: string; folderId: string }> {
-  const r = await call(w, "mounts.add", { into: "fld_into", source: { kind: "google_drive", connectionId: "con_g", ref: "root_drv" }, name: "Client Drive" });
+  const r = await call(w, "mounts.add", { into: "fld_into", source: { kind: "google_drive", connectionId: "con_g", ref: "root_drv" }, name: "Client Drive", mode: "server_copy" });
   return { mountId: String(r["mountId"]), folderId: String(r["folderId"]) };
 }
 
@@ -254,7 +254,7 @@ test("an edit without a rename is not a move: pushMoves leaves it for the upload
 test("SharePoint and OneDrive: create, then remove, through the Graph capabilities", async () => {
   for (const kind of ["sharepoint", "onedrive"] as const) {
     const w = harness();
-    const add = await call(w, "mounts.add", { into: "fld_into", source: { kind, connectionId: "con_m", ref: "drv1" }, name: "Library" });
+    const add = await call(w, "mounts.add", { into: "fld_into", source: { kind, connectionId: "con_m", ref: "drv1" }, name: "Library", mode: "server_copy" });
     const mountId = String(add["mountId"]);
     const readme = w.files.fileNamed("readme.md");
     const before = item(w, mountId, "readme.md")["remote_id"];

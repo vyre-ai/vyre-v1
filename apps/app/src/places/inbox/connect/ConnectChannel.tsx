@@ -2,6 +2,7 @@
 // and IMAP; the Vault's Twilio form for texts and calls). The same choice answers the pencil, the plus and the Dialer while nothing is connected.
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StateTile } from "../../../../../../ui/src/States/index.tsx";
 import { AppIcon } from "../../../../../../ui/src/AppIcon/index.tsx";
 import { CONNECT_TILES } from "../sidebar/model.ts";
 import type { ConnectTile } from "../sidebar/model.ts";
@@ -18,7 +19,7 @@ export function ConnectChannel({ onPick }: { onPick?: (tile: ConnectTile) => voi
   const pick = (tile: ConnectTile): void => { data.nav.connect(tile.kind); onPick?.(tile); };
   return (
     <View style={s.wrap} testID="inbox-connect-channel" accessibilityLabel="Connect a channel">
-      <Glyph name="inbox" size={28} color="var(--ink-3)" />
+      <StateTile name="inbox" />
       <Text accessibilityRole="header" aria-level={2} style={s.title}>Connect a channel</Text>
       <View style={s.grid}>
         {/* ui-rows-lint: not a list (channel tiles laid out in a wrapping grid) */}

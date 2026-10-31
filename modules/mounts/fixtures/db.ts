@@ -17,13 +17,15 @@ interface TableDef {
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/** The core migration with the later ADD COLUMN migrations folded into its CREATE TABLEs (the memory database reads CREATE TABLE only). */
+/** The core migration with the later ADD COLUMN migrations folded into its CREATE TABLEs and their own CREATE TABLEs appended (the memory database reads CREATE TABLE only). */
 export function readMigration(): string {
   let sql = readFileSync(join(here, "../migrations/0001_mounts_core.sql"), "utf8");
   for (const file of readdirSync(join(here, "../migrations")).filter((f) => /^\d{4}_.*\.sql$/.test(f) && !f.startsWith("0001_")).sort()) {
-    for (const m of readFileSync(join(here, "../migrations", file), "utf8").matchAll(/^ALTER TABLE (\w+) ADD COLUMN ([^;]+);/gm)) {
+    const later = readFileSync(join(here, "../migrations", file), "utf8");
+    for (const m of later.matchAll(/^ALTER TABLE (\w+) ADD COLUMN ([^;]+);/gm)) {
       sql = sql.replace(new RegExp(`(CREATE TABLE IF NOT EXISTS ${m[1]} \\([\\s\\S]*?)\\n\\);`), `$1,\n  ${m[2]}\n);`);
     }
+    for (const m of later.matchAll(/^CREATE TABLE IF NOT EXISTS [\s\S]*?\n\);/gm)) sql += `\n${m[0]}`;
   }
   return sql;
 }

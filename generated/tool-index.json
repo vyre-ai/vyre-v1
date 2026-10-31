@@ -830,6 +830,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_vault_usage",
+      "summary": "Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_versions",
       "summary": "List versions of an Automation (One History)",
       "toolset": "automations"
@@ -3410,6 +3416,12 @@
     },
     {
       "deferred": true,
+      "name": "google_drive_download_revision",
+      "summary": "Download one revision of a Drive file into a blob",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "google_drive_export_file",
       "summary": "Export a Google document, sheet or slide as PDF, DOCX, XLSX or text",
       "toolset": "files"
@@ -3434,6 +3446,12 @@
     },
     {
       "deferred": true,
+      "name": "google_drive_list_revisions",
+      "summary": "The revisions Drive keeps of a file, with who saved each",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "google_drive_share_file",
       "summary": "Share a Drive file with people; Google emails them",
       "toolset": "files"
@@ -3447,7 +3465,7 @@
     {
       "deferred": true,
       "name": "google_drive_upload_file",
-      "summary": "Upload a Space file into Drive",
+      "summary": "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
       "toolset": "files"
     },
     {
@@ -4970,14 +4988,38 @@
     },
     {
       "deferred": false,
+      "name": "mounts_editors",
+      "summary": "Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "mounts_get",
       "summary": "Read one mount: state, lag, pending changes and conflicts (the sync line of a folder)",
       "toolset": "files"
     },
     {
       "deferred": false,
+      "name": "mounts_history",
+      "summary": "The provider's revisions of a file, newest first, with who saved each (the person or agent for edits sent from Vyre)",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "mounts_list",
       "summary": "List mounts the caller can see",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "mounts_nudge",
+      "summary": "A provider push notice (Drive channel, Graph subscription) or an app showing a mount asks for a sync pass (system)",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "mounts_open",
+      "summary": "Open a file of a mount: ask the provider what it holds now and fetch the content only when the copy in Vyre is not that version",
       "toolset": "files"
     },
     {
@@ -4990,6 +5032,12 @@
       "deferred": false,
       "name": "mounts_remove",
       "summary": "Remove a mount; keep the files as a plain folder or delete the copy",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "mounts_restore",
+      "summary": "Put an earlier revision of a file back as the newest; it goes out like any edit",
       "toolset": "files"
     },
     {
@@ -5156,6 +5204,12 @@
     },
     {
       "deferred": true,
+      "name": "ms_drive_download_version",
+      "summary": "Download one version of an item into a blob",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "ms_drive_get_item",
       "summary": "Read item metadata",
       "toolset": "files"
@@ -5168,6 +5222,12 @@
     },
     {
       "deferred": true,
+      "name": "ms_drive_list_versions",
+      "summary": "The versions OneDrive or SharePoint keeps of an item, with who saved each",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "ms_drive_share_item",
       "summary": "Create a sharing link or invite people; Microsoft emails them",
       "toolset": "files"
@@ -5175,7 +5235,7 @@
     {
       "deferred": true,
       "name": "ms_drive_upload_item",
-      "summary": "Upload a Space file into OneDrive or SharePoint",
+      "summary": "Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag",
       "toolset": "files"
     },
     {

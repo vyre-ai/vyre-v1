@@ -366,7 +366,18 @@ export function mapItem(f: Record<string, unknown>) {
   if (f.folder !== undefined) out.folder = true;
   const parent = text(obj(f.parentReference).id);
   if (parent) out.parentId = parent;
+  if (text(f.eTag) !== undefined) out.eTag = text(f.eTag);
+  const by = mapEditor(obj(obj(f.lastModifiedBy).user));
+  if (by) out.lastModifiedBy = by;
   return out;
+}
+
+/** Graph's person, as the name and address shown for "last edited by". */
+function mapEditor(u: Record<string, unknown>): { name?: string; email?: string } | undefined {
+  const out: { name?: string; email?: string } = {};
+  if (text(u.displayName) !== undefined) out.name = text(u.displayName);
+  if (text(u.email) !== undefined) out.email = text(u.email);
+  return out.name !== undefined || out.email !== undefined ? out : undefined;
 }
 
 const driveBase = (sub: string, driveId?: string): string => (driveId ? `${GRAPH}/drives/${enc(driveId)}` : userUrl(sub, "/drive"));
@@ -398,12 +409,43 @@ export async function driveDelta(ctx: MsCtx, a: Act & { driveId?: string; deltaL
   return { changed: r.changed.map(mapItem), removed: r.removed, deltaLink: r.deltaLink };
 }
 
-export async function driveUpload(ctx: MsCtx, a: Act & { driveId?: string; folderId?: string; name: string; fileId: string }) {
+/**
+ * Send a Space file to OneDrive or SharePoint. Without `remoteId` the file is written by name into the folder; with it the item's content is replaced in place.
+ * `ifMatch` (the item's eTag) makes the replace conditional: Graph answers 412 when the item moved on, and nothing is written (`stale`).
+ */
+export async function driveUpload(ctx: MsCtx, a: Act & { driveId?: string; folderId?: string; name: string; fileId: string; remoteId?: string; ifMatch?: string }) {
   if (!a.name || /[\\/:*?"<>|]/.test(a.name)) bad(ctx, "The file name has characters OneDrive does not allow.");
   const { sub, token } = await bearer(ctx, { cap: "ms.drive.upload_item", connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
   const base = driveBase(sub, a.driveId);
-  const url = a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(a.name)}:/content` : `${base}/root:/${enc(a.name)}:/content`;
-  return { item: mapItem(obj(await needHost(ctx).upload(ctx, { url, token, fileId: a.fileId }))) };
+  const url = a.remoteId !== undefined ? `${base}/items/${enc(a.remoteId)}/content` : a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(a.name)}:/content` : `${base}/root:/${enc(a.name)}:/content`;
+  try {
+    return { item: mapItem(obj(await needHost(ctx).upload(ctx, { url, token, fileId: a.fileId, ...(a.remoteId !== undefined && a.ifMatch !== undefined ? { ifMatch: a.ifMatch } : {}) }))) };
+  } catch (e) {
+    if (a.ifMatch !== undefined && codeOf(e) === "validation.version_conflict") return { stale: true };
+    throw e;
+  }
+}
+
+/** The versions OneDrive or SharePoint keeps of an item, with who saved each. */
+export async function driveVersions(ctx: MsCtx, a: Act & { driveId?: string; itemId: string }) {
+  const sub = await who(ctx, a, "ms.drive.list_versions");
+  const r = await call(ctx, a, "ms.drive.list_versions", { url: `${driveBase(sub, a.driveId)}/items/${enc(a.itemId)}/versions`, bulk: true });
+  return {
+    versions: list(r.value).map((x) => {
+      const o = obj(x);
+      const v: Record<string, unknown> = { id: text(o.id) ?? "", lastModifiedDateTime: text(o.lastModifiedDateTime) ?? "" };
+      if (int(o.size) !== undefined) v.size = int(o.size);
+      const by = mapEditor(obj(obj(o.lastModifiedBy).user));
+      if (by) v.lastModifiedBy = by;
+      return v;
+    }),
+  };
+}
+
+export async function driveVersionDownload(ctx: MsCtx, a: Act & { driveId?: string; itemId: string; versionId: string }) {
+  const { sub, token } = await bearer(ctx, { cap: "ms.drive.download_version", connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
+  const got = await needHost(ctx).download(ctx, { url: `${driveBase(sub, a.driveId)}/items/${enc(a.itemId)}/versions/${enc(a.versionId)}/content`, token });
+  return { blobId: got.blobId, size: got.size };
 }
 
 export async function driveFolder(ctx: MsCtx, a: Act & { driveId?: string; parentId?: string; name: string }) {

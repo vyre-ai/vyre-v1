@@ -59,7 +59,7 @@ export function ErasePerson(): ReactElement {
   return <>
     <Section title="Find a person"><Group>
       <Field label="Name" value={name} onChange={(value) => { setName(value); onEdit(); }} /><Field label="Email" value={email} onChange={(value) => { setEmail(value); onEdit(); }} /><Field label="Phone" value={phone} onChange={(value) => { setPhone(value); onEdit(); }} />
-      <Button label="Find data" disabled={action.busy || !Object.keys(subject).length} onPress={find} />
+      <Button label="Find data" disabled={action.busy || !Object.keys(subject).length} why={!Object.keys(subject).length?"Name a person first":undefined} onPress={find} />
     </Group></Section>
     {finding ? <Section title="Erase preview"><Group>
       <Row title="Preview expires" note={new Date(finding.expiresAt).toLocaleString()} />

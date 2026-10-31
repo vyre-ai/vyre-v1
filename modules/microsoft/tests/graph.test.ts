@@ -16,7 +16,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  calendarDelta, calendars, driveDelete, driveDelta, driveDownload, driveFolder, driveItem, driveItems, driveShare, driveUpload, eventCreate, eventDelete, eventGet,
+  calendarDelta, calendars, driveDelete, driveDelta, driveDownload, driveFolder, driveItem, driveItems, driveShare, driveUpload, driveVersionDownload, driveVersions, eventCreate, eventDelete, eventGet,
   eventRespond, events, eventUpdate, mailAttachment, mailDelete, mailDelta, mailDraft, mailFolders, mailGet, mailMessages, mailMove, mailSend, mailUpdate, meetingTimes,
   pollInterval, pullMailbox, recordingGet, recordings, schedule, transcriptGet, transcripts,
 } from "../handlers/graph.ts";
@@ -446,4 +446,28 @@ test("Graph's refusals map to the error catalogue without passing Graph's text o
   await assert.rejects(() => mailFolders(h.ctx, act), (e) => codeOf(e) === "provider.network");
   h.on("GET", `${U}/mailFolders?`, { body: "<html>not json</html>" });
   await assert.rejects(() => mailFolders(h.ctx, act), (e) => codeOf(e) === "provider.bad_response");
+});
+
+test("an upload with a remote id replaces the item in place; with ifMatch Graph's 412 means the item moved on and nothing was written", async () => {
+  const h = ready();
+  const same = await driveUpload(h.ctx, { ...act, folderId: "f1", name: "Contract.pdf", fileId: "fil_x", remoteId: "i1", ifMatch: "etag1" });
+  assert.deepEqual(h.uploads[0], { url: `${U}/drive/items/i1/content`, ifMatch: "etag1" });
+  assert.deepEqual([same.item?.eTag, same.item?.lastModifiedBy], ["etag2", { name: "Maya Lin", email: "maya@vyre.test" }]);
+  const stale = await driveUpload(h.ctx, { ...act, folderId: "f1", name: "Contract.pdf", fileId: "fil_x", remoteId: "i1", ifMatch: "etag0" });
+  assert.deepEqual(stale, { stale: true });
+  const fresh = await driveUpload(h.ctx, { ...act, folderId: "f1", name: "Copy.pdf", fileId: "fil_x" });
+  assert.deepEqual(h.uploads[2], { url: `${U}/drive/items/f1:/Copy.pdf:/content` }, "a new file is written by name and is not conditional");
+  assert.ok(fresh.item);
+  for (const out of [same, stale, fresh]) check("ms.drive.upload_item", out);
+});
+
+test("versions list who saved each one and one version downloads into a blob", async () => {
+  const h = ready();
+  h.on("GET", `${U}/drive/items/i1/versions`, { body: { value: [{ id: "2.0", lastModifiedDateTime: "2026-10-02T08:00:00Z", size: 12, lastModifiedBy: { user: { displayName: "Maya Lin", email: "maya@vyre.test" } } }, { id: "1.0", lastModifiedDateTime: "2026-10-01T08:00:00Z" }] } });
+  const out = await driveVersions(h.ctx, { ...act, itemId: "i1" });
+  assert.deepEqual(out.versions, [{ id: "2.0", lastModifiedDateTime: "2026-10-02T08:00:00Z", size: 12, lastModifiedBy: { name: "Maya Lin", email: "maya@vyre.test" } }, { id: "1.0", lastModifiedDateTime: "2026-10-01T08:00:00Z" }]);
+  const dl = await driveVersionDownload(h.ctx, { ...act, itemId: "i1", versionId: "1.0" });
+  assert.deepEqual(dl, { blobId: "blb_download", size: 42 });
+  check("ms.drive.list_versions", out);
+  check("ms.drive.download_version", dl);
 });

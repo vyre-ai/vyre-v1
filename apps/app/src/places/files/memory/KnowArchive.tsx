@@ -38,7 +38,7 @@ export function KnowArchive(): ReactElement {
   return (
     <View style={frame.main} testID="know-archive">
       <KnowHeader crumbs={[{ t: "Knowledge", route: { v: "learned" } }, { t: "Archive" }]} />
-      <KnowColumn testID="know-archive-body" label="Archive" title="Archive" lede="Facts untouched in Trash for 60 days. They are out of search and out of recall. An admin can restore one, and the trail keeps every step.">
+      <KnowColumn testID="know-archive-body" label="Archive" title="Archive" lede="Untouched in Trash for 60 days. Out of search and recall. An admin can restore one.">
         <Flash flash={doing.flash} onClose={() => doing.setFlash(null)} />
         <ErrorLine text={doing.err ?? failed} />
         {member ? <Bar icon="lock" testID="archive-member" text="You are viewing as a member. Only Space admins can restore from Archive." /> : null}

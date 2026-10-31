@@ -157,8 +157,36 @@ export function controlFor(row: SettingRow, schema: Schema | undefined = HINTS[r
 }
 
 /** The label a row shows when the registry's title carries a unit or a hint the page says with its control. */
-export const ROW_LABELS: Readonly<Record<string, string>> = { "appearance.text_size": "Text size" };
+export const ROW_LABELS: Readonly<Record<string, string>> = {
+  "appearance.text_size": "Text size",
+  "chrome.agents_use_my_browser": "Agents use my Chrome",
+  "security.chrome_mode": "Chrome prompts",
+  "security.terminal_mode": "Terminal prompts",
+  "security.team_agents_on_my_computer": "Team agents use my terminal",
+  "notifications.working_hours": "Working hours",
+  "notifications.push_idle_minutes": "Idle minutes before phone pushes",
+  "engine.runtime_opt_in": "Continue my chats when my computer is off",
+  "engine.subscription_share": "Run Space work on my subscription",
+  "chat.ask_agent": "Last Ask agent",
+  "sync.blob_cache_mb": "File cache",
+  "home.digest_schedule": "Digest time",
+};
+/** What a long title used to say in brackets: shown on hover, never as a line of its own. */
+export const ROW_HELP: Readonly<Record<string, string>> = {
+  "chrome.agents_use_my_browser": "One switch per Space. Only that Space's agents, with a visible indicator.",
+  "security.chrome_mode": "Ask, Allow or Auto. One value per Space.",
+  "security.terminal_mode": "Ask, Allow or Auto. One value per Space.",
+  "security.team_agents_on_my_computer": "One switch per Space. Locked to a work folder.",
+  "notifications.working_hours": "Outside them only calls, urgent approvals and incidents interrupt.",
+  "notifications.push_idle_minutes": "Minutes idle on the computer before pushes go to the phone.",
+  "chat.ask_agent": "The agent you last used in an Ask pane.",
+  "sync.blob_cache_mb": "Size of the file cache on this computer.",
+  "home.digest_schedule": "When the assistant writes the While you were away digest.",
+};
+/** Rows that need a team Space: a Personal Space has no one to share with, so they are not drawn there. */
+export const TEAM_ONLY_ROWS: readonly string[] = ["engine.runtime_opt_in", "engine.subscription_share", "chrome.agents_use_my_browser", "security.team_agents_on_my_computer"];
 export const rowLabel = (row: SettingRow): string => ROW_LABELS[row.key] ?? row.title;
+export const rowHelp = (row: SettingRow): string | undefined => ROW_HELP[row.key];
 
 export function labelOf(value: string): string {
   const words = value.replace(/[_-]+/g, " ").trim();

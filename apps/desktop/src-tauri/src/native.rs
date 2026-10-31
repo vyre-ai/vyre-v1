@@ -726,8 +726,11 @@ mod tests {
         let sources = claude_sources(Some(claude.to_str().unwrap()), None);
         assert_eq!(sources.len(), 1, "subagents belong to their parent and are not selectable sessions");
         assert_eq!(sources[0].session_id, parent);
-        assert_eq!(sources[0].git_origin_url, None, "discovery does not read transcript metadata");
-        assert_eq!(sources[0].cwd, None, "CLI-only Claude Code has no Desktop metadata");
+        // The picker shows each session's name, date and folder: discovery reads the transcript head on this computer only.
+        assert_eq!(sources[0].title.as_deref(), Some("Parent"));
+        assert!(sources[0].updated_at.is_some(), "the file time dates a CLI-only session");
+        assert_eq!(PathBuf::from(sources[0].cwd.as_deref().unwrap()).canonicalize().unwrap(), canonical_repo, "the transcript folder resolves to its checkout");
+        assert_eq!(sources[0].git_origin_url.as_deref(), Some("https://example.com/acme/vyre.git"), "the remote never carries its credentials");
         let root = claude.canonicalize().unwrap();
         let read = read_discovered_source(&sources[0], &root).unwrap();
         assert_eq!(read["documents"].as_array().map(Vec::len), Some(2));

@@ -53,11 +53,21 @@ test("providers: the words for how a provider connects, whose it is, what it cos
 test("providers: a subscription opens on the prototype's own page, with the sign-in box, models, Used by and no .env card", () => {
   const out = clean(renderToStaticMarkup(<Vault data={sample().data} initial={{ kind: "providers" }} />));
   assert.ok(has(out, 'data-testid="provider-page"') && !has(out, 'data-testid="item-env"') && !has(out, 'data-testid="provider-panel"'), "its own page, no card, no strip");
-  assert.ok(has(out, "Signed in with Claude Max") && has(out, "Sign in again") && has(out, ">Models<") && has(out, "Only you can use it"));
+  assert.ok(has(out, "Signed in with Claude Max") && has(out, 'data-testid="provider-state"') && has(out, "Working") && has(out, ">Models<") && has(out, "Only you can use it"));
+  assert.ok(!has(out, "Sign in again"), "a working account never asks to sign in again");
   assert.ok(has(out, ">Used by<") && has(out, ">Intake<") && has(out, ">Research<") && has(out, ">Recent use<"));
-  assert.ok(has(out, "This month:") && has(out, "4.2M tokens"), "the month's total line");
+  assert.ok(has(out, "this month") && has(out, "4.2M tokens"), "the month's total line");
   assert.ok(has(out, 'data-testid="provider-ask"') && !has(out, 'data-testid="provider-share"'), "Ask in the header, nothing to share");
   assert.deepEqual(["Claude", "OpenCode Go key", "OpenAI key"].map((n) => has(out, n)), [true, true, true], "the prototype's three providers");
+});
+
+test("providers: Sign in again shows only on an account that needs it", () => {
+  const s0 = sample();
+  const p = provider(s0, "prv_claude");
+  const stale = within(s0, <ProviderPage provider={{ ...p, state: "needs_sign_in" }} handle="#Northwind_Claude" onNote={() => undefined} />);
+  assert.ok(has(stale, "Sign in again") && !has(stale, "Working"), "an expired sign-in offers the button, not the dot");
+  const fine = within(s0, <ProviderPage provider={{ ...p, state: "ok" }} handle="#Northwind_Claude" onNote={() => undefined} />);
+  assert.ok(!has(fine, "Sign in again") && has(fine, "Working"));
 });
 
 test("providers: per-actor tokens show only when the usage gives them, never invented", () => {

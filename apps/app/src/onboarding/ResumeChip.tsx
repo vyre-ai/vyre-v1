@@ -1,8 +1,9 @@
 // The small entry that lingers in the app while setup is unfinished: a progress ring and "Finish setup, 3 of 8". It reopens onboarding at the first step not yet done or skipped,
 // and disappears once every step is handled. Hide puts it away for good on this device (the Home checklist still reopens setup).
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { COMPACT_BELOW } from "../shell/spaces/Shell.tsx";
 import { countsOn, stateOn, visibleSteps } from "./device.ts";
 import type { Device } from "./device.ts";
 import type { FlowKind, Progress } from "./flow.ts";
@@ -18,15 +19,25 @@ export function resumeInfo(flow: FlowKind, progress: Progress, device: Device): 
   return step ? { handled: c.done + c.later, total: c.total, step: step.key } : null;
 }
 
-export function ResumeChip({ flow, progress, device, onOpen }: { flow: FlowKind; progress: Progress; device: Device; onOpen(step: string): void }): ReactElement | null {
+/** Unfinished setup for screens that show it in place (the phone's You page): handled of total, and how to reopen it. Null when setup is done or open. */
+export interface Resume { handled: number; total: number; open(): void }
+export const ResumeContext = createContext<Resume | null>(null);
+export const useResume = (): Resume | null => useContext(ResumeContext);
+
+export function ResumeChip({ flow, progress, device, onOpen, compact }: { flow: FlowKind; progress: Progress; device: Device; onOpen(step: string): void; compact?: boolean }): ReactElement | null {
   const [hidden, setHidden] = useState(() => read(flow));
+  const width = useWindowDimensions().width;
+  const overBar = compact ?? (width > 0 && width < COMPACT_BELOW);
   const info = resumeInfo(flow, progress, device);
   if (!info || hidden) return null;
   const R = 9, C = 2 * Math.PI * R, off = C * (1 - info.handled / Math.max(info.total, 1));
+  // On the phone a floating pill would cover the page's own controls (Sign out, the send button): the You page carries a Finish setup row instead (ResumeContext).
+  if (overBar) return null;
+  const ringSvg = (globalThis as { document?: unknown }).document ? <svg width={24} height={24} viewBox="0 0 24 24"><circle cx={12} cy={12} r={R} fill="none" stroke="var(--line-2)" strokeWidth={3} /><circle cx={12} cy={12} r={R} fill="none" stroke="var(--accent)" strokeWidth={3} strokeDasharray={C} strokeDashoffset={off} strokeLinecap="round" transform="rotate(-90 12 12)" /></svg> : null;
   return (
     <View testID="resume-chip" style={s.chip}>
       <Pressable testID="resume-open" accessibilityRole="button" accessibilityLabel={`Finish setup, ${info.handled} of ${info.total}`} onPress={() => onOpen(info.step)} style={s.open}>
-        <View testID="resume-ring" style={s.ring}>{(globalThis as { document?: unknown }).document ? <svg width={24} height={24} viewBox="0 0 24 24"><circle cx={12} cy={12} r={R} fill="none" stroke="var(--line-2)" strokeWidth={3} /><circle cx={12} cy={12} r={R} fill="none" stroke="var(--accent)" strokeWidth={3} strokeDasharray={C} strokeDashoffset={off} strokeLinecap="round" transform="rotate(-90 12 12)" /></svg> : null}</View>
+        <View testID="resume-ring" style={s.ring}>{ringSvg}</View>
         <Text style={s.text}>{`Finish setup, ${info.handled} of ${info.total}`}</Text>
       </Pressable>
       <Pressable testID="resume-hide" accessibilityRole="button" onPress={() => { write(flow); setHidden(true); }} style={s.hide}><Text style={s.hideText}>Hide</Text></Pressable>

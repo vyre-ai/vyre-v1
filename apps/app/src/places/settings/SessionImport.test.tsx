@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createRoot } from "test-renderer";
+import { flush, installDom, mount, textOf } from "../../../../../ui/src/testing/dom.ts";
 import { SessionImport } from "./SessionImport.tsx";
 import { SettingsDataProvider } from "./data.tsx";
 import { createSampleSettings, northwind } from "./sample.ts";
@@ -44,4 +46,18 @@ test("an archive row shows the source mark, one clean title line and the date, n
   assert.equal(archiveRow({ provider: "codex", title: "", startedAt: 0 }, now).mark, "openai");
   assert.equal(archiveRow({ provider: "codex", title: "", startedAt: 0 }, now).title, "Untitled session");
   assert.equal(archiveRow({ provider: "codex", title: "x" }, now).note, "");
+});
+
+test("a server without the session archive shows the Bring row, never a raw handler error", async () => {
+  const restore = installDom();
+  try {
+    const sample = createSampleSettings(northwind);
+    const data = { ...sample.data, spaces: sample.data.spaces.map((s) => ({ ...s, kind: "personal" as const })),
+      call: async () => { throw new Error("no handler for sessions.list"); } };
+    const root = await mount(createRoot, <SettingsDataProvider value={data}><SessionImport /></SettingsDataProvider>);
+    await flush();
+    const text = textOf(root);
+    assert.match(text, /Bring your sessions/);
+    assert.doesNotMatch(text, /no handler/);
+  } finally { restore(); }
 });
