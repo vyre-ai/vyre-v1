@@ -42,3 +42,12 @@ export const hubLine = (id: string | undefined | null): string => { const h = hu
 
 /** The page where one app is signed in on the hub. */
 export const connectLink = (hub: HubTemplate, app: string): string => hub.connectUrl.replace("{app}", encodeURIComponent(app));
+
+const APP_NAMES: Record<string, string> = {
+  hubspot: "HubSpot", github: "GitHub", gitlab: "GitLab", linkedin: "LinkedIn", googlecalendar: "Google Calendar", googledrive: "Google Drive", googlesheets: "Google Sheets", googledocs: "Google Docs",
+  gmail: "Gmail", slack: "Slack", notion: "Notion", calendly: "Calendly", salesforce: "Salesforce", zendesk: "Zendesk", airtable: "Airtable", asana: "Asana", clickup: "ClickUp", mailchimp: "Mailchimp",
+  quickbooks: "QuickBooks", youtube: "YouTube", openai: "OpenAI", zoom: "Zoom", stripe: "Stripe", twilio: "Twilio", trello: "Trello", jira: "Jira", shopify: "Shopify", dropbox: "Dropbox", outlook: "Outlook",
+};
+
+/** An app's name as people write it ("HubSpot"), from the slug a hub puts in front of its tool names. Unknown slugs get a capital letter. */
+export const appName = (slug: string): string => APP_NAMES[slug.toLowerCase()] ?? (slug.charAt(0).toUpperCase() + slug.slice(1));

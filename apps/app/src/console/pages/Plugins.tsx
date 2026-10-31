@@ -90,7 +90,7 @@ export function PluginsPage(): ReactElement {
         <Button label="Remove plugin" danger testID="plugin-remove" disabled={action.busy} onPress={() => void action.run("plugins.uninstall", { pluginId: selected.pluginId, idempotencyKey: attempt() }, "Plugin removed").then(() => setOpenPlugin(null))} />
       </Actions>
     </Group></Section> : null}
-    <AppHubsSection connections={connections.data?.connections ?? []} agentId={agents.data?.agents[0]?.agentId} refresh={refresh} />
+    <AppHubsSection />
     <Section title="Outside tools" count={(connections.data?.connections ?? []).filter((c) => c.hub === undefined).length}><Group>
       <Help>Connect an MCP server by its https address or a sandbox command.</Help>
       {(connections.data?.connections ?? []).filter((c) => c.hub === undefined).map((c) => <Row key={c.connectionId} id={`conn-${c.name}`} title={c.name} note={c.url ?? `${c.command ?? ""} ${c.args.join(" ")}`.trim()} trailing={<Actions>{c.auth === "oauth" ? <OauthSignIn conn={c} refresh={refresh} /> : null}<Button label="Disconnect" disabled={action.busy} onPress={() => void action.run("plugins.connection.remove", { connectionId: c.connectionId, idempotencyKey: attempt() }, "Disconnected")} /></Actions>} />)}

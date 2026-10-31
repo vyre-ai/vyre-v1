@@ -1,4 +1,5 @@
 // Settings pages that belong to the open Space: Profile (with Copy from another Space), Notifications, Models and usage, Connections, Memory and privacy.
+import { AppHubsCard } from "../../hubs/AppHubs.tsx";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -273,6 +274,7 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "number" }) : data.nav.connect("twilio"))} control={<Glyph name="chevR" size={13} />} />
       </Section>
+      <Section title="App hubs"><AppHubsCard call={data.call} /></Section>
       <RegistrySections page="connections" rows={rows} found={found} />
     </>
   );
