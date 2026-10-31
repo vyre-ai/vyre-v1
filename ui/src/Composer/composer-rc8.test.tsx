@@ -123,7 +123,7 @@ test("the model panel opens from the strip and stays open while you pick account
     assert.equal(find(root, "model-panel"), null);
     await press(find(root, "composer-strip"));
     assert.ok(find(root, "model-panel"), "open");
-    await press(find(root, "model-sonnet"));
+    await press(find(root, "row-model-sonnet"));
     await press(find(root, "model-effort-max"));
     await keyDown(find(root, "model-panel"), "1");
     await press(find(root, "model-mode-plan"));
@@ -145,10 +145,10 @@ test("the account flyout lists only the connected accounts, by the names given, 
     const list = textOf(find(root, "model-accounts"));
     for (const n of ["Personal", "MLA work", "ChatGPT Plus", "Add another AI provider"]) assert.ok(list.includes(n), n);
     assert.ok(!list.includes("Grok"), "a provider that is not connected is not listed");
-    await press(find(root, "model-account-#gpt"));
+    await press(find(root, "row-model-account-#gpt"));
     assert.deepEqual(log, ["account:#gpt"]);
     assert.ok(find(root, "model-gpt-5"), "the models follow the account's provider");
-    assert.equal(find(root, "model-opus"), null);
+    assert.equal(find(root, "row-model-opus"), null);
     assert.ok(find(root, "model-panel"), "picking an account keeps the panel open");
     await press(find(root, "model-account"));
     await press(find(root, "model-add-provider"));
@@ -171,13 +171,13 @@ test("usage follows the selected account and model, and a meter the engine did n
     assert.match(textOf(find(root, "meter-week")), /41%/);
     assert.ok(find(root, "model-low"), "running low on Personal");
     assert.match(textOf(find(root, "model-low")), /Use MLA work · 22%/, "suggests the least used other account");
-    await press(find(root, "model-sonnet"));
+    await press(find(root, "row-model-sonnet"));
     assert.match(textOf(find(root, "meter-context")), /84k.*1M/, "the window follows the model");
     await press(find(root, "model-low-switch"));
     assert.equal(log.at(-1), "account:#cl_work", "one tap switches");
     assert.equal(find(root, "meter-week"), null, "no week number: no week meter");
     await press(find(root, "model-account"));
-    await press(find(root, "model-account-#gpt"));
+    await press(find(root, "row-model-account-#gpt"));
     assert.equal(find(root, "meter-session"), null, "Codex reports no session: hidden, not faked");
     assert.ok(find(root, "meter-context"));
   });

@@ -100,7 +100,7 @@ test("the wired panel: usage is asked for the account in use and again for the a
     assert.match(textOf(find(root, "meter-session")), /30%/);
     assert.equal(find(root, "model-fallback")!.props["aria-checked"], true);
     await press(find(root, "model-account"));
-    await press(find(root, "model-account-#key"));
+    await press(find(root, "row-model-account-#key"));
     await flush();
     assert.ok(s.calls.some((c) => c.cap === "threads.agent.configure" && c.input["accountRef"] === "#key"));
     assert.equal(find(root, "meter-session"), null, "an API key reports no session: no meter");

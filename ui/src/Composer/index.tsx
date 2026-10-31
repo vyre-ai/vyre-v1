@@ -990,6 +990,7 @@ export function Composer(props: ComposerProps): ReactElement {
       {pvData === "loading" ? <Text style={styles.pvSub}>Loading</Text> : null}
       {pvData && pvData !== "loading" ? (
         <View style={styles.kv} testID="composer-preview-fields">
+          {/* ui-rows-lint: not a list (key and value pairs in the # preview) */}
           {pvData.fields.map(([k, v]) => (
             <View key={k} style={styles.kvRow}><Text style={styles.kvK}>{k}</Text><Text style={styles.kvV} numberOfLines={1}>{v}</Text></View>
           ))}

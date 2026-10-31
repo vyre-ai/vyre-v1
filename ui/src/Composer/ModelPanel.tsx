@@ -9,6 +9,7 @@ import { EFFORTS, MODES, effortForKey, kTokens, modeInfo } from "./brain.ts";
 import type { ChatMode, ComposerAgent, Effort } from "./brain.ts";
 import { BrandMark, I, ensureComposerCss, webOnly } from "./parts.tsx";
 import { Glyph } from "./shared.tsx";
+import { Row } from "../Row/index.tsx";
 
 export interface PanelAccount {
   ref: string;
@@ -116,6 +117,7 @@ function Meter({ label, value, sub, frac, testID }: { label: string; value: Reac
 function Seg<T extends string>({ items, on, pick, testID }: { items: readonly { id: T; label: string; note?: string }[]; on: T | undefined; pick: (id: T) => void; testID: string }): ReactElement {
   return (
     <View style={st.seg} testID={testID} accessibilityRole="radiogroup">
+      {/* ui-rows-lint: not a list (segmented control choices) */}
       {items.map((x) => (
         <Pressable key={x.id} accessibilityRole="radio" accessibilityState={{ checked: x.id === on }} accessibilityLabel={x.label} testID={`${testID}-${x.id}`} onPress={() => pick(x.id)} style={[st.segBtn, x.id === on && st.segOn]}>
           <Text style={[st.segText, x.id === on && st.segTextOn]}>{x.label}</Text>
@@ -167,7 +169,11 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
   const flyList = (
     <View style={p.narrow ? st.flyInline : st.fly} testID="model-accounts">
       <Text style={st.grp}>Your accounts</Text>
-      {accounts.map((a) => <AccountRow key={a.ref} a={a} on={a.ref === p.accountRef} testID={`model-account-${a.ref}`} onPress={() => { p.onAccount(a.ref); setFly(false); }} />)}
+      {accounts.map((a) => (
+        <Row key={a.ref} id={`model-account-${a.ref}`} title={a.name} note={`${providerTitle(a.provider)}${a.plan ? ` ${a.plan}` : ""}`} selected={a.ref === p.accountRef}
+          leading={<BrandMark provider={a.provider} size={15} />} trailing={<Mini v={a.session} testID={`model-account-${a.ref}-mini`} />}
+          onPress={() => { p.onAccount(a.ref); setFly(false); }} />
+      ))}
       {p.onAddProvider ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Add another AI provider" testID="model-add-provider" onPress={() => { setFly(false); p.onAddProvider?.(); }} style={({ hovered }: { hovered?: boolean }) => [st.add, hovered === true && st.hover]}>
           <Glyph icon={I.plus} native="+" size={15} color="var(--ink-3)" />
@@ -209,14 +215,12 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
           {(p.models ?? []).map((m) => {
             const on = m.id === p.model;
             const off = m.allowed === false;
+            // a model the account may not use stays visible with the reason, and does nothing when pressed
             return (
-              <Pressable key={m.id} accessibilityRole="radio" accessibilityState={{ checked: on, disabled: off }} accessibilityLabel={m.title} testID={`model-${m.id}`} disabled={off} onPress={() => p.onModel(m.id)}
-                {...webOnly(off && m.reason ? { title: m.reason } : {})}
-                style={({ hovered }: { hovered?: boolean }) => [st.model, on && st.sel, hovered === true && !on && st.hover, off && st.off]}>
-                <View style={st.ck}>{on ? <Glyph icon={I.check} native="✓" size={14} color="var(--accent)" /> : null}</View>
-                <Text numberOfLines={1} style={st.modelTitle}>{m.title}</Text>
-                {m.note ? <Text numberOfLines={1} style={st.modelNote}>{m.note}</Text> : null}
-              </Pressable>
+              <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on}
+                {...(off ? { note: m.reason ?? "Not available on this account" } : m.note ? { note: m.note } : {})}
+                leading={<View style={st.ck}>{on ? <Glyph icon={I.check} native="✓" size={14} color="var(--accent)" /> : null}</View>}
+                {...(off ? {} : { onPress: () => p.onModel(m.id) })} />
             );
           })}
         </View>
