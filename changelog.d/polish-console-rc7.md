@@ -1,1 +1,0 @@
-- Console: the Overview's recent admin activity no longer lists "opened the audit log" (reading the log is itself a row, and the glance's own read added one each time). A disabled Create agent says why ("Name the agent first"); the shared Console button takes a `why` for any disabled button. The Plugins and Skills intro lines are one short sentence each.

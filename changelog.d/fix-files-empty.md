@@ -1,1 +1,0 @@
-- Files: an empty folder offers "Add files" (or "New folder" where uploading is not available) instead of a lone line.

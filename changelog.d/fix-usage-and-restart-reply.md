@@ -1,4 +1,0 @@
-- A chat with no model picked for the thread now runs, and is metered, on the agent's own model; the usage rows said "unknown" and the agent's model was never asked for.
-- Providers show this month's tokens and cost on each account (the list always said 0).
-- A turn that posted its reply and died with its host before the queue row closed is no longer run again when the thread is recovered, so a restart mid-turn cannot answer one message twice.
-- Usage by agent and by person shows names (and the agent's face) instead of ids, and the limit card names the agent.

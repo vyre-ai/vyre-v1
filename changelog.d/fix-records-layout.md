@@ -1,1 +1,0 @@
-- Records: one status line under the table (count and Go to row) instead of two footers, and narrower default column widths so a contact's columns fit a 1440 window beside the sidebar (wider tables scroll sideways).

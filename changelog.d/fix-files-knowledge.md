@@ -1,1 +1,0 @@
-- Files: Knowledge in the sidebar lists only the rows that hold something; with none it is one quiet entry that explains itself on hover.

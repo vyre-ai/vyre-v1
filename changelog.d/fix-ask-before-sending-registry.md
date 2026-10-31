@@ -1,1 +1,0 @@
-- App: the Automations canvas no longer reads generated/registry.json when its module loads, so the web export and the static render of the Automations screen work again.

@@ -1,1 +1,0 @@
-- Fix: the first-launch screen no longer differs between the static page and the first client render at a phone width or in the desktop app (React #418); the window is read after mount.

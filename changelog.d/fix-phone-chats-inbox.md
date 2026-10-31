@@ -1,3 +1,0 @@
-- Phone: one tap on an Inbox contact opens it (it needed a double tap); the dialer row drops its keyboard shortcut; the plan card in a chat fits the screen and drops the beside-the-chat hint; a runtime that cannot answer a capability query no longer makes the Inbox loop (the loading snapshot is one object).
-- Phone: Needs you shows three rows and Show all N; a conversation's own header carries the Back (no separate Back bar above it); another Space needing you is a dot on the You tab, not floating over the Chats list.
-- Phone chat: the header is the title and member count (no agent chip), a message has no hover bar and a long press opens its actions as a sheet; an Inbox conversation carries the Back in its contact header.

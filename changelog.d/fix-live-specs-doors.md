@@ -1,1 +1,0 @@
-- The live specs follow the new entry: a browser opens on the I was invited and server doors, a desktop on Just me, I was invited and My team with Sign in under them; Add a Space, the sign-in Back and the invite Back always open the join/create choice (they inherited the last door's start page).

@@ -1,1 +1,0 @@
-- The 0.6 app icon is back: the halftone V with the violet dot, on the Mac and Windows app and the web app's home-screen icons.

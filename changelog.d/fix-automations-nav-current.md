@@ -1,1 +1,0 @@
-- Automations: the sidebar row for the view you are on now says it is the current page (aria-current), so it is not a dead button.
