@@ -1,9 +1,10 @@
+// Lives in test/ because it crosses two modules (records and schema): the stage gates the schema writes are what the records store enforces.
 // Records: stage gates on any type. A status field whose stages list fields to fill (kept as `stageGates` by the schema module) refuses a stage change while they are empty, for every caller.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mintRecordId } from "../../../lib/ids.ts";
-import { openRecords } from "../impl.ts";
-import { stageGatesOf, toStoreField } from "../../schema/projections.ts";
+import { mintRecordId } from "../lib/ids.ts";
+import { openRecords } from "../modules/records/impl.ts";
+import { stageGatesOf, toStoreField } from "../modules/schema/projections.ts";
 
 const TYPE = {
   name: "deal", fields: [
