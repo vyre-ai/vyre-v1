@@ -221,6 +221,26 @@ test("an agent acting for the owner may use a Mine item, an agent acting for som
   h.cleanup();
 });
 
+// The private assistant of A is an agent: acting for A it reaches A's own Mine AI key at use level and nothing of B's, and acting for B it reaches B's own and nothing of A's. Whatever role or Space grant
+// the agent holds (the upgrade from Guest changes those, not this rule), a Mine item opens only for an agent whose asker owns it.
+test("an assistant acting for A uses A's Mine key and finds nothing of B's, and the other way round", async () => {
+  const h = harness();
+  h.actAs("person", MAYA);
+  const maya = await put(h, await folder(h, "mine"), "Maya AI key");
+  h.actAs("person", ROB);
+  const rob = await put(h, await folder(h, "mine"), "Rob AI key");
+  h.actAs("agent", AGENT);
+  h.ctx.actingFor = MAYA;
+  assert.equal(out(await u.use(h.ctx, { item: "Maya AI key" })).itemId, maya, "for Maya: her own key");
+  assert.equal(await refusedWith(u.use(h.ctx, { item: "Rob AI key" })), "validation.not_found", "for Maya: Rob's key is not there");
+  assert.equal(await refusedWith(u.use(h.ctx, { item: rob })), "validation.not_found", "by id too");
+  h.ctx.actingFor = ROB;
+  assert.equal(out(await u.use(h.ctx, { item: "Rob AI key" })).itemId, rob, "for Rob: his own key");
+  assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya AI key" })), "validation.not_found", "for Rob: Maya's key is not there");
+  assert.equal(await refusedWith(u.use(h.ctx, { item: maya })), "validation.not_found", "by id too");
+  h.cleanup();
+});
+
 test('a use grant revoked during asynchronous field opening cannot reach a fill sink',async()=>{
  const h=harness();const got=sinks();const id=await put(h,await folder(h),'Revocation fixture');h.grant(ROB,id,'use');h.actAs('person',ROB);
  const filling=u.fill(h.ctx,{handle:'#Revocation_fixture.api_key',target:{kind:'env',ref:'fixture-revocation'}});
