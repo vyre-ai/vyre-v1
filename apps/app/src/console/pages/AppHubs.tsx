@@ -75,6 +75,7 @@ export function AppHubsSection({ connections, agentId, refresh }: { connections:
   const [open, setOpen] = useState<string | null>(null);
   const hub = hubById(hubId) ?? HUBS[0]!;
   const mine = connections.filter((c) => c.hub !== undefined);
+  const opened = mine.find((c) => c.connectionId === open);
   const connect = async (): Promise<void> => {
     // the key goes to the Vault first; the connection holds only its handle
     const folders = ((await call("vault.folders.list", {})) as { folders: { id: string; scope: string }[] }).folders;
@@ -88,14 +89,9 @@ export function AppHubsSection({ connections, agentId, refresh }: { connections:
   return <Section title="App hubs" count={mine.length} right={<Button label="Connect an app hub" testID="hub-new" onPress={() => { setAdding(true); setUrl(hub.urlExample.startsWith("https://remote") ? hub.urlExample : ""); }} />}><Group>
     <Help>One key gives every agent a hub's apps as tools. They run on the hub, not here.</Help>
     {action.note ? <Note>{action.note}</Note> : null}
-    {mine.length === 0 ? <Empty action={{ label: "Connect an app hub", onPress: () => setAdding(true) }}>No app hub yet</Empty> : mine.map((c) => {
-      const h = hubById(c.hub)!;
-      return <View key={c.connectionId}>
-        <Row id={`hub-${c.name}`} title={h.name} note={hubLine(h.id)} onPress={() => setOpen(open === c.connectionId ? null : c.connectionId)}
-          trailing={<Button label="Disconnect" disabled={action.busy} onPress={() => void action.run("plugins.connection.remove", { connectionId: c.connectionId, idempotencyKey: attempt() }, "Disconnected")} />} />
-        {open === c.connectionId && agentId ? <HubTools conn={c} agentId={agentId} /> : null}
-      </View>;
-    })}
+    {mine.length === 0 ? <Empty action={{ label: "Connect an app hub", onPress: () => setAdding(true) }}>No app hub yet</Empty> : mine.map((c) => <Row key={c.connectionId} id={`hub-${c.name}`} title={hubById(c.hub)!.name} note={hubLine(c.hub as never)} onPress={() => setOpen(open === c.connectionId ? null : c.connectionId)}
+      trailing={<Button label="Disconnect" disabled={action.busy} onPress={() => void action.run("plugins.connection.remove", { connectionId: c.connectionId, idempotencyKey: attempt() }, "Disconnected")} />} />)}
+    {opened && agentId ? <HubTools conn={opened} agentId={agentId} /> : null}
     {adding ? <FormSheet title="Connect an app hub" testID="hub-sheet" submit="Connect" onClose={() => setAdding(false)} disabled={action.busy || key.trim() === "" || url.trim() === ""} why={key.trim() === "" ? "Paste the key first" : url.trim() === "" ? "Add the address first" : ""}
       onSubmit={() => void connect()}>
       <Segmented options={HUBS.map((h) => ({ key: h.id, title: h.name }))} value={hubId} onChange={(id) => { setHubId(id); const h = hubById(id)!; setUrl(h.urlExample.startsWith("https://remote") ? h.urlExample : ""); }} />
