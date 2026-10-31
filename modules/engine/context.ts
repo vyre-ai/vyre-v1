@@ -9,9 +9,10 @@ import type { EngineSession, OpenSession, TurnInput } from "../../agent/src/turn
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 type Obj = Record<string, unknown>;
 
+import { CONNECTOR_CHAT, CONNECTOR_SKILL } from "../../lib/connector-chat.ts";
+
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
-export const CONNECTOR_CHAT = /^(Add .+ to Automations|Build a connector)$/;
-export const CONNECTOR_SKILL = "connector-builder";
+export { CONNECTOR_CHAT, CONNECTOR_SKILL };
 
 /** The skills a turn can see: an index line each, and the body of one by name. The loader is the skills module's; this is the port the context binds to. */
 export interface SkillsPort {
