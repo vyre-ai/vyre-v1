@@ -20,6 +20,8 @@ export interface ComposerAttachment {
   file?: unknown;
   size?: number;
   mime?: string;
+  /** A file already kept in Vyre Files (picked with From Files): sent as the file itself, nothing is uploaded. */
+  fileId?: string;
 }
 
 /** Something linked from the text with [[ ]] : what it is, which one, and the words shown. */
@@ -27,6 +29,8 @@ export interface ComposerRef {
   kind: string;
   id: string;
   title: string;
+  /** "#" for a thing picked with # and drawn as an inline token ("#Title" in the text); left out for a [[link]]. */
+  token?: "#";
 }
 
 export interface ComposerShellProps {
