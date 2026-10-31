@@ -20,6 +20,7 @@ export function stubs(ctx: CallCtx) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp"),
         update: call("access.actors.update"),
       },
+      audience_set: call("access.audience_set"),
       check: call("access.check"),
       connector_builder: {
         grant: call("access.connector_builder.grant"),
@@ -59,6 +60,7 @@ export function stubs(ctx: CallCtx) {
       projection_health: call("access.projection_health"),
       propose_change: call("access.propose_change"),
       provider_check: call("access.provider_check"),
+      record_marks: call("access.record_marks"),
       request: call("access.request"),
       requests: {
         approve: call("access.requests.approve"),
@@ -1080,6 +1082,15 @@ export function stubs(ctx: CallCtx) {
         get_values: call("google.sheets.get_values"),
         update_values: call("google.sheets.update_values"),
       },
+      user: {
+        app_set: call("google.user.app_set"),
+        app_status: call("google.user.app_status"),
+        complete: call("google.user.complete"),
+        list: call("google.user.list"),
+        remove: call("google.user.remove"),
+        send_message: call("google.user.send_message"),
+        start: call("google.user.start"),
+      },
     },
     governance: {
       erase: {
@@ -1292,6 +1303,7 @@ export function stubs(ctx: CallCtx) {
         pause: call("mail.mailbox.pause"),
         resume: call("mail.mailbox.resume"),
         set_privacy: call("mail.mailbox.set_privacy"),
+        set_sync_state: call("mail.mailbox.set_sync_state"),
         update: call("mail.mailbox.update"),
       },
       message: {
@@ -1602,6 +1614,15 @@ export function stubs(ctx: CallCtx) {
           list_transcripts: call("ms.teams.recordings.list_transcripts"),
           subscribe: call("ms.teams.recordings.subscribe"),
         },
+      },
+      user: {
+        app_set: call("ms.user.app_set"),
+        app_status: call("ms.user.app_status"),
+        complete: call("ms.user.complete"),
+        list: call("ms.user.list"),
+        remove: call("ms.user.remove"),
+        send_message: call("ms.user.send_message"),
+        start: call("ms.user.start"),
       },
       workbook: {
         append_rows: call("ms.workbook.append_rows"),

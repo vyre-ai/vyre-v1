@@ -20,7 +20,8 @@ import {
   isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
-import { isNoAccount } from "./account.ts";
+import { isNoAccount, mailFix } from "./account.ts";
+import { useOpenConnect } from "../../../shell/connect/index.ts";
 import { Button, Face, Icon, LeadIcon, OriginMark, Tool } from "./parts.tsx";
 import { ReplaceKeySheet } from "../../../hubs/ReplaceKey.tsx";
 
@@ -212,6 +213,8 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const moreButtons: ReactElement[] = [];
   for (const m of actions.more) moreButtons.push(<Button key={m.key} label={m.label} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />);
   const noAccount = isNoAccount(t);
+  const mailSignIn = mailFix(t);
+  const openConnect = useOpenConnect();
   const primary = actions.primary;
   const sendBack = actions.sendBack;
   const meta = [stateWord(t.state), `Assigned to ${assigned}`, t.kind === "approve" || t.kind === "review" || t.kind === "unblock" || t.kind === "answer" ? `${roleWord(t)}: You` : ""].filter((x) => x !== "").join(" · ");
@@ -262,7 +265,8 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
           {mustTake ? <Button label="Take" primary onPress={() => void take(deps, t)} testID="needs-take" /> : null}
           {fix === "replace_key" ? <Button label="Replace key" primary onPress={() => setReplacing(true)} testID="needs-replace-key" /> : null}
           {!mustTake && noAccount ? <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" /> : null}
-          {!mustTake && !noAccount && fix === null && primary ? <Button label={primary.label} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
+          {!mustTake && mailSignIn ? <Button label="Sign in again" primary onPress={() => void openConnect?.({ kind: "mailbox", provider: mailSignIn })} testID="needs-mailfix" /> : null}
+          {!mustTake && !noAccount && fix === null && !mailSignIn && primary ? <Button label={primary.label} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
           {!mustTake && fix === null && sendBack ? <Button label="Send back" hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
           {!mustTake && fix === null ? moreButtons : null}
           {hasComputer(t) && !noAccount ? <Button label="Open its computer" onPress={() => data.nav.openComputer(t.createdBy)} testID="needs-computer" /> : null}

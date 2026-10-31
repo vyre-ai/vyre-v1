@@ -29,6 +29,12 @@ export interface HarnessOptions {
   members?: { userId: string; email: string }[];
 }
 
+/** A stand-in for the Space seal: reversible, and not the plain text, so a test can see a token never sits in a row as typed. */
+export const fakeSeal = {
+  seal: (v: Uint8Array, scope: string) => ({ keyId: `seal:${scope}`, nonce: "n", bytes: Buffer.from(Array.from(v).reverse()).toString("base64") }),
+  unseal: (s: { bytes: string }) => new Uint8Array(Array.from(Buffer.from(s.bytes, "base64")).reverse()),
+};
+
 export function harness(opts: HarnessOptions = {}) {
   const emitted: { name: string; subject: string; payload: Record<string, unknown> }[] = [];
   const called: Called[] = [];
@@ -38,7 +44,14 @@ export function harness(opts: HarnessOptions = {}) {
   const minted: { sub: string; scopes: string[] }[] = [];
   const uploads: { url: string; method?: string; metadata: Record<string, unknown> }[] = [];
   const refusedScopes = new Set<string>();
+  const userApps = new Map<string, { clientId: string }>([["#Google_Sign_In", { clientId: "client-123.apps.googleusercontent.com" }]]);
+  const exchanges: { appHandle: string; code: string; verifier: string; redirectUri: string }[] = [];
+  const refreshes: { appHandle: string; refreshToken: string; cacheKey: string; fresh: boolean }[] = [];
+  const userState = { exchangeFails: false, refreshFails: false, publicUrl: "https://space.test" as string | null };
   const ingests: Record<string, unknown>[] = [];
+  const mailState = { duplicate: false };
+  const spaceState = { kind: "team" as "team" | "personal" };
+  let taskSeq = 0;
   const ingestState = { fail: false, deduped: new Set<string>() };
   let clock = NOW;
   let tokenSeq = 0;
@@ -74,6 +87,15 @@ export function harness(opts: HarnessOptions = {}) {
         if (String(body.email).startsWith("bad")) throw fail("validation.bad_input", ctx.trace.traceId, { message: "That invitation could not be made." });
         return { invite: { id: `inv_${String(body.email).replace(/[^a-z0-9]/g, "")}` }, link: `https://space.test/join/${String(body.email).split("@")[0]}` };
       }
+      if (cap === "mail.connect") {
+        if (mailState.duplicate) throw fail("validation.duplicate", ctx.trace.traceId, { message: "That mailbox is already connected." });
+        return { mailbox: { id: `mbx_${String(body.connectionId ?? body.address)}`.slice(0, 40) } };
+      }
+      if (cap === "mail.sync_now") return { runId: "run_mail00001" };
+      if (cap === "mail.mailbox.set_sync_state") return { mailbox: { id: body.mailboxId, state: body.state } };
+      if (cap === "spaces.get") return { space: { kind: spaceState.kind } };
+      if (cap === "tasks.create") return { task: { id: `tsk_fix${++taskSeq}` } };
+      if (cap === "tasks.transition") return { task: { id: body.taskId, state: body.to } };
       if (cap === "calendar.connect_provider") return { calendarId: "cld_" + String(body.account).replace(/[^a-z0-9]/g, "") .padEnd(8, "0"), created: true };
       if (cap === "calendar.sync_now") return { runId: "run_cal00001" };
       if (cap === "meetings.ingest") return { meetingId: "rec_meet00001", created: true, merged: false };
@@ -100,13 +122,14 @@ export function harness(opts: HarnessOptions = {}) {
       return { status: 404, text: async () => JSON.stringify({ error: { code: 404, errors: [{ reason: "notFound" }] } }) };
     },
     log: { info() {}, warn() {} },
+    seal: fakeSeal,
     async schedule(at, cap, input) {
       scheduled.push({ at: Number(at), cap, input: input as Record<string, unknown> });
       return `sch_${scheduled.length}`;
     },
   };
 
-  const host: GoogleHost = {
+  const host = {
     async mintToken(_c, a) {
       minted.push({ sub: a.sub, scopes: a.scopes });
       if (a.scopes.some((s) => refusedScopes.has(s))) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "unauthorized_client" });
@@ -124,11 +147,32 @@ export function harness(opts: HarnessOptions = {}) {
       uploads.push({ url: a.url, ...(a.method !== undefined ? { method: a.method } : {}), metadata: a.metadata });
       return { id: "up1", name: String(a.metadata.name), mimeType: "text/plain", headRevisionId: "rev_new", lastModifyingUser: { displayName: "Maya Lin", emailAddress: "maya@vyre.test" } };
     },
-  };
+  } as unknown as GoogleHost;
+  Object.assign(host, {
+    async userApp(_c: GoogleCtx, handle: string) {
+      const app = userApps.get(handle);
+      if (!app) throw fail("provider.auth_failed", ctx.trace.traceId, { message: `${handle} has no client_id.` });
+      return { clientId: app.clientId, hasSecret: true };
+    },
+    async userPublicUrl() {
+      if (userState.publicUrl === null) throw fail("internal.unavailable", ctx.trace.traceId, { message: "no public address" });
+      return userState.publicUrl;
+    },
+    async userExchange(_c: GoogleCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }) {
+      exchanges.push(a);
+      if (userState.exchangeFails) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Google did not accept the sign-in." });
+      return { refreshToken: `refresh-for-${a.code}`, accessToken: `access-for-${a.code}`, expiresAt: clock + 3_600_000 };
+    },
+    async userRefresh(_c: GoogleCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }) {
+      refreshes.push({ appHandle: a.appHandle, refreshToken: a.refreshToken, cacheKey: a.cacheKey, fresh: a.fresh === true });
+      if (userState.refreshFails) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Google did not accept the sign-in." });
+      return { token: `user-access-${refreshes.length}`, expiresAt: clock + 3_600_000 };
+    },
+  });
   setGoogleHost(host);
 
   return {
-    ctx, emitted, called, scheduled, requests, minted, uploads, ingests, refuseScope: (s: string) => refusedScopes.add(s), ingestState,
+    ctx, emitted, called, scheduled, requests, minted, uploads, ingests, userApps, exchanges, refreshes, userState, mailState, spaceState, refuseScope: (s: string) => refusedScopes.add(s), ingestState,
     on(method: string, match: string | RegExp, reply: Reply | ((r: Req) => Reply) = {}) { routes.push({ method, match, reply }); },
     advance(ms: number) { clock += ms; },
     rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },

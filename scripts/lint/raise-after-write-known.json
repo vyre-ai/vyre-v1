@@ -19,5 +19,7 @@
   "modules/gate/handlers/approve.ts#release": "single-use claim: the conditional UPDATE changes no row when it refuses",
   "modules/mail/handlers/extra/routes.ts#routeSet": "the write is in the existing-route branch and the refusal in the else branch, which never run together",
   "modules/sources/handlers/hooks.ts#sources.ingest": "records the attempt: a refused delivery (too large) is stored as a rejected delivery row, and source.rejected is emitted, before the refusal",
-  "modules/dropbox/handlers/connect.ts#connectComplete": "single-use sign-in state: it is spent before the expiry, decline and token checks so a leaked link can never be replayed"
+  "modules/dropbox/handlers/connect.ts#connectComplete": "single-use sign-in state: it is spent before the expiry, decline and token checks so a leaked link can never be replayed",
+  "modules/google/handlers/personal.ts#userComplete": "single-use sign-in state: it is spent before the expiry, decline and token checks so a leaked link can never be replayed",
+  "modules/microsoft/handlers/personal.ts#userComplete": "single-use sign-in state: it is spent before the expiry, decline and token checks so a leaked link can never be replayed"
 }

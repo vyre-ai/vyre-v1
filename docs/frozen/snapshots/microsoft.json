@@ -58,6 +58,13 @@
     "ms.teams.recordings.list_recordings@1": "776f1d2823012f2bd2556eec9f22e9e79d8ff3ded4a6ce735c2791fc51945c9b",
     "ms.teams.recordings.list_transcripts@1": "d7dbe89872115a5222b565d4d391b755e02ba3465504a304d1c5617f66ceb51e",
     "ms.teams.recordings.subscribe@1": "f3ca5a21d719c8c6605e58c903c63cc9ae34dab29f769a3f3242565ebcf4fdff",
+    "ms.user.app_set@1": "859f9660d318e2537337c0800b06b9b4849fb23c30a17b5e2f1f2acf7e125345",
+    "ms.user.app_status@1": "b1100b5ea059a347a940c2020a3d7f14d257e745f19543bc134a9fe0551b5922",
+    "ms.user.complete@1": "a6c26a7b85e441d03dad4ba7ab57e13f00d8d4d5b53794d0f039d2beb09a176e",
+    "ms.user.list@1": "0257dc292d245da515ddc671648887066ce16a1ba0acaa00b2d5a6809f9b82a7",
+    "ms.user.remove@1": "739974ade7e57a7d73487a964e4789c51655715981d98c1aa735058c42db7030",
+    "ms.user.send_message@1": "49ee2357ac67f5b6e6a55ed9989ac1249c3c82caa835d7a6eb1c1ef562160016",
+    "ms.user.start@1": "ca8ed073b0910b0b5bef78d1052aad166e24514383274ea89a446d2ef19a0b17",
     "ms.workbook.append_rows@1": "d96d5abd00ddf6b6809de8180ec3f446ba8d11c59673ead16a797af9875d7fb3",
     "ms.workbook.get_range@1": "c88cdf8f43c9bb5955850d207e73870916dedc54d4e3a2fcde12793f2688b0e2",
     "ms.workbook.update_range@1": "fc46868e26695464e00b30307f1d628eaf9458d32eeaa347484c25cce9d162be"
@@ -66,6 +73,7 @@
     "microsoft.consent_configured": "67fbf72a64a636bbe70e93b2a8c117806a42dd2704f3af2c4e89d33983a3b054",
     "microsoft.consent_revoked": "75cfcedbff82873b8464aacccd897a24dad2276358508687ebf3d5c52fbee8c9",
     "microsoft.consent_verified": "22d5741c0cf0f8b5cc476b84eecdf1f545338a0e942169b647ccf1eab413b391",
-    "microsoft.notification_received": "3c78a407ee3d4a9e1c994b8121f2bfda7e3a57b68734c9a4bff67546193fd8e3"
+    "microsoft.notification_received": "3c78a407ee3d4a9e1c994b8121f2bfda7e3a57b68734c9a4bff67546193fd8e3",
+    "microsoft.user_connected": "405bcb92d48db1859296adb26411393b3d7129982aca67906620b4791b543e44"
   }
 }

@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (69)
+## Capabilities (76)
 
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
 - [google.calendar.delete_event](../capabilities/google.calendar.delete_event.md): Delete an event; Google tells the attendees
@@ -75,10 +75,18 @@ Requires: mail.
 - [google.sheets.get_spreadsheet](../capabilities/google.sheets.get_spreadsheet.md): Spreadsheet metadata: sheets and ranges
 - [google.sheets.get_values](../capabilities/google.sheets.get_values.md): Read a range of cells
 - [google.sheets.update_values](../capabilities/google.sheets.update_values.md): Write a range of cells
+- [google.user.app_set](../capabilities/google.user.app_set.md): Name the Vault item that holds the Google OAuth client (client_id, and client_secret for a web client)
+- [google.user.app_status](../capabilities/google.user.app_status.md): Whether a Google OAuth client is set up for signing in to your own Gmail, and the redirect address to give Google for it
+- [google.user.complete](../capabilities/google.user.complete.md): Finish signing in from the callback: the state and the code, or the error Google sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync
+- [google.user.list](../capabilities/google.user.list.md): Your own signed-in Google accounts
+- [google.user.remove](../capabilities/google.user.remove.md): Sign out of your own Google account: revoke it at Google and remove its token
+- [google.user.send_message](../capabilities/google.user.send_message.md): Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)
+- [google.user.start](../capabilities/google.user.start.md): Start signing in to your own Gmail: the address to approve at
 
-## Events (4)
+## Events (5)
 
 - [google.dwd_configured](../events/google.dwd_configured.md): Domain-wide delegation was set up
 - [google.dwd_probed](../events/google.dwd_probed.md): A delegation probe ran
 - [google.dwd_revoked](../events/google.dwd_revoked.md): Delegation was turned off
 - [google.push_received](../events/google.push_received.md): A verified Google push notice arrived (Gmail, Calendar, Drive or Meet)
+- [google.user_connected](../events/google.user_connected.md): A person signed in to their own Google account

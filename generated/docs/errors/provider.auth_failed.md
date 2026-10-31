@@ -30,4 +30,4 @@ HTTP 502. Retryable: no.
 - google.dwd.probe
 - google.dwd.setup
 - google.gmail.send_message
-- import.parse_airtable
+- google.user.app_set

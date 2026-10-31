@@ -86,6 +86,18 @@ export type AccessActorsUpdateOut = {
     lastSeenAt?: number;
   };
 };
+export type AccessAudienceSetIn = {
+  resource: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    id: string;
+  };
+  audience?: "space" | "added" | "me";
+  exporters?: "admins" | "viewers" | "chosen";
+};
+export type AccessAudienceSetOut = {
+  audience: "space" | "added" | "me";
+  exporters: "admins" | "viewers" | "chosen";
+};
 export type AccessCheckIn = {
   principal: {
     kind: "person" | "agent" | "actor" | "service";
@@ -174,6 +186,8 @@ export type AccessGrantsListOut = {
           to: number;
         };
         expiresAt?: number;
+        export?: boolean;
+        reshare?: boolean;
       };
       by: string;
       source?: string;
@@ -194,6 +208,8 @@ export type AccessGrantsUpdateIn = {
       to: number;
     };
     expiresAt?: number;
+    export?: boolean;
+    reshare?: boolean;
   };
 };
 export type AccessGrantsUpdateOut = {
@@ -217,6 +233,8 @@ export type AccessGrantsUpdateOut = {
         to: number;
       };
       expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
     };
     by: string;
     source?: string;
@@ -346,6 +364,8 @@ export type AccessGroupsGetOut = {
           to: number;
         };
         expiresAt?: number;
+        export?: boolean;
+        reshare?: boolean;
       };
       by: string;
       source?: string;
@@ -522,6 +542,8 @@ export type AccessPrincipalsEffectiveOut = {
           to: number;
         };
         expiresAt?: number;
+        export?: boolean;
+        reshare?: boolean;
       };
       by: string;
       source?: string;
@@ -604,6 +626,24 @@ export type AccessProviderCheckOut = {
       label?: "public" | "internal" | "confidential" | "restricted";
     }>;
 };
+export type AccessRecordMarksIn = {
+  type: string;
+};
+export type AccessRecordMarksOut = {
+  typeShared: boolean;
+  audience: "space" | "added" | "me";
+  can: {
+    manage: boolean;
+    share: boolean;
+    export: boolean;
+  };
+  rows: Array<{
+      id: string;
+      audience: "space" | "added" | "me";
+      direct: number;
+      mine: boolean;
+    }>;
+};
 export type AccessRequestIn = {
   resource: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -653,6 +693,8 @@ export type AccessRequestsApproveOut = {
         to: number;
       };
       expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
     };
     by: string;
     source?: string;
@@ -743,6 +785,8 @@ export type AccessReviewsGetOut = {
             to: number;
           };
           expiresAt?: number;
+          export?: boolean;
+          reshare?: boolean;
         };
         by: string;
         source?: string;
@@ -951,8 +995,12 @@ export type AccessShareIn = {
       to: number;
     };
     expiresAt?: number;
+    export?: boolean;
+    reshare?: boolean;
   };
   source?: string;
+  export?: boolean;
+  reshare?: boolean;
   idempotencyKey: string;
 };
 export type AccessShareOut = {
@@ -976,6 +1024,8 @@ export type AccessShareOut = {
         to: number;
       };
       expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
     };
     by: string;
     source?: string;
@@ -1010,6 +1060,8 @@ export type AccessSharesOfOut = {
             to: number;
           };
           expiresAt?: number;
+          export?: boolean;
+          reshare?: boolean;
         };
         by: string;
         source?: string;
@@ -1017,6 +1069,14 @@ export type AccessSharesOfOut = {
       };
       through: "direct" | "group" | "role" | "folder" | "owner";
     }>;
+  audience?: "space" | "added" | "me";
+  exporters?: "admins" | "viewers" | "chosen";
+  inherits?: string;
+  can?: {
+    manage: boolean;
+    share: boolean;
+    export: boolean;
+  };
 };
 export type AccessUnshareIn = {
   grantId?: string;
@@ -13517,6 +13577,66 @@ export type GoogleSheetsUpdateValuesIn = {
 export type GoogleSheetsUpdateValuesOut = {
   updatedCells: number;
 };
+export type GoogleUserAppSetIn = {
+  vaultItem: string;
+};
+export type GoogleUserAppSetOut = {
+  configured: boolean;
+  clientId: string;
+};
+export type GoogleUserAppStatusIn = Record<string, unknown>;
+export type GoogleUserAppStatusOut = {
+  configured: boolean;
+  clientId?: string;
+  vaultItem?: string;
+  redirectUri?: string;
+};
+export type GoogleUserCompleteIn = {
+  state: string;
+  code?: string;
+  error?: string;
+};
+export type GoogleUserCompleteOut = {
+  accountId: string;
+  email: string;
+  mailboxId?: string;
+};
+export type GoogleUserListIn = Record<string, unknown>;
+export type GoogleUserListOut = {
+  accounts: Array<{
+      accountId: string;
+      email: string;
+    }>;
+};
+export type GoogleUserRemoveIn = {
+  accountId: string;
+};
+export type GoogleUserRemoveOut = {
+  removed: boolean;
+};
+export type GoogleUserSendMessageIn = {
+  accountId: string;
+  to: Array<string>;
+  cc?: Array<string>;
+  bcc?: Array<string>;
+  subject: string;
+  text?: string;
+  html?: string;
+  threadId?: string;
+  attachments?: Array<string>;
+  idempotencyKey: string;
+};
+export type GoogleUserSendMessageOut = {
+  id: string;
+  threadId: string;
+};
+export type GoogleUserStartIn = {
+  loginHint?: string;
+};
+export type GoogleUserStartOut = {
+  authUrl: string;
+  state: string;
+};
 export type GovernanceEraseApplyIn = {
   findingId: string;
   include: Array<"records" | "files" | "chats" | "inbox" | "mail" | "calls" | "memory" | "runs">;
@@ -16073,6 +16193,7 @@ export type MailConnectIn = {
     username: string;
     passwordHandle: string;
   };
+  connectionId?: string;
   idempotencyKey: string;
 };
 export type MailConnectOut = {
@@ -16436,6 +16557,25 @@ export type MailMailboxSetPrivacyIn = {
   privacy: "private" | "space" | "people";
 };
 export type MailMailboxSetPrivacyOut = {
+  mailbox: {
+    id: string;
+    kind: "personal" | "shared" | "agent" | "service";
+    address: string;
+    title: string;
+    ownerId?: string;
+    agentId?: string;
+    provider: "google" | "microsoft" | "imap" | "inbound_only";
+    privacy: "private" | "space" | "people";
+    state: "pending" | "syncing" | "paused" | "error" | "disconnected";
+    lastSyncAt?: number;
+  };
+};
+export type MailMailboxSetSyncStateIn = {
+  mailboxId: string;
+  state: "error" | "syncing";
+  reason?: string;
+};
+export type MailMailboxSetSyncStateOut = {
   mailbox: {
     id: string;
     kind: "personal" | "shared" | "agent" | "service";
@@ -20284,6 +20424,65 @@ export type MsTeamsRecordingsSubscribeIn = {
 export type MsTeamsRecordingsSubscribeOut = {
   subscriptionId: string;
   expiresAt: number;
+};
+export type MsUserAppSetIn = {
+  vaultItem: string;
+};
+export type MsUserAppSetOut = {
+  configured: boolean;
+  clientId: string;
+};
+export type MsUserAppStatusIn = Record<string, unknown>;
+export type MsUserAppStatusOut = {
+  configured: boolean;
+  clientId?: string;
+  vaultItem?: string;
+  redirectUri?: string;
+};
+export type MsUserCompleteIn = {
+  state: string;
+  code?: string;
+  error?: string;
+};
+export type MsUserCompleteOut = {
+  accountId: string;
+  email: string;
+  mailboxId?: string;
+};
+export type MsUserListIn = Record<string, unknown>;
+export type MsUserListOut = {
+  accounts: Array<{
+      accountId: string;
+      email: string;
+    }>;
+};
+export type MsUserRemoveIn = {
+  accountId: string;
+};
+export type MsUserRemoveOut = {
+  removed: boolean;
+};
+export type MsUserSendMessageIn = {
+  accountId: string;
+  to: Array<string>;
+  cc?: Array<string>;
+  bcc?: Array<string>;
+  subject: string;
+  text?: string;
+  html?: string;
+  conversationId?: string;
+  attachments?: Array<string>;
+  idempotencyKey: string;
+};
+export type MsUserSendMessageOut = {
+  sent: boolean;
+};
+export type MsUserStartIn = {
+  loginHint?: string;
+};
+export type MsUserStartOut = {
+  authUrl: string;
+  state: string;
 };
 export type MsWorkbookAppendRowsIn = {
   connectionId: string;
@@ -31434,6 +31633,7 @@ export interface CapMap {
   "access.actors.revoke": { in: AccessActorsRevokeIn; out: AccessActorsRevokeOut };
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
+  "access.audience_set": { in: AccessAudienceSetIn; out: AccessAudienceSetOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
   "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
   "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
@@ -31461,6 +31661,7 @@ export interface CapMap {
   "access.projection_health": { in: AccessProjectionHealthIn; out: AccessProjectionHealthOut };
   "access.propose_change": { in: AccessProposeChangeIn; out: AccessProposeChangeOut };
   "access.provider_check": { in: AccessProviderCheckIn; out: AccessProviderCheckOut };
+  "access.record_marks": { in: AccessRecordMarksIn; out: AccessRecordMarksOut };
   "access.request": { in: AccessRequestIn; out: AccessRequestOut };
   "access.requests.approve": { in: AccessRequestsApproveIn; out: AccessRequestsApproveOut };
   "access.requests.decline": { in: AccessRequestsDeclineIn; out: AccessRequestsDeclineOut };
@@ -32188,6 +32389,13 @@ export interface CapMap {
   "google.sheets.get_spreadsheet": { in: GoogleSheetsGetSpreadsheetIn; out: GoogleSheetsGetSpreadsheetOut };
   "google.sheets.get_values": { in: GoogleSheetsGetValuesIn; out: GoogleSheetsGetValuesOut };
   "google.sheets.update_values": { in: GoogleSheetsUpdateValuesIn; out: GoogleSheetsUpdateValuesOut };
+  "google.user.app_set": { in: GoogleUserAppSetIn; out: GoogleUserAppSetOut };
+  "google.user.app_status": { in: GoogleUserAppStatusIn; out: GoogleUserAppStatusOut };
+  "google.user.complete": { in: GoogleUserCompleteIn; out: GoogleUserCompleteOut };
+  "google.user.list": { in: GoogleUserListIn; out: GoogleUserListOut };
+  "google.user.remove": { in: GoogleUserRemoveIn; out: GoogleUserRemoveOut };
+  "google.user.send_message": { in: GoogleUserSendMessageIn; out: GoogleUserSendMessageOut };
+  "google.user.start": { in: GoogleUserStartIn; out: GoogleUserStartOut };
   "governance.erase.apply": { in: GovernanceEraseApplyIn; out: GovernanceEraseApplyOut };
   "governance.erase.find": { in: GovernanceEraseFindIn; out: GovernanceEraseFindOut };
   "governance.erase.list": { in: GovernanceEraseListIn; out: GovernanceEraseListOut };
@@ -32353,6 +32561,7 @@ export interface CapMap {
   "mail.mailbox.pause": { in: MailMailboxPauseIn; out: MailMailboxPauseOut };
   "mail.mailbox.resume": { in: MailMailboxResumeIn; out: MailMailboxResumeOut };
   "mail.mailbox.set_privacy": { in: MailMailboxSetPrivacyIn; out: MailMailboxSetPrivacyOut };
+  "mail.mailbox.set_sync_state": { in: MailMailboxSetSyncStateIn; out: MailMailboxSetSyncStateOut };
   "mail.mailbox.update": { in: MailMailboxUpdateIn; out: MailMailboxUpdateOut };
   "mail.message.erase": { in: MailMessageEraseIn; out: MailMessageEraseOut };
   "mail.message.get": { in: MailMessageGetIn; out: MailMessageGetOut };
@@ -32565,6 +32774,13 @@ export interface CapMap {
   "ms.teams.recordings.list_recordings": { in: MsTeamsRecordingsListRecordingsIn; out: MsTeamsRecordingsListRecordingsOut };
   "ms.teams.recordings.list_transcripts": { in: MsTeamsRecordingsListTranscriptsIn; out: MsTeamsRecordingsListTranscriptsOut };
   "ms.teams.recordings.subscribe": { in: MsTeamsRecordingsSubscribeIn; out: MsTeamsRecordingsSubscribeOut };
+  "ms.user.app_set": { in: MsUserAppSetIn; out: MsUserAppSetOut };
+  "ms.user.app_status": { in: MsUserAppStatusIn; out: MsUserAppStatusOut };
+  "ms.user.complete": { in: MsUserCompleteIn; out: MsUserCompleteOut };
+  "ms.user.list": { in: MsUserListIn; out: MsUserListOut };
+  "ms.user.remove": { in: MsUserRemoveIn; out: MsUserRemoveOut };
+  "ms.user.send_message": { in: MsUserSendMessageIn; out: MsUserSendMessageOut };
+  "ms.user.start": { in: MsUserStartIn; out: MsUserStartOut };
   "ms.workbook.append_rows": { in: MsWorkbookAppendRowsIn; out: MsWorkbookAppendRowsOut };
   "ms.workbook.get_range": { in: MsWorkbookGetRangeIn; out: MsWorkbookGetRangeOut };
   "ms.workbook.update_range": { in: MsWorkbookUpdateRangeIn; out: MsWorkbookUpdateRangeOut };
@@ -34381,6 +34597,10 @@ export type GooglePushReceivedPayload = {
   resourceState?: string;
   resourceId?: string;
 };
+export type GoogleUserConnectedPayload = {
+  accountId: string;
+  email: string;
+};
 export type GrantCreatedPayload = {
   grantId: string;
   subject: {
@@ -35001,6 +35221,10 @@ export type MicrosoftNotificationReceivedPayload = {
   resource: string;
   changeType: "created" | "updated" | "deleted";
   tenantId?: string;
+};
+export type MicrosoftUserConnectedPayload = {
+  accountId: string;
+  email: string;
 };
 export type MountConflictPayload = {
   mountId: string;
@@ -36961,6 +37185,7 @@ export interface EventMap {
   "google.dwd_probed": GoogleDwdProbedPayload;
   "google.dwd_revoked": GoogleDwdRevokedPayload;
   "google.push_received": GooglePushReceivedPayload;
+  "google.user_connected": GoogleUserConnectedPayload;
   "grant.created": GrantCreatedPayload;
   "grant.revoked": GrantRevokedPayload;
   "grant.updated": GrantUpdatedPayload;
@@ -37070,6 +37295,7 @@ export interface EventMap {
   "microsoft.consent_revoked": MicrosoftConsentRevokedPayload;
   "microsoft.consent_verified": MicrosoftConsentVerifiedPayload;
   "microsoft.notification_received": MicrosoftNotificationReceivedPayload;
+  "microsoft.user_connected": MicrosoftUserConnectedPayload;
   "mount.conflict": MountConflictPayload;
   "mount.failed": MountFailedPayload;
   "mount.file_sent": MountFileSentPayload;

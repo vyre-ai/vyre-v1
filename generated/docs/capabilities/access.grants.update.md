@@ -36,6 +36,8 @@ type In = {
       to: number;
     };
     expiresAt?: number;
+    export?: boolean;
+    reshare?: boolean;
   };
 };
 ```
@@ -64,6 +66,8 @@ type Out = {
         to: number;
       };
       expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
     };
     by: string;
     source?: string;
@@ -89,10 +93,12 @@ type Out = {
   "input": {
     "conditions": {
       "expiresAt": 1760000000000,
+      "export": true,
       "hiddenFields": [
         "example"
       ],
       "labelCeiling": "public",
+      "reshare": true,
       "rowFilter": {},
       "window": {
         "from": 1760000000000,
@@ -107,10 +113,12 @@ type Out = {
       "by": "example",
       "conditions": {
         "expiresAt": 1760000000000,
+        "export": true,
         "hiddenFields": [
           "example"
         ],
         "labelCeiling": "public",
+        "reshare": true,
         "rowFilter": {},
         "window": {
           "from": 1760000000000,

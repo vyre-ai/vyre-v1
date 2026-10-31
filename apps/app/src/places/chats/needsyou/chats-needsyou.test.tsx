@@ -12,7 +12,7 @@ import {
   sortItems, splitActions, stepSelection, footerHint,
 } from "./model.ts";
 import type { Item } from "./model.ts";
-import { NO_ACCOUNT_TITLE, isNoAccount } from "./account.ts";
+import { NO_ACCOUNT_TITLE, isNoAccount, mailFix } from "./account.ts";
 import { ME, SAMPLE_NOW, createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
 
@@ -192,6 +192,22 @@ test("a turn with no AI account leaves one task whose action is the direct sign-
   assert.ok(has(out, 'data-testid="needs-signin"') && has(out, "Sign in"), "the sign-in is the action");
   assert.ok(!has(out, 'data-testid="needs-computer"') && !has(out, 'data-testid="needs-primary"'));
   assert.ok(isNoAccount(acct.task) && !isNoAccount({ kind: "unblock", title: "County records search" }));
+});
+
+test("a lost mailbox sign-in leaves one task whose action is Sign in again, which opens Connect a mailbox, not the task's own action", () => {
+  const s = createSample();
+  const base = item(s, "n4").task;
+  const fix: Item = {
+    reason: "ready",
+    task: { ...base, id: "mailfix", kind: "unblock", title: "Sign in to maya@gmail.test again", blocked: false, source: { kind: "manual", id: "gua_1" }, actions: [{ key: "resolved", label: "Sign in again" }], blocks: [{ type: "mail_signin", v: 1, data: { provider: "google", address: "maya@gmail.test", accountId: "gua_1" } }] },
+  };
+  s.replica.put("needs", [{ id: "mailfix", ...fix }]);
+  const out = html(s, "mailfix");
+  assert.ok(has(out, 'data-testid="needs-mailfix"') && has(out, "Sign in again"));
+  assert.ok(!has(out, 'data-testid="needs-primary"'), "the task's own action is not offered beside it");
+  assert.equal(mailFix(fix.task), "google");
+  assert.equal(mailFix({ ...fix.task, blocks: [] }), null);
+  assert.equal(mailFix({ ...fix.task, kind: "work" }), null);
 });
 
 /* ---------- the rules behind it ---------- */

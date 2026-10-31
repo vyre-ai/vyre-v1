@@ -26,6 +26,13 @@ export const handlers: Record<string, Handler> = {
   "google.dwd.map_member": (ctx, i) => h.dwdMapMember(ctx, i),
   "google.dwd.disable": (ctx) => h.dwdDisable(ctx),
   "google.health": (ctx, i) => h.health(ctx, i),
+  "google.user.app_status": (ctx) => h.userAppStatus(ctx),
+  "google.user.app_set": (ctx, i) => h.userAppSet(ctx, i),
+  "google.user.start": (ctx, i) => h.userStart(ctx, i),
+  "google.user.complete": (ctx, i) => h.userComplete(ctx, i),
+  "google.user.list": (ctx) => h.userList(ctx),
+  "google.user.remove": (ctx, i) => h.userRemove(ctx, i),
+  "google.user.send_message": (ctx, i) => h.userSend(ctx, i),
   "google.receive_push": async (ctx, i) => { internalOnly(ctx, "google.receive_push"); return h.receivePush(ctx, i); },
   "google.gmail.get_profile": (ctx, i) => h.getProfile(ctx, i),
   "google.gmail.list_labels": (ctx, i) => h.listLabels(ctx, i),
@@ -105,6 +112,11 @@ export const hostSeams: SeamSetters = { setGoogleHost };
 
 /** /hooks/google/<kind>: the push secret is checked before anything is recorded (handlers/hook.ts). */
 export const hostCalls = {
+  /** The removal wizard (host/src/seams/people.ts): a person whose mailbox connections are revoked loses their own sign-ins too. */
+  "google.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string }): Promise<number> => {
+    hostOnly(ctx, "google.reassign_owned");
+    return i.kind === "mailbox_connections" && i.action === "revoke" ? h.dropAccountsOf(ctx as never, i.person) : 0;
+  },
   "google.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
     hostOnly(ctx, "google.accept_webhook");   // a host call: the webhook route is the only way in
     return h.acceptHook(ctx, a);

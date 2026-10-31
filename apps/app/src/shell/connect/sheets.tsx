@@ -146,6 +146,23 @@ function useDelegated(rt: FlowProps["rt"], provider: Provider): "checking" | { a
   return state;
 }
 
+/** A person's own sign-in (google.user.*, ms.user.*) exists once the Space has an OAuth app in the Vault. It comes before the Workspace match and the app password. */
+const OWN = { google: "google.user", microsoft: "ms.user" } as const;
+function useOwnApp(rt: FlowProps["rt"], provider: Provider): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (provider === "imap") { setOn(false); return undefined; }
+    let off = false;
+    setOn(false);
+    void Promise.resolve().then(() => rt.call(`${OWN[provider]}.app_status`, {})).then(
+      (r) => { if (!off) setOn((r as { configured?: boolean } | undefined)?.configured === true); },
+      () => undefined,
+    );
+    return () => { off = true; };
+  }, [rt, provider]);
+  return on;
+}
+
 /** Items in "Accounts" in the person's own vault folder, made once; the mail password lives there and the mailbox keeps only its handle. */
 async function mineFolder(rt: FlowProps["rt"]): Promise<string> {
   const call = withKeys(rt.call);
@@ -159,6 +176,8 @@ async function mineFolder(rt: FlowProps["rt"]): Promise<string> {
 function MailboxSheet({ rt, first, onDone, onCancel }: { rt: FlowProps["rt"]; first: Provider; onDone: Done; onCancel: () => void }): ReactElement {
   const [provider, setProvider] = useState<Provider>(first);
   const delegated = useDelegated(rt, provider);
+  const own = useOwnApp(rt, provider);
+  const [known, setKnown] = useState<string[] | null>(null);   // the person's signed-in accounts before this sign-in started; set once the window opened
   const [address, setAddress] = useState("");
   const [host, setHost] = useState(PRESET[first].host);
   const [port, setPort] = useState(PRESET[first].port);
@@ -169,7 +188,7 @@ function MailboxSheet({ rt, first, onDone, onCancel }: { rt: FlowProps["rt"]; fi
   const [line, setLine] = useState<string | null>(null);
   const word = provider === "google" ? "Gmail" : "Outlook";
   const space = provider === "google" ? "Google Workspace" : "Microsoft 365";
-  const pick = (p: Provider): void => { setProvider(p); setHost(PRESET[p].host); setPort(PRESET[p].port); setLine(null); };
+  const pick = (p: Provider): void => { setProvider(p); setHost(PRESET[p].host); setPort(PRESET[p].port); setLine(null); setKnown(null); };
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.trim());
   const imapOk = emailOk && host.trim() !== "" && Number.isInteger(Number(port)) && Number(port) > 0 && password !== "";
   const finish = (out: { mailbox: { id: string; title?: string; address: string } }): void => onDone({ id: out.mailbox.id, title: out.mailbox.title || out.mailbox.address, app: "mail" });
@@ -195,6 +214,31 @@ function MailboxSheet({ rt, first, onDone, onCancel }: { rt: FlowProps["rt"]; fi
       setBusy(false);
     }
   };
+  const accounts = async (): Promise<Array<{ accountId: string; email: string }>> => ((await rt.call(`${OWN[provider as "google" | "microsoft"]}.list`, {})) as { accounts: Array<{ accountId: string; email: string }> }).accounts;
+  const signIn = async (): Promise<void> => {
+    setBusy(true); setLine(null);
+    try {
+      const before = (await accounts()).map((a) => a.accountId);
+      const out = (await rt.call(`${OWN[provider as "google" | "microsoft"]}.start`, emailOk ? { loginHint: address.trim() } : {})) as { authUrl: string };
+      rt.openUrl(out.authUrl);
+      setKnown(before);
+    } catch (e) { setLine(reason(e, "That did not connect.")); }
+    setBusy(false);
+  };
+  const signedIn = async (): Promise<void> => {
+    setBusy(true); setLine(null);
+    try {
+      const fresh = (await accounts()).filter((a) => !(known ?? []).includes(a.accountId));
+      const mine = fresh.find((a) => emailOk && a.email === address.trim().toLowerCase()) ?? fresh.at(-1);
+      if (mine) {
+        const boxes = ((await rt.call("mail.mailbox.list", { scope: "mine" })) as { mailboxes: Array<{ id: string; address: string; title?: string }> }).mailboxes;
+        const box = boxes.find((b) => b.address.toLowerCase() === mine.email);
+        if (box) { onDone({ id: box.id, title: box.title || box.address, app: "mail" }); return; }
+      }
+      setLine("Not finished yet. Approve the sign-in, then try again.");
+    } catch (e) { setLine(reason(e, "That did not check.")); }
+    setBusy(false);
+  };
   const setup = (): void => { onCancel(); rt.open({ screen: "settings.page", args: { page: "connections" } }); };
   const chips: ReactElement[] = [];
   for (const p of PROVIDERS) {
@@ -204,22 +248,27 @@ function MailboxSheet({ rt, first, onDone, onCancel }: { rt: FlowProps["rt"]; fi
       </Pressable>,
     );
   }
-  const ready = provider === "imap" || (typeof delegated === "object");
-  const go = (): void => { if (provider === "imap") void connectImap(); else if (typeof delegated === "object") void connectDelegated(delegated.address); };
+  const mine = provider !== "imap" && own;   // a sign-in app in the Space: the person signs in to their own account
+  const waiting = mine && known !== null;
+  const ready = provider === "imap" || mine || (typeof delegated === "object");
+  const go = (): void => { if (provider === "imap") void connectImap(); else if (mine) void (waiting ? signedIn() : signIn()); else if (typeof delegated === "object") void connectDelegated(delegated.address); };
+  const goLabel = waiting ? (busy ? "Checking" : "I have signed in") : mine ? (busy ? "Opening" : `Sign in with ${provider === "google" ? "Google" : "Microsoft"}`) : busy ? "Connecting" : "Connect";
   return (
     <Sheet
       title="Connect a mailbox" onClose={onCancel} testID="connect-mailbox"
-      footer={<><Btn label="Cancel" onPress={onCancel} testID="connect-cancel" /><View style={{ flex: 1 }} />{ready ? <Btn label={busy ? "Connecting" : "Connect"} primary disabled={busy || (provider === "imap" && !imapOk)} onPress={go} testID="connect-go" /> : null}</>}
+      footer={<><Btn label="Cancel" onPress={onCancel} testID="connect-cancel" /><View style={{ flex: 1 }} />{ready ? <Btn label={goLabel} primary disabled={busy || (provider === "imap" && !imapOk)} onPress={go} testID={mine ? (waiting ? "connect-signed-in" : "connect-signin") : "connect-go"} /> : null}</>}
     >
       <View style={s.chips} accessibilityRole="radiogroup">{chips}</View>
-      {provider !== "imap" && delegated === "checking" ? <Text style={s.body} testID="connect-checking">Checking</Text> : null}
-      {provider !== "imap" && typeof delegated === "object" ? <Text style={s.body} testID="connect-matched">{`${word} as ${delegated.address}`}</Text> : null}
-      {provider !== "imap" && delegated === "none" ? (
+      {mine && !waiting ? <Field label="Your address (optional)" id="connect-address" value={address} onChange={setAddress} placeholder="you@example.com" keyboard="email-address" /> : null}
+      {waiting ? <Text style={s.body}>Approve in the window, then come back.</Text> : null}
+      {provider !== "imap" && !mine && delegated === "checking" ? <Text style={s.body} testID="connect-checking">Checking</Text> : null}
+      {provider !== "imap" && !mine && typeof delegated === "object" ? <Text style={s.body} testID="connect-matched">{`${word} as ${delegated.address}`}</Text> : null}
+      {provider !== "imap" && !mine && delegated === "none" ? (
         <>
-          <Text style={s.body} testID="connect-unavailable">{`${word} sign-in needs ${space} set up for your Space.`}</Text>
+          <Text style={s.body} testID="connect-unavailable">{`${word} sign-in needs a sign-in app, or ${space}, set up for your Space.`}</Text>
           <View style={s.row}>
             <Btn label="Use an app password" primary onPress={() => { const from = provider; setProvider("imap"); setHost(PRESET[from].host); setPort(PRESET[from].port); setLine(null); }} testID="connect-use-imap" />
-            <Pressable accessibilityRole="button" accessibilityLabel={`Set up ${space}`} testID="connect-setup" onPress={setup}><Text style={s.link}>{`Set up ${space}`}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Set up sign-in" testID="connect-setup" onPress={setup}><Text style={s.link}>Set up sign-in</Text></Pressable>
           </View>
         </>
       ) : null}

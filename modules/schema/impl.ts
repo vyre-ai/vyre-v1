@@ -160,7 +160,7 @@ export async function startSchema(): Promise<string[]> { const h = live(); await
 
 function adapt(name: keyof SchemaHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
-    const sc: SchemaCtx = { trace: ctx.trace, emit: (n, s, p) => ctx.emit(n, s, p), ...(ctx.principal ? { actor: ctx.principal.id } : {}) };
+    const sc: SchemaCtx = { trace: ctx.trace, emit: (n, s, p) => ctx.emit(n, s, p), ...(ctx.principal ? { actor: ctx.principal.id } : {}), ...(ctx.authorize ? { authorize: (a, r) => ctx.authorize!(a, r) } : {}) };
     return (live().handlers[name] as (c: SchemaCtx, i: unknown) => Promise<unknown>)(sc, input);
   };
 }

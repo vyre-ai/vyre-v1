@@ -60,6 +60,8 @@ export interface ConnectIn {
   address: string;
   privacy?: "private" | "space" | "people";
   imap?: ImapConfig;
+  /** A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) this mailbox reads and sends through, in place of the Space's delegation. */
+  connectionId?: string;
   idempotencyKey: string;
 }
 
@@ -468,6 +470,8 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
   }
   const imap = input.provider === "imap" ? requireImap(ctx, input.imap) : null;
   if (imap) await probeImap(ctx, imap);
+  const own = input.connectionId;
+  if (own !== undefined && !(USER_CONNECTION.test(own) && own.startsWith(input.provider === "google" ? "gua_" : "mua_"))) bad(ctx, "That is not a sign-in for this provider.");
 
   const id = newId("mbx", ctx.now());
   const now = ctx.now();
@@ -476,7 +480,7 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
       id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, agentId ? "agent" : "personal", address, address.split("@")[0] || address, ownerId, agentId, input.provider, privacy,
-    "pending", null, null, 0, 1, now, null,
+    "pending", own ?? null, null, 0, 1, now, null,
   );
   if (imap) {
     ctx.db.run(
@@ -517,6 +521,8 @@ function requireImap(ctx: MailCtx, imap: ImapConfig | undefined): ImapConfig {
   return { host: imap.host.trim().toLowerCase(), port: imap.port, secure: imap.secure, username: imap.username, passwordHandle: imap.passwordHandle };
 }
 
+/** The ids of a person's own Google (gua_) and Microsoft (mua_) sign-ins. */
+const USER_CONNECTION = /^(gua|mua)_[0-9a-f]{32}$/;
 const SIGN_IN_FAILED = "The mailbox did not accept the sign-in.";
 
 /** LOGIN and NOOP only: a probe never fetches, sends or changes anything. */

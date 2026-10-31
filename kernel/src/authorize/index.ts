@@ -62,6 +62,8 @@ function collect(list: readonly GrantRec[], s: SubjectInfo, need: number, req: R
     if (g.rank > max) max = g.rank;
   }
 }
+/** Permissions a grant can carry on its own (a person is given them on one thing without a role change). */
+const GRANT_PERMS: ReadonlySet<string> = new Set(["records.export"]);
 const ownerScope = (clearance: number): Scope => ({ level: "manage", rowFilter: null, hiddenFields: NO_FIELDS, labelCeiling: clearance });
 
 /** A subject's verdict: a Scope, or the ReasonCode it was denied with. */
@@ -69,10 +71,14 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   const p = s.p, perm = req.action.perm;
   if (p.status !== "active") return "suspended";
   // rule 1: a role of its own or of its groups carries the permission. Agents never hold owner or admin (stripped when the SubjectInfo is built).
-  if (perm !== null && !s.perms.has(perm)) return "role_lacks_permission";
+  const viaGrant = perm !== null && !s.perms.has(perm);
+  if (viaGrant && !GRANT_PERMS.has(perm!)) return "role_lacks_permission";
   if (steps) steps.push({ ok: true, text: `${p.name ?? p.id}: role ${s.roleNames} allows ${perm ?? "this action"}` });
   // owning the thing is owning it; for a create (no id yet) it is owning the container or any container above it: the Space owner can create anywhere in the Space, a member in a record they own
-  const isOwner = res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id;
+  // an owner's assistant acts with its owner's access to what the owner owns, up to Use: "summarize my inbox" works for the person whose mailbox it is, for no one else's. Manage stays with the person.
+  // Only mailboxes so far; another kind of private thing joins here when its owner's assistant is decided.
+  const viaOwner = p.kind === "agent" && res.type === "mailbox" && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use");
+  const isOwner = res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id || viaOwner;
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);
   scratch.length = 0; sawExpired = false; max = 0;
@@ -80,6 +86,12 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   const tw = snap.typeWide(res.type);
   if (tw) collect(tw, s, need, req, res, label);
   const matched = scratch.length;
+  // a permission the role lacks may come with the grant (export), or with a setting on the thing itself (anyone who can view may export)
+  if (viaGrant) {
+    let carried = chain.some((r) => r.export_viewers === true);
+    for (let i = 0; i < matched && !carried; i++) if (scratch[i]!.xport) carried = true;
+    if (!carried) return "role_lacks_permission";
+  }
   const clearance = s.clearance;
   const ownerOk = isOwner && label <= clearance;
   if (matched === 0 && !ownerOk) return sawExpired ? "expired" : "no_grant";
@@ -89,7 +101,7 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   if (steps) steps.push({ ok: true, text: `label ${snap.labelName(label)} within clearance ${snap.labelName(clearance)}` });
   // holds: deny wins only through clearance and holds
   if (req.action.destructive && res.holds > 0) return "on_hold";
-  if (isOwner) return ownerScope(clearance);
+  if (isOwner) return viaOwner ? { ...ownerScope(clearance), level: "use" } : ownerScope(clearance);
   if (matched === 1) {
     const g = scratch[0]!;
     return { level: LEVEL_BY_RANK[max]!, rowFilter: g.filter, hiddenFields: g.hidden, labelCeiling: Math.min(clearance, g.ceiling) };

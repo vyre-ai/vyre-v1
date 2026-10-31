@@ -30,6 +30,10 @@ export interface Conditions {
   hiddenFields?: readonly string[] | undefined;
   notBefore?: number | undefined;
   notAfter?: number | undefined;
+  /** The grant also carries the export right (records.export) for what it reaches; the role permission is not needed. */
+  export?: boolean | undefined;
+  /** The holder may share what the grant reaches with others, up to their own level, without holding Manage. */
+  reshare?: boolean | undefined;
 }
 export type SubjectKind = "actor" | "role" | "group";
 /** No `effect` column: there are no explicit deny grants (ARCH 4.5). `resource_id` null means type-wide. */
@@ -37,7 +41,13 @@ export interface GrantRow {
   id: string; subject_kind: SubjectKind; subject_id: string; resource_type: string; resource_id: string | null;
   level: Level; conditions?: Conditions | undefined; expires_at?: number | null | undefined; by?: string | undefined;
 }
-export interface ResourceRow { id: string; type: string; parent_id: string | null; label: number; owner_id: string | null; holds: number }
+export interface ResourceRow {
+  id: string; type: string; parent_id: string | null; label: number; owner_id: string | null; holds: number;
+  /** Set when the access module cut this resource off from its container (Only people added, Only me): the container it came from. Grants above it no longer reach it. */
+  home?: string | undefined;
+  /** Anyone who can view this resource may also export it (the Who can export setting on a record type). */
+  export_viewers?: boolean | undefined;
+}
 
 export type Policy =
   | { key: string; kind: "provider_label"; allow: Readonly<Record<string, number>>; defaultMax?: number | undefined }

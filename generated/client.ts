@@ -20,6 +20,7 @@ export function createClient(transport: Transport) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp", 1),
         update: call("access.actors.update", 1),
       },
+      audience_set: call("access.audience_set", 1),
       check: call("access.check", 1),
       connector_builder: {
         grant: call("access.connector_builder.grant", 1),
@@ -59,6 +60,7 @@ export function createClient(transport: Transport) {
       projection_health: call("access.projection_health", 1),
       propose_change: call("access.propose_change", 1),
       provider_check: call("access.provider_check", 1),
+      record_marks: call("access.record_marks", 1),
       request: call("access.request", 1),
       requests: {
         approve: call("access.requests.approve", 1),
@@ -1080,6 +1082,15 @@ export function createClient(transport: Transport) {
         get_values: call("google.sheets.get_values", 1),
         update_values: call("google.sheets.update_values", 1),
       },
+      user: {
+        app_set: call("google.user.app_set", 1),
+        app_status: call("google.user.app_status", 1),
+        complete: call("google.user.complete", 1),
+        list: call("google.user.list", 1),
+        remove: call("google.user.remove", 1),
+        send_message: call("google.user.send_message", 1),
+        start: call("google.user.start", 1),
+      },
     },
     governance: {
       erase: {
@@ -1292,6 +1303,7 @@ export function createClient(transport: Transport) {
         pause: call("mail.mailbox.pause", 1),
         resume: call("mail.mailbox.resume", 1),
         set_privacy: call("mail.mailbox.set_privacy", 1),
+        set_sync_state: call("mail.mailbox.set_sync_state", 1),
         update: call("mail.mailbox.update", 1),
       },
       message: {
@@ -1602,6 +1614,15 @@ export function createClient(transport: Transport) {
           list_transcripts: call("ms.teams.recordings.list_transcripts", 1),
           subscribe: call("ms.teams.recordings.subscribe", 1),
         },
+      },
+      user: {
+        app_set: call("ms.user.app_set", 1),
+        app_status: call("ms.user.app_status", 1),
+        complete: call("ms.user.complete", 1),
+        list: call("ms.user.list", 1),
+        remove: call("ms.user.remove", 1),
+        send_message: call("ms.user.send_message", 1),
+        start: call("ms.user.start", 1),
       },
       workbook: {
         append_rows: call("ms.workbook.append_rows", 1),
