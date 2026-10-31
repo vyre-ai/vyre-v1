@@ -17,7 +17,7 @@ Scaffold a connector folder: connector.toml, transforms.js, tests, README
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/connectors/init |
-| MCP tool | connectors_init (engineer) |
+| MCP tool | connectors_init (automations) |
 | CLI | vyre connector init |
 | Emits | connector.created |
 
@@ -29,6 +29,7 @@ type In = {
   title: string;
   mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
   docsUrl?: string;
+  source?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -38,7 +39,7 @@ type In = {
 ```ts
 type Out = {
   key: string;
-  folderId: string;
+  folderId?: string;
 };
 ```
 
@@ -60,6 +61,7 @@ type Out = {
     "idempotencyKey": "idem_1",
     "key": "hubspot",
     "mode": "api",
+    "source": true,
     "title": "example"
   },
   "output": {

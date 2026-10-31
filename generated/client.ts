@@ -172,6 +172,7 @@ export function createClient(transport: Transport) {
         set: call("automations.alerts.set", 1),
       },
       analytics: call("automations.analytics", 1),
+      connector_card: call("automations.connector_card", 1),
       connector_offer: {
         accept: call("automations.connector_offer.accept", 1),
         decline: call("automations.connector_offer.decline", 1),
@@ -211,6 +212,7 @@ export function createClient(transport: Transport) {
       },
       preview_promote: call("automations.preview_promote", 1),
       promote: call("automations.promote", 1),
+      read_docs: call("automations.read_docs", 1),
       replay: call("automations.replay", 1),
       restore_version: call("automations.restore_version", 1),
       retry: call("automations.retry", 1),
@@ -514,6 +516,7 @@ export function createClient(transport: Transport) {
     },
     connectors: {
       build: call("connectors.build", 1),
+      define: call("connectors.define", 1),
       diff: call("connectors.diff", 1),
       export: call("connectors.export", 1),
       get: call("connectors.get", 1),
