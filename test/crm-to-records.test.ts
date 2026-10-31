@@ -8,7 +8,7 @@ import { openSchema } from "../modules/schema/impl.ts";
 import { openConnectors } from "../modules/connectors/impl.ts";
 import * as sources from "../modules/sources/impl.ts";
 import { acceptWebhook } from "../modules/connectors/impl.ts";
-import { KEY_A, KEY_B, ledgerAccountSpec } from "../modules/connectors/fixtures/crm.ts";
+import { KEY_A, KEY_B, ledgerAccountSpec, ledgerSpec } from "../modules/connectors/fixtures/crm.ts";
 import { coreOf, createSyncEngine } from "../host/src/daemon/syncengine.ts";
 import type { SyncEngine } from "../modules/connectors/handlers/sync.ts";
 import type { ConnectorsCtx, Probe } from "../modules/connectors/projections.ts";
@@ -408,4 +408,27 @@ test("Team: the app is told where to call, a call starts a pass, a wrong address
     assert.equal(personal.crm.c.state.webhooks.length, 0);
     assert.ok(personal.crm.methods().every((m) => m === "GET"));
   } finally { await personal.close(); }
+});
+
+test("an app that filters by modified time is polled for only what changed since, and its first pull still reads everything once", async () => {
+  const w = await boot();
+  try {
+    const spec = JSON.parse(JSON.stringify(ledgerSpec())) as any;
+    const people = spec.objects.find((o: any) => o.remote === "people");
+    people.list.updatedSince = { param: "modified_after" };
+    delete people.list.filter;
+    const checked = await w.hs["sync_specs.validate"](w.ctx, { spec });
+    assert.deepEqual(checked.problems.filter((p) => p.level === "error"), []);
+    await w.hs["sync_specs.apply"](w.ctx, { spec, idempotencyKey: "since" });
+    await w.drain();
+    assert.equal((await w.rows("person")).length, 5);
+    const peopleReads = () => w.crm.c.state.requests.filter((r) => r.path.startsWith("/api/v2/people") && r.method === "GET").length;
+    // one change in the app
+    const ben = w.crm.c.state.people.find((p) => p.attributes.full_name === "Ben Ford")!;
+    ben.attributes.status = "client"; ben.modified = new Date(Date.now() + 5000).toISOString();
+    const before = peopleReads();
+    await w.pass("person");
+    assert.equal(peopleReads() - before, 1, "one page for one change, not the whole list");
+    assert.equal((await w.byName("person", "Ben Ford")).data["stage"], "client");
+  } finally { await w.close(); }
 });

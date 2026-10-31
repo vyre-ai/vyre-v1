@@ -272,3 +272,13 @@ test("validate warns that conversations belong in Inbox, and the size is stated 
   assert.equal(r.ok, true, "a warning, not a refusal");
   assert.match(r.size.text, /about \d+(\.\d)? MB/);
 });
+
+test("compile: updatedSince puts the since shape on both list actions and marks the object, and a bad format is refused", () => {
+  const withSince = parseSpec(mutate(ledgerSpec(), (s) => { s["objects"][1]["list"]["updatedSince"] = { param: "modified_after", format: "epoch_s" }; })).spec!;
+  const c = compileSpec(withSince);
+  for (const n of ["list_people", "list_people_after"]) assert.deepEqual(c.connector.actions.find((a) => a.name === n)!.shape!.since, { param: "modified_after", format: "epoch_s" });
+  assert.equal(c.connector.objects!["people"]!.since, true);
+  assert.equal(c.connector.objects!["organizations"]!.since, undefined);
+  const bad = parseSpec(mutate(ledgerSpec(), (s) => { s["objects"][1]["list"]["updatedSince"] = { param: "x", format: "yesterday" }; }));
+  assert.match(JSON.stringify(bad.problems), /epoch_ms/);
+});

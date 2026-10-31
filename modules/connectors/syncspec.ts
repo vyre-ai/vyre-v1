@@ -75,6 +75,11 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
     if (!pointerOk(o["itemsAt"])) bad(`${at}.itemsAt`, "itemsAt is a pointer to the list of items in an answer (/ for the answer itself).");
     const list = o["list"];
     if (!isObj(list) || !str(list["path"]) || !String(list["path"]).startsWith("/")) bad(`${at}.list.path`, "list.path is the address path, starting with /.");
+    if (isObj(list) && isObj(list["updatedSince"])) {
+      const u = list["updatedSince"];
+      if (!str(u["param"])) bad(`${at}.list.updatedSince.param`, "Name the query parameter that takes a time, so a poll reads only what changed.");
+      if (u["format"] !== undefined && u["format"] !== "iso" && u["format"] !== "epoch_ms" && u["format"] !== "epoch_s") bad(`${at}.list.updatedSince.format`, "updatedSince.format is iso, epoch_ms or epoch_s.");
+    }
     if (isObj(list) && isObj(list["cursor"])) {
       const c = list["cursor"];
       if (!(CURSOR_KINDS as readonly unknown[]).includes(c["kind"])) bad(`${at}.list.cursor.kind`, `cursor.kind is one of ${CURSOR_KINDS.join(", ")}.`);
@@ -266,6 +271,8 @@ export function compileSpec(spec: SyncSpec): Compiled {
       items: o.itemsAt, id: o.id, ...(o.updatedAt ? { updatedAt: o.updatedAt } : {}), fields: shapeFields, types: types_, choices,
       cursor: { kind: cursor.kind, ...(cursor.param ? { param: cursor.param } : {}), ...(cursor.next ? { next: cursor.next } : {}), ...(cursor.size ? { size: cursor.size } : {}), ...(cursor.start !== undefined ? { start: cursor.start } : {}) },
     };
+    const sinceShape = o.list.updatedSince ? { since: { param: o.list.updatedSince.param, ...(o.list.updatedSince.format ? { format: o.list.updatedSince.format } : {}) } } : {};
+    Object.assign(listShape, sinceShape);
     const names = { list: actionName("list", o.remote), listAfter: `${actionName("list", o.remote)}_after`, create: actionName("create", o.remote), update: actionName("update", o.remote), delete: actionName("delete", o.remote) };
     const headers = { ...baseHeaders };
     actions.push({ name: names.list, method: "GET", url: `https://${spec.app.domain}${o.list.path}`, headers, query, shape: listShape });
@@ -278,7 +285,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
       return body;
     };
     const writable = { create: o.create !== undefined, update: o.update !== undefined };
-    const entry: NonNullable<ConnectorDef["objects"]>[string] = { list: names.list, listAfter: names.listAfter };
+    const entry: NonNullable<ConnectorDef["objects"]>[string] = { list: names.list, listAfter: names.listAfter, ...(o.list.updatedSince ? { since: true } : {}) };
     if (o.create && (m.createAtSource ?? false)) {
       actions.push({ name: names.create, method: (o.create.method ?? "POST") as ActionDef["method"], url: `https://${spec.app.domain}${o.create.path}`, headers, body: nest(o.create), write: true, shape: { unflatten: true, ...(o.create.idAt ? { idAt: o.create.idAt } : {}) } });
       entry.create = names.create;

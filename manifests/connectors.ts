@@ -21,7 +21,7 @@ const polling = t.obj({ activeSec: t.int({ minimum: 30 }), idleSec: t.int({ mini
 
 /** The action names a connector uses to sync one object; a name left out keeps the convention list_<objects>, list_<objects>_after, create_<object>, update_<object>, delete_<object>. */
 const objectActions = t.obj({
-  list: t.opt(t.str()), listAfter: t.opt(t.str({ description: 'List the next page; takes { after }' })), create: t.opt(t.str()), update: t.opt(t.str()), delete: t.opt(t.str()),
+  list: t.opt(t.str()), listAfter: t.opt(t.str({ description: 'List the next page; takes { after }' })), create: t.opt(t.str()), update: t.opt(t.str()), delete: t.opt(t.str()), since: t.opt(t.bool()),
 });
 
 const connectorRow = t.obj({

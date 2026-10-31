@@ -270,3 +270,77 @@ test("syncengine: a first pull of a big app goes a group at a time, keeps its pl
   assert.equal(JSON.parse(tx.get<{ cursor: string }>("SELECT cursor FROM sy_state WHERE sync_type = 'syt_g'")!.cursor).done, true);
   assert.ok(Math.max(...held) <= 5, "no call asked for more than a page");
 });
+
+test("syncengine: after the first pull a poll of a 10,000-contact app reads one page for one change, and a daily sweep finds what the app deleted", async () => {
+  const core = coreOf(await fileExportsImporter(CODE_ROOT)("sources"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-syncengine-"));
+  const space = createSpaceStore({ path: path.join(dir, "space.db"), space: "sp_since" });
+  const { store, tx } = space.open();
+  await store.define({ add_types: [{ name: "contact", label: "Contact", fields: [{ name: "name", kind: "text", label: "Name" }, { name: "email", kind: "text", label: "Email" }] }] });
+  const clock = { t: Date.now() - 3_600_000 };   // the app's own times; the engine runs on the real clock, like the store
+  const app = new Map<string, { id: string; properties: Record<string, unknown>; at: number }>();
+  for (let i = 1; i <= 10_000; i++) app.set(`h${i}`, { id: `h${i}`, properties: { full_name: `P${i}`, email_address: `p${i}@x.io` }, at: clock.t - 1_000_000 });
+  const PAGE = 100;
+  let listCalls = 0, sinceCalls = 0;
+  const writes: string[] = [];
+  const ctx: EngineCtx = {
+    trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: () => ({}),
+    call: async (cap, input) => {
+      if (cap === "connectors.get") return { connector: { key: "fakeapp", objects: { contacts: { since: true } } } };
+      const i = input as { action: string; input: { after?: string; since?: number; id?: string; properties?: Record<string, unknown> } };
+      if (i.action.startsWith("update_")) { writes.push(i.input.id!); Object.assign(app.get(i.input.id!)!.properties, i.input.properties); app.get(i.input.id!)!.at = clock.t; return { output: { id: i.input.id } }; }
+      listCalls++;
+      if (i.input.since !== undefined) sinceCalls++;
+      const all = [...app.values()].filter((r) => i.input.since === undefined || r.at >= i.input.since);
+      const from = i.input.after ? Number(i.input.after) : 0;
+      return { output: { results: all.slice(from, from + PAGE).map((r) => ({ id: r.id, properties: r.properties, ...(r.at ? { updatedAt: r.at } : {}) })), ...(from + PAGE < all.length ? { paging: { next: { after: String(from + PAGE) } } } : {}) } };
+    },
+  };
+  const row: BindingRow = {
+    syncTypeId: "syt_s", type: "contact", connector: "fakeapp", connectionId: "con_1", remote: "contacts",
+    fields: [{ key: "name", remote: "full_name", dir: "both" }, { key: "email", remote: "email_address", dir: "both" }], match: ["email"], createAtSource: false, deletes: "soft", conflict: "newest",
+  };
+  const engine = createSyncEngine({ core, local: { open: () => ({ store, tx }) }, groupRows: 2500 });
+  // the first pull: 4 groups of 2,500
+  let out = await engine.run(ctx, row, { mode: "incremental" });
+  let groups = 1;
+  while (out.more) { out = await engine.run(ctx, row, { mode: "incremental" }); groups++; }
+  assert.equal(groups, 4);
+  assert.equal((await store.query("contact", { page: { limit: 1 } })).rows.length, 1);
+  const scan = async () => { const out: Awaited<ReturnType<typeof store.query>>["rows"] = []; let cursor: string | undefined; do { const p = await store.query("contact", { page: { limit: 500, ...(cursor ? { cursor } : {}) } }); out.push(...p.rows); cursor = p.next_cursor; } while (cursor); return out; };
+  const total = async () => { let n = 0, cursor: string | undefined; do { const p = await store.query("contact", { page: { limit: 500, ...(cursor ? { cursor } : {}) } }); n += p.rows.length; cursor = p.next_cursor; } while (cursor); return n; };
+  assert.equal(await total(), 10_000);
+
+  // one change in the app: the next poll reads one page, not 100
+  await new Promise((r) => setTimeout(r, 20));
+  clock.t = Date.now();
+  app.get("h42")!.properties["full_name"] = "Renamed"; app.get("h42")!.at = clock.t;
+  listCalls = 0; sinceCalls = 0;
+  out = await engine.run(ctx, row, { mode: "incremental" });
+  assert.equal(listCalls, 1, "one page for one change");
+  assert.equal(sinceCalls, 1);
+  assert.equal(out.more, undefined);
+  assert.equal((await scan()).some((r) => r.data["name"] === "Renamed"), true);
+
+  // a poll with nothing new reads one (empty) page, and a person's edit here is pushed without reading the app's other records
+  await new Promise((r) => setTimeout(r, 20));
+  const mine = (await scan()).find((r) => r.data["email"] === "p7@x.io")!;
+  await store.update("contact", mine.id, { name: "Mine" }, mine.version);
+  listCalls = 0;
+  await engine.run(ctx, row, { mode: "incremental" });
+  assert.equal(listCalls, 1);
+  assert.deepEqual(writes, ["h7"], "only the edited record was written to the app");
+
+  // the app deletes one: a poll does not notice, the daily sweep does
+  app.delete("h99");
+  await engine.run(ctx, row, { mode: "incremental" });
+  const live = (id: string) => tx.get<{ removed_at: number | null }>("SELECT removed_at FROM sy_links WHERE sync_type = 'syt_s' AND remote_id = ?", id)!.removed_at;
+  assert.equal(live("h99") === null || live("h99") === 0, true, "a poll does not look for deletions");
+  const st = JSON.parse(tx.get<{ cursor: string }>("SELECT cursor FROM sy_state WHERE sync_type = 'syt_s'")!.cursor);
+  tx.run("UPDATE sy_state SET cursor = ? WHERE sync_type = 'syt_s'", JSON.stringify({ ...st, sweepAt: Date.now() - 86_400_000 - 1000 }));   // a day has passed
+  listCalls = 0;
+  out = await engine.run(ctx, row, { mode: "incremental" });
+  while (out.more) out = await engine.run(ctx, row, { mode: "incremental" });
+  assert.ok(listCalls >= 100, "the sweep reads the whole list, a group at a time");
+  assert.ok(live("h99"), "the sweep marked the deleted record");
+});

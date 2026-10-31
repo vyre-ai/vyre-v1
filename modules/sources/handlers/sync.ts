@@ -37,7 +37,11 @@ export interface SyncDeps {
 }
 export interface SyncOptions { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; /** Who asked for the pass (a person pressing Sync or editing a record): pushes it queues carry the name, and the field history says "sent by". */ by?: string;
   /** A slice of the app's list instead of the whole list (a big app is pulled a page group at a time): nothing in the slice means nothing is gone, so no record is marked removed and no push runs. */
-  partial?: StoredRecord[] }
+  partial?: StoredRecord[];
+  /** With `partial`: also push what people changed here since this time (ms). The slice holds what changed in the app; a linked record changed only here is compared with what the app held at the last pass. */
+  pushLocalSince?: number;
+  /** With `partial`: every id the app still has (a deletion sweep). A linked record not in it is gone at the source. */
+  sweepSeen?: Set<string> }
 export interface SyncReport {
   runId: string; dryRun: boolean;
   local: { created: number; updated: number }; remote: { created: number; updated: number; removed: number };
@@ -143,7 +147,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   ensureTables(d.tx);
   const mode = o.mode ?? "both";
   const pullOn = mode !== "push";
-  const pushOn = mode !== "pull" && !o.partial;
+  const pushOn = mode !== "pull" && (!o.partial || o.pushLocalSince !== undefined);
   const dry = o.dryRun === true;
   const runId = mintShort("run", now(d));
   const quiet = o.runAutomations !== true;
@@ -175,11 +179,20 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   };
 
   // ---- pairs: linked records first, then first-sync matches ----
-  const pairs: { link: Link; local: StoredRecord; remote: StoredRecord }[] = [];
+  const pairs: { link: Link; local: StoredRecord; remote: StoredRecord; /** The app's record is not in hand: it holds what the last pass saw. */ unchanged?: boolean }[] = [];
   for (const l of links) {
     const remote = remoteMap.get(l.remoteId);
     const local = localMap.get(l.localId);
-    if (!remote) { if (l.removedAt === null && !o.partial) vanished.push(l); continue; }
+    if (!remote && o.partial) {
+      // a slice: absence means nothing, except in a sweep, and a record changed only here is compared with what the last pass saw
+      if (l.removedAt !== null) continue;
+      if (o.sweepSeen) { if (!o.sweepSeen.has(l.remoteId)) vanished.push(l); continue; }
+      if (o.pushLocalSince === undefined) continue;
+      if (!local) { if (b.deletes && pushOn) removals.push(l); continue; }
+      if (local.updated_at > o.pushLocalSince) pairs.push({ link: l, local, remote: { ...local, updated_at: 0 }, unchanged: true });
+      continue;
+    }
+    if (!remote) { if (l.removedAt === null) vanished.push(l); continue; }
     if (l.removedAt !== null) { l.removedAt = null; if (!dry) saveLink(d.tx, b.syncTypeId, l); }
     if (!local) { if (b.deletes && pushOn) removals.push(l); continue; }
     pairs.push({ link: l, local, remote });
@@ -234,7 +247,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   // ---- three-way compare of each pair ----
   const conflictRows: { localId: string; field: string; ours: unknown; theirs: unknown; base: unknown }[] = [];
   const losses: { localId: string; field: string; value: unknown; actor: string }[] = [];
-  for (const { link, local, remote } of pairs) {
+  for (const { link, local, remote, unchanged } of pairs) {
     const pullPatch: Record<string, unknown> = {};
     const pushPatch: Record<string, unknown> = {};
     const pushFields: string[] = [];
@@ -242,7 +255,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     for (const f of fields) {
       const base = link.base[f.local];
       const ours = local.data[f.local];
-      const theirs = theirsOf(d, f, remote);
+      const theirs = unchanged ? base : theirsOf(d, f, remote);
       const oursMoved = !sameField(f, ours, base);
       const theirsMoved = !sameField(f, theirs, base);
       if (!oursMoved && !theirsMoved) continue;
@@ -392,8 +405,17 @@ export async function flushOutbox(d: SyncDeps, b: SyncBinding): Promise<number> 
     try {
       let remoteId = row.remote_id;
       let replaced: Record<string, unknown> | null = null;
+      // A big app that answers "changed since" is never listed to find one record: what it held is what the last pass saw (the link's base)
+      const lazy = (d.remote as { lazy?: boolean }).lazy === true;
+      const heldBefore = (): StoredRecord | null => {
+        const link = loadLinks(d.tx, b.syncTypeId).find((l) => l.localId === row.local_id);
+        if (!link) return null;
+        const data: Record<string, unknown> = {};
+        for (const [remotePath, localKey] of fieldsByLocal) data[remotePath] = link.base[localKey] ?? null;
+        return { type: b.remote, id: remoteId!, version: 1, data, created_at: 0, updated_at: 0 } as StoredRecord;
+      };
       if (row.op === "update") {
-        const cur = await d.remote.get(b.remote, remoteId!);
+        const cur = lazy ? heldBefore() : await d.remote.get(b.remote, remoteId!);
         if (!cur) throw new Error(`the ${b.label ?? b.connector} record ${remoteId} is gone`);
         replaced = {};
         for (const k of Object.keys(values)) replaced[k] = cur.data[k] ?? null;
@@ -403,7 +425,7 @@ export async function flushOutbox(d: SyncDeps, b: SyncBinding): Promise<number> 
         const made = await d.remote.create(b.remote, mintRecordId(now(d)), values);
         remoteId = made.id;
       } else {
-        const cur = await d.remote.get(b.remote, remoteId!);
+        const cur = lazy ? heldBefore() : await d.remote.get(b.remote, remoteId!);
         if (cur) { replaced = { ...cur.data }; await d.remote.remove(b.remote, remoteId!, cur.version); }
       }
       d.tx.run("UPDATE sy_outbox SET status = 'done', remote_id = ?, replaced = ?, error = NULL, done_at = ? WHERE outbox_id = ?", remoteId, replaced ? JSON.stringify(replaced) : null, now(d), row.outbox_id);

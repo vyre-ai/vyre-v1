@@ -196,6 +196,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       if (/conversation|message|thread|chat|sms|email|call/i.test(`${o.remote} ${o.label}`)) warn(`mapping.${o.remote}`, `${o.label} look like conversations. They belong in Inbox, not Records: leave them for a later step.`);
       objects.push({ remote: o.remote, items: items.length, hasNext, fieldsFound: found, fieldsMissing: missing, status: reply.status });
     }
+    for (const o of spec.objects) if (mapped.has(o.remote) && !o.list.updatedSince) warn(`objects.${o.remote}.list.updatedSince`, `${o.label} cannot be asked for what changed since, so each check reads the whole list. Checks run every 15 minutes at most, and removals show up at the same pace. Name the app's modified-since parameter if its docs have one.`);
     return { result: { ok: !problems.some((p) => p.level === "error"), problems, objects }, pages };
   };
 
@@ -331,7 +332,9 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       const fields = t.fields.map((f) => ({ key: f.key, remote: f.remote, dir: f.dir, ...(f.relation ? { relation: compiled.types.find((x) => x.remote === f.relation)?.recordType ?? f.relation } : {}), ...(f.inverse ? { inverse: f.inverse } : {}), ...(f.constant !== undefined ? { constant: f.constant } : {}) }));
       const account = spec.app.account ?? "";
         const bound = tx.get<{ sync_type_id: string }>("SELECT sync_type_id FROM cn_synced_types WHERE type = ? AND account = ?", t.recordType, account);
-      const rules = { createAtSource: t.createAtSource, deletes: t.deletes, conflict: "newest" as const };
+      // an app with no "changed since" filter is read whole at every check: slower checks keep its rate limit and the computer calm
+      const slow = spec.objects.find((o) => o.remote === t.remote)?.list.updatedSince === undefined;
+      const rules = { createAtSource: t.createAtSource, deletes: t.deletes, conflict: "newest" as const, ...(slow ? { polling: { activeSec: 900, idleSec: 3600, dormantSec: 14_400 } } : {}) };
       const row = bound
         ? (await sync["sync_types.update"](ctx, { type: t.recordType, account, fields, match: t.match, ...rules })).syncedType
         : (await sync["sync_types.create"](ctx, { type: t.recordType, account, connectionId, remote: t.remote, fields, match: t.match, ...rules, idempotencyKey: `${idem}:bind:${t.recordType}` } as Parameters<typeof sync["sync_types.create"]>[1])).syncedType;

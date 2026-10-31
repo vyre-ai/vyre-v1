@@ -45,6 +45,8 @@ export interface ActionDef {
 export interface ActionShape {
   items?: string; id?: string; updatedAt?: string; fields?: string[]; types?: Record<string, string>; choices?: Record<string, string[]>;
   cursor?: { kind: string; param?: string; next?: string; size?: number; start?: number };
+  /** The query parameter that takes a time (`input.since`, ms) so a list answers only what changed since, and how the app writes that time: iso, epoch_ms or epoch_s. */
+  since?: { param: string; format?: string };
   unflatten?: boolean; idAt?: string;
 }
 export interface RecordedResponse { method?: string; url: string; status?: number; body?: unknown; /** The Link response header, for link-header pagination. */ link?: string }
@@ -56,7 +58,7 @@ export interface ConnectorDef {
   key: string; title: string; mode: Mode; scope: Scope; version: string; auth: AuthDef; domains: string[]; secrets: { name: string; description: string }[];
   actions: ActionDef[]; sources?: string[]; syncedTypes?: string[]; health?: string; rate?: { rps: number; burst: number }; tests?: TestCase[]; builtin?: boolean;
   /** Per-object action names for the sync engine (P-CC_19); a name left out keeps the convention. */
-  objects?: Record<string, { list?: string; listAfter?: string; create?: string; update?: string; delete?: string }>;
+  objects?: Record<string, { list?: string; listAfter?: string; create?: string; update?: string; delete?: string; /** The list can be asked for what changed since a time (`input.since`, in ms): a poll reads only that. */ since?: boolean }>;
 }
 
 export interface ConnectionDb {

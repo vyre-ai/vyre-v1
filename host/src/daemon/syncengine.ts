@@ -52,7 +52,7 @@ export interface SyncReportLike {
   matched: number; ambiguous: number; conflicts: number; askedConflicts: number; removedAtSource: number; pausedDeletes: boolean; skipped?: number; summary: string;
 }
 export interface SyncCore {
-  runSync(d: SyncDepsLike, b: SyncBindingLike, o?: { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; by?: string; partial?: StoredRecord[] }): Promise<SyncReportLike>;
+  runSync(d: SyncDepsLike, b: SyncBindingLike, o?: { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; by?: string; partial?: StoredRecord[]; pushLocalSince?: number; sweepSeen?: Set<string> }): Promise<SyncReportLike>;
   flushOutbox(d: SyncDepsLike, b: SyncBindingLike): Promise<number>;
   retryPush(d: SyncDepsLike, outboxId: string): boolean;
   undoPush(d: SyncDepsLike, b: SyncBindingLike, outboxId: string): Promise<{ undone: boolean; reason?: string }>;
@@ -98,7 +98,7 @@ export function readRows(output: unknown): { rows: RemoteRow[]; next?: string } 
   return { rows, ...(typeof after === "string" && after !== "" ? { next: after } : {}) };
 }
 
-export interface ObjectNames { list?: string; listAfter?: string; create?: string; update?: string; delete?: string }
+export interface ObjectNames { list?: string; listAfter?: string; create?: string; update?: string; delete?: string; /** The list takes { since } and answers only what changed since. */ since?: boolean }
 export type ObjectMap = Record<string, ObjectNames>;
 
 /** The names a connector spec gives one object (by the bound name, then by its singular), or none. */
@@ -108,13 +108,14 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
   if (!isObj(hit)) return {};
   const out: ObjectNames = {};
   for (const k of ["list", "listAfter", "create", "update", "delete"] as const) if (typeof hit[k] === "string" && hit[k] !== "") out[k] = hit[k];
+  if (hit["since"] === true) out.since = true;
   return out;
 }
 
 const RATE_CODES = new Set(["rate_limit.exceeded", "provider.rate_limited"]);
 const pause = (ms: number): Promise<void> => new Promise((ok) => { setTimeout(ok, ms); });
 
-export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown, opts: { sleep?: (ms: number) => Promise<void> } = {}): Store & { updatedAtOf(id: string): number; page(after?: string): Promise<{ rows: StoredRecord[]; next?: string }> } {
+export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown, opts: { sleep?: (ms: number) => Promise<void> } = {}): Store & { updatedAtOf(id: string): number; page(after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }>; supportsSince: boolean; lazy: boolean } {
   const one = oneOf(b.remote);
   const names = namesFor(objects, b.remote);
   const nameList = names.list ?? `list_${b.remote}`, nameAfter = names.listAfter ?? `list_${b.remote}_after`;
@@ -197,12 +198,12 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
     features: () => ({ aggregate: false, search: false, changes: false, cursor_paging: true as const }),
   };
   // One page of the app's list, for a big app pulled a page group at a time (the whole list is never held).
-  const page = async (after?: string): Promise<{ rows: StoredRecord[]; next?: string }> => {
-    const got = readRows(await run(after === undefined ? nameList : nameAfter, after === undefined ? {} : { after }));
+  const page = async (after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }> => {
+    const got = readRows(await run(after === undefined ? nameList : nameAfter, { ...(after === undefined ? {} : { after }), ...(since !== undefined ? { since } : {}) }));
     for (const r of got.rows) stamps.set(r.id, r.updatedAt);
     return { rows: got.rows.filter((r) => !r.archived).map((r) => toRecord(r)), ...(got.next !== undefined ? { next: got.next } : {}) };
   };
-  return Object.assign(store as Store, { updatedAtOf: (id: string) => stamps.get(id) ?? 0, page });
+  return Object.assign(store as Store, { updatedAtOf: (id: string) => stamps.get(id) ?? 0, page, supportsSince: names.since === true, lazy: names.since === true });
 }
 
 // ---- the engine
@@ -219,7 +220,24 @@ const bindingOf = (b: BindingRow, relations: Map<string, string> = new Map()): S
 /** Rows taken from the app per group, and the most pages one group reads. A group is one pass: pull, report, store the place, so a restart or a failure resumes there. */
 const GROUP_ROWS = 2000;
 const FIRST_GROUP_PAGES = 400;
-interface Progress { after?: string; pulled: number; done: boolean }
+/** Overlap when a poll asks for what changed since the last one, so a clock a little off loses nothing. */
+const SINCE_OVERLAP_MS = 60_000;
+/** A poll does not see what an app deleted; a sweep of the whole list, once a day and a group at a time, does. */
+const SWEEP_EVERY_MS = 86_400_000;
+interface Progress {
+  after?: string; pulled: number; done: boolean;
+  /** When the first pull began, kept across its groups. */
+  began?: number;
+  /** Polls read what changed since this time (ms). */
+  hwm?: number;
+  /** When a pass last began: what people changed here after it is pushed by the next poll. */
+  lastStart?: number;
+  /** A poll with more changes than one group holds: where it is, and the time the next poll will start from. */
+  delta?: { since: number; after?: string; newHwm: number };
+  sweepAt?: number;
+  /** A deletion sweep under way. */
+  sweep?: { after?: string };
+}
 
 export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: () => number; sleep?: (ms: number) => Promise<void>; groupRows?: number }): SyncEngineLike {
   // the connector's own names for its objects, read once per connector (a connector row without them keeps the convention)
@@ -253,34 +271,74 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
       const { deps, binding, remote, tx } = await depsOf(ctx, b);
       const dry = opts.mode === "dry_run";
       // The first pull (and a backfill) reads the app a group of pages at a time and keeps its place; the next pass carries on from there. Newest first is the app's own order (the spec's list query sorts).
+      // After it, an app that can answer "changed since" is polled for only that; what the app deleted is found by a sweep once a day. An app that cannot is listed whole every poll.
       // the sync tables are made by the first pass: before it there is no place kept, and this is the first pull
       let state: { cursor: string | null } | null | undefined;
       try { state = tx.get<{ cursor: string | null }>("SELECT cursor FROM sy_state WHERE sync_type = ?", b.syncTypeId); } catch { state = undefined; }
       let progress: Progress | undefined = state?.cursor ? (JSON.parse(state.cursor) as Progress) : undefined;
       const fresh = state === undefined || state === null;
-      if (!dry && (opts.mode === "backfill" || fresh || (progress && !progress.done))) {
-        if (opts.mode === "backfill" && (!progress || progress.done)) progress = { pulled: 0, done: false };
-        progress ??= { pulled: 0, done: false };
+      const startedAt = (o.now ?? Date.now)();
+      const save = (p: Progress): void => { tx.run("INSERT INTO sy_state (sync_type, cursor) VALUES (?, ?) ON CONFLICT(sync_type) DO UPDATE SET cursor = excluded.cursor", b.syncTypeId, JSON.stringify(p)); };
+      const outOf = (r: SyncReportLike, summary: string, more: boolean): RunOut => ({ summary, pulled: r.local.created + r.local.updated, pushed: r.remote.created + r.remote.updated + r.remote.removed, skipped: r.skipped ?? 0, conflicts: r.conflicts, dryRun: false, ...(more ? { more: true } : {}) });
+      const common = { ...(opts.runAutomations ? { runAutomations: true } : {}), ...(opts.by ? { by: opts.by } : {}), traceId: ctx.trace.traceId };
+      /** Pages from `from`, until a group is full or the app has no more. An app that ignores the page parameter answers the same page again: it has nothing new. */
+      const group = async (from: string | undefined, since?: number): Promise<{ rows: StoredRecord[]; next?: string }> => {
         const rows: StoredRecord[] = [];
-        let after = progress.after;
-        let next: string | undefined;
         const seen = new Set<string>();
+        let after = from;
+        let next: string | undefined;
         for (let pages = 0; pages < FIRST_GROUP_PAGES && rows.length < (o.groupRows ?? GROUP_ROWS); pages++) {
-          const got = await remote.page(after);
+          const got = await remote.page(after, since);
           const brought = got.rows.filter((r) => !seen.has(r.id));
           for (const r of brought) seen.add(r.id);
           rows.push(...brought);
           next = got.next;
-          // an app that ignores the page parameter answers the same page again: it has nothing new
-          if (!next || brought.length === 0 && got.rows.length > 0) { next = undefined; break; }
+          if (!next || (brought.length === 0 && got.rows.length > 0)) { next = undefined; break; }
           after = next;
         }
-        const r = await o.core.runSync(deps, binding, { mode: "both", partial: rows, ...(opts.runAutomations ? { runAutomations: true } : {}), ...(opts.by ? { by: opts.by } : {}), traceId: ctx.trace.traceId });
-        const total = progress.pulled + rows.length;
-        const saved: Progress = { ...(next !== undefined ? { after: next } : {}), pulled: total, done: next === undefined };
-        tx.run("INSERT INTO sy_state (sync_type, cursor) VALUES (?, ?) ON CONFLICT(sync_type) DO UPDATE SET cursor = excluded.cursor", b.syncTypeId, JSON.stringify(saved));
-        const summary = next === undefined ? `${r.summary} All ${total} are in.` : `Catching up: ${total} read so far. ${r.summary}`;
-        return { summary, pulled: r.local.created + r.local.updated, pushed: r.remote.created + r.remote.updated + r.remote.removed, skipped: r.skipped ?? 0, conflicts: r.conflicts, dryRun: false, ...(next !== undefined ? { more: true } : {}) };
+        return { rows, ...(next !== undefined ? { next } : {}) };
+      };
+      const sweepStep = async (p: Progress): Promise<RunOut> => {
+        if (!p.sweep) tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
+        const g = await group(p.sweep?.after);
+        for (const r of g.rows) tx.run("INSERT OR IGNORE INTO sy_seen (sync_type, remote_id) VALUES (?, ?)", b.syncTypeId, r.id);
+        if (g.next !== undefined) { save({ ...p, sweep: { after: g.next } }); return { summary: "Checking what the app removed.", pulled: 0, pushed: 0, skipped: 0, conflicts: 0, dryRun: false, more: true }; }
+        const ids = new Set(tx.all<{ remote_id: string }>("SELECT remote_id FROM sy_seen WHERE sync_type = ?", b.syncTypeId).map((x) => x.remote_id));
+        const r = await o.core.runSync(deps, binding, { mode: "both", partial: [], sweepSeen: ids, ...common });
+        tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
+        const { sweep: _done, ...rest } = p;
+        save({ ...rest, sweepAt: startedAt });
+        return outOf(r, r.summary, false);
+      };
+      const deltaStep = async (p: Progress): Promise<RunOut> => {
+        const d = p.delta ?? { since: p.hwm ?? 0, newHwm: startedAt - SINCE_OVERLAP_MS };
+        const g = await group(d.after, d.since);
+        const r = await o.core.runSync(deps, binding, { mode: "both", partial: g.rows, pushLocalSince: p.lastStart ?? d.since, ...common });
+        if (g.next !== undefined) { save({ ...p, done: false, delta: { ...d, after: g.next } }); return outOf(r, r.summary, true); }
+        const { delta: _d, ...rest } = p;
+        save({ ...rest, done: true, hwm: d.newHwm, lastStart: startedAt });
+        return outOf(r, r.summary, false);
+      };
+      if (!dry) {
+        if (progress?.sweep) return sweepStep(progress);
+        if (progress?.delta) return deltaStep(progress);
+        if (opts.mode === "backfill" || fresh || (progress && !progress.done)) {
+          if (opts.mode === "backfill" && (!progress || progress.done)) progress = { pulled: 0, done: false };
+          progress ??= { pulled: 0, done: false };
+          const began = progress.began ?? startedAt;
+          const g = await group(progress.after);
+          const r = await o.core.runSync(deps, binding, { mode: "both", partial: g.rows, ...common });
+          const total = progress.pulled + g.rows.length;
+          const saved: Progress = g.next !== undefined
+            ? { after: g.next, pulled: total, done: false, began }
+            : { pulled: total, done: true, hwm: began - SINCE_OVERLAP_MS, lastStart: began, sweepAt: began };
+          save(saved);
+          return outOf(r, g.next === undefined ? `${r.summary} All ${total} are in.` : `Catching up: ${total} read so far. ${r.summary}`, g.next !== undefined);
+        }
+        if (remote.supportsSince && progress?.hwm !== undefined) {
+          if (startedAt - (progress.sweepAt ?? 0) > SWEEP_EVERY_MS) return sweepStep(progress);
+          return deltaStep(progress);
+        }
       }
       const r = await o.core.runSync(deps, binding, { mode: "both", dryRun: dry, ...(opts.runAutomations ? { runAutomations: true } : {}), ...(opts.by ? { by: opts.by } : {}), traceId: ctx.trace.traceId });
       return { summary: r.summary, pulled: r.local.created + r.local.updated, pushed: r.remote.created + r.remote.updated + r.remote.removed, skipped: r.skipped ?? 0, conflicts: r.conflicts, dryRun: dry };

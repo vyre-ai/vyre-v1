@@ -452,11 +452,11 @@ test("sync_now starts a Run for a type, a binding id or every type on a connecti
   assert.deepEqual(r1, { runId: "run_1" });
   const start = w.calls.find((c) => c.cap === "runs.start")!;
   assert.deepEqual({ kind: start.input.kind, owner: start.input.owner, subject: start.input.subject }, { kind: "connector_sync", owner: "usr_dana", subject: { type: "record_type", id: "contact" } });
-  assert.deepEqual(syncRequest(w.k.deps, "run_1"), { syncTypeIds: [a.syncTypeId], mode: "incremental", runAutomations: false });
-  await w.hs["connectors.sync_now"](w.ctx, { syncTypeId: b.syncTypeId, mode: "backfill", runAutomations: true });
-  assert.deepEqual(syncRequest(w.k.deps, "run_2"), { syncTypeIds: [b.syncTypeId], mode: "backfill", runAutomations: true });
+  assert.deepEqual(syncRequest(w.k.deps, "run_1"), { syncTypeIds: [a.syncTypeId], mode: "incremental", runAutomations: false, by: "usr_dana" });
+  await w.hs["connectors.sync_now"](w.ctx, { syncTypeId: b.syncTypeId, mode: "backfill", runAutomations: true, by: "usr_dana" });
+  assert.deepEqual(syncRequest(w.k.deps, "run_2"), { syncTypeIds: [b.syncTypeId], mode: "backfill", runAutomations: true, by: "usr_dana" });
   await w.hs["connectors.sync_now"](w.ctx, { connectionId: w.connectionId, mode: "reconcile" });
-  assert.deepEqual(syncRequest(w.k.deps, "run_3"), { syncTypeIds: [a.syncTypeId, b.syncTypeId], mode: "reconcile", runAutomations: false });
+  assert.deepEqual(syncRequest(w.k.deps, "run_3"), { syncTypeIds: [a.syncTypeId, b.syncTypeId], mode: "reconcile", runAutomations: false, by: "usr_dana" });
   assert.deepEqual(w.calls.filter((c) => c.cap === "runs.start")[2]!.input.subject, { type: "connection", id: w.connectionId });
   await w.hs["connectors.sync_now"](w.ctx, { type: "contact", mode: "dry_run" });
   assert.equal(syncRequest(w.k.deps, "run_4")!.mode, "dry_run");

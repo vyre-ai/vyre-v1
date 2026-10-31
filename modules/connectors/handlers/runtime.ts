@@ -164,6 +164,12 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     const u = new URL(linked ? after! : fillString(a.url, scope, true));
     if (!linked) for (const [k, v] of Object.entries(a.query ?? {})) u.searchParams.set(k, fillString(v, scope));
     if (!linked && after !== undefined && a.shape?.cursor?.param) u.searchParams.set(a.shape.cursor.param, after);
+    // what changed since a time: the app's own filter, on every page (a link page already carries it)
+    const since = (input as Record<string, unknown>)["since"];
+    if (!linked && a.shape?.since && typeof since === "number" && Number.isFinite(since)) {
+      const f = a.shape.since.format;
+      u.searchParams.set(a.shape.since.param, f === "epoch_ms" ? String(Math.floor(since)) : f === "epoch_s" ? String(Math.floor(since / 1000)) : new Date(since).toISOString());
+    }
     const egress = checkEgress(u.toString(), def.domains);
     if (!egress.ok) refuse(ctx, "permission.no_grant", `Egress refused: ${egress.reason}.`, { connector: def.key, action: actionName });
     url = (egress as { ok: true; url: URL }).url;
