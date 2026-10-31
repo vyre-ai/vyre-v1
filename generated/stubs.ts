@@ -21,6 +21,10 @@ export function stubs(ctx: CallCtx) {
         update: call("access.actors.update"),
       },
       check: call("access.check"),
+      connector_builder: {
+        grant: call("access.connector_builder.grant"),
+        status: call("access.connector_builder.status"),
+      },
       deciders: call("access.deciders"),
       grants: {
         list: call("access.grants.list"),
@@ -173,6 +177,7 @@ export function stubs(ctx: CallCtx) {
       },
       analytics: call("automations.analytics"),
       connector_card: call("automations.connector_card"),
+      connector_levels: call("automations.connector_levels"),
       connector_offer: {
         accept: call("automations.connector_offer.accept"),
         decline: call("automations.connector_offer.decline"),
@@ -512,6 +517,7 @@ export function stubs(ctx: CallCtx) {
       pause: call("connections.pause"),
       reconnect: call("connections.reconnect"),
       resume: call("connections.resume"),
+      set_secret: call("connections.set_secret"),
       test: call("connections.test"),
       update: call("connections.update"),
     },

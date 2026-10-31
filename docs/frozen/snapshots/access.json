@@ -8,6 +8,8 @@
     "access.actors.set_engineer_mcp@1": "f1f8191a554b450576a98dc11739d047dde22d2416b8f3467cb37360d89f0a58",
     "access.actors.update@1": "1f0abfbc22bb77fcf7e659712dab0c67f95f5d3692bf4436e9725e850911e013",
     "access.check@1": "d384d8ac88311188089ee5808cb6c95eb52d665d3be95db399899ffd122813b8",
+    "access.connector_builder.grant@1": "8229bd6130382937bd59d7ef31af8ff7a87683814ecbc1ebcc92cd5f7b6faa0a",
+    "access.connector_builder.status@1": "eb24efee098ed60e4ed82a682f5ac8c3f81e6253e5383bae83738c09d083a268",
     "access.deciders@1": "34a21c21641557d80d4296930856cb228afe8163c73b928bcd6ccbad4b1736b5",
     "access.grants.list@1": "10e62f3a11a3b6f11e62a52f5db93fac6a40c67f6d1f41039fbf147389bc1633",
     "access.grants.update@1": "442190693f2caf06c8b36151b8e21c73335dfdbd479b13f8e760b0212b24a592",

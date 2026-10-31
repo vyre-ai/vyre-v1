@@ -572,6 +572,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_connector_levels",
+      "summary": "Which connector actions were tried against the real app (tested) and which were not (draft). Keys only.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_connector_offer_accept",
       "summary": "Accept a connector setup offer. Accepting is final for that Vault item.",
       "toolset": "automations"
@@ -1859,6 +1865,12 @@
       "name": "connections_resume",
       "summary": "The owner resumes a connection",
       "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "connections_set_secret",
+      "summary": "Fill one empty secret slot of a connection from a Vault handle (a name such as #Resend_Webhook.secret, never a value). The last empty slot turns a pending API connection active.",
+      "toolset": "automations"
     },
     {
       "deferred": false,

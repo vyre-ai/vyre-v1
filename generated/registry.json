@@ -7876,6 +7876,110 @@
       ],
       "type": "object"
     },
+    "s_5d4bbfee24": {
+      "properties": {
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "connector": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "filled": {
+          "description": "The secret slots that hold a Vault handle. A slot the connector declares and this list lacks is still empty.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "handles": {
+          "description": "The Vault handles this connection uses. Names only, never a value.",
+          "items": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lastSyncAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "owner": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "person",
+                "space"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        "pausedBy": {
+          "type": "string"
+        },
+        "scopes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "active",
+            "paused",
+            "needs_reconnect",
+            "failing"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "connector",
+        "title",
+        "owner",
+        "state",
+        "scopes",
+        "createdAt",
+        "handles",
+        "filled"
+      ],
+      "type": "object"
+    },
     "s_5d98a41604": {
       "properties": {
         "agentId": {
@@ -9524,17 +9628,6 @@
       },
       "required": [
         "run"
-      ],
-      "type": "object"
-    },
-    "s_6faf412f33": {
-      "properties": {
-        "connection": {
-          "$ref": "#/$defs/s_da8a87c2ab"
-        }
-      },
-      "required": [
-        "connection"
       ],
       "type": "object"
     },
@@ -17629,99 +17722,14 @@
       ],
       "type": "object"
     },
-    "s_da8a87c2ab": {
+    "s_dad2a4d2b7": {
       "properties": {
-        "connectionId": {
-          "examples": [
-            "con_a1b2c3"
-          ],
-          "pattern": "^con_[a-z0-9]+$",
-          "type": "string"
-        },
-        "connector": {
-          "examples": [
-            "hubspot"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "handles": {
-          "description": "The Vault handles this connection uses. Names only, never a value.",
-          "items": {
-            "examples": [
-              "#Dana_Lawmatics"
-            ],
-            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "lastSyncAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "owner": {
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "enum": [
-                "person",
-                "space"
-              ],
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "type": "object"
-        },
-        "pausedBy": {
-          "type": "string"
-        },
-        "scopes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "state": {
-          "enum": [
-            "pending",
-            "active",
-            "paused",
-            "needs_reconnect",
-            "failing"
-          ],
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
+        "connection": {
+          "$ref": "#/$defs/s_5d4bbfee24"
         }
       },
       "required": [
-        "connectionId",
-        "connector",
-        "title",
-        "owner",
-        "state",
-        "scopes",
-        "createdAt",
-        "handles"
+        "connection"
       ],
       "type": "object"
     },
@@ -23518,6 +23526,150 @@
         }
       },
       "teamOnly": true,
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "access.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "created": true,
+            "roleId": "rol_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.connector_builder.grant",
+      "output": {
+        "properties": {
+          "created": {
+            "type": "boolean"
+          },
+          "roleId": {
+            "examples": [
+              "rol_a1b2c3"
+            ],
+            "pattern": "^rol_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "roleId",
+          "created"
+        ],
+        "type": "object"
+      },
+      "permission": "access.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Give an assistant the Connector builder role (Member permissions plus connectors.manage), making the role if the Space has none. Needs access.manage.",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "agentId": "agt_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "allowed": true,
+            "canGrant": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.connector_builder.status",
+      "output": {
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "canGrant": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "allowed",
+          "canGrant"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Does this assistant hold the permission to build connectors, and may the caller give it",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
       "v": 1
     },
     {
@@ -32886,6 +33038,85 @@
       "surfaces": {
         "agent": {
           "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "levels": [
+              {
+                "actionKey": "example",
+                "level": "draft"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.connector_levels",
+      "output": {
+        "properties": {
+          "levels": {
+            "items": {
+              "properties": {
+                "actionKey": {
+                  "type": "string"
+                },
+                "level": {
+                  "enum": [
+                    "draft",
+                    "tested"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "actionKey",
+                "level"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "levels"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Which connector actions were tried against the real app (tested) and which were not (draft). Keys only.",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
         },
         "http": "auto",
         "mcp": {
@@ -59252,6 +59483,9 @@
               "connectionId": "con_a1b2c3",
               "connector": "hubspot",
               "createdAt": 1760000000000,
+              "filled": [
+                "example"
+              ],
               "handles": [
                 "#Dana_Lawmatics"
               ],
@@ -59330,7 +59564,7 @@
             "type": "string"
           },
           "connection": {
-            "$ref": "#/$defs/s_da8a87c2ab"
+            "$ref": "#/$defs/s_5d4bbfee24"
           }
         },
         "required": [
@@ -59446,6 +59680,9 @@
               "connectionId": "con_a1b2c3",
               "connector": "hubspot",
               "createdAt": 1760000000000,
+              "filled": [
+                "example"
+              ],
               "handles": [
                 "#Dana_Lawmatics"
               ],
@@ -59484,7 +59721,7 @@
       "module": "connectors",
       "name": "connections.get",
       "output": {
-        "$ref": "#/$defs/s_6faf412f33"
+        "$ref": "#/$defs/s_dad2a4d2b7"
       },
       "permission": null,
       "resource": {
@@ -59526,6 +59763,9 @@
                 "connectionId": "con_a1b2c3",
                 "connector": "hubspot",
                 "createdAt": 1760000000000,
+                "filled": [
+                  "example"
+                ],
                 "handles": [
                   "#Dana_Lawmatics"
                 ],
@@ -59583,7 +59823,7 @@
         "properties": {
           "connections": {
             "items": {
-              "$ref": "#/$defs/s_da8a87c2ab"
+              "$ref": "#/$defs/s_5d4bbfee24"
             },
             "type": "array"
           },
@@ -59818,6 +60058,101 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "handle": "#Dana_Lawmatics",
+            "slot": "example"
+          },
+          "name": "example",
+          "output": {
+            "connection": {
+              "connectionId": "con_a1b2c3",
+              "connector": "hubspot",
+              "createdAt": 1760000000000,
+              "filled": [
+                "example"
+              ],
+              "handles": [
+                "#Dana_Lawmatics"
+              ],
+              "lastSyncAt": 1760000000000,
+              "owner": {
+                "id": "example",
+                "kind": "person"
+              },
+              "pausedBy": "example",
+              "scopes": [
+                "example"
+              ],
+              "state": "pending",
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "handle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "slot",
+          "handle"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "connectors",
+      "name": "connections.set_secret",
+      "output": {
+        "$ref": "#/$defs/s_dad2a4d2b7"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Fill one empty secret slot of a connection from a Vault handle (a name such as #Resend_Webhook.secret, never a value). The last empty slot turns a pending API connection active.",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [
         "connection.needs_reconnect"
@@ -59905,6 +60240,9 @@
               "connectionId": "con_a1b2c3",
               "connector": "hubspot",
               "createdAt": 1760000000000,
+              "filled": [
+                "example"
+              ],
               "handles": [
                 "#Dana_Lawmatics"
               ],
@@ -59952,7 +60290,7 @@
       "module": "connectors",
       "name": "connections.update",
       "output": {
-        "$ref": "#/$defs/s_6faf412f33"
+        "$ref": "#/$defs/s_dad2a4d2b7"
       },
       "permission": null,
       "resource": {

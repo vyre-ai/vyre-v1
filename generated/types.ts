@@ -117,6 +117,20 @@ export type AccessCheckOut = {
     decisionId: string;
   };
 };
+export type AccessConnectorBuilderGrantIn = {
+  agentId: string;
+};
+export type AccessConnectorBuilderGrantOut = {
+  roleId: string;
+  created: boolean;
+};
+export type AccessConnectorBuilderStatusIn = {
+  agentId: string;
+};
+export type AccessConnectorBuilderStatusOut = {
+  allowed: boolean;
+  canGrant: boolean;
+};
 export type AccessDecidersIn = {
   resource: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -2122,6 +2136,13 @@ export type AutomationsConnectorCardIn = {
 };
 export type AutomationsConnectorCardOut = {
   messageId: string;
+};
+export type AutomationsConnectorLevelsIn = Record<string, unknown>;
+export type AutomationsConnectorLevelsOut = {
+  levels: Array<{
+      actionKey: string;
+      level: "draft" | "tested";
+    }>;
 };
 export type AutomationsConnectorOfferAcceptIn = {
   itemId: string;
@@ -7418,6 +7439,7 @@ export type ConnectionsCreateOut = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
   authUrl?: string;
 };
@@ -7445,6 +7467,7 @@ export type ConnectionsGetOut = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
 };
 export type ConnectionsListIn = {
@@ -7468,6 +7491,7 @@ export type ConnectionsListOut = {
       lastSyncAt?: number;
       createdAt: number;
       handles: Array<string>;
+      filled: Array<string>;
     }>;
   next?: string;
   total?: number;
@@ -7489,6 +7513,29 @@ export type ConnectionsResumeIn = {
 };
 export type ConnectionsResumeOut = {
   ok: boolean;
+};
+export type ConnectionsSetSecretIn = {
+  connectionId: string;
+  slot: string;
+  handle: string;
+};
+export type ConnectionsSetSecretOut = {
+  connection: {
+    connectionId: string;
+    connector: string;
+    title: string;
+    owner: {
+      kind: "person" | "space";
+      id: string;
+    };
+    state: "pending" | "active" | "paused" | "needs_reconnect" | "failing";
+    pausedBy?: string;
+    scopes: Array<string>;
+    lastSyncAt?: number;
+    createdAt: number;
+    handles: Array<string>;
+    filled: Array<string>;
+  };
 };
 export type ConnectionsTestIn = {
   connectionId: string;
@@ -7518,6 +7565,7 @@ export type ConnectionsUpdateOut = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
 };
 export type ConnectorsBuildIn = {
@@ -31256,6 +31304,8 @@ export interface CapMap {
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
+  "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
+  "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
   "access.deciders": { in: AccessDecidersIn; out: AccessDecidersOut };
   "access.grants.list": { in: AccessGrantsListIn; out: AccessGrantsListOut };
   "access.grants.update": { in: AccessGrantsUpdateIn; out: AccessGrantsUpdateOut };
@@ -31352,6 +31402,7 @@ export interface CapMap {
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
   "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
+  "automations.connector_levels": { in: AutomationsConnectorLevelsIn; out: AutomationsConnectorLevelsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
   "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
   "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
@@ -31605,6 +31656,7 @@ export interface CapMap {
   "connections.pause": { in: ConnectionsPauseIn; out: ConnectionsPauseOut };
   "connections.reconnect": { in: ConnectionsReconnectIn; out: ConnectionsReconnectOut };
   "connections.resume": { in: ConnectionsResumeIn; out: ConnectionsResumeOut };
+  "connections.set_secret": { in: ConnectionsSetSecretIn; out: ConnectionsSetSecretOut };
   "connections.test": { in: ConnectionsTestIn; out: ConnectionsTestOut };
   "connections.update": { in: ConnectionsUpdateIn; out: ConnectionsUpdateOut };
   "connectors.build": { in: ConnectorsBuildIn; out: ConnectorsBuildOut };
