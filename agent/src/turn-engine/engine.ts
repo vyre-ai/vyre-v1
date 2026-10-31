@@ -52,7 +52,7 @@ export interface EngineOptions {
    */
   nextAccount?: (q: AccountQuery) => Promise<ResolvedAccount | null>;
   /** No account could be found for a turn: raise the Unblock task for the starter; when it is answered the host calls wake() to run the turn again. */
-  onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string }) => Promise<void> | void;
+  onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string; routine: boolean }) => Promise<void> | void;
   /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
   onTurnEnd?: (turn: Readonly<TurnRow>, account: ResolvedAccount | null) => Promise<void> | void;
   queue?: QueueStore;
@@ -323,8 +323,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
       if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
       if (account === null) {
-        // Nobody has a usable key for this turn: no session, an Unblock for the starter, and the turn ends as failed (no_account) until they add one.
-        try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
+        // Nobody has a usable key for this turn: no session, the turn ends as failed (no_account) until they add one.
+        try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, routine: item.routine }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
         throw Object.assign(new Error("no account can pay for this turn"), { code: "no_account" });
       }
       const failedRefs: string[] = [];

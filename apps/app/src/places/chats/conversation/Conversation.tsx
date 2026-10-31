@@ -317,6 +317,7 @@ function ConversationView(): ReactElement {
     answer: (blockId, answer) => void act.answerBlock(data, blockId, answer).catch(fail("Could not send the answer.")),
     approvePlan: (planId) => void act.approvePlan(data, planId).then(() => say("Plan approved. The steps run and tick off in the card."), fail("Could not approve the plan.")),
     retryTurn: (turnId) => void act.retryTurn(data, turnId).catch(fail("Could not retry.")),
+    accountReady: () => act.hasWorkingAccount(data),
     errorNext: (key) => (key === "connect_ai" ? (data.nav.openAiSetup ? data.nav.openAiSetup() : say("Open the Vault and add an AI account.")) : say(`Choose ${key} in the model switcher or ask for access.`)),
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },

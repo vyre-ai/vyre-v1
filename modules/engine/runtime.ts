@@ -104,17 +104,49 @@ async function accountFor(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedA
   return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
 }
 
-/** The task a turn with no AI account leaves for the asker. The app opens the direct sign-in for it (apps/app/src/places/chats/needsyou/account.ts holds the same title; test/no-account-title.test.ts keeps them equal). */
+/** The task an unattended turn with no AI account leaves for the person. A chat turn leaves none: the chat shows it inline (apps/app/src/places/chats/conversation/status.ts). The app opens the direct sign-in for it (apps/app/src/places/chats/needsyou/account.ts holds the same title; test/no-account-title.test.ts keeps them equal). */
 export const NO_ACCOUNT_TITLE = "Connect an AI account";
+/** Titles earlier builds gave the same task; the sweep closes those too. */
+const NO_ACCOUNT_TITLES: ReadonlySet<string> = new Set([NO_ACCOUNT_TITLE, "Add a key so your agent can answer"]);
 
-async function unblock(h: EngineHostSeam, db: Db, info: { threadId: string; turnId: string; agentId: string; asker: string }): Promise<void> {
-  const key = `no-account:${info.threadId}:${info.agentId}:${info.asker}`;
+type NoAccountInfo = { threadId: string; turnId: string; agentId: string; asker: string; routine: boolean };
+
+async function unblock(h: EngineHostSeam, db: Db, info: NoAccountInfo): Promise<void> {
+  if (!info.routine) return;   // a person is in the chat: the failed turn says so there, and no task piles up per message
+  const key = `no-account:${info.asker}`;   // one per person, whatever the thread or the run
   const made = (await h.call("tasks.create", {
     kind: "unblock", title: NO_ACCOUNT_TITLE, summary: "So your agent can answer.",
     assigned: { kind: "person", id: info.asker }, source: { kind: "chat", id: info.threadId }, idempotencyKey: key,
   }, info.asker)) as { task?: { id?: string } };
   const taskId = made.task?.id;
   if (taskId) db.run("INSERT OR REPLACE INTO engine_unblock (task_id, thread_id, agent_id, asker, at) VALUES (?, ?, ?, ?, ?)", taskId, info.threadId, info.agentId, info.asker, (h.now ?? Date.now)());
+}
+
+/**
+ * Closes every open no-account Unblock whose person now has a usable AI account (a connected, working one). Runs when a provider is added and at boot, so the tasks older builds piled up
+ * go away by themselves. The task is canceled as the person it is assigned to (they are who it was for); the wake row goes with it. Returns the ids it closed.
+ */
+export async function closeNoAccountTasks(db: Db): Promise<string[]> {
+  const h = host;
+  if (!h) return [];
+  const listed = (await h.call("tasks.list", { scope: "all", kinds: ["unblock"], states: ["todo", "doing"], limit: 200 })) as { tasks?: Array<{ id: string; title: string; assigned?: { kind?: string; id?: string } }> };
+  const mine = (listed.tasks ?? []).filter((t) => NO_ACCOUNT_TITLES.has(t.title) && t.assigned?.kind === "person" && typeof t.assigned.id === "string");
+  const usable = new Map<string, boolean>();
+  const closed: string[] = [];
+  for (const t of mine) {
+    const person = t.assigned!.id as string;
+    if (!usable.has(person)) {
+      try { usable.set(person, ((await h.call("engine.accounts.list", {}, person)) as { accounts?: Array<{ status?: string }> }).accounts?.some((a) => a.status === "ok") === true); }
+      catch { usable.set(person, false); }
+    }
+    if (!usable.get(person)) continue;
+    try {
+      await h.call("tasks.transition", { taskId: t.id, to: "canceled", note: "An AI account is connected." }, person);
+      db.run("DELETE FROM engine_unblock WHERE task_id = ?", t.id);
+      closed.push(t.id);
+    } catch (e) { h.log?.("could not close a no-account task", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }); }
+  }
+  return closed;
 }
 
 async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: ResolvedAccount | null): Promise<void> {
@@ -225,6 +257,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         engine.recover(r.thread_id);
       } catch { /* a thread that cannot be opened now is opened by its next message */ }
     }
+    void closeNoAccountTasks(ctx.db).catch((e) => h.log?.("the no-account sweep failed", { error: e instanceof Error ? e.message : String(e) }));
     return engine;
   })().catch((e) => { building = null; throw e; });
   return building;
