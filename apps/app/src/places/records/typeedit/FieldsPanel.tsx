@@ -136,24 +136,53 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
     doRun(made.ops, () => { setAdding(false); setNewName(""); setNewType("text"); setNewRequired(false); });
   };
   const groupRows: ReactElement[] = groups.map((g) => (
-    <View key={g.key} testID={`panel-group-${g.key}`}>
-      {renaming?.key === g.key ? (
-        <View style={s.inline}>
-          <View style={s.grow}><TextField value={renaming.text} onChangeText={(t) => setRenaming({ key: g.key, text: t })} accessibilityLabel={`Rename ${g.title}`} testID={`panel-group-input-${g.key}`} autoFocus onSubmitEditing={() => { if (renaming.text.trim()) saveLayout(renameGroup(layout, fieldKeys, g.key, renaming.text), () => setRenaming(null)); }} /></View>
-          <TextButton label="Cancel" testID={`panel-group-rename-cancel-${g.key}`} onPress={() => setRenaming(null)} />
-          <TextButton label="Save" primary testID={`panel-group-rename-save-${g.key}`} off={renaming.text.trim() === "" || groupBusy ? true : undefined} onPress={() => saveLayout(renameGroup(layout, fieldKeys, g.key, renaming.text), () => setRenaming(null))} />
-        </View>
-      ) : (
-        <Row
-          id={`panel-group-row-${g.key}`} title={g.title} note={`${g.fields.length} ${g.fields.length === 1 ? "field" : "fields"}`}
-          trailing={<View style={s.inline}>
-            <TextButton label="Rename" testID={`panel-group-rename-${g.key}`} onPress={() => setRenaming({ key: g.key, text: g.title })} />
-            <TextButton label="Delete" danger testID={`panel-group-delete-${g.key}`} off={groupBusy ? true : undefined} onPress={() => saveLayout(deleteGroup(layout, fieldKeys, g.key))} />
-          </View>}
-        />
-      )}
-    </View>
+    <Row
+      key={g.key} id={`panel-group-${g.key}`} title={g.title} note={`${g.fields.length} ${g.fields.length === 1 ? "field" : "fields"}`} selected={renaming?.key === g.key}
+      trailing={renaming?.key === g.key ? undefined : <View style={s.inline}>
+        <TextButton label="Rename" testID={`panel-group-rename-${g.key}`} onPress={() => setRenaming({ key: g.key, text: g.title })} />
+        <TextButton label="Delete" danger testID={`panel-group-delete-${g.key}`} off={groupBusy ? true : undefined} onPress={() => saveLayout(deleteGroup(layout, fieldKeys, g.key))} />
+      </View>}
+    />
   ));
+  // the rename editor of the group being renamed, drawn under the list
+  const renamingGroup = renaming === null ? undefined : groups.find((g) => g.key === renaming.key);
+  const renameEditor = renaming !== null && renamingGroup ? (
+    <View style={s.inline} testID={`panel-group-edit-${renamingGroup.key}`}>
+      <View style={s.grow}><TextField value={renaming.text} onChangeText={(t) => setRenaming({ key: renamingGroup.key, text: t })} accessibilityLabel={`Rename ${renamingGroup.title}`} testID={`panel-group-input-${renamingGroup.key}`} autoFocus onSubmitEditing={() => { if (renaming.text.trim()) saveLayout(renameGroup(layout, fieldKeys, renamingGroup.key, renaming.text), () => setRenaming(null)); }} /></View>
+      <TextButton label="Cancel" testID={`panel-group-rename-cancel-${renamingGroup.key}`} onPress={() => setRenaming(null)} />
+      <TextButton label="Save" primary testID={`panel-group-rename-save-${renamingGroup.key}`} off={renaming.text.trim() === "" || groupBusy ? true : undefined} onPress={() => saveLayout(renameGroup(layout, fieldKeys, renamingGroup.key, renaming.text), () => setRenaming(null))} />
+    </View>
+  ) : null;
+  const openStageIndex = stageList.findIndex((x) => x.key === openStage);
+  const stageEditor = openStageIndex < 0 ? null : (() => {
+    const g = stageList[openStageIndex]!;
+    const i = openStageIndex;
+    return (
+          <View style={s.edit} testID={`panel-stage-${g.key}`}>
+            <View style={s.inline}>
+              <View style={s.grow}><TextField value={stageText} onChangeText={setStageText} accessibilityLabel={`Rename ${g.title}`} testID={`panel-stage-input-${g.key}`} /></View>
+              <TextButton label="Rename" primary testID={`panel-stage-rename-${g.key}`} off={stageText.trim() === "" || change.busy ? true : undefined} onPress={() => saveStages(renameStage(stageList, g.key, stageText))} />
+            </View>
+            <View style={s.actions}>
+              <TextButton label="Move up" testID={`panel-stage-up-${g.key}`} off={i === 0 ? "Already first" : change.busy ? true : undefined} onPress={() => saveStages(moveStage(stageList, g.key, -1))} />
+              <TextButton label="Move down" testID={`panel-stage-down-${g.key}`} off={i === stageList.length - 1 ? "Already last" : change.busy ? true : undefined} onPress={() => saveStages(moveStage(stageList, g.key, 1))} />
+              <TextButton label="Remove" danger testID={`panel-stage-remove-${g.key}`} off={stageList.length < 2 ? "A type with stages keeps one" : change.busy ? true : undefined} onPress={() => saveStages(removeStage(stageList, g.key))} />
+            </View>
+            {/* ui-rows-lint: not a list (two fixed sections, each a labelled chip group) */}
+            {(["needToEnter", "needToLeave"] as const).map((list) => (
+              <View key={list}>
+                <Text style={s.head}>{list === "needToEnter" ? "Must be filled to move here" : "Must be filled to move on"}</Text>
+                <View style={s.chips}>
+                  {/* ui-rows-lint: not a list (required-field toggle chips in a wrapping strip) */}
+                  {type.fields.filter((f) => f.key !== type.titleField && f.key !== stageField?.key).map((f) => (
+                    <TextButton key={f.key} label={f.title} selected={(g[list] ?? []).includes(f.key)} testID={`panel-gate-${list}-${g.key}-${f.key}`} off={change.busy ? true : undefined} onPress={() => saveStages(toggleGate(stageList, g.key, list, f.key))} />
+                  ))}
+                </View>
+              </View>
+            ))}
+          </View>
+    );
+  })();
   const groupReady = newGroup !== null && newGroup.trim() !== "";
   const submitGroup = (): void => { if (groupReady) saveLayout(addGroup(layout, fieldKeys, newGroup!).sections, () => setNewGroup(null)); };
   return (
@@ -192,33 +221,9 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
               {stagesAreOn ? (
                 <>
                   {stageList.map((g, i) => (
-                    <View key={g.key} testID={`panel-stage-${g.key}`}>
-                      <Row id={`panel-stage-row-${g.key}`} title={g.title} note={`Stage ${i + 1}${g.fields?.length ? ` · ${g.fields.length} ${g.fields.length === 1 ? "field" : "fields"}` : ""}`} selected={openStage === g.key} onPress={() => { setOpenStage(openStage === g.key ? null : g.key); setStageText(g.title); }} />
-                      {openStage === g.key ? (
-                        <View style={s.edit}>
-                          <View style={s.inline}>
-                            <View style={s.grow}><TextField value={stageText} onChangeText={setStageText} accessibilityLabel={`Rename ${g.title}`} testID={`panel-stage-input-${g.key}`} /></View>
-                            <TextButton label="Rename" primary testID={`panel-stage-rename-${g.key}`} off={stageText.trim() === "" || change.busy ? true : undefined} onPress={() => saveStages(renameStage(stageList, g.key, stageText))} />
-                          </View>
-                          <View style={s.actions}>
-                            <TextButton label="Move up" testID={`panel-stage-up-${g.key}`} off={i === 0 ? "Already first" : change.busy ? true : undefined} onPress={() => saveStages(moveStage(stageList, g.key, -1))} />
-                            <TextButton label="Move down" testID={`panel-stage-down-${g.key}`} off={i === stageList.length - 1 ? "Already last" : change.busy ? true : undefined} onPress={() => saveStages(moveStage(stageList, g.key, 1))} />
-                            <TextButton label="Remove" danger testID={`panel-stage-remove-${g.key}`} off={stageList.length < 2 ? "A type with stages keeps one" : change.busy ? true : undefined} onPress={() => saveStages(removeStage(stageList, g.key))} />
-                          </View>
-                          {(["needToEnter", "needToLeave"] as const).map((list) => (
-                            <View key={list}>
-                              <Text style={s.head}>{list === "needToEnter" ? "Must be filled to move here" : "Must be filled to move on"}</Text>
-                              <View style={s.chips}>
-                                {type.fields.filter((f) => f.key !== type.titleField && f.key !== stageField?.key).map((f) => (
-                                  <TextButton key={f.key} label={f.title} selected={(g[list] ?? []).includes(f.key)} testID={`panel-gate-${list}-${g.key}-${f.key}`} off={change.busy ? true : undefined} onPress={() => saveStages(toggleGate(stageList, g.key, list, f.key))} />
-                                ))}
-                              </View>
-                            </View>
-                          ))}
-                        </View>
-                      ) : null}
-                    </View>
+                    <Row key={g.key} id={`panel-stage-row-${g.key}`} title={g.title} note={`Stage ${i + 1}${g.fields?.length ? ` · ${g.fields.length} ${g.fields.length === 1 ? "field" : "fields"}` : ""}`} selected={openStage === g.key} onPress={() => { setOpenStage(openStage === g.key ? null : g.key); setStageText(g.title); }} />
                   ))}
+                  {stageEditor}
                   {stageName !== null ? (
                     <View style={s.inline}>
                       <View style={s.grow}><TextField value={stageName} onChangeText={setStageName} placeholder="Stage name" accessibilityLabel="Stage name" testID="panel-stage-name" autoFocus onSubmitEditing={() => { if (stageName.trim()) saveStages(addStage(stageList, stageName), () => setStageName(null)); }} /></View>
@@ -235,6 +240,7 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
         <View style={s.trash} testID="panel-groups">
           <Text style={s.head}>Groups</Text>
           {groupRows}
+          {renameEditor}
           {newGroup !== null ? (
             <View style={s.inline}>
               <View style={s.grow}><TextField value={newGroup} onChangeText={setNewGroup} placeholder="Group name" accessibilityLabel="Group name" testID="panel-group-name" autoFocus onSubmitEditing={submitGroup} /></View>
@@ -309,6 +315,7 @@ function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, chan
         <View>
           <View style={s.chips} accessibilityRole="radiogroup">
             <TextButton label="Always" selected={stageOfField(stages, f.key) === undefined} testID={`panel-show-always-${f.key}`} off={change.busy ? true : undefined} onPress={() => onShow(null)} />
+            {/* ui-rows-lint: not a list (stage choice chips in a wrapping strip) */}
             {stages.map((g) => <TextButton key={g.key} label={`At ${g.title}`} selected={stageOfField(stages, f.key)?.key === g.key} testID={`panel-show-stage-${g.key}`} off={change.busy ? true : undefined} onPress={() => onShow(g.key)} />)}
           </View>
           <View style={s.addRow}><View style={s.grow} /><TextButton label="Back" onPress={() => setMode(null)} testID="panel-show-back" /></View>
@@ -319,6 +326,7 @@ function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, chan
           {groups.length === 0 ? <Text style={s.hint} testID="panel-group-none">Make a group first, under Groups below.</Text> : (
             <View style={s.chips} accessibilityRole="radiogroup">
               <TextButton label="Ungrouped" selected={inGroup === null} testID={`panel-to-group-${OVERVIEW}`} off={groupBusy ? true : undefined} onPress={() => onGroup(null)} />
+              {/* ui-rows-lint: not a list (group choice chips in a wrapping strip) */}
               {groups.map((g) => <TextButton key={g.key} label={g.title} selected={inGroup === g.key} testID={`panel-to-group-${g.key}`} off={groupBusy ? true : undefined} onPress={() => onGroup(g.key)} />)}
             </View>
           )}

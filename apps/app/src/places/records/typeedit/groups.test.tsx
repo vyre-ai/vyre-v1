@@ -130,7 +130,7 @@ test("rename and delete a group in the panel; deleting keeps its fields", async 
     await flush();
     assert.deepEqual(titles(last(calls)), ["overview:Overview"]);
     assert.equal(last(calls)[0]!.fields.length, FIELDS.length, "the fields came back");
-    assert.equal(find(o.root, "panel-group-billing"), null);
+    assert.equal(find(o.root, "row-panel-group-billing"), null);
   } finally { await o.stop(); restore(); }
 });
 
@@ -144,7 +144,7 @@ test("a refused layout save says why and changes nothing on screen", async () =>
     await press(find(o.root, "panel-group-save"));
     await flush();
     assert.match(textOf(find(o.root, "panel-group-error")), /denied/);
-    assert.equal(find(o.root, "panel-group-billing"), null);
+    assert.equal(find(o.root, "row-panel-group-billing"), null);
   } finally { await o.stop(); restore(); }
 });
 
