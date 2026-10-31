@@ -1,5 +1,5 @@
 // A new chat asks first before a change the person cares about, and does not nag for the agent's own housekeeping (rc.8, owner rule: no nagging).
-// In the default Ask mode: the agent saves, restores and forgets its own memory and asks the person for a key without a hold; a record write, a routine and a setting are held for a yes.
+// In Ask first (a chat switched to it; new chats are Auto): the agent saves, restores and forgets its own memory and asks the person for a key without a hold; a record write, a routine and a setting are held for a yes.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { boot, call, connect, newAgent, say, seededDir, waitFor } from "./memory-live-kit.ts";
@@ -24,6 +24,7 @@ test("Ask mode: memory writes and key requests run, record, routine and setting 
 
     // a record write is held for a yes
     const threadId = (await call(d, "chat.start", { kind: "chat", agentIds: [keeper.id], idempotencyKey: "ask-rec-start" })).data.thread.threadId as string;
+    await call(d, "threads.set_mode", { threadId, mode: "ask" });
     await call(d, "chat.post", { threadId, body: `TOOL records_create ${JSON.stringify({ type: "contact", fields: { name: "Ada" }, idempotencyKey: "ask-rc" })}`, mentions: [{ kind: "agent", id: keeper.id }], idempotencyKey: "ask-rec-post" });
     const held = await waitFor(async () => { await d.hooks?.pump?.(); return (await holds(d)).find((h) => h.capName === "records.create") ?? null; });
     assert.equal(held.act, "approve");

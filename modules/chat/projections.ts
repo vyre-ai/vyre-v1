@@ -100,7 +100,7 @@ export async function hopLimit(ctx: ChatCtx): Promise<number> {
 
 // ---- threads ----------------------------------------------------------------------------------------------------------------------------------------
 
-/** How much a chat's agents may do without asking: "ask" (Ask first, the default), "auto" or "plan". Anything that leaves Vyre is held for a yes in every mode. */
+/** How much a chat's agents may do without asking: "auto" (the default for a new chat, owner 1 Nov 2026), "ask" or "plan". Anything that leaves Vyre is held for a yes in every mode. */
 export type ChatMode = "ask" | "auto" | "plan";
 export const CHAT_MODES: readonly ChatMode[] = ["ask", "auto", "plan"];
 /** modePlan keeps its column: 0 or null is ask, 1 is plan (so an older client that reads it as a checkbox still sees plan mode), 2 is auto. */
@@ -137,7 +137,7 @@ export function insertThread(ctx: Pick<ChatCtx, "db" | "now">, t: NewThread): Th
     `INSERT INTO chat_thread (id, kind, title, starter, recordId, folderId, scopeType, scopeId, channelId, parentThreadId, parentMessageId, listed, modePlan, createdAt, closedAt, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, NULL)`,
     id, t.kind, t.title ?? null, t.starter ?? null, t.recordId ?? null, t.folderId ?? null, t.scopeType ?? null, t.scopeId ?? null, t.channelId ?? null,
-    t.parentThreadId ?? null, t.parentMessageId ?? null, t.listed ? 1 : 0, codeOfMode(t.mode ?? (t.planMode ? "plan" : "ask")), now, now,
+    t.parentThreadId ?? null, t.parentMessageId ?? null, t.listed ? 1 : 0, codeOfMode(t.mode ?? (t.planMode ? "plan" : "auto")), now, now,
   );
   return threadBy(ctx.db, id)!;
 }

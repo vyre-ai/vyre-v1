@@ -12,11 +12,11 @@ let n = 0;
 const chatOf = async (hn: Harness) => (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: `m${++n}` })).thread.threadId as string;
 const failure = async (p: Promise<unknown>): Promise<string> => { try { await p; } catch (e) { return codeOf(e); } return "none"; };
 
-test("a new chat is Ask first; threads.get says so, and planMode stays false", async () => {
+test("a new chat is Auto (owner, 1 Nov 2026); threads.get says so, and planMode stays false", async () => {
   const hn = harness();
   const id = await chatOf(hn);
   const { thread } = await h["threads.get"]!(hn.ctx, { threadId: id });
-  assert.equal(thread.mode, "ask");
+  assert.equal(thread.mode, "auto");
   assert.equal(thread.planMode, false);
 });
 
@@ -24,11 +24,11 @@ test("threads.set_mode stores the mode, answers with the thread, says what chang
   const hn = harness();
   const id = await chatOf(hn);
   hn.clear();
-  assert.equal((await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "auto" })).thread.mode, "auto");
-  assert.equal((await h["threads.get"]!(hn.ctx, { threadId: id })).thread.planMode, false, "auto is not plan mode");
+  assert.equal((await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "ask" })).thread.mode, "ask");
+  assert.equal((await h["threads.get"]!(hn.ctx, { threadId: id })).thread.planMode, false, "ask is not plan mode");
   assert.deepEqual(hn.named("thread.updated")[0]!.payload, { threadId: id, fields: ["mode"] });
   assert.equal(hn.named("thread.plan_mode_changed").length, 0, "plan did not change");
-  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "auto" });
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "ask" });
   assert.equal(hn.named("thread.updated").length, 1, "the same mode is no change");
 
   const plan = await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "plan" });
@@ -59,20 +59,22 @@ test("the mode lives in the column older clients read as plan mode: 0 ask, 1 pla
   const hn = harness();
   const id = await chatOf(hn);
   const code = () => hn.rows("SELECT modePlan FROM chat_thread WHERE id = ?", id)[0]!["modePlan"];
-  assert.equal(code(), 0);
+  assert.equal(code(), 2, "a new chat is Auto");
   await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "plan" });
   assert.equal(code(), 1);
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "ask" });
+  assert.equal(code(), 0);
   await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "auto" });
   assert.equal(code(), 2);
 });
 
-test("approving a plan ends Plan and leaves Ask first", async () => {
+test("approving a plan ends Plan and returns the chat to Auto", async () => {
   const hn = harness();
   const id = await chatOf(hn);
   await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "plan" });
   const seeded = hn.seedPlan(id);
   await h["chat.approve_plan"]!(hn.ctx, { threadId: id, planId: seeded.planId });
-  assert.equal((await h["threads.get"]!(hn.ctx, { threadId: id })).thread.mode, "ask");
+  assert.equal((await h["threads.get"]!(hn.ctx, { threadId: id })).thread.mode, "auto");
 });
 
 test("a fork keeps the mode of the chat it came from", async () => {
