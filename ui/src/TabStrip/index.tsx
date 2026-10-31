@@ -144,6 +144,8 @@ export interface TabStripViewProps extends TabStripProps {
   tight?: boolean;
   /** No bar of its own: no fill and no rule under the tabs, for a strip that sits inside a pane's body (the prototype's agent pane). */
   bare?: boolean;
+  /** A lone tab has no Close button. Only the main tab strip sets it: closing its last tab just reopens the start place. A pane keeps its Close (that is how the pane closes). */
+  hideLoneClose?: boolean;
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
@@ -227,7 +229,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         tight={props.tight === true}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
-        only={tabs.length === 1}
+        only={props.hideLoneClose === true && tabs.length === 1}
         nodeRef={(node) => { nodes.current[tab.key] = node; }}
         onPress={() => select(tab.key)}
         onClose={() => {
