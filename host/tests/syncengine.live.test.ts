@@ -222,3 +222,51 @@ test("syncengine: an app that ignores the page parameter and answers the same pa
   assert.equal((await store.query("things", { page: { limit: 10 } })).rows.length, 1);
   assert.equal(calls, 2);
 });
+
+test("syncengine: page reads one page of the app and hands back where the next one starts, without holding the list", async () => {
+  const asked: unknown[] = [];
+  const ctx = { call: async (_cap: string, input: unknown) => { asked.push((input as { action: string; input: unknown }).input); return { output: { rows: [{ id: "9", data: { a: 1 } }, { id: "8", data: { a: 2 }, archived: true }], next: "c2" } }; } };
+  const store = remoteStore(ctx, { connector: "x", connectionId: "con_1", remote: "things" });
+  const first = await store.page();
+  assert.deepEqual(first.rows.map((r) => r.id), ["9"], "a removed row is not brought in");
+  assert.equal(first.next, "c2");
+  await store.page("c2");
+  assert.deepEqual(asked, [{}, { after: "c2" }]);
+});
+
+test("syncengine: a first pull of a big app goes a group at a time, keeps its place, and the last group says so", async () => {
+  const core = coreOf(await fileExportsImporter(CODE_ROOT)("sources"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-syncengine-"));
+  const space = createSpaceStore({ path: path.join(dir, "space.db"), space: "sp_group" });
+  const { store, tx } = space.open();
+  await store.define({ add_types: [{ name: "contact", label: "Contact", fields: [{ name: "name", kind: "text", label: "Name" }, { name: "email", kind: "text", label: "Email" }] }] });
+  const people = Array.from({ length: 23 }, (_, i) => ({ id: `h${i + 1}`, properties: { full_name: `P${i + 1}`, email_address: `p${i + 1}@x.io` } }));
+  const held: number[] = [];
+  const ctx: EngineCtx = {
+    trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: () => ({}),
+    call: async (cap, input) => {
+      if (cap === "connectors.get") return { connector: { key: "fakeapp" } };
+      const i = input as { action: string; input: { after?: string } };
+      const from = i.input.after ? Number(i.input.after) : 0;
+      const rows = people.slice(from, from + 5);
+      held.push(rows.length);
+      return { output: { results: rows, ...(from + 5 < people.length ? { paging: { next: { after: String(from + 5) } } } : {}) } };
+    },
+  };
+  const row: BindingRow = {
+    syncTypeId: "syt_g", type: "contact", connector: "fakeapp", connectionId: "con_1", remote: "contacts",
+    fields: [{ key: "name", remote: "full_name", dir: "pull" }, { key: "email", remote: "email_address", dir: "pull" }], match: ["email"], createAtSource: false, deletes: "off", conflict: "newest",
+  };
+  const engine = createSyncEngine({ core, local: { open: () => ({ store, tx }) }, groupRows: 10 });
+  const first = await engine.run(ctx, row, { mode: "incremental" });
+  assert.equal(first.more, true);
+  assert.equal((await store.query("contact", { page: { limit: 100 } })).rows.length, 10);
+  const second = await engine.run(ctx, row, { mode: "incremental" });
+  assert.equal(second.more, true);
+  const third = await engine.run(ctx, row, { mode: "incremental" });
+  assert.equal(third.more, undefined);
+  assert.match(third.summary, /All 23 are in/);
+  assert.equal((await store.query("contact", { page: { limit: 100 } })).rows.length, 23);
+  assert.equal(JSON.parse(tx.get<{ cursor: string }>("SELECT cursor FROM sy_state WHERE sync_type = 'syt_g'")!.cursor).done, true);
+  assert.ok(Math.max(...held) <= 5, "no call asked for more than a page");
+});

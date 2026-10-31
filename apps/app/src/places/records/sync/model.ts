@@ -97,7 +97,7 @@ export function pageState(s: { state: SyncedRow["state"]; paused: boolean; pendi
 /** The server's sync_types.status, as the Sync page draws it. */
 export interface TypeStatus {
   type: string; app: App; state: SyncedRow["state"]; paused: boolean; deletes: "off" | "soft" | "travel"; conflict: string; polling: { activeSec: number; idleSec: number; dormantSec: number };
-  records: number; estimate?: number; filter?: string; canBackfill: boolean; lastRun?: { at: number; summary: string }; pending: number; failedPushes: number; conflicts: number; schemaChanges: number;
+  records: number; estimate?: number; filter?: string; canBackfill: boolean; catchingUp?: boolean; lastRun?: { at: number; summary: string }; pending: number; failedPushes: number; conflicts: number; schemaChanges: number;
   failures: { at: number; summary: string }[]; sentToday: number; nextPollAt?: number; spec: boolean;
 }
 export interface OutboxItem { outboxId: string; recordId: string; op: "create" | "update" | "delete"; fields: string[]; state: string; attempts: number; error?: string; at: number }

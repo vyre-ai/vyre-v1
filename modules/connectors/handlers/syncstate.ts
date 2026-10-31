@@ -19,7 +19,7 @@ export interface RecordState {
 export interface HistoryEntry { historyId: string; value: unknown; at?: number; replacedBy: "app" | "you" | "push"; /** The person a push was sent for (a push entry only). */ by?: string; actor: string }
 export interface TypeStatus {
   type: string; account?: string; accounts?: { account: string; state: string; records: number; estimate?: number; pending: number }[]; app: { key: string; title: string; domain?: string }; state: "initial" | "syncing" | "paused" | "needs_review" | "error"; paused: boolean; deletes: "off" | "soft" | "travel"; conflict: string;
-  polling: PollingRow; records: number; estimate?: number; filter?: string; canBackfill: boolean; lastRun?: { at: number; summary: string };
+  polling: PollingRow; records: number; estimate?: number; filter?: string; canBackfill: boolean; /** A big first pull is still reading the app, a group of pages at a time. */ catchingUp?: boolean; lastRun?: { at: number; summary: string };
   pending: number; failedPushes: number; conflicts: number; schemaChanges: number; failures: { at: number; summary: string }[]; sentToday: number; nextPollAt?: number; spec: boolean;
 }
 
@@ -80,10 +80,13 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
     const lastRun = newestRun ? { at: newestRun.at, summary: logs.filter((l) => l.run_id === newestRun.run_id && (l.kind === "pull" || l.kind === "push")).map((l) => l.summary).reverse().join(" ") } : undefined;
     const outbox = has("sy_outbox") ? tx.get<{ failed: number; sent: number }>("SELECT sum(status = 'failed') AS failed, sum(status = 'done' AND done_at > ?) AS sent FROM sy_outbox WHERE sync_type = ?", nowOf(deps) - DAY, b.sync_type_id) : undefined;
     const poll = tx.get<{ at: number }>("SELECT at FROM cn_sync_poll WHERE sync_type_id = ?", b.sync_type_id);
+    const cursor = has("sy_state") ? tx.get<{ cursor: string | null }>("SELECT cursor FROM sy_state WHERE sync_type = ?", b.sync_type_id)?.cursor : undefined;
+    let catchingUp = false;
+    try { catchingUp = cursor ? (JSON.parse(cursor) as { done?: boolean }).done === false : false; } catch { /* a cursor from before groups: not catching up */ }
     const filtered = spec !== undefined && spec.plan.backfill === "later" && object?.list.filter !== undefined;
     return {
       type: b.type, ...(b.account ? { account: b.account } : {}), app: appOf(b.connector), state: row.state, paused: b.paused === 1, deletes: b.deletes, conflict: b.conflict, polling: parse<PollingRow>(b.polling),
-      records, ...(object?.count !== undefined ? { estimate: object.count } : {}), ...(filtered ? { filter: spec!.plan.firstPull.words } : {}), canBackfill: filtered,
+      records, ...(object?.count !== undefined ? { estimate: object.count } : {}), ...(filtered ? { filter: spec!.plan.firstPull.words } : {}), canBackfill: filtered, ...(catchingUp ? { catchingUp } : {}),
       ...(lastRun ? { lastRun } : {}), pending: row.pending, failedPushes: outbox?.failed ?? 0, conflicts: row.conflicts, schemaChanges: row.schemaChanges,
       failures: logs.filter((l) => l.kind === "error").slice(0, 5).map((l) => ({ at: l.at, summary: l.summary })), sentToday: outbox?.sent ?? 0, ...(poll ? { nextPollAt: poll.at } : {}), spec: spec !== undefined,
     };
@@ -152,7 +155,7 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
       const estimate = each.every((t) => t.estimate !== undefined) ? sum((t) => t.estimate!) : undefined;
       return {
         ...first, state: each.find((t) => t.state === "error")?.state ?? each.find((t) => t.state === "needs_review")?.state ?? (each.every((t) => t.paused) ? "paused" : first.state), paused: each.every((t) => t.paused),
-        records: sum((t) => t.records), ...(estimate !== undefined ? { estimate } : { estimate: undefined }), canBackfill: each.some((t) => t.canBackfill),
+        records: sum((t) => t.records), ...(estimate !== undefined ? { estimate } : { estimate: undefined }), canBackfill: each.some((t) => t.canBackfill), ...(each.some((t) => t.catchingUp) ? { catchingUp: true } : {}),
         pending: sum((t) => t.pending), failedPushes: sum((t) => t.failedPushes), conflicts: sum((t) => t.conflicts), schemaChanges: sum((t) => t.schemaChanges), sentToday: sum((t) => t.sentToday),
         failures: each.flatMap((t) => t.failures).sort((x, y) => y.at - x.at).slice(0, 5),
         accounts: each.map((t, i) => ({ account: all[i]!.account, state: t.state, records: t.records, ...(t.estimate !== undefined ? { estimate: t.estimate } : {}), pending: t.pending })),

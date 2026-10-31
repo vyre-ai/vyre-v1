@@ -22,7 +22,11 @@ export interface BindingRow {
   fields: { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; transform?: string; relation?: string; inverse?: string; constant?: string }[];
   match: string[]; createAtSource: boolean; deletes: "off" | "soft" | "travel"; conflict: "newest" | "source" | "vyre" | "ask";
 }
-export interface RunOut { summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean }
+export interface RunOut {
+  summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean;
+  /** A big first pull goes a group of pages at a time: true while pages are left, so the caller runs the next group soon. */
+  more?: boolean;
+}
 export interface EngineCtx { trace: { traceId: string }; call(cap: string, input: unknown): Promise<unknown>; emit(name: string, subject: string, payload: Record<string, unknown>): unknown }
 export interface PreviewOut { creates: number; updates: number; removes: number; skips: number; summary: string; matches?: { sure: number; unsure: number; none: number }; samples: { recordId?: string; remoteId?: string; op: string; changes: Record<string, unknown> }[] }
 export interface SyncEngineLike {
@@ -48,7 +52,7 @@ export interface SyncReportLike {
   matched: number; ambiguous: number; conflicts: number; askedConflicts: number; removedAtSource: number; pausedDeletes: boolean; skipped?: number; summary: string;
 }
 export interface SyncCore {
-  runSync(d: SyncDepsLike, b: SyncBindingLike, o?: { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; by?: string }): Promise<SyncReportLike>;
+  runSync(d: SyncDepsLike, b: SyncBindingLike, o?: { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; by?: string; partial?: StoredRecord[] }): Promise<SyncReportLike>;
   flushOutbox(d: SyncDepsLike, b: SyncBindingLike): Promise<number>;
   retryPush(d: SyncDepsLike, outboxId: string): boolean;
   undoPush(d: SyncDepsLike, b: SyncBindingLike, outboxId: string): Promise<{ undone: boolean; reason?: string }>;
@@ -110,7 +114,7 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
 const RATE_CODES = new Set(["rate_limit.exceeded", "provider.rate_limited"]);
 const pause = (ms: number): Promise<void> => new Promise((ok) => { setTimeout(ok, ms); });
 
-export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown, opts: { sleep?: (ms: number) => Promise<void> } = {}): Store & { updatedAtOf(id: string): number } {
+export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown, opts: { sleep?: (ms: number) => Promise<void> } = {}): Store & { updatedAtOf(id: string): number; page(after?: string): Promise<{ rows: StoredRecord[]; next?: string }> } {
   const one = oneOf(b.remote);
   const names = namesFor(objects, b.remote);
   const nameList = names.list ?? `list_${b.remote}`, nameAfter = names.listAfter ?? `list_${b.remote}_after`;
@@ -192,7 +196,13 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
     version: async () => ({ store: "connection", version: "1" }),
     features: () => ({ aggregate: false, search: false, changes: false, cursor_paging: true as const }),
   };
-  return Object.assign(store as Store, { updatedAtOf: (id: string) => stamps.get(id) ?? 0 });
+  // One page of the app's list, for a big app pulled a page group at a time (the whole list is never held).
+  const page = async (after?: string): Promise<{ rows: StoredRecord[]; next?: string }> => {
+    const got = readRows(await run(after === undefined ? nameList : nameAfter, after === undefined ? {} : { after }));
+    for (const r of got.rows) stamps.set(r.id, r.updatedAt);
+    return { rows: got.rows.filter((r) => !r.archived).map((r) => toRecord(r)), ...(got.next !== undefined ? { next: got.next } : {}) };
+  };
+  return Object.assign(store as Store, { updatedAtOf: (id: string) => stamps.get(id) ?? 0, page });
 }
 
 // ---- the engine
@@ -206,7 +216,12 @@ const bindingOf = (b: BindingRow, relations: Map<string, string> = new Map()): S
   match: b.match, createAtSource: b.createAtSource, deletes: b.deletes !== "off", conflict: b.conflict,
 });
 
-export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: () => number; sleep?: (ms: number) => Promise<void> }): SyncEngineLike {
+/** Rows taken from the app per group, and the most pages one group reads. A group is one pass: pull, report, store the place, so a restart or a failure resumes there. */
+const GROUP_ROWS = 2000;
+const FIRST_GROUP_PAGES = 400;
+interface Progress { after?: string; pulled: number; done: boolean }
+
+export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: () => number; sleep?: (ms: number) => Promise<void>; groupRows?: number }): SyncEngineLike {
   // the connector's own names for its objects, read once per connector (a connector row without them keeps the convention)
   const maps = new Map<string, Promise<unknown>>();
   const objectsOf = (ctx: EngineCtx, connector: string): Promise<unknown> => {
@@ -235,8 +250,38 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
   };
   return {
     async run(ctx, b, opts) {
-      const { deps, binding } = await depsOf(ctx, b);
+      const { deps, binding, remote, tx } = await depsOf(ctx, b);
       const dry = opts.mode === "dry_run";
+      // The first pull (and a backfill) reads the app a group of pages at a time and keeps its place; the next pass carries on from there. Newest first is the app's own order (the spec's list query sorts).
+      // the sync tables are made by the first pass: before it there is no place kept, and this is the first pull
+      let state: { cursor: string | null } | null | undefined;
+      try { state = tx.get<{ cursor: string | null }>("SELECT cursor FROM sy_state WHERE sync_type = ?", b.syncTypeId); } catch { state = undefined; }
+      let progress: Progress | undefined = state?.cursor ? (JSON.parse(state.cursor) as Progress) : undefined;
+      const fresh = state === undefined || state === null;
+      if (!dry && (opts.mode === "backfill" || fresh || (progress && !progress.done))) {
+        if (opts.mode === "backfill" && (!progress || progress.done)) progress = { pulled: 0, done: false };
+        progress ??= { pulled: 0, done: false };
+        const rows: StoredRecord[] = [];
+        let after = progress.after;
+        let next: string | undefined;
+        const seen = new Set<string>();
+        for (let pages = 0; pages < FIRST_GROUP_PAGES && rows.length < (o.groupRows ?? GROUP_ROWS); pages++) {
+          const got = await remote.page(after);
+          const brought = got.rows.filter((r) => !seen.has(r.id));
+          for (const r of brought) seen.add(r.id);
+          rows.push(...brought);
+          next = got.next;
+          // an app that ignores the page parameter answers the same page again: it has nothing new
+          if (!next || brought.length === 0 && got.rows.length > 0) { next = undefined; break; }
+          after = next;
+        }
+        const r = await o.core.runSync(deps, binding, { mode: "both", partial: rows, ...(opts.runAutomations ? { runAutomations: true } : {}), ...(opts.by ? { by: opts.by } : {}), traceId: ctx.trace.traceId });
+        const total = progress.pulled + rows.length;
+        const saved: Progress = { ...(next !== undefined ? { after: next } : {}), pulled: total, done: next === undefined };
+        tx.run("INSERT INTO sy_state (sync_type, cursor) VALUES (?, ?) ON CONFLICT(sync_type) DO UPDATE SET cursor = excluded.cursor", b.syncTypeId, JSON.stringify(saved));
+        const summary = next === undefined ? `${r.summary} All ${total} are in.` : `Catching up: ${total} read so far. ${r.summary}`;
+        return { summary, pulled: r.local.created + r.local.updated, pushed: r.remote.created + r.remote.updated + r.remote.removed, skipped: r.skipped ?? 0, conflicts: r.conflicts, dryRun: false, ...(next !== undefined ? { more: true } : {}) };
+      }
       const r = await o.core.runSync(deps, binding, { mode: "both", dryRun: dry, ...(opts.runAutomations ? { runAutomations: true } : {}), ...(opts.by ? { by: opts.by } : {}), traceId: ctx.trace.traceId });
       return { summary: r.summary, pulled: r.local.created + r.local.updated, pushed: r.remote.created + r.remote.updated + r.remote.removed, skipped: r.skipped ?? 0, conflicts: r.conflicts, dryRun: dry };
     },

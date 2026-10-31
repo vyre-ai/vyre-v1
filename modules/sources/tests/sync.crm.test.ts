@@ -120,3 +120,18 @@ test("a record the type refuses is skipped and logged, the others still arrive, 
   const again = await k.run(PERSON_B);
   assert.equal(again.skipped, 1);
 });
+
+test("a slice of a big app is pulled alone: its records arrive, nothing outside the slice is marked removed, and nothing is pushed", async () => {
+  const k = await kit();
+  const a = await mk(k, "r_person", { "/name": "Al", "/email": "al@x.test", "/stage": "lead" });
+  await mk(k, "r_person", { "/name": "Bo", "/email": "bo@x.test", "/stage": "lead" });
+  const all = (await k.r.store.query("r_person", { page: { limit: 10 } })).rows;
+  const first = await k.run({ ...PERSON_B, deletes: true }, { mode: "both", partial: all.filter((r) => r.id === a) });
+  assert.equal(first.local.created, 1);
+  const second = await k.run({ ...PERSON_B, deletes: true }, { mode: "both", partial: all.filter((r) => r.id !== a) });
+  assert.equal(second.local.created, 1);
+  assert.equal(second.removedAtSource, 0, "Al is not in this slice and is not gone");
+  assert.equal(second.remote.created + second.remote.updated + second.remote.removed, 0);
+  assert.deepEqual((await local(k, "person")).map((p) => p.data["name"]).sort(), ["Al", "Bo"]);
+  assert.equal((await local(k, "person")).every((p) => !p.deleted_at), true);
+});

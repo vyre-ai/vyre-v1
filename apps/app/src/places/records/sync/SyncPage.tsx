@@ -101,6 +101,7 @@ export function SyncPage({ type, call, nav, now = Date.now, title, canManage = t
             <Text style={s.big} testID="sync-records-line">{recordsLine(st.records, st.estimate)}</Text>
             <Pressable accessibilityRole="link" accessibilityLabel="Open the records" testID="sync-open-records" onPress={() => nav.openRecords(type)}><Text style={s.link}>Open</Text></Pressable>
           </View>
+          {st.catchingUp ? <Text style={s.sub} testID="sync-catching-up">Catching up. Newest records come first; more arrive every minute.</Text> : null}
           {progress !== null ? <View style={s.bar} testID="sync-progress" accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}><View style={[s.barFill, { width: `${Math.round(progress * 100)}%` as unknown as number }]} /></View> : null}
           {st.canBackfill && st.filter ? (
             <View style={s.filterRow} testID="sync-filter">

@@ -37,7 +37,7 @@ export interface LogRow { at: number; kind: "pull" | "push" | "conflict" | "erro
 export interface DiscoveredObject { remote: string; title: string; fields: { remote: string; type: string; proposedKey: string; proposedType: string; sensitive: boolean }[] }
 
 /** What the sync engine (modules/sources) offers the handlers. The host wires it; every method gets the binding it works on. */
-export interface RunReport { summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean }
+export interface RunReport { summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean; /** A big first pull has pages left: the caller runs the next group soon. */ more?: boolean }
 export interface SyncEngine {
   run(ctx: ConnectorsCtx, b: SyncBindingRow, o: { mode: SyncMode; runAutomations?: boolean; by?: string }): Promise<RunReport>;
   preview(ctx: ConnectorsCtx, b: SyncBindingRow, o: { direction?: "pull" | "push" | "both" }): Promise<PreviewRow>;
@@ -580,13 +580,15 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       const engine = engineOf(ctx);
       const parts: string[] = [];
       let failed: { code: string; message: string } | undefined;
+      let more = false;
       for (const id of req.syncTypeIds) {
         const r = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE sync_type_id = ?", id);
         if (!r) continue;
         try {
           const out = await engine.run(ctx, rowOf(r), { mode: req.mode, runAutomations: req.runAutomations, ...(req.by ? { by: req.by } : {}) });
           parts.push(`${r.type}: ${out.summary}`);
-          if (!out.dryRun) await planPoll(ctx, r);
+          if (out.more) more = true;
+          else if (!out.dryRun) await planPoll(ctx, r);
         } catch (e) {
           const err = (e as { error?: { code?: string; message?: string } }).error;
           const message = err?.message ?? (e instanceof Error ? e.message : "The sync failed.");
@@ -596,6 +598,10 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
         }
       }
       const summary = parts.join(" ") || "Nothing to sync.";
+      // a big first pull goes a group at a time: the same run carries on in a moment, and finishes with the last group
+      if (more && !failed && ctx.schedule) {
+        try { await ctx.schedule(nowOf(deps) + 1000, "connectors.sync_run", { runId: input.runId }); return { ok: true, summary }; } catch { /* nothing can schedule: finish here; the next poll carries on */ }
+      }
       await ctx.call("runs.finish", failed ? { runId: input.runId, status: "failed", error: failed } : { runId: input.runId, status: "succeeded", summary });
       return { ok: failed === undefined, summary };
     },
@@ -609,7 +615,12 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       const conn = connRow(r.connection_id);
       let summary: string | undefined;
       if (conn && conn.state === "active") {
-        try { summary = (await engineOf(ctx).run(ctx, rowOf(r), { mode: "incremental" })).summary; } catch (e) {
+        try {
+          const out = await engineOf(ctx).run(ctx, rowOf(r), { mode: "incremental" });
+          summary = out.summary;
+          // a first pull still going carries on straight away, not at the idle interval
+          if (out.more && ctx.schedule) { tx.run("INSERT INTO cn_sync_poll (sync_type_id, at) VALUES (?, ?) ON CONFLICT(sync_type_id) DO UPDATE SET at = excluded.at", r.sync_type_id, nowOf(deps) + 1000); await ctx.schedule(nowOf(deps) + 1000, "connectors.sync_poll", { type: r.type }); return { ran: true, summary }; }
+        } catch (e) {
           const err = (e as { error?: { message?: string } }).error;
           logError(r.sync_type_id, `sync of ${r.type} failed: ${err?.message ?? (e instanceof Error ? e.message : "failed")}`);
         }

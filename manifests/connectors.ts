@@ -334,7 +334,7 @@ export default defineManifest({
       in: { type: id.recordType, account: t.opt(t.str()) },
       out: {
         type: id.recordType, app: t.obj({ key: id.connector, title: t.str(), domain: t.opt(t.str()) }), state: t.enm('initial', 'syncing', 'paused', 'needs_review', 'error'), paused: t.bool(), deletes, conflict: conflictRule,
-        account: t.opt(t.str()), accounts: t.opt(t.arr(t.obj({ account: t.str(), state: t.str(), records: t.int({ minimum: 0 }), estimate: t.opt(t.int({ minimum: 0 })), pending: t.int({ minimum: 0 }) }))), polling, records: t.int({ minimum: 0 }), estimate: t.opt(t.int({ minimum: 0 })), filter: t.opt(t.str()), canBackfill: t.bool(), lastRun: t.opt(t.obj({ at: t.ts(), summary: t.str() })),
+        account: t.opt(t.str()), accounts: t.opt(t.arr(t.obj({ account: t.str(), state: t.str(), records: t.int({ minimum: 0 }), estimate: t.opt(t.int({ minimum: 0 })), pending: t.int({ minimum: 0 }) }))), polling, records: t.int({ minimum: 0 }), estimate: t.opt(t.int({ minimum: 0 })), filter: t.opt(t.str()), canBackfill: t.bool(), catchingUp: t.opt(t.bool()), lastRun: t.opt(t.obj({ at: t.ts(), summary: t.str() })),
         pending: t.int({ minimum: 0 }), failedPushes: t.int({ minimum: 0 }), conflicts: t.int({ minimum: 0 }), schemaChanges: t.int({ minimum: 0 }),
         failures: t.arr(t.obj({ at: t.ts(), summary: t.str() })), sentToday: t.int({ minimum: 0 }), nextPollAt: t.opt(t.ts()), spec: t.bool(),
       },

@@ -35,7 +35,9 @@ export interface SyncDeps {
   emit?: (name: string, subject: string, payload: Record<string, unknown>) => unknown;
   maxAttempts?: number;
 }
-export interface SyncOptions { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; /** Who asked for the pass (a person pressing Sync or editing a record): pushes it queues carry the name, and the field history says "sent by". */ by?: string }
+export interface SyncOptions { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; /** Who asked for the pass (a person pressing Sync or editing a record): pushes it queues carry the name, and the field history says "sent by". */ by?: string;
+  /** A slice of the app's list instead of the whole list (a big app is pulled a page group at a time): nothing in the slice means nothing is gone, so no record is marked removed and no push runs. */
+  partial?: StoredRecord[] }
 export interface SyncReport {
   runId: string; dryRun: boolean;
   local: { created: number; updated: number }; remote: { created: number; updated: number; removed: number };
@@ -141,7 +143,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   ensureTables(d.tx);
   const mode = o.mode ?? "both";
   const pullOn = mode !== "push";
-  const pushOn = mode !== "pull";
+  const pushOn = mode !== "pull" && !o.partial;
   const dry = o.dryRun === true;
   const runId = mintShort("run", now(d));
   const quiet = o.runAutomations !== true;
@@ -150,7 +152,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   const label = b.label ?? b.connector;
   const emit = (name: string, subject: string, payload: Record<string, unknown>): void => { if (!dry) d.emit?.(name, subject, payload); };
 
-  const [localMap, remoteMap] = await Promise.all([listAll(d.local, b.type), listAll(d.remote, b.remote)]);
+  const [localMap, remoteMap] = await Promise.all([listAll(d.local, b.type), o.partial ? Promise.resolve(new Map(o.partial.map((r) => [r.id, r] as const))) : listAll(d.remote, b.remote)]);
   const links = loadLinks(d.tx, b.syncTypeId);
   const byLocal = new Map(links.map((l) => [l.localId, l]));
   const byRemote = new Map(links.map((l) => [l.remoteId, l]));
@@ -177,7 +179,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   for (const l of links) {
     const remote = remoteMap.get(l.remoteId);
     const local = localMap.get(l.localId);
-    if (!remote) { if (l.removedAt === null) vanished.push(l); continue; }
+    if (!remote) { if (l.removedAt === null && !o.partial) vanished.push(l); continue; }
     if (l.removedAt !== null) { l.removedAt = null; if (!dry) saveLink(d.tx, b.syncTypeId, l); }
     if (!local) { if (b.deletes && pushOn) removals.push(l); continue; }
     pairs.push({ link: l, local, remote });
