@@ -57,10 +57,10 @@ function HubTools({ conn, agentId }: { conn: Connection; agentId: string }): Rea
   return <>
     {/* ui-rows-lint: not a list (each app is a header row followed by its own tool rows) */}
     {groups.map((g) => <View key={g.app} testID={`hub-app-${g.app}`}>
-      <Row id={`hub-app-row-${g.app}`} title={g.app.charAt(0).toUpperCase() + g.app.slice(1)} note={`${g.tools.length} ${g.tools.length === 1 ? "tool" : "tools"} · ${hubLine(hub.id)}`}
+      <Row id={`hub-app-row-${g.app}`} title={g.app.charAt(0).toUpperCase() + g.app.slice(1)} note={`${g.tools.length} ${g.tools.length === 1 ? "tool" : "tools"}`}
         trailing={<Button label="Connect" testID={`hub-connect-${g.app}`} onPress={() => { void Linking.openURL(connectLink(hub, g.app)); }} />} />
-      {g.tools.map((t) => <Row key={t.name} id={`hub-tool-${t.name}`} title={t.label} note={`${t.readOnly ? "Reads" : "Changes things, asks first"} · ${hubLine(hub.id)}`}
-        trailing={<Text style={{ fontSize: 12, color: "var(--ink-3)" as string }} testID={`hub-badge-${t.name}`}>{hub.name}</Text>} />)}
+      {g.tools.map((t) => <Row key={t.name} id={`hub-tool-${t.name}`} title={t.label} note={t.readOnly ? "Reads" : "Changes things, asks first"}
+        trailing={<Text style={{ fontSize: 12, color: "var(--ink-3)" as string }} testID={`hub-badge-${t.name}`}>{hubLine(hub.id)}</Text>} />)}
     </View>)}
   </>;
 }
