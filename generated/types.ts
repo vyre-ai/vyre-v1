@@ -21421,6 +21421,24 @@ export type ProvidersTestOut = {
   latencyMs: number;
   detail?: string;
 };
+export type RecordsActivityIn = {
+  type: string;
+  recordId: string;
+  limit?: number;
+  before?: number;
+};
+export type RecordsActivityOut = {
+  entries: Array<{
+      id: string;
+      kind: "created" | "edited" | "stage" | "linked" | "unlinked" | "removed" | "restored" | "synced";
+      at: number;
+      actor: string;
+      field?: string;
+      from?: unknown;
+      to?: unknown;
+    }>;
+  next?: number;
+};
 export type RecordsAsOfIn = {
   type: string;
   recordId: string;
@@ -21463,6 +21481,113 @@ export type RecordsChangesOut = {
       op: "upsert" | "patch" | "delete";
     }>;
   next: number;
+};
+export type RecordsCommentsAddIn = {
+  type: string;
+  recordId: string;
+  text: string;
+  parentId?: string;
+  mentions?: Array<{
+      kind: "person" | "agent";
+      id: string;
+    }>;
+  idempotencyKey: string;
+};
+export type RecordsCommentsAddOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
+};
+export type RecordsCommentsDeleteIn = {
+  commentId: string;
+};
+export type RecordsCommentsDeleteOut = {
+  deleted: boolean;
+};
+export type RecordsCommentsEditIn = {
+  commentId: string;
+  text: string;
+};
+export type RecordsCommentsEditOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
+};
+export type RecordsCommentsListIn = {
+  type: string;
+  recordId: string;
+  includeResolved?: boolean;
+};
+export type RecordsCommentsListOut = {
+  comments: Array<{
+      commentId: string;
+      type: string;
+      recordId: string;
+      parentId?: string;
+      text: string;
+      by: string;
+      at: number;
+      editedAt?: number;
+      resolved: boolean;
+      resolvedBy?: string;
+      mentions: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
+      replying: Array<string>;
+    }>;
+  resolvedCount: number;
+};
+export type RecordsCommentsResolveIn = {
+  commentId: string;
+  resolved: boolean;
+};
+export type RecordsCommentsResolveOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
 };
 export type RecordsCompletenessIn = {
   type: string;
@@ -31493,9 +31618,15 @@ export interface CapMap {
   "providers.subscription_complete": { in: ProvidersSubscriptionCompleteIn; out: ProvidersSubscriptionCompleteOut };
   "providers.subscription_start": { in: ProvidersSubscriptionStartIn; out: ProvidersSubscriptionStartOut };
   "providers.test": { in: ProvidersTestIn; out: ProvidersTestOut };
+  "records.activity": { in: RecordsActivityIn; out: RecordsActivityOut };
   "records.as_of": { in: RecordsAsOfIn; out: RecordsAsOfOut };
   "records.bulk_upsert": { in: RecordsBulkUpsertIn; out: RecordsBulkUpsertOut };
   "records.changes": { in: RecordsChangesIn; out: RecordsChangesOut };
+  "records.comments.add": { in: RecordsCommentsAddIn; out: RecordsCommentsAddOut };
+  "records.comments.delete": { in: RecordsCommentsDeleteIn; out: RecordsCommentsDeleteOut };
+  "records.comments.edit": { in: RecordsCommentsEditIn; out: RecordsCommentsEditOut };
+  "records.comments.list": { in: RecordsCommentsListIn; out: RecordsCommentsListOut };
+  "records.comments.resolve": { in: RecordsCommentsResolveIn; out: RecordsCommentsResolveOut };
   "records.completeness": { in: RecordsCompletenessIn; out: RecordsCompletenessOut };
   "records.counts": { in: RecordsCountsIn; out: RecordsCountsOut };
   "records.create": { in: RecordsCreateIn; out: RecordsCreateOut };
@@ -34193,6 +34324,22 @@ export type PullRequestOpenedPayload = {
   recordId?: string;
   author: string;
 };
+export type RecordCommentAddedPayload = {
+  recordId: string;
+  type: string;
+  commentId: string;
+  parentId?: string;
+  mentions: Array<{
+      kind: "person" | "agent";
+      id: string;
+    }>;
+};
+export type RecordCommentResolvedPayload = {
+  recordId: string;
+  type: string;
+  commentId: string;
+  resolved: boolean;
+};
 export type RecordCreatedPayload = {
   recordId: string;
   type: string;
@@ -35890,6 +36037,8 @@ export interface EventMap {
   "pull_request.closed": PullRequestClosedPayload;
   "pull_request.merged": PullRequestMergedPayload;
   "pull_request.opened": PullRequestOpenedPayload;
+  "record.comment_added": RecordCommentAddedPayload;
+  "record.comment_resolved": RecordCommentResolvedPayload;
   "record.created": RecordCreatedPayload;
   "record.deleted": RecordDeletedPayload;
   "record.gaps_found": RecordGapsFoundPayload;

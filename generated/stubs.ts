@@ -1730,9 +1730,17 @@ export function stubs(ctx: CallCtx) {
       test: call("providers.test"),
     },
     records: {
+      activity: call("records.activity"),
       as_of: call("records.as_of"),
       bulk_upsert: call("records.bulk_upsert"),
       changes: call("records.changes"),
+      comments: {
+        add: call("records.comments.add"),
+        delete: call("records.comments.delete"),
+        edit: call("records.comments.edit"),
+        list: call("records.comments.list"),
+        resolve: call("records.comments.resolve"),
+      },
       completeness: call("records.completeness"),
       counts: call("records.counts"),
       create: call("records.create"),

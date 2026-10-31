@@ -5,9 +5,15 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "records.activity": async (ctx) => { throw new VyreErr(notImplemented("records.activity", ctx.trace)); },
   "records.as_of": async (ctx) => { throw new VyreErr(notImplemented("records.as_of", ctx.trace)); },
   "records.bulk_upsert": async (ctx) => { throw new VyreErr(notImplemented("records.bulk_upsert", ctx.trace)); },
   "records.changes": async (ctx) => { throw new VyreErr(notImplemented("records.changes", ctx.trace)); },
+  "records.comments.add": async (ctx) => { throw new VyreErr(notImplemented("records.comments.add", ctx.trace)); },
+  "records.comments.delete": async (ctx) => { throw new VyreErr(notImplemented("records.comments.delete", ctx.trace)); },
+  "records.comments.edit": async (ctx) => { throw new VyreErr(notImplemented("records.comments.edit", ctx.trace)); },
+  "records.comments.list": async (ctx) => { throw new VyreErr(notImplemented("records.comments.list", ctx.trace)); },
+  "records.comments.resolve": async (ctx) => { throw new VyreErr(notImplemented("records.comments.resolve", ctx.trace)); },
   "records.completeness": async (ctx) => { throw new VyreErr(notImplemented("records.completeness", ctx.trace)); },
   "records.counts": async (ctx) => { throw new VyreErr(notImplemented("records.counts", ctx.trace)); },
   "records.create": async (ctx) => { throw new VyreErr(notImplemented("records.create", ctx.trace)); },
