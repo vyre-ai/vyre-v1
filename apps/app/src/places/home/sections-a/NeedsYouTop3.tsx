@@ -11,6 +11,7 @@ import { useHomeData, usePrincipals, useScreenQuery, useSelection } from "./data
 import { needsRow, rowKeysBy, topNeeds } from "./model.ts";
 import type { NeedsItem, NeedsRow } from "./model.ts";
 import { EmptyLine, Face, HRow, LinkButton, PrimaryButton, RowText, Section, SectionHeader, Skeleton, tone } from "./parts.tsx";
+import { useAllClear, useSectionKind } from "./allclear.ts";
 
 export const NEEDS_SCREEN = "home.needs-you-top3";
 type Out = CapMap["tasks.needs_you"]["out"];
@@ -58,6 +59,8 @@ export function NeedsYouTop3(): ReactElement {
     );
   }
 
+  useSectionKind("needs", q.status === "loading" ? "loading" : rows.length ? "items" : "empty");
+  if (useAllClear()) return null;
   return (
     <Section id="s-needs" first>
       <SectionHeader id="needs" title="Needs you" count={q.status === "ready" && total > 0 ? total : undefined}>

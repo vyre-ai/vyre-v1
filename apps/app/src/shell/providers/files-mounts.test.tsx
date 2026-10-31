@@ -39,6 +39,7 @@ test("accounts: Google and Microsoft come from the Space's active connections, G
       { connectionId: "con_g", connector: "google", title: "firm@example.com", state: "active" },
       { connectionId: "con_m", connector: "microsoft", title: "firm@contoso.com", state: "needs_reconnect" },
     ] };
+    if (cap === "github.health") return { state: "healthy", latencyMs: 40 };
     if (cap === "github.installations.list") return { installations: [{ id: 1, account: "acme" }] };
     throw new Error(cap);
   };

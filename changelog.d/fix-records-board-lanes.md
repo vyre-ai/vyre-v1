@@ -1,0 +1,1 @@
+- Fixed the Records board. The lane of records with no value comes first, so cards with no value are not hidden beyond the screen behind lanes that say No cards. A lane whose cards cannot be read says so instead of offering Show more over nothing.

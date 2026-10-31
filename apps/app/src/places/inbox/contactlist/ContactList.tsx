@@ -233,7 +233,8 @@ function List(): ReactElement {
         const dbl = sel.current.key === e.key && now - sel.current.at < DOUBLE_MS;
         sel.current = { key: e.key, at: now };
         dispatch({ type: "select", key: e.key });
-        if (dbl) openEntry(e);
+        // a narrow window (a phone) has no double tap: one tap opens
+        if (dbl || slim) openEntry(e);
       }}
     />
   );
@@ -299,7 +300,7 @@ function List(): ReactElement {
       ) : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="inbox-offline">Offline, showing your saved copy</Text>}
       {q.status !== "ready" ? <ListLoading bare /> : entries.length === 0 ? (
-        <States kind="empty" title={filtered ? "Nothing matches these filters." : view === "calls" ? "No calls yet." : "Nothing here"} icon="inbox" {...(filtered ? { action: { label: "Show all", onPress: () => dispatch({ type: "showAll" }) } } : {})} />
+        <States kind="empty" title={filtered ? "Nothing matches these filters." : view === "calls" ? "No calls yet." : "No messages yet."} icon="inbox" {...(filtered ? { action: { label: "Show all", onPress: () => dispatch({ type: "showAll" }) } } : view === "calls" ? {} : { action: { label: "New message", onPress: () => data.nav.compose() } })} />
       ) : (
         <View style={styles.listBox} {...({ onKeyDown } as object)}>
           <VirtualList data={entries} rowHeight={62} keyOf={(e) => e.key} renderItem={renderLine} />

@@ -93,6 +93,8 @@ function LaneColumn({ board, lane }: { board: Board; lane: Lane }): ReactElement
   const kept = useRef<RecordRow[]>([]);
   if (q.status === "ready") kept.current = q.data.rows;
   const rows = kept.current;
+  // a lane whose cards could not be read says so (its count may still be known); it must not offer "Show more" over nothing
+  const failed = q.status === "loading" ? q.error : undefined;
   const count = n.status === "ready" ? n.data.count : rows.length;
   board.ids.current[lane.key] = each(rows, (r) => r.id);
   board.counts.current[lane.key] = count;
@@ -108,12 +110,13 @@ function LaneColumn({ board, lane }: { board: Board; lane: Lane }): ReactElement
       </View>
       <ScrollView style={c.laneBody} contentContainerStyle={c.laneCards}>
         {each(rows, (r) => <Card key={r.id} row={r} board={board} lane={lane} />)}
-        {count > rows.length ? (
+        {failed && rows.length === 0 ? <Text style={c.none} accessibilityRole="alert" testID={`lane-error-${lane.key || "none"}`}>{`Couldn't load these cards. ${failed.message}`}</Text> : null}
+        {count > rows.length && !(failed && rows.length === 0) ? (
           <Pressable accessibilityRole="button" testID={`more-${lane.key || "none"}`} onPress={() => setLimit(limit + LANE_PAGE)} style={({ hovered }: { hovered?: boolean }) => [c.add, hovered === true && c.addOver]}>
             <Text style={c.addText}>{`Show ${Math.min(LANE_PAGE, count - rows.length)} more of ${(count - rows.length).toLocaleString("en-US")}`}</Text>
           </Pressable>
         ) : null}
-        {count === 0 ? <Text style={c.none} testID={`empty-${lane.key || "none"}`}>No cards</Text> : null}
+        {count === 0 && !failed ? <Text style={c.none} testID={`empty-${lane.key || "none"}`}>No cards</Text> : null}
       </ScrollView>
       {lane.none ? null : (
         <Pressable
@@ -156,9 +159,12 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const field = laneFieldOf(ctx.def, ctx.saved, picked);
   const head = <ViewHead ctx={ctx} st={st} lanes={{ field, choices: ctx.def.fields.filter(isLaneField), pick: setPicked }} />;
   if (!field) {
-    return <View style={c.main} testID="records-board">{head}<States kind="empty" title={`${ctx.def.plural} have no status or choice field to make lanes from.`} icon="records" /></View>;
+    const choices = ctx.def.fields.filter(isLaneField);
+    return <View style={c.main} testID="records-board">{head}<States kind="empty" title={choices.length > 0 ? "Pick a field to group by." : `${ctx.def.plural} have no status or choice field to make lanes from.`} icon="records" /></View>;
   }
-  const lanes = lanesOf(field);
+  // the lane of records with no value comes first: a board whose records have none shows them at the left, and not beyond the screen behind lanes that say "No cards" (it is drawn only while it has cards)
+  const own = lanesOf(field);
+  const lanes = [...own.filter((l) => l.none), ...own.filter((l) => !l.none)];
   const laneWidth = width > 0 && width < 720 ? Math.max(220, width - 56) : LANE_W;
 
   const move = (row: RecordRow, to: Lane): void => {

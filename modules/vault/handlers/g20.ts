@@ -280,7 +280,7 @@ export async function exportMine(ctx: VaultCtx, input: { expiresIn: string }) {
   // the person themselves, or a turn run for them; the key exists only on a node where they unlocked it, so nobody else's turn gets this far
   const who = ctx.principal.kind === "person" ? ctx.principal.id : ctx.actingFor;
   if (!who || (ctx.principal.kind !== "person" && ctx.actingFor !== who)) return denied(ctx, "Only a person can export their own Mine items.");
-  if (!(await currentKeyPort()?.personKey(who))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to export your Mine items." });
+  if (!(await currentKeyPort()?.personKey(who))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to export your Mine items.", details: { reason: "vault_locked" } });
   if (PULL_MAX.indexOf(input.expiresIn) > PULL_MAX.indexOf(readPolicy(ctx).pullExpiryMax)) refuse(ctx, `This Space limits pull links to ${readPolicy(ctx).pullExpiryMax}.`);
   const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "owner" = ?`, who)).filter((r) => str(r, "scope") === "mine"
     && (live(r) || ctx.now() - num(r, "deleted_at") <= REMOVED_KEPT));

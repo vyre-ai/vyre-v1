@@ -18,7 +18,7 @@ export type Route =
   | { view: "agent"; agentId: string; tab: TabKey | null }
   | { view: "helper"; threadId: string }
   /** An Ask about an object with an agent: resolved to the person's Ask thread on it (the newest one, else a new one), which then opens as a chat. With no object it is the person's chat with that agent. */
-  | { view: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom: string | null };
+  | { view: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom: string | null; draft?: string };
 
 export type Layer =
   | { kind: "computer"; computerId: string; chat: boolean }
@@ -45,7 +45,7 @@ export type Act =
   | { t: "search"; q?: string }
   | { t: "search-close" }
   | { t: "helper"; threadId: string }
-  | { t: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom?: string }
+  | { t: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom?: string; draft?: string }
   | { t: "needs"; taskId?: string }
   | { t: "agent"; agentId: string; tab?: TabKey }
   | { t: "pane" }
@@ -62,7 +62,7 @@ export function step(s: Shown, a: Act): Shown {
     case "search": return { ...s, route: { view: "search", q: a.q ?? "", from: s.route.view === "chat" ? s.route.threadId : s.route.view === "search" ? s.route.from : null }, layer: null };
     case "search-close": return { ...s, route: { view: "chat", threadId: s.route.view === "search" ? s.route.from : null }, layer: null };
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
-    case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null }, layer: null };
+    case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null, ...(a.draft ? { draft: a.draft } : {}) }, layer: null };
     case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };
     // One column on the right: the agent's pane or the terminal. The pane button closes whichever is showing, or opens the pane.
@@ -131,7 +131,7 @@ export function fromHash(hash: string): Shown {
     case SCREEN.conversation: case SCREEN.ask: {
       const about = askAbout(arg("about"));
       if (arg("threadId") !== "") return step(START, { t: "chat", threadId: arg("threadId"), ...(arg("m") === "" ? {} : { focus: arg("m") }) });
-      if (about !== null && arg("with") !== "") return step(START, { t: "ask", agentId: arg("with"), scopeType: about.type, scopeId: about.id, ...(arg("bring") === "" ? {} : { bringFrom: arg("bring") }) });
+      if (about !== null && arg("with") !== "") return step(START, { t: "ask", agentId: arg("with"), scopeType: about.type, scopeId: about.id, ...(arg("bring") === "" ? {} : { bringFrom: arg("bring") }), ...(arg("draft") === "" ? {} : { draft: arg("draft") }) });
       // `with` alone is a chat with that agent: the open chat it leads, else a new one.
       return arg("with") === "" ? START : step(START, { t: "ask", agentId: arg("with"), scopeType: "", scopeId: "" });
     }

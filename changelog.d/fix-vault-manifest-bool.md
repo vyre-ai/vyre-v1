@@ -1,0 +1,1 @@
+- Fixed the Vault contract so it type-checks again: the sign-in answer's needsCode flag is a plain boolean, since the contract's boolean type takes no description.

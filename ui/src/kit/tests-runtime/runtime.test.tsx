@@ -1,5 +1,7 @@
 // Kit runtime: a screen renders from a KitScreenDef (layout, builtin, every state) and its probes use the generated ids.
 import test from "node:test";
+import { createRoot } from "test-renderer";
+import { find, installDom, mount, press, textOf } from "../../testing/dom.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -42,7 +44,20 @@ test("empty, offline and error states carry the def's lines and actions", () => 
   const failing = fakeEnv({ traceId: "tr_123", hooks: { query: () => { throw new Error("no such query"); } } });
   const error = renderToStaticMarkup(<KitScreen def={listDef} env={failing} />);
   assert.match(error, /data-testid="state-error"/);
-  for (const text of ["People did not load", "Retry", "Copy trace id", "Report a problem", "tr_123"]) assert.ok(error.includes(text), text);
+  for (const text of ["People did not load", "Retry", "Details"]) assert.ok(error.includes(text), text);
+  assert.ok(!error.includes("tr_123"), "the trace id waits behind Details");
+});
+
+test("the error's Details opens to the trace id, Copy trace id and Report a problem", async () => {
+  const restore = installDom();
+  try {
+    const failing = fakeEnv({ traceId: "tr_123", hooks: { query: () => { throw new Error("no such query"); } } });
+    const root = await mount(createRoot, <KitScreen def={listDef} env={failing} />);
+    assert.equal(find(root, "state-trace"), null, "closed at first");
+    await press(find(root, "state-details"));
+    const text = textOf(root);
+    for (const want of ["Copy trace id", "Report a problem", "tr_123"]) assert.ok(text.includes(want), want);
+  } finally { restore(); }
 });
 
 test("a registered builtin renders in place of a layout; an unregistered one says so", () => {

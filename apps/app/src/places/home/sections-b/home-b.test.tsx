@@ -14,15 +14,17 @@ import { publishProgress } from "../../../onboarding/store.ts";
 import type { ActionDeps } from "./actions.ts";
 import { createSampleHomeB } from "./sample.ts";
 import type { SampleHomeB } from "./sample.ts";
+import { asDevice } from "../../../onboarding/test-device.ts";
 
 installComposerForTests(Composer);
 
 // The setup card is the person's onboarding steps, read from the onboarding host's published progress (a Space whose host has not published draws none).
 const setup = (flow: "personal" | "team" | "member" | null, progress: Record<string, "done" | "later"> = {}): void => { publishProgress(flow ? { flow, progress } : null); setSetupHidden(false); };
-const html = (h: SampleHomeB): string => {
+// These tests mean a browser: it has no sessions or folders, so the setup card counts six steps ("0 of 6"). The Mac app's eight are checked in chats/fixes/l9b_02c.test.tsx.
+const html = (h: SampleHomeB): string => asDevice("web", () => {
   const { top, bottom } = homeBSlots(h.extras);
   return renderToStaticMarkup(<Home data={h.data} top={top} bottom={bottom} personal={h.extras.space.kind === "personal"} />).replaceAll("<!-- -->", "");
-};
+});
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
   assert.ok(i >= 0, `expected ${needle}`);
@@ -45,13 +47,14 @@ test("the sections run: checklist on top, then Needs you down to Routines, then 
   assert.ok(at(done, 'data-testid="s-routines"') < at(done, 'data-testid="s-today"') && at(done, 'data-testid="s-today"') < at(done, 'data-testid="s-starred"') && at(done, 'data-testid="s-starred"') < at(done, 'data-testid="s-ask"'));
 });
 
+// the test page is a browser, so the steps are the six a browser shows (no sessions or folders)
 test("Home draws the person's onboarding steps and the count follows their progress", () => {
   setup("personal");
   const h = createSampleHomeB("personal");
-  assert.ok(has(html(h), ">0 of 8<"));
+  assert.ok(has(html(h), ">0 of 6<"));
   setup("personal", { ai: "done" });
   const out = html(h);
-  assert.ok(has(out, ">1 of 8<"));
+  assert.ok(has(out, ">1 of 6<"));
   assert.ok(has(out, 'data-testid="first-setup-interview"') && has(out, 'data-testid="first-go-setup-interview"'));
   assert.ok(!has(out, 'data-testid="first-go-setup-ai"'), "a done step has no button");
   setup("personal", { ai: "done", interview: "later" });
@@ -189,7 +192,7 @@ test("Personal Space: no Today without a calendar, no project row, and the assis
   const out = html(createSampleHomeB("personal"));
   assert.ok(!has(out, 'data-testid="s-today"'), "Today needs a connected calendar");
   assert.ok(has(out, 'data-testid="s-first"') && !has(out, "Open your first project"));
-  assert.ok(has(out, ">0 of 8<"));
+  assert.ok(has(out, ">0 of 6<"));
   assert.ok(has(out, 'data-testid="ask-locked"'));
 });
 

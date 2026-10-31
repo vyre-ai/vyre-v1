@@ -286,7 +286,7 @@ const s = StyleSheet.create({
   hint: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   row: { flexDirection: "row", gap: 8 },
   paste: { gap: 8 },
-  input: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string },
+  input: { borderWidth: 1, borderColor: "var(--field-line)" as string, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string },
   doc: { minHeight: 72 },
   btn: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7 },
   btnText: { fontSize: 12.5, color: "var(--accent)" as string },

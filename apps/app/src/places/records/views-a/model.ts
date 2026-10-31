@@ -42,8 +42,13 @@ export function laneFieldOf(def: TypeDef, saved?: Pick<ViewRow, "config" | "grou
     const hit = key ? lanes.find((f) => f.key === key) : undefined;
     if (hit) return hit;
   }
-  return lanes.find((f) => f.type === "status") ?? lanes[0];
+  // no choice was made: the type's own status field, then the first status field, then the first choice field a person edits (not one the system writes, such as a contact's deliverability or its consent flags)
+  const mine = lanes.filter(isPersonField);
+  return mine.find((f) => f.key === def.statusField) ?? mine.find((f) => f.type === "status") ?? mine[0];
 }
+
+/** A choice field people set by hand. The system writes the others (a field only some service may write, a contact's deliverability, its consent and opt-out flags), so a board does not group by them until someone picks one. */
+export const isPersonField = (f: FieldDef): boolean => isLaneField(f) && !(Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0) && f.key !== "deliverability" && !f.key.startsWith("pref_");
 
 /** The lanes of a field, in the order of its options, then the lane for records with no value. */
 export function lanesOf(f: FieldDef): Lane[] {

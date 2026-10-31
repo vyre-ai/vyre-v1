@@ -8,11 +8,11 @@ export type TemplateRow = CapMap["templates.list"]["out"]["templates"][number];
 export type DomainRow = CapMap["mail.domain.list"]["out"]["domains"][number];
 
 export const GROUPS = [
-  { key: "sites", title: "Sites", one: "site", empty: "No sites yet. Ask an agent to build one." },
-  { key: "forms", title: "Forms", one: "form", empty: "No forms yet. Make one with New." },
-  { key: "campaigns", title: "Campaigns", one: "campaign", empty: "No campaigns yet. Make one with New." },
-  { key: "templates", title: "Templates", one: "template", empty: "No templates to install." },
-  { key: "domains", title: "Sending domains", one: "sending domain", empty: "No sending domain yet. Add one to send campaigns." },
+  { key: "sites", title: "Sites", one: "site", empty: "No sites yet." },
+  { key: "forms", title: "Forms", one: "form", empty: "No forms yet." },
+  { key: "campaigns", title: "Campaigns", one: "campaign", empty: "No campaigns yet." },
+  { key: "templates", title: "Templates", one: "template", empty: "No templates yet." },
+  { key: "domains", title: "Sending domains", one: "sending domain", empty: "No sending domain yet." },
 ] as const;
 export type GroupKey = (typeof GROUPS)[number]["key"];
 export const groupOf = (key: GroupKey): (typeof GROUPS)[number] => GROUPS.find((g) => g.key === key)!;

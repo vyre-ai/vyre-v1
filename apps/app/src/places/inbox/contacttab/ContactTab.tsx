@@ -16,6 +16,7 @@ import type { Mailbox } from "../sidebar/model.ts";
 import { discardDraft, listSnippets, listTemplates, markRead, sendAgentDraft, sendEmail, sendText, setFollow, templateContent } from "./actions.ts";
 import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
+import { useMobileBack } from "../../../mobile/shell/back.ts";
 import type { IconName } from "./icons.tsx";
 import { followMenuEntries, fromMenuEntries, quickEntries, templateEntries } from "./menus.ts";
 import {
@@ -83,6 +84,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const online = useOnline();
   const menu = useMenu();
   const width = useWindowDimensions().width;
+  const mobileBack = useMobileBack();
   const phone = width > 0 && width < 560;
   const scroll = useRef<ScrollView | null>(null);
   // The star is the caller's own flag. The contract has the flag on the conversation but no writer yet, so a press holds it here until one lands (comment on the packet).
@@ -208,6 +210,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   return (
     <View style={s.main} testID="contact-tab" accessibilityLabel={`Conversation with ${conv.displayName}`}>
       <View style={s.head} testID="contact-head">
+        {mobileBack ? <Pressable accessibilityRole="button" accessibilityLabel="Back" testID="contact-back" onPress={() => mobileBack()} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center", marginLeft: -8 }}><View style={{ transform: [{ rotate: "180deg" }] }}><Icon name="chevr" size={16} color="var(--accent)" /></View></Pressable> : null}
         <View style={s.hid}>
           {unmatched ? <Ghost size={28} /> : <Face name={conv.displayName} seedId={conv.contactId ?? undefined} size={28} />}
           <Text accessibilityRole="header" aria-level={1} style={s.name} numberOfLines={1}>{conv.displayName}</Text>

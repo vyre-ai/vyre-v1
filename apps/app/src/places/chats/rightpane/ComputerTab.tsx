@@ -58,7 +58,7 @@ export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: Virtual
   if (computerId === "") {
     return (
       <View testID="computer-none" style={st.padded}>
-        <Text style={st.none}>{name} has no computer yet. It gets one when its work needs a browser.</Text>
+        <Text style={st.none}>No computer yet</Text>
         <View style={{ alignItems: "flex-start", marginTop: 8 }}><TextButton label="Set up its computer" primary onPress={() => void provision(deps, data.agent.agentId, name)} testID="computer-provision" /></View>
       </View>
     );

@@ -292,3 +292,20 @@ test("a new HTTP request step starts as a GET and a new Run code step with start
   assert.match(String(code.def.nodes[0]!.input["source"]), /return \{ ok: true \};/);
   assert.deepEqual(addAfter(base, null, "ai").def.nodes[0]!.input, {});
 });
+
+test("a schedule trigger reads in words, and a cron line it does not know is left as it is", async () => {
+  const { cronWords, describeTrigger } = await import("./model.ts");
+  assert.equal(cronWords("0 9 * * 1"), "Every Monday at 9:00");
+  assert.equal(cronWords("30 8 * * *"), "Every day at 8:30");
+  assert.equal(cronWords("*/15 * * * *"), "Every 15 minutes");
+  assert.equal(cronWords("0 * * * *"), "Every hour");
+  assert.equal(cronWords("0 9 1 * *"), "On day 1 of each month at 9:00");
+  assert.equal(cronWords("5 4 * 2 *"), null);
+  assert.equal(describeTrigger({ key: "schedule", config: { cron: "0 9 * * 1", timezone: "UTC", missed: "skip" } } as never), "Every Monday at 9:00");
+});
+
+test("only an Automation with a Run by hand trigger offers Run now", async () => {
+  const { startsByHand } = await import("./model.ts");
+  assert.equal(startsByHand({ triggers: [{ key: "manual" }], nodes: [] } as never), true);
+  assert.equal(startsByHand({ triggers: [{ key: "schedule" }], nodes: [] } as never), false);
+});

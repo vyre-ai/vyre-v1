@@ -7,6 +7,7 @@ import type { ReactElement } from "react";
 import { SidebarContent } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { ChatsSidebar, ChatsSidebarSlot } from "./ChatsSidebar.tsx";
+import { SectionHead, Tool } from "./parts.tsx";
 import { createSidebarApi } from "./actions.ts";
 import { validateInput } from "../../../../../../generated/validators.ts";
 import { FACES_SHOWN, NEW_CHAT_MS, buildEntries, groupRecent, matchesQuery, refetch, rowOf } from "./model.ts";
@@ -205,4 +206,10 @@ test("Retry asks the live reads to read again; a stand-in without that has nothi
   assert.equal(refetch({ invalidate() { asked++; } }), true);
   assert.equal(asked, 1);
   assert.equal(refetch({}), false);
+});
+
+test("a section head's tools are always under the pointer: drawn on hover or focus, never made unreachable (no pointer-events: none)", () => {
+  const out = renderToStaticMarkup(<SectionHead id="faces" label="Agents" open onToggle={() => undefined}><Tool icon="arrow" label="All agents" onPress={() => undefined} testID="all-agents" /></SectionHead>);
+  assert.ok(out.includes('data-testid="all-agents"'), "the tool is in the head");
+  assert.ok(!out.includes("r-pointerEvents"), "a tool hidden until hover must still take the pointer, or the head sits over it and it cannot be pressed");
 });

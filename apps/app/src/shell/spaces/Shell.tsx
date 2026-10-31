@@ -194,6 +194,8 @@ export function Shell(props: ShellProps): ReactElement {
             theme?.setSkin(id);
             hub.flash("Skin saved for this Space");
           }}
+          spaceName={session.def.name}
+          onMoreAppearance={() => hub.go("settings", "appearance")}
           compact={compact}
           call={props.phone ? <Suspense fallback={null}><InboxCallTitlePill /></Suspense> : null}
         />

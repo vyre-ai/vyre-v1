@@ -2,6 +2,8 @@
 // value is ever in the markup; a reveal is one logged capability call after one agreement; every write the place makes changes what the next render shows; the place opens offline
 // and draws a frame of the right size before data. Names below are the test names the packet's evidence links.
 import test from "node:test";
+import { createRoot } from "test-renderer";
+import { find, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import assert from "node:assert/strict";
 import { Dimensions } from "react-native";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -172,12 +174,20 @@ test("the frame before data and the empty Vault", () => {
   assert.ok(has(html(createSampleVault(harbor), { initial: { kind: "cards" } }), "Harbor Visa"));
 });
 
-test("request and export query failures render truthful errors with a working retry", () => {
+test("request and export query failures render truthful errors with a working retry", async () => {
   const requests = createSampleVault();
   const requestRetry = failQuery(requests, "vault_requests.list", "requests");
   const requestOut = html(requests, { route: { surface: "requests" } });
   assert.ok(has(requestOut, "Couldn&#x27;t load Vault requests") && has(requestOut, "The Space could not answer"));
-  assert.ok(has(requestOut, 'data-testid="state-retry"') && has(requestOut, "trace-vault-read"));
+  assert.ok(has(requestOut, 'data-testid="state-retry"') && has(requestOut, 'data-testid="state-details"'), "Retry and Details show");
+  assert.ok(!has(requestOut, "trace-vault-read"), "the trace id waits behind Details");
+  const restore = installDom();
+  try {
+    const opened = await mount(createRoot, <Vault data={requests.data} route={{ surface: "requests" }} />);
+    await press(find(opened, "state-details"));
+    const shown = textOf(opened);
+    assert.ok(shown.includes("trace-vault-read") && shown.includes("Copy trace id"), "Details shows the trace id and Copy trace id");
+  } finally { restore(); }
   assert.equal(retryVaultQueries(requests.data.screens), true);
   assert.equal(requestRetry.retries(), 1);
 
@@ -245,4 +255,13 @@ test("copy and design rules: no em dash, no emoji, every control labelled", () =
   assert.ok(!/[\u{1F300}-\u{1FAFF}]/u.test(out), "no emoji");
   for (const label of ["Add an item", "More", "Edit"]) assert.ok(has(out, `aria-label="${label}"`), `${label} is labelled`);
   assert.ok(has(out, 'role="menu"') || has(out, "Vault sections"), "the sidebar is a labelled menu");
+});
+
+test("a Personal Space has no Shared section and no sharing: sharing has no meaning with one person", () => {
+  const v = createSampleVault(northwind);
+  const team = html(v);
+  assert.ok(has(team, 'data-testid="vault-folders"') && has(team, ">Shared<"), "a team Space shows the Shared section");
+  const solo = clean(renderToStaticMarkup(<Vault data={{ ...v.data, personal: true }} />));
+  assert.ok(!has(solo, 'data-testid="vault-folders"') && !has(solo, ">Shared<") && !has(solo, "New shared folder"), "a Personal Space draws no Shared section");
+  assert.ok(has(solo, ">Mine<"), "Mine stays");
 });

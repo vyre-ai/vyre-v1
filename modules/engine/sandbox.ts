@@ -53,7 +53,7 @@ const sandboxId = (person: string): string => `vyre-sbx-${part(person).toLowerCa
  * `wrap` for createLocalLauncher. The work folder arrives as `start.cwd` (the opener's workFolder, made by workFolder() above) and names the person: `<dataDir>/work/<person>/<thread>`. A spawn
  * with any other folder is refused: the engine must never run in the daemon's own folder or anywhere else.
  */
-export function sandboxWrap(plan: SandboxPlan): NonNullable<LocalLauncherOptions["wrap"]> {
+export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } = {}): NonNullable<LocalLauncherOptions["wrap"]> {
   return (argv, start) => {
     const s = plan.sandbox;
     if (s.kind === "docker" || s.kind === "server") {
@@ -74,7 +74,10 @@ export function sandboxWrap(plan: SandboxPlan): NonNullable<LocalLauncherOptions
       env: start.env,
     };
     if (s.kind === "bwrap") {
-      const w = bwrapWallCommand(spec, roots, argv, { wallDir: s.wallDir, ...(s.node ? { node: s.node } : {}), ...(s.programRead ? { programRead: s.programRead } : {}) });
+      // a turn on a sign-in kept in files sees them as its home: the scratch folder's own home is bound where the sandbox's home would be
+      const home = o.homeFromScratch ? path.join(scratch, "home") : undefined;
+      if (home) fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+      const w = bwrapWallCommand(spec, roots, argv, { wallDir: s.wallDir, ...(s.node ? { node: s.node } : {}), ...(s.programRead ? { programRead: s.programRead } : {}), ...(home ? { home } : {}) });
       return [w.cmd, ...w.args];
     }
     const w = seatbeltCommand(spec, roots, argv, { proxyPort: s.proxyPort, ...(s.programRead ? { programRead: s.programRead } : {}) });

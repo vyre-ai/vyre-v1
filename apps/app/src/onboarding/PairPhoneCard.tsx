@@ -1,9 +1,10 @@
 // Phone card: a pairing link that works once for ten minutes. Open it on the phone (scan it if your camera app reads links from the screen) and the phone joins this Space.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { pairLink } from "../shell/session/desktop.ts";
+import { QrCode } from "./QrCode.tsx";
 
 export async function makePairLink(call: CapCall, address: string, idempotencyKey: string): Promise<{ link: string; expiresAt: number }> {
   const out = await call("identity.pair_create", { purpose: "phone", idempotencyKey }) as { code: string; expiresAt: number };
@@ -20,13 +21,16 @@ export function PairPhoneCard({ call, address, onPaired }: { call: CapCall; addr
     setBusy(true); setError("");
     try { setLink((await makePairLink(call, address, `${Date.now()}:${attempt.current++}`)).link); } catch { setError("Could not make a pairing link. Try again."); } finally { setBusy(false); }
   };
+  // the code is made when the step opens, so the QR is there to scan at once
+  useEffect(() => { void make(); }, []);
   return (
     <View testID="pair-phone" style={s.col}>
+      {link ? <QrCode text={link} /> : null}
       {link ? <Text selectable testID="pair-link" style={s.link}>{link}</Text> : null}
-      {link ? <Text style={s.dim}>Open this on your phone. It works once and expires in ten minutes.</Text> : <Text style={s.dim}>Make a link and open it on your phone to pair it.</Text>}
+      {link ? <Text style={s.dim}>Scan it, or open the link on your phone. It works once, for ten minutes.</Text> : <Text style={s.dim}>Making a link</Text>}
       {error ? <Text testID="pair-error" style={s.err}>{error}</Text> : null}
       <View style={s.row}>
-        <Pressable testID="pair-make" accessibilityRole="button" disabled={busy} onPress={() => void make()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{link ? "Make a new link" : "Make a pairing link"}</Text></Pressable>
+        <Pressable testID="pair-make" accessibilityRole="button" disabled={busy} onPress={() => void make()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{link ? "New link" : "Make a pairing link"}</Text></Pressable>
         {link && onPaired ? <Pressable testID="pair-done" accessibilityRole="button" onPress={onPaired} style={s.ghost}><Text style={s.ghostText}>My phone is paired</Text></Pressable> : null}
       </View>
     </View>

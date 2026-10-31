@@ -230,7 +230,7 @@ test("record_usage refuses a turn this host does not know and bad numbers", asyn
 
 // ---- usage
 
-test("usage groups by day, person, agent or model; a person without ai.spend sees only their own", () => {
+test("usage groups by day, person, agent or model; a person without ai.spend sees only their own", async () => {
   const h = harness();
   ensure(h.db);
   const DAY = 86_400_000;
@@ -241,19 +241,36 @@ test("usage groups by day, person, agent or model; a person without ai.spend see
   put("trn_b", "agt_docs", "usr_dana", "gpt-5", 1_760_000_000_000 + 1000, 300);
   put("trn_c", AGENT, "usr_sam", "claude-sonnet-5-5", 1_760_000_000_000 + DAY, 200);
 
-  const byAgent = usageQuery(h.ctx, { by: "agent" });
+  const byAgent = (await usageQuery(h.ctx, { by: "agent" }));
   assert.deepEqual(byAgent.rows.map((r) => [r.key, r.totals.turns, r.totals.costMicros]), [["agt_docs", 1, 300], ["agt_intake", 2, 700]]);
   assert.deepEqual(byAgent.totals, { turns: 3, tokensIn: 300, tokensOut: 30, costMicros: 1000 });
   assert.deepEqual(contractErrors("engine.usage.query", "out", byAgent), []);
-  assert.deepEqual(usageQuery(h.ctx, { by: "day" }).rows.map((r) => [r.key, r.totals.costMicros]), [["2025-10-10", 200], ["2025-10-09", 800]]);
-  assert.deepEqual(usageQuery(h.ctx, { by: "model" }).rows.map((r) => r.key), ["claude-sonnet-5-5", "gpt-5"]);
-  assert.deepEqual(usageQuery(h.ctx, { by: "person", personId: "usr_sam" }).rows.map((r) => [r.key, r.totals.costMicros]), [["usr_sam", 200]]);
-  assert.deepEqual(usageQuery(h.ctx, { by: "agent", from: 1_760_000_000_000 + DAY }).totals.costMicros, 200, "from limits the range");
+  assert.deepEqual((await usageQuery(h.ctx, { by: "day" })).rows.map((r) => [r.key, r.totals.costMicros]), [["2025-10-10", 200], ["2025-10-09", 800]]);
+  assert.deepEqual((await usageQuery(h.ctx, { by: "model" })).rows.map((r) => r.key), ["claude-sonnet-5-5", "gpt-5"]);
+  assert.deepEqual((await usageQuery(h.ctx, { by: "person", personId: "usr_sam" })).rows.map((r) => [r.key, r.totals.costMicros]), [["usr_sam", 200]]);
+  assert.deepEqual((await usageQuery(h.ctx, { by: "agent", from: 1_760_000_000_000 + DAY })).totals.costMicros, 200, "from limits the range");
 
   h.setManager(false);
-  const mine = usageQuery(h.ctx, { by: "person" });
+  const mine = (await usageQuery(h.ctx, { by: "person" }));
   assert.deepEqual(mine.rows.map((r) => [r.key, r.totals.costMicros]), [["usr_dana", 800]], "only my own");
-  assert.deepEqual(usageQuery(h.ctx, { by: "person", personId: "usr_sam" }).rows.map((r) => r.key), ["usr_dana"], "asking for someone else still gives my own");
+  assert.deepEqual((await usageQuery(h.ctx, { by: "person", personId: "usr_sam" })).rows.map((r) => r.key), ["usr_dana"], "asking for someone else still gives my own");
+});
+
+test("usage by agent and by person names them, with the agent's face, and keeps the id when a name cannot be read", async () => {
+  const h = harness();
+  await usageQuery(h.ctx, { by: "day" });   // makes the tables
+  h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_n1", THREAD, AGENT, "usr_dana", "m", 1_760_000_000_000, 10, 1, 5);
+  h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_n2", THREAD, "agt_gone", "usr_sam", "m", 1_760_000_000_000, 10, 1, 5);
+  const ctx = { ...h.ctx, async call(cap: string, input: unknown) {
+    const b = input as { agentId?: string; principal?: { id: string } };
+    if (cap === "agents.get" && b.agentId === AGENT) return { agent: { agentId: AGENT, name: "Intake", face: "scout" } };
+    if (cap === "access.principals.get" && b.principal?.id === "usr_dana") return { principal: { id: "usr_dana", name: "Dana Reyes" } };
+    throw new Error("not found");
+  } };
+  const agents = await usageQuery(ctx, { by: "agent" });
+  assert.deepEqual(agents.rows.map((r) => [r.key, r.title, r.face ?? null]), [["agt_gone", "agt_gone", null], [AGENT, "Intake", "scout"]]);
+  assert.deepEqual((await usageQuery(ctx, { by: "person" })).rows.map((r) => [r.key, r.title]), [["usr_dana", "Dana Reyes"], ["usr_sam", "usr_sam"]]);
+  assert.deepEqual(contractErrors("engine.usage.query", "out", agents), []);
 });
 
 test("the handler table covers the spend capabilities", () => {
@@ -276,12 +293,12 @@ test("record_usage keeps the Vault item a turn ran on, usage.query filters by it
   h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_other", THREAD, "agt_docs", "usr_sam", "gpt-5", 1_760_000_000_000, 7, 7, 1);
   // Worked out from the inputs, not read off a run: record_usage adds each call to the turn's row (ON CONFLICT ... tokens_in + excluded.tokens_in), so t1 holds (10 + 1) in and (5 + 1) out,
   // 11 + 6 = 17 tokens. trn_other is a different turn on a different key and is not counted.
-  const onKey = usageQuery(h.ctx, { by: "agent", itemId: "vit_aaaaaaaaaaaa" });
+  const onKey = (await usageQuery(h.ctx, { by: "agent", itemId: "vit_aaaaaaaaaaaa" }));
   assert.deepEqual(onKey.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn + r.totals.tokensOut]), [[AGENT, 1, 17]], "only the turns on that key");
-  assert.equal(usageQuery(h.ctx, { by: "agent", itemId: "vit_nokeyatall00" }).totals.turns, 0);
-  assert.equal(usageQuery(h.ctx, { by: "agent" }).totals.turns, 2, "without the filter every turn counts");
+  assert.equal((await usageQuery(h.ctx, { by: "agent", itemId: "vit_nokeyatall00" })).totals.turns, 0);
+  assert.equal((await usageQuery(h.ctx, { by: "agent" })).totals.turns, 2, "without the filter every turn counts");
   h.setManager(false);
-  assert.deepEqual(usageQuery(h.ctx, { by: "person", itemId: "vit_aaaaaaaaaaaa" }).rows.map((r) => r.key).every((k) => k === h.ctx.principal.id), true, "a person sees only their own turns on the key");
+  assert.deepEqual((await usageQuery(h.ctx, { by: "person", itemId: "vit_aaaaaaaaaaaa" })).rows.map((r) => r.key).every((k) => k === h.ctx.principal.id), true, "a person sees only their own turns on the key");
   hold.release(0);
   await engine.idle(THREAD);
 });

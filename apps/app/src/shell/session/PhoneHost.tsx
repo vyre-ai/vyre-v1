@@ -12,7 +12,8 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import type { PlaceHash } from "../hash/context.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
-import { entryFor, placeOf } from "./mobile-map.ts";
+import { entryFor, headerBack, placeOf } from "./mobile-map.ts";
+import { othersNeedingYou } from "../spaces/model.ts";
 import type { RealSession } from "./session.ts";
 
 const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" }) };
@@ -27,6 +28,8 @@ function You({ session, nav, onSignOut, onAddSpace, onLock, onSwitchSpace }: { s
   return (
     <View style={{ flex: 1 }}>
       <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
+      <Row id="you-vault" title="Vault" note="Keys, logins and cards" onPress={() => nav.open(entryFor("vault", "")!)} />
+      <Row id="you-automations" title="Automations" note="What runs on its own" onPress={() => nav.open(entryFor("automations", "")!)} />
       {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms, campaigns and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}
       {onSwitchSpace?session.runtime.knownSpaces?.filter(space=>space.spaceId!==session.def.spaceId).map(space=><Row key={space.spaceId} id={'you-switch-'+space.spaceId} title={space.name} note={space.kind==='personal'?'Personal Space':'Team Space'} onPress={()=>onSwitchSpace(space.spaceId)}/>):null}
       {onAddSpace?<Row id="you-add-space" title="Add a Space" note="Create or join another Space" onPress={onAddSpace}/>:null}
@@ -73,6 +76,8 @@ export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, 
     };
     return <PlaceHost place={where.place} runtime={session?.runtime ?? null} hash={where.hash} opened={opened} />;
   };
+  // another Space needing you is a dot on the You tab, where the Space switcher is
+  const youDot = session ? othersNeedingYou(session.runtime.knownSpaces ?? [], session.def.spaceId).length > 0 : false;
   const initialEntry = location?.hash ? entryFor(location.place, location.hash) : null;
-  return <MobileShell {...(initialEntry ? { initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} />;
+  return <MobileShell {...(initialEntry ? { initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} headerBack={headerBack} youDot={youDot} />;
 }

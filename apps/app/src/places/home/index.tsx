@@ -3,7 +3,7 @@
 // The shell provides the data (replica hooks, calls, navigation) through HomeDataProvider; without it the place draws its loading frame, the size of the real page.
 import { useEffect } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   AwayDigest, HomeDataProvider, HomeLineProvider, MyWork, NEEDS_SCREEN, NeedsYouTop3, ProjectsAtRisk, RoutinesToday, SelectionProvider, WORK_SCREEN,
   dateLine, dayNumber, firstName, greeting, summaryBits, useHomeData, useHomeLine, useOnline, useOptionalHomeData, useScreenQuery, useSelection,
@@ -11,6 +11,7 @@ import {
 import type { HomeData } from "./sections-a/index.ts";
 import { Glyph, LinkButton, Section, SectionHeader, Skeleton } from "./sections-a/parts.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
+import { AllClear } from "./sections-a/AllClear.tsx";
 
 export { HomeDataProvider } from "./sections-a/index.ts";
 export type { HomeData, HomeNav } from "./sections-a/index.ts";
@@ -39,7 +40,7 @@ function GreetingView({ sub }: { sub: string }): ReactElement {
   }, [line]);
 
   return (
-    <View style={styles.hh} accessibilityRole="header">
+    <View style={styles.hh}>
       <Text accessibilityRole="header" aria-level={1} style={styles.h1}>{`${greeting(c)}, ${firstName(data.me.name)}`}</Text>
       <Text style={styles.hdate} testID="home-date">{sub}</Text>
       {online ? null : (
@@ -72,7 +73,7 @@ function Greeting(): ReactElement {
   const overdue = tasks.filter((t) => t.due !== undefined && dayNumber(t.due, c.offsetMin) < today).length;
   const bits = summaryBits(needs.status === "ready" ? needs.data.total : 0, dueToday, overdue);
   const calm = needs.status === "ready" && work.status === "ready" && bits.length === 0;
-  return <GreetingView sub={`${dateLine(c)}${bits.length ? ` · ${bits.join(", ")}` : calm ? " · Nothing is waiting on you" : ""}`} />;
+  return <GreetingView sub={`${dateLine(c)}${bits.length ? ` · ${bits.join(" · ")}` : calm ? " · Nothing is waiting on you" : ""}`} />;
 }
 
 function PersonalGreeting(): ReactElement {
@@ -80,32 +81,39 @@ function PersonalGreeting(): ReactElement {
   return <GreetingView sub={`${dateLine(data.clock())} · ${PERSONAL_INTRO}`} />;
 }
 
+/** Taller than the Ask dock (the Quick start row, the Ask box and their spacing) so a scrolled-to control stops above it. */
+export const SCROLL_CLEAR = 140;
+
+/** A click on the empty page clears the selection. A plain element with a click handler, so the page is not a tab stop and no button role covers the greeting. */
+function clearOnClick(clear: () => void): Record<string, unknown> { return Platform.OS === "web" ? { onClick: clear } : {}; }
+
 function Page({ top, bottom, personal }: { top?: ReactNode; bottom?: ReactNode; personal?: boolean }): ReactElement {
   const sel = useSelection();
   if (personal) {
     // A Personal Space is the assistant and the checklist only: Needs you, My work, Projects at risk, While you were away and Routines need a team, so they are not drawn.
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
-        <Pressable accessible={false} onPress={() => sel.select(null)} style={styles.col}>
+        <View {...clearOnClick(() => sel.select(null))} style={styles.col}>
           <PersonalGreeting />
           {top}
           {bottom}
-        </Pressable>
+        </View>
       </ScrollView>
     );
   }
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
-      <Pressable accessible={false} onPress={() => sel.select(null)} style={styles.col}>
+      <View {...clearOnClick(() => sel.select(null))} style={styles.col}>
         <Greeting />
         {top}
+        <AllClear />
         <NeedsYouTop3 />
         <MyWork />
         <ProjectsAtRisk />
         <AwayDigest />
         <RoutinesToday />
         {bottom}
-      </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -151,7 +159,8 @@ export default function Home({ data, top, bottom, personal }: HomeProps): ReactE
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: "var(--win)" as string },
+  // the Ask dock is sticky at the foot of this scroller: scroll-padding keeps a control scrolled into view (a click, a Tab) clear of it, so the dock never sits over a button
+  scroll: { flex: 1, backgroundColor: "var(--win)" as string, ...(Platform.OS === "web" ? ({ scrollPaddingBottom: SCROLL_CLEAR } as object) : {}) },
   scrollContent: { flexGrow: 1 },
   col: { width: "100%", maxWidth: 780, alignSelf: "center", paddingTop: 34, paddingHorizontal: 28, paddingBottom: 40 },
   hh: { marginBottom: 24 },

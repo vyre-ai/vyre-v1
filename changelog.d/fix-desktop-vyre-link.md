@@ -1,0 +1,1 @@
+- A vyre:// link now opens its own screen from a half-filled entry or a Personal claim, not only from the doors.

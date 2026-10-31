@@ -1,0 +1,1 @@
+- Fixed the assistant's default name. It is always the first name only with a capital first letter, so "olivia reyes" gets "Olivia’s Assistant" and the rest of the name stays as typed. An assistant still called "olivia’s Assistant" is renamed at boot. A listed chat is any chat with a message in it, and an agent chat nobody has written in is left out of the recent list.

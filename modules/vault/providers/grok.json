@@ -10,5 +10,5 @@
   "models": [
     "grok-4"
   ],
-  "instruction": "On your computer sign in with the Grok command line. Vyre saves the sign-in as an AI subscription item in your Mine folder. Then press Done."
+  "instruction": "Press Sign in with Grok. Vyre starts Grok's own sign-in and gives you its link. Approve it in your browser and the account is saved in your Mine folder."
 }

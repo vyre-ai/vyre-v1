@@ -42,6 +42,8 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   callIn?(spaceId: string, cap: string, input: unknown): Promise<unknown>;
   /** Put bytes at a one-time upload address from files.upload_url, signed in as the person. */
   putBlob?(path: string, bytes: Uint8Array): Promise<void>;
+  /** Open the person's own Mine vault key on this computer with their password, in place (no sign-out). Absent where there is no live Space. Rejects with a sentence the page can show. */
+  unlockVault?(password: string): Promise<void>;
 }
 
 const Ctx = createContext<ShellRuntime | null>(null);

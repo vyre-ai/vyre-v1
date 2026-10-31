@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DOORS, prefillFor, rememberClaimed, takeTeamNext, wantTeamNext } from "./doors.ts";
+import { DOORS, deviceOf, doorsFor, prefillFor, rememberClaimed, takeTeamNext, wantTeamNext } from "./doors.ts";
 import type { NoteStore } from "./doors.ts";
 
 const memory = (): NoteStore => { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; };
 
 test("three doors in the owner's order", () => {
-  assert.deepEqual(DOORS.map((d) => d.title), ["Just me", "I was invited", "Set up my team"]);
+  assert.deepEqual(DOORS.map((d) => d.title), ["Just me", "I was invited", "My team"]);
 });
 
 test("the wish to add a team is read once", () => {
@@ -26,4 +26,15 @@ test("the Team claim pre-fills the name and username from the Personal claim, ne
   assert.equal(prefillFor("https://x", memory()), null);
   rememberClaimed({ name: "Dana", username: "dana", address: "a" }, s, 1000);
   assert.equal(prefillFor("b", s, 1000 + 3 * 60 * 60 * 1000), null, "an old note is ignored");
+});
+
+test("which device a window is, and which doors it offers", () => {
+  assert.equal(deviceOf({ desktop: true, mac: true, width: 1440 }), "mac");
+  assert.equal(deviceOf({ desktop: true, mac: false, width: 1440 }), "win");
+  assert.equal(deviceOf({ desktop: false, mac: true, width: 1440 }), "web");
+  assert.equal(deviceOf({ desktop: false, mac: true, width: 390 }), "phone");
+  assert.deepEqual(doorsFor("mac").map((d) => d.door), ["me", "invited", "team"]);
+  assert.deepEqual(doorsFor("win").map((d) => d.door), ["me", "invited", "team"]);
+  assert.deepEqual(doorsFor("web").map((d) => d.door), ["invited", "server"]);
+  assert.deepEqual(doorsFor("phone").map((d) => d.door), ["invited", "app"]);
 });

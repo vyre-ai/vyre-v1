@@ -12,7 +12,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useLive, useOnline, useOptionalRecordsData, useRecordsData, useScreenQuery } from "../sidebar/data.tsx";
-import { SCREENS, effectiveType, typeGroups } from "../sidebar/model.ts";
+import { SCREENS, effectiveType, typeGroups, typeMenuEntries } from "../sidebar/model.ts";
 import type { ViewRow as SavedView } from "../sidebar/model.ts";
 import { Face, Glyph, HeadButton, pointOf, typeIcon } from "../sidebar/parts.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
@@ -255,7 +255,8 @@ function ensureFace(doc: FaceDoc, seed: string): string {
  */
 function upgradeFaces(): void {
   const doc = faceDoc();
-  if (doc === undefined) return;
+  // a page whose document cannot be queried (a test's stand-in, a document going away) has no faces to upgrade
+  if (doc === undefined || typeof doc.querySelectorAll !== "function") return;
   const found = doc.querySelectorAll("[data-face-seed]");
   for (let i = 0; i < found.length && i < 160; i++) {
     const el = found[i]!;
@@ -445,6 +446,8 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const online = useOnline();
   const phone = useWindowDimensions().width;
   const slim = phone > 0 && phone < 720;
+  const tight = phone > 0 && phone < 1180;   // beside the sidebar a 1024 window has no room for seven labelled buttons: icons only, so the type and view names keep their room
+  const typeList = useScreenQuery<TypesOut>(SCREENS.types, "types");
   const [v, setV] = useState<TableViewState>(base);
   const [folded, setFolded] = useState<readonly string[]>([]);
   const [finding, setFinding] = useState(base.find !== "");
@@ -532,7 +535,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const keep = (kind: "filter" | "fields" | "colour") => (x: number, y: number): void => {
     const build = kind === "filter" ? filterEntries : kind === "fields" ? fieldEntries : colourEntries;
     const again = (e: MenuEntry): MenuEntry => ("onSelect" in e && e.onSelect ? { ...e, onSelect: () => { e.onSelect?.(); setReopen({ kind, x, y }); } } : e);
-    menu.show(build(v).map(again), x, y);
+    menu.show(build(v).map(again), x, y, "other");
   };
   // the menus that take several choices open again on the new view after each click
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -541,10 +544,22 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const saveView = (): void => {
     void data.call("views.save", { type, ...(saved ? { viewId: saved.viewId } : {}), kind: "table", title: saved?.title ?? `${def.plural} view`, ...toSaved(v), idempotencyKey: `view-${type}-${Date.now()}` });
   };
-  const newRecord = (): void => {
-    void data.call("records.create", { type, fields: {}, idempotencyKey: `new-${type}-${Date.now()}` }).then((out) => {
+  /** New: ask for the title first (the field every record needs), create, open it. A refusal shows its reason in the bar; nothing fails silently. */
+  const [adding, setAdding] = useState<{ name: string; busy: boolean; error?: string } | null>(null);
+  const titleLabel = (def.fields.find((f) => f.key === def.titleField)?.title ?? "name").toLowerCase();
+  const startNew = (): void => setAdding({ name: `New ${def.title.toLowerCase()}`, busy: false });   // the prototype starts a new row with this name, selected: Enter saves, Esc cancels
+  const createNew = (): void => {
+    if (adding === null || adding.busy) return;
+    const name = adding.name.trim();
+    if (name === "") { setAdding({ ...adding, error: `Give the ${def.title.toLowerCase()} a ${titleLabel}.` }); return; }
+    setAdding({ name, busy: true });
+    data.call("records.create", { type, fields: { [def.titleField]: name }, idempotencyKey: `new-${type}-${Date.now()}` }).then((out) => {
+      setAdding(null);
       const id = (out as { record?: { id?: string } } | undefined)?.record?.id;
       if (id) data.nav.openRecord(id);
+    }, (e: unknown) => {
+      const x = e as { error?: { message?: string }; message?: string };
+      setAdding({ name, busy: false, error: x?.error?.message ?? x?.message ?? `Could not create the ${def.title.toLowerCase()}.` });
     });
   };
   const nPicked = pickCount(sel, count ?? 0);
@@ -662,9 +677,18 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       <View style={styles.head} testID="records-head">
         <View style={styles.crumb}>
           {slim ? null : <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />}
-          <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>
+          {slim && typeList.status === "ready" ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`${def.plural}, change record type`} testID="records-type-pick" onPress={(e) => {
+              const p = pointOf(e);
+              const entries: MenuEntry[] = typeMenuEntries(typeList.data.types, type, (key) => dispatch({ type: "open", key }));
+              menu.show(entries, p.x, p.y);
+            }} style={styles.typePick}>
+              <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>
+              <Glyph name="chevd" size={10} />
+            </Pressable>
+          ) : <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>}
           {slim ? null : <Text style={styles.slash}>/</Text>}
-          <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y); }}
+          <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y, "other"); }}
             style={({ hovered }: { hovered?: boolean }) => [styles.pick, hovered === true && styles.pickOver]}>
             <Text style={styles.pickText} numberOfLines={1}>{saved ? saved.title : `All ${def.plural.toLowerCase()}`}</Text>
             {edited ? <Text style={styles.dirty}>{"·"}</Text> : null}
@@ -685,15 +709,28 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
             autoFocus onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") { set({ ...v, find: "" }); setFinding(false); } }} style={styles.find}
           />
         ) : <HeadButton icon="find" label="Find" bare testID="records-find-btn" onPress={() => setFinding(true)} />}
-        <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={lit(v.clauses.length > 0)} bare={slim} testID="records-filter" onPress={keep("filter")} />
-        <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={lit(sortKey !== undefined)} bare={slim} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y)} />
-        <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={slim} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y)} />
-        <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={keep("fields")} />
-        <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={slim} testID="records-colour" onPress={keep("colour")} />
+        <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={lit(v.clauses.length > 0)} bare={tight} testID="records-filter" onPress={keep("filter")} />
+        <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={lit(sortKey !== undefined)} bare={tight} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y, "other")} />
+        <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={tight} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y, "other")} />
+        <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={tight} testID="records-fields" onPress={keep("fields")} />
+        <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} />
         {headerExtra}
-        <HeadButton icon="plus" label="New" bare={slim} filled testID="records-new" onPress={newRecord} />
+        <HeadButton icon="plus" label="New" bare={tight} filled testID="records-new" onPress={startNew} />
       </View>
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
+      {adding ? (
+        <View style={styles.draft} accessibilityRole="toolbar" testID="records-adding">
+          <View style={[styles.rn, styles.draftGutter]}><Text style={styles.footText}>+</Text></View>
+          <TextInput
+            value={adding.name} onChangeText={(t) => setAdding({ name: t, busy: false })} placeholder={`New ${def.title.toLowerCase()}`} placeholderTextColor="var(--ink-3)" accessibilityLabel={`New ${def.title.toLowerCase()}`} testID="records-adding-input"
+            autoFocus selectTextOnFocus editable={!adding.busy} onSubmitEditing={createNew} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setAdding(null); }} style={[styles.draftInput, { width: (primary?.width ?? 240) - 14 }]}
+          />
+          {adding.error ? <Text style={[styles.footText, styles.pickDanger]} accessibilityRole="alert" testID="records-adding-error">{adding.error}</Text> : <Text style={styles.footText}>{adding.busy ? "Creating…" : "Enter saves, Esc cancels"}</Text>}
+          <View style={styles.grow} />
+          <Pressable accessibilityRole="button" testID="records-adding-create" disabled={adding.busy} onPress={createNew} style={styles.pickLink}><Text style={styles.pickLinkText}>Create</Text></Pressable>
+          <Pressable accessibilityRole="button" testID="records-adding-cancel" onPress={() => setAdding(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Cancel</Text></Pressable>
+        </View>
+      ) : null}
       {work ? (
         <View style={styles.pickBar} accessibilityRole="alert" testID="records-work">
           {work.kind === "confirm" ? (
@@ -738,8 +775,8 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         </View>
       ) : null}
       <View style={styles.sheet} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} {...({ onKeyDown } as object)}>
-        {count === 0 && !items?.length ? (
-          <States kind="empty" title={v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: newRecord } })} />
+        {count === 0 && !items?.length && adding === null ? (
+          <States kind="empty" title={v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: startNew } })} />
         ) : (
           <Scroller
             handle={scroller} width={width} height={total * ROW_H} onScroll={onScroll}
@@ -751,20 +788,10 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
                 {headCells}
               </View>
             )}
-            footer={(
+            footer={!cols.some((c) => aggregateOf(c.field, loaded?.rows ?? []) !== "") ? null : (
               <View style={[styles.tf, { width }]} testID="records-foot">
                 <View style={[styles.rn, STICKY(0), styles.headBg]} />
                 <View style={[styles.td, STICKY(GUTTER), styles.headBg, { width: primary?.width ?? 280 }]}>
-                  <Text style={styles.footText} testID="records-count">{count === null ? "" : `${count.toLocaleString("en-US")} ${count === 1 ? "record" : "records"}`}</Text>
-                  {jump === null ? (
-                    <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
-                  ) : (
-                    <TextInput
-                      value={jump} onChangeText={(t) => setJump(t.replace(/\D/g, ""))} placeholder="Row number" placeholderTextColor="var(--ink-3)" accessibilityLabel="Go to row" testID="records-goto-input" autoFocus keyboardType="number-pad"
-                      onSubmitEditing={() => { if (jump) goTo(Number(jump) - 1); setJump(null); }} onBlur={() => setJump(null)}
-                      onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setJump(null); if (e.nativeEvent.key === "Enter" && jump) { goTo(Number(jump) - 1); setJump(null); } }} style={styles.gotoInput}
-                    />
-                  )}
                 </View>
                 {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
                 {/* ui-rows-lint: not a list (the foot has one figure cell per column) */}
@@ -785,7 +812,17 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       </View>
       {count === null ? null : (
         <View style={styles.statusBar} testID="records-status">
-          <Text style={styles.footText}>{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
+          <Text style={styles.footText} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
+          <View style={styles.grow} />
+          {count === 0 ? null : jump === null ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
+          ) : (
+            <TextInput
+              value={jump} onChangeText={(t) => setJump(t.replace(/\D/g, ""))} placeholder="Row number" placeholderTextColor="var(--ink-3)" accessibilityLabel="Go to row" testID="records-goto-input" autoFocus keyboardType="number-pad"
+              onSubmitEditing={() => { if (jump) goTo(Number(jump) - 1); setJump(null); }} onBlur={() => setJump(null)}
+              onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setJump(null); if (e.nativeEvent.key === "Enter" && jump) { goTo(Number(jump) - 1); setJump(null); } }} style={styles.gotoInput}
+            />
+          )}
         </View>
       )}
       {menu.element}
@@ -851,6 +888,7 @@ const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 2, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, zIndex: 10 },
   crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1, overflow: "hidden" },
+  typePick: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, minWidth: 0 },
   h1: { margin: 0, flexShrink: 1, minWidth: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
   pick: { height: 26, flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, borderRadius: 6 },
@@ -861,7 +899,7 @@ const styles = StyleSheet.create({
   modText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   modLink: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   grow: { flex: 1 },
-  find: { width: 190, height: 26, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--sunk)" as string, fontSize: 13, color: "var(--ink)" as string },
+  find: { width: 190, height: 26, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
   offline: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 18, paddingVertical: 6 },
   sheet: { flex: 1, minHeight: 0 },
   xs: { flex: 1 },
@@ -876,6 +914,9 @@ const styles = StyleSheet.create({
   cbOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   goto: { marginLeft: 14, paddingHorizontal: 6, height: 22, justifyContent: "center", borderRadius: 5 },
   gotoInput: { marginLeft: 14, width: 96, height: 22, paddingHorizontal: 6, fontSize: 12, color: "var(--ink)" as string, borderRadius: 5, borderWidth: 1, borderColor: "var(--line)" as string },
+  draft: { height: ROW_H, flexDirection: "row", alignItems: "center", gap: 10, paddingRight: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  draftGutter: { width: GUTTER, alignItems: "center", justifyContent: "center" },
+  draftInput: { height: 26, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--win)" as string, fontSize: 13, color: "var(--ink)" as string, borderWidth: 1, borderColor: "var(--accent)" as string },
   pickBar: { height: 34, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   pickBarText: { fontSize: 12.5, color: "var(--ink)" as string },
   pickLink: { height: 24, justifyContent: "center", paddingHorizontal: 4 },
@@ -906,7 +947,7 @@ const styles = StyleSheet.create({
   groupText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   groupCount: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   chevShut: { transform: [{ rotate: "-90deg" }] },
-  statusBar: { height: 28, justifyContent: "center", paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  statusBar: { height: 28, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   tf: { height: 32, flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   footText: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   skRow: { flexDirection: "row", alignItems: "center", gap: 18, height: ROW_H, paddingHorizontal: 18 },

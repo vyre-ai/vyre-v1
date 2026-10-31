@@ -40,7 +40,7 @@ export interface SettingsData {
   continueSession?(conversationId: string): Promise<void>;
   screens: ScreenHooks;
   call(cap: string, input: unknown): Promise<unknown>;
-  me: { id: string; name: string };
+  me: { id: string; name: string; username?: string };
   /** The open Space. */
   space: { id: string; name: string };
   /** Every Space this person is in, for the Spaces page and the per-Space switches. */

@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MobileShell, YouScreen } from "./index.ts";
+import { MobileShell, YouScreen, useMobileBack } from "./index.ts";
 import { MOBILE_TABS, NOT_ON_PHONE, SWIPE_OPEN_AT, back, canBack, current, initialNav, isAllowed, open, origin, selectTab, swipeOffset, swipeRest } from "./model.ts";
 import { SwipeRow } from "../sheets/SwipeRow.tsx";
 import { Sheet } from "../sheets/Sheet.tsx";
@@ -41,8 +41,9 @@ test("pressing a tab goes to its first screen with a fresh history", () => {
 });
 
 test("no Automations, Journeys or Console on the phone", () => {
-  assert.deepEqual([...NOT_ON_PHONE].sort(), ["automations", "console", "journeys"]);
+  assert.deepEqual([...NOT_ON_PHONE].sort(), ["console", "journeys"]);
   for (const k of NOT_ON_PHONE) assert.equal(isAllowed(`${k}:anything`), false, k);
+  assert.ok(isAllowed("automations:") && isAllowed("automation:aut_1"), "Automations are on the phone, read-only in the editor");
   assert.ok(isAllowed("record:rec_1") && isAllowed("chat:c1"));
   const s = initialNav("chats");
   assert.equal(open(s, { tab: "chats", screen: "console:members" }), s, "a refused screen changes nothing");
@@ -88,3 +89,16 @@ test("a sheet is a labelled dialog with Done, and draws nothing when closed", ()
 });
 
 test("a copied task starts on that task with Back to You", () => { const out=renderToStaticMarkup(<MobileShell initialEntry={{tab:"you",screen:"task:tsk_fixture"}} renderScreen={entry=><>{entry.screen}</>} />);assert.ok(out.includes("task:tsk_fixture"));assert.ok(out.includes("Back")); });
+
+test("a conversation draws its own Back: no Back bar above it, and the dot for another Space sits on the You tab", () => {
+  const nav = { tab: "chats" as const, screen: "chat:c1", title: "Chats" };
+  const seen: (() => void)[] = [];
+  const Probe = (): null => { const back = useMobileBack(); if (back) seen.push(back); return null; };
+  const shell = (extra: { headerBack?: (e: { screen: string }) => boolean; youDot?: boolean }): string =>
+    renderToStaticMarkup(<MobileShell initialEntry={nav} renderScreen={() => <Probe />} {...extra as object} />);
+  assert.ok(has(shell({}), 'data-testid="mobile-back"') && seen.length === 0, "by default the shell's Back bar");
+  const own = shell({ headerBack: () => true });
+  assert.ok(!has(own, 'data-testid="mobile-back"'), "no separate bar");
+  assert.equal(seen.length, 1, "the screen is handed Back for its own header");
+  assert.ok(!has(shell({}), 'data-testid="tab-dot"') && has(shell({ youDot: true }), 'data-testid="tab-dot"') && has(shell({ youDot: true }), "You, another Space needs you"));
+});

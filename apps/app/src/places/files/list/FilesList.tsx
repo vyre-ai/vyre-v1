@@ -299,7 +299,7 @@ function List(): ReactElement {
       {ql ? <QuickLook line={ql} now={c.now} offsetMin={c.offsetMin} nameOf={data.nameOf} onClose={() => dispatch({ type: "quicklook", key: null })} onOpen={() => { dispatch({ type: "quicklook", key: null }); open(ql); }} /> : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="files-offline">Offline, showing your saved copy</Text>}
       {src.status !== "ready" ? <ListLoading bare /> : lines.length === 0 ? (
-        <States kind="empty" title={emptyText(state.where)} icon="files" />
+        <States kind="empty" title={emptyText(state.where)} icon="files" {...(state.where.kind === "folder" && here !== undefined ? { action: upload ? { label: "Add files", onPress: upload } : { label: "New folder", onPress: () => data.nav.newFolder(scopeHere, here) } } : {})} />
       ) : (
         <View ref={box} style={styles.listBox} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} {...({ onKeyDown, tabIndex: 0 } as object)}>
           {grid ? (

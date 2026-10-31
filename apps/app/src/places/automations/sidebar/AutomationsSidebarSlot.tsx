@@ -15,15 +15,16 @@ export type { StudioView };
 
 type ListOut = CapMap["automations.list"]["out"];
 
-function Nav({ view, onView, slot }: { view: StudioView; onView(next: StudioView): void; slot: SidebarSlotApi }): ReactElement {
+/** `onHome`: the Automations row leaves an open automation and shows the list again; without it the row only switches the studio view. */
+export function StudioNav({ view, onView, onHome, slot }: { view: StudioView; onView(next: StudioView): void; onHome?: () => void; slot?: SidebarSlotApi }): ReactElement {
   const list = useScreenQuery<ListOut>(SIDEBAR, "automations", {});
   const badge = needsBadge(list.status === "ready" ? list.data.automations.filter(needsYou).length : null);
-  const choose = (next: StudioView): void => { onView(next); slot.openBody(); };
+  const choose = (next: StudioView): void => { if (next === "automations" && onHome) onHome(); onView(next); slot?.openBody(); };
   return (
     <View testID="studio-nav" style={n.nav}>
       {/* ui-rows-lint: not a list (place nav buttons) */}
       {STUDIO_NAV.map((item) => (
-        <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: view === item.id }} testID={`nav-${item.id}`} onPress={() => choose(item.id)} style={n.row}>
+        <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: view === item.id }} {...(view === item.id ? { "aria-current": "page" as const } : {})} testID={`nav-${item.id}`} onPress={() => choose(item.id)} style={n.row}>
           <Text style={[n.text, view === item.id && n.on]}>{item.label}</Text>
           {item.id === "needs" && badge ? <Text testID="nav-needs-count" style={n.count}>{badge}</Text> : null}
         </Pressable>
@@ -32,13 +33,13 @@ function Nav({ view, onView, slot }: { view: StudioView; onView(next: StudioView
   );
 }
 
-export function AutomationsSidebarSlot({ selectedId, view, onView }: { selectedId: string | null; view: StudioView; onView(next: StudioView): void }): ReactElement {
+export function AutomationsSidebarSlot({ selectedId, view, onView, onHome }: { selectedId: string | null; view: StudioView; onView(next: StudioView): void; onHome?: () => void }): ReactElement {
   return (
     <SidebarContent title="Automations" searchPlaceholder="Search automations">
       {(query, slot) => (
         <View style={n.fill}>
-          <Nav view={view} onView={onView} slot={slot} />
           <AutomationsSidebar selectedId={selectedId} hosted query={query} onChoose={() => { onView("automations"); slot.openBody(); }} />
+          <StudioNav view={view} onView={onView} {...(onHome ? { onHome } : {})} slot={slot} />
         </View>
       )}
     </SidebarContent>
@@ -47,7 +48,7 @@ export function AutomationsSidebarSlot({ selectedId, view, onView }: { selectedI
 
 const n = StyleSheet.create({
   fill: { flex: 1, minHeight: 0 },
-  nav: { paddingHorizontal: 8, paddingTop: 6, gap: 2 },
+  nav: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 8, gap: 2, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   row: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 7 },
   text: { fontSize: 13, color: "var(--ink-2)" as string },
   on: { color: "var(--ink)" as string, fontWeight: "600" },

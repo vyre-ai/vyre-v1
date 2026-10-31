@@ -47,15 +47,16 @@ test("a phone-width window keeps the icons and drops the labels", () => {
 
 test("the skin menu lists System, seven dark skins, six light skins, checks the open one and applies a choice", () => {
   const chosen: string[] = [];
-  const entries = skinMenuEntries("graphite", (id) => chosen.push(id));
+  const entries = skinMenuEntries("graphite", (id) => chosen.push(id), { space: "Northwind", onMore: () => chosen.push("more") });
   const heads = entries.filter(isHead).map((e) => e.head);
-  assert.deepEqual(heads, ["Dark", "Light"]);
+  assert.deepEqual(heads, ["Your skin in Northwind", "Dark", "Light"]);
   const items = entries.filter(isItem);
-  assert.equal(items.length, 14, "System plus thirteen skins");
+  assert.equal(items.length, 15, "System, thirteen skins and More in Appearance");
+  assert.equal(items[14]?.label, "More in Appearance");
   assert.equal(items[0]?.label, "System");
   assert.equal(entries.findIndex((e) => isHead(e) && e.head === "Dark") < entries.findIndex((e) => isHead(e) && e.head === "Light"), true, "dark skins first");
   const dark = items.slice(1, 8).map((e) => e.label);
-  const light = items.slice(8).map((e) => e.label);
+  const light = items.slice(8, 14).map((e) => e.label);
   assert.equal(dark.length, 7);
   assert.equal(light.length, 6);
   assert.ok(dark.includes("Graphite") && light.includes("Paper"));

@@ -144,6 +144,8 @@ export interface TabStripViewProps extends TabStripProps {
   tight?: boolean;
   /** No bar of its own: no fill and no rule under the tabs, for a strip that sits inside a pane's body (the prototype's agent pane). */
   bare?: boolean;
+  /** A lone tab has no Close button. Only the main tab strip sets it: closing its last tab just reopens the start place. A pane keeps its Close (that is how the pane closes). */
+  hideLoneClose?: boolean;
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
@@ -227,6 +229,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         tight={props.tight === true}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
+        only={props.hideLoneClose === true && tabs.length === 1}
         nodeRef={(node) => { nodes.current[tab.key] = node; }}
         onPress={() => select(tab.key)}
         onClose={() => {
@@ -299,12 +302,14 @@ function IconButton({ name, label, onPress: press, nodeRef }: { name: string; la
   );
 }
 
-function TabItem({ tab, on, tight, dropTarget, canClose, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
+function TabItem({ tab, on, tight, dropTarget, canClose, only, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
   tab: TabSpec;
   on: boolean;
   tight: boolean;
   dropTarget: boolean;
   canClose: boolean;
+  /** the strip has this one tab only: closing it would reopen the start place, so there is no Close button */
+  only: boolean;
   nodeRef: (node: unknown) => void;
   onPress: () => void;
   onClose: () => void;
@@ -352,7 +357,7 @@ function TabItem({ tab, on, tight, dropTarget, canClose, nodeRef, onPress: press
       {extraTab.lead !== undefined ? extraTab.lead : null}
       {tab.icon !== undefined && tab.icon.length > 0 ? <MenuIcon icon={tab.icon} color={ink} size={14} /> : null}
       {extraTab.iconOnly === true ? null : <Text numberOfLines={1} style={[styles.title, { color: ink }]}>{tab.title}</Text>}
-      {pinned ? null : (
+      {pinned || only ? null : (
         <Pressable
           role="button"
           aria-label={`Close ${tab.title}`}

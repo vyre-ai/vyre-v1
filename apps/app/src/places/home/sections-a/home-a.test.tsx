@@ -43,7 +43,7 @@ test("the five sections render from the Northwind sample, in the spec's order", 
 test("greeting: time of day, name, date and the day in a line", () => {
   const out = html(createSampleHome());
   assert.ok(has(out, "Good morning, Irfad"));
-  assert.ok(has(out, "Friday, October 24 · 7 things need you, 3 tasks due today, 2 tasks overdue"));
+  assert.ok(has(out, "Friday, October 24 · 7 things need you · 3 tasks due today · 2 tasks overdue"));
 });
 
 test("Needs you shows the top 3 in the capability's order and a link to all of them", () => {
@@ -217,3 +217,11 @@ test("a failed write says so in the quiet line and changes nothing", async () =>
 });
 
 // rerun for evidence on the final commit (lead request)
+
+test("the greeting is not a tab stop (the page frame has no tabindex), and the chosen My work layout says it is selected", () => {
+  const out = html(createSampleHome());
+  const top = out.slice(0, out.indexOf("Good "));
+  assert.ok(!top.includes("tabindex"), "nothing before the greeting takes focus");
+  assert.ok(/data-testid="work-view-list"[^>]*aria-selected="true"|aria-selected="true"[^>]*data-testid="work-view-list"/.test(out), "List is selected");
+  assert.ok(/aria-selected="false"[^>]*data-testid="work-view-plan"|data-testid="work-view-plan"[^>]*aria-selected="false"/.test(out), "Plan is not");
+});

@@ -57,7 +57,7 @@ export function SkillsPage(): ReactElement {
       trailing={removable ? <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{s.enabled ? "On" : "Off"}</Text><Tick label={`${s.name} is on`} checked={s.enabled} disabled={action.busy} onChange={(on) => void action.run("skills.set_enabled", { name: s.name, ...(s.agentId ? { agentId: s.agentId } : {}), enabled: on, idempotencyKey: attempt() }, on ? "Skill on" : "Skill off")} /></View> : <Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Always on</Text>} />;
   };
   return <View testID="console-skills">
-    <Note>A skill is a short set of instructions an agent loads when it fits the work. Each chat shows the agent the list, one line each, and the agent opens the one it needs.</Note>
+    <Note>Short instructions an agent loads when they fit the work.</Note>
     <Section title="Your skills" count={mine.length}><Group>
       {mine.length === 0 ? <Row id="skills-none" title="No skills of your own yet" note="Add one below, or install a plugin or a Kit that brings some." /> : mine.map(row)}
     </Group></Section>

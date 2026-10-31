@@ -1,11 +1,14 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
@@ -138,22 +141,46 @@ export function HoverBar({ m, mine, a, onEdit, visible }: { m: Message; mine: bo
   );
 }
 
-function useHover(): { over: boolean; focus: boolean; props: Record<string, unknown> } {
+/** A phone has no hover: the bar is not drawn and a long press opens the same actions as a sheet. */
+const PHONE_BELOW = 560;
+const LONG_PRESS_MS = 450;
+
+function useHover(onLong?: () => void): { over: boolean; focus: boolean; phone: boolean; props: Record<string, unknown> } {
   const [over, setOver] = useState(false);
   const [focus, setFocus] = useState(false);
+  const width = useWindowDimensions().width;
+  const phone = width > 0 && width < PHONE_BELOW;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stop = (): void => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
   type Blur = { currentTarget: { contains(n: unknown): boolean }; relatedTarget: unknown };
+  if (phone) {
+    return {
+      over: false, focus: false, phone,
+      props: webProps({ onTouchStart: () => { stop(); timer.current = setTimeout(() => { timer.current = null; onLong?.(); }, LONG_PRESS_MS); }, onTouchMove: stop, onTouchEnd: stop, onTouchCancel: stop }),
+    };
+  }
   return {
-    over, focus,
+    over, focus, phone,
     // The row takes focus so the bar can be reached from the keyboard; the bar draws while focus is on the row or inside it.
     props: webProps({ tabIndex: 0, onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false), onFocus: () => setFocus(true), onBlur: (e: Blur) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocus(false); } }),
   };
+}
+
+/** The message's actions as a bottom sheet (a long press on a phone): the same list as the menu, one row each. */
+function ActionSheet({ open, entries, onClose }: { open: boolean; entries: readonly MenuEntry[]; onClose: () => void }): ReactElement | null {
+  return (
+    <Sheet open={open} title="Message" onClose={onClose}>
+      {entries.filter(isItem).map((e) => <Row key={e.label} id={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`} title={e.label} onPress={() => { onClose(); e.onSelect?.(); }} />)}
+    </Sheet>
+  );
 }
 
 /* ---------- yours ---------- */
 
 function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
   const m = item.message;
-  const h = useHover();
+  const [sheet, setSheet] = useState(false);
+  const h = useHover(() => setSheet(true));
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.body);
   const startEdit = (): void => { setDraft(m.body); setEditing(true); };
@@ -164,7 +191,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
   };
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
-      <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />
+      {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
       <Text style={st.when}>{item.time}</Text>
       {editing ? (
         <View testID={`edit-${m.messageId}`} style={st.editBox}>
@@ -207,7 +234,8 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
 
 function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
   const m = item.message;
-  const h = useHover();
+  const [sheet, setSheet] = useState(false);
+  const h = useHover(() => setSheet(true));
   const work = workOf(m);
   const [workOpen, setWorkOpen] = useState(openWork === true);
   const cards = m.blocks.filter(isCard);
@@ -217,7 +245,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const subjects = useSubjectBlocks(blocks);
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
-      <HoverBar m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />
+      {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
       {item.newgroup ? (
         <View style={st.by}>
           <Face name={item.who.name} seedId={item.who.id} kind={person ? "person" : "agent"} size={20} />

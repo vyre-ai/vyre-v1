@@ -10,7 +10,7 @@ import type { RecordsState } from "../sidebar/index.ts";
 import { PLAIN, countSpec } from "../table/index.ts";
 import {
   BODY_H, CARD_GAP, CARD_H, COVER_H, GALLERY_PAD, GALLERY_PAGE, KIND_ORDER, LANE_PAGE, NONE_KEY, RecordViews, badgeFieldOf, cardFields, coverHue, coverOf, galleryLayout, initialsOf, isLaneField, kindOf,
-  laneClause, laneCountSpec, laneFieldOf, laneOfRow, laneSpec, lanesOf, moveCard, moveError, movePatch, neighbour, noteOf, pageSpec,
+  laneClause, laneCountSpec, laneFieldOf, isPersonField, laneOfRow, laneSpec, lanesOf, moveCard, moveError, movePatch, neighbour, noteOf, pageSpec,
 } from "../views-a/index.ts";
 import type { RecordRow, TableViewState } from "../views-a/index.ts";
 import { SAMPLE_NOW, createViewsSample, harbor, northRich, northwind, project } from "../views-a/sample.ts";
@@ -353,4 +353,15 @@ test("a menu opened from a button lands under the button when the press has no p
   assert.deepEqual(pointOf({ nativeEvent: {}, target: button }), { x: 640, y: 52 }, "a press with no coordinates at all");
   assert.deepEqual(pointOf({ nativeEvent: { pageX: 700, pageY: 60 }, currentTarget: button }), { x: 700, y: 60 }, "a click keeps its pointer");
   assert.deepEqual(pointOf({}), { x: 0, y: 0 }, "nothing to anchor to");
+});
+
+test("a board with no chosen field groups by a status or choice people set, never by one the system writes; a type with only those opens with nothing picked", () => {
+  const choice = (key: string, more: object = {}) => ({ key, type: "choice", title: key, options: { choices: [{ key: "a", title: "A" }] }, ...more }) as never;
+  const def = (fields: unknown[], statusField?: string) => ({ key: "t", title: "T", plural: "Ts", fields, ...(statusField ? { statusField } : {}) }) as never;
+  assert.equal(laneFieldOf(def([choice("deliverability"), choice("stage")]))?.key, "stage", "the contact's deliverability is skipped");
+  assert.equal(laneFieldOf(def([choice("pref_email_consent"), choice("rank", { writeOnlyBy: ["billing"] }), choice("stage")]))?.key, "stage", "consent flags and service-written fields are skipped");
+  assert.equal(laneFieldOf(def([choice("kind"), choice("stage")], "stage"))?.key, "stage", "the type's own status field wins");
+  assert.equal(laneFieldOf(def([choice("deliverability"), choice("pref_sms_consent")])), undefined, "only system fields: nothing is picked");
+  assert.equal(laneFieldOf(def([choice("deliverability")]), undefined, "deliverability")?.key, "deliverability", "a person can still pick one");
+  assert.equal(isPersonField(choice("deliverability")), false);
 });

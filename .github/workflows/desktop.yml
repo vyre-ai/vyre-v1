@@ -59,6 +59,16 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: A row lays out in WebKit when the page drops style text (owner-model.test.ts)
+        # WebKit is the engine of the Mac app, and it is native on this runner. The Mac app's CSP (a style nonce) drops <style> text a script adds. VYRE_REQUIRE_BROWSERS=webkit makes a missing WebKit a failure.
+        if: matrix.os == 'macos-latest'
+        env:
+          VYRE_REQUIRE_BROWSERS: webkit
+        run: |
+          set -o pipefail
+          npx playwright-core install webkit
+          node scripts/test-run.ts --no-cache --files scripts/shots/owner-model.test.ts 2>&1 | tee owner-model.out
+          grep -q '^ok .*scripts/shots/owner-model.test.ts' owner-model.out
       - name: Export the web shell and stage the sidecar
         working-directory: apps/desktop
         run: |

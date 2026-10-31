@@ -1115,7 +1115,7 @@ const s = StyleSheet.create({
   ctlValue: { color: "var(--ink)" as string, fontSize: 12.5, minWidth: 28, textAlign: "center" },
   stepper: { flexDirection: "row", alignItems: "center", gap: 4 },
   hexRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  hex: { width: 84, height: 28, color: "var(--ink)" as string, fontFamily: MONO_VAR, fontSize: 12, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--sunk)" as string },
+  hex: { width: 84, height: 28, color: "var(--ink)" as string, fontFamily: MONO_VAR, fontSize: 12, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   swatch: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, borderColor: "var(--line-2)" as string },
   srcName: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "500" },
   srcRow: { flexDirection: "row", paddingVertical: 12 },
@@ -1159,7 +1159,7 @@ const s = StyleSheet.create({
   socialRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingVertical: 4 },
   socialChip: { color: "#4A4AB8", fontSize: 13, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: "#ECEBFA" },
   savedTag: { color: "#8A8A8F", fontSize: 11, marginBottom: 4 },
-  linkUrl: { flex: 1, minWidth: 0, height: 28, color: "var(--ink)" as string, fontSize: 12.5, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--sunk)" as string, marginHorizontal: 6 },
+  linkUrl: { flex: 1, minWidth: 0, height: 28, color: "var(--ink)" as string, fontSize: 12.5, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, marginHorizontal: 6 },
   hint: { position: "absolute", top: 12, right: 16, color: "var(--ink-3)" as string, fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 8, backgroundColor: "var(--raised)" as string },
   toast: { position: "absolute", bottom: 16, alignSelf: "center", color: "var(--ink)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string },
 });

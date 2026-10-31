@@ -5,11 +5,9 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { removeMount } from "./actions.ts";
 import { useMountsData } from "./data.tsx";
-import { Mark } from "./icons.tsx";
-import type { MarkKind } from "./icons.tsx";
-import { sourceOfKind, unmountWords } from "./model.ts";
+import { unmountWords } from "./model.ts";
 import type { MountRow } from "./model.ts";
-import { Actions, Btn, ErrorLine, Field, Sheet, SheetHead, Switch } from "./parts.tsx";
+import { ErrorLine, Field, Sheet, Switch } from "./parts.tsx";
 
 export interface UnmountSheetProps {
   mount: Pick<MountRow, "mountId" | "name" | "kind" | "provider">;
@@ -33,8 +31,8 @@ export function UnmountSheet({ mount, onClose, onRemoved }: UnmountSheetProps): 
     });
   };
   return (
-    <Sheet label={words.title} onClose={onClose} onKey={(e) => { if (e.key === "Enter") { go(); return true; } return false; }} testID="unmount-sheet">
-      <SheetHead title={words.title} mark={<Mark kind={sourceOfKind(mount.kind) as MarkKind} size={16} />} onClose={onClose} />
+    <Sheet label={words.title} onClose={onClose} onKey={(e) => { if (e.key === "Enter") { go(); return true; } return false; }} testID="unmount-sheet"
+      actions={[{ label: "Cancel", onPress: onClose, testID: "unmount-cancel" }, { label: busy ? "Unmounting…" : "Unmount", danger: true, disabled: busy, onPress: go, testID: "unmount-go" }]}>
       <Text style={st.body}>{words.body}</Text>
       <View>
         <Field label="Keep a copy of the files in Vyre" first>
@@ -42,10 +40,6 @@ export function UnmountSheet({ mount, onClose, onRemoved }: UnmountSheetProps): 
         </Field>
       </View>
       {error ? <ErrorLine text={error} /> : null}
-      <Actions>
-        <Btn label="Cancel" onPress={onClose} testID="unmount-cancel" />
-        <Btn label={busy ? "Unmounting…" : "Unmount"} primary disabled={busy} onPress={go} testID="unmount-go" />
-      </Actions>
     </Sheet>
   );
 }

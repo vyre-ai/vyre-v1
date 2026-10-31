@@ -1,0 +1,1 @@
+- Vault Add: a pasted key or .env that names no app now gets a name from its first key ("My service key", "API key"), so Add is live at once. The Name placeholder reads "Name this item" instead of a brand, and a disabled Add says why in one quiet line ("Give it a name").

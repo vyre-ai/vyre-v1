@@ -21,9 +21,11 @@ export interface AutomationConfigProps {
   /** Open with the Promote sheet or the Share sheet already showing (a link from the sidebar, and the screenshots). */
   openPromote?: boolean;
   openShare?: boolean;
+  /** Drawn inside an Automation page (its Settings tab): the page already names the Automation, so the head is left out. */
+  embedded?: boolean;
 }
 
-export function AutomationConfig({ automationId, initialTab = "settings", openPromote = false, openShare = false }: AutomationConfigProps): ReactElement {
+export function AutomationConfig({ automationId, initialTab = "settings", openPromote = false, openShare = false, embedded = false }: AutomationConfigProps): ReactElement {
   const data = useAutomationsData();
   const q = useScreenQuery<GetOut>(CONFIG, "automation", { automationId });
   const [tab, setTab] = useState<ConfigTab>(initialTab);
@@ -32,13 +34,15 @@ export function AutomationConfig({ automationId, initialTab = "settings", openPr
   if (!a) return <View testID="config-gone" style={s.frame}><Text style={s.gone}>This Automation is not available</Text></View>;
   return (
     <View testID="automation-config" accessibilityLabel={`${a.name}, configuration`} style={s.frame}>
-      <View style={s.head}>
-        <View aria-hidden style={s.tile}><Glyph name="bolt" size={17} color="var(--accent)" /></View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={2} style={s.name}>{a.name}</Text>
-          <Text numberOfLines={1} style={s.sub}>{scopeLine(a, data.name, data.me.id)}</Text>
+      {embedded ? null : (
+        <View style={s.head}>
+          <View aria-hidden style={s.tile}><Glyph name="bolt" size={17} color="var(--accent)" /></View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={2} style={s.name}>{a.name}</Text>
+            <Text numberOfLines={1} style={s.sub}>{scopeLine(a, data.name, data.me.id)}</Text>
+          </View>
         </View>
-      </View>
+      )}
       <SubTabs
         label="Configuration" active={tab} onSelect={(k) => setTab(k as ConfigTab)}
         tabs={[{ key: "settings", label: "Settings" }, { key: "alerts", label: "Alerts" }, { key: "runs", label: "Runs" }]}

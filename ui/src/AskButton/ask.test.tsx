@@ -295,8 +295,7 @@ test("the open picker is a Find field and shared Rows with the face in the leadi
   }
   assert.match(html, /data-testid="row-ask-agent-bill-trailing"/, "the shown agent carries the check");
   assert.doesNotMatch(html, /data-testid="row-ask-agent-docs-trailing"/);
-  assert.match(html, /background-color:var\(--hover\)/, "the lit row uses the quiet hover wash");
-  assert.doesNotMatch(html, /background-color:var\(--accent\)/, "no filled accent box on a lit row");
+  assert.match(html, /background-color:var\(--accent\)/, "the lit row is filled with the prototype accent, as in a menu");
   for (const head of ["Suggested", "Assistant", "Agents"]) assert.match(html, new RegExp(`>${head}<`));
 });
 

@@ -19,11 +19,13 @@ export interface SidebarProps {
   onNewFolder: (name: string) => Promise<void>;
   onFolderMenu: (folder: Folder, x: number, y: number) => void;
   canCreateShared: boolean;
+  /** A Personal Space has no Shared section. */
+  hideShared?: boolean;
 }
 
 const Count = ({ n }: { n: number }): ReactElement => <Text style={s.count}>{n}</Text>;
 
-export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNewFolder, onFolderMenu, canCreateShared }: SidebarProps): ReactElement {
+export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNewFolder, onFolderMenu, canCreateShared, hideShared = false }: SidebarProps): ReactElement {
   const [naming, setNaming] = useState<string | null>(null);
   const [folderError, setFolderError] = useState<string | null>(null);
   const item = (sel: Selection, key: string, label: string, icon: IconName, n?: number): ReactElement => (
@@ -58,6 +60,8 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
         {item({ kind: "cards" }, "cards", "Cards", "cards", counts.cards)}
         {counts.health > 0 ? item({ kind: "health" }, "health", "Health", "health", counts.health) : null}
       </View>
+      {hideShared ? null : (
+        <>
       <View style={s.head}>
         <Text style={s.headText}>Shared</Text>
         <View style={{ flex: 1 }} />
@@ -73,6 +77,8 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
         ) : null}
         {folderError ? <Text style={s.error} accessibilityRole="alert">{folderError}</Text> : null}
       </View>
+        </>
+      )}
       <View style={[s.group, { marginTop: 8 }]}>
         {item({ kind: "mine" }, "mine", "Mine", "mine", counts.mine)}
         <Row id="nav-advanced" title="Advanced" leading={<View style={s.lead}><Glyph name="advanced" size={16} color="var(--ink-2)" /></View>} onPress={onAdvanced} />

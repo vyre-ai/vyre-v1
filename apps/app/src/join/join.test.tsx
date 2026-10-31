@@ -416,8 +416,8 @@ test("the pages are flat: one column, no gradients, blurs or split panes, in lig
   assert.notEqual(paletteOf("light").panel, paletteOf("dark").panel);
   assert.equal(paletteOf("light"), LIGHT);
   assert.equal(paletteOf("dark"), DARK);
-  assert.equal(LIGHT.blue, "#007AFF");
-  assert.equal(DARK.blue, "#0A84FF");
+  assert.equal(LIGHT.blue, "#5B5BD6");
+  assert.equal(DARK.blue, "#8B8BFF");
 });
 
 test("recovery codes are four groups of four from an alphabet with no look-alikes", () => {

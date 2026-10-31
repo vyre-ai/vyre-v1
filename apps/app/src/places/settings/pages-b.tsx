@@ -321,7 +321,7 @@ export function SpacesPage(): ReactElement {
     list.push(
       <SettingsRow
         key={sp.id} id={`space.${sp.id}`} label={sp.name} first={i === 0} lead={<Mark name={sp.name} size={26} />}
-        sub={`${sp.addr}, ${sp.role}${sp.needsYou > 0 ? `, ${sp.needsYou} waiting on you` : ""}`}
+        sub={`${sp.addr}${sp.kind === "personal" ? "" : `, ${sp.role}`}${sp.needsYou > 0 ? `, ${sp.needsYou} waiting on you` : ""}`}
         control={
           leaving ? (
             <>

@@ -113,3 +113,14 @@ test("the + sits right after the last tab and before the spacer and the options 
   assert.ok(at('data-testid="tab-strip-plus"') < at('data-testid="tab-strip-more"'), "the + comes before the options button");
   assert.ok(html.includes('id="ic-a"'), "a tab shows its icon");
 });
+
+test("the main strip's lone tab has no Close (it would only reopen the start place), while a pane's lone tab keeps its Close", () => {
+  const lone = [{ key: "home", title: "Home" }];
+  const main = renderToStaticMarkup(<TabStrip tabs={lone} active="home" onClose={() => undefined} hideLoneClose />);
+  assert.doesNotMatch(main, /tab-close-home/, "the main strip hides it");
+  const pane = renderToStaticMarkup(<TabStrip tabs={lone} active="home" onClose={() => undefined} />);
+  assert.match(pane, /tab-close-home/, "a pane strip keeps the close x: it is how the pane closes");
+  const two = renderToStaticMarkup(<TabStrip tabs={[{ key: "home", title: "Home" }, { key: "x", title: "Files" }]} active="home" onClose={() => undefined} hideLoneClose />);
+  assert.match(two, /tab-close-home/);
+  assert.match(two, /tab-close-x/);
+});

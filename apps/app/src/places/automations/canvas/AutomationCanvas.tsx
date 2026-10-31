@@ -3,7 +3,7 @@
 // and in a line under the tabs while someone builds. Edits are a draft: Save (or Cmd-S) writes one version; Undo (Cmd-Z) takes back the latest edit.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { LayoutChangeEvent } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -35,9 +35,10 @@ import type { CardHandlers } from "./Cards.tsx";
 import { canvasScale, COMPACT_REGIONS, compactRegionLabel, frameFor, layoutForWidth } from "./frame.ts";
 import { Inspector } from "./Inspector.tsx";
 import { Glyph } from "./icons.tsx";
-import { CANVAS, CONFIG, useAutomationsData, useScreenQuery } from "./data.tsx";
+import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "./data.tsx";
 import {
   addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, titleOfKey,
+  startsByHand,
 } from "./model.ts";
 import type { CardNode, DefTrigger, Definition, Issue, RunState } from "./model.ts";
 import { Dot, IconButton, SubTabs, TextButton, pointer, webOnly } from "./parts.tsx";
@@ -74,7 +75,7 @@ export function AutomationCanvas({ automationId, tabBodies, initialTab = "steps"
   const data = useAutomationsData();
   const q = useScreenQuery<GetOut>(CANVAS, "automation", { automationId, route: { automationId } });
   const failed = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, statuses: ["failed"], scope: "subject" });
-  const versions = useScreenQuery<VersionsOut>(CONFIG, "versions", { automationId });
+  const versions = useScreenOrRead<VersionsOut>(CONFIG, "versions", { automationId }, "automations.versions", { automationId }, q.status === "ready" ? (q.data.automation as { version?: number } | undefined)?.version : 0);
   const [tab, setTab] = useState<CanvasTab>(initialTab);
   if (q.status !== "ready") return <Frame><Text style={s.dim} accessibilityRole="progressbar">Loading</Text></Frame>;
   const a = q.data.automation as GetOut["automation"] | undefined;
@@ -125,6 +126,9 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   initialPromote: boolean;
   data: ReturnType<typeof useAutomationsData>;
 }): ReactElement {
+  const winW = useWindowDimensions().width;
+  const tight = winW > 0 && winW < 1180;
+  const phone = winW > 0 && winW < 720;   // a phone reads an Automation and runs it; building it is for a bigger window   // beside the sidebar a 1024 window has no room for labelled buttons: icons only
   const { element, show } = useMenu();
   const [draft, setDraft] = useState<Definition | null>(null);
   const undo = useRef<Definition[]>([]);
@@ -333,6 +337,13 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     try { await data.call("automations.test", { automationId: a.id, sample: true }); flash("Test run started with sample data"); }
     catch (e) { flash(e instanceof Error ? e.message : "The test did not start."); }
   };
+  const hasManual = startsByHand(def);
+  const runNow = async (): Promise<void> => {
+    if (errors.length > 0) { flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} first.`); setTab("steps"); return; }
+    if (a.status !== "on") { flash("Turn it on first, then run it."); return; }
+    try { await data.call("automations.run", { automationId: a.id, payload: {} }); flash("Started a run"); }
+    catch (e) { flash(e instanceof Error ? e.message : "The run did not start."); }
+  };
   const blockerId = liveBlockerStep(errors);
   const goToBlocker = (): void => {
     if (!blockerId) return;
@@ -357,6 +368,8 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     const p = rect(e);
     show([
       ...(a.kind === "space" ? [{ label: "Make a personal copy", onSelect: () => void data.call("automations.make_personal_copy", { automationId: a.id, name: `${a.name} (mine)` }).then(() => flash("A personal copy is in your Automations")).catch((x: unknown) => flash(x instanceof Error ? x.message : "No copy was made")) }] : [{ label: "Promote to the Space", onSelect: () => setPromoteOpen(true) }]),
+      { label: "Analytics", onSelect: () => setTab("analytics") },
+      ...(tight && !phone ? [{ label: "Events", onSelect: () => setEventsOpen(true) }] : []),
       { label: "Undo last edit", onSelect: undoEdit },
       { separator: true },
       { label: "Move to Trash", danger: true, onSelect: () => void data.call("automations.delete", { automationId: a.id }).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not move")) },
@@ -386,10 +399,11 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const tabs: SubTab[] = [
     { key: "steps", label: "Build" },
     { key: "runs", label: "Runs", ...(failedRuns > 0 ? { note: `${failedRuns} failed`, tone: "danger" as const } : {}) },
-    { key: "analytics", label: "Analytics" },
     { key: "versions", label: "Versions", note: `v${a.version}` },
     { key: "settings", label: "Settings" },
-    { key: "ask", label: "Ask" },
+    // Analytics and Ask live under the more menu (Ask also has its header button); the tab shows while one of them is open.
+    ...(tab === "analytics" ? [{ key: "analytics", label: "Analytics" }] : []),
+    ...(tab === "ask" ? [{ key: "ask", label: "Ask" }] : []),
   ];
   const askBundle = (issue: { nodeId?: string; message: string }): AskBundle => ({ resource: a.id, message: issue.message, ...(issue.nodeId ? { nodeId: issue.nodeId } : {}), definitionVersion: a.version });
   const trigSel = sel?.id === "trigger";
@@ -462,7 +476,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         <View style={s.kind} testID="kind"><Glyph name={a.kind === "space" ? "users" : "key"} size={13} color="var(--ink-3)" /><Text style={s.kindText}>{a.kind === "space" ? "Space" : "Personal"}</Text></View>
         {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text></View></>) : null}
         <View style={{ flex: 1 }} />
-        <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg}>
+        {phone ? null : <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg}>
           {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
           {BUILDER_MODES.map((label) => {
             const on = (label === "Advanced") === (mode === "advanced");
@@ -472,19 +486,20 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               </Pressable>
             );
           })}
-        </View>
+        </View>}
         {connectTarget ? <TextButton label={`Connect ${connectTarget.service}`} icon="key" testID="connect" onPress={() => data.nav.connect(connectTarget)} /> : null}
         {!connectTarget && blockedIssue?.setup.blocked ? <Text testID="blocked-step" style={s.needsText}>{blockedIssue.setup.blocked}</Text> : null}
-        <TextButton label="Events" icon="bolt" testID="events" onPress={() => setEventsOpen(true)} />
-        <TextButton label="Test" icon="flask" testID="test-run" onPress={() => void test()} />
+        {phone || tight ? null : <TextButton label="Events" icon="bolt" bare={tight} testID="events" onPress={() => setEventsOpen(true)} />}
+        {hasManual ? <TextButton label="Run now" icon="bolt" bare={tight} testID="run-now" onPress={() => void runNow()} /> : null}
+        <TextButton label="Test" icon="flask" bare={tight} testID="test-run" onPress={() => void test()} />
         {dirty ? <TextButton label={saving ? "Saving" : "Save"} primary disabled={saving || errors.length > 0} testID="save" onPress={() => void save()} /> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${statusLabel}`} testID="status" onPress={openStatus} style={[s.status, pointer]}>
           <Dot tone={a.status === "on" ? "ok" : a.status === "paused" ? "warn" : "muted"} />
           <Text style={s.statusText}>{statusLabel}</Text>
           <Glyph name="chevD" size={11} color="var(--ink-3)" />
         </Pressable>
-        <TextButton label="Ask" icon="sparkle" testID="ask" onPress={() => setTab("ask")} />
-        <IconButton icon="panel" label={paneOpen ? "Hide the side pane" : "Show the side pane"} on={paneOpen} testID="toggle-pane" onPress={onTogglePane} />
+        {phone ? null : <TextButton label="Ask" icon="sparkle" bare={tight} testID="ask" onPress={() => setTab("ask")} />}
+        {phone ? null : <IconButton icon="panel" label={paneOpen ? "Hide the side pane" : "Show the side pane"} on={paneOpen} testID="toggle-pane" onPress={onTogglePane} />}
         <IconButton icon="more" label={moreLabel(a.name)} testID="more" onPress={openMore} />
       </View>
       <SubTabs tabs={tabs} active={tab} onSelect={(k) => setTab(k as CanvasTab)} label="Automation" />
@@ -584,7 +599,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           )}
         </View>
       ) : null}
-      {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <AutomationConfig automationId={a.id} />}</View> : null}
+      {tab === "settings" ? <View style={s.pageBody}>{tabBodies.settings ?? <AutomationConfig automationId={a.id} embedded />}</View> : null}
       {tab === "ask" ? (
         <AskTab
           def={def}

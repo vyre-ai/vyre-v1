@@ -64,7 +64,7 @@ export const standIn: OpenSession = async () => {
   } as EngineSession;
 };
 
-export async function boot(dir: string): Promise<Daemon> {
+export async function boot(dir: string, openSession: OpenSession = standIn): Promise<Daemon> {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
@@ -80,7 +80,7 @@ export async function boot(dir: string): Promise<Daemon> {
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     vault: { secret: async () => KEY, signRs256: async () => "" },
-    engineOpenSession: standIn,
+    engineOpenSession: openSession,
   });
 }
 

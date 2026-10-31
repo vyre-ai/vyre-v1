@@ -3,7 +3,7 @@
 // person, and the opener of real sessions. The turn engine itself stays in agent/src/turn-engine and knows nothing about modules.
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
-import type { AccountQuery, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
+import type { AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
 import { bindBridge, createBridge } from "./handlers/bridge.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
@@ -104,10 +104,13 @@ async function accountFor(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedA
   return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
 }
 
+/** The task a turn with no AI account leaves for the asker. The app opens the direct sign-in for it (apps/app/src/places/chats/needsyou/account.ts holds the same title; test/no-account-title.test.ts keeps them equal). */
+export const NO_ACCOUNT_TITLE = "Connect an AI account";
+
 async function unblock(h: EngineHostSeam, db: Db, info: { threadId: string; turnId: string; agentId: string; asker: string }): Promise<void> {
   const key = `no-account:${info.threadId}:${info.agentId}:${info.asker}`;
   const made = (await h.call("tasks.create", {
-    kind: "unblock", title: "Add a key so your agent can answer", summary: "No API key or sign-in is available to run this conversation. Add one in the Vault and the agent answers.",
+    kind: "unblock", title: NO_ACCOUNT_TITLE, summary: "So your agent can answer.",
     assigned: { kind: "person", id: info.asker }, source: { kind: "chat", id: info.threadId }, idempotencyKey: key,
   }, info.asker)) as { task?: { id?: string } };
   const taskId = made.task?.id;
@@ -186,7 +189,24 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     });
     live = engine;
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
+    // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
+    const recording = new Map<string, Promise<void>>();
+    const report = (turnId: string, ev: Extract<EngineEvent, { type: "turn.started" | "turn.completed" | "turn.failed" | "turn.cancelled" }>): void => {
+      const turn = engine.turns().find((t) => t.id === turnId);
+      if (!turn) return;
+      const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.completed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
+      const input = {
+        threadId: turn.threadId, turnId, agentId: turn.agentId, phase, qseq: turn.qseq, asker: turn.asker, ...(turn.model ? { model: turn.model } : {}),
+        ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }), ...(ev.type === "turn.failed" ? { code: ev.code } : {}),
+      };
+      const done = (recording.get(turnId) ?? Promise.resolve()).then(() => h.call("engine.turn.record", input, turn.asker)).then(() => undefined, (err: unknown) => {
+        h.log?.("a turn could not be recorded", { turnId, phase, error: err instanceof Error ? err.message : String(err) });
+      });
+      recording.set(turnId, done);
+      if (phase !== "started") void done.then(() => { if (recording.get(turnId) === done) recording.delete(turnId); });
+    };
     engine.subscribe((ev) => {
+      if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
       if (ev.type !== "turn.completed") return;
       void reviewAfter({ call: h.call, ...(h.postAs ? { postAs: h.postAs } : {}) }, ctx.db, engine, ev, () => mintEngineId("msg", now())).catch((err) => h.log?.("the reviewer could not be asked", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
     });

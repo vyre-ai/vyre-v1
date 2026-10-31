@@ -5,8 +5,9 @@ import type { Dispatch, ReactElement, ReactNode, SetStateAction } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { useOnline, useRecordsData } from "../sidebar/data.tsx";
+import { useOnline, useRecordsData, useScreenQuery } from "../sidebar/data.tsx";
 import type { RecordsData } from "../sidebar/data.tsx";
+import { SCREENS, typeMenuEntries } from "../sidebar/model.ts";
 import type { ViewRow } from "../sidebar/model.ts";
 import { Glyph, HeadButton, anchorOf, pointOf, typeIcon } from "../sidebar/parts.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
@@ -93,7 +94,7 @@ export function KindSwitch({ ctx }: { ctx: ViewCtx }): ReactElement {
     <>
       <Pressable
         accessibilityRole="button" accessibilityLabel={`View as, ${label}`} testID="records-kind"
-        onPress={(e) => { const p = anchorOf(e); menu.show(kindEntries(ctx), p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.kind, hovered === true && s.pickOver]}
+        onPress={(e) => { const p = anchorOf(e); menu.show(kindEntries(ctx), p.x, p.y, "other"); }} style={({ hovered }: { hovered?: boolean }) => [s.kind, hovered === true && s.pickOver]}
       >
         <Text style={s.kindText}>{label}</Text>
         <Glyph name="chevd" size={9} />
@@ -110,6 +111,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
   const online = useOnline();
   const winW = useWindowDimensions().width;
   const slim = winW > 0 && winW < 720;
+  const typeList = useScreenQuery<{ types: Parameters<typeof typeMenuEntries>[0] }>(SCREENS.types, "types");
   const { def } = ctx;
   const { v, set } = st;
 
@@ -128,7 +130,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
         out.push({ label: n === null ? o.title : `${o.title} (${n})`, checked: chosen(v, f.key).includes(optionValue(f, o.key)), onSelect: () => set(toggleOption(v, f.key, optionValue(f, o.key))) });
       }
     }
-    if (out.length === 0) out.push({ head: "Filter" }, { label: "No fields to filter by" });
+    if (out.length === 0) out.push({ head: "Nothing to filter by yet" });
     if (v.clauses.length > 0) out.push({ separator: true }, { label: "Clear filters", onSelect: () => set(clearClauses(v)) });
     return out;
   };
@@ -164,9 +166,14 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
     <View style={s.head} testID="records-head">
       <View style={s.crumb}>
         {slim ? null : <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />}
-        <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>{def.plural}</Text>
+        {slim && typeList.status === "ready" ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`${def.plural}, change record type`} testID="records-type-pick" onPress={(e) => { const p = pointOf(e); menu.show(typeMenuEntries(typeList.data.types, ctx.type, (key) => dispatch({ type: "open", key })), p.x, p.y, "other"); }} style={s.typePick}>
+            <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>{def.plural}</Text>
+            <Glyph name="chevd" size={10} />
+          </Pressable>
+        ) : <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>{def.plural}</Text>}
         {slim ? null : <Text style={s.slash}>/</Text>}
-        <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y); }}
+        <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y, "other"); }}
           style={({ hovered }: { hovered?: boolean }) => [s.pick, hovered === true && s.pickOver]}>
           <Text style={s.pickText} numberOfLines={1}>{ctx.saved ? ctx.saved.title : `All ${def.plural.toLowerCase()}`}</Text>
           {st.edited ? <Text style={s.dirty}>{"·"}</Text> : null}
@@ -197,10 +204,10 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
         ], x, y)} />
       ) : (
         <>
-      <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={v.clauses.length > 0} bare={slim} testID="records-filter" onPress={(x, y) => menu.show(filterEntries(), x, y)} />
-      {sort ? <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={sortKey !== undefined} bare={slim} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y)} /> : null}
-      {lanes ? <HeadButton icon="group" label="Lanes" detail={laneField?.title} bare={slim} testID="records-lanes" onPress={(x, y) => menu.show(laneEntries(), x, y)} /> : null}
-      {fields ? <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={(x, y) => menu.show(fieldEntries(), x, y)} /> : null}
+      <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={v.clauses.length > 0} bare={slim} testID="records-filter" onPress={(x, y) => menu.show(filterEntries(), x, y, "other")} />
+      {sort ? <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={sortKey !== undefined} bare={slim} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y, "other")} /> : null}
+      {lanes ? <HeadButton icon="group" label="Lanes" detail={laneField?.title} bare={slim} testID="records-lanes" onPress={(x, y) => menu.show(laneEntries(), x, y, "other")} /> : null}
+      {fields ? <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={(x, y) => menu.show(fieldEntries(), x, y, "other")} /> : null}
         </>
       )}
       {extra}
@@ -215,6 +222,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
 export const s = StyleSheet.create({
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 2, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, zIndex: 10 },
   crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1, overflow: "hidden" },
+  typePick: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, minWidth: 0 },
   h1: { margin: 0, flexShrink: 1, minWidth: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
   pick: { height: 26, flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, borderRadius: 6 },
@@ -225,7 +233,7 @@ export const s = StyleSheet.create({
   modText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   modLink: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   grow: { flex: 1 },
-  find: { width: 190, height: 26, paddingHorizontal: 9, borderRadius: 7, backgroundColor: "var(--sunk)" as string, fontSize: 13, color: "var(--ink)" as string },
+  find: { width: 190, height: 26, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
   kind: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7 },
   kindText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   offline: { fontSize: 12.5, color: "var(--ink-3)" as string, marginLeft: 8 },

@@ -161,9 +161,9 @@ export function raiseLimit(
 type UsageBy = "day" | "person" | "agent" | "model";
 interface UsageTotals { turns: number; tokensIn: number; tokensOut: number; costMicros: number }
 
-export function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: number; to?: number; personId?: string; agentId?: string; itemId?: string }): {
-  rows: Array<{ key: string; title: string; totals: UsageTotals }>; totals: UsageTotals;
-} {
+export async function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: number; to?: number; personId?: string; agentId?: string; itemId?: string }): Promise<{
+  rows: Array<{ key: string; title: string; face?: string; totals: UsageTotals }>; totals: UsageTotals;
+}> {
   ensure(ctx.db);
   // People see their own; managers of AI spend see everyone.
   const sees = ctx.authorize({ perm: "ai.spend", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
@@ -188,6 +188,21 @@ export function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: number; 
     sum.turns += t.turns; sum.tokensIn += t.tokensIn; sum.tokensOut += t.tokensOut; sum.costMicros += t.costMicros;
     return { key: String(r["k"]), title: String(r["k"]), totals: t };
   });
+  // An agent or a person is named, not shown by id; a name that cannot be read leaves the id.
+  if (input.by === "agent" || input.by === "person") {
+    await Promise.all(list.map(async (row: { key: string; title: string; face?: string }) => {
+      try {
+        if (input.by === "agent") {
+          const a = (await ctx.call("agents.get", { agentId: row.key })) as { agent?: { name?: string; face?: string } } | null;
+          if (a?.agent?.name) row.title = a.agent.name;
+          if (a?.agent?.face) row.face = a.agent.face;
+        } else {
+          const p = (await ctx.call("access.principals.get", { principal: { kind: "person", id: row.key } })) as { principal?: { name?: string } } | null;
+          if (p?.principal?.name) row.title = p.principal.name;
+        }
+      } catch { /* the id stands */ }
+    }));
+  }
   return { rows: list, totals: sum };
 }
 
@@ -222,7 +237,11 @@ async function limitCard(ctx: EngineCtx, hit: Hit, who: { agentId: string; threa
   const key = `${hit.scope}:${hit.scopeId}:${hit.limit}:${periodOf(hit.limit, at)}`;
   const had = rows(ctx, "SELECT task_id FROM engine_limit_cards WHERE card_key = ?", key)[0];
   if (had) return String(had["task_id"]);
-  const title = hit.scope === "agent" ? `${who.agentId} hit its ${LIMIT_WORD[hit.limit]} limit` : hit.scope === "person" ? `You hit your ${LIMIT_WORD[hit.limit]} limit` : `The Space hit its ${LIMIT_WORD[hit.limit]} limit`;
+  let agentName = who.agentId;
+  if (hit.scope === "agent") {
+    try { const a = (await ctx.call("agents.get", { agentId: who.agentId })) as { agent?: { name?: string } } | null; if (a?.agent?.name) agentName = a.agent.name; } catch { /* the id stands */ }
+  }
+  const title = hit.scope === "agent" ? `${agentName} hit its ${LIMIT_WORD[hit.limit]} limit` : hit.scope === "person" ? `You hit your ${LIMIT_WORD[hit.limit]} limit` : `The Space hit its ${LIMIT_WORD[hit.limit]} limit`;
   const onceInput = { scope: hit.scope, ...(hit.scopeId === "" ? {} : { scopeId: hit.scopeId }), limit: hit.limit, mode: "once" as const };
   try {
     const out = (await ctx.call("tasks.create", {

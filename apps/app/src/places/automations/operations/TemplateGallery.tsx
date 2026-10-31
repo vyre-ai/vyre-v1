@@ -35,7 +35,14 @@ export function TemplateList({ templates, open, busy, onToggle, onUse }: {
         const isOpen = open === t.key;
         const row = (
           <Row
-            key={t.key} id={`template-${t.key}`} title={t.title} note={t.summary} selected={isOpen} trailing={<Text style={v.right}>{t.starts}</Text>} onPress={() => onToggle(t.key)}
+            key={t.key} id={`template-${t.key}`} title={t.title} note={t.summary} selected={isOpen} trailing={(
+              <View style={v.trail}>
+                <Text numberOfLines={1} style={v.right}>{t.starts}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Use template ${t.title}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`use-${t.key}`} onPress={() => onUse(t)} style={[v.btnPrimary, pointer]}>
+                  <Text style={v.btnPrimaryText}>Use template</Text>
+                </Pressable>
+              </View>
+            )} onPress={() => onToggle(t.key)}
             domProps={{ "aria-label": `${t.title}. ${t.summary} ${isOpen ? "Hide" : "Show"} the steps`, ...rm.rowDom(t.title, () => templateMenu(isOpen, { toggle: () => onToggle(t.key), use: () => onUse(t) })) }}
           />
         );
@@ -48,9 +55,6 @@ export function TemplateList({ templates, open, busy, onToggle, onUse }: {
             <Text style={v.section}>Before you turn it on</Text>
             {/* ui-rows-lint: not a list (one sentence per thing to set up) */}
             {t.setUp.map((line) => <Text key={line} style={v.dim}>{line}</Text>)}
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} testID={`use-${t.key}`} onPress={() => onUse(t)} style={[v.btnPrimary, pointer]}>
-              <Text style={v.btnPrimaryText}>Use template</Text>
-            </Pressable>
           </View>
         )];
       })}

@@ -13,6 +13,8 @@ export interface NeedsNav {
   openFile(fileId: string): void;
   /** The agent's computer popup, for a request that is blocked on a login. */
   openComputer(agentId: string): void;
+  /** The direct sign-in for an AI account (the Vault's Add an AI provider sheet). */
+  openSignIn(): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }

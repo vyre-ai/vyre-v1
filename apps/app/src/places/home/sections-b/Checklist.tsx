@@ -3,9 +3,10 @@
 // The rows come from the onboarding host's progress (onboarding/store.ts); a Space whose host has not read the progress yet draws nothing.
 import { createElement, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { setupRows } from "../../../onboarding/SetupRows.tsx";
+import { detectDevice } from "../../../onboarding/device.ts";
 import { openOnboarding, readProgress, watchProgress } from "../../../onboarding/store.ts";
 import { stepLook } from "../../../onboarding/stepStyle.ts";
 import { GoButton, Icon } from "./parts.tsx";
@@ -25,8 +26,9 @@ export function setSetupHidden(v: boolean): void {
 export function Checklist(): ReactElement | null {
   const p = useSyncExternalStore(watchProgress, readProgress, readProgress);
   const off = useSyncExternalStore(watchHidden, readHidden, readHidden);
+  const width = useWindowDimensions().width;
   if (!p) return null;
-  const rows = setupRows(p.flow, p.progress);
+  const rows = setupRows(p.flow, p.progress, detectDevice(width));
   const done = rows.filter((r) => r.state === "done").length;
   if (rows.length === 0 || done === rows.length) return null;
   if (off) {

@@ -121,6 +121,9 @@ const LEVEL_RANK: Record<string, number> = { view: 0, use: 1, edit: 2, manage: 3
 export async function ensureHomeGrants(ctx: AgentsCtx, agentId: string, ownerId: string, folderId: string): Promise<number> {
   const marker = `agents.home_grants.v1:${agentId}`;
   if (meta(ctx.db, marker) !== undefined) return 0;
+  // A Personal Space has no sharing at all (access.share needs a Team Space), so there are no grants to write or to retry every pass.
+  const kind = await ctx.call?.("spaces.get", {}).then((r) => (r as { space?: { kind?: string } } | null)?.space?.kind, () => undefined);
+  if (kind === "personal") { setMeta(ctx.db, marker, "personal"); return 0; }
   const resource = { type: "folder", id: folderId };
   const have = await tolerant<{ shares?: Array<{ grant: { subject: { kind: string; id: string }; level: string } }> }>(ctx, "access.shares_of", { resource }, {});
   const holds = (kind: string, id: string, level: string): boolean =>
@@ -484,11 +487,12 @@ export const possessive = (name: string): string => (/s$/i.test(name) ? `${name}
 
 const cleanName = (raw: string | undefined): string => (raw ?? "").trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").replace(/^\.+/, "").slice(0, MAX_NAME - 12);
 
-/** The names a person's assistant may take, in order: "<First>’s Assistant", then "<Full name>’s Assistant", then "Assistant <id>". No name at all gives "Assistant", "My Assistant", then the id form. */
-export function assistantNames(person: string, rawName: string | undefined): string[] {
+/** The names a person's assistant may take, in order: "<First>’s Assistant" (the first name only, its first letter capitalised and the rest as typed), then the same with the start of the person's id when that is taken, then "Assistant <id>". No name at all gives "Assistant", "My Assistant", then the id form. */
+export function assistantNames(person: string, rawName: string | undefined, capitalise = true): string[] {
   const base = cleanName(rawName);
   const first = base.split(" ")[0] ?? "";
-  return [first === "" ? "Assistant" : `${possessive(first)} Assistant`, base === "" ? "My Assistant" : `${possessive(base)} Assistant`, `Assistant ${person.slice(4, 10)}`];
+  const cap = (n: string): string => (capitalise ? n.charAt(0).toUpperCase() + n.slice(1) : n);
+  return [first === "" ? "Assistant" : `${possessive(cap(first))} Assistant`, first === "" ? "My Assistant" : `${possessive(cap(first))} Assistant ${person.slice(4, 8)}`, `Assistant ${person.slice(4, 10)}`];
 }
 
 /** The names the assistant had before the possessive rule, for the same person: "<First> Assistant" and "<Full name> Assistant". Index i here is replaced by index i in assistantNames. */
@@ -503,7 +507,13 @@ const defaultsOf = (raw: string | undefined): Array<{ slot: 0 | 1; name: string 
   const old = oldAssistantNames(raw);
   const out: Array<{ slot: 0 | 1; name: string }> = [];
   old.forEach((n, i) => { if (n !== null) out.push({ slot: i as 0 | 1, name: n }); });
-  assistantNames("usr_000000", raw).slice(0, 2).forEach((n, i) => out.push({ slot: i as 0 | 1, name: n }));
+  // both spellings of the possessive default count: the first letter as typed (before it was capitalised) and capitalised; and "<Full name>’s Assistant", which an earlier rule gave when the first name was taken
+  const base = cleanName(raw);
+  for (const cap of [false, true]) {
+    const n = assistantNames("usr_000000", raw, cap)[0]!;
+    if (!out.some((d) => d.slot === 0 && d.name === n)) out.push({ slot: 0, name: n });
+    if (base !== "") { const full = `${possessive(cap ? base.charAt(0).toUpperCase() + base.slice(1) : base)} Assistant`; if (!out.some((d) => d.slot === 1 && d.name === full)) out.push({ slot: 1, name: full }); }
+  }
   return out;
 };
 

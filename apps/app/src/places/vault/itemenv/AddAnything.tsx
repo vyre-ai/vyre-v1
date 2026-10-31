@@ -14,7 +14,7 @@ import { Btn, Glyph, IconBtn, LogoTile, QuietLine } from "../layout/parts.tsx";
 import type { IconName } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { fieldsFor, filterTemplates, mergeFields, normalizeKey, patchAt, plainFields, templateById, understandPaste } from "./env.ts";
+import { fieldsFor, filterTemplates, mergeFields, nameFromKey, normalizeKey, patchAt, plainFields, templateById, understandPaste } from "./env.ts";
 import type { Field, ItemKind, Template } from "./env.ts";
 import { LAYOUT_SCREEN } from "./ItemEnv.tsx";
 
@@ -82,7 +82,10 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   const data = useVaultData();
   const folders = useScreenQuery<FoldersOut>(LAYOUT_SCREEN, "folders", {});
   const menu = useMenu();
-  const list: Folder[] = folders.status === "ready" ? folders.data.folders.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage") : [];
+  const [made, setMade] = useState<Folder[]>([]);
+  const [creating, setCreating] = useState<{ name: string; busy: boolean; error?: string } | null>(null);
+  const known: Folder[] = folders.status === "ready" ? folders.data.folders.filter((f) => f.yourLevel === "edit" || f.yourLevel === "manage") : [];
+  const list: Folder[] = [...known, ...made.filter((m) => !known.some((k) => k.id === m.id))];
   const [folderId, setFolderId] = useState<string | undefined>(lastFolderId);
   const [search, setSearch] = useState("");
   const [searchFocus, setSearchFocus] = useState(false);
@@ -97,6 +100,24 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // A new person has no Mine folder yet: make it as the sheet opens, so Add works at once and nobody meets an empty folder list.
+  const noMine = folders.status === "ready" && !folders.data.folders.some((f) => f.scope === "mine") && !made.some((f) => f.scope === "mine");
+  const makingMine = useRef(false);
+  useEffect(() => {
+    if (!noMine || makingMine.current) return;
+    makingMine.current = true;
+    data.call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: "vault-mine-default" }).then((out) => { setMade((cur) => [...cur, (out as { folder: Folder }).folder]); }, (e: unknown) => { makingMine.current = false; setError(reasonOf(e, "Could not make your Mine folder. Try again.")); });
+  }, [noMine]); // eslint-disable-line react-hooks/exhaustive-deps
+  const createFolder = (): void => {
+    if (creating === null || creating.busy) return;
+    const name = creating.name.trim();
+    if (name === "") { setCreating({ ...creating, error: "Give the folder a name." }); return; }
+    setCreating({ name, busy: true });
+    data.call("vault.folders.create", { name, scope: "mine", idempotencyKey: `vault-folder-${name}-${Date.now()}` }).then((out) => {
+      const f = (out as { folder: Folder }).folder;
+      setMade((cur) => [...cur, f]); setFolderId(f.id); setCreating(null);
+    }, (e: unknown) => setCreating({ name, busy: false, error: reasonOf(e, "Could not make that folder.") }));
+  };
   const target = folderId && list.some((f) => f.id === folderId) ? folderId : (list.find((f) => f.scope === "mine") ?? list[0])?.id;
   const folder = list.find((f) => f.id === target);
   const reel = useMemo(() => filterTemplates(search), [search]);
@@ -113,7 +134,8 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
     setFields((cur) => mergeFields(cur, u.fields));
     if (u.template) setTemplate(u.template);
     setKind(u.itemKind);
-    if (u.name && !nameTouched && !name) setName(u.name);
+    // a paste that names nothing still gets a name, so Add is never left disabled for a reason the person cannot see: the app, else the first key in words
+    if (!nameTouched && !name) setName(u.name ?? nameFromKey(u.fields[0]?.key ?? ""));
     setStatus({ text: u.note, undo: before });
   };
   // A paste anywhere in the sheet is understood (a key, a .env, a link, JSON): there is no paste box. A paste into the name or a value stays a plain paste.
@@ -147,6 +169,8 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   const started = fields.length > 0;
   const filled = fields.filter((f) => f.key && f.value !== "");
   const canSave = name.trim() !== "" && filled.length > 0 && target !== undefined && !saving;
+  // a disabled Add always says why, in one quiet line
+  const whyNot = name.trim() === "" ? "Give it a name" : filled.length === 0 ? "Give it a value" : target === undefined ? "Choose a folder" : null;
   const keys = fields.map((f) => f.key).filter(Boolean);
   const dup = keys.find((k, i) => keys.indexOf(k) !== i);
 
@@ -158,13 +182,13 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
       const out = (await data.call("vault.item.put", { folderId: target, name: name.trim(), kind, fields: plainFields(filled), ...(templateById(template) && template !== "custom" ? { template } : {}) })) as { item: { id: string; name: string } };
       onAdded(out.item.id, out.item.name, target);
     } catch (e) {
-      setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : "Could not save. Nothing was lost; try again.");
+      setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : reasonOf(e, "Could not save. Nothing was lost; try again."));
       setSaving(false);
     }
   };
 
   const folderMenu = (x: number, y: number): void => {
-    menu.show(folderEntries(list, target, setFolderId), x, y, "other");
+    menu.show([...folderEntries(list, target, setFolderId), { separator: true }, { label: "New folder…", onSelect: () => setCreating({ name: "", busy: false }) }], x, y, "other");
   };
 
   const reelTiles: ReactElement[] = [];
@@ -225,8 +249,9 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
         <>
           <View style={s.field}>
             <Text style={s.label}>Name</Text>
-            <TextInput value={name} onChangeText={(v) => { setName(v); setNameTouched(true); }} placeholder="GoHighLevel" accessibilityLabel="Name" style={s.input} testID="add-name" />
+            <TextInput value={name} onChangeText={(v) => { setName(v); setNameTouched(true); }} placeholder="Name this item" accessibilityLabel="Name" style={s.input} testID="add-name" />
             {name.trim() ? <Text style={s.handle} testID="add-handle">{handleFor(data.spaceName, name)}</Text> : null}
+            {whyNot ? <Text style={s.handle} testID="add-why">{whyNot}</Text> : null}
           </View>
           <View style={s.field}>
             <Text style={s.label}>Fields</Text>
@@ -235,9 +260,23 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
           </View>
         </>
       ) : null}
+      {creating ? (
+        <View style={s.rowLine} testID="add-new-folder">
+          <TextInput value={creating.name} onChangeText={(v) => setCreating({ name: v, busy: false })} placeholder="Folder name" accessibilityLabel="Folder name" autoFocus onSubmitEditing={createFolder} style={[s.input, { flex: 1, minWidth: 0 }]} testID="add-new-folder-name" />
+          <Btn label={creating.busy ? "Making" : "Make folder"} onPress={createFolder} testID="add-new-folder-make" />
+          <Btn label="Cancel" onPress={() => setCreating(null)} testID="add-new-folder-cancel" />
+        </View>
+      ) : null}
+      {creating?.error ? <Text style={s.error} accessibilityRole="alert" testID="add-new-folder-error">{creating.error}</Text> : null}
       {error ? <Text style={s.error} accessibilityRole="alert" testID="add-error">{error}</Text> : null}
     </Sheet>
   );
+}
+
+/** The reason a call was refused, in the daemon's own words, or the fallback. */
+function reasonOf(e: unknown, fallback: string): string {
+  const x = e as { error?: { message?: string }; message?: string };
+  return x?.error?.message ?? (x?.message ? x.message : fallback);
 }
 
 function rectOf(e: unknown): { x: number; y: number } {

@@ -225,6 +225,19 @@ test("the built app starts Personal, claims over HTTP, imports fixture sessions 
       const msgs = ok(await post(state.url, state.token, "chat.messages.list", { threadId: state.chatThread }), "chat.messages.list").messages as { author?: { kind?: string }; body?: string }[];
       return msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine."));
     }, 60_000, first.out);
+    // The person's own assistant answers too. It was made at the claim, before this AI account existed, and has to hold what any agent holds to read the key and to speak.
+    const me = ok(await post(state.url, state.token, "identity.whoami"), "identity.whoami").principal.id as string;
+    // a consumer makes it when the account exists, so on a slow runner it can still be a moment away
+    const assistant = await until("the person's private assistant", async () => {
+      const listed = ok(await post(state.url, state.token, "agents.list", { section: "personal", limit: 100 }), "agents.list").agents as { agentId: string; ownerId: string; role?: string }[];
+      return listed.find((x) => x.ownerId === me && x.role === "assistant") ?? null;
+    }, 30_000, first.out);
+    const assistantThread = ok(await post(state.url, state.token, "chat.start", { idempotencyKey: "pp-assistant-chat", kind: "chat", agentIds: [assistant.agentId] }), "chat.start (assistant)").thread.threadId as string;
+    ok(await post(state.url, state.token, "chat.post", { idempotencyKey: "pp-assistant-hello", threadId: assistantThread, body: "hello", mentions: [{ kind: "agent", id: assistant.agentId }] }), "chat.post (assistant)");
+    await until("the assistant's reply from the sandboxed CLI", async () => {
+      const msgs = ok(await post(state.url, state.token, "chat.messages.list", { threadId: assistantThread }), "chat.messages.list (assistant)").messages as { author?: { kind?: string }; body?: string }[];
+      return msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine."));
+    }, 60_000, first.out);
     // The turn's usage is what a CLI turn leaves behind that the spend caps and the usage page read: engine_usage, written through engine.turn.record_usage when the turn ends, which can be just after the
     // reply is posted, so wait for it. (engine.turns.list reads engine_turns, which only the worker capabilities engine.turn.start and finish write; the in-process turn engine that runs a chat turn does not.)
     const usage = await until("the CLI turn's usage in engine.usage.query", async () => {

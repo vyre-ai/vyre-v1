@@ -160,7 +160,7 @@ export function KnowLearned(): ReactElement {
       <KnowHeader crumbs={[{ t: "Knowledge", route: { v: "learned" } }, { t: "Learned" }]} right={right} />
       <KnowColumn
         testID="know-learned-body" label="Learned" title="Learned"
-        lede="New facts appear here the moment Vyre picks them up from chats, runs and records. Undo removes one, Edit corrects it, and nothing waits for review unless an admin asks for it."
+        lede="What Vyre picked up from chats, runs and records. Undo or Edit any of it."
       >
         <Flash flash={doing.flash} onClose={() => doing.setFlash(null)} />
         <ErrorLine text={doing.err ?? failed} />
@@ -169,7 +169,6 @@ export function KnowLearned(): ReactElement {
         {body}
         {groups.length === 0 && lq.status === "ready" ? <Empty title="Nothing new in this window" text="Try a longer window, or clear the filter." /> : null}
         {lq.status === "loading" && !failed ? <Text style={{ marginTop: 24, fontSize: 13, color: "var(--ink-3)" }} accessibilityRole="progressbar">Loading</Text> : null}
-        <Text style={{ marginTop: 28, fontSize: 12, lineHeight: 18, color: "var(--ink-4)" }} testID="learned-foot">Capture is automatic for everything. An admin can require review for the Space or for named projects in Space Settings.</Text>
       </KnowColumn>
       {menu.element}
     </View>

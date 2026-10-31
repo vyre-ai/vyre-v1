@@ -79,6 +79,7 @@ import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { connectorReadSender } from "../seams/connector-read.ts";
 import { documentPin } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
+import { createProviderSignin } from "../seams/provider-signin.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
 import { startRelayBox } from "../seams/relay.ts";
@@ -114,7 +115,7 @@ import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
-import { createPrincipalRegistrar, missingAgentPrincipalEvents } from "../gateway/principals.ts";
+import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
@@ -421,6 +422,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let accessPending: { seq: number; type: string; payload: unknown }[] = [];
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
   let accessStale = false, kicking = false, noAccessModule = false;
+  /** Agents born Guest (their maker was not yet active in the snapshot) become Member agents once the maker may edit the Space (see lowAgentUpgradeEvents). Runs after each access sync and at boot. */
+  let healing = false;
+  let healAgents: () => Promise<void> = async () => {};
+  const startHealing = (appendResult: (e: Parameters<LogClient["appendResult"]>[0]) => ReturnType<LogClient["appendResult"]>, spaceId: string): void => {
+    healAgents = async () => {
+      if (healing) return;
+      healing = true;
+      try {
+        const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
+          const may = (level: "edit" | "view"): boolean => authorize(access.snap, { principal: person, action: { perm: null, level }, resource: { type: "space", id: scope } }).effect === "allow";
+          return may("edit") ? "edit" : may("view") ? "view" : "none";
+        };
+        const agents = [...access.snap.allPrincipals()].filter((p) => p.kind === "agent" && p.owner).map((p) => ({ id: p.id, owner: p.owner as string, roleNames: access.snap.info(p.id)?.roleNames ?? "" }));
+        let changed = false;
+        for (const e of lowAgentUpgradeEvents({ space: spaceId, agents, levelOf })) {
+          const r = await appendResult({ id: `evt_agent_grown_${e.type.replace(".", "_")}_${e.id}`, type: e.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: e.entity, entity_id: e.id, payload: e.payload });
+          if (r.ok && !r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); changed = true; sink.log({ space: spaceId, level: 20, msg: "access.agent_grown", place: "boot", entity: "agent", entity_id: e.id }); }
+        }
+        if (changed) await syncAccess(true);
+      } finally { healing = false; }
+    };
+  };
   /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
   const staleFor = (principal: string): boolean => {
     if (!accessStale || principal === (access.owner() ?? cfg.owner)) return false;
@@ -519,6 +542,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             sink.log({ space, level: 20, msg: "access.agent_principal_reconciled", place: "boot", entity: "agent", entity_id: repairedEvent.id });
           }
         }
+
       }
       headSeq = (await log.currentHead()).seq;
 
@@ -684,7 +708,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
         sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),
-        recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale}),
+        recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale,refresh:()=>syncAccess(true),warn:(info)=>sink.log({ space: spaceId, level: 40, msg: "records.read_mismatch", place: "read", attrs: { ...info } })}),
         preview: { read: (token, cap, input, trace) => {
           if (!previews) throw fail("permission.no_grant", trace);
           return previews.read(token, cap, input, trace);
@@ -803,7 +827,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       closers.push(() => hookRunner.pump().catch(() => {}));   // finish the pass in flight before the databases close
       closers.push(() => projectionRunner.pump().catch(() => {}));
       await hookRunner.start();
-      syncAccess = async (force) => {
+      // One sync at a time. Each access.sync call reads the module's tables when it begins and returns a snapshot of what it read plus its own events; two overlapping calls each missed the other's
+      // events, and whichever was adopted last could drop a record's resource, so a read that followed a create answered "Access changed while reading". Run one after another, each begins where the last ended.
+      let syncChain: Promise<void> = Promise.resolve();
+      const runSync = async (force?: boolean): Promise<void> => {
         if (noAccessModule) return;
         const events = accessPending;
         if (!events.length && !force && access.adopted() && !accessStale) return;
@@ -824,7 +851,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }
         accessStale = false;
       };
+      const syncOnce = (force?: boolean): Promise<void> => { const run = syncChain.then(() => runSync(force), () => runSync(force)); syncChain = run.then(() => undefined, () => undefined); return run; };
+      // after every sync an agent born while its person was not yet active in the snapshot is brought up to a Member agent (it heals itself and, on a changed Space, syncs once more)
+      if (log) startHealing((event) => log!.appendResult(event), spaceId);
+      syncAccess = async (force) => { await syncOnce(force); void healAgents().catch(() => undefined); };
       await syncAccess();
+      await healAgents();
       // the owner of a Space this host made has not claimed it until identity holds an account for them: a fresh one-time link at every start until they do
       claimIssue = async () => {
         const owner = access.owner();
@@ -1052,7 +1084,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, liveHub: syncLive.seam, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => { const url=syncEndpointOrigin(cfg.address!);return url?[{kind:"direct" as const,url}]:[]; } } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: () => ({ sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch }), sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
         setDocumentNetwork: () => documentPin(),
         setConnectorReadSender: (d) => connectorReadSender(d),

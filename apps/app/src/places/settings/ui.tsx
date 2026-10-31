@@ -2,8 +2,9 @@
 // choice, the field and the small button. Sizes follow the prototype's Settings (vyre-settings.html); colours are skin tokens, so a skin switch repaints with no re-render.
 import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
+import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 
@@ -161,11 +162,11 @@ export function Field({ value, onCommit, label, placeholder, mono = false, patte
   return (
     <View style={s.fieldWrap}>
       {prefix ? <Text style={s.prefix}>{prefix}</Text> : null}
-      <TextInput
-        accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} placeholderTextColor="var(--ink-4)" secureTextEntry={secureTextEntry}
+      <TextField
+        accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} secureTextEntry={secureTextEntry}
         onChangeText={(t) => { setDraft(t); setErr(false); }} onBlur={done} onSubmitEditing={done}
         {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setDraft(null); setErr(false); } } })}
-        style={[s.input, { width }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
+        style={[{ width, height: 32, borderRadius: 7, paddingHorizontal: 10, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
       />
     </View>
   );
@@ -264,15 +265,14 @@ export const s = StyleSheet.create({
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   label: { fontSize: 13.5, lineHeight: 18, color: "var(--ink)" as string },
   sub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
-  control: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "62%" },
+  control: { flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "62%" },
   sw: { width: 34, height: 20, borderRadius: 10, justifyContent: "center" },
   knob: { position: "absolute", top: 2, width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff" },
-  choice: { height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7 },
+  choice: { height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7, flexShrink: 1, minWidth: 0 },
   choiceText: { fontSize: 13, color: "var(--ink)" as string, flexShrink: 1 },
   mono: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
   fieldWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
   prefix: { fontSize: 13, color: "var(--ink-3)" as string },
-  input: { height: 32, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, paddingHorizontal: 10, fontSize: 13, color: "var(--ink)" as string },
   stepper: { flexDirection: "row", alignItems: "center", gap: 4 },
   stepBtn: { width: 26, height: 26, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center" },
   stepVal: { fontSize: 13, color: "var(--ink)" as string, minWidth: 64, textAlign: "center" },

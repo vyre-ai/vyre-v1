@@ -20,7 +20,7 @@ export class CapError extends Error {
   }
 }
 
-export type RouteRow = Pick<Route, "method" | "path" | "cap" | "v">;
+export type RouteRow = Pick<Route, "method" | "path" | "cap" | "v"> & Partial<Pick<Route, "idempotency">>;
 export type CapCall = (cap: string, input?: unknown, o?: { idempotencyKey?: string; signal?: AbortSignal }) => Promise<unknown>;
 
 export interface CapCallerOptions {
@@ -71,6 +71,29 @@ function errorOf(status: number, body: unknown, trace: string | null): CapError 
   return new CapError({ code, message, traceId, status, ...(details ? { details } : {}) });
 }
 
+/** A 401 that says the person's Mine vault key is locked on this computer is about the vault, not the session: the person stays signed in and the Vault asks for the password. */
+export function vaultLocked(body: unknown): boolean {
+  const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
+  if (!e) return false;
+  const d = isObj(e["details"]) ? e["details"] : null;
+  return d?.["reason"] === "vault_locked" || (typeof e["message"] === "string" && /vault key is locked/i.test(e["message"]));
+}
+
+let mints = 0;
+const mint = (): string => {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  return c?.randomUUID ? c.randomUUID() : `k_${Date.now().toString(36)}_${(mints++).toString(36)}`;
+};
+
+/**
+ * A capability whose contract asks for an idempotencyKey (idempotency: "key") gets one when the caller sent none: a screen that forgot it would be refused with "/idempotencyKey: required" and look dead.
+ * The key is the caller's own, else the call's `opts.idempotencyKey` (the session sets one per logical call, so a send that is held and sent again, such as after the vault password, reuses it), else a new one.
+ */
+export function withKey(route: RouteRow, input: unknown, supplied?: string): unknown {
+  if (route.idempotency !== "key" || !isObj(input) || input["idempotencyKey"] !== undefined) return input ?? {};
+  return { ...input, idempotencyKey: supplied ?? mint() };
+}
+
 export function createCapCaller(o: CapCallerOptions): CapCall {
   const base = o.baseUrl.replace(/\/+$/, "");
   const doFetch = o.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
@@ -85,18 +108,18 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
     if (!route) throw new CapError({ code: "validation.unknown_capability", message: "There is no such endpoint.", traceId: "", status: 404, details: { cap } });
     const headers: Record<string, string> = { accept: "application/json" };
     if (token) headers["authorization"] = `Bearer ${token}`;
-    if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
+    if (opts.idempotencyKey && route.idempotency !== "none" && route.idempotency !== "natural") headers["idempotency-key"] = opts.idempotencyKey;
     const get = route.method.toUpperCase() === "GET";
     if (!get) headers["content-type"] = "application/json";
     const res = await doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
       method: route.method.toUpperCase(),
       headers,
-      ...(get ? {} : { body: JSON.stringify(input ?? {}) }),
+      ...(get ? {} : { body: JSON.stringify(withKey(route, input, opts.idempotencyKey)) }),
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
     let body: unknown = null;
     try { body = await res.json(); } catch { /* an empty or non-JSON answer: the status decides */ }
-    if (res.status === 401 && token) o.onUnauthenticated?.();
+    if (res.status === 401 && token && !vaultLocked(body)) o.onUnauthenticated?.();
     if (res.status >= 400 || (isObj(body) && body["error"] !== undefined)) throw errorOf(res.status, body, res.headers.get("x-vyre-trace"));
     return isObj(body) ? body["data"] : undefined;
   };

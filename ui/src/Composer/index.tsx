@@ -540,6 +540,8 @@ export function Composer(props: ComposerProps): ReactElement {
   const picker = useRef<unknown>(null);
   const blur = useRef<ReturnType<typeof setTimeout> | null>(null);
   const menu = useMenu();
+  // a composer opened with words in it (Ask about this file, New message) is ready to type after them
+  useEffect(() => { if ((props.value ?? "") !== "") input.current?.focus(); }, []);
 
   useEffect(() => {
     if (props.value !== undefined && props.value !== stateRef.current.text) setState((s) => ({ ...s, text: props.value ?? "", cursor: (props.value ?? "").length }));

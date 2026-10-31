@@ -166,6 +166,8 @@ export async function recentActivity(ctx: ViewCtx, limit: number): Promise<Activ
     const at = num(r["at"]);
     const action = str(r["action"]);
     if (at === undefined || !action) return [];
+    // reading the log is itself a row, and this very read is one: the glance lists what people changed, not that someone looked
+    if (action === "audit.viewed") return [];
     const resource = resourceOf(r["resource"]);
     return [{ at, actor: actorOf(r["actor"]), action, ...(resource ? { resource } : {}) }];
   });

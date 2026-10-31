@@ -86,8 +86,10 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const menu = useMenu();
   const win = useWindowDimensions();
   const narrow = win.width > 0 && win.width < NARROW;
-  const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
-  const tab = controlled ?? own;
+  // a Personal Space has no agent computers: there is no Computer tab to show and the pane opens on Threads
+  const personal = data.space.personal;
+  const [own, setOwn] = useState<TabKey>(initialTab ?? (personal ? "threads" : DEFAULT_TAB));
+  const tab = personal && (controlled ?? own) === "computer" ? "threads" : controlled ?? own;
   useKnowsRequest(data.memory?.store, (): void => { setOwn("memory"); onTab?.("memory"); });
   const [paneW, setPaneW] = useState(PANE_WIDTH_GUESS);
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
@@ -105,7 +107,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
   const summaryQ = useScreenQuery<CapMap["agents.summary"]["out"]>(AGENT_PAGE_SCREEN, "summary", { agentId: data.agent.agentId });
   const facts = summaryQ.status === "ready" ? summaryQ.data.memoryFacts : 0;
-  const tabs = useMemo(() => TABS.map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts]);
+  const tabs = useMemo(() => TABS.filter((t) => !(personal && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, personal]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {

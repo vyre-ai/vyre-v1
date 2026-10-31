@@ -48,9 +48,10 @@ test("10,000-row sample thumbnail reads reuse one versioned files snapshot", () 
 
 test("screen: the sidebar lists Recent, Starred and Shared with me, then Knowledge, then Space with its folders (the Trash is in the more menu)", () => {
   const out = tree();
-  const order = ["Recent", "Starred", "Shared with me", "Knowledge", "Learned", "People", "Clients", "Topics", "Graph", "History", "Archive", "Space"].map((t) => at(out, `>${t}<`));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "the virtual rows, Knowledge, then Space");
-  assert.ok(has(out, 'data-testid="row-nav:trash"') && !has(out, ">Personal<"), "Trash is a Knowledge row (memory's), and there is no Personal section any more");
+  const order = ["Recent", "Starred", "Shared with me", "Knowledge", "Space"].map((t) => at(out, `>${t}<`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "the virtual rows, Knowledge (only the rows that hold something), then Space");
+  assert.ok(!has(out, ">Graph<") && !has(out, ">Archive<") && !has(out, ">People<"), "empty Knowledge rows are not listed");
+  assert.ok(has(out, 'data-testid="row-nav:know"') && !has(out, 'data-testid="row-nav:trash"') && !has(out, ">Personal<"), "Knowledge is one quiet entry while its rows are empty, and there is no Personal section any more");
   for (const label of ["Daily", "Money", "Maya's reports", "Sales", "Billing", "Intake"]) assert.ok(!has(out, `>${label.replace("'", "&#x27;")}<`), `${label} is not a Space root, so it is not listed under Space (it is in the All files list)`);
   assert.ok(!has(out, ">Proposals<"), "a closed folder keeps its children out of the list");
   assert.ok(has(out, 'data-testid="row-nav:recent"') && has(out, 'data-testid="row-nav:recent-trailing"') && has(out, 'data-testid="row-folder-all"'), "every row is a ui/Row with slots");
@@ -401,4 +402,9 @@ test("the column header sorts: pressing a column asks for that sort", () => {
   assert.deepEqual(found.map((f) => f.testID), ["files-col-name", "files-col-updated", "files-col-by", "files-col-size", "files-col-kind"]);
   for (const f of found) f.onPress?.();
   assert.deepEqual(asked, ["name", "updated", "by", "size", "kind"]);
+});
+
+test("the view toggle says which choice is current: the current radio is checked, the other is not", () => {
+  const out = list(folder("fld_sales"));
+  assert.ok(has(tag(out, "files-view-list"), 'aria-checked="true"') && has(tag(out, "files-view-grid"), 'aria-checked="false"'));
 });

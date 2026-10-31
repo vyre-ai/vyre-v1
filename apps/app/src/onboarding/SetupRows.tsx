@@ -2,15 +2,12 @@
 // onboarding host has read the person's progress, so a Space without it shows the rest of the checklist alone.
 import { useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { stateOf, stepsOf } from "./flow.ts";
-import type { FlowKind, Progress, StepState } from "./flow.ts";
+import { setupRows } from "./setup-rows.ts";
+import type { SetupRow } from "./setup-rows.ts";
 import { openOnboarding, readProgress, watchProgress } from "./store.ts";
 
-export interface SetupRow { key: string; title: string; note: string; state: StepState }
-
-export function setupRows(flow: FlowKind, progress: Progress): SetupRow[] {
-  return stepsOf(flow).map((s) => ({ key: s.key, title: s.title, note: s.line, state: stateOf(progress, s.key) }));
-}
+export { setupRows };
+export type { SetupRow };
 
 /** The rows, with the draw left to the caller so Home keeps its own row look. */
 export function SetupRows({ render }: { render(row: SetupRow, open: () => void, index: number): ReactElement }): ReactElement | null {

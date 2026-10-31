@@ -6,7 +6,7 @@ import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
 import { useMissing } from "../hash/useMissing.ts";
 import type { ReactElement, ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
 import { Calendar } from "../../places/inbox/calendar/Calendar.tsx";
 import { ContactList, ListLoading } from "../../places/inbox/contactlist/ContactList.tsx";
@@ -17,6 +17,7 @@ import { InboxDataProvider } from "../../places/inbox/sidebar/data.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { InboxSidebar, SidebarLoading } from "../../places/inbox/sidebar/InboxSidebar.tsx";
 import { InboxStateProvider, useInboxState } from "../../places/inbox/sidebar/state.tsx";
+import { MobileBackContext } from "../../mobile/shell/back.ts";
 import { InboxPhoneDock } from "../../places/inbox/softphone/phone.tsx";
 import { CallTitlePill } from "../../places/inbox/softphone/pill.tsx";
 import { inboxData } from "./inbox-data.ts";
@@ -82,6 +83,36 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   return <ContactList />;
 }
 
+/** The sidebar and the middle side by side; on a phone one at a time: the list of inboxes first, then what a row opened, with a way back. */
+function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; close: () => void }): ReactElement {
+  const winW = useWindowDimensions().width;
+  const phone = winW > 0 && winW < 720;
+  const { state } = useInboxState();
+  const [entered, setEntered] = useState(false);
+  const first = useRef(true);
+  useEffect(() => { if (first.current) { first.current = false; return; } setEntered(true); }, [state.scope, state.view, state.main]);
+  if (!phone) {
+    return (
+      <View testID="inbox-place" style={st.row}>
+        <View style={st.side}><InboxSidebar /></View>
+        <View style={st.main}><Main rt={rt} openId={openId} close={close} /></View>
+      </View>
+    );
+  }
+  const inMain = entered || (openId !== null && openId !== "");
+  return (
+    <View testID="inbox-place" style={st.row}>
+      {inMain ? (
+        <View style={st.main}>
+          {/* an open conversation carries the Back in its own contact header (one header); the list behind a view keeps the chip */}
+          {openId ? null : <Pressable accessibilityRole="button" testID="phone-back-to-inboxes" onPress={() => { setEntered(false); close(); }} style={st.backChip}><Text style={st.backText}>{"\u2039 Inbox"}</Text></Pressable>}
+          <MobileBackContext.Provider value={openId ? () => { setEntered(false); close(); } : null}><Main rt={rt} openId={openId} close={close} /></MobileBackContext.Provider>
+        </View>
+      ) : <View style={st.main}><InboxSidebar /></View>}
+    </View>
+  );
+}
+
 function InboxView({ rt }: { rt: ShellRuntime }): ReactElement {
   const { opened } = usePlaceHash();
   const hashed = useOpenedId(["conversation", "call"], ["conversationId"]);
@@ -91,10 +122,7 @@ function InboxView({ rt }: { rt: ShellRuntime }): ReactElement {
   return (
     <InboxDataProvider value={data}>
       <InboxStateProvider>
-        <View testID="inbox-place" style={st.row}>
-          <View style={st.side}><InboxSidebar /></View>
-          <View style={st.main}><Main rt={rt} openId={openId} close={() => setOpenId("")} /></View>
-        </View>
+        <InboxFrame rt={rt} openId={openId} close={() => setOpenId("")} />
       </InboxStateProvider>
     </InboxDataProvider>
   );
@@ -109,4 +137,6 @@ const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   side: { width: SIDEBAR_W, minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
+  backChip: { alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 10 },
+  backText: { fontSize: 14, color: "var(--accent)" as string },
 });

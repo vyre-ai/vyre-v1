@@ -155,9 +155,9 @@ test("a turn that never answers times out at the step's limit", async () => {
 test("the turn is counted: usage by person, agent and model, and the meters can stop the next one", async () => {
   const { h } = scene();
   await run(h);
-  const u = usageQuery(h.ctx, { by: "person" });
+  const u = await usageQuery(h.ctx, { by: "person" });
   assert.deepEqual(u.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn, r.totals.tokensOut]), [["usr_dana", 1, 40, 7]]);
-  assert.deepEqual(usageQuery(h.ctx, { by: "agent" }).rows.map((r) => r.key), [STEP_AGENT]);
+  assert.deepEqual((await usageQuery(h.ctx, { by: "agent" })).rows.map((r) => r.key), [STEP_AGENT]);
   capsSet(h.ctx, { scope: "person", caps: { turnsPerDay: 1 } });
   await run(h, { idempotencyKey: "n2" });
   await assert.rejects(run(h, { idempotencyKey: "n3" }), (e) => { assert.equal(codeOf(e), "permission.limit"); return true; });

@@ -8,6 +8,7 @@ import { itemDelete, itemPut, openFields } from "./items.ts";
 import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
+import type { SigninPort } from "./use.ts";
 import { readFileSync } from "node:fs";
 import { addressProblem, builtinDefs } from "./provider-defs.ts";
 import type { CatalogEntry } from "./provider-defs.ts";
@@ -55,7 +56,7 @@ function viaOf(connection: string, scope: string): string {
   return `${connection === "subscription" ? "Subscription" : "API key"}, ${scope === "mine" ? "yours" : "shared"}`;
 }
 
-function rowOut(ctx: VaultCtx, p: Row): Record<string, unknown> {
+function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: number }): Record<string, unknown> {
   const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
   const address = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
@@ -63,7 +64,7 @@ function rowOut(ctx: VaultCtx, p: Row): Record<string, unknown> {
     id: str(p, "id"), providerKey: str(p, "providerKey"), name: c?.name ?? str(p, "providerKey"), ...(c?.logo ? { logo: c.logo } : {}),
     connection: str(p, "connection"), via: viaOf(str(p, "connection"), str(p, "scope")), scope: str(p, "scope"), itemId: str(p, "itemId"),
     ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}), agentsUsing: [],
-    usage: { tokens: 0, costCents: 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
+    usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
     spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"),
     ...(address ? { address: str(address, "address") } : {}), ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
   };
@@ -92,6 +93,14 @@ export async function catalog(ctx: VaultCtx, _input: Record<string, never>) {
   return { providers: [...CATALOG, ...customDefs(ctx)].map((c) => ({ key: c.key, name: c.name, ...(c.logo ? { logo: c.logo } : {}), connections: c.connections, modelsSource: c.modelsSource, engine: c.engine, ...(c.custom ? { custom: true } : {}), ...(c.base ? { base: c.base } : {}) })) };
 }
 
+/** This month's tokens and cost on an account, from the turns the engine metered on its item (the person sees their own). Zero when the engine does not answer. */
+async function usageThisMonth(ctx: VaultCtx, itemId: string): Promise<{ tokens: number; costCents: number }> {
+  try {
+    const r = (await ctx.call("engine.usage.query", { by: "agent", itemId, from: monthStart(ctx.now()) })) as { totals?: { tokensIn?: number; tokensOut?: number; costMicros?: number } } | null;
+    return { tokens: (r?.totals?.tokensIn ?? 0) + (r?.totals?.tokensOut ?? 0), costCents: Math.round((r?.totals?.costMicros ?? 0) / 10_000) };
+  } catch { return { tokens: 0, costCents: 0 }; }
+}
+
 export async function list(ctx: VaultCtx, _input: Record<string, never>) {
   ensureProviders(ctx);
   const out: Record<string, unknown>[] = [];
@@ -99,7 +108,7 @@ export async function list(ctx: VaultCtx, _input: Record<string, never>) {
     if (!itemOf(ctx, str(p, "itemId"))) continue;
     if (str(p, "scope") === "mine") { if (str(p, "owner") !== me(ctx)) continue; }
     else if (str(p, "owner") !== me(ctx) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
-    out.push(rowOut(ctx, p));
+    out.push(rowOut(ctx, p, await usageThisMonth(ctx, str(p, "itemId"))));
   }
   return { providers: out };
 }
@@ -182,25 +191,53 @@ export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: str
   ensureProviders(ctx);
   const c = entry(ctx, input.providerKey);
   if (!c || !c.connections.includes("subscription")) return bad(ctx, "That provider does not sign in with a subscription.");
+  // a sign-in is a person's own act: it ends with a credential in their own Mine folder
+  if (ctx.principal.kind === "agent") return bad(ctx, "Signing in is something a person does. Ask them to press Sign in.");
   const id = newId("sub", ctx.now());
+  const port = hostOf()?.signin;
+  if (port?.has(c.key)) {
+    let started: Awaited<ReturnType<SigninPort["start"]>>;
+    try { started = await port.start({ id, provider: c.key, person: me(ctx) }); } catch (e) { return bad(ctx, e instanceof Error ? e.message : "The sign-in could not start. Try again."); }
+    ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
+    return {
+      flowId: id, url: started.url, ...(started.userCode ? { userCode: started.userCode } : {}), needsCode: started.needsCode,
+      instruction: started.needsCode ? `Open the sign-in, approve it, then paste the code ${c.name} shows.` : `Open the sign-in and enter the code ${started.userCode ?? ""}. This page finishes by itself.`.replace("  ", " "),
+    };
+  }
   ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
-  return { flowId: id, instruction: c.instruction ?? `Sign in to ${c.name} on your computer, then press Done.` };
+  return { flowId: id, needsCode: false, instruction: c.instruction ?? `Sign in to ${c.name} on your computer, then press Done.` };
 }
 
-export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: string }) {
+export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: string; code?: string }) {
   ensureProviders(ctx);
   if (!isId("sub", input.flowId)) bad(ctx, "Flow id is not valid.");
   const f = first(ctx.db.all(`SELECT * FROM vault_provider_flow WHERE id = ?`, input.flowId));
   if (!f || str(f, "person") !== me(ctx)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That sign-in was not started by you." });
+  if (ctx.principal.kind === "agent") return bad(ctx, "Signing in is something a person does.");
   if (f["doneAt"] !== null) {
     const again = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).find((p) => live(p) && str(p, "owner") === me(ctx) && str(p, "providerKey") === str(f, "providerKey"));
     if (again) return { provider: rowOut(ctx, again) };
   }
+  const port = hostOf()?.signin;
   const linked = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).map((p) => str(p, "itemId")));
-  const item = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")))
+  /** The person's own sign-in saved since this flow began and not yet linked as a provider (their client saved it, or the flow just did). */
+  const saved = (): Row | undefined => rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")))
     .filter((r) => num(first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, str(r, "id"))), "createdAt") >= num(f, "startedAt"))
     .sort((a, b) => num(b, "updatedAt") - num(a, "updatedAt"))[0];
-  if (!item) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "The sign-in has not finished yet. Finish it on your computer, then press Done again." });
+  const pasted = typeof input.code === "string" && input.code.trim() !== "";
+  // no code, and the sign-in is already saved in Mine by the person's client: the flow is not needed, link what they saved
+  if (port?.active(input.flowId) && !pasted && saved()) port.cancel(input.flowId);
+  if (port?.active(input.flowId)) {
+    const step = await port.step({ id: input.flowId, person: me(ctx), ...(pasted ? { code: input.code as string } : {}) });
+    if (step.state === "waiting") return { waiting: true };
+    if (step.state === "failed") throw fail("provider.auth_failed", ctx.trace.traceId, { message: step.message });
+    // the credential goes straight into the person's own Mine folder; it is not returned to anyone
+    const c = entry(ctx, str(f, "providerKey"))!;
+    const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
+    await itemPut(ctx, { folderId: await mineFolder(ctx), name: n === 0 ? c.name : `${c.name} ${n + 1}`, kind: "ai_subscription", fields: step.fields, idempotencyKey: `${input.flowId}:item` } as Parameters<typeof itemPut>[1]);
+  }
+  const item = saved();
+  if (!item) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "The sign-in has not finished yet. Finish it, then press Done again." });
   const id = newId("prv", ctx.now());
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, str(f, "providerKey"), "subscription", "mine", me(ctx), str(item, "id"), 0, "ok", ctx.now(), null);

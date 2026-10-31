@@ -57,11 +57,13 @@ test("the assistant belongs to its person alone: another member's list does not 
 test("the assistant name is possessive with a typographic apostrophe, and a name ending in s takes none", () => {
   assert.equal(possessive("Irfad"), "Irfad’s");
   assert.equal(possessive("James"), "James’");
-  assert.deepEqual(assistantNames("usr_abcdefgh", "Irfad Imtiaz"), ["Irfad’s Assistant", "Irfad Imtiaz’s Assistant", "Assistant abcdef"]);
-  assert.deepEqual(assistantNames("usr_abcdefgh", "James Cross"), ["James’ Assistant", "James Cross’ Assistant", "Assistant abcdef"]);
+  assert.deepEqual(assistantNames("usr_abcdefgh", "Irfad Imtiaz"), ["Irfad’s Assistant", "Irfad’s Assistant abcd", "Assistant abcdef"]);
+  assert.deepEqual(assistantNames("usr_abcdefgh", "James Cross"), ["James’ Assistant", "James’ Assistant abcd", "Assistant abcdef"]);
   assert.deepEqual(assistantNames("usr_abcdefgh", undefined), ["Assistant", "My Assistant", "Assistant abcdef"]);
   assert.deepEqual(assistantNames("usr_abcdefgh", "  "), ["Assistant", "My Assistant", "Assistant abcdef"]);
   assert.equal(assistantNames("usr_abcdefgh", "Irfad")[0], "Irfad’s Assistant");
+  assert.deepEqual(assistantNames("usr_abcdefgh", "olivia reyes"), ["Olivia’s Assistant", "Olivia’s Assistant abcd", "Assistant abcdef"], "the first name only, its first letter capitalised, never the full name");
+  assert.equal(assistantNames("usr_abcdefgh", "olivia", false)[0], "olivia’s Assistant");
 });
 
 test("on boot an assistant still called by the old default is renamed with its folder; one the person renamed is not", async () => {

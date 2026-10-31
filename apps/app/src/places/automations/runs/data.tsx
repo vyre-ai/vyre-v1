@@ -1,5 +1,6 @@
 // Runs data: the one context the run history, the run chat and Failed runs read. Every list is a live query over the local copy, so a row paints from what is kept on the device and
 // updates when the copy changes. Writes go through `call`, one capability per action. The shell supplies the value; the place never decides how a thing opens.
+import { withRoute } from "../canvas/data.tsx";
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
@@ -48,7 +49,7 @@ const NO_SUBSCRIBE = (): (() => void) => () => undefined;
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useRunsData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(() => screens.query(screenId, name, withRoute(JSON.parse(key) as Record<string, unknown>)) as LiveQuery<T>, [screens, screenId, name, key]);
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

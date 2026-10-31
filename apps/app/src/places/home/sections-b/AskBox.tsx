@@ -1,7 +1,7 @@
 // Home > Quick start and the Ask box (spec 3.1): three quick-start buttons and one box that starts a chat with your assistant. It sits at the foot of the page. Without an AI account the box is locked and says how to unlock it. ui/Composer is the box, so @ # / and Enter work as they do in Chats.
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
 import type { AskAgent } from "../../../../../../ui/src/AskButton/index.tsx";
@@ -18,6 +18,7 @@ export function AskBox(): ReactElement {
   const extras = useExtras();
   const line = useHomeLine();
   const people = usePrincipals();
+  const narrow = useWindowDimensions().width < 520;
   const locked = !extras.aiConnected;
   const assistant = extras.assistant;
 
@@ -41,10 +42,10 @@ export function AskBox(): ReactElement {
   return (
     <View testID="s-ask" accessibilityLabel="Quick start and Ask" style={local.dock}>
       <View style={local.quick} accessibilityRole="toolbar" accessibilityLabel="Quick start">
-        <Text style={local.quickTitle}>Quick start</Text>
+        {narrow ? null : <Text style={local.quickTitle}>Quick start</Text>}
         <QuickButton label="New project" icon="record" testID="quick-project" onPress={() => extras.go("new_project")} />
         <QuickButton label="New record" icon="record" testID="quick-record" onPress={() => extras.go("new_record")} />
-        <QuickButton label="Upload a file" icon="up" testID="quick-upload" onPress={() => extras.go("upload")} />
+        <QuickButton label={narrow ? "Upload" : "Upload a file"} icon="up" testID="quick-upload" onPress={() => extras.go("upload")} />
       </View>
       <View style={local.askRow}>
         <View style={local.pill}>

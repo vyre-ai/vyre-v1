@@ -85,6 +85,40 @@ test("caps: a 401 with a token tells the session it is over; an unknown capabili
   await assert.rejects(call("nope.nothing", {}), (e: unknown) => e instanceof CapError && e.status === 404);
 });
 
+test("caps: a 401 that says the vault key is locked is the vault's answer: the person stays signed in", async () => {
+  let out = 0;
+  const locked = { status: 401, body: { error: { code: "auth.unauthenticated", message: "Your vault key is locked. Sign in again to open your Mine items.", traceId: "t" } } };
+  const tagged = { status: 401, body: { error: { code: "auth.unauthenticated", message: "Locked.", traceId: "t", details: { reason: "vault_locked" } } } };
+  const gw = gateway({ "GET /v1/files/list": () => locked, "POST /v1/files/rename": () => tagged });
+  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => ROUTES, onUnauthenticated: () => { out++; } });
+  await assert.rejects(call("files.list", {}), (e: unknown) => e instanceof CapError && e.status === 401);
+  await assert.rejects(call("files.rename", {}), (e: unknown) => e instanceof CapError && e.status === 401);
+  assert.equal(out, 0, "no sign-out for a locked vault key, by message or by the tagged reason");
+});
+
+test("caps: a capability whose contract asks for an idempotencyKey gets one when the caller sent none, and keeps one it sent", async () => {
+  const gw = gateway({ "POST /v1/files/rename": () => ({ status: 200, body: { data: { ok: true } } }) });
+  const keyed: RouteRow[] = ROUTES.map((r) => (r.cap === "files.rename" ? { ...r, idempotency: "key" as const } : r));
+  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => keyed });
+  await call("files.rename", { id: "f1" });
+  await call("files.rename", { id: "f2", idempotencyKey: "mine" });
+  const bodies = gw.seen.map((s) => s.body as Record<string, unknown>);
+  assert.equal(typeof bodies[0]!["idempotencyKey"], "string");
+  assert.equal(bodies[1]!["idempotencyKey"], "mine");
+});
+
+test("caps: one logical call keeps one idempotencyKey when it is sent again (opts carry it), and a different call gets its own", async () => {
+  const gw = gateway({ "POST /v1/files/rename": () => ({ status: 200, body: { data: { ok: true } } }) });
+  const keyed: RouteRow[] = ROUTES.map((r) => (r.cap === "files.rename" ? { ...r, idempotency: "key" as const } : r));
+  const call = createCapCaller({ baseUrl: "http://s.test", token: () => "t", fetch: gw.fetch, routes: async () => keyed });
+  await call("files.rename", { id: "f1" }, { idempotencyKey: "logical-1" });
+  await call("files.rename", { id: "f1" }, { idempotencyKey: "logical-1" });
+  await call("files.rename", { id: "f1" }, { idempotencyKey: "logical-2" });
+  const keys = gw.seen.map((s) => (s.body as Record<string, unknown>)["idempotencyKey"]);
+  assert.deepEqual(keys, ["logical-1", "logical-1", "logical-2"], "the first send and its retry carry the same key");
+  assert.equal(gw.seen[0]!.headers["idempotency-key"], "logical-1");
+});
+
 test("caps: the newest version of a capability's route wins, and a query string leaves out missing values", () => {
   assert.equal(indexByCap(ROUTES).get("old.cap")!.path, "/v2/old");
   assert.equal(queryString({ a: "x", b: undefined, c: null, d: true }), "?a=x&d=true");
@@ -423,6 +457,14 @@ test("verification persists only after the opened session and authenticated Spac
   assert.deepEqual(calls, ["open:whoami+spaces.get", "get:spaces.get", "close"]);
   assert.equal(writes.length, 1, "storage waits for identity.whoami and both spaces.get checks");
   assert.equal(stored.marker, "marker_1");
+});
+
+test("the username typed at sign-in is kept with the stored session, so Settings can start the handle from it", async () => {
+  const real = { def: { spaceId: "spc_nw" }, me: { id: "usr_1" }, close: () => {} } as never;
+  const writes: Array<{ username?: string }> = [];
+  const make = (username?: string) => openVerifiedSession({ baseUrl: "https://northwind.test", token: "vst_1", ...(username ? { username } : {}), open: async () => real, getSpace: async () => ({ id: "spc_nw", marker: "m" }), persist: (c) => writes.push(c) });
+  assert.equal((await make("olivia")).username, "olivia");
+  assert.equal("username" in (await make()), false, "a way in that types no username stores none");
 });
 
 test("verification never persists when identity.whoami cannot open the real session", async () => {

@@ -14,12 +14,17 @@ import { allDefs, ensureTables, refuse, seedManifestTypes } from "./projections.
 import type { FieldDefT, FieldTypeRow, Registry, SchemaCtx, SchemaDeps, SeedType, ViewKindRow } from "./projections.ts";
 
 /** The registry the contract generator wrote (field types, view kinds, record types the manifests declare). */
+/**
+ * The registry the schema module seeds a new Space from. A new Space starts with the neutral set of record types: the types a Kit declares (matters, commissions, client plans ...) are left out and
+ * arrive when that Kit is installed (the Kit's own schema.apply step creates them). The default Kit's types stay.
+ */
 export function loadRegistry(path: URL = new URL("../../generated/registry.json", import.meta.url)): Registry {
-  const raw = JSON.parse(readFileSync(path, "utf8")) as { fieldTypes: FieldTypeRow[]; viewKinds: ViewKindRow[]; recordTypes: (SeedType & { module?: string })[] };
+  const raw = JSON.parse(readFileSync(path, "utf8")) as { fieldTypes: FieldTypeRow[]; viewKinds: ViewKindRow[]; recordTypes: (SeedType & { module?: string })[]; modules?: { id: string; kind?: string }[] };
+  const kits = new Set((raw.modules ?? []).filter((m) => m.kind === "kit" && m.id !== "default").map((m) => m.id));
   return {
     fieldTypes: raw.fieldTypes,
     viewKinds: raw.viewKinds,
-    recordTypes: raw.recordTypes.map(({ module: _m, ...t }) => { void _m; return { ...t, fields: t.fields as FieldDefT[] }; }),
+    recordTypes: raw.recordTypes.filter((t) => t.module === undefined || !kits.has(t.module)).map(({ module: _m, ...t }) => { void _m; return { ...t, fields: t.fields as FieldDefT[] }; }),
   };
 }
 

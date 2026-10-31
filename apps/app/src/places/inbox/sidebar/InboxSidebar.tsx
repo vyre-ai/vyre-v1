@@ -3,7 +3,7 @@
 // menu offers Show Only This. The dialer sits at the foot.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -59,6 +59,9 @@ export function SidebarLoading(): ReactElement {
 
 function Sidebar(): ReactElement {
   const data = useInboxData();
+  // the dialer shortcut is a keyboard hint: not drawn on a phone (0 is "not measured yet": drawn)
+  const width = useWindowDimensions().width;
+  const keys = !(width > 0 && width < 560);
   const { state, dispatch } = useInboxState();
   const menu = useMenu();
   const [focus, setFocus] = useState(false);
@@ -140,6 +143,7 @@ function Sidebar(): ReactElement {
   return (
     <View style={styles.side} testID="inbox-sidebar" accessibilityLabel="Inbox sidebar">
       <View style={styles.top}>
+        <Text accessibilityRole="header" style={styles.title}>Inbox</Text>
         <View style={styles.grow} />
         <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => data.nav.compose()} />
         <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />
@@ -182,7 +186,7 @@ function Sidebar(): ReactElement {
           <Glyph name="call" size={14} />
           <Text style={styles.dialerText}>Dialer</Text>
           <View style={styles.grow} />
-          <Text style={styles.keys}>{"⌘⇧K"}</Text>
+          {keys ? <Text style={styles.keys}>{"⌘⇧K"}</Text> : null}
         </Pressable>
       </View>
       {menu.element}
@@ -199,8 +203,9 @@ export function InboxSidebar(): ReactElement {
 const styles = StyleSheet.create({
   side: { flex: 1, minWidth: 220, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   top: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 4, height: 44 },
+  title: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string, marginLeft: 8 },
   grow: { flex: 1 },
-  search: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 9, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  search: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 9, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   searchOn: { boxShadow: "0 0 0 1px var(--accent-line)" as string },
   input: { flex: 1, minWidth: 0, padding: 0, fontSize: 13, color: "var(--ink)" as string, outlineStyle: "none" as "none" },
   scroll: { flex: 1 },

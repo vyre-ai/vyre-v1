@@ -98,6 +98,8 @@ export interface ShellHub {
   retry(): void;
   /** Navigate: open a place (or an item in it) as a tab and show it. */
   go(place: PlaceId, hash?: string, background?: boolean): void;
+  /** Name a tab for the item it holds (its title arrives after the tab opens). */
+  retitle(key: string, title: string): void;
   /** Show a tab the strip selected. */
   showTab(tab: TabEntry): void;
   newTab(): TabEntry;
@@ -284,6 +286,12 @@ export function createShellHub(options: HubOptions): ShellHub {
       target.replica.mode = "closed";
       epoch += 1;
       begin();
+      emit();
+    },
+    retitle(key, title) {
+      const s = open();
+      if (s.tabs.state().tabs.find((t) => t.key === key)?.title === title) return;
+      s.tabs.retitle(key, title);
       emit();
     },
     go(place, hash, background = false) {

@@ -69,7 +69,7 @@ export function Breadcrumb({ crumbs, onGo }: { crumbs: readonly Crumb[]; onGo(id
 /** List or grid, one choice, as the prototype's two-button segment. */
 export function ViewToggle({ view, onView }: { view: ViewMode; onView(view: ViewMode): void }): ReactElement {
   const one = (v: ViewMode, label: string): ReactElement => (
-    <Pressable key={v} accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{ checked: view === v }} testID={`files-view-${v}`} onPress={() => onView(v)}
+    <Pressable key={v} accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{ checked: view === v }} {...{ "aria-checked": view === v }} testID={`files-view-${v}`} onPress={() => onView(v)}
       style={({ hovered }: { hovered?: boolean }) => [styles.seg, view === v ? SEG_ON : hovered === true ? HOVER : null]}>
       <Glyph name={v} size={14} color={view === v ? "var(--ink)" : "var(--ink-3)"} />
     </Pressable>

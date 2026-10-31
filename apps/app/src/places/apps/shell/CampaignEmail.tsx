@@ -1,3 +1,5 @@
+import { askAgentOf, readLastAskAgent, writeLastAskAgent } from "./ask-agent.ts";
+const ASK_SPACE = (): string => (globalThis as { location?: { origin?: string } }).location?.origin ?? "space";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
@@ -27,9 +29,10 @@ export function CampaignEmail({ step, onChange, title = "Campaign email", intro 
   const [proposals, setProposals] = useState<Array<{ path: string; before: unknown; after: unknown }>>([]);
   // Ask Vyre: the person's own agents, the one picked, and the Ask in flight (cancelled on the server too, so the agent stops working)
   const agentList = useRead<CapMap["agents.list"]["out"]>("agents.list", {}, "campaigns");
-  const agents: AskAgent[] = (agentList.data?.agents ?? []).map((a, index) => ({ id: a.agentId, name: a.name, ...(a.role ? { role: a.role } : {}), ...(index === 0 ? { assistant: true } : {}) }));
+  const agents: AskAgent[] = (agentList.data?.agents ?? []).map((a) => ({ id: a.agentId, name: a.name, ...(a.role ? { role: a.role } : {}), ...(a.role === "assistant" ? { assistant: true } : {}), ...(a.status ? { status: a.status } : {}) }));
   const [agentId, setAgentId] = useState<string | null>(null);
-  const chosen = agents.find((a) => a.id === agentId) ?? agents[0] ?? null;
+  const chosen = askAgentOf(agents, agentId, readLastAskAgent(ASK_SPACE()));
+  const pickAgent = (id: string): void => { setAgentId(id); writeLastAskAgent(ASK_SPACE(), id); };
   const [asking, setAsking] = useState<{ agent: string; emailId: string } | null>(null), [askError, setAskError] = useState("");
   const round = useRef(0), cancelled = useRef(false);
   const ask = async (instruction: string): Promise<void> => {
@@ -119,7 +122,7 @@ export function CampaignEmail({ step, onChange, title = "Campaign email", intro 
         setDirty(true); setStatus("Restored saved version"); versions.refresh();
       }}
       onMode={(m) => { editRevision.current++; setMode(m); setDirty(true); }} onChange={(next) => { editRevision.current++; setSnapshot(next); setDirty(true); }} onTestSend={sendTest} onAsk={(instruction) => void ask(instruction)} onSuggest={() => void suggestSubjects()}
-      ask={{ place: "email", context: { kind: "email", id: emailId ?? step.key, title, access: "edit" }, agents, ...(chosen ? { suggested: chosen.id } : {}), onPick: (agent) => setAgentId(agent.id), onAsk: (agent) => setAgentId(agent.id) }}
+      ask={{ place: "email", context: { kind: "email", id: emailId ?? step.key, title, access: "edit" }, agents, ...(chosen ? { suggested: chosen.id } : {}), onPick: (agent) => pickAgent(agent.id), onAsk: (agent) => pickAgent(agent.id) }}
       {...(chosen ? { askAgent: chosen.name } : {})} {...(asking ? { asking: { agent: asking.agent, onCancel: cancelAsk } } : {})} askError={askError}
       diffs={proposals.map((p, index) => ({ id: `${round.current}:${index}`, summary: `${p.path.replace(/^\//, "").replaceAll("/", " ")}: ${String(p.after ?? "Remove").slice(0, 180)}` }))} onAcceptDiff={(id) => accept(id)}
       onSaveBlock={async (name, block) => { await mutate(d, "email_builder.saved_blocks.save", { name, block: serverBlock(block) }, actionKey()); library.refresh(); }} />

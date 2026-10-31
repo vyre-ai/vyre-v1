@@ -12,7 +12,7 @@ export const MOBILE_TABS: readonly { id: TabId; label: string }[] = [
 ];
 
 /** Places the phone does not have: the first part of a screen key. */
-export const NOT_ON_PHONE: readonly string[] = ["automations", "journeys", "console"];
+export const NOT_ON_PHONE: readonly string[] = ["journeys", "console"];
 
 export interface Entry {
   tab: TabId;

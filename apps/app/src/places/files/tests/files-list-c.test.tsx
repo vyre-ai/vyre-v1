@@ -156,7 +156,7 @@ test("the Space's root folders Files registers (Agents, Projects, People, Channe
   const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_people", "row-folder-fld_channels"].map((t) => pos(out, `data-testid="${t}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, then the registered roots in the order files.tree lists them");
   assert.ok(order.every((n) => n >= 0));
-  const loc = [">Learned<", ">Space<", 'data-testid="row-folder-fld_agents"', 'data-testid="row-folder-fld_projects"'].map((t) => pos(out, t));
+  const loc = [">Knowledge<", ">Space<", 'data-testid="row-folder-fld_agents"', 'data-testid="row-folder-fld_projects"'].map((t) => pos(out, t));
   assert.deepEqual([...loc].sort((a, b) => a - b), loc);
 });
 
@@ -233,10 +233,11 @@ test("the shell's conflict handler is asked for the file", () => {
 
 const tree2 = (s: SampleFiles, query: string): string => wrap(s, {}, <FilesTree query={query} />);
 
-test("the sidebar is the shared slot's content: Knowledge and Space open and close, Space holds All files, Agents and Projects", () => {
+test("the sidebar is the shared slot's content: one quiet Knowledge entry (rows only when they hold something), Space opens and closes and holds All files, Agents and Projects", () => {
   const out = tree(subjects());
-  for (const id of ["files-head-know", "files-head-space", "files-new-space", "files-space", "row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects"]) assert.ok(has(out, `data-testid="${id}"`), id);
-  assert.ok(has(out, 'aria-label="Space, open"') && has(out, 'aria-label="Knowledge, open"'));
+  for (const id of ["files-head-space", "files-new-space", "files-space", "row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(has(out, 'aria-label="Space, open"') && has(out, ">Knowledge<") && has(out, "What Vyre has learned"), "a quiet Knowledge entry that explains itself on hover");
+  assert.ok(!has(out, ">Graph<") && !has(out, ">Archive<") && !has(out, 'data-testid="files-head-know"'), "empty Knowledge rows are not listed");
   const order = ["row-folder-all", "row-folder-fld_agents", "row-folder-fld_projects", "row-folder-fld_people"].map((t) => pos(out, `data-testid="${t}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "All files, Agents, Projects, People");
   assert.ok(!has(out, "Search files") && !has(out, 'data-testid="place-sidebar"'), "the title and the search field are the shell's, not drawn here");

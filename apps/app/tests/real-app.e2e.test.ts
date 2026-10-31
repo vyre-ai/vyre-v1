@@ -16,7 +16,7 @@ import { holdKeyOnOwnNode } from "../../../client/src/gateway/local-key.ts";
 import { openBundle, wipe } from "../../../client/src/crypto/keys.ts";
 import { addJoinedApiKey } from "../src/shell/session/join-provider.ts";
 import { routes } from "../../../generated/routes.ts";
-import { bootFreshSpace, claimOnEdge, edge, liveModules, todoFor } from "./real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, liveModules, todoFor, dismissOnboarding} from "./real-app-harness.test.ts";
 
 function authenticatorCode(secret: string): string {
   let bits = "";
@@ -90,25 +90,31 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
   let signedIn = false;
   try {
     await t.test("0 a fresh desktop can connect by address without a deep link", async () => {
-      await page.goto(`${web.origin}/home?space=tauri%3A%2F%2Flocalhost`, { waitUntil: "load" });
-      await page.getByTestId("space-address").waitFor({ timeout: 15_000 });
-      assert.equal(await page.getByTestId("si-user").count(), 0, "no credentials before choosing a Space");
+      // the desktop app's first launch: its own page with the desktop shell's bridge, so the first screen is the three doors and Sign in sits under them
+      const desk = await ctx.newPage();
+      await desk.addInitScript(`globalThis.__TAURI__ = { core: { invoke: async (command) => { if (command === "desktop_info") return { app: "Vyre", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64", sidecar: { phase: "ready", url: null, version: "1.0.0-rc.1", restarts: 0, error: null } }; if (command === "take_pending_link") return null; throw new Error("unexpected command"); } }, event: { listen: async () => () => undefined } };`);
+      await desk.goto(`${web.origin}/home?space=tauri%3A%2F%2Flocalhost`, { waitUntil: "load" });
+      for (const door of ["door-me", "door-invited", "door-team"]) await desk.getByTestId(door).waitFor({ timeout: 15_000 });
+      await desk.getByTestId("door-existing").click();
+      await desk.getByTestId("space-address").waitFor({ timeout: 15_000 });
+      assert.equal(await desk.getByTestId("si-user").count(), 0, "no credentials before choosing a Space");
       fs.mkdirSync("shots-evidence/connect-space", { recursive: true });
-      await page.screenshot({ path: "shots-evidence/connect-space/desktop.png" });
-      await page.setViewportSize({ width: 390, height: 844 });
-      await page.screenshot({ path: "shots-evidence/connect-space/phone.png" });
-      await page.setViewportSize({ width: 1280, height: 800 });
-      await page.getByTestId("space-address").fill("http://untrusted.example");
-      assert.equal(await page.getByTestId("resolve-space").getAttribute("aria-disabled"), "true", "remote HTTP is refused");
-      await page.getByTestId("space-address").fill("http://127.0.0.1:1");
-      await page.getByTestId("resolve-space").click();
-      await page.getByTestId("space-error").waitFor({ timeout: 15_000 });
-      assert.match(await page.getByTestId("space-error").innerText(), /Check its address/);
-      await page.getByTestId("space-address").fill(web.origin);
-      await page.getByTestId("resolve-space").click();
-      await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
-      assert.equal(await page.getByTestId("shell").count(), 0, "discovery does not authenticate or open the shell");
-      assert.equal(await page.evaluate(() => localStorage.getItem("vyre.session.v1")), null, "no session is persisted from anonymous discovery");
+      await desk.screenshot({ path: "shots-evidence/connect-space/desktop.png" });
+      await desk.setViewportSize({ width: 390, height: 844 });
+      await desk.screenshot({ path: "shots-evidence/connect-space/phone.png" });
+      await desk.setViewportSize({ width: 1280, height: 800 });
+      await desk.getByTestId("space-address").fill("http://untrusted.example");
+      assert.equal(await desk.getByTestId("resolve-space").getAttribute("aria-disabled"), "true", "remote HTTP is refused");
+      await desk.getByTestId("space-address").fill("http://127.0.0.1:1");
+      await desk.getByTestId("resolve-space").click();
+      await desk.getByTestId("space-error").waitFor({ timeout: 15_000 });
+      assert.match(await desk.getByTestId("space-error").innerText(), /Check its address/);
+      await desk.getByTestId("space-address").fill(web.origin);
+      await desk.getByTestId("resolve-space").click();
+      await desk.getByTestId("si-user").waitFor({ timeout: 15_000 });
+      assert.equal(await desk.getByTestId("shell").count(), 0, "discovery does not authenticate or open the shell");
+      assert.equal(await desk.evaluate(() => localStorage.getItem("vyre.session.v1")), null, "no session is persisted from anonymous discovery");
+      await desk.close();
     });
 
     await t.test("1 the app opens on sign-in when nobody is signed in", async () => {
@@ -180,7 +186,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByTestId("claim-confirm").fill("correct horse battery 9");
         await page.getByTestId("claim-next").click();
         await page.getByTestId("claim-saved").click();
-        await page.getByTestId("claim-create").click();
+        await page.getByTestId("claim-create").click();await dismissOnboarding(page);
         await page.getByTestId("shell").waitFor({ timeout: 30_000 });
         signedIn = true;
       });

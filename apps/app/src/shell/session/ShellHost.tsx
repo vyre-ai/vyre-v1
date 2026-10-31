@@ -11,7 +11,9 @@ import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
-import { formatHash } from "../hash/hash.ts";
+import { formatHash, parseHash } from "../hash/hash.ts";
+import { tabKey } from "../tabs/store.ts";
+import { titleAsk, typeTitleAsk } from "../tabs/titles.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import type { ShellHub } from "../spaces/hub.ts";
@@ -30,6 +32,8 @@ import { OnboardingHost } from "../../onboarding/OnboardingHost.tsx";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, verifyStoredSession, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
+import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
+import { ReportHost } from "../report/ReportHost.tsx";
 import { isMacShell, lockedIdentity, storeLock } from "./entry.ts";
 import type { LockedIdentity } from "./entry.ts";
 
@@ -83,7 +87,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash) => { navRef.current?.go(p,hash);if(phoneGo.current)phoneGo.current(p,hash); },
+    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.username ? { username: stored.username } : {}), spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash) => { navRef.current?.go(p,hash);if(phoneGo.current)phoneGo.current(p,hash); },
       shell: (screen,args) => {
         const h = navRef.current;
         if (!h) return;
@@ -137,6 +141,18 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     return () => { off = true; made?.close(); setPhone(undefined); };
   }, [session, voice, telephony]);
 
+  // a tab opened on an item is named for it: read the item's name once the tab shows and give the tab that title
+  useEffect(() => {
+    if (!session) return;
+    const target = parseHash(location.hash);
+    const ask = target.subject ? titleAsk(target.subject, target.args) : typeTitleAsk(location.place, target.args);
+    if (!ask) return;
+    const key = tabKey(location.place, location.hash);
+    let off = false;
+    session.call(ask.cap, ask.input).then((out) => { const name = ask.name(out); if (!off && name) hub.retitle(key, name); }, () => undefined);
+    return () => { off = true; };
+  }, [session, hub, location.place, location.hash]);
+
   const purge = useMemo<ShellPurge | undefined>(() => (session ? {
     client: webPurgeClient({ deviceId: "web", call: session.call, wipe: () => { wipeBrowserStorage(); clearStored(); }, done: () => onSignedOut() }),
     subscribe: (l) => session.onPurge(l),
@@ -162,7 +178,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked
   // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
-  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}>{el}</OnboardingHost>;
+  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
   if (location.place === "console") return wrap(<HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider>);
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(

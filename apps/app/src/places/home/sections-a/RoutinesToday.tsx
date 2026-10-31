@@ -9,6 +9,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useHomeData, usePrincipals, useScreenQuery, useSelection } from "./data.tsx";
 import { routineRows, rowKeysBy } from "./model.ts";
 import { EmptyLine, Face, Glyph, HRow, Section, SectionHeader, Skeleton, s, tone } from "./parts.tsx";
+import { useAllClear, useSectionKind } from "./allclear.ts";
 
 export const ROUTINES_SCREEN = "home.routines-today";
 type Out = CapMap["home.routines_today"]["out"];
@@ -42,9 +43,11 @@ export function RoutinesToday(): ReactElement {
     );
   }
 
+  useSectionKind("routines", q.status === "loading" ? "loading" : rows.length ? "items" : "empty");
+  if (useAllClear()) return null;
   return (
     <Section id="s-routines">
-      <SectionHeader id="routines" title="Routines and automations today" count={q.status === "ready" ? list.length : undefined} />
+      <SectionHeader id="routines" title="Routines and automations today" count={q.status === "ready" && list.length > 0 ? list.length : undefined} />
       {q.status === "loading" ? <Skeleton rows={2} id="routines" /> : rows.length ? <View accessibilityRole="list">{rows}</View> : <EmptyLine id="routines" text="No routines today" />}
       {menu.element}
     </Section>

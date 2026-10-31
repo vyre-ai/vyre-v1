@@ -122,7 +122,7 @@ test("a subscription sign-in: start gives a flow, complete waits for the compute
   const h = harness();
   const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
   assert.deepEqual(contractErrors("providers.subscription_start", "out", started), []);
-  assert.match(String(started.instruction), /claude setup-token/);
+  assert.match(String(started.instruction), /Sign in with Claude/);
   assert.equal(await refusedWith(p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })), "validation.precondition_failed", "nothing saved yet");
   h.advance(1000);
   const mine = String(out(out(await v.foldersCreate(h.ctx, { name: "Mine keys", scope: "mine", idempotencyKey: key() })).folder).id);
@@ -138,4 +138,118 @@ test("a subscription sign-in: start gives a flow, complete waits for the compute
   assert.equal(await refusedWith(p.subscriptionStart(h.ctx, { providerKey: "anthropic", idempotencyKey: key() })), "validation.bad_input");
   assert.ok(!h.everything().includes(SECRET));
   h.cleanup();
+});
+
+test("the provider list shows this month's tokens on the account, from the turns the engine metered on its item", async () => {
+  const h = harness();
+  const folder = await sharedFolder(h);
+  const row = out(out(await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "shared", apiKey: SECRET, folderId: folder, idempotencyKey: key() })).provider);
+  assert.equal((out(row.usage)).tokens, 0, "nothing metered yet");
+  h.setUsage("agent", String(row.itemId), [{ key: "agt_a", turns: 2, tokensIn: 1000, tokensOut: 40 }, { key: "agt_b", turns: 1, tokensIn: 200, tokensOut: 10 }]);
+  const listed = (out(await p.list(h.ctx, {})).providers as Json[])[0]!;
+  assert.equal(out(listed.usage).tokens, 1250);
+  assert.deepEqual(contractErrors("providers.list", "out", { providers: [listed] }), []);
+});
+
+// ---- direct sign-in: the server starts the provider's own sign-in and the credential goes straight into the person's Mine folder
+
+function fakeSignin(script: Array<{ state: "waiting" } | { state: "done"; fields: { key: string; value: string; secret: boolean }[] } | { state: "failed"; message: string }>, failStart?: string): { port: u.SigninPort; seen: { codes: (string | undefined)[]; people: string[] } } {
+  const seen = { codes: [] as (string | undefined)[], people: [] as string[] };
+  const live = new Set<string>();
+  return {
+    seen,
+    port: {
+      has: (k) => k === "claude-code" || k === "codex",
+      active: (id) => live.has(id),
+      async start({ id, provider, person }) { if (failStart && provider === "codex") throw new Error(failStart); live.add(id); seen.people.push(person); return provider === "codex" ? { url: "https://auth.openai.com/codex/device", userCode: "ABCD-1234", needsCode: false, expiresInSec: 900 } : { url: "https://claude.ai/oauth/authorize?state=s", needsCode: true, expiresInSec: 900 }; },
+      async step({ id, code }) { seen.codes.push(code); const next = script.shift() ?? { state: "waiting" as const }; if (next.state !== "waiting") live.delete(id); return next; },
+      cancel: (id) => void live.delete(id),
+    },
+  };
+}
+
+test("sign in with Claude: start answers the link and says a code comes back, complete takes it, and the token is saved as a Mine ai_subscription item that no answer carries", async () => {
+  const h = harness();
+  const TOKEN = "sk-ant-oat01-direct-login-TOKEN-0123456789"; // secret-scan: fake
+  const { port, seen } = fakeSignin([{ state: "waiting" }, { state: "done", fields: [{ key: "setup_token", value: TOKEN, secret: true }] }]);
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    assert.deepEqual(contractErrors("providers.subscription_start", "out", started), []);
+    assert.deepEqual([started.url, started.needsCode, started.userCode], ["https://claude.ai/oauth/authorize?state=s", true, undefined]);
+    assert.match(String(started.instruction), /paste the code Claude Code shows/);
+    const waiting = out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) }));
+    assert.deepEqual(waiting, { waiting: true });
+    assert.deepEqual(contractErrors("providers.subscription_complete", "out", waiting), []);
+    const done = out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId), code: "CODE#STATE" }));
+    assert.deepEqual(contractErrors("providers.subscription_complete", "out", done), []);
+    const row = out(done.provider);
+    assert.deepEqual([row.connection, row.scope, row.providerKey, row.state], ["subscription", "mine", "claude-code", "ok"]);
+    assert.deepEqual(seen.codes, [undefined, "CODE#STATE"]);
+    const item = h.rows(`SELECT * FROM vault_meta WHERE id = ?`, String(row.itemId))[0]!;
+    assert.equal(item["kind"], "ai_subscription");
+    assert.equal(h.everything().includes(TOKEN), false, "the token is sealed in the item and in no answer, event or row");
+    assert.equal(JSON.stringify([started, waiting, done]).includes(TOKEN), false);
+    assert.equal(out(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })).provider).id, row.id, "Done twice is one account");
+  } finally { u.configureVault(null); h.cleanup(); }
+});
+
+test("sign in with ChatGPT: the code to type comes back with the link, and the person is waited for until they approve", async () => {
+  const h = harness();
+  const { port } = fakeSignin([{ state: "waiting" }, { state: "waiting" }, { state: "done", fields: [{ key: "credentials", value: '{".codex/auth.json":"{}"}', secret: true }] }]);
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "codex", idempotencyKey: key() }));
+    assert.deepEqual([started.url, started.userCode, started.needsCode], ["https://auth.openai.com/codex/device", "ABCD-1234", false]);
+    assert.match(String(started.instruction), /enter the code ABCD-1234/);
+    assert.deepEqual(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })), { waiting: true });
+    assert.deepEqual(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })), { waiting: true });
+    assert.equal(out(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })).provider).providerKey, "codex");
+  } finally { u.configureVault(null); h.cleanup(); }
+});
+
+test("a sign-in the provider refuses is an error with its words, and nothing is saved; a sign-in that cannot start leaves no flow", async () => {
+  const h = harness();
+  const { port } = fakeSignin([{ state: "failed", message: "Claude did not accept that code. It may have expired. Start again." }], "ChatGPT has not turned on device sign-in for this account type.");
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    const failed = await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId), code: "x" }).catch((e: unknown) => e as { error?: { code?: string; message?: string } });
+    assert.equal((failed as { error: { code: string } }).error.code, "provider.auth_failed");
+    assert.match(String((failed as { error: { message: string } }).error.message), /did not accept that code/);
+    assert.deepEqual(out(await p.list(h.ctx, {})).providers, []);
+    assert.equal(await refusedWith(p.subscriptionStart(h.ctx, { providerKey: "codex", idempotencyKey: key() })), "validation.bad_input");
+    assert.equal(h.rows(`SELECT * FROM vault_provider_flow`).length, 1, "the sign-in that could not start left no row");
+  } finally { u.configureVault(null); h.cleanup(); }
+});
+
+test("an agent cannot start or finish a sign-in, and another person cannot finish yours", async () => {
+  const h = harness();
+  const { port } = fakeSignin([]);
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    h.actAs("agent", MAYA);
+    assert.equal(await refusedWith(p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() })), "validation.bad_input");
+    assert.equal(await refusedWith(p.subscriptionComplete(h.ctx, { flowId: String(started.flowId), code: "x" })), "validation.bad_input");
+    h.actAs("person", ROB);
+    assert.equal(await refusedWith(p.subscriptionComplete(h.ctx, { flowId: String(started.flowId), code: "x" })), "validation.not_found");
+  } finally { u.configureVault(null); h.cleanup(); }
+});
+
+test("the person's client saved the sign-in in Mine while the flow was still open: Done with no code links it and answers the provider, and the open flow is dropped", async () => {
+  const h = harness();
+  const { port, seen } = fakeSignin([]);
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    const mine = String(out(out(await v.foldersCreate(h.ctx, { name: "Mine keys", scope: "mine", idempotencyKey: key() })).folder).id);
+    await v.itemPut(h.ctx, { folderId: mine, name: "Claude Code sign-in", kind: "ai_subscription", fields: [{ key: "setup_token", value: SECRET, secret: true }], idempotencyKey: key() } as Parameters<typeof v.itemPut>[1]);
+    assert.equal(port.active(String(started.flowId)), true, "the flow is still open");
+    const done = out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) }));
+    assert.deepEqual(contractErrors("providers.subscription_complete", "out", done), []);
+    assert.equal(out(done.provider).providerKey, "claude-code");
+    assert.equal(port.active(String(started.flowId)), false, "the open flow was dropped");
+    assert.deepEqual(seen.codes, [], "the provider was not asked for a step");
+  } finally { u.configureVault(null); h.cleanup(); }
 });

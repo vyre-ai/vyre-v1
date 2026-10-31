@@ -15,7 +15,10 @@ export async function loadAccounts(call: Call, device?: { id: string; name: stri
   const active = (re: RegExp): Conn | undefined => conns.find((c) => c.state === "active" && re.test(c.connector));
   const google = active(GOOGLE);
   const ms = active(MICROSOFT);
-  const installs = await (call("github.installations.list", {}) as Promise<{ installations: Array<{ account: string }> }>).then((o) => o.installations, () => []);
+  // The installations are asked for only once the GitHub App exists: with no App the call is sure to fail (a 502 in the network log), and the sheet just says GitHub is not connected.
+  const health = await (call("github.health", {}) as Promise<{ state?: string; detail?: string }>).then((h) => h, () => null);
+  const appSetUp = health !== null && !/not set up/i.test(health.detail ?? "");
+  const installs = appSetUp ? await (call("github.installations.list", {}) as Promise<{ installations: Array<{ account: string }> }>).then((o) => o.installations, () => []) : [];
   const none = { label: "", connected: false };
   return {
     google_drive: google ? { label: google.title, connected: true, connectionId: google.connectionId } : none,

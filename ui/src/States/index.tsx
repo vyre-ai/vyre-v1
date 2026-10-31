@@ -1,10 +1,10 @@
 // ui/States: the one empty, offline and error state for every place (spec 3.0).
-// Empty and offline: an icon, one line, one primary action. Error: what, why, next, trace id, Retry, Copy trace id, Report a problem.
+// Empty and offline: an icon, one line, one primary action. Error: title, one line, Retry; trace id, Copy trace id and Report a problem behind a Details link.
 
-import { createElement } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { STATE_ICONS } from "./props.ts";
-import type { StateIcon, StateProps } from "./props.ts";
+import type { ErrorProps, StateIcon, StateProps } from "./props.ts";
 
 export type { StateProps, StateIcon } from "./props.ts";
 
@@ -15,6 +15,7 @@ export const REPORT_PROBLEM_EVENT = "vyre:report-problem";
 export const ICON_PATHS: Record<StateIcon, string[]> = {
   inbox: ["M2.5 9.5l1.6-5.2a1 1 0 011-.8h5.8a1 1 0 011 .8l1.6 5.2V12a1 1 0 01-1 1h-9a1 1 0 01-1-1z", "M2.5 9.5h3l1 1.5h3l1-1.5h3"],
   search: ["M10.5 10.5L14 14", "M11.5 7a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"],
+  doc: ["M4 2.5h5l3 3v8a1 1 0 01-1 1H4a1 1 0 01-1-1v-10a1 1 0 011-1z", "M9 2.5V6h3.5", "M5.5 9h5M5.5 11.5h3.5"],
   files: ["M2.5 4.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v6.5a1 1 0 01-1 1h-9a1 1 0 01-1-1z"],
   records: ["M3.5 2.5h9a1 1 0 011 1v9a1 1 0 01-1 1h-9a1 1 0 01-1-1v-9a1 1 0 011-1z", "M2.5 6h11M2.5 9.5h11M6.5 6v7.5"],
   chat: ["M3 3.5h10a1 1 0 011 1v6a1 1 0 01-1 1H7l-3 2.5v-2.5H3a1 1 0 01-1-1v-6a1 1 0 011-1z"],
@@ -27,28 +28,50 @@ export function isStateIcon(name: string): name is StateIcon {
   return (STATE_ICONS as readonly string[]).includes(name);
 }
 
+/** The icon sits on a quiet rounded tile, so an empty page reads as designed and not as missing. An error's tile is tinted with the danger colour. */
 function Icon({ name }: { name: StateIcon }) {
-  if (Platform.OS !== "web") return <Text style={styles.glyph}>{name === "error" ? "!" : "o"}</Text>;
+  const tone = name === "error" ? styles.tileError : styles.tile;
+  if (Platform.OS !== "web") return <View style={tone}><Text style={styles.glyph}>{name === "error" ? "!" : "o"}</Text></View>;
   const paths = [];
   for (const d of ICON_PATHS[name]) paths.push(createElement("path", { key: d, d }));
-  return createElement(
-    "svg",
-    { viewBox: "0 0 16 16", width: 24, height: 24, "aria-hidden": true, "data-icon": name, style: { fill: "none", stroke: "var(--ink-4)", strokeWidth: 1.4, strokeLinecap: "round", strokeLinejoin: "round" } },
-    ...paths,
+  return (
+    <View style={tone}>
+      {name === "error" ? <View pointerEvents="none" style={styles.wash} /> : null}
+      {createElement(
+        "svg",
+        { viewBox: "0 0 16 16", width: 22, height: 22, "aria-hidden": true, "data-icon": name, style: { display: "block", fill: "none", stroke: name === "error" ? "var(--danger)" : "var(--ink-3)", strokeWidth: 1.3, strokeLinecap: "round", strokeLinejoin: "round" } },
+        ...paths,
+      )}
+    </View>
   );
 }
 
-function Button({ label, onPress, primary, testID }: { label: string; onPress?: () => void; primary?: boolean; testID: string }) {
+function Button({ label, onPress, primary, testID, busy }: { label: string; onPress?: () => void; primary?: boolean; testID: string; busy?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} testID={testID} style={({ hovered }: { hovered?: boolean }) => [styles.btn, primary ? styles.primary : styles.quiet, hovered && styles.btnHover]}>
+    <Pressable accessibilityRole="button" accessibilityState={{ busy: busy === true }} onPress={onPress} testID={testID} style={({ hovered }: { hovered?: boolean }) => [styles.btn, primary ? styles.primary : styles.quiet, hovered && styles.btnHover]}>
       <Text style={primary ? styles.primaryText : styles.quietText}>{label}</Text>
     </Pressable>
   );
 }
 
-function copyTrace(traceId?: string): void {
-  const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard;
-  if (traceId && clip) void clip.writeText(traceId);
+/** Copies the trace id; resolves true when it reached the clipboard. The async clipboard can refuse or never answer (no permission, an insecure page), so it gets a short deadline and a selection-copy fallback inside the click. */
+async function copyTrace(traceId?: string): Promise<boolean> {
+  if (!traceId) return false;
+  const g = globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } }; document?: { body?: { appendChild(n: unknown): void; removeChild(n: unknown): void }; createElement(t: string): { value: string; style: Record<string, string>; setAttribute(k: string, v: string): void; select(): void }; execCommand?(c: string): boolean } };
+  const clip = g.navigator?.clipboard;
+  if (clip) {
+    try { await Promise.race([clip.writeText(traceId), new Promise<never>((_, no) => setTimeout(() => no(new Error("clipboard timed out")), 1500))]); return true; } catch { /* try the selection copy below */ }
+  }
+  const doc = g.document;
+  if (!doc?.body || !doc.execCommand) return false;
+  try {
+    const t = doc.createElement("textarea");
+    t.value = traceId; t.setAttribute("readonly", ""); t.style["position"] = "fixed"; t.style["opacity"] = "0";
+    doc.body.appendChild(t); t.select();
+    const ok = doc.execCommand("copy");
+    doc.body.removeChild(t);
+    return ok;
+  } catch { return false; }
 }
 
 function reportProblem(detail: { traceId?: string; code?: string; message: string }): void {
@@ -56,23 +79,48 @@ function reportProblem(detail: { traceId?: string; code?: string; message: strin
   if (g.dispatchEvent && g.CustomEvent) g.dispatchEvent(new g.CustomEvent(REPORT_PROBLEM_EVENT, { detail }));
 }
 
-export function States(props: StateProps) {
-  if (props.kind === "error") {
-    return (
-      <View accessibilityRole="alert" testID="state-error" style={styles.box}>
-        <Icon name="error" />
-        <Text style={styles.title}>{props.message}</Text>
-        {props.cause ? <Text style={styles.sub} testID="state-cause">{props.cause}</Text> : null}
-        {props.next ? <Text style={styles.sub} testID="state-next">{props.next}</Text> : null}
-        {props.code || props.traceId ? <Text style={styles.trace} testID="state-trace">{[props.code, props.traceId].filter(Boolean).join("  ")}</Text> : null}
-        <View style={styles.actions}>
-          {props.retryable ? <Button label="Retry" onPress={props.onRetry} primary testID="state-retry" /> : null}
-          <Button label="Copy trace id" onPress={() => copyTrace(props.traceId)} testID="state-copy" />
-          <Button label="Report a problem" onPress={() => reportProblem({ traceId: props.traceId, code: props.code, message: props.message })} testID="state-report" />
+/** Error: title, one line, Retry. The trace id and the two help actions sit behind one quiet Details link. */
+export function ErrorState({ props, startOpen = false }: { props: ErrorProps; startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen);
+  // Retry shows "Trying again..." until the call settles (and for at least a beat, so a quick failure still reads as a retry); Copy shows Copied for two seconds
+  const [retrying, setRetrying] = useState(false);
+  const [copied, setCopied] = useState<"" | "yes" | "no">("");
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => { for (const t of timers.current) clearTimeout(t); }, []);
+  const later = (fn: () => void, ms: number): void => { timers.current.push(setTimeout(fn, ms)); };
+  const retry = (): void => {
+    if (retrying) return;
+    setRetrying(true);
+    const started = Date.now();
+    void Promise.resolve().then(() => props.onRetry?.()).catch(() => undefined).then(() => later(() => setRetrying(false), Math.max(0, 700 - (Date.now() - started))));
+  };
+  const copy = (): void => { void copyTrace(props.traceId).then((ok) => { setCopied(ok ? "yes" : "no"); later(() => setCopied(""), 2000); }); };
+  const line = props.cause ?? props.next;
+  return (
+    <View accessibilityRole="alert" testID="state-error" style={styles.box}>
+      <Icon name="error" />
+      <Text style={styles.title}>{props.message}</Text>
+      {line ? <Text style={styles.sub} testID="state-cause">{line}</Text> : null}
+      {props.retryable ? <View style={styles.actions}><Button label={retrying ? "Trying again…" : "Retry"} busy={retrying} onPress={retry} primary testID="state-retry" /></View> : null}
+      <Pressable accessibilityRole="button" onPress={() => setOpen(!open)} testID="state-details" style={styles.detailsLink}>
+          <Text style={styles.detailsText}>{open ? "Hide details" : "Details"}</Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.details} testID="state-details-body">
+          {props.next && props.cause ? <Text style={styles.sub} testID="state-next">{props.next}</Text> : null}
+          {props.code || props.traceId ? <Text style={styles.trace} testID="state-trace">{[props.code, props.traceId].filter(Boolean).join("  ")}</Text> : null}
+          <View style={styles.actions}>
+            {props.traceId ? <Button label={copied === "yes" ? "Copied" : copied === "no" ? "Could not copy" : "Copy trace id"} onPress={copy} testID="state-copy" /> : null}
+            <Button label="Report a problem" onPress={() => reportProblem({ traceId: props.traceId, code: props.code, message: props.message })} testID="state-report" />
+          </View>
         </View>
-      </View>
-    );
-  }
+      ) : null}
+    </View>
+  );
+}
+
+export function States(props: StateProps) {
+  if (props.kind === "error") return <ErrorState props={props} />;
   const icon: StateIcon = props.icon ?? (props.kind === "offline" ? "offline" : "search");
   return (
     <View accessibilityRole="summary" testID={`state-${props.kind}`} style={styles.box}>
@@ -85,12 +133,18 @@ export function States(props: StateProps) {
 
 const styles = StyleSheet.create({
   box: { flex: 1, minHeight: 200, alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 56, paddingHorizontal: 24 },
+  tile: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  wash: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, borderRadius: 14, backgroundColor: "var(--danger)" as string, opacity: 0.12 },
+  tileError: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   glyph: { color: "var(--ink-4)" as string, fontSize: 20 },
-  title: { color: "var(--ink-2)" as string, fontSize: 14, lineHeight: 20, fontWeight: "500", textAlign: "center" },
+  title: { color: "var(--ink)" as string, fontSize: 14, lineHeight: 20, fontWeight: "600", textAlign: "center" },
   sub: { color: "var(--ink-3)" as string, fontSize: 12.5, lineHeight: 18, textAlign: "center" },
+  detailsLink: { paddingVertical: 2 },
+  detailsText: { color: "var(--ink-4)" as string, fontSize: 12 },
+  details: { alignItems: "center", gap: 6 },
   trace: { color: "var(--ink-4)" as string, fontSize: 11.5, textAlign: "center" },
   actions: { flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap", justifyContent: "center" },
-  btn: { height: 30, paddingHorizontal: 13, borderRadius: 8, justifyContent: "center" },
+  btn: { height: 32, paddingHorizontal: 14, borderRadius: 8, justifyContent: "center", marginTop: 4 },
   primary: { backgroundColor: "var(--ink)" as string },
   quiet: { backgroundColor: "transparent" },
   btnHover: { opacity: 0.88 },

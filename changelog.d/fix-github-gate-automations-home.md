@@ -1,0 +1,2 @@
+- The Files mounts sheet asks GitHub for installations only when the GitHub App is set up, so a Space with no App no longer fires a call that is sure to fail (a 502 in the network log). GitHub reads as not connected.
+- Automations: the Automations row in the sidebar now leaves an open automation and shows the list again; it did nothing once an automation was open.
