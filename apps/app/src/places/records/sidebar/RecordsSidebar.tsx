@@ -8,11 +8,11 @@ import { SidebarContent, matchRows } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
-import { TypeSheet } from "../typeedit/index.ts";
+import { TypeSheet, connectChoices } from "../typeedit/index.ts";
 import { StarredGroup } from "../starred/index.ts";
 import type { StarsOut } from "../starred/index.ts";
 import { useOptionalRecordsData, useRecordsData, useScreenQuery } from "./data.tsx";
-import { MANAGE_TYPE, SCREENS, compact, effectiveType, sortedViews, typeGroups } from "./model.ts";
+import { MANAGE_TYPE, SCREENS, compact, effectiveType, sortedViews, typeGroups, worthShowing } from "./model.ts";
 import { Glyph, TypeTile, typeHue, typeIcon } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useRecordsState } from "./state.tsx";
@@ -62,6 +62,16 @@ function StarredRecords({ match, slot }: { match: (title: string) => boolean; sl
   return <StarredGroup query={query} typeOf={() => undefined} onOpen={(s) => { data.nav.openRecord(s.resource.id); slot?.openBody(); }} match={match} closed={state.closed.includes("starred")} onToggle={() => dispatch({ type: "section", key: "starred" })} />;
 }
 
+/** The empty start of Records: Contacts, then a clear way to make the next record type and a line on what it is for. */
+function Invite({ onNew, onAsk }: { onNew(): void; onAsk: (() => void) | undefined }): ReactElement {
+  return (
+    <View style={styles.invite} testID="records-invite">
+      <Row id="nav:invite-new" title="New record type" note="Track clients, deals or anything else, and link it to Contacts." selected={false} leading={<View style={styles.glyph}><Glyph name="plus" size={16} /></View>} onPress={onNew} />
+      {onAsk ? <Row id="nav:invite-ask" title="Ask Vyre to set it up" selected={false} leading={<View style={styles.glyph}><Glyph name="spark" size={16} /></View>} onPress={onAsk} /> : null}
+    </View>
+  );
+}
+
 function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; query: string; slot: SidebarSlotApi | undefined }): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
@@ -79,6 +89,10 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   const saved = allSaved.filter((v) => hit(v.title));
   const canEdit = data.canEditSchema === true;
   const [making, setMaking] = useState(false);
+  const visible = groups.reduce((n, g) => n + g.items.length, 0);
+  // A Space that holds only Contacts: the start is an invitation, not a bare list.
+  const inviting = canEdit && types.status === "ready" && visible <= 1 && q === "";
+  const connectTo = connectChoices(types.status === "ready" ? types.data.types : [], worthShowing);
   const addType = canEdit ? (): void => setMaking(true) : undefined;
 
   const sections: ReactElement[] = [];
@@ -112,20 +126,22 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   const agentType = types.status === "ready" ? types.data.types.find((t) => t.key === MANAGE_TYPE) : undefined;
   if (agentType && hit(agentType.plural)) manage.push(<SideRow key="agents" id={`type:${MANAGE_TYPE}`} title={agentType.plural} glyph={typeIcon(agentType.icon)} selected={open === MANAGE_TYPE && state.viewId === null} trailing={<Text style={styles.count} testID={`count-${MANAGE_TYPE}`}>{compact(agentType.rowCount)}</Text>} onPress={() => { dispatch({ type: "open", key: MANAGE_TYPE }); choose(); }} />);
   if (hit("Record types")) manage.push(<SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={data.screen === "records.types"} onPress={() => { data.nav.openRecordTypes(); choose(); }} />);
-  if (canEdit && hit("New record type")) manage.push(<SideRow key="new-type" id="manage:new" title="New record type" glyph="plus" selected={false} onPress={() => setMaking(true)} />);
+  if (data.askVyre && hit("Ask Vyre")) manage.push(<SideRow key="ask" id="manage:ask" title="Ask Vyre" glyph="spark" selected={false} onPress={() => data.askVyre?.(open ? { type: open } : {})} />);
+  if (canEdit && !inviting && hit("New record type")) manage.push(<SideRow key="new-type" id="manage:new" title="New record type" glyph="plus" selected={false} onPress={() => setMaking(true)} />);
   if (hit("Schema map")) manage.push(<SideRow key="map" id="manage:map" title="Schema map" glyph="schema" selected={data.screen === "records.schema-map"} onPress={() => { data.nav.openSchemaMap(); choose(); }} />);
 
   return (
     <View style={styles.content} testID="records-sidebar" accessibilityLabel="Records sidebar">
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollIn} testID="records-nav">
         {sections}
+        {inviting ? <Invite onNew={() => setMaking(true)} onAsk={data.askVyre ? () => data.askVyre?.({}) : undefined} /> : null}
         {starred === undefined ? <StarredRecords match={hit} slot={slot} /> : starred}
         {saved.length > 0 ? <SectionHead id="views" label="Saved views" closed={closed("views")} onToggle={fold("views")} /> : null}
         {closed("views") ? null : viewRows}
         {manage.length > 0 ? <SectionHead id="manage" label="Manage" closed={closed("manage")} onToggle={fold("manage")} /> : null}
         {closed("manage") ? null : manage}
       </ScrollView>
-      {making ? <TypeSheet call={data.call} takenKeys={types.status === "ready" ? types.data.types.map((t) => t.key) : []} onClose={() => setMaking(false)} onDone={(key) => { dispatch({ type: "open", key }); choose(); }} /> : null}
+      {making ? <TypeSheet call={data.call} takenKeys={types.status === "ready" ? types.data.types.map((t) => t.key) : []} connectTo={connectTo} {...(data.askVyre ? { onAsk: (a: { name: string }) => data.askVyre?.({ making: a.name }) } : {})} onClose={() => setMaking(false)} onDone={(key) => { dispatch({ type: "open", key }); choose(); }} /> : null}
     </View>
   );
 }
@@ -149,6 +165,7 @@ export function RecordsSidebarSlot({ starred }: { starred?: ReactNode } = {}): R
 
 const styles = StyleSheet.create({
   content: { flex: 1, minHeight: 0 },
+  invite: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   side: { flex: 1, minWidth: 220, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string, paddingTop: 8 },
   scroll: { flex: 1 },
   scrollIn: { paddingHorizontal: 6, paddingBottom: 12 },

@@ -12,7 +12,8 @@ import { TYPES_SCREEN, useSchemaData, useSchemaQuery, useTypeDetails } from "./d
 import { Glyph } from "./icons.tsx";
 import { fieldsWord, recordsWord, typeTag } from "./model.ts";
 import { TypeGlyph, sx } from "./parts.tsx";
-import { FieldsPanel, TextButton, TypeDelete, TypeSheet, fieldLine, typeRowMenu, typeSections } from "../typeedit/index.ts";
+import { FieldsPanel, TextButton, TypeDelete, TypeSheet, connectChoices, fieldLine, typeRowMenu, typeSections } from "../typeedit/index.ts";
+import { worthShowing } from "../sidebar/model.ts";
 
 type ListOut = CapMap["schema.types.list"]["out"];
 
@@ -90,7 +91,10 @@ export function RecordTypesList(): ReactElement {
         <View style={s.wrap}>
           <View style={s.titleRow}>
             <Text accessibilityRole="header" aria-level={2} style={s.h2}>Record types</Text>
-            {canEdit ? <TextButton label="New record type" primary testID="record-types-new" onPress={() => setSheet({ kind: "new" })} /> : null}
+            <View style={s.titleActs}>
+              {data.askVyre ? <TextButton label="Ask Vyre" testID="record-types-ask" onPress={() => data.askVyre?.({ page: "types" })} /> : null}
+              {canEdit ? <TextButton label="New record type" primary testID="record-types-new" onPress={() => setSheet({ kind: "new" })} /> : null}
+            </View>
           </View>
           <View style={s.cards} accessibilityRole="list" testID="record-types-list">
             {skeleton}
@@ -105,7 +109,7 @@ export function RecordTypesList(): ReactElement {
         </View>
       </ScrollView>
       {menu.element}
-      {sheet?.kind === "new" ? <TypeSheet call={data.call} takenKeys={q.status === "ready" ? q.data.types.map((t) => t.key) : []} onClose={() => setSheet(null)} onDone={(key) => data.nav.openType(key)} /> : null}
+      {sheet?.kind === "new" ? <TypeSheet call={data.call} takenKeys={q.status === "ready" ? q.data.types.map((t) => t.key) : []} connectTo={connectChoices(listed, worthShowing)} {...(data.askVyre ? { onAsk: (a: { name: string }) => data.askVyre?.({ page: "types", making: a.name }) } : {})} onClose={() => setSheet(null)} onDone={(key) => data.nav.openType(key)} /> : null}
       {sheet?.kind === "rename" ? <TypeSheet call={data.call} takenKeys={[]} rename={{ key: sheet.t.key, title: sheet.t.title, plural: sheet.t.plural, icon: sheet.t.icon }} onClose={() => setSheet(null)} onDone={() => undefined} /> : null}
       {sheet?.kind === "fields" ? <TypeFields call={data.call} t={sheet.t} onClose={() => setSheet(null)} /> : null}
       {sheet?.kind === "delete" ? <TypeDelete call={data.call} type={sheet.t.key} title={sheet.t.title} onClose={() => setSheet(null)} onDone={() => undefined} /> : null}
@@ -122,6 +126,7 @@ const s = StyleSheet.create({
   wrap: { width: "100%", maxWidth: 760, alignSelf: "center" },
   cards: { gap: 18, marginTop: 4 },
   sectionHead: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, marginTop: 14, marginBottom: 2, paddingHorizontal: 8 },
+  titleActs: { flexDirection: "row", alignItems: "center", gap: 6 },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   more: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   moreOver: { backgroundColor: "var(--hover)" as string },

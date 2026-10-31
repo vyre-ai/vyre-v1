@@ -47,10 +47,46 @@ export const TYPE_ICONS: readonly string[] = ["table", "people", "building", "fo
 
 // ---------------------------------------------------------------- ops
 
-export function createTypeOps(o: { name: string; plural: string; icon: string; takenKeys: readonly string[] }): { key: string; ops: SchemaOp[] } {
+/** The one-tap fields of the New record type sheet: a name, the field type it makes. */
+export const STARTER_FIELDS: readonly { key: string; title: string; type: string }[] = [
+  { key: "status", title: "Status", type: "status" },
+  { key: "owner", title: "Owner", type: "person" },
+  { key: "due_date", title: "Due date", type: "datetime" },
+  { key: "amount", title: "Amount", type: "money" },
+  { key: "notes", title: "Notes", type: "longtext" },
+];
+
+/** A type the new one can be connected to: shown as "Contacts". */
+export interface ConnectType { key: string; title: string; plural: string }
+
+/** The types a new type can be connected to: the ones the person sees, Contacts first, never the built in agent or a site's table. */
+export function connectChoices<T extends ConnectType & { system?: boolean; scope?: string | undefined }>(types: readonly T[], show: (t: T) => boolean): ConnectType[] {
+  return types
+    .filter((t) => t.key !== "agent" && !t.scope?.startsWith("site") && show(t))
+    .map((t) => ({ key: t.key, title: t.title, plural: t.plural }))
+    .sort((a, b) => Number(b.key === "contact") - Number(a.key === "contact") || a.plural.localeCompare(b.plural));
+}
+
+export function createTypeOps(o: { name: string; plural: string; icon: string; takenKeys: readonly string[]; starters?: readonly string[]; connect?: readonly ConnectType[] }): { key: string; ops: SchemaOp[] } {
   const name = o.name.trim();
   const key = freeKey(slugOf(name), o.takenKeys);
-  return { key, ops: [{ op: "type.create", type: key, def: { title: name, plural: o.plural.trim() || pluralOf(name), icon: o.icon, label: "internal", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] };
+  const plural = o.plural.trim() || pluralOf(name);
+  const ops: SchemaOp[] = [{ op: "type.create", type: key, def: { title: name, plural, icon: o.icon, label: "internal", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }];
+  const used = ["name"];
+  for (const k of o.starters ?? []) {
+    const f = STARTER_FIELDS.find((x) => x.key === k);
+    if (!f) continue;
+    const add = addFieldOps({ type: key, name: f.title, fieldType: f.type, required: false, takenKeys: used });
+    used.push(add.key);
+    ops.push(...add.ops);
+  }
+  // A link is a pair of fields: one on this type (Contact) and one on the other (Clients). relation.add makes both ends, so a field.add of type relation is not used.
+  for (const c of o.connect ?? []) {
+    const near = freeKey(slugOf(c.title, "f"), used);
+    used.push(near);
+    ops.push({ op: "relation.add", type: key, field: near, def: { to: c.key, inverse: slugOf(plural, "f") || `${key}_links`, title: c.title, inverseTitle: plural } });
+  }
+  return { key, ops };
 }
 
 export function renameTypeOps(type: string, name: string, plural: string): SchemaOp[] {

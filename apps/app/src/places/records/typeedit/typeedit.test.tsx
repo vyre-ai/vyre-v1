@@ -271,7 +271,9 @@ test("internal types are hidden until they hold a record; Issues and Pull reques
   assert.equal(worthShowing(ty("issue")), false);
   assert.equal(worthShowing(ty("issue", { syncedFrom: "github" })), true);
   assert.equal(worthShowing(ty("pull_request", { rowCount: 1 })), true);
-  assert.equal(worthShowing(ty("agent")), true, "Agents stays");
+  assert.equal(worthShowing(ty("agent")), false, "Agents wait for a record");
+  assert.equal(worthShowing(ty("agent", { rowCount: 1 })), true);
+  for (const k of ["company", "meeting", "note_board", "project", "task"]) { assert.equal(worthShowing(ty(k)), false, `${k} waits for a record`); assert.equal(worthShowing(ty(k, { rowCount: 1 })), true, `${k} shows with a record`); }
   assert.equal(worthShowing(ty("contact")), true);
   const keys = (t: TypeRow[]): string[] => typeSections(t).flatMap((g) => g.items.map((i) => i.key));
   const all = [ty("contact"), ty("envelope"), ty("report"), ty("issue"), ty("agent", { system: true, rowCount: 1 })];
@@ -282,7 +284,7 @@ test("internal types are hidden until they hold a record; Issues and Pull reques
 
 test("the page groups types: People, Work, Journeys, Sites, Connected, Built in, in that order, empty groups left out", () => {
   const types = [
-    ty("task", { system: true }), ty("matter"), ty("contact", { system: true }), ty("onboarding", { group: "Journeys" }), ty("issue", { syncedFrom: "github", rowCount: 4 }),
+    ty("task", { system: true, rowCount: 1 }), ty("matter"), ty("contact", { system: true }), ty("onboarding", { group: "Journeys" }), ty("issue", { syncedFrom: "github", rowCount: 4 }),
     ty("page", { group: "Sites", scope: "site:northwind" }), ty("deal", { syncedFrom: "hubspot" }),
   ];
   const sections = typeSections(types);

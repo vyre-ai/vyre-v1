@@ -5,8 +5,9 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
 import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
 import { Glyph, typeIcon } from "../sidebar/parts.tsx";
-import { createTypeOps, pluralOf, renameTypeOps, TYPE_ICONS } from "./model.ts";
-import type { Call } from "./model.ts";
+import { createTypeOps, pluralOf, renameTypeOps, STARTER_FIELDS, TYPE_ICONS } from "./model.ts";
+import type { Call, ConnectType } from "./model.ts";
+import { TextButton } from "./parts.tsx";
 import { useSchemaChange } from "./useChange.ts";
 
 export interface TypeSheetProps {
@@ -15,17 +16,27 @@ export interface TypeSheetProps {
   takenKeys: readonly string[];
   /** Renaming this type; left out, a new type is made. */
   rename?: { key: string; title: string; plural: string; icon: string };
+  /** Types the new one can be connected to (Contacts first). Left out or empty: the sheet does not offer a link. */
+  connectTo?: readonly ConnectType[];
+  /** Ask Vyre to set it up: opens the assistant in the tab with this sheet's name as context. Left out where the place has none. */
+  onAsk?(about: { name: string }): void;
   onClose(): void;
   /** The key of the type that was made or renamed. */
   onDone(key: string): void;
 }
 
-export function TypeSheet({ call, takenKeys, rename, onClose, onDone }: TypeSheetProps): ReactElement {
+export function TypeSheet({ call, takenKeys, rename, connectTo = [], onAsk, onClose, onDone }: TypeSheetProps): ReactElement {
   const [name, setName] = useState(rename?.title ?? "");
   const [plural, setPlural] = useState(rename?.plural ?? "");
   const [pluralEdited, setPluralEdited] = useState(rename !== undefined);
   const [icon, setIcon] = useState(rename?.icon ?? "table");
-  const made = useMemo(() => createTypeOps({ name, plural: pluralEdited ? plural : pluralOf(name), icon, takenKeys }), [name, plural, pluralEdited, icon, takenKeys]);
+  const [starters, setStarters] = useState<readonly string[]>([]);
+  const [links, setLinks] = useState<readonly string[]>([]);
+  const flip = (list: readonly string[], k: string): string[] => (list.includes(k) ? list.filter((x) => x !== k) : [...list, k]);
+  const made = useMemo(
+    () => createTypeOps({ name, plural: pluralEdited ? plural : pluralOf(name), icon, takenKeys, starters, connect: connectTo.filter((c) => links.includes(c.key)) }),
+    [name, plural, pluralEdited, icon, takenKeys, starters, links, connectTo],
+  );
   const change = useSchemaChange(call);
   const ready = name.trim() !== "" && (rename !== undefined || made.key !== "");
   const save = (): void => {
@@ -55,6 +66,23 @@ export function TypeSheet({ call, takenKeys, rename, onClose, onDone }: TypeShee
             </View>
           </>
         )}
+        {rename ? null : (
+          <>
+            <Text style={s.label}>Start with</Text>
+            <View style={s.chips} testID="type-starters">
+              {STARTER_FIELDS.map((f) => <TextButton key={f.key} label={f.title} selected={starters.includes(f.key)} testID={`type-starter-${f.key}`} onPress={() => setStarters((l) => flip(l, f.key))} />)}
+            </View>
+            {connectTo.length > 0 ? (
+              <>
+                <Text style={s.label}>Connect it to</Text>
+                <View style={s.chips} testID="type-connect">
+                  {connectTo.map((c) => <TextButton key={c.key} label={c.plural} selected={links.includes(c.key)} testID={`type-connect-${c.key}`} onPress={() => setLinks((l) => flip(l, c.key))} />)}
+                </View>
+              </>
+            ) : null}
+            {onAsk ? <View style={s.ask}><TextButton label="Ask Vyre to set it up" testID="type-sheet-ask" onPress={() => { onAsk({ name: name.trim() }); onClose(); }} /></View> : null}
+          </>
+        )}
         {change.error ? <Text style={s.error} accessibilityRole="alert" testID="type-sheet-error">{change.error}</Text> : null}
       </View>
     </Dialog>
@@ -64,6 +92,8 @@ export function TypeSheet({ call, takenKeys, rename, onClose, onDone }: TypeShee
 const s = StyleSheet.create({
   body: { gap: 6 },
   label: { fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string, marginTop: 6 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  ask: { alignItems: "flex-start", marginTop: 6 },
   icons: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   icon: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "transparent" },
   iconOver: { backgroundColor: "var(--hover)" as string },
