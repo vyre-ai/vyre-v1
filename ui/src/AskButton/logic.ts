@@ -244,6 +244,39 @@ export function clampPanel(x: number, y: number, width: number, height: number, 
   };
 }
 
+/** Where the picker panel goes: below the button when it fits, above when there is more room there, never past the screen edge. `content` is the natural panel height. */
+export function placePicker(
+  anchor: { x: number; y: number; w: number; h: number },
+  content: number,
+  view: { w: number; h: number },
+  opts: { width: number; maxHeight?: number; margin?: number; gap?: number },
+): { left: number; top: number; height: number; flipped: boolean } {
+  const margin = opts.margin ?? 8;
+  const gap = opts.gap ?? 4;
+  const want = Math.max(80, Math.min(content, opts.maxHeight ?? 420));
+  const below = view.h - (anchor.y + anchor.h + gap) - margin;
+  const above = anchor.y - gap - margin;
+  const flipped = want > below && above > below;
+  const room = Math.max(80, flipped ? above : below);
+  const height = Math.min(want, room);
+  const top = flipped ? anchor.y - gap - height : anchor.y + anchor.h + gap;
+  const left = Math.max(margin, Math.min(anchor.x, view.w - opts.width - margin));
+  return { left, top: Math.max(margin, top), height, flipped };
+}
+
+/**
+ * The assistant row should read the assistant's real name. Callers often pass a stand-in named "Assistant" next to the Space's agents; when one of those agents is
+ * named like "Irfad's Assistant", that one is the assistant: it takes the flag and the stand-in is dropped. Anything else is returned unchanged.
+ */
+export function withRealAssistant(agents: readonly AskAgent[]): readonly AskAgent[] {
+  const stand = agents.find((a) => a.assistant === true && a.name === "Assistant");
+  if (stand === undefined) return agents;
+  const real = agents.filter((a) => a !== stand && a.assistant !== true && /^.+['\u2019]s Assistant$/i.test(a.name.trim()));
+  if (real.length !== 1) return agents;
+  const pick = real[0];
+  return agents.filter((a) => a !== stand).map((a) => (a === pick ? { ...a, assistant: true } : a));
+}
+
 /** Cmd-J or Ctrl-J, no other modifier. */
 export function isAskShortcut(event: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean }): boolean {
   return (event.metaKey === true || event.ctrlKey === true) && event.shiftKey !== true && event.altKey !== true && event.key.toLowerCase() === "j";

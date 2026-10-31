@@ -9,11 +9,21 @@ export const SCREENS = { types: "records.types", views: "records.saved-views" } 
 export const DEFAULT_GROUP = "Records";
 export const SITES_GROUP = "Sites";
 
-/** Types a connector or the system writes into. The sidebar hides them while they are empty (Envelopes until e-sign, Issues and Pull requests until GitHub, Problem reports); they stay in Record types and show as soon as they hold a record. */
-export const HIDDEN_WHEN_EMPTY: ReadonlySet<string> = new Set(["envelope", "issue", "pull_request", "report"]);
+/**
+ * Types a connector, a module or the system writes into. A Space starts with Contacts only: these exist because modules need them (Contacts link to Companies, the Meetings module writes
+ * Meetings, Projects and Tasks hold the work) but stay out of the sidebar and the Record types page while they are empty, and show as soon as they hold a record (the first project or
+ * task made from anywhere makes Projects and Tasks appear). Envelopes wait for e-sign, Issues and Pull requests for GitHub, Problem reports for a report.
+ */
+export const HIDDEN_WHEN_EMPTY: ReadonlySet<string> = new Set(["envelope", "issue", "pull_request", "report", "company", "meeting", "note_board", "project", "task", "agent"]);
 
 /** Agents live in Chats; their record type is a Manage row of the sidebar (next to Record types and Schema map), never a type group. */
 export const MANAGE_TYPE = "agent";
+
+/** Is this type worth showing? The internal ones (Envelopes, Problem reports) only once they hold a record; Issues and Pull requests once GitHub is connected (the type is synced from it) or they hold a record. */
+export function worthShowing(t: Pick<TypeRow, "key" | "rowCount" | "syncedFrom">): boolean {
+  if (!HIDDEN_WHEN_EMPTY.has(t.key) || t.rowCount > 0) return true;
+  return (t.key === "issue" || t.key === "pull_request") && t.syncedFrom === "github";
+}
 
 export interface TypeGroup { key: string; label: string; items: TypeItem[] }
 export interface TypeItem { key: string; label: string; icon: string; count: number; synced: boolean; syncedFrom?: string; system: boolean }
@@ -37,7 +47,7 @@ export function typeGroups(types: readonly TypeRow[]): TypeGroup[] {
     g.items.push(item);
   };
   for (const t of types) {
-    if (t.key === MANAGE_TYPE || (HIDDEN_WHEN_EMPTY.has(t.key) && t.rowCount === 0)) continue;
+    if (t.key === MANAGE_TYPE || !worthShowing(t)) continue;
     const site = isSiteTable(t);
     put(site ? SITES_GROUP : t.group ?? DEFAULT_GROUP, {
       key: t.key, label: site && t.scope ? `${siteName(t.scope)} › ${t.plural}` : t.plural, icon: t.icon, count: t.rowCount, synced: t.syncedFrom !== undefined, ...(t.syncedFrom !== undefined ? { syncedFrom: t.syncedFrom } : {}), system: t.system,

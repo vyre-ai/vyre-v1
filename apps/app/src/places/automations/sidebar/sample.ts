@@ -20,7 +20,7 @@ const n = (id: string, key: string, o: Partial<Node> & { input?: Record<string, 
 /** "New lead follow-up", the prototype's canvas: two triggers, a lookup, an AI draft, a Paths step with a Text lane (wait, then Did they reply) and an Otherwise Email lane. */
 export const LEAD_FOLLOW_UP: Definition = {
   triggers: [
-    { key: "record_change", config: { label: "A new lead is created" }, filter: { where: "Source is Meta" } },
+    { key: "record_change", config: { label: "A new lead is created" }, filter: { type: "lead", op: "created", where: "Source is Meta" } },
     { key: "form_submit", config: { label: "Client intake form is submitted" } },
   ],
   start: ["find"],

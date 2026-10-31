@@ -2,6 +2,7 @@
 export { ContactTab, SCREEN as CONTACT_TAB_SCREEN, TabLoading } from "./ContactTab.tsx";
 export { followMenuEntries, fromMenuEntries } from "./menus.ts";
 export type { ContactTabProps } from "./ContactTab.tsx";
+export * from "./ask.ts";
 export { discardDraft, markRead, sendAgentDraft, sendEmail, sendText, setFollow } from "./actions.ts";
 export * from "./model.ts";
 export { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, Player, QuietLine } from "./parts.tsx";

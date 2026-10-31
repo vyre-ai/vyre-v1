@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useSyncExterna
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { TypeDetail } from "./model.ts";
+import type { AskAbout } from "../askpane/model.ts";
 
 export const MAP_SCREEN = "records.schema-map";
 export const TYPES_SCREEN = "records.types";
@@ -22,6 +23,10 @@ export interface SchemaData {
   nav: SchemaNav;
   /** Put text on the clipboard. */
   copy(text: string): void;
+  /** May this person change record types and fields (the Console's schema.manage; the owner of a Personal Space)? Left out, the editing controls are not drawn. */
+  canEdit?: boolean;
+  /** Ask Vyre in a pane of this tab (never a navigation). Left out where the shell has no assistant. */
+  askVyre?(about: AskAbout): void;
 }
 
 const Ctx = createContext<SchemaData | null>(null);

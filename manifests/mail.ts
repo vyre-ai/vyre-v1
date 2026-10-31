@@ -174,7 +174,7 @@ const manifest = defineManifest({
     }),
     // ---- the single send API
     read('mail.send_preview', 'Dry run of a send: suppressed recipients, window, caps and throttle, without sending (campaign launch preview uses it)', {
-      in: { mailboxId: id.mailbox, channel: t.opt(t.enm('email')), to: t.arr(recipient, { minItems: 1 }), campaignId: t.opt(id.campaign) },
+      in: { mailboxId: id.mailbox, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time', examples: ['mbx_a1b2c3'] })), channel: t.opt(t.enm('email')), to: t.arr(recipient, { minItems: 1 }), campaignId: t.opt(id.campaign) },
       out: {
         allowed: t.arr(email), suppressed: t.arr(t.obj({ address: email, reason: t.str() })), outsideWindow: t.arr(email),
         capRemainingToday: t.opt(t.int()), nextWindowAt: t.opt(t.ts()), providerRoute: t.enm('mailbox', 'space_domain'),
@@ -183,7 +183,7 @@ const manifest = defineManifest({
     }),
     outward('mail.send', 'Send an email through the single send API: caps per sender, send windows, throttling, suppression, consent, trace id header, agent footer line', {
       in: {
-        mailboxId: id.mailbox, route: t.opt(t.enm('mailbox', 'space_domain')), ...composed, sendAt: t.opt(t.ts()),
+        mailboxId: id.mailbox, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time', examples: ['mbx_a1b2c3'] })), route: t.opt(t.enm('mailbox', 'space_domain')), ...composed, sendAt: t.opt(t.ts()),
       },
       out: { messageId: t.opt(emlId), status: t.enm('queued', 'sent', 'held', 'suppressed'), taskId: t.opt(id.task), suppressed: t.arr(email) },
       on: ['mailbox', '/mailboxId'], level: 'use', gate: 'send', emits: ['message.sent', 'message.suppressed', 'message.failed'], tool: 'inbox', offline: 'queue', cli: 'vyre mail send',
@@ -193,7 +193,7 @@ const manifest = defineManifest({
     // DECISION: shared-inbox sends need comms.shared_send and agent sends need comms.agent_send; the handler checks the key
     // that matches the sender because a capability carries one permission field.
     outward('mail.send_as', "Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)", {
-      in: { mailboxId: id.mailbox, ...composed }, out: { messageId: emlId, providerId: t.opt(t.str()) },
+      in: { mailboxId: id.mailbox, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time', examples: ['mbx_a1b2c3'] })), ...composed }, out: { messageId: emlId, providerId: t.opt(t.str()) },
       on: ['mailbox', '/mailboxId'], level: 'use', gate: 'send', emits: ['message.sent', 'message.failed'], errors: ['provider.auth_failed', 'provider.rate_limited'],
     }),
     write('mail.draft', 'Create or update a draft (an agent draft waits for Send, Edit or Discard with a Gate line)', {

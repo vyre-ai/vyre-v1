@@ -146,6 +146,20 @@ function choiceKeys(o: Record<string, unknown> | undefined, list: "choices" | "s
   return v.flatMap((x) => (x && typeof x === "object" && typeof (x as { key?: unknown }).key === "string" ? [(x as { key: string }).key] : typeof x === "string" ? [x] : []));
 }
 
+/** The gates of a status field's stages: for each stage that has any, the field keys required to enter it and to leave it. */
+export function stageGatesOf(o: Record<string, unknown> | undefined): Record<string, { enter: string[]; leave: string[] }> | undefined {
+  const list = o?.["stages"];
+  if (!Array.isArray(o?.["stages"])) return undefined;
+  const out: Record<string, { enter: string[]; leave: string[] }> = {};
+  const keys = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x !== "") : []);
+  for (const x of list as { key?: unknown; needToEnter?: unknown; needToLeave?: unknown }[]) {
+    if (!x || typeof x !== "object" || typeof x.key !== "string") continue;
+    const enter = keys(x.needToEnter), leave = keys(x.needToLeave);
+    if (enter.length || leave.length) out[x.key] = { enter, leave };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function toStoreField(reg: Registry, f: FieldDefT): FieldDef {
   const out: FieldDef = { name: f.key, kind: STORE_KIND[f.type] ?? "text", label: f.title, ftype: f.type };
   if (f.required) out.required = true;
@@ -154,7 +168,12 @@ export function toStoreField(reg: Registry, f: FieldDefT): FieldDef {
   if (f.lockAfter) out["lockAfter"] = f.lockAfter;
   if (f.label) out["sensitivity"] = f.label;
   if (f.type === "choice" || f.type === "multichoice") { const k = choiceKeys(f.options, "choices"); if (k.length) out.options = k; }
-  if (f.type === "status") { const k = choiceKeys(f.options, "stages"); if (k.length) out.options = k; }
+  if (f.type === "status") {
+    const k = choiceKeys(f.options, "stages"); if (k.length) out.options = k;
+    // fields a stage needs filled to be entered or left, kept on the store field so the records module can refuse a stage change for every caller
+    const gates = stageGatesOf(f.options);
+    if (gates) out["stageGates"] = gates;
+  }
   if (f.type === "relation") {
     const target = f.options?.["target"];
     if (typeof target === "string") out.to = target;
@@ -167,7 +186,7 @@ export function toStoreField(reg: Registry, f: FieldDefT): FieldDef {
 }
 
 /** Keys this module owns on a store field; anything else on the store's own field (write_once, protected, seal ...) is kept when a type is redefined. */
-const MANAGED = ["name", "kind", "label", "ftype", "required", "unique", "merge", "lockAfter", "sensitivity", "options", "to", "many", "inverse", "derived"];
+const MANAGED = ["name", "kind", "label", "ftype", "required", "unique", "merge", "lockAfter", "sensitivity", "options", "to", "many", "inverse", "derived", "stageGates"];
 
 export function toStoreType(reg: Registry, d: TypeDefT, prior?: TypeDef): TypeDef {
   const fields = d.fields.map((f) => {

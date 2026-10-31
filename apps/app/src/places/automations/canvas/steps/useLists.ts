@@ -1,14 +1,16 @@
 // The lists the step forms pick from, loaded when a form opens and only then. Each is asked for through the place's own `call` as the signed-in person, so the Vault answers names and handles only and
 // nothing shows that the person may not see. A list that fails to load is `unavailable` and the form says so; it never invents a choice.
 import { useEffect, useState } from "react";
+import { useConnectVersion } from "../../../../shell/connect/context.ts";
 import { useOptionalAutomationsData } from "../data.tsx";
-import { agentPicks, vaultPicks, whoPicks } from "./picks.ts";
-import type { AgentPick, VaultPick, WhoPick } from "./picks.ts";
+import { agentPicks, refPicks, vaultPicks, whoPicks } from "./picks.ts";
+import type { AgentPick, RefPick, VaultPick, WhoPick } from "./picks.ts";
 
 export type Load<T> = { state: "loading" } | { state: "ready"; items: T[] } | { state: "unavailable" };
 
 function useLoaded<T>(load: (call: (cap: string, input: unknown) => Promise<unknown>) => Promise<T[]>): Load<T> {
   const data = useOptionalAutomationsData();
+  const connected = useConnectVersion();
   const [value, setValue] = useState<Load<T>>({ state: "loading" });
   useEffect(() => {
     if (!data) { setValue({ state: "unavailable" }); return; }
@@ -17,7 +19,7 @@ function useLoaded<T>(load: (call: (cap: string, input: unknown) => Promise<unkn
     return () => { live = false; };
     // the lists are loaded once for a form that is open
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [data, connected]);
   return value;
 }
 
@@ -27,3 +29,7 @@ export const useWhoPicks = (): Load<WhoPick> => useLoaded(async (call) => {
   const [people, groups] = await Promise.all([call("access.principals.list", { kind: "person", status: "active" }), call("access.groups.list", {}).catch(() => ({ groups: [] }))]);
   return whoPicks(people, groups);
 });
+
+const REF_CAP = { types: "schema.types.list", forms: "forms.list", journeys: "journeys.list" } as const;
+/** The record types, forms or Journeys a trigger can be narrowed to. */
+export const useRefPicks = (kind: "types" | "forms" | "journeys"): Load<RefPick> => useLoaded(async (call) => refPicks(kind, await call(REF_CAP[kind], {})));

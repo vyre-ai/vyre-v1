@@ -5,6 +5,9 @@ import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
+import { ResumeChip } from "./ResumeChip.tsx";
+import { detectDevice } from "./device.ts";
+import { FirstWinCard } from "./FirstWinCard.tsx";
 import { ChromeCard } from "./ChromeCard.tsx";
 import { SessionsCard } from "./SessionsCard.tsx";
 import { FoldersCard, shellInvoke } from "./FoldersCard.tsx";
@@ -102,10 +105,11 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (given) return given(ctx);
     if (card === "connect_ai" && call) return <ConnectAiCard call={call} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />;
     if (card === "bridge_team" && onAddSpace) return <TeamBridgeCard mac={mac} onCreate={() => { onAddSpace(); ctx.later(); }} />;
-    if (card === "phone" && call && address) return <PairPhoneCard call={call} address={address} onPaired={() => ctx.done()} />;
-    if (card === "chrome" && call) return <ChromeCard call={call} device={ctx.device} onConnected={() => ctx.done()} />;
-    if (card === "import_sessions" && call && desktopSessionImporter()) return <SessionsCard call={call} onDone={() => ctx.done()} />;
+    if (card === "phone" && call && address) return <PairPhoneCard call={call} address={address} onPaired={() => ctx.done()} {...(onAddSpace ? { onTeamSpace: () => { onAddSpace(); ctx.later(); } } : {})} />;
+    if (card === "chrome" && call) return <ChromeCard call={call} device={ctx.device} onConnected={() => ctx.done()} gate={ctx.gate} />;
+    if (card === "import_sessions" && call && desktopSessionImporter()) return <SessionsCard call={call} onDone={() => ctx.done()} gate={ctx.gate} {...(onGo ? { onOpenChats: () => { setShown(false); setStep(null); onGo("chats"); } } : {})} />;
     if (card === "local_folders" && call && shellInvoke() && ctx.device !== "web" && ctx.device !== "phone") return <FoldersCard call={call} gate={ctx.gate} />;
+    if (card === "first_win" && call) return <FirstWinCard call={call} hasAi={hasAi || aiProvider !== null || progress["ai"] === "done"} gate={ctx.gate} onConnectAi={() => setStep("ai")} />;
     const target = OPEN_TARGETS[card];
     if (target && onGo) return <OpenCard step={{ flow: ctx.flow, key: ctx.step.key }} text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} />;
     if (card === "space_ai" && call) return <SpaceAiCard team={call} personal={personalCall} onConnected={() => ctx.done()} />;
@@ -119,15 +123,16 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "org" && call) return <KitPickCard call={call} spaceName={space.kind === "team" ? space.name : ""} onInstalled={() => ctx.done()} gate={ctx.gate} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can do it later from the checklist on Home.</Text>;
-  }, [call, cards, aiProvider, progress, onAddSpace, mac, address, onGo, personalCall, personName]);
+  }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName]);
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was
   return (
     <>
       {children}
+      {!shown && flow ? <ResumeChip flow={flow} progress={progress} device={detectDevice()} onOpen={(k) => { setStep(k); setShown(true); }} /> : null}
       {shown && flow ? (
         <View style={s.fill}>
-          <OnboardingScreen flow={flow} spaceName={space.kind === "personal" ? (personName ?? space.name) : space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} onClose={() => { setShown(false); setStep(null); if (call) void markSeen(call, flow).catch(() => undefined); }} renderCard={renderCard} renderPreview={(card) => scriptFor(card, flow).preview === "" ? null : <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
+          <OnboardingScreen flow={flow} spaceName={space.kind === "personal" ? (personName ?? space.name) : space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} {...(onGo ? { onOpenChats: () => { setShown(false); setStep(null); onGo("chats"); } } : {})} onClose={() => { setShown(false); setStep(null); if (call) void markSeen(call, flow).catch(() => undefined); }} renderCard={renderCard} renderPreview={(card) => scriptFor(card, flow).preview === "" ? null : <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
         </View>
       ) : null}
     </>

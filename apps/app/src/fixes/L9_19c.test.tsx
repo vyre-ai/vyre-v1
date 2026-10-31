@@ -82,7 +82,8 @@ test("the Ask box is the shared composer: the Ask agent pill beside it, only + @
   const out = html("nw");
   assert.ok(out.includes('data-testid="ask-agent"'), "the shared AskButton beside the box");
   assert.ok(!out.includes('data-testid="composer-who"') && !out.includes("will reply"), "no answer line");
-  assert.ok(out.includes("Attach a file") && out.includes("(@)") && out.includes("(#)"), "+ @ #");
+  // the loaded composer keeps @ # / in its + menu (rc.8); the placeholder before it loads names + @ #
+  assert.ok(out.includes("Attach a file") && (out.includes('data-testid="composer-attach"') || (out.includes("(@)") && out.includes("(#)"))), "+ @ #");
   assert.ok(!out.includes("snippets (/)"), "no slash button");
 });
 

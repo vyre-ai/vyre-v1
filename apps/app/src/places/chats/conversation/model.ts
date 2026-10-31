@@ -6,6 +6,7 @@ import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blo
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
 import { createIncrementalMarkdown } from "../../../../../../ui/src/stream/markdown.ts";
 import type { Block as MdBlock } from "../../../../../../ui/src/stream/markdown.ts";
+import { isTurnStatus } from "./status.ts";
 import { route } from "../../../../../../lib/route.ts";
 
 export type Thread = CapMap["threads.get"]["out"]["thread"];
@@ -95,7 +96,9 @@ export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 const QUIET_BLOCKS = new Set(["refs", "fork_origin"]);
-export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isErrorBlock(b) && !QUIET_BLOCKS.has(b.type);
+export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
+export { isTurnStatus, statusView } from "./status.ts";
+export type { StatusView } from "./status.ts";
 
 export interface StepLine { id: string; title: string; sub: string; state: MessageBlock["state"] }
 
@@ -314,7 +317,7 @@ export interface Pending {
   refs?: readonly PendingRef[];
 }
 
-export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string }
+export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string; fileId?: string }
 export interface PendingRef { kind: string; id: string; title: string }
 
 /** A file id before the file is stored: the chip shows the name the person picked. */

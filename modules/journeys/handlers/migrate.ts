@@ -69,7 +69,7 @@ export async function migrate(ctx: JourneysCtx, input: In): Promise<unknown> {
     const onNew: JRecord = { ...rec, version: input.toVersion };
     try {
       if (to.key === rec.stage) saveRecord(ctx.db, onNew);
-      else await moveTo(ctx, j, onNew, to, { manual: false, reason: `Migrated to version ${input.toVersion}`, stages: toStages });
+      else await moveTo(ctx, j, onNew, to, { manual: false, reason: `Migrated to version ${input.toVersion}`, stages: toStages, ungated: true });
       moved += 1;
     } catch (e) {
       // a record that cannot move ends the Run as failed (it lands in the owner's Needs you); the records already moved stay moved and are reported

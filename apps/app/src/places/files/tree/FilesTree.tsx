@@ -16,6 +16,8 @@ import { dropMoves, hasAgentFace, openByDefault, orderFolders, parsePayload, roo
 import type { FolderRow, TreeRoots, Where } from "./model.ts";
 import { KNOW_ROWS, rowOf } from "../memory/know.ts";
 import { Glyph } from "./parts.tsx";
+import { Mark } from "../mounts/icons.tsx";
+import type { MarkKind } from "../mounts/icons.tsx";
 import type { IconName } from "./parts.tsx";
 import { useFilesState } from "./state.tsx";
 
@@ -31,6 +33,9 @@ function NavRow({ id, title, glyph, selected, count, onPress, hint }: { id: stri
 }
 
 const DEPTH_PX = 14;
+
+/** The mark of a mounted folder's source: a computer for a folder on one, the provider's mark for the rest. */
+const markOf = (provider: string): MarkKind => (/google/i.test(provider) ? "google_drive" : /microsoft|sharepoint|onedrive/i.test(provider) ? "microsoft" : /github/i.test(provider) ? "github" : "local");
 
 /** A section head that opens and closes (Knowledge, Space), with the small + where the section takes a new folder. */
 function SectionHead({ id, label, open, onToggle, onAdd }: { id: string; label: string; open: boolean; onToggle(): void; onAdd?: (() => void) | undefined }): ReactElement {
@@ -93,7 +98,7 @@ function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number
           <Glyph name={isOpen ? "chevd" : "chev"} size={10} color="var(--ink-4)" width={1.6} />
         </Pressable>
       ) : <View style={styles.chev} />}
-      {face ? <Avatar name={f.name} kind="agent" size={18} testID={`face-${f.name}`} /> : <Glyph name="folder" size={16} />}
+      {face ? <Avatar name={f.name} kind="agent" size={18} testID={`face-${f.name}`} /> : f.source ? <View testID={`mount-mark-${fid}`} accessibilityLabel={`From ${f.source.provider}`}><Mark kind={markOf(f.source.provider)} size={16} /></View> : <Glyph name="folder" size={16} />}
     </View>
   );
   const drop = {
@@ -121,7 +126,7 @@ const SEARCH_DEPTH = 3;
 function Kids({ parent, depth, c, query }: { parent: string | null; depth: number; c: RowCtx; query: string }): ReactElement | null {
   const src = useSource({ cap: "files.list", input: parent === null ? {} : { folder: parent } });
   if (src.status !== "ready") return null;
-  const folders = orderFolders((src.data.folders ?? []).filter((f) => parent !== null || c.allow.has(f.folderId)), parent === null ? c.rank : new Map());
+  const folders = orderFolders((src.data.folders ?? []).filter((f) => parent !== null || c.allow.has(f.folderId) || f.source !== undefined), parent === null ? c.rank : new Map());
   if (query === "") return <View testID={parent === null ? "files-folders" : undefined}>{each(folders, (f) => <FolderLine key={f.folderId} f={f} depth={depth} c={c} />)}</View>;
   return (
     <View>
@@ -181,7 +186,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const fixed = matchRows([
     { id: "recent", title: "Recent", glyph: "clock" as IconName, count: count("recent"), where: { kind: "recent" } as Where },
     { id: "starred", title: "Starred", glyph: "star" as IconName, count: starCount, where: { kind: "starred" } as Where },
-    { id: "shared", title: "Shared with me", glyph: "users" as IconName, count: count("shared"), where: { kind: "shared" } as Where },
+    ...(data.personal === true ? [] : [{ id: "shared", title: "Shared with me", glyph: "users" as IconName, count: count("shared"), where: { kind: "shared" } as Where }]),
   ], q);
   const know = matchRows(KNOW_ROWS.map((r) => ({ id: r.id, title: r.title })), q);
   const knowCount = (id: string): number | undefined => (id === "learned" ? learnedCount : id === "trash" ? trashCount : undefined);

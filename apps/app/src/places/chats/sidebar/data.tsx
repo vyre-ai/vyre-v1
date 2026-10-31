@@ -11,6 +11,8 @@ export interface ChatsNav {
   openAgentChat(agentId: string): void;
   openChannel(channelId: string): void;
   openNeedsYou(taskId?: string): void;
+  /** An imported coding session's transcript (its row in the Imported group). Left out where the shell has no such page. */
+  openImported?(conversationId: string): void;
   openAllAgents(): void;
   openSearch(): void;
   openSpaceSwitcher(): void;

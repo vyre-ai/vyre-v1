@@ -22,13 +22,19 @@ function Shot({ n }: { n: 1 | 2 | 3 }): ReactElement {
   return <View style={[s.shot, s.shotCol]}><Glyph paths={FOLDER} size={28} color="#5AA0FF" width={1.3} /><Text style={s.shotText}>vyre-chrome</Text></View>;
 }
 
-export function ChromeCard({ call, device, onConnected, extensionUrl = EXTENSION_ZIP_URL }: { call: CapCall; device: "mac" | "win" | "web" | "phone"; onConnected(): void; extensionUrl?: string }): ReactElement {
+export function ChromeCard({ call, device, onConnected, gate, extensionUrl = EXTENSION_ZIP_URL }: { call: CapCall; device: "mac" | "win" | "web" | "phone"; onConnected(): void; gate?(save: (() => Promise<boolean>) | null): void; extensionUrl?: string }): ReactElement {
   const app = device === "mac" || device === "win" ? desktopBrowsers() : undefined;
   const [mode, setMode] = useState<Mode>("idle");
   const [ticked, setTicked] = useState<readonly number[]>([]);
   const [dir, setDir] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // once the extension is added (the guide is open) Continue is live and marks the step done, even before Chrome pairs
+  useEffect(() => {
+    if (!gate) return undefined;
+    gate(mode === "guide" ? async () => true : null);
+    return () => gate(null);
+  });
   // pairing shows by itself: poll the bridge while the guide is open
   useEffect(() => {
     if (mode !== "guide") return undefined;

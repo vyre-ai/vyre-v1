@@ -480,7 +480,7 @@ export function DiffCardBlock({ block, host }: BlockViewPropsB): ReactElement {
     },
     [host, block],
   );
-  const menu = useCallback(() => baseMenu(host, "diff_card", block, done === null ? [{ key: "apply", label: "Apply" }, { key: "reject", label: "Reject", danger: true }] : [], run), [host, block, done, run]);
+  const menu = useCallback(() => baseMenu(host, "diff_card", block, done === null ? [{ key: "apply", label: "Apply" }, { key: "reject", label: "Discard", danger: true }] : [], run), [host, block, done, run]);
   const lines: ReactNode[] = [];
   for (const [i, c] of d.changes.slice(0, MAX_CHANGES).entries()) {
     lines.push(
@@ -503,10 +503,10 @@ export function DiffCardBlock({ block, host }: BlockViewPropsB): ReactElement {
       {done === null ? (
         <View style={styles.acts}>
           <Btn id={`blk-diff_card-${block.id}-apply`} label="Apply" primary onPress={() => run("apply")} />
-          <Btn id={`blk-diff_card-${block.id}-reject`} label="Reject" quiet danger onPress={() => run("reject")} />
+          <Btn id={`blk-diff_card-${block.id}-reject`} label="Discard" quiet danger onPress={() => run("reject")} />
         </View>
       ) : (
-        <StatusLine tone={done === "applied" ? "ok" : "plain"} testID={`blk-diff_card-${block.id}-state`} text={done === "applied" ? "Applied" : "Rejected"} />
+        <StatusLine tone={done === "applied" ? "ok" : "plain"} testID={`blk-diff_card-${block.id}-state`} text={done === "applied" ? "Applied" : "Discarded"} />
       )}
     </Card>
   );

@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import {
   BUILTIN_SKILLS, GUIDE_MD, GUIDE_VERSION, MAX_DIFF, MAX_PROMPT, TREE_FOLDERS, agentBy, allAgents, allows, applyUnifiedDiff, askerOf, call, canSee, ensure, fingerprint, insertSuggestion, makeFile,
-  makeFolder, messageOf, meta, mintId, nextRun, parseCron, raise, routineBy, routineOf, routineOut, setMeta, simpleDiff, saveFile, suggestionBy, suggestionOf, suggestionOut, textOf, tolerant, visible, walkFolder,
+  makeFolder, messageOf, meta, mintId, nextRun, onlyLearnedChanged, parseCron, raise, routineBy, routineOf, routineOut, setMeta, simpleDiff, saveFile, suggestionBy, suggestionOf, suggestionOut, textOf, tolerant, visible, walkFolder,
 } from "../projections.ts";
 import type { AgentRec, AgentsCtx, FolderOut, RoutineRec, SuggestionRec } from "../projections.ts";
 
@@ -172,6 +172,18 @@ export async function suggestionPropose(ctx: AgentsCtx, input: { agentId: string
   };
   insertSuggestion(ctx.db, s);
   ctx.emit("agent.suggestion_proposed", a.id, { suggestionId: s.id, agentId: a.id, kind: s.kind, by: s.proposedBy });
+  // The agent keeps its own Learned section: a change of its own AGENT.md that touches only that last section, and loosens nothing, applies at once as a version. Every other change waits
+  // for review as before. A save that Files refuses (a lint error, no grant) leaves the suggestion open for a person, so nothing is lost. Files raises file.version_added, and the
+  // config watch turns that into agent.config_changed, so this capability emits nothing beyond what it declares.
+  if (ctx.principal.id === a.id && !s.widening && onlyLearnedChanged(current, after)) {
+    try {
+      await saveFile(ctx, a.agentMdFileId, after, `Learned${s.reason ? `: ${s.reason}` : ""}`);
+      ctx.db.run("UPDATE agents_suggestion SET state = ?, resolvedBy = ?, resolvedAt = ? WHERE id = ?", "accepted", a.id, ctx.now(), s.id);
+      return { suggestion: suggestionOut(suggestionBy(ctx.db, s.id) as SuggestionRec) };
+    } catch (e) {
+      ctx.log.warn("agents: a Learned line could not be saved and waits for review", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    }
+  }
   return { suggestion: suggestionOut(s) };
 }
 

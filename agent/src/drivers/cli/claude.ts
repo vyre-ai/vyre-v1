@@ -7,10 +7,12 @@
 //   assistant         a whole message: content blocks text, thinking, tool_use, and usage
 //   user              tool_result blocks (the CLI ran the tool, through MCP or one of its own)
 //   result            subtype success | error_*, is_error, result, session_id, usage
+//   rate_limit_event  rate_limit_info {status allowed | allowed_warning | rejected, resetsAt (epoch seconds), rateLimitType five_hour | seven_day | ..., utilization (a fraction, when the engine says it)}
 // With partial messages on, the text of a message arrives twice: as deltas and again in its `assistant` line. The deltas are the ones passed on; the whole message only fills in when no delta
 // was seen for it (an older CLI, or partial messages off).
 import { arr, num, obj, parseLine, str } from "./json.ts";
 import type { Json } from "./json.ts";
+import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions, NativePlugins } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
 
@@ -31,6 +33,24 @@ function base(url: string, stdio?: { command: string; args: readonly string[] })
   // Through a sandbox's socket the CLI starts the shim as a stdio server; the token reaches it by name from the environment, as with the URL form.
   if (stdio) return JSON.stringify({ mcpServers: { vyre: { type: "stdio", command: stdio.command, args: [...stdio.args], env: { [TOKEN_ENV]: "${" + TOKEN_ENV + "}" } } } });
   return JSON.stringify({ mcpServers: { vyre: { type: "http", url, headers: { Authorization: "Bearer ${" + TOKEN_ENV + "}" } } } });
+}
+
+/**
+ * A subscription limit window as the engine reported it. five_hour is the session, seven_day the week (the per-model weekly windows are not the week and are left out).
+ * The share used is what the engine says (utilization, a fraction of 1) or 100 when it says the window is rejected; a line that says neither gives nothing, never a guess.
+ */
+export function limitsOf(info: Json | null): CliEvent[] {
+  if (!info) return [];
+  const type = str(info["rateLimitType"]);
+  const window = type === "five_hour" ? "session" : type === "seven_day" ? "week" : null;
+  if (!window) return [];
+  const u = info["utilization"];
+  let pct: number | null = null;
+  if (typeof u === "number" && Number.isFinite(u) && u >= 0) pct = u <= 1 ? u * 100 : u;
+  else if (str(info["status"]) === "rejected") pct = 100;
+  if (pct === null) return [];
+  const at = info["resetsAt"];
+  return [{ type: "limits", window, pct: Math.min(100, Math.round(pct * 10) / 10), ...(typeof at === "number" && Number.isFinite(at) && at > 0 ? { resetsAt: Math.round(at * 1000) } : {}) }];
 }
 
 export function createClaudeDecoder(): CliDecoder {
@@ -137,6 +157,7 @@ export function createClaudeDecoder(): CliDecoder {
         case "assistant": return onAssistant(j);
         case "user": return onUser(j);
         case "result": return onResult(j);
+        case "rate_limit_event": return limitsOf(obj(j["rate_limit_info"]));
         default: return [];
       }
     },
@@ -152,6 +173,19 @@ const MODELS = [
 
 /** The CLI's own file and shell tools a granted work folder turns on. The sandbox is the wall; this only says what the CLI may ask for inside it. */
 export const WORK_FOLDER_TOOLS: readonly string[] = ["Read", "Edit", "Write", "Glob", "Grep", "Bash"];
+/** The ones that change nothing. Ask first and Plan allow these alone: a headless CLI cannot stop to ask, so a tool that would prompt is withheld and the model asks the person in the chat. */
+export const READ_ONLY_FOLDER_TOOLS: readonly string[] = ["Read", "Glob", "Grep"];
+
+/**
+ * The chat mode as Claude Code's own `--permission-mode` (checked against `claude --help`, 2.1.314: acceptEdits, auto, bypassPermissions, manual, dontAsk, plan; "default" is still accepted as manual):
+ * Ask first is default, Auto is acceptEdits with every folder tool allowed by name (so none prompts), Plan is plan. No mode (a step, a one-shot job) keeps the older rule, where only plan mode is told apart.
+ */
+export function claudePermission(o: Pick<CommandOptions, "mode" | "planMode">): "default" | "acceptEdits" | "plan" {
+  const mode = o.mode ?? (o.planMode ? "plan" : undefined);
+  return mode === "plan" ? "plan" : mode === "auto" ? "acceptEdits" : "default";
+}
+/** Claude Code takes the four efforts under the same names (`--effort`: low, medium, high, xhigh, max). */
+export const claudeEffort = (e: Effort | null | undefined): string | null => (e === undefined || e === null ? null : e);
 
 export const claudeCode: CliAdapter = {
   id: "claude_code",
@@ -162,17 +196,21 @@ export const claudeCode: CliAdapter = {
   env: () => ({}),
   command(o: CommandOptions) {
     const tools = o.noTools !== true;
-    const allowed = tools ? ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? WORK_FOLDER_TOOLS : [])] : [];
+    // Only a chat mode narrows the folder tools; the older planMode flag alone changes the permission mode and nothing else, as before.
+    const folderTools = o.mode === "ask" || o.mode === "plan" ? READ_ONLY_FOLDER_TOOLS : WORK_FOLDER_TOOLS;
+    const allowed = tools ? ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? folderTools : [])] : [];
+    const effort = claudeEffort(o.effort);
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
       ...(tools ? ["--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins)] : []), "--strict-mcp-config",
       // installed plugins load natively: their commands, skills and agents come from the plugin folder in the work folder
       ...(tools ? (o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]) : []),
-      "--permission-mode", o.planMode ? "plan" : "default",
+      "--permission-mode", claudePermission(o),
       ...(allowed.length > 0 ? ["--allowedTools", ...allowed] : []),
       // A chat on the person's computer runs Vyre's tools only: the CLI's own tools are switched off unless a work folder was granted. A session with noTools has neither.
       ...(tools && o.workFolder !== null ? ["--add-dir", o.workFolder] : ["--tools", ""]),
       ...(o.model !== null ? ["--model", o.model] : []),
+      ...(effort !== null ? ["--effort", effort] : []),
       ...(o.resume !== null ? ["--resume", o.resume] : []),
       ...(o.system !== null && o.system !== "" ? ["--append-system-prompt", o.system] : []),
     ];

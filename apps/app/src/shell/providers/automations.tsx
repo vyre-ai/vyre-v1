@@ -1,4 +1,6 @@
 // The Automations place: the shell sidebar slot holds the list, and the body holds the open Automation or an operational view.
+import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
+import { useConnectVersion } from "../connect/context.ts";
 import { useEffect, useMemo, useState } from "react";
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
@@ -18,7 +20,10 @@ import { ConfigExtrasProvider } from "../../places/automations/config/data.tsx";
 import { RunsDataProvider } from "../../places/automations/runs/data.tsx";
 import { AutomationRuns, FailedView, JourneyNewView, JourneyView, RunView, configExtras, runsData, useDirectory } from "./automations-parts.tsx";
 import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics, TemplateGallery } from "../../places/automations/operations/StudioViews.tsx";
-import { Empty } from "../../places/automations/operations/parts.tsx";
+import { AutomationsStart } from "../../places/automations/start/AutomationsStart.tsx";
+import { AskPane } from "../../places/records/askpane/index.ts";
+import { RecordsAssistant } from "./records-ask.tsx";
+import type { AskScope } from "./records-ask.tsx";
 import { AutomationsSidebarSlot, StudioNav } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { AutomationsSidebar } from "../../places/automations/sidebar/AutomationsSidebar.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
@@ -45,10 +50,13 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [step, setStep] = useState<string | null>(null);
   const [sideRun, setSideRun] = useState<string | null>(null);
+  // Ask Vyre opens a pane beside the body, in this tab; it never goes to Chats.
+  const [asking, setAsking] = useState(false);
   const setView = (next: StudioView): void => { setOverlay(null); setViewRaw(next); };
   const [keys, setKeys] = useState<readonly KeyChoice[]>([]);
   const [keysStatus, setKeysStatus] = useState<KeysStatus>("loading");
   const [accounts, setAccounts] = useState<readonly AccountOption[]>([]);
+  const connectVersion = useConnectVersion();
   const [lastPicks, setLastPicks] = useState<Readonly<Record<string, string>> | undefined>(undefined);
   // the Automations row in the sidebar leaves the open automation (the hash keeps naming it, so that id is remembered as left)
   const [left, setLeft] = useState<string | null>(null);
@@ -65,7 +73,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       setKeysStatus(parsed.length > 0 ? "ready" : "empty");
     }).catch(() => { if (live) { setKeys([]); setKeysStatus("unavailable"); } });
     return () => { live = false; };
-  }, [rt]);
+  }, [rt, connectVersion]);
   useEffect(() => {
     let live = true;
     void Promise.all([
@@ -89,7 +97,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       setLastPicks(undefined);
     });
     return () => { live = false; };
-  }, [rt]);
+  }, [rt, connectVersion]);
   const data = useMemo(() => automationsData(rt, {
     openAutomation: (id) => { setView("automations"); setStep(null); setOpenId(id); opened({ subject: { type: "automation", id } }); },
     openJourney: (id) => { setViewRaw("automations"); setOverlay({ kind: "journey", id }); },
@@ -111,7 +119,9 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const extras = useMemo(() => configExtras(directory, {
     openAutomation: (id) => data.nav.openAutomation(id),
     openRuns: (id) => { data.nav.openAutomation(id); setSideRun(null); },
-  }), [directory, data]);
+    // a Journey's records open in Records on their board
+    openRecords: (type) => rt.open({ screen: "records.saved-views", args: { type, kind: "board" } }),
+  }), [directory, data, rt]);
   const runs = useMemo(() => runsData(rt, {
     openAutomation: (id, stepId) => { data.nav.openAutomation(id); if (stepId) setStep(stepId); },
     openRun: (runId) => data.nav.openRun(runId),
@@ -135,7 +145,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
           {...(step ? { initialSelected: step, initialPanel: true } : {})}
         />
       </View>
-      {sideRun ? <View style={s.side}><View style={s.sideHead}><TextButton label="Close" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View><RunView runId={sideRun} /></View> : null}
+      {sideRun ? <ResizableColumn paneKey="automation-run-side" defaultWidth={380} grow="left" min={280} style={s.side as never}><View style={s.sideHead}><TextButton label="Close" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View><RunView runId={sideRun} /></ResizableColumn> : null}
     </View>
   ) : null;
   const main = overlay?.kind === "failed" ? <FailedView selectedRunId={sideRun} />
@@ -153,7 +163,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     : canvas
     ? canvas
     : phone ? <PhoneList view={view} onView={setView} />
-    : <View style={s.hintWrap}><Empty testID="automations-start" title="Pick an automation" next="Choose one from the list to see its steps. To make a new one, use the plus beside Personal, or start from a working template." action="Start from a template" onAction={() => setView("templates")} /></View>;
+    : <AutomationsStart onTemplates={() => setView("templates")} onAsk={() => setAsking(true)} />;
   return (
     <AutomationsDataProvider value={data}>
       <RunsDataProvider value={runs}>
@@ -164,6 +174,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
               {phone && view !== "automations" && !openId ? <Pressable accessibilityRole="button" testID="phone-back-to-list" onPress={() => setView("automations")} style={s.backChip}><Text style={s.backText}>{"‹ Automations"}</Text></Pressable> : null}
               {main}
             </View>
+            {asking ? <AskPane about={{}} paneKey="automations-ask" idPrefix="automations-ask" hint="Say what you want to automate. I will draft it and you decide what to keep." onClose={() => setAsking(false)}><RecordsAssistant rt={rt} about={{}} scope={ASK_AUTOMATIONS} /></AskPane> : null}
           </View>
         </ConfigExtrasProvider>
       </RunsDataProvider>
@@ -188,6 +199,12 @@ function PhoneList({ view, onView }: { view: StudioView; onView(next: StudioView
   );
 }
 
+/** What the in-tab Ask pane tells the assistant: it is in Automations, with the focus skill for it. Ids and names only. */
+const ASK_AUTOMATIONS: AskScope = {
+  type: "automations", id: "place", title: "Automations",
+  context: { title: "Automations", actions: ["propose an automation", "suggest a template", "explain a failed run"], focus: "focus-automations" },
+};
+
 const s = StyleSheet.create({
   phoneList: { flex: 1, minHeight: 0 },
   phoneSearch: { height: 36, marginHorizontal: 12, marginTop: 10, paddingHorizontal: 12, borderRadius: 9, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 14 },
@@ -195,7 +212,6 @@ const s = StyleSheet.create({
   backText: { fontSize: 14, color: "var(--accent)" as string },
   page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
   main: { flex: 1, minWidth: 0 },
-  hintWrap: { padding: 24 },
   withSide: { flex: 1, flexDirection: "row", minWidth: 0 },
   sideHead: { alignItems: "flex-end", padding: 6 },
   side: { width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },

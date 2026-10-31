@@ -298,7 +298,7 @@ export function SidePane(props: SidePaneViewProps): ReactElement | null {
         onPointerEnter={() => setLit(true)}
         onPointerLeave={() => setLit(false)}
         style={styles.edge}
-        {...webProps({ tabIndex: 0, title: "Drag to resize, double-click to reset", onKeyDown, onFocus: () => setLit(true), onBlur: () => setLit(false) })}
+        {...webProps({ tabIndex: 0, title: "Drag to resize, double-click to reset", onKeyDown, onDoubleClick: () => reset(), onFocus: () => setLit(true), onBlur: () => setLit(false) })}
       >
         <View style={[styles.edgeLine, lit || dragging ? EDGE_ON : null]} />
       </View>

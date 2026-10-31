@@ -1158,10 +1158,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // The schema module seeds the record types the manifests declare once, as a write of its own, so no read has to (P-L3_17). Each declared type is also a resource in the access
       // projection (type "record_type"), held by the Space owner, because capabilities on a type (schema.layout.set, views, grants) are authorized against it and a seeded type emits no event
       // that would register it. The set comes from the manifests, so it is folded into the snapshot at every start and not written to the log: a new Space still starts with an empty log.
-      const startSchema = loaded.moduleExports.get("schema")?.["startSchema"] as (() => Promise<void>) | undefined;
+      const startSchema = loaded.moduleExports.get("schema")?.["startSchema"] as (() => Promise<string[] | void>) | undefined;
       if (startSchema) {
         // started, not awaited: boot does not wait for the seed (most starts never touch schema), and every schema call waits for it, so none sees a half-seeded Space
-        const seeding = startSchema().catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
+        const seeding = startSchema().then((pruned) => { if (pruned && pruned.length) sink.log({ space: spaceId, level: 30, msg: "records.types_pruned", place: "boot", attrs: { types: pruned } }); }).catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
         closers.push(() => seeding);
         for (const rt of registry.recordTypes) {
           const created = { type: "resource.created", payload: { id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 } };

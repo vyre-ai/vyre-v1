@@ -20,8 +20,8 @@ test("the update section says what was found and offers the one next step", () =
   const none = { current: "1.0.0-rc.3", channel: "beta", version: null, notes: null };
   const some = { current: "1.0.0-rc.3", channel: "beta", version: "1.0.0-rc.4", notes: "Fixes the first-run checklist" };
   assert.equal(updateLine(null), "");
-  assert.equal(updateLine(none), "Vyre 1.0.0-rc.3 is up to date (beta channel).");
-  assert.equal(updateLine(some), "Vyre 1.0.0-rc.4 is ready. You have 1.0.0-rc.3.");
+  assert.equal(updateLine(none), "Up to date");
+  assert.equal(updateLine(some), "Update available 1.0.0-rc.4");
   const draw = (o: Partial<Parameters<typeof DesktopUpdateBody>[0]>): string => renderToStaticMarkup(<DesktopUpdateBody found={null} busy={false} failure="" installing={false} onCheck={() => undefined} onInstall={() => undefined} {...o} />);
   assert.match(draw({}), /data-testid="update-check"/);
   assert.doesNotMatch(draw({}), /update-install/);
@@ -29,7 +29,9 @@ test("the update section says what was found and offers the one next step", () =
   assert.match(ready, /data-testid="update-install"/);
   assert.doesNotMatch(ready, /update-check/);
   assert.match(ready, /Fixes the first-run checklist/);
-  assert.match(draw({ found: none }), /up to date/);
+  assert.match(draw({ found: none }), /Up to date/);
+  assert.match(draw({ found: none }), /Vyre 1\.0\.0-rc\.3/);
+  assert.doesNotMatch(draw({ found: none }), /updates itself|Nothing installs until/);
   assert.match(draw({ found: some, installing: true, busy: true }), /Vyre will restart/);
   assert.match(draw({ failure: "Couldn’t reach the update server." }), /role="alert"/);
 });

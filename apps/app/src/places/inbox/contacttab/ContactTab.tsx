@@ -2,11 +2,15 @@
 // texts are bubbles; calls carry a player, a summary and a transcript; campaign steps are quiet lines; record chips link to the record. The header has the record link, Email, Text, Call, Follow
 // and Ask. The composer switches Email and Text and picks the sending inbox (a reply goes out from the inbox the thread came in on); an agent's draft shows its Gate line with Send, Edit and
 // Discard. Everything reads from the local copy and works offline: a send queues and the foot says so.
+import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ComposerLists } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
+// the header alone, so the Inbox does not pull the whole composer in before the deferred one loads
+import { OutgoingHeader } from "../../../../../../ui/src/Composer/outgoing.tsx";
+import type { ComposerSender, OutChannel } from "../../../../../../ui/src/Composer/outgoing.tsx";
 import { Recipients } from "../../../../../../ui/src/Recipients/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -14,11 +18,13 @@ import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from ".
 import { Face, Ghost, pointOf } from "../sidebar/parts.tsx";
 import type { Mailbox } from "../sidebar/model.ts";
 import { discardDraft, listSnippets, listTemplates, markRead, sendAgentDraft, sendEmail, sendText, setFollow, templateContent } from "./actions.ts";
+import { QUICK_FORM_NOTE, askStart, conversationOf, makeQuickForm, startChannel as askChannel, switchText, withLink, withoutLink } from "./ask.ts";
+import type { AskRequest } from "./ask.ts";
 import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import type { IconName } from "./icons.tsx";
-import { followMenuEntries, fromMenuEntries, quickEntries, templateEntries } from "./menus.ts";
+import { followMenuEntries, quickEntries, templateEntries } from "./menus.ts";
 import {
   buildFeed, canSend, cannedLists, choicesFor, firstName, draftCards, headerOf, initialDraft, namedTo, pickInbox, sendBlocker, startChannel, textTarget,
 } from "./model.ts";
@@ -40,6 +46,8 @@ export interface ContactTabProps {
   /** Open Vyre Files to attach; the app answers with the attachments' file ids. */
   onAttach?(): void;
   onOpenAttachment?(name: string): void;
+  /** Opened from a record's "Ask for these": the message is drafted for the person to read and send, with a quick form when one can be made. */
+  ask?: AskRequest;
 }
 
 const agentName = (id: string): string => {
@@ -89,13 +97,38 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const scroll = useRef<ScrollView | null>(null);
   // The star is the caller's own flag. The contract has the flag on the conversation but no writer yet, so a press holds it here until one lands (comment on the packet).
   const [starMine, setStarMine] = useState<boolean | null>(null);
-  const state = { conversationId, ...(contactId ? { contactId } : {}) };
+  const state = { ...(conversationId ? { conversationId } : {}), ...(contactId ? { contactId } : {}) };
   const thread = useScreenQuery<ThreadOut>(SCREEN, "thread", state);
   const opts = useScreenQuery<SendOptions>(SCREEN, "options", state);
   const drafts = useScreenQuery<DraftsOut>(SCREEN, "drafts", contactId ? { contactId } : {});
   const boxes = useScreenQuery<MailboxesOut>("inbox.sidebar", "mailboxes");
 
-  const [over, setOver] = useState<Partial<ComposerDraft>>({});
+  const ask = props.ask;
+  const [senders, setSenders] = useState<ComposerSender[] | null>(null);
+  const [sendersTick, setSendersTick] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("comms.senders.list", {})).then(
+      (out) => { if (live) setSenders(sendersOf(out)); },
+      () => { if (live) setSenders(null); },   // an older server: the send options' inboxes stand in
+    );
+    return () => { live = false; };
+  }, [data, sendersTick]);
+  const [over, setOver] = useState<Partial<ComposerDraft>>(() => (ask ? askStart(ask) : {}));
+  // the quick form: on by default where one can be made; its link goes into the draft and comes out when the person turns it off
+  const [formOn, setFormOn] = useState(ask?.form.available === true);
+  const [formUrl, setFormUrl] = useState<string | undefined>();
+  const [formBusy, setFormBusy] = useState(false);
+  const formStarted = useRef(false);
+  useEffect(() => {
+    if (!ask || !ask.form.available || !formOn || formUrl || formStarted.current) return;
+    formStarted.current = true;
+    setFormBusy(true);
+    makeQuickForm(data.call, ask.form, ask.id).then(
+      (url) => { setFormUrl(url); setOver((o) => ({ ...o, text: withLink(ask, o.chan ?? askChannel(ask), o.text ?? "", url) })); },
+      () => { setFormOn(false); formStarted.current = false; setNote("Could not make the quick form. The message is ready without it."); },
+    ).finally(() => setFormBusy(false));
+  }, [formOn]); // eslint-disable-line react-hooks/exhaustive-deps -- the form is made once per ask; data and ask do not change under it
   const [quotes, setQuotes] = useState<readonly string[]>([]);
   const [transcripts, setTranscripts] = useState<readonly string[]>([]);
   const [note, setNote] = useState("");
@@ -104,7 +137,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [attached, setAttached] = useState<readonly { name: string }[]>([]);
 
   const dock = usePhone();
-  const conv = thread.status === "ready" ? thread.data.conversation : null;
+  const conv = conversationOf(thread, ask, data.clock().now);
   const items = thread.status === "ready" ? thread.data.items : [];
   const options = opts.status === "ready" ? opts.data : null;
   const clock = data.clock();
@@ -126,9 +159,13 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const chan: Chan = over.chan ?? (conv ? startChannel(conv.lastChannel, options) : "email");
   const base = conv ? initialDraft(conv, chan, items) : null;
   const draft: ComposerDraft | null = base ? { ...base, ...over, chan, from: { ...base.from, ...over.from } } : null;
-  const choices = choicesFor(chan, options, titles);
+  // every sender (comms.senders.list) when the server has the list; else the inboxes the send options name
+  const choices: InboxChoice[] = senders
+    ? senders.filter((x) => x.channel === (chan === "email" ? "email" : "text") && x.usable !== false).map((x) => ({ id: x.id, kind: chan === "email" ? "mailbox" as const : "number" as const, address: x.address, label: x.name, isDefault: x.default === true, senderId: x.id }))
+    : choicesFor(chan, options, titles);
+  const listed: ComposerSender[] = senders ?? choices.map((c) => ({ id: c.id, channel: chan === "email" ? "email" as const : "text" as const, name: c.label, address: c.address, via: chan === "email" ? "Mailboxes" : "Numbers", usable: true }));
   const inbox = draft && conv ? (choices.find((c) => c.id === draft.from[chan]) ?? pickInbox(choices, conv.mailboxIds)) : null;
-  const textTo = conv ? textTarget(conv, items) : null;
+  const textTo = conv ? (ask?.phone?.to ?? textTarget(conv, items)) : null;
 
   // the newest message is at the foot: open scrolled down, and again when something arrives
   useEffect(() => { scroll.current?.scrollToEnd?.({ animated: false }); }, [feed.length, cards.length]);
@@ -139,6 +176,15 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   if (!conv || !draft) return <TabLoading />;
 
   const patch = (p: Partial<ComposerDraft>): void => setOver((o) => ({ ...o, ...p }));
+  // Email and Text: a drafted ask follows the channel until the person has written their own words
+  const pickChan = (next: Chan): void => patch(ask ? { chan: next, text: switchText(ask, chan, next, draft.text, formOn ? formUrl : undefined) } : { chan: next });
+  const toggleForm = (): void => {
+    if (!ask) return;
+    const next = !formOn;
+    setFormOn(next);
+    if (!formUrl) return;
+    setOver((o) => ({ ...o, text: next ? withLink(ask, o.chan ?? askChannel(ask), o.text ?? "", formUrl) : withoutLink(ask, o.chan ?? askChannel(ask), o.text ?? "", formUrl) }));
+  };
   const toggled = (list: readonly string[], id: string): string[] => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   const withBusy = async (key: string, run: () => Promise<void>): Promise<void> => {
     setBusy((b) => [...b, key]);
@@ -179,7 +225,14 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     const id = conv.contactId;
     menu.show(followMenuEntries(conv.followed, conv.alertOnReplies, { follow: (f) => void setFollow(data, id, f), alert: (a) => void setFollow(data, id, true, a) }), x, y);
   };
-  const showFrom = (x: number, y: number): void => menu.show(fromMenuEntries(choices, inbox?.id ?? null, conv.mailboxIds, (id) => patch({ from: { ...draft.from, [chan]: id } })), x, y);
+  const openConnect = useOpenConnect();
+  // the From list ends in Connect: a mailbox joins the list and is chosen; a Twilio account is added and its number is claimed from the Inbox
+  const connectFrom = openConnect ? (c: OutChannel): void => {
+    void openConnect(c === "email" ? { kind: "mailbox" } : { kind: "number" }).then((made) => {
+      setSendersTick((n) => n + 1);
+      if (made && c === "email") patch({ from: { ...draft.from, email: made.id } });
+    }, () => setNote("Could not connect it. Try again."));
+  } : undefined;
   // the dock (when one is mounted, `dock`) places the call and saves it to this conversation; otherwise the app's own handler, else the shell opens the dialer
   const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else if (n && dock) dock.dial(n, conv.contactId); else data.nav.openDialer(); };
 
@@ -226,8 +279,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
           </Pressable>
         ) : null}
         <View style={s.grow} />
-        <HeadButton icon="mail" label="Email" testID="head-email" on={chan === "email"} disabled={!(options?.channels.includes("email") ?? false)} onPress={() => patch({ chan: "email" })} />
-        <HeadButton icon="sms" label="Text" testID="head-text" on={chan === "sms"} disabled={!(options?.channels.includes("sms") ?? false)} onPress={() => patch({ chan: "sms" })} />
+        <HeadButton icon="mail" label="Email" testID="head-email" on={chan === "email"} disabled={!(options?.channels.includes("email") ?? false)} onPress={() => pickChan("email")} />
+        <HeadButton icon="sms" label="Text" testID="head-text" on={chan === "sms"} disabled={!(options?.channels.includes("sms") ?? false)} onPress={() => pickChan("sms")} />
         <HeadButton icon="call" label="Call" testID="head-call" onPress={dial} />
         {conv.contactId ? <HeadButton icon="star" label={starred ? "Unstar" : "Star"} testID="head-star" on={starred} onPress={() => setStarMine(!starred)} /> : null}
         {conv.contactId ? <HeadButton icon="bell" label={conv.followed ? "Following" : "Follow"} testID="head-follow" on={conv.followed} onPress={showFollow} /> : null}
@@ -253,26 +306,15 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
 
       <View style={s.cmpWrap} testID="contact-composer">
         <View style={s.cmpIn}>
-          <View style={s.ctop}>
-            <View style={s.seg} accessibilityRole="tablist">
-              {each(["email", "sms"] as const, (c) => {
-                const can = options?.channels.includes(c) ?? false;
-                return (
-                  <Pressable
-                    key={c} accessibilityRole="tab" accessibilityLabel={c === "email" ? "Email" : "Text"} accessibilityState={{ selected: chan === c, disabled: !can }} aria-selected={chan === c} testID={`chan-${c}`} disabled={!can}
-                    onPress={() => patch({ chan: c })} style={({ hovered }: { hovered?: boolean }) => [s.segBtn, chan === c && s.segOn, hovered === true && chan !== c && s.hicOver, !can && s.dim]}
-                  >
-                    <Icon name={c === "email" ? "mail" : "sms"} size={13} color={chan === c ? "var(--ink)" : "var(--ink-3)"} />
-                    <Text style={[s.segText, chan === c && s.segTextOn]}>{c === "email" ? "Email" : "Text"}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={mail ? "Send from" : "Text from"} testID="from-pick" onPress={(e) => { const p = pointOf(e); showFrom(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.pick, hovered === true && s.hicOver]}>
-              <Text style={s.pickText}>{mail ? "From " : "From "}<Text style={s.pickName} testID="from-name">{inbox?.label ?? "No inbox"}</Text></Text>
-              <Icon name="chevd" size={9} />
-            </Pressable>
-          </View>
+          {ask ? (
+            ask.form.available ? (
+              <Pressable accessibilityRole="switch" accessibilityLabel="Add a quick form" accessibilityState={{ checked: formOn, disabled: formBusy }} aria-checked={formOn} disabled={formBusy} testID="quick-form-toggle" onPress={toggleForm} style={({ hovered }: { hovered?: boolean }) => [s.qf, hovered === true && s.hicOver]}>
+                <View style={[s.qfBox, formOn && s.qfBoxOn]} />
+                <Text style={s.qfText}>Add a quick form</Text>
+                {formBusy ? <Text style={s.qfNote} testID="quick-form-busy">Making the link</Text> : null}
+              </Pressable>
+            ) : <Text style={s.qfNote} testID="quick-form-note">{QUICK_FORM_NOTE}</Text>
+          ) : null}
           <Composer
             key={`${conv.id}:${chan}`}
             whoWillAnswer={inbox ? "" : "No inbox can send"}
@@ -290,7 +332,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                 </Pressable>
               </View>
             )}
-            sendsOutside={mail}
+            sendsOutside
             lists={lists}
             attachments={attached}
             density={phone ? "compact" : "regular"}
@@ -298,17 +340,21 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             onChange={(t) => patch({ text: t })}
             onAttach={() => { if (props.onAttach) props.onAttach(); else setNote("Attach from Files is not connected in this view"); }}
             onSubmit={(p) => { if (blocker === "") void send(p.text); else setNote(blocker); }}
-            {...(mail ? {
-              recipients: (
-                <View>
-                  <Recipients to={namedTo(draft.to, conv.address, unmatched ? null : conv.displayName)} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
-                  <TextInput
-                    accessibilityLabel="Subject" placeholder="Subject" placeholderTextColor="var(--ink-3)" value={draft.subject} onChangeText={(t) => patch({ subject: t })} testID="contact-subject"
-                    style={s.subject}
-                  />
-                </View>
-              ),
-            } : {})}
+            recipients={(
+              <OutgoingHeader
+                channel={mail ? "email" : "text"}
+                channels={(["email", "sms"] as const).filter((c) => options?.channels.includes(c) ?? false).map((c) => (c === "email" ? "email" as const : "text" as const))}
+                onChannel={(c) => pickChan(c === "email" ? "email" : "sms")}
+                to={mail
+                  ? <Recipients to={namedTo(draft.to, conv.address, unmatched ? null : conv.displayName)} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
+                  : <Text style={s.toText} numberOfLines={1}>{textTo ? `${conv.displayName} \u00b7 ${textTo}` : "No phone number for this contact"}</Text>}
+                senders={listed}
+                senderId={inbox?.id ?? null}
+                onSender={(id) => patch({ from: { ...draft.from, [chan]: id } })}
+                {...(connectFrom ? { onConnect: connectFrom } : {})}
+                {...(mail ? { subject: draft.subject, onSubject: (t: string) => patch({ subject: t }) } : {})}
+              />
+            )}
           />
           {note ? <Text style={s.note} accessibilityRole="alert" testID="contact-note">{note}</Text> : null}
         </View>
@@ -319,6 +365,12 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
 }
 
 /** The tab: a draw of the frame before the shell has given the Inbox its data. */
+/** comms.senders.list as the From picker reads it. */
+export function sendersOf(out: unknown): ComposerSender[] {
+  const rows = (out as { senders?: { id: string; channel: "email" | "text"; name: string; address: string; via: string; provider?: string; default?: boolean; usable?: boolean; why?: string }[] } | undefined)?.senders ?? [];
+  return rows.map((x) => ({ id: x.id, channel: x.channel, name: x.name || x.address, address: x.address, via: x.via, ...(x.provider ? { provider: x.provider } : {}), ...(x.default ? { default: true } : {}), usable: x.usable !== false, ...(x.why ? { why: x.why } : {}) }));
+}
+
 export function ContactTab(props: ContactTabProps): ReactElement {
   const data = useOptionalInboxData();
   if (!data) return <TabLoading />;
@@ -327,6 +379,11 @@ export function ContactTab(props: ContactTabProps): ReactElement {
 
 const ink = (v: string): string => `var(${v})`;
 const s = StyleSheet.create({
+  qf: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", paddingVertical: 4, paddingHorizontal: 6, borderRadius: 6 },
+  qfBox: { width: 14, height: 14, borderRadius: 4, borderWidth: 1, borderColor: ink("--line-2") },
+  qfBoxOn: { backgroundColor: ink("--accent"), borderColor: ink("--accent") },
+  qfText: { fontSize: 12.5, color: ink("--ink-2") },
+  qfNote: { fontSize: 12, color: ink("--ink-3"), paddingVertical: 4, paddingHorizontal: 6 },
   main: { flex: 1, minWidth: 0, minHeight: 0, backgroundColor: ink("--win") },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: ink("--line") },
   hid: { flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0, flexShrink: 1 },
@@ -347,7 +404,7 @@ const s = StyleSheet.create({
   col: { width: "100%", maxWidth: 740, alignSelf: "center", paddingHorizontal: 28, paddingTop: 18, paddingBottom: 20 },
   cmpWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   cmpIn: { width: "100%", maxWidth: 740, alignSelf: "center" },
-  ctop: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 6 },
+  toText: { fontSize: 13, color: ink("--ink") },
   seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: ink("--hover") },
   segBtn: { height: 24, paddingHorizontal: 10, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 6 },
   segOn: { backgroundColor: ink("--win") },

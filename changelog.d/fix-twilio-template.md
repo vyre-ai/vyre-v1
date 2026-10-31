@@ -1,0 +1,1 @@
+- Twilio added from the Vault (the Twilio template with TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN) now turns on texting and calls. Before, the connector only read two separately named items.

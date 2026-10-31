@@ -3,6 +3,7 @@ import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { RecordDetail } from "../../../shell/providers/record-detail.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
+import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import type { Work } from "./route.ts";
 
 /** The width the conversation keeps beside the work. */
@@ -17,10 +18,10 @@ export function Workspace({ rt, work, children }: { rt: ShellRuntime; work: Work
       <View testID="chats-work" accessibilityLabel={work.type === "project" ? "The project" : "The record"} style={st.work}>
         <RecordDetail key={work.id} rt={rt} recordId={work.id} />
       </View>
-      <View testID="chats-beside" accessibilityLabel="The conversation" style={st.chat}>
+      <ResizableColumn paneKey="chats-beside" defaultWidth={CHAT_BESIDE_W} grow="left" min={300} style={st.chat as never} testID="chats-beside" label="The conversation">
         <Text accessibilityRole="header" style={st.label}>Conversation</Text>
         <View style={st.fill}>{children}</View>
-      </View>
+      </ResizableColumn>
     </View>
   );
 }

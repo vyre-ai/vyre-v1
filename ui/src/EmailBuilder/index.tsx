@@ -634,7 +634,10 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   }, [focus, setFocusMode]);
 
   const { width: winW } = useWindowDimensions();
-  const narrow = winW > 0 && winW < NARROW_WIDTH;
+  // The builder can sit in a resizable side pane, so its own measured width decides, not the window's.
+  const [boxW, setBoxW] = useState(0);
+  const fitW = boxW > 0 ? boxW : winW;
+  const narrow = fitW > 0 && fitW < NARROW_WIDTH;
   const compact = props.density === "compact" || narrow;
   const diffs = props.diffs ?? [];
   const unsub = checks.find((c) => c.id === "unsub") ?? { level: "bad" as CheckLevel };
@@ -1031,7 +1034,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   return (
     <View
       {...webProps({ "data-testid": "email-builder", "data-mode": mode, "data-focus": focus ? "true" : "false", "data-version": String(version), "data-preview": preview, "data-density": props.density ?? "regular" })}
-      accessibilityLabel={emailLabel(props)} style={[s.root, focus && s.rootFocus]}>
+      accessibilityLabel={emailLabel(props)} onLayout={(e: { nativeEvent: { layout: { width: number } } }) => { const w = Math.round(e.nativeEvent.layout.width); setBoxW((cur) => (cur === w ? cur : w)); }} style={[s.root, focus && s.rootFocus]}>
       {focus ? null : head}
       {focus ? null : commentsBar}
       {focus ? null : envelope}
@@ -1054,7 +1057,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
 const s = StyleSheet.create({
   root: { flex: 1, minHeight: 0, minWidth: 0, backgroundColor: "var(--win)" as string },
   rootFocus: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 900 },
-  head: { height: 42, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  head: { minHeight: 42, flexDirection: "row", flexWrap: "wrap", alignItems: "center", rowGap: 4, columnGap: 6, paddingHorizontal: 12, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   grow: { flex: 1 },
   sep: { width: 1, height: 18, backgroundColor: "var(--line)" as string, marginHorizontal: 4 },
   stat: { color: "var(--ink-3)" as string, fontSize: 12 },
@@ -1065,14 +1068,14 @@ const s = StyleSheet.create({
   btnOff: { opacity: 0.35 },
   btnText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
   btnTextStrong: { color: "var(--ink)" as string },
-  seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string, alignSelf: "flex-start" },
-  segBtn: { height: 24, paddingHorizontal: 12, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  seg: { flexDirection: "row", flexWrap: "wrap", padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string, alignSelf: "flex-start", maxWidth: "100%", minWidth: 0 },
+  segBtn: { height: 24, paddingHorizontal: 10, flexShrink: 1, minWidth: 0, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   segOn: { backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   segText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
   segTextOn: { color: "var(--ink)" as string },
   env: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   envRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 30 },
-  envLabel: { width: 78, color: "var(--ink-3)" as string, fontSize: 12.5 },
+  envLabel: { width: 78, flexShrink: 1, color: "var(--ink-3)" as string, fontSize: 12.5 },
   envInput: { flex: 1, minWidth: 0, height: 30, color: "var(--ink)" as string, fontSize: 14, paddingHorizontal: 4, borderRadius: 6 },
   cnt: { color: "var(--ink-4)" as string, fontSize: 11.5, minWidth: 38, textAlign: "right" },
   cntWarn: { color: "var(--warn)" as string },
@@ -1085,7 +1088,7 @@ const s = StyleSheet.create({
   railText: { color: "var(--ink-3)" as string, fontSize: 10.5, fontWeight: "500" },
   stageCol: { flex: 1, minWidth: 0, minHeight: 0, backgroundColor: "var(--sunk)" as string },
   stage: { flex: 1, minHeight: 0 },
-  bar: { flexDirection: "row", gap: 2, paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  bar: { flexDirection: "row", flexWrap: "wrap", gap: 2, paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
   scroll: { flex: 1 },
   page: { paddingTop: 28, paddingHorizontal: 24, paddingBottom: 120 },
   card: { alignSelf: "center", width: "100%", maxWidth: 600, backgroundColor: "#FFFFFF", paddingVertical: 8 },
@@ -1110,26 +1113,26 @@ const s = StyleSheet.create({
   srcHead: { height: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   srcActs: { flexDirection: "row", alignItems: "center", gap: 10 },
   status: { flexDirection: "row", alignItems: "center", gap: 10, height: 30, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  ctl: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 34 },
-  ctlLabel: { color: "var(--ink-2)" as string, fontSize: 12.5 },
+  ctl: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", rowGap: 4, columnGap: 8, minHeight: 34, minWidth: 0 },
+  ctlLabel: { color: "var(--ink-2)" as string, fontSize: 12.5, flexShrink: 1 },
   ctlValue: { color: "var(--ink)" as string, fontSize: 12.5, minWidth: 28, textAlign: "center" },
   stepper: { flexDirection: "row", alignItems: "center", gap: 4 },
   hexRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  hex: { width: 84, height: 28, color: "var(--ink)" as string, fontFamily: MONO_VAR, fontSize: 12, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
+  hex: { width: 84, maxWidth: "100%", flexShrink: 1, height: 28, color: "var(--ink)" as string, fontFamily: MONO_VAR, fontSize: 12, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   swatch: { width: 20, height: 20, borderRadius: 6, borderWidth: 1, borderColor: "var(--line-2)" as string },
   srcName: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "500" },
   srcRow: { flexDirection: "row", paddingVertical: 12 },
   gutter: { width: 42, textAlign: "right", paddingRight: 10, color: "var(--ink-4)" as string, fontFamily: MONO_VAR, fontSize: 12.5, lineHeight: 19 },
-  livePane: { width: 340, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 12, alignItems: "center" },
+  livePane: { width: 340, maxWidth: "40%", flexShrink: 1, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 12, alignItems: "center" },
   srcBody: { flex: 1, minWidth: 0, position: "relative" },
   codeShow: { minHeight: 0 },
   codeInput: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, color: "transparent" },
   code: { flex: 1, minWidth: 0, minHeight: 480, padding: 0, backgroundColor: "transparent", color: "var(--ink)" as string, fontFamily: MONO_VAR, fontSize: 12.5, lineHeight: 19 },
   plain: { width: "100%", maxWidth: 640, minHeight: 480, padding: 24, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, color: "var(--ink)" as string, fontFamily: MONO_VAR, fontSize: 13.5, lineHeight: 21 },
   plainHint: { width: "100%", maxWidth: 640, color: "var(--ink-3)" as string, fontSize: 12.5, marginBottom: 10 },
-  pane: { width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, minHeight: 0 },
+  pane: { width: 380, maxWidth: "100%", flexShrink: 1, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, minHeight: 0 },
   paneBody: { flex: 1 },
-  paneContent: { padding: 14, paddingBottom: 24 },
+  paneContent: { padding: 14, paddingBottom: 24, minWidth: 0 },
   sec: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600", marginTop: 16, marginBottom: 8 },
   note: { color: "var(--ink-3)" as string, fontSize: 12.5, lineHeight: 18 },
   done: { color: "var(--ok)" as string, fontSize: 12, fontWeight: "500" },

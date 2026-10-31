@@ -141,12 +141,13 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openThread: a.openThread,
     togglePane: a.togglePane,
     openBeside: (kind, id) => rt.open({ subject: { type: kind, id } }),
+    openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId, me: { id: rt.me.id, name: rt.me.name },
     nameOf: (id) => nameOr(byId.get(id)?.name, id),
     kindOf: (id) => kindOf(byId.get(id)),
-    nav, clock: rt.clock, spaceName: rt.space.name,
+    nav, clock: rt.clock, spaceName: rt.space.name, ...(rt.space.kind === "personal" ? { personal: true } : {}),
     ...(fill ? { fill } : {}),
     memory: chatMemory(rt, a),
     lists: composerLists(principals, rt.me.id),

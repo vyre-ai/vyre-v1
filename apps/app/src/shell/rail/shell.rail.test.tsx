@@ -16,13 +16,22 @@ const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string => rende
 const labels = (entries: readonly MenuEntry[]): string[] => entries.filter(isItem).map((e) => e.label);
 
 test("each Space's Kit draws its own rail and the Console shows only with access", () => {
-  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console", "join"]);
-  assert.deepEqual(railPlaces(rail(HARBOR)), ["home", "chats", "inbox", "files", "apps", "vault", "settings", "join"]);
+  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"]);
+  assert.deepEqual(railPlaces(rail(HARBOR)), ["home", "chats", "inbox", "files", "apps", "vault", "settings"]);
   assert.ok(!railPlaces(rail(PERSONAL)).includes("console"));
   assert.ok(!railPlaces(rail(PERSONAL)).includes("apps"), "a Personal Space hides Apps: forms, campaigns and sending domains are for a team");
   const noAccess = railFor({ kit: kitById("northwind"), console: false, counts: {}, dots: {}, active: "home" });
   assert.ok(!railPlaces(noAccess).includes("console"), "no console.access, no Console button");
   assert.equal(kitById("nope").id, "northwind", "an unknown Kit falls back to the default");
+});
+
+test("no kit's rail has a + (Add a Space lives in the Space menu), and the switcher still offers it", () => {
+  for (const id of ["northwind", "studio", "personal"]) {
+    const k = kitById(id);
+    assert.ok(![...k.top, ...k.bottom].includes("join"), `${id} has no join`);
+  }
+  for (const s of [NORTHWIND, HARBOR, PERSONAL]) assert.ok(!railPlaces(rail(s)).includes("join"));
+  assert.ok(labels(spaceMenuEntries({ spaces: SEED_DEFS, openId: "nw", away: false, onSwitch: () => undefined, onAction: () => undefined })).includes("Add a Space"));
 });
 
 test("a count is a number, a dot is quiet and never on the place you are looking at", () => {

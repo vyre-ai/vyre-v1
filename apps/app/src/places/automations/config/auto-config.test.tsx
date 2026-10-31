@@ -17,7 +17,8 @@ import { shareRows } from "./SettingsTab.tsx";
 import { ESCALATE_AFTER_HOURS, MAX_ESCALATION_STEPS, addStep, addWho, alertSentence, canPromote, choiceFor, escalationWords, hoursWords, initialChoices, nextStepHours, promoteInput, removeStep, removeWho, setChoice, setStepHours, setStepTo, setWhen, setWhere, whoWords, withoutChannel } from "./model.ts";
 import type { Alerts, PromoteDiff } from "./model.ts";
 import { JourneyDesigner } from "../journeys/JourneyDesigner.tsx";
-import { JourneyNewSheet, newJourneyIssue, stagesFromText } from "../journeys/JourneyNewSheet.tsx";
+import { JourneyNewSheet } from "../journeys/JourneyNewSheet.tsx";
+import { issuesOf, stagesFrom } from "../journeys/newModel.ts";
 import { JourneyPane } from "../journeys/JourneyPane.tsx";
 import { MigrateView } from "../journeys/MigrateSheet.tsx";
 import { addAutomation, addStage, addTask, agentSeats, canDeleteStage, canMigrate, clearTaskField, designIssues, dueWords, exitWords, initials, limitWords, migrationLine, moveStage, moveTask, removeStage, removeTask, setSeat, setTimeLimit, stageMapOf, unmappedMoves, updateTask } from "../journeys/model.ts";
@@ -243,7 +244,7 @@ test("the designer: where the records are, the stages in order with their counts
   assert.deepEqual([...stages].sort((a, b) => a - b), stages);
   for (const t of ["Consult booked", "Intake", "Engagement letter", "Kickoff", "Onboarded"]) assert.ok(has(out, t), t);
   assert.ok(has(out, ">3 records<") && has(out, ">4 records<") && has(out, ">1 late<"), "counts and the late ones");
-  assert.ok(has(out, "Stages") && has(out, 'data-testid="open-records"') && has(out, "Open records in Records"));
+  assert.ok(has(out, "Stages") && has(out, 'data-testid="open-records"') && has(out, "Open board"));
   assert.ok(has(out, 'data-testid="add-stage"') && has(out, 'data-testid="subtab-settings"'));
 });
 
@@ -467,21 +468,22 @@ test("the migration sheet shows each stage's records and where they go, flags th
 
 /* ---------- a new Journey ---------- */
 
-test("a new Journey needs a name, a Subject and stages; stages come one per line or comma and are made with the default rule", async () => {
-  const stages = stagesFromText("Posted, Screening\nInterviews,, Offer ");
+test("a new Journey needs a name, who goes through it and stages; the list is made with the default rule and the sheet reads in plain words", async () => {
+  const stages = stagesFrom(["Posted", "Screening", "Interviews", "Offer"]);
   assert.deepEqual(stages.map((x) => x.title), ["Posted", "Screening", "Interviews", "Offer"]);
   assert.deepEqual(stages.map((x) => x.order), [0, 1, 2, 3]);
   assert.deepEqual(stages[0]!.exit, { requireTasks: true });
-  assert.equal(newJourneyIssue("", "person", stages), "Give it a name");
-  assert.equal(newJourneyIssue("Hire", " ", stages), "A Journey needs a Subject");
-  assert.equal(newJourneyIssue("Hire", "person", []), "Add at least one stage");
-  assert.equal(newJourneyIssue("Hire", "person", stagesFromText("A, a")), "Two stages are named a");
-  assert.equal(newJourneyIssue("Hire", "person", stages), null);
+  assert.deepEqual(issuesOf("", "person", stages), { name: "Give it a name" });
+  assert.deepEqual(issuesOf("Hire", null, stages), { subject: "Pick who goes through it" });
+  assert.deepEqual(issuesOf("Hire", "person", []), { stages: "Add at least one stage" });
+  assert.deepEqual(issuesOf("Hire", "person", stagesFrom(["A", "a"])), { stages: "Two stages are named a" });
+  assert.deepEqual(issuesOf("Hire", "person", stages), {});
   const s = nw();
-  const out = renderToStaticMarkup(<AutomationsDataProvider value={s.data}><JourneyNewSheet onClose={() => undefined} initialName="Hire" initialSubject="person" initialStages="Posted, Screening, Offer" /></AutomationsDataProvider>);
-  assert.ok(has(out, "New Journey type") && has(out, "Records of this type move through the stages you list.") && has(out, "3 stages: Posted, Screening, Offer"));
+  const types = [{ key: "person", title: "Contact", plural: "Contacts", icon: "people", hue: 250 }];
+  const out = renderToStaticMarkup(<AutomationsDataProvider value={s.data}><JourneyNewSheet onClose={() => undefined} initialName="Hire" initialSubject="person" initialTypes={types} initialStages={["Posted", "Screening", "Offer"]} /></AutomationsDataProvider>);
+  assert.ok(has(out, "New Journey type") && has(out, "Who goes through it") && has(out, "Contacts") && has(out, "3 columns on the board"));
+  assert.ok(has(out, 'aria-checked="true"') && has(out, "Sales") && has(out, "Hiring"), "the picked type is marked and the templates are offered");
   assert.doesNotMatch(tag(out, "new-create"), /aria-disabled="true"/);
-  assert.match(tag(renderToStaticMarkup(<AutomationsDataProvider value={s.data}><JourneyNewSheet onClose={() => undefined} /></AutomationsDataProvider>), "new-create"), /aria-disabled="true"/);
   const made = (await s.data.call("journeys.create", { name: "Hire", subjectType: "person", stages, idempotencyKey: "k" })) as { journey: { id: string; stages: unknown[] } };
   assert.equal(made.journey.stages.length, 4);
   assert.ok(has(designer(s, made.journey.id), "Hire") && has(designer(s, made.journey.id), "0 records"));

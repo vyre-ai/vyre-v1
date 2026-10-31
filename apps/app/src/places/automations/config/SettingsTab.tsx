@@ -1,6 +1,8 @@
 // The Settings tab (spec 3.7, 2.12): the scope of an Automation and the one move between scopes (Promote to Space, Make a personal copy), the files folder, who owns it, who has access
 // (the shared Share sheet), who follows it, whether it can start itself, its webhook address, and the access it runs on. A Personal Automation shared with you says whose access it runs on.
 // Changes save as they are made (quiet Saved, Undo where there is a way back). Destructive moves confirm inside the row.
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectLabel } from "../../../shell/connect/model.ts";
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -43,6 +45,7 @@ const THROUGH_NOTE: Readonly<Record<AccessRow["through"], string | undefined>> =
 
 export function SettingsTab({ automation, openPromote = false, openShare = false }: { automation: Automation; openPromote?: boolean; openShare?: boolean }): ReactElement {
   const data = useAutomationsData();
+  const openConnect = useOpenConnect();
   const extras = useConfigExtras();
   const saved = useSaved();
   const { element, show } = useMenu();
@@ -103,9 +106,10 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
               <>
                 <Text style={t.para}>No keys yet</Text>
                 {data.keysStatus === "unavailable" ? <Text style={t.para}>The provider list did not load.</Text> : null}
-                <TextButton label="Open keys" testID="open-keys" onPress={() => data.nav.openKeys?.()} />
+                {openConnect ? <TextButton label={connectLabel({ kind: "ai" }, true)} testID="connect-key" onPress={() => void openConnect({ kind: "ai" })} /> : <TextButton label="Open keys" testID="open-keys" onPress={() => data.nav.openKeys?.()} />}
               </>
             ) : null}
+            {data.keysStatus === "ready" && openConnect ? <TextButton label={connectLabel({ kind: "ai" }, false)} testID="connect-key" onPress={() => void openConnect({ kind: "ai" })} /> : null}
           </View>
         </>
       ) : null}

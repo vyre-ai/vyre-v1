@@ -41,7 +41,7 @@ test("create makes the record, Agents/<name> with the decided tree, AGENT.md and
   assert.equal(toml["name"], "Intake");
   assert.equal(toml["description"], "Use me when a new client form arrives.");
   assert.equal(toml["model"], "claude-sonnet-5-5");
-  assert.match(hn.world.text(hn.world.fileIn(home.folderId, "AGENT.md")!.fileId), /^# Intake\n\nInherits: VYRE\.md\n[\s\S]*Use me when a new client form arrives\./);
+  assert.match(hn.world.text(hn.world.fileIn(home.folderId, "AGENT.md")!.fileId), /^# Intake\n\nInherits: VYRE\.md\n[\s\S]*People use you when a new client form arrives\./);
   const vyreDir = hn.world.folderNamed(".vyre", home.folderId)!;
   assert.match(hn.world.text(hn.world.fileIn(vyreDir.folderId, "guide.md")!.fileId), /How Vyre works for you/);
 

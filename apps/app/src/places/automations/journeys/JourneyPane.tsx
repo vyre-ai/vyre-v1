@@ -1,6 +1,8 @@
 // The side pane of the Journey designer (spec 2.12, 3.7): the Journey itself, a stage, or a task, whichever is selected. A task shows who is Assigned, the Reviewer and the Approver, the key
 // and backup key when an agent holds a seat, when it is due after the record enters the stage, whether the stage waits for it, and its instructions. A stage shows when a record moves on,
 // its time limit and who is told when it runs over, the records in it and the Automations that run on it. Every change is the designer's own write: saved as made, with Undo.
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectEntries } from "../../../shell/connect/model.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -16,6 +18,7 @@ import { Glyph } from "../config/glyphs.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Group, Hint, Lab, PickButton, SRow, Switch } from "../config/parts.tsx";
 import { useDesign, useJourney } from "./data.ts";
+import { StageFields } from "./StageFields.tsx";
 import type { Selection } from "./JourneyDesigner.tsx";
 import { DUE_CHOICES, automationsByStage, initials, agentNames as seatNames, EXIT_RULES, LIMIT_CHOICES, SLOTS, agentSeats, clearTaskField, countOf, doneByWords, dueWords, exitRuleId, exitWords, findTask, limitWords, plural, renameStage, setSeat, tasksWords, updateTask } from "./model.ts";
 import type { Journey, Ref, Slot, Stage, StageCounts, Task } from "./model.ts";
@@ -134,6 +137,7 @@ function StagePane({ journey: j, stage: g, counts, canDesign }: { journey: Journ
             {g.automations.map((id) => <Row key={id} id={`stage-auto-${id}`} title={data.name(id)} note="On entering" leading={<View style={p.lead}><Glyph name="bolt" size={14} color="var(--accent)" /></View>} />)}
           </Group>
         ) : <Text style={p.dim}>No automations on this stage.</Text>}
+        <StageFields journey={j} stage={g} design={d} canDesign={canDesign} />
         {d.saved.note ? <Text testID="saved-note" accessibilityLiveRegion="polite" style={[p.note, d.saved.note.failed && { color: "var(--danger)" as string }]}>{d.saved.note.text}</Text> : null}
       </ScrollView>
       {element}
@@ -146,6 +150,7 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
   const extras = useConfigExtras();
   const d = useDesign(j);
   const { element, show } = useMenu();
+  const openConnect = useOpenConnect();
   const [title, setTitle] = useState(t.title);
   const [brief, setBrief] = useState(t.description ?? "");
   useEffect(() => setTitle(t.title), [t.title]);
@@ -160,7 +165,9 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
   const keyMenu = (field: "keyId" | "backupKeyId", x: number, y: number): void => {
     const items: MenuEntry[] = each(data.keys, (k) => ({ label: k.name, checked: t[field] === k.id, onSelect: () => edit(updateTask(j.stages, g.key, t.key, field === "keyId" ? { keyId: k.id } : { backupKeyId: k.id }), `${field === "keyId" ? "Key" : "Backup key"}: ${k.name}`) }));
     if (field === "backupKeyId") items.unshift({ label: "None", checked: t.backupKeyId === undefined, onSelect: () => edit(clearTaskField(j.stages, g.key, t.key, "backupKeyId"), "No backup key") }, { separator: true });
-    show(items.length ? items : [{ head: "No keys to pick" }], x, y, "other", { label: field === "keyId" ? "Key" : "Backup key" });
+    const took = (made: { id: string }): void => edit(updateTask(j.stages, g.key, t.key, field === "keyId" ? { keyId: made.id } : { backupKeyId: made.id }), `${field === "keyId" ? "Key" : "Backup key"}: ${made.id}`);
+    const real = data.keys.length > 0;
+    show(connectEntries(real || t.backupKeyId !== undefined ? items : [], { kind: "ai" }, openConnect, took, !real), x, y, "other", { label: field === "keyId" ? "Key" : "Backup key" });
   };
 
   return (

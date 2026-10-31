@@ -18,7 +18,8 @@ export type Fact = CapMap["memory.find_by_subject"]["out"]["facts"][number];
 
 // ---------------------------------------------------------------- sections
 
-export interface Section { key: string; title: string; fields: FieldDef[]; folded: boolean }
+/** A section of the page. A Journey record's stage groups carry `stage`: the current one leads and is lit, earlier ones show, later ones are locked until their stage opens. */
+export interface Section { key: string; title: string; fields: FieldDef[]; folded: boolean; stage?: { state: "current" | "past" | "locked"; opensAt: string } }
 
 const PLAIN_SKIP = new Set(["relation", "files", "longtext", "button", "lookup", "rollup"]);
 
@@ -39,10 +40,13 @@ export function sectionsOf(def: TypeDef, layout: Layout | undefined, prefs: Pref
     }
     const rest = def.fields.filter((f) => !used.has(f.key));
     if (rest.length > 0) {
-      const last = out[out.length - 1];
+      // fields no group holds belong to the ungrouped section when there is one, otherwise to the last section
+      const last = out.find((x) => x.key === "overview") ?? out[out.length - 1];
       if (last) last.fields.push(...rest); else out.push({ key: "details", title: "Details", fields: rest, folded: folded("details", false) });
     }
-    return out.filter((s) => s.fields.length > 0);
+    // an empty Overview still leads the tabs once three groups hold fields
+    const grouped = out.filter((x) => x.key !== "overview" && x.fields.length > 0).length;
+    return out.filter((s) => s.fields.length > 0 || (s.key === "overview" && grouped >= 3));
   }
   const body = def.fields.filter((f) => f.key !== def.titleField && f.key !== def.summaryField);
   const groups: [string, string, FieldDef[]][] = [
@@ -74,6 +78,17 @@ export function toggleFold(folded: readonly string[], key: string): string[] {
 
 export const RING_R = 9;
 export const RING_C = 2 * Math.PI * RING_R;
+
+const SYSTEM_TYPES = new Set(["agent", "task", "report", "envelope", "project"]);
+
+/**
+ * Whether a type's page asks people to fill fields ("8 of 11", Ask for these). Only types where a person supplies the facts do; the system's own types (agent, task, report, envelope) and
+ * projects keep their own pages and never ask. The server names the fields (only those marked to be asked); a type with none to ask shows no ring.
+ */
+export function asksForFields(def: Pick<TypeDef, "key"> & { system?: boolean; template?: string }, c?: Pick<Completeness, "total">): boolean {
+  if (SYSTEM_TYPES.has(def.key) || def.system === true || def.template === "project") return false;
+  return c === undefined || c.total > 0;
+}
 
 export interface Ring { fraction: number; dash: string; label: string; complete: boolean }
 
@@ -201,7 +216,8 @@ export function resolveLink(title: string, nodes: readonly RelNode[]): RelNode |
 // ---------------------------------------------------------------- relations
 
 /** The target type of a relation field (the sample and the schema name it in the field's options). */
-export const relationTarget = (f: FieldDef): string | null => { const t = f.options?.["to"]; return typeof t === "string" ? t : null; };
+/** The type a relation points at. The schema writes it as options.target; older sample data used options.to. */
+export const relationTarget = (f: FieldDef): string | null => { const t = f.options?.["target"] ?? f.options?.["to"]; return typeof t === "string" ? t : null; };
 
 /** The record ids a relation holds. */
 export function relationIds(f: FieldDef, row: RecordRow): string[] {

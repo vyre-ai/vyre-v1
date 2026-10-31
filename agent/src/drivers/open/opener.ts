@@ -150,7 +150,7 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
     const s = need(spec);
     if (!known.has(s.account.driver)) throw new DriverError("engine.unknown_driver", `There is no engine called ${s.account.driver}.`);
     return {
-      key: { driver: s.account.driver, accountRef: s.account.ref, model: s.agent.model ?? "", sandboxId: null, mcpProfile: `${s.agent.id}|${s.asker}${s.tools === "none" ? "|none" : ""}` },
+      key: { driver: s.account.driver, accountRef: s.account.ref, model: s.agent.model ?? "", sandboxId: null, mcpProfile: `${s.agent.id}|${s.asker}${s.tools === "none" ? "|none" : ""}${s.mode !== undefined ? `|mode:${s.mode}` : ""}${s.agent.effort !== undefined ? `|effort:${s.agent.effort}` : ""}` },
       threadId: s.threadId, person: s.asker, session: spec,
     };
   };

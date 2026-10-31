@@ -140,17 +140,17 @@ test("an agent's text draft goes out through telephony.send_sms from its number,
 
 test("screen: the composer opens on the channel of the last message and the inbox the thread came in on", () => {
   const e = tab("elena").out;
-  for (const id of ["chan-email", "chan-sms", "composer-recipients", "contact-subject", "from-pick"]) assert.ok(has(e, `data-testid="${id}"`), id);
+  for (const id of ["chan-email", "chan-text", "composer-recipients", "contact-recipients", "contact-subject", "from-pick"]) assert.ok(has(e, `data-testid="${id}"`), id);
   const emailTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-email"')), e.indexOf(">", e.indexOf('data-testid="chan-email"')));
   assert.ok(has(emailTab, 'aria-selected="true"'), "the selected channel tab exposes aria-selected");
-  const smsTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-sms"')), e.indexOf(">", e.indexOf('data-testid="chan-sms"')));
+  const smsTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-text"')), e.indexOf(">", e.indexOf('data-testid="chan-text"')));
   assert.ok(has(smsTab, 'aria-selected="false"'), "the other tab says it is not selected");
   assert.ok(has(e, "Re: Lease documents for Thursday") && !has(e, "Sends from"), "no explaining line under the composer");
   assert.ok(has(e, "Elena Rivera"), "To shows the contact name");
   const fromE = at(e, 'data-testid="from-name"');
   assert.ok(e.slice(fromE, fromE + 80).includes("Work Gmail"), "From names the inbox it came in on");
   const m = tab("marcus").out;
-  assert.ok(!has(m, "Sends from") && !has(m, 'data-testid="composer-recipients"'), "a text has no recipients block and no explaining line");
+  assert.ok(!has(m, "Sends from") && !has(m, 'data-testid="contact-recipients"') && !has(m, 'data-testid="contact-subject"'), "a text has no Cc and Bcc recipients, no Subject and no explaining line");
   assert.ok(has(m, 'aria-label="Text from"'));
 });
 

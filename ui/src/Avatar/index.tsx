@@ -3,7 +3,7 @@
 // Automations and groups get a line glyph on the neutral tile. Radius is 30% for everything but people, who are round (as the prototype's tile.a and tile.p).
 // Web draws inline svg; native has no svg here, so it shows the letters on the face's tint until a native icon set lands.
 
-import { createElement, memo, useEffect, useState } from "react";
+import { createElement, memo, useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -11,8 +11,11 @@ import { faceTint, hueOf, initialsOf, marbleGradient, marbleInner } from "./face
 import { cachedFace, currentSkin, faceKey, requestFace } from "./cache.ts";
 import { loadNotionists } from "./load.ts";
 import type { AvatarKind, AvatarProps } from "./props.ts";
+import { assistantLook, isAssistantId, subscribeAssistant } from "./assistant.ts";
 
 export type { AvatarKind, AvatarProps } from "./props.ts";
+export { assistantId, assistantLook, avatarOf, isAssistantId, resetAssistant, setAssistantId, setAssistantLook, subscribeAssistant } from "./assistant.ts";
+export type { AvatarEntity } from "./assistant.ts";
 export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
 export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
 
@@ -30,8 +33,8 @@ function webProps(props: Record<string, unknown>): Record<string, unknown> {
 }
 
 /** The kind a name implies when the caller does not say: "Assistant" is the assistant. */
-export function kindOf(name: string, kind?: AvatarKind): AvatarKind {
-  if (kind === "agent" && name === "Assistant") return "assistant";
+export function kindOf(name: string, kind?: AvatarKind, seedId?: string): AvatarKind {
+  if (kind === "agent" && (name === "Assistant" || isAssistantId(seedId))) return "assistant";
   return kind ?? "person";
 }
 
@@ -51,13 +54,16 @@ function svg(markup: string, size: number, viewBox: string, extra: Record<string
 }
 
 export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, testID }: AvatarProps): ReactElement {
-  const kind = kindOf(name, kindProp);
+  const kind = kindOf(name, kindProp, seedId);
+  // A look the person picked in Settings turns the assistant into a drawn face from the agent library; with none it stays the Vyre mark.
+  const look = useSyncExternalStore(subscribeAssistant, assistantLook, assistantLook);
+  const looked = kind === "assistant" && look !== "";
   // One person, one face everywhere: the face is seeded by the id when the caller has one, by the name only as a fallback. Letters and the label still come from the name.
-  const seed = seedId !== undefined && seedId !== "" ? seedId : name;
+  const seed = looked ? look : seedId !== undefined && seedId !== "" ? seedId : name;
   // A person's marble and an agent's face are drawn once to a cached bitmap per seed, kind, size and skin; rows reuse it as an <img>.
   const browser = web && typeof document !== "undefined";
-  const drawn = web && kind === "agent";
-  const key = faceKey(seed, kind, size, currentSkin());
+  const drawn = web && (kind === "agent" || looked);
+  const key = faceKey(seed, looked ? "agent" : kind, size, currentSkin());
   const [, bump] = useState(0);
   const [agentFace, setAgentFace] = useState<{ key: string; markup: string } | null>(null);
   const bitmap = drawn ? cachedFace(key) : undefined;
@@ -87,7 +93,7 @@ export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size 
     face = createElement("span", { style: { display: "block", width: size, height: size, background: marbleGradient(seed) }, "data-face": "gradient" });
   } else if (kind === "person") {
     face = web ? svg(marbleInner(seed), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(seed)}, 45%, 70%)`} />;
-  } else if (kind === "agent") {
+  } else if (kind === "agent" || looked) {
     const markup = agentFace?.key === key ? agentFace.markup : null;
     face = web && markup ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: markup } }) : <AgentFallback name={name} seed={seed} size={size} />;
   } else if (kind === "space") {
@@ -102,7 +108,7 @@ export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size 
     face = web ? svg(path, s, "0 0 16 16", { fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" }) : <Text style={{ fontSize: Math.round(size * 0.5), color: "var(--ink-2)" as string }}>{kind === "automation" ? "+" : "··"}</Text>;
   }
 
-  const neutral = kind === "assistant" || kind === "automation" || kind === "group";
+  const neutral = (kind === "assistant" && !looked) || kind === "automation" || kind === "group";
   const glyphColor = kind === "assistant" ? "var(--ink)" : "var(--ink-2)";
   return (
     <View testID={id} accessible accessibilityRole="image" accessibilityLabel={name} style={{ width: size, height: size, flexShrink: 0 }} {...data}>

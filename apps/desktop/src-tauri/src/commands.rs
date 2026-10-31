@@ -6,7 +6,7 @@
 //   page_report(kind, text)  what the shell's own load hook (lib.rs PAGE_PROBE) tells us: script errors and the rendered size, to the log only
 // Events: "vyre://sidecar" (Status) and "vyre://deep-link" (DeepLink).
 
-use crate::links::DeepLink;
+use crate::links::{self, DeepLink};
 use crate::sidecar::{self, Shared, Status};
 use serde::Serialize;
 use std::sync::Mutex;
@@ -103,6 +103,31 @@ pub fn page_report(kind: String, text: String) {
     println!("vyre-desktop: page {kind}: {text}");
 }
 
+/// A web address the shell hands to the default browser: http or https, no spaces or control characters, no user or password, bounded.
+pub fn web_link(url: &str) -> bool {
+    let rest = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"));
+    let host = rest.map(|r| r.split(['/', '?', '#']).next().unwrap_or("")).unwrap_or("");
+    url.len() <= links::MAX_LEN && !host.is_empty() && !host.contains('@') && !url.chars().any(|c| c.is_control() || c.is_whitespace())
+}
+
+/// The page's window.open and links that leave the app (a provider's sign-in, a help page) open in the default browser. The webview opens no windows of its own.
+/// The address goes to the OS opener as one argument, never through a shell.
+#[tauri::command]
+pub fn open_link(url: String) -> Result<(), String> {
+    use std::process::Command;
+    if !web_link(&url) {
+        return Err("That link can’t be opened.".to_string());
+    }
+    let spawned = if cfg!(target_os = "macos") {
+        Command::new("open").arg(&url).spawn()
+    } else if cfg!(windows) {
+        Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).spawn()
+    } else {
+        Command::new("xdg-open").arg(&url).spawn()
+    };
+    spawned.map(|_| ()).map_err(|_| "Couldn’t open your browser. Copy the link instead.".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,5 +154,15 @@ mod tests {
 
         assert_eq!(handoff.lock().unwrap().activate_and_take(), None);
         assert_eq!(handoff.lock().unwrap().deliver(expected.clone()), Some(expected));
+    }
+
+    #[test]
+    fn only_a_plain_web_address_goes_to_the_browser() {
+        assert!(web_link("https://claude.ai/oauth/authorize?code=true&state=a#b"));
+        assert!(web_link("http://127.0.0.1:4100/help"));
+        for bad in ["file:///etc/passwd", "vyre://join?code=x", "javascript:alert(1)", "https://", "https://user:pw@evil.example/", "https://a.example/ b", "https://a.example/\nx", "-a Calculator", "chrome://extensions"] {
+            assert!(!web_link(bad), "{bad}");
+        }
+        assert!(!web_link(&format!("https://a.example/{}", "x".repeat(links::MAX_LEN))));
     }
 }

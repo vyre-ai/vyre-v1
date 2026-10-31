@@ -12,6 +12,7 @@ import { countsOn, detectDevice, nextOn, resumeOn, stateOn, visibleSteps } from 
 import type { Device } from "./device.ts";
 import { LOCK, saidFor } from "./said.ts";
 import { scriptFor } from "./script.ts";
+import { importedNote, rememberedImported } from "./sessions-model.ts";
 import { Glyph, StepTile } from "./StepGlyph.tsx";
 import { stepLook } from "./stepStyle.ts";
 
@@ -39,6 +40,8 @@ export interface OnboardingScreenProps {
   onStep(key: string, state: StepState): void;
   onOpenStep?(key: string): void;
   onClose?(): void;
+  /** The summary links to Chats when sessions were imported. */
+  onOpenChats?(): void;
   /** the real card for a step; the default is a quiet placeholder so the screen renders without any backend */
   renderCard?(card: CardKind, ctx: CardContext): ReactNode;
   /** the right pane for a step; defaults to the scripted description */
@@ -64,7 +67,8 @@ const anim = (spec: string): object => (web ? ({ animation: spec } as object) : 
 /** The last step of the flow on this device: skipping it ends the walk, even when an earlier step was put off. */
 const isLast0 = (flow: FlowKind, key: string, device: Device): boolean => { const st = visibleSteps(flow, device); return st[st.length - 1]?.key === key; };
 
-const counted = (flow: FlowKind, progress: Progress, device: Device): { done: number; later: number; total: number } => countsOn(flow, progress, device);
+/** "Set up N of M" counts a step as handled when it is done or skipped, so the number matches the rail. */
+const counted = (flow: FlowKind, progress: Progress, device: Device): { done: number; later: number; total: number } => { const c = countsOn(flow, progress, device); return { ...c, done: c.done + c.later }; };
 
 /** The Assistant's one line. It types itself in on the web; the full text is always what a test or a screen reader gets first. */
 function Typed({ text }: { text: string }): ReactElement {
@@ -190,7 +194,7 @@ function Preview({ flow, steps, progress, current, device, spaceName, body, pops
 }
 
 /** The summary: every step as a compact row, a Set up on the ones left, and Go to Home always in view. */
-function Finished({ flow, steps, progress, device, onOpen, onHome, two }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; device: Device; onOpen(key: string): void; onHome?: () => void; two: boolean }): ReactElement {
+function Finished({ flow, steps, progress, device, onOpen, onHome, onChats, two }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; device: Device; onOpen(key: string): void; onHome?: () => void; onChats?: () => void; two: boolean }): ReactElement {
   const left = steps.filter((st) => stateOn(progress, st, device) !== "done").length;
   const rows: ReactElement[] = [];
   steps.forEach((st, i) => {
@@ -198,7 +202,8 @@ function Finished({ flow, steps, progress, device, onOpen, onHome, two }: { flow
     rows.push(
       <View key={st.key} testID={`done-row-${st.key}`} style={[s.gr, two && s.grHalf, state === "later" && s.grLater, web ? anim(`vyre-ob-in 480ms ${i * 50}ms cubic-bezier(.2,.8,.2,1) both`) : null]}>
         <StepTile flow={flow} k={st.key} size={36} state={state === "done" ? "done" : state === "later" ? "dim" : "dim"} />
-        <View style={s.stepText}><Text style={s.grTitle} numberOfLines={1}>{st.title}</Text>{state === "later" ? <Text style={s.stepSub}>Skipped</Text> : null}</View>
+        <View style={s.stepText}><Text style={s.grTitle} numberOfLines={1}>{st.title}</Text>{state === "later" ? <Text style={s.stepSub}>Skipped</Text> : null}{st.card === "import_sessions" && state === "done" && rememberedImported() > 0 ? <Text testID="done-imported" style={s.stepSub}>{importedNote(rememberedImported())}</Text> : null}</View>
+        {st.card === "import_sessions" && state === "done" && rememberedImported() > 0 && onChats ? <Pressable testID="done-open-chats" accessibilityRole="link" onPress={onChats} style={s.setUp}><Text style={s.setUpText}>Open Chats</Text></Pressable> : null}
         {state !== "done" ? <Pressable testID={`done-set-${st.key}`} accessibilityRole="button" onPress={() => onOpen(st.key)} style={s.setUp}><Text style={s.setUpText}>Set up</Text></Pressable> : null}
       </View>,
     );
@@ -234,6 +239,14 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const words = def ? scriptFor(def.card, p.flow) : null;
   const c = counted(p.flow, p.progress, device);
   useEffect(ensureCss, []);
+  // Esc leaves to the app, the same as the X and Finish later; progress is kept
+  const leave = p.onClose;
+  useEffect(() => {
+    if (!web || !leave) return undefined;
+    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") leave(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [leave]);
   // a step that just became done pops once
   const seen = useRef<Set<string> | null>(null);
   const doneNow = new Set(steps.filter((st) => stateOn(p.progress, st, device) === "done").map((st) => st.key));
@@ -248,7 +261,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
     done: () => { p.onStep(def.key, "done"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "done" }, def.key, device); if (n) open(n); else setEnded(true); },
     later: () => { p.onStep(def.key, "later"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "later" }, def.key, device); if (n && !isLast0(p.flow, def.key, device)) open(n); else setEnded(true); },
   } : null;
-  // Continue moves on once the step is done; on the last step it becomes Finish
+  // Continue moves on once the step is done; on the last step it reads Done
   const at = def ? steps.findIndex((x) => x.key === def.key) : -1;
   const isLast = at === steps.length - 1;
   const isDone = def ? stateOn(p.progress, def, device) === "done" : false;
@@ -266,6 +279,8 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
     if (isLast) { setEnded(true); return; }
     open(steps[at + 1]!.key);
   };
+  // Skip on a step already done only moves on; on any other it marks the step skipped
+  const skip = (): void => { if (!def || !ctx) return; if (!isDone) { ctx.later(); return; } if (isLast) setEnded(true); else open(steps[at + 1]!.key); };
   const said = def ? saidFor(def.card, null) : "";
   const lines: ChatLine[] = def ? [{ id: `${def.key}-0`, from: "assistant", text: said === "" ? words!.lines[0] ?? "" : said }] : [];
   const chat = p.live && p.lines ? [...lines, ...p.lines] : lines;
@@ -281,11 +296,12 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   ) : null;
   const footBtns = def && ctx ? (
     <>
-      {isDone ? null : <Pressable testID="step-later" accessibilityRole="button" onPress={ctx.later} style={({ hovered }: { hovered?: boolean }) => [s.ghost, phone && s.btnTall, hovered === true && s.ghostOver]}><Text style={s.ghostText}>Skip</Text></Pressable>}
-      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext }} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, phone && s.flexBtn, !canNext && s.off, hovered === true && isDone && s.primaryOver]}><Text style={s.primaryText}>{isLast ? "Finish" : "Continue"}</Text></Pressable>
+      <Pressable testID="step-later" accessibilityRole="button" onPress={skip} style={({ hovered }: { hovered?: boolean }) => [s.ghost, phone && s.btnTall, hovered === true && s.ghostOver]}><Text style={s.ghostText}>Skip</Text></Pressable>
+      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext }} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, phone && s.flexBtn, !canNext && s.off, hovered === true && isDone && s.primaryOver]}><Text style={s.primaryText}>{isLast ? "Done" : "Continue"}</Text></Pressable>
     </>
   ) : null;
   const laterBtn = p.onClose && !finished ? <Pressable testID="onboarding-close" accessibilityRole="link" onPress={p.onClose} style={({ hovered }: { hovered?: boolean }) => [s.later, hovered === true && s.laterOver]}><Text style={s.finishLater}>Finish later</Text></Pressable> : null;
+  const closeBtn = p.onClose ? <Pressable testID="onboarding-x" accessibilityRole="button" accessibilityLabel="Close" onPress={p.onClose} style={({ hovered }: { hovered?: boolean }) => [s.x, hovered === true && s.laterOver]}><Text style={s.xText}>{"\u00d7"}</Text></Pressable> : null;
   const top = narrow || phone ? (
     <View style={s.narrowHead}>
       <View style={s.railHeadRow}><Image source={{ uri: ICON }} style={s.railIcon} accessibilityLabel="Vyre" /><Text style={s.railHead} testID="onboarding-progress">{`Set up  ${c.done} of ${c.total}`}</Text></View>
@@ -296,7 +312,8 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   if (finished) {
     return (
       <View testID="onboarding" style={[s.page, (narrow || phone) && s.pageNarrow]}>
-        <View testID="onboarding-chat" style={s.chat}><Finished flow={p.flow} steps={steps} progress={p.progress} device={device} onOpen={open} two={!phone && width >= 640} {...(p.onClose ? { onHome: p.onClose } : {})} /></View>
+        {closeBtn}
+        <View testID="onboarding-chat" style={s.chat}><Finished flow={p.flow} steps={steps} progress={p.progress} device={device} onOpen={open} two={!phone && width >= 640} {...(p.onClose ? { onHome: p.onClose } : {})} {...(p.onOpenChats ? { onChats: p.onOpenChats } : {})} /></View>
       </View>
     );
   }
@@ -308,6 +325,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   );
   return (
     <View testID="onboarding" style={[s.page, (narrow || phone) && s.pageNarrow]}>
+      {closeBtn}
       {top}
       <View testID="onboarding-chat" style={s.chat}>
         {p.live && p.liveChat ? (
@@ -346,7 +364,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
 const s = StyleSheet.create({
   page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
   pageNarrow: { flexDirection: "column" },
-  flex: { flex: 1, minWidth: 0 },
+  flex: { flex: 1, minWidth: 0, minHeight: 0 },
   rail: { width: 264, paddingTop: 20, paddingBottom: 20, paddingHorizontal: 12, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   railHeadRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, marginBottom: 12 },
   railIcon: { width: 28, height: 28, borderRadius: 7 },
@@ -367,7 +385,7 @@ const s = StyleSheet.create({
   seg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string },
   segDone: { backgroundColor: "var(--ok)" as string },
   segLater: { backgroundColor: "var(--ink-4)" as string },
-  chat: { flex: 1, minWidth: 0 },
+  chat: { flex: 1, minWidth: 0, minHeight: 0 },
   body: { width: "100%", maxWidth: COLUMN, alignSelf: "center", paddingTop: 44, paddingHorizontal: 32, paddingBottom: 32, gap: 20 },
   bodyPhone: { paddingTop: 24, paddingHorizontal: 20, paddingBottom: 380 },
   head: { flexDirection: "row", alignItems: "center", gap: 16 },
@@ -384,6 +402,8 @@ const s = StyleSheet.create({
   card: { padding: 20, borderRadius: 14, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, gap: 14, boxShadow: "var(--sh-1)" } as object,
   footer: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   actions: { width: "100%", maxWidth: COLUMN, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 14, paddingHorizontal: 32 },
+  x: { position: "absolute", top: 12, right: 14, zIndex: 5, width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  xText: { fontSize: 22, lineHeight: 24, color: "var(--ink-2)" as string },
   later: { height: 32, paddingHorizontal: 10, marginLeft: -10, borderRadius: 8, justifyContent: "center" },
   laterOver: { backgroundColor: "var(--hover)" as string },
   finishLater: { fontSize: 13, fontWeight: "500", color: "var(--ink-2)" as string },

@@ -24,7 +24,7 @@ const TABS = [{ key: "call", title: "Call" }, { key: "record", title: "Record" }
 export function CallConversation({ tasks = [], ...tab }: CallConversationProps): ReactElement {
   const data = useInboxData();
   const phone = usePhone();
-  const thread = useScreenQuery<ThreadOut>("inbox.contact-tab", "thread", { conversationId: tab.conversationId, ...(tab.contactId ? { contactId: tab.contactId } : {}) });
+  const thread = useScreenQuery<ThreadOut>("inbox.contact-tab", "thread", { ...(tab.conversationId ? { conversationId: tab.conversationId } : {}), ...(tab.contactId ? { contactId: tab.contactId } : {}) });
   const conv = thread.status === "ready" ? thread.data.conversation : null;
   const numbers = thread.status === "ready" ? numbersOfThread(thread.data.items) : [];
   const numbersKey = numbers.join("|");

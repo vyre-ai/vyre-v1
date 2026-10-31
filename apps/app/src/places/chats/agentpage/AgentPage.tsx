@@ -111,7 +111,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
       { label: "Chat", onSelect: chat },
       { label: "Automation Runs", onSelect: () => data.nav.openAutomationRuns(agentId) },
       { label: "Open Folder", onSelect: () => data.nav.openFolder(agent.folderId) },
-      ...(agent.hasComputer && data.agent.computerId ? [{ label: "Open Computer", onSelect: () => data.nav.openComputer(data.agent.computerId ?? "") }] : []),
+      ...(!personal && agent.hasComputer && data.agent.computerId ? [{ label: "Open Computer", onSelect: () => data.nav.openComputer(data.agent.computerId ?? "") }] : []),
       ...(data.canEdit ? [{ separator: true as const }, paused ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) } : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") }] : []),
     ], x, y, "other", { label: `${name}'s page` });
   };
@@ -137,7 +137,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
             <TextButton label="Chat" primary testID="chat-button" onPress={chat} />
             <TextButton label="Automation runs" testID="runs-button" onPress={() => data.nav.openAutomationRuns(agentId)} />
             <Tool icon="folder" label="Open folder" testID="folder-button" onPress={() => data.nav.openFolder(agent.folderId)} />
-            {agent.hasComputer && data.agent.computerId ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => data.nav.openComputer(data.agent.computerId ?? "")} /> : null}
+            {!personal && agent.hasComputer && data.agent.computerId ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => data.nav.openComputer(data.agent.computerId ?? "")} /> : null}
             <Tool icon="more" label="More" testID="more-button" onPress={moreMenu} />
           </View>
         </View>

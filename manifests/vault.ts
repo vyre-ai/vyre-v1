@@ -32,7 +32,7 @@ const handleField = t.str({ pattern: '^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$', desc
 const providerRow = t.obj({
   id: t.id('prv'), providerKey: t.str({ examples: ['anthropic'] }), name: t.str(), logo: t.opt(t.str()),
   connection: t.enm('subscription', 'api_key', 'local_model'), via: t.str({ examples: ['Subscription, yours'] }), scope: t.enm('mine', 'shared'),
-  itemId: id.vaultItem, handle: t.opt(id.handle), agentsUsing: t.arr(id.agent),
+  itemId: id.vaultItem, itemName: t.opt(t.str({ description: 'The name the person gave this account in the Vault, so two accounts of one provider read differently', examples: ['Dana Claude Max'] })), handle: t.opt(id.handle), agentsUsing: t.arr(id.agent),
   usage: t.obj({ tokens: t.int({ minimum: 0 }), costCents: t.int({ minimum: 0 }), periodStart: t.ts() }),
   engine: t.str({ examples: ['claude-code'] }), spaceMayUse: t.bool(), state: t.enm('ok', 'needs_sign_in', 'failing'),
   address: t.opt(t.str({ description: 'The address a local model or custom endpoint is reached at' })), keyless: t.opt(t.bool()),

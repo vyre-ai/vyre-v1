@@ -193,6 +193,8 @@ export async function consumeDesktopBootstrap(bridge: DesktopBootstrapBridge, on
   };
 }
 
+export { phoneCanReach } from "./reach.ts";
+
 /** A pairing link opened in a phone's browser: `<Space address>/home?pair=<code>`. Only the code shape is accepted; the code itself is spent by the redeem, once. */
 export function pairLink(address: string, code: string): string {
   return `${address.replace(/\/+$/, "")}/home?pair=${encodeURIComponent(code)}`;

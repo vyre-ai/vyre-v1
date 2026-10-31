@@ -120,6 +120,9 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
     inputIncludesCache: true,
     modelName: (m) => (m.startsWith(`${o.id}/`) ? m.slice(o.id.length + 1) : m),
     request(req: CallRequest): WireRequest {
+      // Reasoning effort: OpenAI's own `reasoning_effort` for its reasoning models (o-series, gpt-5), OpenRouter's `reasoning.effort` for any routed model. Max is high: the highest both name.
+      const level = req.effort === undefined ? undefined : req.effort === "max" ? "high" : req.effort;
+      const reasoning = level === undefined ? {} : o.id === "openai" && /^(o\d|gpt-5)/.test(req.model) ? { reasoning_effort: level } : o.router ? { reasoning: { effort: level } } : {};
       const tools = sortTools(req.tools).map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.inputSchema ?? { type: "object", properties: {} } } }));
       const mark = o.router && req.model.startsWith("anthropic/");
       return {
@@ -131,6 +134,7 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
           ...(o.cacheKey ? { prompt_cache_key: req.prefixHash } : {}),
           ...(o.router ? { usage: { include: true }, provider: { data_collection: "deny" } } : {}),
           ...(tools.length > 0 ? { tools } : {}),
+          ...reasoning,
           messages: wireMessages(req, mark),
         },
       };

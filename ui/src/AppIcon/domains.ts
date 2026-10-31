@@ -12,7 +12,7 @@ export function markKey(brand: string): string | null {
 }
 
 const TPLDOM: Record<string, string> = {
-  ghl: "gohighlevel.com", twilio: "twilio.com", stripe: "stripe.com", openai: "openai.com", anthropic: "anthropic.com", opencode: "opencode.ai", resend: "resend.com",
+  ghl: "gohighlevel.com", twilio: "twilio.com", stripe: "stripe.com", openai: "openai.com", anthropic: "anthropic.com", opencode: "opencode.ai", openrouter: "openrouter.ai", xai: "x.ai", grok: "grok.com", resend: "resend.com",
   slack: "slack.com", github: "github.com", supabase: "supabase.com", zoom: "zoom.us", meta: "facebook.com", airtable: "airtable.com", notion: "notion.so",
   calendly: "calendly.com", quickbooks: "quickbooks.intuit.com", lawmatics: "lawmatics.com", aws: "aws.amazon.com", cloudflare: "cloudflare.com", google: "google.com",
   postgres: "postgresql.org", claude: "claude.ai", clio: "clio.com", namecheap: "namecheap.com", sentry: "sentry.io",
@@ -44,7 +44,9 @@ export function brandForUrl(url: string): string | null {
 /** The brand key for a display name like "Stripe webhooks" or "GoHighLevel": the first word that is a brand key or a brand's name, or null. */
 export function brandForName(name: string): string | null {
   const words = name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  const alias: Record<string, string> = { gohighlevel: "ghl", postgres: "db", postgresql: "db", google: "google", gmail: "gmail" };
+  const alias: Record<string, string> = { gohighlevel: "ghl", postgres: "db", postgresql: "db", google: "google", gmail: "gmail", codex: "openai", chatgpt: "openai", gemini: "googlegemini", local: "localmodel", ollama: "localmodel" };
+  // a product named inside a bigger brand ("Google Gemini") takes the product's own mark
+  if (words.includes("gemini")) return "googlegemini";
   for (const w of words) {
     const k = alias[w] ?? w;
     if (markKey(k) || k in MARK_KEY || k in TPLDOM) return k;
