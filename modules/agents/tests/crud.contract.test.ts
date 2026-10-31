@@ -58,7 +58,7 @@ const withFiles = async (hn: Harness) => {
   const home = hn.world.folderNamed("Intake", hn.world.root)!;
   return { id, toml: hn.world.fileIn(home.folderId, "agent.toml")!, md: hn.world.fileIn(home.folderId, "AGENT.md")! };
 };
-const DIFF = "@@ -9,1 +9,2 @@\n - Say what I did, in a sentence a busy person reads in five seconds.\n+- Check the name first.\n";
+const DIFF = "@@ -7,1 +7,2 @@\n - Work that fits that job is yours: take it from start to finish.\n+- Check the name first.\n";
 
 const scenarios: Scenario[] = [
   { cap: "agents.create", run: (hn) => mkRaw(hn, { model: "claude-sonnet-5-5", computer: true, limits: { dayCostMicros: 1_000_000 }, tools: { allowed: ["files"], denied: [] } }) },

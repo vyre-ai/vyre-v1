@@ -6,11 +6,12 @@ import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { askHint } from "./model.ts";
 import type { AskAbout } from "./model.ts";
 
-export function AskPane({ about, onClose, children }: { about: AskAbout; onClose(): void; children?: ReactNode }): ReactElement {
+/** `paneKey`, `hint` and `idPrefix` let another place (Automations) draw the same pane with its own width memory, line and test ids. Records passes none. */
+export function AskPane({ about, onClose, children, paneKey = "records-ask", hint, idPrefix = "records-ask" }: { about: AskAbout; onClose(): void; children?: ReactNode; paneKey?: string; hint?: string; idPrefix?: string }): ReactElement {
   return (
-    <SidePane paneKey="records-ask" toggle={{ open: true, onPress: onClose }} title="Ask Vyre" defaultWidth={380}>
-      <View style={s.body} testID="records-ask-pane">
-        <Text style={s.hint} testID="records-ask-hint">{askHint(about)}</Text>
+    <SidePane paneKey={paneKey} toggle={{ open: true, onPress: onClose }} title="Ask Vyre" defaultWidth={380}>
+      <View style={s.body} testID={`${idPrefix}-pane`}>
+        <Text style={s.hint} testID={`${idPrefix}-hint`}>{hint ?? askHint(about)}</Text>
         <View style={s.chat}>{children}</View>
       </View>
     </SidePane>

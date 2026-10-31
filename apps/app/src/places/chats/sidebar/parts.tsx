@@ -52,6 +52,7 @@ export function FaceStack({ members, size = 18 }: { members: readonly { id: stri
   const shown = members.slice(0, 3);
   return (
     <View testID="face-stack" style={{ flexDirection: "row", alignItems: "center", width: size + (shown.length - 1) * Math.round(size * 0.5), height: size, flexShrink: 0 }}>
+      {/* ui-rows-lint: not a list (overlapping avatars drawn as one face stack) */}
       {shown.map((m, i) => (
         <View key={m.id} style={{ position: i === 0 ? "relative" : "absolute", left: i * Math.round(size * 0.5), zIndex: shown.length - i, borderRadius: Math.round(size * 0.3), boxShadow: "0 0 0 1.5px var(--side)" } as never}>
           <Face name={m.name} seedId={m.id} kind="agent" size={size} />

@@ -73,7 +73,8 @@ export function Stage({ children }: { children: ReactNode }): ReactElement {
       <View testID="place-body" aria-hidden={showList} style={[styles.stageCol, showList && styles.hidden]}>
         <SidebarBack />
         <SidebarExpand />
-        <View style={styles.stage}>{children}</View>
+        {/* a collapsed sidebar leaves its "show" button at the top left: the place moves over so its title never sits under it */}
+        <View testID="place-stage" style={[styles.stage, slot.hasSidebar && slot.collapsed && !slot.compact && styles.stageBesideExpand]}>{children}</View>
       </View>
     </View>
   );
@@ -245,5 +246,6 @@ const styles = StyleSheet.create({
   stageCol: { flex: 1, minWidth: 0, minHeight: 0 },
   hidden: { display: "none" },
   stage: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
+  stageBesideExpand: { paddingLeft: 36 },
   place: { flex: 1, minHeight: 0 },
 });

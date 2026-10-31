@@ -430,6 +430,44 @@ export function menuTrigger(open: (x: number, y: number) => void): Record<string
   };
 }
 
+/* ---------- anchoring to the button that was pressed ---------- */
+
+interface RectLike { left: number; bottom: number }
+interface AnchorEl { getBoundingClientRect?: () => RectLike; closest?: (selector: string) => AnchorEl | null }
+
+const BUTTONISH = "button, [role=button], [role=menuitem], [role=tab], a[href], summary";
+let lastAnchor: { x: number; y: number } | null = null;
+let listening = false;
+
+/** Remembers where the control under `target` sits (its left edge and bottom). Called for every press and for Enter or Space on a focused control. */
+export function noteAnchor(target: unknown): void {
+  const el = target as AnchorEl | null | undefined;
+  if (el === null || el === undefined) return;
+  const host = typeof el.closest === "function" ? (el.closest(BUTTONISH) ?? el) : el;
+  const rect = typeof host.getBoundingClientRect === "function" ? host.getBoundingClientRect() : null;
+  if (rect !== null && Number.isFinite(rect.left) && Number.isFinite(rect.bottom)) lastAnchor = { x: rect.left, y: rect.bottom + 4 };
+}
+
+/** One document listener, installed once on web. A menu opened by a button that has no pointer position (the caller passes -1, or nothing) lands under that button. */
+function listenForPresses(): void {
+  if (listening || Platform.OS !== "web") return;
+  const doc = (globalThis as { document?: { addEventListener?: (type: string, fn: (e: { target?: unknown; key?: string }) => void, capture?: boolean) => void; activeElement?: unknown } }).document;
+  if (doc === undefined || typeof doc.addEventListener !== "function") return;
+  listening = true;
+  doc.addEventListener("pointerdown", (e) => noteAnchor(e.target), true);
+  doc.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") noteAnchor(doc.activeElement); }, true);
+}
+
+/** A point is "unknown" when it is missing, negative or not a number: the caller had no coordinates to give. */
+export function resolveMenuPoint(x: number, y: number): { x: number; y: number } {
+  const known = Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0;
+  if (known) return { x, y };
+  return lastAnchor ?? { x: 6, y: 6 };
+}
+
+/** Forgets the remembered control (tests). */
+export function resetAnchor(): void { lastAnchor = null; }
+
 /** One open menu for a surface. `element` goes anywhere in the tree; `show` opens it at a point. */
 export function useMenu(): {
   element: ReactElement | null;
@@ -438,8 +476,12 @@ export function useMenu(): {
 } {
   const [open, setOpen] = useState<OpenMenu | null>(null);
   const counter = useRef(0);
+  useEffect(() => { listenForPresses(); }, []);
   const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext) => {
     counter.current += 1;
+    const at = resolveMenuPoint(x, y);
+    x = at.x;
+    y = at.y;
     setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }) });
   }, []);
   const hide = useCallback(() => setOpen(null), []);

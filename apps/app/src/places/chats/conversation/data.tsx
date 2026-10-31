@@ -70,6 +70,8 @@ export interface ConversationData {
   saveFile?(name: string, mime: string, content: string): void;
   /** The name of the Space this chat lives in. */
   spaceName?: string;
+  /** A Personal Space has no agent computers: the composer draws no computer button. */
+  personal?: boolean;
   /** The other Spaces this person is in on this device, and a way to act in them. Left out when there is only this one. */
   elsewhere?: { spaces: readonly { id: string; name: string }[]; call(spaceId: string, cap: string, input: unknown): Promise<unknown> };
   /** Slash commands that plugins add (name, one line, and what to run). Left out when no plugin offers any. */

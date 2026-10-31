@@ -33,9 +33,10 @@ import { AllAgents } from "./AllAgents.tsx";
 import { ConnectOutsideAgent } from "./ConnectOutsideAgent.tsx";
 import { SearchPage } from "../search/SearchPage.tsx";
 import type { SearchData } from "../search/SearchPage.tsx";
+import { TextButton } from "../conversation/parts.tsx";
 import { copy, agentPageData, askWith, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
-import type { CaptureCounter, Go } from "./data.ts";
-import { useLive } from "./live.ts";
+import type { CaptureCounter, Go, LineAction } from "./data.ts";
+import { errorCode, useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, newestThread, step, workOf } from "./route.ts";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
@@ -72,7 +73,8 @@ export interface ChatsMountedProps {
 
 export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
-  const [line, setLine] = useState<string | null>(null);
+  const [line, setLineState] = useState<{ text: string; action?: LineAction } | null>(null);
+  const setLine = useCallback((text: string, action?: LineAction): void => setLineState(action ? { text, action } : { text }), []);
   const [counter] = useState<CaptureCounter>(createCapture);
   // what a pane or the agent's page asks the composer to hold (Ask about this file, Change by Asking)
   const [fill] = useState<ComposerFill>(createComposerFill);
@@ -84,7 +86,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
 
   useEffect(() => {
     if (line === null) return undefined;
-    const t = setTimeout(() => setLine(null), LINE_MS);
+    const t = setTimeout(() => setLineState(null), LINE_MS);
     return () => clearTimeout(t);
   }, [line]);
 
@@ -127,7 +129,12 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   if (thread.status === "ready" && threadId !== null) noteThreadKind(threadId, thread.data.thread.kind);
   const lead = thread.status === "ready" && threadId !== null ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
   const leadId = lead?.agentId ?? rt.assistant.id;
-  const computers = useLive<ComputersOut>(rt.screens, "console.agent-computers", "computers", {});
+  // agent computers are a Team Space module: a Personal Space never asks for them, and a "needs a Team Space" answer is final for the session
+  const personal = rt.space.kind === "personal";
+  const [teamOnlyAnswered, setTeamOnlyAnswered] = useState(false);
+  const computers = useLive<ComputersOut>(rt.screens, "console.agent-computers", "computers", personal || teamOnlyAnswered ? null : {});
+  const computersRefused = computers.status === "loading" && errorCode(computers.error) === "permission.needs_team";
+  useEffect(() => { if (computersRefused) setTeamOnlyAnswered(true); }, [computersRefused]);
   const computerOf = (agentId: string): string | undefined => (computers.status === "ready" ? computers.data.computers.find((c) => c.agentId === agentId)?.computerId : undefined);
   const leadComputer = computerOf(leadId);
   const leadAgent = useMemo(() => ({ agentId: leadId, name: nameOf(leadId), ...(leadComputer ? { computerId: leadComputer } : {}) }), [leadId, nameOf, leadComputer]);
@@ -204,7 +211,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
       ) : null}
       {right}
       <Layer shown={shown} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} terminal={terminal} window={window} />
-      {line ? <View testID="chats-line" accessibilityRole="alert" accessibilityLiveRegion="polite" style={st.toast}><Text style={st.toastText}>{line}</Text></View> : null}
+      {line ? <View testID="chats-line" accessibilityRole="alert" accessibilityLiveRegion="polite" style={st.toast}><Text style={st.toastText}>{line.text}</Text>{line.action ? <TextButton label={line.action.label} testID="chats-line-action" onPress={() => { const run = line.action?.run; setLineState(null); run?.(); }} /> : null}</View> : null}
     </View>
   );
 }
@@ -282,6 +289,6 @@ const st = StyleSheet.create({
   fill: { flex: 1, minHeight: 0 },
   terminal: { minHeight: 0 },
   terminalFull: { flex: 1, minWidth: 0, minHeight: 0 },
-  toast: { position: "absolute", left: 16, bottom: 16, maxWidth: 420, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string },
+  toast: { position: "absolute", left: 16, bottom: 16, maxWidth: 420, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string },
   toastText: { fontSize: 12.5, color: "var(--ink)" as string },
 });

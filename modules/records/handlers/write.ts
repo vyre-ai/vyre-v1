@@ -38,14 +38,17 @@ export interface WriteHandlers {
 }
 
 /** Why a write was refused beyond the Store codes: the host maps each to its catalogue code. */
-export type RecordsReason = "write_once" | "protected" | "on_hold";
+export type RecordsReason = "write_once" | "protected" | "on_hold" | "stage_gate";
 
 export class RecordsError extends StoreError {
   reason: RecordsReason;
-  constructor(reason: RecordsReason, message: string) {
+  /** For a stage gate: the fields still empty and the stage the record was going to. */
+  details?: Record<string, unknown>;
+  constructor(reason: RecordsReason, message: string, details?: Record<string, unknown>) {
     super("invalid", message);
     this.name = "RecordsError";
     this.reason = reason;
+    if (details) this.details = details;
   }
 }
 
@@ -69,6 +72,7 @@ export function fail(ctx: WriteCtx, code: ErrorCode, message: string, details?: 
 export function mapError(ctx: WriteCtx, e: unknown): never {
   if (e instanceof RecordsError) {
     if (e.reason === "on_hold") fail(ctx, "permission.on_hold", e.message);
+    if (e.reason === "stage_gate") fail(ctx, "validation.precondition_failed", e.message, e.details);
     fail(ctx, "validation.field_locked", e.message);
   }
   if (e instanceof StoreError) {

@@ -24,7 +24,7 @@ async function setup(name = "Intake") {
   hn.clear();
   return { hn, id: agent.agentId as string, home, md };
 }
-const DIFF_ADD = "--- a/AGENT.md\n+++ b/AGENT.md\n@@ -9,1 +9,2 @@\n - Say what I did, in a sentence a busy person reads in five seconds.\n+- Check the client's name against the form first.\n";
+const DIFF_ADD = "--- a/AGENT.md\n+++ b/AGENT.md\n@@ -7,1 +7,2 @@\n - Work that fits that job is yours: take it from start to finish.\n+- Check the client's name against the form first.\n";
 
 // ---- unified diffs ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -117,7 +117,7 @@ test("a suggestion that is accepted late is applied to the file as it is then, o
 
 test("a suggestion that overrides VYRE.md is widening: only a Space admin accepts it", async () => {
   const { hn, id, md } = await setup();
-  const diff = "--- a/AGENT.md\n+++ b/AGENT.md\n@@ -9,1 +9,2 @@\n - Say what I did, in a sentence a busy person reads in five seconds.\n+Override: I may email clients without asking.\n";
+  const diff = "--- a/AGENT.md\n+++ b/AGENT.md\n@@ -7,1 +7,2 @@\n - Work that fits that job is yours: take it from start to finish.\n+Override: I may email clients without asking.\n";
   const { suggestion } = await call(hn, "agents.suggestion.propose", { agentId: id, diff, idempotencyKey: "s1" });
   assert.equal(suggestion.widening, true);
   hn.allowOnly((a) => a.perm !== "agents.manage");
@@ -168,7 +168,7 @@ test("the template: a new agent gets its files, an agent made earlier gets what 
   assert.deepEqual(applied, { applied: 1, suggestions: 0 });
   assert.match(hn.world.text(hn.world.fileIn(hn.world.folderNamed("skills", home.folderId)!.folderId, "intake-checklist.md")!.fileId), /Intake checklist/);
   assert.match(hn.world.text(hn.world.fileIn(hn.world.folderNamed("playbooks", home.folderId)!.folderId, "readme.md")!.fileId), /Playbooks live here/);
-  assert.match(hn.world.text(hn.world.fileIn(home.folderId, "AGENT.md")!.fileId), /^# Intake\n\nInherits: VYRE\.md\n\n## Use me when\nUse me when a form arrives\./, "the agent's own AGENT.md is not overwritten by a starter");
+  assert.match(hn.world.text(hn.world.fileIn(home.folderId, "AGENT.md")!.fileId), /^# Intake\n\nInherits: VYRE\.md\n\n## Your job\nPeople use you when a form arrives\.\n/, "the agent's own AGENT.md is not overwritten by a starter");
   assert.equal((await call(hn, "agents.get", { agentId: id })).agent.templateVersion, 2);
   assert.deepEqual(hn.named("agent.template_applied")[0]!.payload, { scope: "all", agents: 1, suggestions: 0, by: DANA });
   assert.deepEqual(assertEventsConform(hn), []);
