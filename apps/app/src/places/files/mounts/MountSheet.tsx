@@ -93,7 +93,13 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
     const t = setTimeout(() => {
       const cur = dataRef.current;
       void browse(cur.call, d, accountsRef.current).then(
-        (l) => { if (live) setList({ status: "ready", items: l.items, ...(l.next !== undefined ? { next: l.next } : {}) }); },
+        (l) => {
+          if (!live) return;
+          // OneDrive has one drive at its root: open it, so the person lands on their folders and not on a one-row list
+          const only = l.items[0];
+          if (d.source === "onedrive" && d.path.length === 0 && !d.q && l.items.length === 1 && only?.isFolder) { setD((x) => (x.path.length === 0 ? walkInto(x, only) : x)); return; }
+          setList({ status: "ready", items: l.items, ...(l.next !== undefined ? { next: l.next } : {}) });
+        },
         () => { if (live) setList({ status: "error" }); },
       );
     }, d.q ? 180 : 0);
@@ -217,7 +223,7 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
           onQuery={(q) => setD((x) => setQuery(x, q))}
           onPress={press}
           onInto={(it) => setD((x) => walkInto(x, it))}
-          onCrumb={(i) => setD((x) => walkTo(x, i))}
+          onCrumb={(i) => setD((x) => walkTo(x, x.source === "onedrive" && i > 0 ? i + 1 : i))}
           onMore={more}
           onRetry={() => setAttempt((n) => n + 1)}
         />

@@ -43,3 +43,17 @@ test("fetchSuggestions keeps the plain lists when mounts cannot be read", async 
   const out = await fetchSuggestions({ call } as never, "#", "");
   assert.deepEqual((out.folders as Array<{ ref?: string }>).map((f) => f.ref), ["fld_2"]);
 });
+
+test("the preview of a mounted folder says its source, state and last sync; a file's preview says where it comes from", async () => {
+  const { previewOf } = await import("./suggest.ts");
+  const call = async (cap: string): Promise<unknown> => {
+    if (cap === "mounts.list") return { mounts: [mount({ lastSyncAt: NOW, state: "failing" })] };
+    return { file: { size: 2400, updatedAt: NOW, updatedBy: "usr_1", source: { mountId: "mnt_1", provider: "Google Drive" } } };
+  };
+  const data = { call, nameOf: () => "Omar" } as never;
+  const folder = await previewOf(data, { group: "Folders", label: "Sales", kind: "Folder", ref: "fld_1", data: { mount: "mnt_1" } });
+  assert.equal(folder?.sub, "Google Drive");
+  assert.deepEqual(folder?.fields[0], ["State", "Needs attention"]);
+  const file = await previewOf(data, { group: "Files", label: "Deck.pdf", kind: "File", ref: "fil_1" });
+  assert.deepEqual(file?.fields[0], ["From", "Google Drive"]);
+});

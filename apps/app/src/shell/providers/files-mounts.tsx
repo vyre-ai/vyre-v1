@@ -5,8 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MountSheet, MountsDataProvider, UnmountSheet } from "../../places/files/mounts/index.ts";
+import { Mark } from "../../places/files/mounts/icons.tsx";
 import type { Accounts, MountRow, MountsData } from "../../places/files/mounts/index.ts";
-import { loadAccounts, mountLine, peopleOf, thisDevice, writableFolders } from "./files-mounts-data.ts";
+import { connectGithub, loadAccounts, mountLine, peopleOf, thisDevice, writableFolders } from "./files-mounts-data.ts";
 import { useOpenConnect } from "../connect/index.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -36,7 +37,12 @@ export function useMountsData(rt: ShellRuntime): MountsData | null {
     call: rt.call, space: { name: rt.space.name, ...(everyone ? { everyoneGroupId: everyone } : {}) }, accounts: loaded.accounts, folders: loaded.folders, people,
     // A source with no connection: Google and Microsoft sign in right here (connect in place) and the new account is read back; the GitHub App is installed from Connections in Settings.
     connect: async (source) => {
-      if (source === "github" || !openConnect) { rt.open({ screen: "mail.connections", args: { kind: source === "google_drive" ? "gmail" : source === "local" ? "local" : source === "github" ? "github" : "outlook" } }); return null; }
+      if (source === "github") {
+        const got = await connectGithub(rt.call, (url) => rt.openUrl(url));
+        if (got === "not_set_up") { rt.open({ screen: "mail.connections", args: { kind: "github" } }); return null; }
+        return got;
+      }
+      if (!openConnect) { rt.open({ screen: "mail.connections", args: { kind: source === "google_drive" ? "gmail" : "outlook" } }); return null; }
       const got = await openConnect({ kind: "connector", service: source === "google_drive" ? "google" : "microsoft" });
       if (!got) return null;
       const fresh = await loadAccounts(rt.call, null);
@@ -100,6 +106,7 @@ export function MountStrip({ rt, mount, onUnmount, onChanged }: { rt: ShellRunti
   );
   return (
     <View style={st.strip} testID="mount-strip" accessibilityRole="summary" accessibilityLabel={`${line.source}. ${line.state}. ${line.detail}`}>
+      <Mark kind={mount.kind === "google_drive" ? "google_drive" : mount.kind} size={22} />
       <View style={st.text}>
         <Text numberOfLines={1} style={st.title}>{line.source}</Text>
         <Text numberOfLines={2} style={st.note}><Text style={line.tone === "bad" ? st.bad : line.tone === "warn" ? st.warn : st.ok}>{line.state}</Text>{`  ${said ?? line.detail}`}</Text>

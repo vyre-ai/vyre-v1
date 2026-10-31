@@ -1,2 +1,5 @@
 - Mount a folder lists Google Drive, OneDrive, SharePoint, GitHub and This computer, each with its real logo. A source that is not connected signs in right there and goes on to the folders. A GitHub mount picks its branch from the repository's branches.
 - Mounted folders show a dot in the Files tree when they need attention, are paused or offline. The # picker in chat lists mounted folders first with their logo and sync state, names the mount a file comes from, and the file preview says where it comes from.
+- Mounted files open in the same viewer as a local file of their type: Word, PowerPoint and spreadsheet files from a provider are recognised by their provider type as well as their name, and more code, config and image extensions are known.
+- A message that links or attaches a mounted file shows the provider logo and the mount name on its chip. The # preview shows a mounted folder's state and last sync, and a file's source.
+- OneDrive opens its one drive at once, so a phone shows the folders. GitHub connects in place: the install page opens and the sheet continues as soon as the installation appears.

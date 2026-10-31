@@ -146,6 +146,13 @@ export async function previewOf(data: Pick<ConversationData, "call" | "nameOf">,
     const from: [string, string][] = out.file.source ? [["From", out.file.source.provider]] : [];
     return { sub: item.note ?? "", fields: [...from, ["Size", sizeOf(out.file.size)], ["Edited", dateOf(out.file.updatedAt)], ["By", data.nameOf(out.file.updatedBy)]] };
   }
+  if (item.kind === "Folder" && item.data?.["mount"]) {
+    const out = (await data.call("mounts.list", {})) as CapMap["mounts.list"]["out"];
+    const m = out.mounts.find((x) => x.mountId === item.data?.["mount"]);
+    if (!m) return null;
+    const state = m.state === "failing" ? "Needs attention" : m.state === "paused" ? "Paused" : m.state === "device_offline" ? "Computer offline" : m.state === "syncing" ? "Syncing" : "Up to date";
+    return { sub: m.provider, fields: [["State", state], ...(m.lastSyncAt !== undefined ? [["Synced", dateOf(m.lastSyncAt)] as [string, string]] : []), ...(m.pendingChanges > 0 ? [["Waiting", `${m.pendingChanges} to review`] as [string, string]] : [])] };
+  }
   if (item.kind === "Project") {
     return { fields: [["Status", item.data?.["status"] ?? ""], ...(item.data?.["due"] ? [["Due", dateOf(Number(item.data["due"]))] as [string, string]] : [])].filter(([, v]) => v !== "") as [string, string][] };
   }

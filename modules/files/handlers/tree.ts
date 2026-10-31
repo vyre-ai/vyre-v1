@@ -225,6 +225,9 @@ function guessMime(name: string, asText: boolean): string {
     png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
     pdf: "application/pdf", csv: "text/csv", html: "text/html",
     js: "text/javascript", ts: "text/plain", py: "text/plain",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", yml: "text/plain", yaml: "text/plain", toml: "text/plain", sql: "text/plain", sh: "text/plain",
+    heic: "image/heic", bmp: "image/bmp", avif: "image/avif", tiff: "image/tiff",
   };
   if (known[ext]) return known[ext];
   return asText ? "text/plain" : "application/octet-stream";
@@ -233,15 +236,15 @@ function guessMime(name: string, asText: boolean): string {
 function guessKind(name: string, mime: string): string {
   const ext = extOf(name);
   if (ext === "md" || ext === "markdown" || mime === "text/markdown") return "markdown";
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext) || mime.startsWith("image/")) return "image";
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "bmp", "avif", "tiff"].includes(ext) || mime.startsWith("image/")) return "image";
   if (ext === "pdf" || mime === "application/pdf") return "pdf";
-  if (["csv", "xlsx", "xls"].includes(ext) || mime === "text/csv" || mime.includes("spreadsheet")) return "spreadsheet";
-  if (["doc", "docx"].includes(ext)) return "document";
-  if (["ppt", "pptx"].includes(ext)) return "presentation";
+  if (["csv", "xlsx", "xls", "ods", "tsv"].includes(ext) || mime === "text/csv" || mime.includes("spreadsheet")) return "spreadsheet";
+  if (["doc", "docx", "odt", "rtf"].includes(ext) || mime.includes("wordprocessingml") || mime === "application/msword") return "document";
+  if (["ppt", "pptx", "odp", "key"].includes(ext) || mime.includes("presentationml") || mime === "application/vnd.ms-powerpoint") return "presentation";
   if (["mp4", "mov", "webm"].includes(ext) || mime.startsWith("video/")) return "video";
   if (["mp3", "wav", "ogg"].includes(ext) || mime.startsWith("audio/")) return "audio";
   if (["zip", "gz", "tgz"].includes(ext)) return "archive";
-  if (["js", "ts", "tsx", "jsx", "py", "go", "rs", "java", "rb"].includes(ext)) return "code";
+  if (["js", "ts", "tsx", "jsx", "py", "go", "rs", "java", "rb", "c", "h", "cpp", "cs", "kt", "swift", "php", "sh", "sql", "css", "html", "yml", "yaml", "toml", "xml"].includes(ext)) return "code";
   if (mime.startsWith("text/") || ext === "txt" || ext === "json") return "text";
   return "other";
 }

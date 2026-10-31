@@ -132,7 +132,10 @@ export const canMount = (d: Draft): boolean => d.step === 3 && d.picked !== null
 /** Breadcrumb words: the source, then each folder walked into. Empty at the root, as the prototype shows none there. */
 export function crumbs(d: Draft): string[] {
   if (d.source === null || d.path.length === 0) return [];
-  return [sourceOf(d.source).name, ...d.path.map((c) => c.name)];
+  const names = d.path.map((c) => c.name);
+  // OneDrive opens its one drive at once: the crumb would only say "OneDrive / OneDrive"
+  if (d.source === "onedrive" && names[0] === sourceOf(d.source).name) names.shift();
+  return names.length === 0 ? [] : [sourceOf(d.source).name, ...names];
 }
 
 /** The mounts.browse calls that list the current level: one per provider kind at a source root, otherwise the kind of the folder walked into. */

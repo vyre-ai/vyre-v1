@@ -239,3 +239,14 @@ test("connect in place: a source with no connection asks to connect, and the acc
   const input = addInput(draftAt("onedrive", item("onedrive", "od:Docs", "Docs")), { ...off, microsoft: got as Account });
   assert.equal(input?.source.connectionId, "con_new");
 });
+
+test("OneDrive opens its one drive at once, and the crumbs do not say OneDrive twice", async () => {
+  const s = createSampleMounts();
+  const root = await browse(s.data.call, chooseSource(emptyDraft("fld_github"), "onedrive"), s.data.accounts);
+  assert.equal(root.items.length, 1, "one drive at the root");
+  const d = walkInto(chooseSource(emptyDraft("fld_github"), "onedrive"), root.items[0] as BrowseItem);
+  assert.deepEqual(crumbs(d), [], "no crumb while on the drive itself");
+  const docs = await browse(s.data.call, d, s.data.accounts);
+  const inDocs = walkInto(d, docs.items[0] as BrowseItem);
+  assert.deepEqual(crumbs(inDocs), ["OneDrive", "Documents"]);
+});
