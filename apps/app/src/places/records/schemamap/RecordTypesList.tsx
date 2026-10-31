@@ -1,20 +1,34 @@
-// Record types (spec 3.4, screen records.types): every record type in the Space as one ui/Row, read only. The row says how many records and fields it has and where it comes from
-// (Built in, Synced from an app, Site table); pressing it opens the type in Records. Structure is edited in the Console, so there is no New button; a quiet line says so.
+// Record types (spec 3.4, screen records.types): every record type in the Space as one ui/Row. The row says how many records and fields it has and where it comes from
+// (Built in, Synced from an app, Site table); pressing it opens the type in Records. A person who may change structure also sees New record type and a "..." menu per row (Rename, Delete);
+// a person who may not sees neither.
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppIcon } from "../../../../../../ui/src/AppIcon/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { TYPES_SCREEN, useSchemaData, useSchemaQuery } from "./data.tsx";
 import { Glyph } from "./icons.tsx";
-import { MANAGED, fieldsWord, recordsWord, typeTag } from "./model.ts";
+import { fieldsWord, recordsWord, typeTag } from "./model.ts";
 import { TypeGlyph, sx } from "./parts.tsx";
+import { TextButton, TypeDelete, TypeSheet, typeRowMenu } from "../typeedit/index.ts";
 
 type ListOut = CapMap["schema.types.list"]["out"];
+
+type Sheet = { kind: "new" } | { kind: "rename"; t: ListOut["types"][number] } | { kind: "delete"; t: ListOut["types"][number] };
 
 export function RecordTypesList(): ReactElement {
   const data = useSchemaData();
   const q = useSchemaQuery<ListOut>(TYPES_SCREEN, "types");
+  const canEdit = data.canEdit === true;
+  const menu = useMenu();
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const more = (t: ListOut["types"][number]) => (e: unknown): void => {
+    (e as { stopPropagation?: () => void } | undefined)?.stopPropagation?.();
+    const box = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } } | undefined)?.currentTarget?.getBoundingClientRect?.();
+    menu.show(typeRowMenu(t, { rename: () => setSheet({ kind: "rename", t }), remove: () => setSheet({ kind: "delete", t }) }), box?.left ?? 0, (box?.bottom ?? 0) + 4, "other");
+  };
   const rows: ReactElement[] = [];
   if (q.status === "ready") {
     for (const t of q.data.types) {
@@ -35,7 +49,11 @@ export function RecordTypesList(): ReactElement {
                   <Text style={s.tag} testID={`type-tag-${t.key}`}>{tag.text}</Text>
                 </View>
               ) : null}
-              <Glyph name="chev" size={12} />
+              {canEdit ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={`More for ${t.plural}`} testID={`type-more-${t.key}`} onPress={more(t)} style={({ hovered }: { hovered?: boolean }) => [s.more, hovered === true && s.moreOver]}>
+                  <Glyph name="more" size={14} />
+                </Pressable>
+              ) : <Glyph name="chev" size={12} />}
             </View>
           )}
           onPress={() => data.nav.openType(t.key)}
@@ -53,18 +71,21 @@ export function RecordTypesList(): ReactElement {
       </View>
       <ScrollView style={s.scroll} contentContainerStyle={s.content}>
         <View style={s.wrap}>
-          <Text accessibilityRole="header" aria-level={2} style={s.h2}>Record types</Text>
+          <View style={s.titleRow}>
+            <Text accessibilityRole="header" aria-level={2} style={s.h2}>Record types</Text>
+            {canEdit ? <TextButton label="New record type" primary testID="record-types-new" onPress={() => setSheet({ kind: "new" })} /> : null}
+          </View>
           <View style={s.card} accessibilityRole="list" testID="record-types-list">
             {skeleton}
             {rows}
             {q.status === "ready" && q.data.types.length === 0 ? <Text style={s.empty} testID="record-types-empty">No record types yet</Text> : null}
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={MANAGED} onPress={() => data.nav.openConsole()} testID="record-types-console" style={s.note}>
-            <Glyph name="lock" size={12} />
-            <Text style={s.noteText}>{MANAGED}</Text>
-          </Pressable>
         </View>
       </ScrollView>
+      {menu.element}
+      {sheet?.kind === "new" ? <TypeSheet call={data.call} takenKeys={q.status === "ready" ? q.data.types.map((t) => t.key) : []} onClose={() => setSheet(null)} onDone={(key) => data.nav.openType(key)} /> : null}
+      {sheet?.kind === "rename" ? <TypeSheet call={data.call} takenKeys={[]} rename={{ key: sheet.t.key, title: sheet.t.title, plural: sheet.t.plural, icon: sheet.t.icon }} onClose={() => setSheet(null)} onDone={() => undefined} /> : null}
+      {sheet?.kind === "delete" ? <TypeDelete call={data.call} type={sheet.t.key} title={sheet.t.title} onClose={() => setSheet(null)} onDone={() => undefined} /> : null}
     </View>
   );
 }
@@ -76,6 +97,9 @@ const s = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingVertical: 26, paddingHorizontal: 36 },
   wrap: { width: "100%", maxWidth: 760, alignSelf: "center" },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  more: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  moreOver: { backgroundColor: "var(--hover)" as string },
   h2: { fontSize: 22, lineHeight: 28, fontWeight: "600", letterSpacing: -0.3, color: "var(--ink)" as string, marginBottom: 4 },
   card: sx({ marginTop: 12, borderRadius: 12, backgroundColor: "var(--raised)", overflow: "hidden", paddingVertical: 4, paddingHorizontal: 6, boxShadow: "var(--sh-1), inset 0 0 0 1px var(--line)" }),
   rule: { height: 1, marginHorizontal: 8, backgroundColor: "var(--line)" as string },
@@ -84,8 +108,6 @@ const s = StyleSheet.create({
   trail: { flexDirection: "row", alignItems: "center", gap: 8 },
   tag: { fontSize: 12, color: "var(--ink-3)" as string },
   empty: { padding: 18, fontSize: 13, color: "var(--ink-3)" as string, textAlign: "center" },
-  note: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, alignSelf: "flex-start" },
-  noteText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   sk: { height: 44, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 8 },
   skTile: { width: 22, height: 22, borderRadius: 7, backgroundColor: "var(--hover)" as string },
   skBar: { height: 10, borderRadius: 5, backgroundColor: "var(--hover)" as string },

@@ -176,7 +176,7 @@ test("a new type added to the Space shows up on the map and in the list", () => 
   assert.ok(has(html(s, <RecordTypesList />), 'data-testid="row-type:referrals"'));
 });
 
-test("Record types: a Row per type with its records and fields, where it comes from, a chevron; no New button; a line says it is managed in the console", () => {
+test("Record types: a Row per type with its records and fields, where it comes from, a chevron; no editing controls without permission, and no line sending anyone to the console", () => {
   const s = createSampleSchema(northwind, { withSynced: true });
   const out = html(s, <RecordTypesList />);
   for (const t of northwindTypes) assert.ok(has(out, `data-testid="row-type:${t.key}"`), t.key);
@@ -185,7 +185,7 @@ test("Record types: a Row per type with its records and fields, where it comes f
   assert.equal(textOf(out, "type-tag-clients"), "Built in");
   assert.equal(textOf(out, "type-tag-hires"), "Synced from HubSpot");
   assert.ok(!has(out, "New record type") && !has(out, "New table") && !has(out, "Add a type"));
-  assert.ok(has(out, "Record types are managed in the console") && has(out, 'data-testid="record-types-console"'));
+  assert.ok(!has(out, "managed in the console") && !has(out, 'data-testid="record-types-console"'), "the line is gone");
   assert.deepEqual(typeTag({ system: false }), null);
   assert.deepEqual(typeTag({ system: true }), { kind: "plain", text: "Built in" });
   assert.deepEqual(typeTag({ system: false, group: "Sites" }), { kind: "plain", text: "Site table" });

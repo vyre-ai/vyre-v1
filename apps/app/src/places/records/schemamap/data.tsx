@@ -22,6 +22,8 @@ export interface SchemaData {
   nav: SchemaNav;
   /** Put text on the clipboard. */
   copy(text: string): void;
+  /** May this person change record types and fields (the Console's schema.manage; the owner of a Personal Space)? Left out, the editing controls are not drawn. */
+  canEdit?: boolean;
 }
 
 const Ctx = createContext<SchemaData | null>(null);

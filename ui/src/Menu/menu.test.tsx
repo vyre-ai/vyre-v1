@@ -203,3 +203,9 @@ test("the checked item (the current Space, a chosen filter) says it is current f
   assert.equal((html.match(/aria-current="true"/g) ?? []).length, 1, "only the checked item");
   assert.match(html, /aria-current="true"[^>]*data-testid="menu-item-Fresh Co"|data-testid="menu-item-Fresh Co"[^>]*aria-current="true"/);
 });
+
+test("a disabled item is drawn but cannot be landed on, and keeps its reason for the hover text", () => {
+  const entries: MenuEntry[] = [{ label: "Rename" }, { label: "Delete", disabled: true, reason: "Built in record types cannot be deleted" }, { label: "Copy" }];
+  assert.deepEqual(selectableIndices(entries), [0, 2]);
+  assert.equal(moveActive(entries, 0, "ArrowDown"), 2);
+});
