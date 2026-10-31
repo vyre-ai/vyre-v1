@@ -2,7 +2,7 @@
 // computer popup) reads one context of the same shape: the runtime's screen hooks and `call`, the connection, who is looking, and a nav that says what a click opens. Here the
 // nav is `Go`: the place's own doors, so a click on a face or a helper or the Computer chip changes what the place shows instead of asking the shell to open somewhere else.
 // Nothing here touches the network.
-import { computersAvailableNow } from "../../../shell/computers-available.ts";
+import { computersAvailableNow, requestAddServer } from "../../../shell/computers-available.ts";
 import { createElement } from "react";
 import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -121,6 +121,7 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openChat: (id) => go.chat(id),
       openFolder: (folderId) => rt.open({ subject: { type: "folder", id: folderId } }),
       openAgentFile: (agentId, file) => rt.open({ subject: { type: "agent", id: agentId }, args: { file } }),
+      openAddServer: () => { requestAddServer(); rt.open({ screen: "settings.page", args: { page: "computer" } }); },
       openAutomationRuns: (agentId) => rt.open({ screen: "runs.history", subject: { type: "agent", id: agentId } }),
       closePage: () => go.chat(""),
     },

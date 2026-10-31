@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
-import { setComputersAvailable } from "../../shell/computers-available.ts";
+import { setComputersAvailable, takeAddServerRequest } from "../../shell/computers-available.ts";
 import { useSettingsData } from "./data.tsx";
 import { emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
 import type { HostInfo, ServerInfo, Sheet } from "./computers-model.ts";
@@ -130,7 +130,8 @@ export function ComputersSection(): ReactElement {
   const [hosts, setHosts] = useState<HostInfo[]>([]);
   const [servers, setServers] = useState<ServerInfo[]>([]);
   const [removing, setRemoving] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<Sheet | null>(null);
+  // asked for from the Space menu or an agent's page: the sheet is open as Computers draws
+  const [sheet, setSheet] = useState<Sheet | null>(() => (takeAddServerRequest() ? emptySheet() : null));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => data.clock().now);

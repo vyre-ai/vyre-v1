@@ -65,6 +65,8 @@ export function SettingsTab({ agent, deps, window }: { agent: AgentRow; deps: Pa
   entries.push({ key: "m-memory", type: "row", title: "Memory", note: CAPTURE_WORDS[agent.captureMode], testID: "setting-memory" });
   // no capable host, no row: nothing is said about a computer that cannot exist here
   if (agent.hasComputer || hasComputers(data.space)) entries.push({ key: "m-computer", type: "row", title: "Computer", note: agent.hasComputer ? "Has its own computer" : "None yet", testID: "setting-computer" });
+  // where no machine can run one yet, the one way in: a server
+  else if (data.nav.openAddServer) entries.push({ key: "m-add-server", type: "row", title: "Add a server", leading: <LeadIcon name="plus" />, onPress: () => data.nav.openAddServer?.(), testID: "setting-add-server" });
 
   /* ---- limits, access, keys */
   const limits = limitRows(agent.limits);

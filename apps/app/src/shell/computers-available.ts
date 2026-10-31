@@ -39,3 +39,15 @@ export function useComputersAvailable(rt: { space: { id: string; kind: "team" | 
 
 /** Tests: forget every answer. */
 export function resetComputersAvailable(): void { known.clear(); version += 1; for (const l of [...listeners]) l(); }
+
+// ---- "Add a server" asked for from somewhere other than Settings > Computers (the Space menu, an agent's page): the sheet opens when Computers does.
+let addAsked = false;
+let addNonce = 0;
+const askListeners = new Set<() => void>();
+/** Someone asked for the Add a server sheet; Settings opens on Computers with it. */
+export function requestAddServer(): void { addAsked = true; addNonce += 1; for (const l of [...askListeners]) l(); }
+export const addServerAsked = (): boolean => addAsked;
+/** Computers took the request: the sheet is open, so it is not asked again. */
+export function takeAddServerRequest(): boolean { const was = addAsked; addAsked = false; return was; }
+/** A counter that changes with each request, so a place that is already open can reopen on the right page. */
+export function useAddServerNonce(): number { return useSyncExternalStore((l) => { askListeners.add(l); return () => { askListeners.delete(l); }; }, () => addNonce, () => addNonce); }

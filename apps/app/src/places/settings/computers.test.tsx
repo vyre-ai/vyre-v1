@@ -74,3 +74,15 @@ test("the section reads the hosts and your servers through the capabilities", as
   assert.ok(out.includes("This computer") && out.includes("Add a server"));
   assert.equal(out.includes("Needs a Team Space"), false);
 });
+
+test("asked for from the Space menu or an agent's page, Computers opens with the Add a server sheet, once", async () => {
+  const { requestAddServer, addServerAsked, takeAddServerRequest } = await import("../../shell/computers-available.ts");
+  const s = createSampleSettings(northwind);
+  const draw = (): string => renderToStaticMarkup(<SettingsDataProvider value={{ ...s.data, call: async () => ({}) }}><ComputersSection /></SettingsDataProvider>);
+  assert.ok(!draw().includes('data-testid="add-server-sheet"'), "nothing asked, no sheet");
+  requestAddServer();
+  assert.equal(addServerAsked(), true);
+  assert.ok(draw().includes('data-testid="add-server-sheet"'), "the sheet is open");
+  assert.equal(addServerAsked(), false, "taken: a redraw does not open it again");
+  assert.equal(takeAddServerRequest(), false);
+});
