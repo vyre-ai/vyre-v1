@@ -77,7 +77,7 @@ export function createPluginTools(d: PluginToolsDeps): { extra(ctx: ToolCtx): Pr
       await Promise.all(servers.map(async (spec) => {
         try {
           const listed = await rt.tools(spec, { agentId: ctx.agentId, asker: ctx.asker });
-          await watchConnection((cap, input) => d.call(cap, input, ctx.asker), spec, "ok");
+          await watchConnection(spec, "ok");
           for (const tool of listed) {
             const name = mcpToolName(spec.key, tool.name);
             const def: ToolDef = {
@@ -88,7 +88,7 @@ export function createPluginTools(d: PluginToolsDeps): { extra(ctx: ToolCtx): Pr
             defs.push(def);
           }
         } catch (e) {
-          await watchConnection((cap, input) => d.call(cap, input, ctx.asker), spec, { error: e instanceof Error ? e.message : "" });
+          await watchConnection(spec, { error: e instanceof Error ? e.message : "" });
           d.log?.("an outside tool server did not list its tools", { server: spec.key, error: e instanceof Error ? e.message : String(e) }); }
       }));
       return defs.sort((a, b) => a.name.localeCompare(b.name));

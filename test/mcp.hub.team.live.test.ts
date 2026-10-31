@@ -144,7 +144,7 @@ test("Team: the admin connects with a Shared key; each member's agent runs on th
     assert.deepEqual(items[0]!.assigned, { kind: "role", id: "admin" });
     assert.ok(!JSON.stringify(items).includes(HUB_KEY));
     state.revoked = false;
-    assert.match(await ask("usr_mia", "list channels", "team-back"), /^GOT/);
-    assert.equal((await mine()).length, 0, "the item closed when the hub answered again");
+    assert.match(await ask("usr_noah", "list channels", "team-back"), /^GOT/);
+    assert.equal((await mine()).length, 0, "the item closed when another member's call worked: the host closes it, not the person whose call failed");
   } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1800) : e); throw e; } finally { await stop(d); await hub.close(); }
 });
