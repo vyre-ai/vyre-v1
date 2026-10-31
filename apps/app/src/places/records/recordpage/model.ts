@@ -212,7 +212,8 @@ export function resolveLink(title: string, nodes: readonly RelNode[]): RelNode |
 // ---------------------------------------------------------------- relations
 
 /** The target type of a relation field (the sample and the schema name it in the field's options). */
-export const relationTarget = (f: FieldDef): string | null => { const t = f.options?.["to"]; return typeof t === "string" ? t : null; };
+/** The type a relation points at. The schema writes it as options.target; older sample data used options.to. */
+export const relationTarget = (f: FieldDef): string | null => { const t = f.options?.["target"] ?? f.options?.["to"]; return typeof t === "string" ? t : null; };
 
 /** The record ids a relation holds. */
 export function relationIds(f: FieldDef, row: RecordRow): string[] {
