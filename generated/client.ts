@@ -233,6 +233,7 @@ export function createClient(transport: Transport) {
       undelete: call("automations.undelete", 1),
       update: call("automations.update", 1),
       validate: call("automations.validate", 1),
+      vault_usage: call("automations.vault_usage", 1),
       versions: call("automations.versions", 1),
       webhook_url: {
         get: call("automations.webhook_url.get", 1),
@@ -2100,9 +2101,12 @@ export function createClient(transport: Transport) {
     },
     tasks: {
       act: call("tasks.act", 1),
+      ask: call("tasks.ask", 1),
       assign: call("tasks.assign", 1),
+      block: call("tasks.block", 1),
       count_needs_you: call("tasks.count_needs_you", 1),
       create: call("tasks.create", 1),
+      decide: call("tasks.decide", 1),
       delegate: call("tasks.delegate", 1),
       dependencies: {
         add: call("tasks.dependencies.add", 1),
@@ -2123,7 +2127,9 @@ export function createClient(transport: Transport) {
       my_work: call("tasks.my_work", 1),
       needs_you: call("tasks.needs_you", 1),
       release: call("tasks.release", 1),
+      review: call("tasks.review", 1),
       snooze: call("tasks.snooze", 1),
+      submit: call("tasks.submit", 1),
       take: call("tasks.take", 1),
       transition: call("tasks.transition", 1),
       update: call("tasks.update", 1),

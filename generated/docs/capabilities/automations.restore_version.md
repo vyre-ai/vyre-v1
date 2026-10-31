@@ -90,6 +90,8 @@ type Out = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -186,11 +188,15 @@ type Out = {
                 "kind": "person"
               },
               "backupKeyId": "example",
+              "doneMeans": [
+                "example"
+              ],
               "escalateTo": {
                 "id": "usr_a1b2c3",
                 "kind": "person"
               },
               "keyId": "example",
+              "mode": "answer",
               "nudgeMinutes": 1,
               "reviewer": {
                 "id": "usr_a1b2c3",

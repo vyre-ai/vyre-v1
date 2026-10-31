@@ -2988,6 +2988,24 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/vault_usage",
+    "cap": "automations.vault_usage",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/versions",
     "cap": "automations.versions",
     "v": 1,
@@ -5551,7 +5569,10 @@ const routes0: Route[] = [
     "offline": "online",
     "teamOnly": true,
     "gate": "send"
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/computers/chrome/snapshot",
@@ -5570,10 +5591,7 @@ const routes0: Route[] = [
     "offline": "online",
     "teamOnly": true,
     "gate": null
-  }
-];
-
-const routes1: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/computers/chrome/sources",
@@ -11093,7 +11111,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/forms/create",
@@ -11113,10 +11134,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/forms/delete",
@@ -16627,7 +16645,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mail/message/list",
@@ -16645,10 +16666,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/message/search",
@@ -22127,7 +22145,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/providers/custom_remove",
@@ -22145,10 +22166,7 @@ const routes3: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/providers/list",
@@ -27113,6 +27131,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/ask",
+    "cap": "tasks.ask",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/assign",
     "cap": "tasks.assign",
     "v": 1,
@@ -27127,6 +27164,25 @@ const routes4: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/tasks/block",
+    "cap": "tasks.block",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -27165,6 +27221,25 @@ const routes4: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/tasks/decide",
+    "cap": "tasks.decide",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -27433,6 +27508,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/review",
+    "cap": "tasks.review",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/snooze",
     "cap": "tasks.snooze",
     "v": 1,
@@ -27447,6 +27541,25 @@ const routes4: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/tasks/submit",
+    "cap": "tasks.submit",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -27562,7 +27675,10 @@ const routes4: Route[] = [
     "offline": "patch",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/answer",
@@ -27670,10 +27786,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/decline",
