@@ -59,6 +59,7 @@ export function AutomationsStartView({ hasAutomations, templates, busy = false, 
         <Text accessibilityRole="header" testID="automations-start-title" style={s.title}>{hasAutomations ? "Pick an automation" : "Automate something"}</Text>
         {hasAutomations ? <Text style={s.sub}>Choose one from the list, or start a new one.</Text> : <Text style={s.sub}>Pick a way to begin. You can change everything afterwards.</Text>}
         <View style={[s.choices, hasAutomations && s.choicesSmall]} testID="automations-start-choices">
+          {/* ui-rows-lint: not a list (three start choice cards side by side) */}
           {START_CHOICES.map((c) => (
             <Pressable
               key={c.key} accessibilityRole="button" accessibilityLabel={c.title} accessibilityState={{ disabled: busy }} disabled={busy}
@@ -74,6 +75,7 @@ export function AutomationsStartView({ hasAutomations, templates, busy = false, 
           <View style={s.popular} testID="automations-start-popular">
             <Text accessibilityRole="header" style={s.popHead}>Popular templates</Text>
             <View style={s.tiles}>
+              {/* ui-rows-lint: not a list (template tiles in a wrapping grid) */}
               {tiles.map((t) => (
                 <Pressable
                   key={t.key} accessibilityRole="button" accessibilityLabel={`${t.title}. ${t.summary}`} accessibilityState={{ disabled: busy }} disabled={busy}

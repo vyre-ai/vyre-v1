@@ -54,6 +54,7 @@ export function GateSheet({ call, journeyId, plainField, type, def, row, toStage
         <Text style={s.label}>{m.title}</Text>
         {f && kind === "choice" ? (
           <View style={s.chips} accessibilityRole="radiogroup">
+            {/* ui-rows-lint: not a list (choice option chips in a wrapping strip, one picked) */}
             {optionsOf(f).map((o) => <TextButton key={o.key} label={o.title} selected={mine === o.key} testID={`gate-${m.key}-${o.key}`} onPress={() => put(m.key, o.key)} />)}
           </View>
         ) : kind === "checkbox" ? (

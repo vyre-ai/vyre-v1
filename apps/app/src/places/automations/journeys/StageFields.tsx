@@ -72,6 +72,7 @@ export function StageFields({ journey: j, stage: g, design: d, canDesign }: { jo
             <View style={s.form} testID="stage-field-form">
               <TextField value={name} onChangeText={(t) => { setName(t); setError(null); }} placeholder="Field name" accessibilityLabel="Field name" testID="stage-field-name" autoFocus onSubmitEditing={() => make(L.list)} />
               <View style={s.chips} accessibilityRole="radiogroup">
+                {/* ui-rows-lint: not a list (field type chips in a wrapping strip, one picked) */}
                 {NEW_FIELD_TYPES.map((t) => <TextButton key={t.key} label={t.title} primary={kind === t.key} testID={`stage-field-type-${t.key}`} onPress={() => setKind(t.key)} />)}
               </View>
               <View style={s.chips}>
