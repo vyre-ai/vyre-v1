@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { openSchema } from "../modules/schema/impl.ts";
 import { openConnectors } from "../modules/connectors/impl.ts";
 import * as sources from "../modules/sources/impl.ts";
-import { KEY_A, KEY_B } from "../modules/connectors/fixtures/crm.ts";
+import { KEY_A, KEY_B, ledgerAccountSpec } from "../modules/connectors/fixtures/crm.ts";
 import { coreOf, createSyncEngine } from "../host/src/daemon/syncengine.ts";
 import type { SyncEngine } from "../modules/connectors/handlers/sync.ts";
 import type { ConnectorsCtx, Probe } from "../modules/connectors/projections.ts";
@@ -57,6 +57,7 @@ async function boot() {
       if (cap === "runs.start") { const runId = `run_${runs.length + 1}`; runs.push({ runId }); return { runId }; }
       if (cap === "runs.finish") { const i = input as { runId: string; status: string; summary?: string }; Object.assign(runs.find((r) => r.runId === i.runId)!, { status: i.status, ...(i.summary ? { summary: i.summary } : {}) }); return { run: { id: i.runId } }; }
       if (cap === "records.update") { const i = input as { type: string; recordId: string; patch: Record<string, unknown> }; const cur = await schema.store.get(i.type, i.recordId); await schema.store.update(i.type, i.recordId, i.patch as never, cur!.version); return { record: { id: i.recordId } }; }
+      if (cap === "records.delete") { const i = input as { type: string; recordId: string }; const cur = await schema.store.get(i.type, i.recordId); if (cur) await schema.store.remove(i.type, i.recordId, cur.version); return { deleted: true }; }
       if (cap === "records.counts") return { count: (await schema.store.query((input as { type: string }).type, { page: { limit: 500 } })).rows.length };
       if (cap === "connectors.run" || cap === "connectors.get" || cap === "sync_types.get") return (conn.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(ctx, input);
       throw new Error(`no ${cap}`);
@@ -287,4 +288,41 @@ test("Remove: keep the records as plain records, or remove them with their types
     assert.equal(drop.crm.c.state.people.length, 5, "the app is untouched");
     assert.ok(drop.crm.methods().every((m) => m === "GET"));
   } finally { await drop.close(); }
+});
+
+test("two accounts of one app share one record type: a From field tells them apart, nothing crosses between them", async () => {
+  const w = await boot();
+  try {
+    VAULT["#Ledger_Paris"] = KEY_A;
+    const berlin = ledgerAccountSpec("Berlin");
+    const paris = { ...ledgerAccountSpec("Paris", "b"), auth: { vaultHandle: "#Ledger_Paris", style: "header", header: "X-Api-Token" } };
+    const apply = async (spec: Record<string, unknown>, key: string) => { const v = await w.hs["sync_specs.validate"](w.ctx, { spec }); assert.deepEqual(v.problems.filter((p) => p.level === "error"), []); await w.hs["sync_specs.apply"](w.ctx, { spec, idempotencyKey: key }); await w.drain(); };
+    await apply(berlin, "ab");
+    await apply(paris, "ap");
+    const people = await w.rows("person");
+    assert.equal(people.length, 5 + 2, "one type, every account's records");
+    const from = (n: string) => people.filter((p) => p.data["from"] === n).map((p) => p.data["name"]).sort();
+    assert.deepEqual(from("Berlin"), ["Ada Stone", "Ben Ford", "Cy Lane", "Di Moss", "Ed Park"]);
+    assert.deepEqual(from("Paris"), ["Ada Stone (Paris)", "Gus Hale"]);
+    assert.equal(people.filter((p) => p.data["email"] === "ada@example.test").length, 2, "the same email in two accounts is two records, never merged");
+    // each account has its own binding, status and pause
+    const st = await w.hs["sync_types.status"](w.ctx, { type: "person" });
+    assert.deepEqual(st.accounts!.map((a) => [a.account, a.records]), [["Berlin", 5], ["Paris", 2]]);
+    assert.equal(st.records, 7);
+    assert.equal((await w.hs["sync_types.status"](w.ctx, { type: "person", account: "Paris" })).records, 2);
+    // an edit pushes to the account it came from only
+    const gus = people.find((p) => p.data["name"] === "Gus Hale")!;
+    await w.schema.store.update("person", gus.id, { phone: "+33 9 9999" }, gus.version);
+    await w.pass("person");
+    assert.equal(w.crm.c.state.peopleB.find((p) => p.id === 202)!.attributes.phone, "+33 9 9999");
+    assert.equal(w.crm.c.state.people.some((p) => p.attributes.phone === "+33 9 9999"), false);
+    const wrote = w.crm.c.state.requests.filter((r) => r.method === "PATCH").map((r) => r.path);
+    assert.deepEqual(wrote, ["/api/v2/people/202"]);
+    // pausing one account leaves the other running; removing one keeps the other's records
+    await w.hs["sync_types.pause"](w.ctx, { type: "person", account: "Paris" });
+    assert.deepEqual((await w.hs["sync_types.status"](w.ctx, { type: "person" })).accounts!.map((a) => a.state === "paused"), [false, true]);
+    await w.hs["sync_specs.remove"](w.ctx, { type: "person", account: "Paris", records: "remove" });
+    assert.deepEqual((await w.rows("person")).map((p) => p.data["from"]).filter((f) => f === "Paris").length, 0);
+    assert.equal((await w.rows("person")).length, 5);
+  } finally { await w.close(); }
 });

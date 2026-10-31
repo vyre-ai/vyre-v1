@@ -16,8 +16,10 @@ import type { Page, QuerySpec, Store, StoredRecord } from "../../../kernel/src/s
 // ---- what the engine takes from the connectors module (structural copies; the module's own types are not importable here)
 
 export interface BindingRow {
+  /** The account of an app the binding reads (several accounts of one app share a record type). */
+  account?: string;
   syncTypeId: string; type: string; connector: string; connectionId: string; remote: string;
-  fields: { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; transform?: string; relation?: string; inverse?: string }[];
+  fields: { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; transform?: string; relation?: string; inverse?: string; constant?: string }[];
   match: string[]; createAtSource: boolean; deletes: "off" | "soft" | "travel"; conflict: "newest" | "source" | "vyre" | "ask";
 }
 export interface RunOut { summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean }
@@ -38,7 +40,7 @@ export interface SyncEngineLike {
 export interface SyncDepsLike { local: Store; remote: Store; tx: Tx; now?: () => number; space?: string; emit?: (name: string, subject: string, payload: Record<string, unknown>) => unknown }
 export interface SyncBindingLike {
   syncTypeId: string; type: string; remote: string; connector: string; label?: string;
-  fields: { local: string; remote: string; direction: "pull" | "push" | "both" | "off"; transform?: string; relation?: { syncTypeId: string; type: string; inverse?: string } }[];
+  fields: { local: string; remote: string; direction: "pull" | "push" | "both" | "off"; transform?: string; relation?: { syncTypeId: string; type: string; inverse?: string }; constant?: string }[];
   match: string[]; createAtSource: boolean; deletes: boolean; conflict: BindingRow["conflict"];
 }
 export interface SyncReportLike {
@@ -198,7 +200,7 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
 const bindingOf = (b: BindingRow, relations: Map<string, string> = new Map()): SyncBindingLike => ({
   syncTypeId: b.syncTypeId, type: b.type, remote: b.remote, connector: b.connector, label: b.connector,
   fields: b.fields.map((f) => ({
-    local: f.key, remote: f.remote, direction: f.dir, ...(f.transform !== undefined ? { transform: f.transform } : {}),
+    local: f.key, remote: f.remote, direction: f.dir, ...(f.transform !== undefined ? { transform: f.transform } : {}), ...(f.constant !== undefined ? { constant: f.constant } : {}),
     ...(f.relation !== undefined && relations.has(f.relation) ? { relation: { syncTypeId: relations.get(f.relation)!, type: f.relation, ...(f.inverse !== undefined ? { inverse: f.inverse } : {}) } } : {}),
   })),
   match: b.match, createAtSource: b.createAtSource, deletes: b.deletes !== "off", conflict: b.conflict,
@@ -222,7 +224,7 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
     const relations = new Map<string, string>();
     for (const f of b.fields) {
       if (f.relation === undefined || relations.has(f.relation)) continue;
-      const got = await ctx.call("sync_types.get", { type: f.relation }).catch(() => undefined);
+      const got = await ctx.call("sync_types.get", { type: f.relation, ...(b.account ? { account: b.account } : {}) }).catch(() => undefined);
       const id = isObj(got) && isObj(got["syncedType"]) ? got["syncedType"]["syncTypeId"] : undefined;
       if (typeof id === "string") relations.set(f.relation, id);
     }

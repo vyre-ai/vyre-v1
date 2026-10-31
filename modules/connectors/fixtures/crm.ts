@@ -21,6 +21,11 @@ export function crm() {
       { id: 104, attributes: { full_name: "Di Moss", email: "di@example.test", phone: "+1 555 0104", status: "closed", tier: "bronze", note: "" }, org_id: "o2", modified: "2026-10-04T10:00:00Z" },
       { id: 105, attributes: { full_name: "Ed Park", email: "ed@example.test", phone: "+1 555 0105", status: "lead", tier: "silver", note: "" }, org_id: "o2", modified: "2026-10-05T10:00:00Z" },
     ] as Person[],
+    // a second tenant of Ledger: its own people, one of them with the same email as a person of the first
+    peopleB: [
+      { id: 201, attributes: { full_name: "Ada Stone (Paris)", email: "ada@example.test", phone: "+33 1 0201", status: "lead", tier: "gold", note: "" }, org_id: "o1", modified: "2026-10-06T10:00:00Z" },
+      { id: 202, attributes: { full_name: "Gus Hale", email: "gus@example.test", phone: "+33 1 0202", status: "client", tier: "silver", note: "" }, org_id: null, modified: "2026-10-07T10:00:00Z" },
+    ] as Person[],
     orgs: [{ id: "o1", name: "North Works", modified: "2026-09-01T00:00:00Z" }, { id: "o2", name: "South Mill", modified: "2026-09-02T00:00:00Z" }],
     jobs: [
       { uid: "j-1", props: { title: "Stone install", kind: "install", amount: 12000, opened: "2026-06-01", contact_ref: "101" }, touched: "2026-10-03T00:00:00Z" },
@@ -51,7 +56,7 @@ export function crm() {
       if (h["x-api-token"] !== KEY_A) return { status: 401, body: { error: "bad token" } };
       if (method === "GET" && url.pathname === "/api/v2/people") {
         const since = url.searchParams.get("modified_after");
-        const all = state.people.filter((p) => !since || p.modified >= since);
+        const all = (url.searchParams.get("tenant") === "b" ? state.peopleB : state.people).filter((p) => !since || p.modified >= since);
         const per = Number(url.searchParams.get("per_page") ?? "2");
         return { status: 200, body: { data: page(all, url, per, "page"), meta: { total: all.length } } };
       }
@@ -60,7 +65,7 @@ export function crm() {
       const m = /^\/api\/v2\/people\/(\d+)$/.exec(url.pathname);
       if (m && method === "PATCH") {
         if (state.rejectWrites) return { status: 500, body: { error: "down" } };
-        const p = state.people.find((x) => String(x.id) === m[1]);
+        const p = (url.searchParams.get("tenant") === "b" ? state.peopleB : state.people).find((x) => String(x.id) === m[1]);
         if (!p) return { status: 404 };
         const patch = (req.body as { attributes?: Record<string, string> } | undefined)?.attributes ?? {};
         Object.assign(p.attributes, patch);
@@ -162,4 +167,14 @@ export function orbitSpec(handle = "#Orbit_Key"): Record<string, unknown> {
     }],
     plan: { firstPull: { words: "Every job" }, backfill: "now", conflicts: "newest" },
   };
+}
+
+/** Ledger as a second account: the same app, another tenant. */
+export function ledgerAccountSpec(account: string, tenant?: string): Record<string, unknown> {
+  const spec = ledgerSpec() as { app: Record<string, unknown>; objects: { remote: string; list: { query?: Record<string, string> }; update?: { path: string } }[]; plan: Record<string, unknown> };
+  spec.app["account"] = account;
+  const people = spec.objects.find((o) => o.remote === "people")!;
+  if (tenant) { people.list.query = { tenant }; people.update!.path = `/api/v2/people/{id}?tenant=${tenant}`; }
+  delete (people.list as { filter?: unknown }).filter;
+  return spec as unknown as Record<string, unknown>;
 }

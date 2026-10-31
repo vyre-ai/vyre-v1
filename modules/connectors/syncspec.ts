@@ -25,7 +25,7 @@ export interface SpecMapping {
   deletes?: "off" | "soft" | "travel"; createAtSource?: boolean;
 }
 export interface SyncSpec {
-  app: { name: string; domain: string; docsUrl?: string; logoHint?: string };
+  app: { name: string; domain: string; docsUrl?: string; logoHint?: string; /** Which account of the app this is (a location, a workspace). Accounts of one app share record types; each record says which it came from. */ account?: string };
   auth: { vaultHandle: string; style: (typeof AUTH_STYLES)[number]; header?: string; prefix?: string; headers?: Record<string, string> };
   objects: SpecObject[];
   mapping: SpecMapping[];
@@ -183,7 +183,7 @@ export function fieldKeyOf(s: string): string {
   const k = s.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   return /^[a-z]/.test(k) ? k.slice(0, 60) : `f_${k}`.slice(0, 60);
 }
-export const connectorKeyOf = (spec: SyncSpec): string => `crm_${slug(spec.app.name) || "app"}`.slice(0, 40);
+export const connectorKeyOf = (spec: SyncSpec): string => `crm_${slug(spec.app.name) || "app"}${spec.app.account ? `_${slug(spec.app.account)}` : ""}`.slice(0, 40);
 const actionName = (kind: string, remote: string): string => `${kind}_${slug(remote)}`;
 
 /** The record field key for each mapped path of one mapping: the explicit one, else from the label, made unique. */
@@ -203,7 +203,7 @@ export function fieldKeys(obj: SpecObject, m: SpecMapping): Map<string, string> 
 
 // ---- compile ----
 
-export interface FieldMapOut { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; relation?: string; inverse?: string }
+export interface FieldMapOut { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; relation?: string; inverse?: string; constant?: string }
 export interface CompiledType {
   remote: string; recordType: string; title: string; fields: FieldMapOut[]; match: string[]; createAtSource: boolean; deletes: "off" | "soft" | "travel";
   /** Field definitions for schema.apply; relations are made separately (relation.add) once both types exist. */
@@ -314,6 +314,11 @@ export function compileSpec(spec: SyncSpec): Compiled {
     const wanted = m.titleField ? keys.get(m.titleField) ?? m.titleField : undefined;
     const titleField = wanted && defs.some((d) => d.key === wanted) ? wanted : (textKeys.find((k) => /name|title/.test(k)) ?? textKeys[0] ?? defs[0]?.key ?? "name");
     if (!defs.some((d) => d.key === titleField)) defs.unshift({ key: titleField, type: "text", title: titleOf(titleField) });
+    // an account stamps its name on every record it pulls, so accounts of one app can share a type and be told apart
+    if (spec.app.account) {
+      fields.push({ key: "from", remote: "=from", dir: "pull", constant: spec.app.account });
+      defs.push({ key: "from", type: "text", title: "From" });
+    }
     types.push({
       remote: o.remote, recordType: m.recordType, title: m.title ?? o.label, fields, defs, relations,
       match: (m.match ?? []).map((p) => keys.get(p) ?? p).filter((k) => fields.some((f) => f.key === k)),

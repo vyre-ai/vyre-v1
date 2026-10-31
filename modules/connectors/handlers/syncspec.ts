@@ -26,8 +26,8 @@ export interface SpecHandlers {
   "sync_specs.validate"(ctx: ConnectorsCtx, input: { spec: unknown }): Promise<Validation>;
   "sync_specs.preview"(ctx: ConnectorsCtx, input: { spec: unknown }): Promise<PreviewOut>;
   "sync_specs.apply"(ctx: ConnectorsCtx, input: { spec: unknown; idempotencyKey: string }): Promise<ApplyOut>;
-  "sync_specs.get"(ctx: ConnectorsCtx, input: { type?: string; connector?: string }): Promise<SpecRow>;
-  "sync_specs.backfill"(ctx: ConnectorsCtx, input: { type: string; idempotencyKey: string }): Promise<{ runId?: string }>;
+  "sync_specs.get"(ctx: ConnectorsCtx, input: { type?: string; account?: string; connector?: string }): Promise<SpecRow>;
+  "sync_specs.backfill"(ctx: ConnectorsCtx, input: { type: string; account?: string; idempotencyKey: string }): Promise<{ runId?: string }>;
 }
 
 const SENSITIVE = /(ssn|social_?security|password|passwd|secret|token|tax_?id|birth|dob|salary|iban|account_?number|card|passport|licen[cs]e)/i;
@@ -300,13 +300,14 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     // 4. bindings: bind a new type, update one that is already synced
     const out: ApplyOut["types"] = [];
     for (const t of pullOrder(compiled.types)) {
-      const fields = t.fields.map((f) => ({ key: f.key, remote: f.remote, dir: f.dir, ...(f.relation ? { relation: compiled.types.find((x) => x.remote === f.relation)?.recordType ?? f.relation } : {}), ...(f.inverse ? { inverse: f.inverse } : {}) }));
-      const bound = tx.get<{ sync_type_id: string }>("SELECT sync_type_id FROM cn_synced_types WHERE type = ?", t.recordType);
+      const fields = t.fields.map((f) => ({ key: f.key, remote: f.remote, dir: f.dir, ...(f.relation ? { relation: compiled.types.find((x) => x.remote === f.relation)?.recordType ?? f.relation } : {}), ...(f.inverse ? { inverse: f.inverse } : {}), ...(f.constant !== undefined ? { constant: f.constant } : {}) }));
+      const account = spec.app.account ?? "";
+        const bound = tx.get<{ sync_type_id: string }>("SELECT sync_type_id FROM cn_synced_types WHERE type = ? AND account = ?", t.recordType, account);
       const rules = { createAtSource: t.createAtSource, deletes: t.deletes, conflict: "newest" as const };
       const row = bound
-        ? (await sync["sync_types.update"](ctx, { type: t.recordType, fields, match: t.match, ...rules })).syncedType
-        : (await sync["sync_types.create"](ctx, { type: t.recordType, connectionId, remote: t.remote, fields, match: t.match, ...rules, idempotencyKey: `${idem}:bind:${t.recordType}` } as Parameters<typeof sync["sync_types.create"]>[1])).syncedType;
-      tx.run("INSERT INTO cn_sync_spec_types (type, connector, remote) VALUES (?, ?, ?) ON CONFLICT(type) DO UPDATE SET connector = excluded.connector, remote = excluded.remote", t.recordType, key, t.remote);
+        ? (await sync["sync_types.update"](ctx, { type: t.recordType, account, fields, match: t.match, ...rules })).syncedType
+        : (await sync["sync_types.create"](ctx, { type: t.recordType, account, connectionId, remote: t.remote, fields, match: t.match, ...rules, idempotencyKey: `${idem}:bind:${t.recordType}` } as Parameters<typeof sync["sync_types.create"]>[1])).syncedType;
+      tx.run("INSERT INTO cn_sync_spec_types (type, connector, remote) VALUES (?, ?, ?) ON CONFLICT(type, connector) DO UPDATE SET remote = excluded.remote", t.recordType, key, t.remote);
       out.push({ type: t.recordType, syncTypeId: row.syncTypeId });
     }
     tx.run(
@@ -347,7 +348,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
 
     "sync_specs.get": async (ctx, input) => {
       prep();
-      const connector = input.connector ?? (input.type !== undefined ? tx.get<{ connector: string }>("SELECT connector FROM cn_sync_spec_types WHERE type = ?", input.type)?.connector : undefined);
+      const connector = input.connector ?? (input.type !== undefined ? (input.account !== undefined ? tx.get<{ connector: string }>("SELECT connector FROM cn_synced_types WHERE type = ? AND account = ?", input.type, input.account) : tx.get<{ connector: string }>("SELECT connector FROM cn_sync_spec_types WHERE type = ? ORDER BY rowid LIMIT 1", input.type))?.connector : undefined);
       const row = connector ? tx.get<{ spec: string; connector: string; connection_id: string; applied_at: number }>("SELECT * FROM cn_sync_specs WHERE connector = ?", connector) : undefined;
       if (!row) return refuse(ctx, "validation.not_found", "No sync spec was applied for that.");
       return {
@@ -358,7 +359,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
 
     "sync_specs.backfill": async (ctx, input) => {
       prep();
-      const row = tx.get<{ spec: string; connector: string }>("SELECT s.spec AS spec, s.connector AS connector FROM cn_sync_specs s JOIN cn_sync_spec_types t ON t.connector = s.connector WHERE t.type = ?", input.type);
+      const row = tx.get<{ spec: string; connector: string }>(`SELECT s.spec AS spec, s.connector AS connector FROM cn_sync_specs s JOIN cn_sync_spec_types t ON t.connector = s.connector ${input.account !== undefined ? "JOIN cn_synced_types y ON y.connector = s.connector AND y.type = t.type AND y.account = ?" : ""} WHERE t.type = ? ORDER BY t.rowid LIMIT 1`, ...(input.account !== undefined ? [input.account] : []), input.type);
       if (!row) return refuse(ctx, "validation.not_found", `${input.type} was not brought in from a sync spec.`);
       const spec = JSON.parse(row.spec) as SyncSpec;
       const out = await applySpec(ctx, { ...spec, plan: { ...spec.plan, backfill: "now" } }, `backfill:${input.idempotencyKey}`);

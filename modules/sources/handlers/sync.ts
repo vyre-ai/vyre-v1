@@ -20,6 +20,8 @@ export interface SyncFieldMap {
   local: string; remote: string; direction: Direction; /** Small expression over `value`, applied to what is pulled. */ transform?: string;
   /** A relation: the remote value is the id of a record of another synced type, and the field holds a link to the record that id was pulled into (empty until that record has been pulled). */
   relation?: { syncTypeId: string; type: string; inverse?: string };
+  /** A value this binding stamps on every record it pulls (the From field of an account): not read from the app, and it tells this binding's records from another account's in the same type. */
+  constant?: string;
 }
 export interface SyncBinding {
   syncTypeId: string; type: string; remote: string; connector: string; label?: string;
@@ -75,6 +77,7 @@ const urnsOf = (v: unknown): string[] => (Array.isArray(v) ? v.flatMap((x) => (x
 
 /** The value the remote record holds for a mapped field, as the local field takes it. A relation turns the remote id into a link to the record pulled for it, or null while there is none. */
 const theirsOf = (d: SyncDeps, f: SyncFieldMap, rec: StoredRecord): unknown => {
+  if (f.constant !== undefined) return f.constant;
   const v = rec.data[f.remote];
   if (f.relation) {
     if (!present(v)) return null;
@@ -180,7 +183,10 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     pairs.push({ link: l, local, remote });
   }
 
-  const unlinkedLocal = [...localMap.values()].filter((r) => !byLocal.has(r.id));
+  // another account's records in the same type are not this binding's to match or to create in the app
+  const constants = fields.filter((f) => f.constant !== undefined);
+  const mine = (r: StoredRecord): boolean => constants.every((c) => !present(r.data[c.local]) || r.data[c.local] === c.constant);
+  const unlinkedLocal = [...localMap.values()].filter((r) => !byLocal.has(r.id) && mine(r));
   const index = new Map<string, StoredRecord[]>();
   if (b.match.length) {
     for (const r of unlinkedLocal) {
