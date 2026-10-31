@@ -60,3 +60,9 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)" }: { name: Glyph
     ...d.map((p) => createElement("path", { key: p, d: p })),
   );
 }
+
+/** The glyph as an inline svg string, for a place that takes an icon as markup (the side pane's tabs). It draws in the text colour. */
+export function glyphSvg(name: GlyphName | IconKey, size = 14): string {
+  const d = (PATHS as Record<string, readonly string[]>)[name] ?? PATHS.record;
+  return `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${d.map((p) => `<path d="${p}"/>`).join("")}</svg>`;
+}

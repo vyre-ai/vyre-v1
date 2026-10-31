@@ -39,8 +39,8 @@ test("the tabs are Steps, Runs with its failed count, Versions with the version 
 test("the trigger card lists every trigger, then each step is a card with its title and what it does", () => {
   const out = html(createSampleAutomations(northwind));
   assert.ok(has(out, "Any one starts a run"));
-  assert.ok(has(out, "A new lead is created") && has(out, "Only when Source is Meta"));
-  assert.ok(has(out, "Client intake form is submitted") && has(out, "Every time"));
+  assert.ok(has(out, "A new lead is created"));
+  assert.ok(has(out, "Client intake form is submitted") && has(out, "Any form is submitted"), "a form trigger with no form named reads as any form");
   for (const t of ["Look up the person by email", "Draft a personal reply from the first hello", "Does the lead have a mobile number?", "Text the lead a first hello", "Wait until they reply, or 1 day", "Email the lead a first hello"]) assert.ok(has(out, t), t);
   assert.ok(has(out, "Your Claude sign-in, then Northwind OpenAI key"), "the AI step names its key and backup");
   assert.ok(has(out, "1 path and Otherwise, first match wins"));

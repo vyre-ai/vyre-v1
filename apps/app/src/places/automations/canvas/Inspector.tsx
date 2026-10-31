@@ -14,9 +14,9 @@ import { accountDefaultInput, accountMenu, accountNeed, applyAccount, connectedO
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { connectEntries } from "../../../shell/connect/model.ts";
 import type { AccountOption } from "../connect/accounts.ts";
-import { fieldsFromSchema, asFixture } from "../builder/fields.ts";
+import { asFixture } from "../builder/fields.ts";
 import { MessageComposer } from "../builder/MessageComposer.tsx";
-import { DataShelf, MappingFix, SectionRow, advancedInputEdit, basicFieldEdit, commitTyped, nodeIdSet } from "../builder/marks.tsx";
+import { DataShelf, MappingFix, SectionRow, advancedInputEdit, basicFieldEdit, nodeIdSet } from "../builder/marks.tsx";
 import { Choice, Field, MapTargetContext } from "./fields.tsx";
 import type { MapTarget } from "./fields.tsx";
 import { frameFor } from "./frame.ts";
@@ -24,9 +24,11 @@ import type { StudioLayout } from "./frame.ts";
 import { RunStepIo } from "../builder/RunStepIo.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
 import { CONNECT_LIMIT } from "../connect/trust-view.ts";
-import { presenceOf } from "../values/typed.ts";
 import { Glyph } from "./icons.tsx";
-import { ERROR_MODES, groupOfKey, iconOfKey, kindOfKey, setBranch, setTriggerConfig, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
+import { ERROR_MODES, groupOfKey, iconOfKey, kindOfKey, setBranch, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
+import { SchemaForm } from "./SchemaForm.tsx";
+import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
+import { controlsFor, humanize } from "./form-model.ts";
 import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import { LiveStepForm } from "./steps/LiveStepForm.tsx";
@@ -34,10 +36,9 @@ import type { KeysStatus } from "./data.tsx";
 import { SendApproval, sendsOutward } from "./AskBeforeSending.tsx";
 import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 
-const humanize = (k: string): string => k.replace(/([A-Z])/g, " $1").replace(/[_.]+/g, " ").replace(/^./, (x) => x.toUpperCase());
 const show = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks, kind: automationKind = "personal", runId, runLog }: {
+export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, onRemoveTrigger, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks, kind: automationKind = "personal", runId, runLog }: {
   def: Definition;
   node: DefNode | null;
   trigger: DefTrigger | null;
@@ -47,6 +48,8 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   onChange(next: Definition): void;
   onClose(): void;
   onDelete(): void;
+  /** Take a trigger off the Automation (the panel of a trigger offers Remove this trigger). */
+  onRemoveTrigger?(index: number): void;
   testID?: string;
   embedded?: boolean;
   /** Desktop keeps the 300px side column. Compact stacks the panel at full width. */
@@ -80,6 +83,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   const openConnect = useOpenConnect();
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const ordered = layout ? frameFor(layout).ordered : false;
+  const zone = usePersonZone();
   useEffect(() => { installFocusRing(); }, []);
   const headerMode = onMode !== undefined;
   const [localAdvanced, setLocalAdvanced] = useState(initialAdvanced);
@@ -132,30 +136,45 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   const mine = issues.filter((i) => (node ? i.nodeId === node.id : i.nodeId === "trigger"));
   if (!node) {
     const meta = trigger ? triggerMeta(trigger.key, trigger.config) : null;
-    const configFields: ReactElement[] = [];
-    if (trigger && triggerIndex !== null) {
-      for (const [k, v] of Object.entries(trigger.config ?? {})) {
-        if (k === "label") continue;
-        configFields.push(<Field key={k} label={humanize(k)} value={show(v)} onCommit={(t) => {
-          const presence = presenceOf(true, v);
-          const nextPresence = presence === "null" && t === "" ? "null" : presence === "empty" && t === "" ? "empty" : "value";
-          onChange(setTriggerConfig(def, triggerIndex, k, commitTyped(v, t, nextPresence)));
-        }} />);
-      }
-    }
+    const editTrigger = (next: DefTrigger): void => {
+      if (triggerIndex === null) return;
+      const triggers: Definition["triggers"] = [];
+      def.triggers.forEach((t, at) => triggers.push(at === triggerIndex ? next : t));
+      onChange({ ...def, triggers });
+    };
     return (
-      <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel="Trigger settings" {...webOnly({ dataSet: { vyreFocus: "1" } })}>
+      <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel={`${meta?.title ?? "Trigger"} settings`} {...webOnly({ dataSet: { vyreFocus: "1" } })}>
         <Head title={meta?.title ?? "Trigger"} sub="Trigger" icon={meta?.icon ?? "bolt"} onClose={onClose} />
-        <ScrollView contentContainerStyle={i.body}>
+        <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
           <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
           {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} target={mapTarget} onPick={(_id, _expression, next) => { mapTarget?.commit(next); setMapTarget(null); }} /> : null}
-          {section === "test" ? <Text style={i.hint}>Pick a step to test it.</Text> : null}
+          {section === "test" ? <Text testID="trigger-test-note" style={i.hint}>A trigger is tested with the whole Automation. Press Test at the top: it runs every step with sample data, and what each step returns shows on the Data tab.</Text> : null}
           {section === "configure" ? (
-            <>
-              <Text testID="plain-language" style={i.hint}>{trigger ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.` : "Every trigger is listed on the card. Any one starts a run."}</Text>
-              {configFields}
+            <MapTargetContext.Provider value={{ set: setMapTarget }}>
+              {trigger && triggerIndex !== null ? <TriggerForm trigger={trigger} onChange={editTrigger} openMenu={openMenu} zone={zone} /> : null}
+              {trigger && advanced ? (
+                <Field
+                  label="Advanced · trigger as JSON" mono rows={6} testID="field-trigger-json" value={JSON.stringify({ ...(trigger.config ? { config: trigger.config } : {}), ...(trigger.filter !== undefined ? { filter: trigger.filter } : {}) }, null, 2)}
+                  onCommit={(t) => {
+                    const edited = advancedInputEdit(t);
+                    if (!edited.ok) { setJsonError(edited.message); return; }
+                    setJsonError(null);
+                    const { config, filter } = edited.input as { config?: Record<string, unknown>; filter?: unknown };
+                    const next: DefTrigger = { key: trigger.key, ...(config && typeof config === "object" && !Array.isArray(config) ? { config } : {}), ...(filter !== undefined ? { filter } : {}) };
+                    editTrigger(next);
+                  }}
+                />
+              ) : null}
+              {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
+              <Text testID="plain-language" style={i.hint}>{trigger ? (def.triggers.length > 1 ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.` : "This starts a run.") : "Every trigger is listed on the card. Any one starts a run."}</Text>
               <Problems list={mine} />
-            </>
+              {trigger && triggerIndex !== null && onRemoveTrigger ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Remove this trigger" testID="remove-trigger" onPress={() => onRemoveTrigger(triggerIndex)} style={[i.del, pointer]}>
+                  <Glyph name="x" size={13} color="var(--danger)" />
+                  <Text style={i.delText}>Remove this trigger</Text>
+                </Pressable>
+              ) : null}
+            </MapTargetContext.Provider>
           ) : null}
         </ScrollView>
         {element}
@@ -195,45 +214,27 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
       ? ["body", "to", "message", "mediaFileIds"]
       : []);
   const skipAccount = (name: string): boolean => !!accountPick && (name === "connectionId" || name === "mailboxId" || name === "numberId" || (accountPick.field === "connectionId" && name === "connector"));
-  const skipField = (name: string): boolean => skipAccount(name) || (composer && hidden.has(name));
+  // Paths and Parallel keep their lanes on the step, and the fields above are where they are edited
+  const onTheStep = (name: string): boolean => (kind === "paths" && (name === "paths" || name === "otherwise")) || (kind === "parallel" && name === "branches");
+  const skipField = (name: string): boolean => skipAccount(name) || onTheStep(name) || (composer && hidden.has(name));
   const writeInput = (name: string, next: unknown): void => {
     const input = { ...node.input };
     if (next === undefined) delete input[name];
     else input[name] = next;
     onChange(updateStep(def, node.id, { input }));
   };
-  const schemaFields = fieldsFromSchema(inputSchema, node.input ?? {});
-  const covered = new Set(schemaFields.map((field) => field.name));
-  for (const field of schemaFields) {
-    if (skipField(field.name)) continue;
-    const current = node.input[field.name];
-    const label = `${humanize(field.name)}${field.presence === "value" ? "" : ` (${field.presence})`}`;
-    if (field.enumValues.length > 0 && field.enumValues.length <= 8) {
-      fields.push(
-        <Choice
-          key={`${node.id}-${field.name}`}
-          label={label}
-          value={typeof current === "string" && current.length > 0 ? current : "Choose"}
-          testID={`field-${field.name}`}
-          onOpen={(x, y) => openMenu(field.enumValues.map((item) => ({
-            label: item,
-            checked: current === item,
-            onSelect: () => writeInput(field.name, item),
-          })), x, y, "other")}
-        />,
-      );
-      continue;
-    }
-    fields.push(<Field key={`${node.id}-${field.name}`} label={label} value={show(current)} placeholder={field.enumValues.length > 0 ? field.enumValues.join(", ") : field.required ? "Required" : "Optional"} testID={`field-${field.name}`} onCommit={(t) => {
-      onChange(updateStep(def, node.id, { input: basicFieldEdit(node.input ?? {}, field.name, t) }));
-    }} />);
-  }
+  const controls = controlsFor(inputSchema);
+  const covered = new Set(controls.map((c) => c.name));
+  const skipControl = (c: { name: string }): boolean => skipField(c.name);
+  const stray: ReactElement[] = [];
   for (const k of inputKeys) {
     if (covered.has(k) || skipField(k)) continue;
-    fields.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => {
+    stray.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => {
       onChange(updateStep(def, node.id, { input: basicFieldEdit(node.input ?? {}, k, t) }));
     }} />);
   }
+  fields.push(<SchemaForm key={`${node.id}-schema`} controls={controls} input={node.input ?? {}} openMenu={openMenu} skip={skipControl} onInput={(next) => onChange(updateStep(def, node.id, { input: next }))} />);
+  fields.push(...stray);
   return (
     <MapTargetContext.Provider value={{ set: setMapTarget }}>
     <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`} {...webOnly({ dataSet: { vyreFocus: "1" } })}>
