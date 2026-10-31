@@ -32,6 +32,9 @@ import { nameOr } from "../names.ts";
 import { Mark } from "../../../onboarding/ProviderLogo.tsx";
 import { dayLabel, importedRows, importedStartsOpen, providerMark, providerName } from "../imported/model.ts";
 import type { ImportedRow } from "../imported/model.ts";
+import { ChannelSheets } from "../channels/Sheets.tsx";
+import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
+import type { ChannelSheetKind } from "../channels/request.ts";
 
 export const SIDEBAR_SCREEN = "chats.sidebar";
 export const AGENTS_SCREEN = "chats.all-agents";
@@ -96,6 +99,14 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   // null: the group follows its default (open unless long); a press on its head decides.
   const [importedOpen, setImportedOpen] = useState<boolean | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
+  // The New channel and Browse channels sheets: opened from this sidebar, or by a request from Cmd-K or the new menu (one waiting before this mounted is taken now). A Personal Space has none.
+  const personal = data.space.personal === true;
+  const [sheet, setSheet] = useState<ChannelSheetKind | null>(null);
+  useEffect(() => {
+    const take = (): void => { const k = takeChannelRequest(); if (k && !personal) setSheet(k); };
+    take();
+    return onChannelRequest(take);
+  }, [personal]);
   const [local, setLocal] = useState<ChatRow[]>([]);
   const onLocal = useCallback((row: ChatRow) => { setLocal((l) => [row, ...l]); setCursor(`c:${row.threadId}`); }, []);
   const onSettled = useCallback((id: string) => setLocal((l) => l.filter((r) => r.threadId !== id)), []);
@@ -128,7 +139,9 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const facesMore = matching.length - faces.length;
   const recent = recentQ.status === "ready" ? recentQ.data : EMPTY_RECENT;
   const allChannels: Channel[] = channelsQ.status === "ready" ? channelsQ.data.channels : [];
-  const channels: Channel[] = useMemo(() => allChannels.filter((c) => matchesQuery(query, c.name)), [allChannels, query]);
+  // The list is the channels you are in; a public one you are not in is for Browse. A project channel follows the project, so it stays.
+  const meId = data.me?.id;
+  const channels: Channel[] = useMemo(() => allChannels.filter((c) => (meId === undefined || c.recordId !== undefined || c.members.some((m) => m.id === meId)) && matchesQuery(query, c.name)), [allChannels, query, meId]);
   const allNeeds: NeedsItem[] = needsQ.status === "ready" ? needsQ.data.items : [];
   const needs: NeedsItem[] = useMemo(() => allNeeds.filter((n) => matchesQuery(query, n.task.title, agentName(n.task.createdBy))), [allNeeds, query, agentName]);
   // A read that failed ends the skeleton and says so, for that section only (never the empty state: empty means nothing is here). The other sections draw what they have.
@@ -151,8 +164,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed: (importedOpen ?? importedStartsOpen(archive.length)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, ...(narrow ? { needsLimit: 3 } : {}) }),
-    [needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, narrow, imported, importedOpen, archive.length],
+    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed: (importedOpen ?? importedStartsOpen(archive.length)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, personal, searching: query.trim() !== "", ...(narrow ? { needsLimit: 3 } : {}) }),
+    [personal, query, needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, narrow, imported, importedOpen, archive.length],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -216,6 +229,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     else if (e.type === "face") data.nav.openAgentChat(e.agent.agentId);
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
     else if (e.type === "need") data.nav.openNeedsYou(e.item.task.id);
+    else if (e.type === "action") { setSheet("new"); return; }
     else if (e.type === "more") { if (e.to === "needs") data.nav.openNeedsYou(); else data.nav.openAllAgents(); }
     else if (e.type === "head") { toggle(e.section); return; }
     leave();
@@ -279,11 +293,15 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
             {recentHead ? <Tool icon="filter" label="Filter chats" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" /> : null}
             {recentHead ? <Tool icon="plus" label="New chat" onPress={() => { void api.newChat(); leave(); }} testID="new-chat-section" /> : null}
             {e.section === "faces" ? <Tool icon="arrow" label="All agents" onPress={() => { data.nav.openAllAgents(); leave(); }} testID="all-agents" /> : null}
-            {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => { data.nav.openNewChannel(); leave(); }} testID="new-channel" /> : null}
+            {e.section === "channels" ? <Tool icon="search" label="Browse channels" onPress={() => setSheet("browse")} testID="browse-channels-tool" /> : null}
+            {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => setSheet("new")} testID="new-channel" /> : null}
           </SectionHead>
         );
       }
       case "group": return <GroupLabel label={e.label} />;
+      case "action": return (
+        <Row id={e.key} title={e.label} selected={sel} onPress={() => open(e)} leading={<LeadGlyph name="plus" />} />
+      );
       case "error": {
         const items = errorMenu(e);
         return (
@@ -391,6 +409,13 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   // another Space needing you is a dot by the Space switcher: here on a desktop, on the You tab on a phone
   const dot = data.space.otherNeedsYou && !narrow;
   const headBusy = dot || !online;
+  // A Team Space's new menu: a chat, a channel, or the channels you can still join. A Personal Space has the one button.
+  const newMenu = (x: number, y: number): void => menu.show([
+    { label: "New chat", onSelect: () => { void api.newChat(); leave(); } },
+    { label: "New channel", onSelect: () => setSheet("new") },
+    { label: "Browse channels", onSelect: () => setSheet("browse") },
+  ], x, y, "other");
+  const newButton = personal ? null : <Tool icon="plus" label="New" onPress={newMenu} testID="new-menu" />;
   const newChatButton = (
     <Pressable accessibilityRole="button" accessibilityLabel={`New chat with ${data.space.assistant.name}`} {...{ title: `New chat with ${data.space.assistant.name}` }} onPress={() => { void api.newChat(); leave(); }} testID="new-chat" style={({ hovered }: { hovered?: boolean }) => [st.assistant, hovered === true && st.assistantOver]}>
       <Avatar name={data.space.assistant.name} kind="assistant" size={18} />
@@ -403,16 +428,17 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
           {dot ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
           {online ? null : <Text testID="sidebar-offline" style={st.quiet}>Offline</Text>}
           <View style={{ flex: 1 }} />
-          {inHeader ? null : newChatButton}
+          {inHeader ? null : <>{newButton}{newChatButton}</>}
         </View>
       ) : null}
-      {inHeader ? portalInto(slot?.actionsOutlet, newChatButton) : null}
+      {inHeader ? portalInto(slot?.actionsOutlet, <>{newButton}{newChatButton}</>) : null}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
           <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
         )}
       </View>
       {menu.element}
+      {sheet ? <ChannelSheets kind={sheet} channels={allChannels} agents={agents} onSwitch={setSheet} onClose={() => setSheet(null)} /> : null}
     </View>
   );
 }

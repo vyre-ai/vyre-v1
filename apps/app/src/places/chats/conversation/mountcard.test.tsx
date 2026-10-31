@@ -37,7 +37,7 @@ test("pick a source, mount in the sheet, and the folder is shared with the agent
   const share = calls.find((c) => c.cap === "access.share")?.input as { resource: { type: string; id: string }; subject: { id: string }; level: string };
   assert.deepEqual([share.resource, share.subject.id, share.level], [{ type: "folder", id: "fld_9" }, "agt_a", "view"]);
   assert.deepEqual(answers, [mountedAnswer("Sales", "fld_9")]);
-  assert.match(textOf(find(root, "mount-card-done-blk_1")), /Mounted Sales and shared it with Intake/);
+  assert.match(textOf(find(root, "mount-card-done-blk_1")), /Mounted Sales/);
 });
 
 test("Not now answers the question so the agent carries on", async () => {
@@ -46,5 +46,5 @@ test("Not now answers the question so the agent carries on", async () => {
   const root = await mount(createRoot, <MountCard id="blk_2" prompt="Connect it?" offers={offers} agents={[]} data={{ call: async () => ({}) } as never} answer={(_id, a) => answers.push(a)} />);
   await press(find(root, "mount-card-skip-blk_2"));
   assert.equal(answers.length, 1);
-  assert.match(textOf(find(root, "mount-card-done-blk_2")), /Not now/);
+  assert.match(textOf(find(root, "mount-card-done-blk_2")), /Skipped/);
 });

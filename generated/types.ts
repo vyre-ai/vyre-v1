@@ -6128,6 +6128,12 @@ export type ChatQuestionAskIn = {
       detail?: string;
     }>;
   allowOther?: boolean;
+  card?: {
+    kind: "terminal";
+    command: string;
+    host?: "agent_computer" | "space_server" | "device";
+    risk?: "read" | "change" | "danger";
+  };
 };
 export type ChatQuestionAskOut = {
   blockId: string;
@@ -28150,6 +28156,17 @@ export type TerminalRenameOut = {
     runId?: string;
   };
 };
+export type TerminalRequestIn = {
+  threadId: string;
+  command: string;
+  why: string;
+  host?: "agent_computer" | "space_server" | "device";
+};
+export type TerminalRequestOut = {
+  blockId: string;
+  messageId: string;
+  risk: "read" | "change" | "danger";
+};
 export type TerminalResizeIn = {
   terminalId: string;
   cols: number;
@@ -28157,6 +28174,15 @@ export type TerminalResizeIn = {
 };
 export type TerminalResizeOut = {
   ok: boolean;
+};
+export type TerminalRiskIn = {
+  command: string;
+};
+export type TerminalRiskOut = {
+  risk: "read" | "change" | "danger";
+  verdict: "deny" | "ask" | "allow" | "none";
+  why: string;
+  entry?: string;
 };
 export type TerminalRulesGetIn = Record<string, unknown>;
 export type TerminalRulesGetOut = {
@@ -31837,7 +31863,9 @@ export interface CapMap {
   "terminal.open_server": { in: TerminalOpenServerIn; out: TerminalOpenServerOut };
   "terminal.read": { in: TerminalReadIn; out: TerminalReadOut };
   "terminal.rename": { in: TerminalRenameIn; out: TerminalRenameOut };
+  "terminal.request": { in: TerminalRequestIn; out: TerminalRequestOut };
   "terminal.resize": { in: TerminalResizeIn; out: TerminalResizeOut };
+  "terminal.risk": { in: TerminalRiskIn; out: TerminalRiskOut };
   "terminal.rules.get": { in: TerminalRulesGetIn; out: TerminalRulesGetOut };
   "terminal.rules.set": { in: TerminalRulesSetIn; out: TerminalRulesSetOut };
   "terminal.run": { in: TerminalRunIn; out: TerminalRunOut };

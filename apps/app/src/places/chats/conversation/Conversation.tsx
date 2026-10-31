@@ -388,7 +388,7 @@ function ConversationView(): ReactElement {
     if (items.length === 0) return;
     e.preventDefault();
     const agents = thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) }));
-    if (agents.length === 0) { say("Add an agent to this chat first. A chat shares with its agents."); return; }
+    if (agents.length === 0) { say("No agent in this chat."); return; }
     void shareWithAgents(data, items, agents, data.newKey()).then(
       (done) => { setLine(sharedLine(done)); setUndo(() => () => { void undoShare(data, done.grants).then(() => say("Taken back."), fail("Could not take it back.")); }); },
       fail("Could not share that."),

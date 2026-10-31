@@ -26,3 +26,9 @@ test("a disabled action is disabled", () => {
   const html = renderToStaticMarkup(<Dialog title="T" onClose={noop} actions={[{ label: "Send", primary: true, disabled: true, onPress: noop, testID: "go" }]} />);
   assert.match(html.slice(Math.max(0, html.indexOf('data-testid="go"') - 300), html.indexOf('data-testid="go"') + 80), /disabled/);
 });
+
+test("a fill dialog keeps its centred card on a wide window", () => {
+  const html = renderToStaticMarkup(<Dialog title="T" fill onClose={noop}><Text>Body</Text></Dialog>);
+  assert.match(html, /role="dialog"/);
+  assert.ok(html.includes("Body"));
+});

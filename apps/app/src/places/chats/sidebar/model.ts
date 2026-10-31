@@ -150,6 +150,8 @@ export type Entry =
   /** An imported coding session of the Imported group: its row opens the transcript, or the chat it was continued in. */
   | { key: string; type: "imported"; row: ImportedRow }
   | { key: string; type: "empty"; text: string }
+  /** A row that does something when pressed (an empty Channels section offers "Create a channel"). */
+  | { key: string; type: "action"; label: string; to: "new-channel" }
   /** A read of this section failed: one compact row under its head (the section's other reads and the other sections still draw). */
   | { key: string; type: "error"; section: SectionKey; text: string; cause: string; code?: string; traceId?: string };
 
@@ -184,6 +186,10 @@ export interface SidebarInput {
   errors?: Partial<Record<SectionKey, SectionError>>;
   /** The imported sessions, newest first, already narrowed by the search box. The group is left out when there are none. */
   imported?: readonly ImportedRow[];
+  /** A Personal Space has no channels: the section and its entry points are left out. */
+  personal?: boolean;
+  /** The search box has text: a Channels section with no match is left out, not offered as empty. */
+  searching?: boolean;
 }
 
 /** The Agents group shows this many agents (the Cmd-1..9 faces); a Space with more has an All agents row for the rest. */
@@ -225,10 +231,11 @@ export function buildEntries(i: SidebarInput): Entry[] {
   }
   if (open("faces") && (i.facesMore ?? 0) > 0) out.push({ key: "m:agents", type: "more", label: `All agents (${(i.facesMore ?? 0) + i.faces.length})`, to: "agents" });
   const { plain, projects } = splitChannels(i.channels);
-  if (plain.length || projects.length || i.errors?.channels) {
+  if (!i.personal && (plain.length || projects.length || i.errors?.channels || !i.searching)) {
     out.push({ key: "h:channels", type: "head", section: "channels", label: "Channels", open: open("channels") });
     if (open("channels")) {
       out.push(...err("channels"));
+      if (!plain.length && !projects.length && !i.errors?.channels) out.push({ key: "a:new-channel", type: "action", label: "Create a channel", to: "new-channel" });
       for (const c of plain) out.push({ key: `ch:${c.channelId}`, type: "channel", channel: c, project: false });
       if (projects.length) {
         out.push({ key: "g:projects", type: "group", label: "Projects" });

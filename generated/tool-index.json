@@ -7640,8 +7640,20 @@
     },
     {
       "deferred": false,
+      "name": "terminal_request",
+      "summary": "Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
       "name": "terminal_resize",
       "summary": "Resize the terminal window",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_risk",
+      "summary": "What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks",
       "toolset": "terminal"
     },
     {

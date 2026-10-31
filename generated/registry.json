@@ -50192,6 +50192,12 @@
         {
           "input": {
             "allowOther": true,
+            "card": {
+              "command": "example",
+              "host": "agent_computer",
+              "kind": "terminal",
+              "risk": "read"
+            },
             "mode": "single",
             "options": [
               {
@@ -50215,6 +50221,40 @@
         "properties": {
           "allowOther": {
             "type": "boolean"
+          },
+          "card": {
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "host": {
+                "enum": [
+                  "agent_computer",
+                  "space_server",
+                  "device"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "terminal"
+                ],
+                "type": "string"
+              },
+              "risk": {
+                "enum": [
+                  "read",
+                  "change",
+                  "danger"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "command"
+            ],
+            "type": "object"
           },
           "mode": {
             "enum": [
@@ -177036,6 +177076,123 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "command": "example",
+            "host": "agent_computer",
+            "threadId": "thr_a1b2c3",
+            "why": "example"
+          },
+          "name": "example",
+          "output": {
+            "blockId": "blk_a1b2c3",
+            "messageId": "msg_a1b2c3",
+            "risk": "read"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "host": {
+            "enum": [
+              "agent_computer",
+              "space_server",
+              "device"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "command",
+          "why"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "terminal",
+      "name": "terminal.request",
+      "output": {
+        "properties": {
+          "blockId": {
+            "examples": [
+              "blk_a1b2c3"
+            ],
+            "pattern": "^blk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "read",
+              "change",
+              "danger"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "blockId",
+          "messageId",
+          "risk"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you",
+      "surfaces": {
+        "agent": {
+          "blocks": [
+            "question"
+          ],
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "terminal_request",
+          "toolset": "terminal"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input",
         "validation.not_found"
       ],
@@ -177103,6 +177260,92 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Resize the terminal window",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "terminal"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "command": "example"
+          },
+          "name": "example",
+          "output": {
+            "entry": "example",
+            "risk": "read",
+            "verdict": "deny",
+            "why": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "command": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "terminal",
+      "name": "terminal.risk",
+      "output": {
+        "properties": {
+          "entry": {
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "read",
+              "change",
+              "danger"
+            ],
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "deny",
+              "ask",
+              "allow",
+              "none"
+            ],
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "risk",
+          "verdict",
+          "why"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -177284,6 +177527,10 @@
           }
         }
       ],
+      "gate": {
+        "act": "approve",
+        "when": "terminal.is_danger(input.command)"
+      },
       "idempotency": "key",
       "input": {
         "properties": {

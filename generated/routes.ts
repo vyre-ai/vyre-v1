@@ -28708,6 +28708,25 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/terminal/request",
+    "cap": "terminal.request",
+    "v": 1,
+    "module": "terminal",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/terminal/resize",
     "cap": "terminal.resize",
     "v": 1,
@@ -28722,6 +28741,24 @@ const routes5: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/terminal/risk",
+    "cap": "terminal.risk",
+    "v": 1,
+    "module": "terminal",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },
@@ -28778,7 +28815,7 @@ const routes5: Route[] = [
     "risk": "high",
     "offline": "online",
     "teamOnly": false,
-    "gate": null
+    "gate": "approve"
   },
   {
     "method": "POST",
