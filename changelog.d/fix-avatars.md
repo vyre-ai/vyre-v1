@@ -1,0 +1,1 @@
+- The assistant now wears the shared Vyre mark on every message, in the chat header, on chat rows and on Needs you rows, whatever it is named. A look picked in Settings (You and your Assistant, Change its look) replaces the mark everywhere. Every other agent's face is drawn from its id, so a rename keeps it. A group chat row shows up to three stacked faces.

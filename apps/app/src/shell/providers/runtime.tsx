@@ -6,6 +6,7 @@ import type {RecordsPreviewTicket,RecordsPreviewReader} from "../../../../../cli
 import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { HomeData } from "../../places/home/sections-a/data.tsx";
+import { setAssistantId } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { TurnStreams } from "../session/turn-streams.ts";
 
 /** Where a click goes. The shell resolves a screen id (generated/screens.ts) or a subject to a place and a tab. */
@@ -49,6 +50,8 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
 const Ctx = createContext<ShellRuntime | null>(null);
 
 export function ShellRuntimeProvider({ value, children }: { value: ShellRuntime; children: ReactNode }): ReactElement {
+  // The assistant wears the Vyre mark in every face below; say which agent it is before they draw.
+  setAssistantId(value.assistant.id);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
