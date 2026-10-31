@@ -29,6 +29,33 @@ import type { PurgeHandlers } from "./handlers/purge.ts";
 import { createSiteTableHandlers } from "./handlers/site-tables.ts";
 import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.ts";
 
+/** The Vault, as Records needs it for sealed fields (host/src/seams/records-vault.ts builds it). Absent: a sealed value cannot be saved or shown, and says so. */
+export interface RecordsVault {
+  put(o: { type: string; recordId: string; field: string; value: string; ref?: string }): Promise<string>;
+  reveal(ref: string, person: string): Promise<string>;
+}
+let vault: RecordsVault | null = null;
+/** The host hands the Vault (a seam like the others). */
+export function setRecordsVault(v: RecordsVault | null): void { vault = v; }
+
+/**
+ * The sealed path: the one way a plaintext reaches a sealed field is `{ sealed: true, value: "text" }`. The text goes to the Vault and the row keeps the reference only, so no row, event,
+ * history entry or log line ever holds it. A reference passes as it is (a record read and written back), and null clears the field.
+ */
+async function sealIn(def: TypeDef, recordId: string, data: Record<string, unknown>, current?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { ...data };
+  for (const f of def.fields) {
+    if (f.kind !== "sealed" || !Object.prototype.hasOwnProperty.call(out, f.name)) continue;
+    const v = out[f.name];
+    if (!v || typeof v !== "object" || (v as { sealed?: unknown }).sealed !== true || typeof (v as { value?: unknown }).value !== "string") continue;
+    if (!vault) throw new StoreError("unavailable", `${f.name} is sealed and the Vault is not available on this server, so the value was not saved.`);
+    const have = current?.[f.name];
+    const ref = await vault.put({ type: def.name, recordId, field: f.name, value: (v as { value: string }).value, ...(isSealedRef(have) ? { ref: (have as { ref: string }).ref } : {}) });
+    out[f.name] = { sealed: f.name, ref, present: true, set_at: Date.now() };
+  }
+  return out;
+}
+
 /** The singular and plural spellings a type key may be asked for by: deal and deals, company and companies, status and statuses. */
 function variants(name: string): string[] {
   const out = new Set<string>([name, `${name}s`, `${name}es`]);
@@ -200,12 +227,12 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
     },
     async create(type, id, data) {
       const def = await needType(type);
-      return inner.create(def.name, id, scrub(def, { ...data }));
+      return inner.create(def.name, id, scrub(def, await sealIn(def, id, { ...data })));
     },
     async update(type, id, patch, base) {
       const def = await needType(type);
-      const clean = scrub(def, { ...patch });
       const row = await inner.get(def.name, id);
+      const clean = scrub(def, await sealIn(def, id, { ...patch }, row?.data));
       if (row && row.version === base) assertWriteOnce(def, row.data, clean);
       if (row) assertStageGates(def, row.data, clean);
       return inner.update(def.name, id, clean, base);
@@ -251,7 +278,7 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
       const f = known.get(name);
       if (!f) throw new StoreError("unknown_field", `${type} has no field ${name}`);
       if (!parseHlc(inc.hlc)) throw new StoreError("invalid", `${name} needs a field clock`);
-      const patch = scrub(def, { [name]: inc.value });
+      const patch = scrub(def, await sealIn(def, id, { [name]: inc.value }, row.data));
       const value = patch[name];
       assertWriteOnce(def, row.data, { [name]: value });
       const next: FieldWrite = { value, hlc: inc.hlc };
@@ -334,14 +361,14 @@ export function setRecordsSpaceStore(seam: SpaceStoreSeam | null): void {
   extra = null;
   seam?.declare([recordsFieldMeta]);
 }
-export const hostSeams: SeamSetters = { setRecordsSpaceStore };
+export const hostSeams: SeamSetters = { setRecordsSpaceStore, setRecordsVault };
 function live(): RecordsHandle {
   if (!shared) shared = openRecords(spaceSeam ? { opened: spaceSeam.open() } : {});
   return shared;
 }
 
 // The rest of the live map (P-L3_LIVE): history, versions and holds (handlers/history.ts), merge, bulk upsert and export (handlers/merge.ts), both built once over the live handle.
-// DECISION: reveal has no `unseal` and export no `putFile` until the host hands this module the Vault and the Files port (a host seam); until then they refuse, they do not guess.
+// DECISION: reveal opens a sealed reference through the Vault seam (setRecordsVault); export has no `putFile` until the host hands this module the Files port; until then it refuses, it does not guess.
 type LiveHistory = Omit<HistoryHandlers, "records.history">;
 let extra: { comments: CommentsHandlers; history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers; purge: PurgeHandlers } | null = null;
 function more(): NonNullable<typeof extra> {
@@ -349,7 +376,11 @@ function more(): NonNullable<typeof extra> {
     const h = live();
     extra = {
       comments: createCommentsHandlers({ tx: h.host.tx }),
-      history: createHistoryHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, readLog: (q) => h.host.store.read(q) }),
+      history: createHistoryHandlers({
+        tx: h.host.tx, store: h.store, writes: h.handlers, readLog: (q) => h.host.store.read(q),
+        // a reveal is the Vault's: it checks the person's access to the item and logs the reveal
+        unseal: (sealed, ctx) => (vault && ctx.principal ? vault.reveal(sealed.ref, ctx.principal.id) : Promise.reject(new Error("the vault is not available"))),
+      }),
       merge: createMergeHandlers({ store: h.store, tx: h.host.tx }),
       sites: createSiteTableHandlers({ store: h.store }),
       review: createReviewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),

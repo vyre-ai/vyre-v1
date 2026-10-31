@@ -19,7 +19,7 @@ Reveal a sealed field to the caller (asked once, logged per actor)
 | HTTP | POST /v1/records/reveal |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | field.revealed |
 
 ## Input
 

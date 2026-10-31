@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FieldsPanel, linkFieldOps } from "./index.ts";
+import { FieldsPanel, ADDABLE, canSeal, confirmLine, linkFieldOps, sealBlocked, sealFieldOps, sensitiveKind } from "./index.ts";
 import type { PanelType } from "./index.ts";
 
 const has = (s: string, needle: string): boolean => s.replaceAll("<!-- -->", "").includes(needle);
@@ -26,6 +26,18 @@ test("a link to the same type keeps its two ends apart", () => {
 test("the panel says three or more groups show as tabs and offers Link to", () => {
   const closed = renderToStaticMarkup(<FieldsPanel call={async () => ({})} type={deal} hidden={[]} onToggleHidden={() => undefined} onClose={() => undefined} fieldTypes={[]} trash={[]} layout={[]} linkTypes={[{ key: "contact", title: "Contact", plural: "Contacts" }]} />);
   assert.ok(has(closed, "Three or more groups show as tabs."));
-  assert.ok(!has(closed, "Check for sensitive data"), "no scan link until a field can be sealed");
+  assert.ok(has(closed, 'data-testid="panel-scan"') && has(closed, "Check for sensitive data"));
   assert.ok(!has(closed, 'data-testid="panel-add-type-link"'));
+});
+
+test("sealing: Sealed can be added, only text-like fields can be sealed, and the confirm says it is one way", () => {
+  assert.ok((ADDABLE as readonly string[]).includes("sealed"));
+  for (const t of ["text", "longtext", "email", "phone", "number", "url"]) assert.equal(canSeal({ type: t }), true, t);
+  for (const t of ["money", "choice", "sealed", "files", "relation"]) assert.equal(canSeal({ type: t }), false, t);
+  assert.equal(sealBlocked({ system: false }, "name", "taxid"), null);
+  assert.match(sealBlocked({ system: false }, "name", "name")!, /names the record/);
+  assert.match(sealBlocked({ system: true }, "name", "taxid")!, /Built in/);
+  assert.deepEqual(sealFieldOps("client", "taxid"), [{ op: "field.retype", type: "client", field: "taxid", toType: "sealed" }]);
+  assert.match(confirmLine("field.seal", "Tax ID", 50), /50 values move into the Vault\. This cannot be undone/);
+  assert.equal(sensitiveKind("id_number"), "an ID number");
 });

@@ -319,9 +319,9 @@ export function createHistoryHandlers(deps: HistoryDeps): HistoryHandlers {
       if (f.kind !== "sealed") return fail(ctx, "validation.bad_input", `${input.field} is not a sealed field`);
       // Agents hold handles only (spec 2.9): a reveal is a person's act.
       if (!ctx.principal || ctx.principal.kind !== "person") return fail(ctx, "permission.role_lacks_permission", "only a person can reveal a sealed value; agents work with the handle");
-      const all = need(ctx, input.type, input.recordId);
-      const current = all[all.length - 1]!;
-      if (current.deletedAt !== undefined) return fail(ctx, "validation.not_found", `no ${input.type} ${input.recordId}`);
+      // the row as it is now, from the store: the old versions come from the event log, and sealing a field erases the plaintext in them
+      const current = await deps.store.get(input.type, input.recordId);
+      if (!current) return fail(ctx, "validation.not_found", `no ${input.type} ${input.recordId}`);
       if (!ctx.authorize) return fail(ctx, "permission.no_grant", "no authorization is wired for reveal");
       const decision = ctx.authorize({ perm: "records.reveal", level: "view" }, { type: "record", id: input.recordId });
       if (decision.effect === "deny") return fail(ctx, /clearance|label/i.test(decision.reason) ? "permission.above_clearance" : "permission.no_grant", decision.reason);
