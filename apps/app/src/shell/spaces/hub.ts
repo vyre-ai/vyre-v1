@@ -136,7 +136,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   const sessions = new Map<string, SpaceSession>();
 
   for (const def of defs) {
-    const tabs = createTabsController({ deviceId: options.deviceId, personId: options.personIds?.[def.spaceId] ?? options.personId, spaceId: def.spaceId, storage: options.storage, start: kitById(def.kit).start });
+    const tabs = createTabsController({ deviceId: options.deviceId, personId: options.personIds?.[def.spaceId] ?? options.personId, spaceId: def.spaceId, storage: options.storage, start: kitById(def.kit).start, ...(def.kind === "personal" ? { hidden: ["apps"] as const } : {}) });
     const first = activeEntry(tabs.state());
     sessions.set(def.spaceId, {
       def,
