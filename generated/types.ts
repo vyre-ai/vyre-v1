@@ -9671,6 +9671,7 @@ export type EngineTurnFinishOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnGetIn = {
@@ -9703,6 +9704,7 @@ export type EngineTurnGetOut = {
           }>;
         traceId: string;
       };
+      nodeId?: string;
     };
     machine: "host" | "device";
     keyUsed?: string;
@@ -9765,6 +9767,7 @@ export type EngineTurnRecordOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnRecordUsageIn = {
@@ -9809,6 +9812,7 @@ export type EngineTurnRetryOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnStartIn = {
@@ -9847,6 +9851,7 @@ export type EngineTurnStartOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnWaitIn = {
@@ -9891,6 +9896,7 @@ export type EngineTurnsListOut = {
           }>;
         traceId: string;
       };
+      nodeId?: string;
     }>;
   next?: string;
   total?: number;

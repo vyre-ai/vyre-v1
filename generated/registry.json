@@ -5095,115 +5095,6 @@
       },
       "type": "array"
     },
-    "s_3a244dfd7c": {
-      "properties": {
-        "accountRef": {
-          "description": "Vault handle or subscription account reference; never a secret value",
-          "examples": [
-            "#Team_Anthropic_Key"
-          ],
-          "type": "string"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "asker": {
-          "type": "string"
-        },
-        "costMicros": {
-          "type": "integer"
-        },
-        "endedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "engine": {
-          "type": "string"
-        },
-        "error": {
-          "$ref": "#/$defs/s_2b8694bae1"
-        },
-        "model": {
-          "type": "string"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "startedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "state": {
-          "enum": [
-            "queued",
-            "running",
-            "waiting",
-            "completed",
-            "failed",
-            "cancelled"
-          ],
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "tokensIn": {
-          "type": "integer"
-        },
-        "tokensOut": {
-          "type": "integer"
-        },
-        "traceId": {
-          "examples": [
-            "0123456789abcdef0123456789abcdef"
-          ],
-          "pattern": "^[0-9a-f]{32}$",
-          "type": "string"
-        },
-        "turnId": {
-          "examples": [
-            "trn_a1b2c3"
-          ],
-          "pattern": "^trn_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "turnId",
-        "threadId",
-        "agentId",
-        "asker",
-        "engine",
-        "model",
-        "state",
-        "traceId",
-        "startedAt",
-        "tokensIn",
-        "tokensOut",
-        "costMicros"
-      ],
-      "type": "object"
-    },
     "s_3a34865d2b": {
       "properties": {
         "channel": {
@@ -7742,6 +7633,119 @@
       },
       "required": [
         "resource"
+      ],
+      "type": "object"
+    },
+    "s_5a72b79a3e": {
+      "properties": {
+        "accountRef": {
+          "description": "Vault handle or subscription account reference; never a secret value",
+          "examples": [
+            "#Team_Anthropic_Key"
+          ],
+          "type": "string"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "asker": {
+          "type": "string"
+        },
+        "costMicros": {
+          "type": "integer"
+        },
+        "endedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/$defs/s_2b8694bae1"
+        },
+        "model": {
+          "type": "string"
+        },
+        "nodeId": {
+          "description": "The server of the asker's the turn ran on, when the chat was pinned to one",
+          "type": "string"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "tokensIn": {
+          "type": "integer"
+        },
+        "tokensOut": {
+          "type": "integer"
+        },
+        "traceId": {
+          "examples": [
+            "0123456789abcdef0123456789abcdef"
+          ],
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "turnId": {
+          "examples": [
+            "trn_a1b2c3"
+          ],
+          "pattern": "^trn_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "turnId",
+        "threadId",
+        "agentId",
+        "asker",
+        "engine",
+        "model",
+        "state",
+        "traceId",
+        "startedAt",
+        "tokensIn",
+        "tokensOut",
+        "costMicros"
       ],
       "type": "object"
     },
@@ -12159,6 +12163,17 @@
         "recording",
         "a2p",
         "state"
+      ],
+      "type": "object"
+    },
+    "s_93f03ee8ab": {
+      "properties": {
+        "turn": {
+          "$ref": "#/$defs/s_5a72b79a3e"
+        }
+      },
+      "required": [
+        "turn"
       ],
       "type": "object"
     },
@@ -17557,17 +17572,6 @@
         "fileId",
         "sheet",
         "rowId"
-      ],
-      "type": "object"
-    },
-    "s_d9a7c83bfd": {
-      "properties": {
-        "turn": {
-          "$ref": "#/$defs/s_3a244dfd7c"
-        }
-      },
-      "required": [
-        "turn"
       ],
       "type": "object"
     },
@@ -38805,6 +38809,7 @@
             "type": "string"
           },
           "vaultItemId": {
+            "description": "The Vault handle with its field (#Name.api_key) or an item id. The key is released to the person asking, never returned.",
             "type": "string"
           }
         },
@@ -75181,6 +75186,7 @@
                 "traceId": "0123456789abcdef0123456789abcdef"
               },
               "model": "example",
+              "nodeId": "example",
               "runId": "run_a1b2c3",
               "startedAt": 1760000000000,
               "state": "queued",
@@ -75234,7 +75240,7 @@
       "module": "engine",
       "name": "engine.turn.finish",
       "output": {
-        "$ref": "#/$defs/s_d9a7c83bfd"
+        "$ref": "#/$defs/s_93f03ee8ab"
       },
       "permission": null,
       "resource": {
@@ -75309,6 +75315,7 @@
                   "traceId": "0123456789abcdef0123456789abcdef"
                 },
                 "model": "example",
+                "nodeId": "example",
                 "runId": "run_a1b2c3",
                 "startedAt": 1760000000000,
                 "state": "queued",
@@ -75432,7 +75439,7 @@
                 "type": "array"
               },
               "turn": {
-                "$ref": "#/$defs/s_3a244dfd7c"
+                "$ref": "#/$defs/s_5a72b79a3e"
               }
             },
             "required": [
@@ -75518,6 +75525,7 @@
                 "traceId": "0123456789abcdef0123456789abcdef"
               },
               "model": "example",
+              "nodeId": "example",
               "runId": "run_a1b2c3",
               "startedAt": 1760000000000,
               "state": "queued",
@@ -75608,7 +75616,7 @@
       "module": "engine",
       "name": "engine.turn.record",
       "output": {
-        "$ref": "#/$defs/s_d9a7c83bfd"
+        "$ref": "#/$defs/s_93f03ee8ab"
       },
       "permission": null,
       "resource": {
@@ -75755,6 +75763,7 @@
                 "traceId": "0123456789abcdef0123456789abcdef"
               },
               "model": "example",
+              "nodeId": "example",
               "runId": "run_a1b2c3",
               "startedAt": 1760000000000,
               "state": "queued",
@@ -75801,7 +75810,7 @@
       "name": "engine.turn.retry",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_d9a7c83bfd"
+        "$ref": "#/$defs/s_93f03ee8ab"
       },
       "permission": null,
       "resource": {
@@ -75863,6 +75872,7 @@
                 "traceId": "0123456789abcdef0123456789abcdef"
               },
               "model": "example",
+              "nodeId": "example",
               "runId": "run_a1b2c3",
               "startedAt": 1760000000000,
               "state": "queued",
@@ -75934,7 +75944,7 @@
       "module": "engine",
       "name": "engine.turn.start",
       "output": {
-        "$ref": "#/$defs/s_d9a7c83bfd"
+        "$ref": "#/$defs/s_93f03ee8ab"
       },
       "permission": null,
       "resource": {
@@ -76090,6 +76100,7 @@
                   "traceId": "0123456789abcdef0123456789abcdef"
                 },
                 "model": "example",
+                "nodeId": "example",
                 "runId": "run_a1b2c3",
                 "startedAt": 1760000000000,
                 "state": "queued",
@@ -76155,7 +76166,7 @@
           },
           "turns": {
             "items": {
-              "$ref": "#/$defs/s_3a244dfd7c"
+              "$ref": "#/$defs/s_5a72b79a3e"
             },
             "type": "array"
           }
