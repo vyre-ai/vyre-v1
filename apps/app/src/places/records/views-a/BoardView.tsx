@@ -9,7 +9,7 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useLive, useRecordsData } from "../sidebar/data.tsx";
-import { Glyph } from "../sidebar/parts.tsx";
+import { Glyph, pointOf } from "../sidebar/parts.tsx";
 import { cellText, hueOf } from "../table/model.ts";
 import { moveCard, moveError } from "./actions.ts";
 import { cardFields, each, isLaneField, LANE_PAGE, LANE_W, laneCountSpec, laneFieldOf, lanesOf, laneSpec, neighbour } from "./model.ts";
@@ -33,6 +33,8 @@ interface Board {
   rows: { current: Record<string, RecordRow> };
   counts: { current: Record<string, number> };
   move: (row: RecordRow, to: Lane) => void;
+  /** A Journey board: the menu of subject records to start at a lane. */
+  addAt: (lane: Lane, at: { x: number; y: number }) => void;
   open: (id: string) => void;
   /** The board's one menu, drawn after everything else so it is never under a lane. */
   show: (items: readonly MenuEntry[], x: number, y: number) => void;
@@ -121,7 +123,7 @@ function LaneColumn({ board, lane }: { board: Board; lane: Lane }): ReactElement
       {lane.none ? null : (
         <Pressable
           accessibilityRole="button" accessibilityLabel={`New in ${lane.title}`} testID={`add-${lane.key}`}
-          onPress={() => st.newRecord({ [field.key]: lane.key })} style={({ hovered }: { hovered?: boolean }) => [c.add, hovered === true && c.addOver]}
+          onPress={(e) => { if (board.ctx.journey) board.addAt(lane, pointOf(e)); else st.newRecord({ [field.key]: lane.key }); }} style={({ hovered }: { hovered?: boolean }) => [c.add, hovered === true && c.addOver]}
         >
           <Glyph name="plus" size={12} color="var(--ink-3)" />
           <Text style={c.addText}>New</Text>
@@ -156,8 +158,8 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const rows = useRef<Record<string, RecordRow>>({});
   const counts = useRef<Record<string, number>>({});
   const width = useWindowDimensions().width;
-  const field = laneFieldOf(ctx.def, ctx.saved, picked);
-  const head = <ViewHead ctx={ctx} st={st} lanes={{ field, choices: ctx.def.fields.filter(isLaneField), pick: setPicked }} />;
+  const field = ctx.journey?.field ?? laneFieldOf(ctx.def, ctx.saved, picked);
+  const head = <ViewHead ctx={ctx} st={st} lanes={{ field, choices: ctx.journey ? [ctx.journey.field] : ctx.def.fields.filter(isLaneField), pick: setPicked }} />;
   if (!field) {
     const choices = ctx.def.fields.filter(isLaneField);
     return <View style={c.main} testID="records-board">{head}<States kind="empty" title={choices.length > 0 ? "Pick a field to group by." : `${ctx.def.plural} have no status or choice field to make lanes from.`} icon="records" /></View>;
@@ -170,9 +172,16 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const move = (row: RecordRow, to: Lane): void => {
     setError(null);
     setSelected(row.id);
+    if (ctx.journey) { if (!to.none) ctx.journey.move(row, to.key).catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not move it. Try again.")); return; }
     moveCard(data, ctx.type, field, row, to).catch((e: unknown) => setError(moveError(e)));
   };
-  const board: Board = { ctx, st, field, lanes, selected, select: setSelected, drag, ids, rows, counts, move, open: data.nav.openRecord, show: menu.show };
+  const addAt = (lane: Lane, at: { x: number; y: number }): void => {
+    setError(null);
+    ctx.journey?.addChoices(lane.key, (message) => { if (message) setError(message); })
+      .then((items) => menu.show(items, at.x, at.y, "other"))
+      .catch(() => setError("Could not load the records to add."));
+  };
+  const board: Board = { ctx, st, field, lanes, selected, select: setSelected, drag, ids, rows, counts, move, addAt, open: data.nav.openRecord, show: menu.show };
   const shown = (l: Lane): boolean => !l.none || (counts.current[l.key] ?? 0) > 0;
 
   const laneOfSelected = (): { lane: Lane; at: number } | null => {

@@ -111,7 +111,9 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const extras = useMemo(() => configExtras(directory, {
     openAutomation: (id) => data.nav.openAutomation(id),
     openRuns: (id) => { data.nav.openAutomation(id); setSideRun(null); },
-  }), [directory, data]);
+    // a Journey's records open in Records on their board
+    openRecords: (type) => rt.open({ screen: "records.saved-views", args: { type, kind: "board" } }),
+  }), [directory, data, rt]);
   const runs = useMemo(() => runsData(rt, {
     openAutomation: (id, stepId) => { data.nav.openAutomation(id); if (stepId) setStep(stepId); },
     openRun: (runId) => data.nav.openRun(runId),
