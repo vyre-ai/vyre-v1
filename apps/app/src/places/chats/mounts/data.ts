@@ -344,6 +344,7 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
     },
     toast: (text: string) => go.say(text),
     ...(o.focus ? { focus: o.focus } : {}),
+    terminal: true,
     mountSheet: (p) => createElement(MountSheets, { rt, request: { kind: "mount", into: null, source: p.source as SourceId }, onClose: p.onClose, onChanged: () => undefined, onMounted: p.onMounted }),
     waitingLine: createElement(WaitingLine, { screens: rt.screens, call: rt.call, threadId: o.threadId, agent: o.nameOf(o.leadId) }),
   };
