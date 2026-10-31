@@ -147,3 +147,27 @@ test("approval is for a person, once; a rejected plan stays rejected; unknown pl
   const other = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "k2" })).thread.threadId as string;
   assert.equal(await failure(() => h["chat.approve_plan"]!(hn.ctx, { threadId: other, planId: r.planId })), "validation.not_found", "a plan belongs to its thread");
 });
+
+test("the answer card's shape { keys, text } is stored as a key, a list of keys or text, so the agent reads one shape", async () => {
+  const { canonicalAnswer } = await import("../handlers/thread.ts");
+  assert.deepEqual(canonicalAnswer("multi", { keys: ["a", "b"] }), ["a", "b"]);
+  assert.deepEqual(canonicalAnswer("multi", { keys: ["a"], text: " more " }), ["a", { other: "more" }]);
+  assert.equal(canonicalAnswer("single", { keys: ["a"] }), "a");
+  assert.deepEqual(canonicalAnswer("single", { keys: [], text: "none" }), { other: "none" });
+  assert.equal(canonicalAnswer("free", { keys: [], text: " hi " }), "hi");
+  assert.deepEqual(canonicalAnswer("multi", ["a"]), ["a"], "the older shapes pass through");
+  assert.equal(canonicalAnswer("single", "a"), "a");
+});
+
+test("an answer is sent to the agent as the person's own message, naming each pick and its key, once", async () => {
+  const posts: Record<string, unknown>[] = [];
+  const hn = harness({ calls: { "chat.post": (i) => { posts.push(i); return {}; } } });
+  const t = await chat(hn);
+  const q = hn.seedQuestion(t, { mode: "multi", options: OPTS, allowOther: true });
+  await answer(hn.ctx, t, q.blockId, { keys: ["a", "c"], text: "and D" });
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0]!["body"], "Answered: A (a), C (c), and D");
+  assert.equal(posts[0]!["threadId"], t);
+  await answer(hn.ctx, t, q.blockId, { keys: ["a", "c"], text: "and D" });
+  assert.equal(posts.length, 1, "the same answer again sends nothing new");
+});

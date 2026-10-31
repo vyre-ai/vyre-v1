@@ -3,16 +3,16 @@
 
 import type { SeamDriverDeps } from "./index.ts";
 
-export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | "space">): (plan: { method: string; url: string; vaultItemId: string }) => Promise<{ status: number }> {
-  return async (plan) => {
+export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | "space">): (plan: { method: string; url: string; vaultItemId: string; header?: string; prefix?: string }, asker?: string) => Promise<{ status: number }> {
+  return async (plan, asker) => {
     let value = "";
     try {
-      value = await d.vault.secret(plan.vaultItemId, d.space);
+      value = await d.vault.secret(plan.vaultItemId, d.space, asker);
     } catch {
       return { status: 0 };
     }
     try {
-      const response = await d.fetch(plan.url, { method: plan.method, headers: { authorization: `Bearer ${value}` } });
+      const response = await d.fetch(plan.url, { method: plan.method, headers: { [(plan.header ?? "authorization").toLowerCase()]: `${plan.prefix ?? (plan.header === undefined || plan.header.toLowerCase() === "authorization" ? "Bearer " : "")}${value}` } });
       return { status: response.status };
     } catch {
       return { status: 0 };

@@ -4455,6 +4455,57 @@
     },
     {
       "blocks": [],
+      "cap": "automations.connector_card",
+      "deferred": false,
+      "description": "Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "done": {
+                  "type": "boolean"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "done"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "title",
+          "items"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_card",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.connector_offer.accept",
       "deferred": false,
       "description": "Accept a connector setup offer. Accepting is final for that Vault item.",
@@ -5597,6 +5648,31 @@
     },
     {
       "blocks": [],
+      "cap": "automations.read_docs",
+      "deferred": false,
+      "description": "Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "focus": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "automations_read_docs",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.replay",
       "deferred": false,
       "description": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
@@ -6049,6 +6125,10 @@
             },
             "type": "array"
           },
+          "header": {
+            "description": "The header the app wants the key in. Default Authorization.",
+            "type": "string"
+          },
           "markedSafe": {
             "type": "boolean"
           },
@@ -6056,6 +6136,10 @@
             "type": "string"
           },
           "path": {
+            "type": "string"
+          },
+          "prefix": {
+            "description": "Text before the key in that header. Default Bearer for Authorization, none otherwise.",
             "type": "string"
           },
           "vaultItemId": {
@@ -12969,7 +13053,7 @@
       },
       "name": "connections_create",
       "planMode": "blocked",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13021,7 +13105,7 @@
       },
       "name": "connections_get",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13059,7 +13143,7 @@
       },
       "name": "connections_list",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13242,6 +13326,134 @@
     },
     {
       "blocks": [],
+      "cap": "connectors.define",
+      "deferred": false,
+      "description": "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "headers": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "method": {
+                  "enum": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "output": {
+                  "type": "string"
+                },
+                "query": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "write": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "url"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "auth": {
+            "properties": {
+              "header": {
+                "type": "string"
+              },
+              "prefix": {
+                "type": "string"
+              },
+              "secret": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "none",
+                  "api_key",
+                  "bearer"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "key": {
+            "examples": [
+              "hubspot"
+            ],
+            "type": "string"
+          },
+          "secrets": {
+            "items": {
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "domains",
+          "auth",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "name": "connectors_define",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "connectors.diff",
       "deferred": false,
       "description": "Diff a draft against the live version of a connector",
@@ -13319,7 +13531,7 @@
       },
       "name": "connectors_get",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13356,6 +13568,9 @@
             ],
             "type": "string"
           },
+          "source": {
+            "type": "boolean"
+          },
           "title": {
             "type": "string"
           }
@@ -13370,7 +13585,7 @@
       },
       "name": "connectors_init",
       "planMode": "blocked",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13402,7 +13617,7 @@
       },
       "name": "connectors_list",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13538,7 +13753,7 @@
       },
       "name": "connectors_publish",
       "planMode": "blocked",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13735,7 +13950,7 @@
       },
       "name": "connectors_test",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {

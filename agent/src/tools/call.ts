@@ -49,6 +49,8 @@ export interface ToolSession {
   /** Deferred tools found by tool_search in this thread. */
   loaded(threadId: string): ReadonlySet<string>;
   forget(threadId: string): void;
+  /** List these deferred tools in this thread without a tool_search (names the catalog does not know are ignored). */
+  preload(threadId: string, names: readonly string[]): void;
 }
 
 const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -171,6 +173,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
     },
     loaded: (threadId) => loadedSet(threadId),
     forget: (threadId) => { loadedBy.delete(threadId); },
+    preload: (threadId, names) => { const set = loadedSet(threadId); for (const n of names) set.add(n); },
   };
   return api;
 }

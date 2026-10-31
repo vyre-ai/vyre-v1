@@ -31,6 +31,8 @@ type In = {
   markedSafe?: boolean;
   vaultItemId: string;
   actionKey?: string;
+  header?: string;
+  prefix?: string;
 };
 ```
 
@@ -40,6 +42,7 @@ type In = {
 type Out = {
   level: "tested" | "draft";
   reason?: string;
+  status?: number;
 };
 ```
 
@@ -60,14 +63,17 @@ type Out = {
     "domains": [
       "example"
     ],
+    "header": "example",
     "markedSafe": true,
     "method": "example",
     "path": "example",
+    "prefix": "example",
     "vaultItemId": "example"
   },
   "output": {
     "level": "tested",
-    "reason": "example"
+    "reason": "example",
+    "status": 1
   }
 }
 ```

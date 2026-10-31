@@ -17,7 +17,7 @@ List connections; mine, the Space ones or all the caller may see
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/connections/list |
-| MCP tool | connections_list (engineer) |
+| MCP tool | connections_list (automations) |
 | CLI | none |
 | Emits | none |
 

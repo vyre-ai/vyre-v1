@@ -31,7 +31,7 @@ const run = (k: Kit, id: string, action: string, input: unknown = {}, dryRun?: b
 test("every capability of the connectors manifest (framework, connections, synced types, sync engine) has a handler", () => {
   const raw = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string; module: string }[] };
   const names = raw.capabilities.filter((c) => c.module === "connectors").map((c) => c.name).sort();
-  assert.equal(names.length, 44);
+  assert.equal(names.length, 45);
   assert.deepEqual(Object.keys(loaderHandlers).sort(), names);
   assert.deepEqual(Object.keys(kit().hs).sort(), names);
 });
@@ -458,4 +458,31 @@ test("a mapped connector is tested and published straight from its source: no Bu
   assert.equal((await k.hs["connectors.test"](k.ctx, { key: "direct" })).result.failed, 0, "the live connector is tested from its source");
   assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "direct" })).version, "1.0.1");
   assert.equal((await k.hs["connectors.get"](k.ctx, { key: "direct" })).connector.title, "V2");
+});
+
+// ---- init without a source folder, then define, test and publish in module
+
+test("an agent's connector: init with source false, define it in one call, publish, and it is live with its actions", async () => {
+  const k = kit();
+  const made = await k.hs["connectors.init"](k.ctx, { key: "fathom", title: "Fathom", mode: "api", source: false });
+  assert.equal(made.folderId, undefined, "no Files folder");
+  const defined = await k.hs["connectors.define"](k.ctx, {
+    key: "fathom", domains: ["api.fathom.ai"], auth: { type: "bearer", secret: "Fathom_Key" }, secrets: [{ name: "Fathom_Key", description: "Fathom API key" }],
+    actions: [{ name: "list_meetings", url: "https://api.fathom.ai/external/v1/meetings" }, { name: "create_webhook", method: "POST", url: "https://api.fathom.ai/external/v1/webhooks", write: true }],
+  });
+  assert.deepEqual(defined.actions, ["list_meetings", "create_webhook"]);
+  const published = await k.hs["connectors.publish"](k.ctx, { key: "fathom" });
+  assert.equal(published.published, true);
+  const got = (await k.hs["connectors.get"](k.ctx, { key: "fathom" })).connector;
+  assert.deepEqual([got.state, got.domains, got.actions], ["live", ["api.fathom.ai"], ["list_meetings", "create_webhook"]]);
+});
+
+test("define refuses a write that is not marked, a host outside domains, and a connector that has a Files source", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "acmeagent", title: "Acme", mode: "api", source: false });
+  const base = { key: "acmeagent", domains: ["api.acme.example"], auth: { type: "bearer" as const, secret: "Acme_Key" }, secrets: [{ name: "Acme_Key", description: "k" }] };
+  await assert.rejects(k.hs["connectors.define"](k.ctx, { ...base, actions: [{ name: "x", method: "PUT", url: "https://api.acme.example/x", write: false }] } as never), (e: unknown) => /mark it write/.test(JSON.stringify(e)));
+  await assert.rejects(k.hs["connectors.define"](k.ctx, { ...base, actions: [{ name: "x", url: "https://evil.example/x" }] }), (e: unknown) => /not in domains/.test(JSON.stringify(e)));
+  await k.hs["connectors.init"](k.ctx, { key: "withsrc", title: "WithSrc", mode: "api" });
+  await assert.rejects(k.hs["connectors.define"](k.ctx, { ...base, key: "withsrc", actions: [{ name: "x", url: "https://api.acme.example/x" }] }), (e: unknown) => /Files folder/.test(JSON.stringify(e)));
 });

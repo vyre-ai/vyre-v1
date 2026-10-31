@@ -207,12 +207,20 @@ export async function chatWith(rt: Pick<ShellRuntime, "call">, agentId: string):
   }
 }
 
+/** The title of a session that starts from a ready-made first message (Add to Automations, Build a connector). The agent side loads the connector-builder skill for exactly these titles. */
+export function openingTitle(first: string): string | undefined {
+  const add = /^Add (.+?) to Automations\./.exec(first);
+  if (add) return `Add ${add[1]} to Automations`;
+  if (/^Build a connector\b/.test(first)) return "Build a connector";
+  return undefined;
+}
+
 /** A chat with an agent that opens with the person's own first message. The same message to the same agent comes back to the same chat, so a reload does not start a twin. Null when it could not start. */
 export async function chatOpening(rt: Pick<ShellRuntime, "call">, agentId: string, first: string): Promise<string | null> {
   let h = 0;
   for (const ch of first) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   try {
-    const out = (await rt.call("chat.start", { kind: "chat", agentIds: [agentId], first, idempotencyKey: `open_chat_${agentId}_${h.toString(36)}` })) as { thread?: { threadId?: string } } | null;
+    const out = (await rt.call("chat.start", { kind: "chat", agentIds: [agentId], first, ...(openingTitle(first) ? { title: openingTitle(first) } : {}), idempotencyKey: `open_chat_${agentId}_${h.toString(36)}` })) as { thread?: { threadId?: string } } | null;
     return out?.thread?.threadId ?? null;
   } catch {
     return null;
@@ -227,7 +235,7 @@ export async function askWith(rt: Pick<ShellRuntime, "call">, agentId: string, s
   // An opening message starts its own session on the object (a connector build from the Vault): the same object and message come back to the same thread, never a twin.
   if (opening) {
     try {
-      const out = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType, scopeId, first: opening, idempotencyKey: `open_${scopeType}_${scopeId}_${agentId}` })) as { thread?: { threadId?: string } } | null;
+      const out = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType, scopeId, first: opening, ...(openingTitle(opening) ? { title: openingTitle(opening) } : {}), idempotencyKey: `open_${scopeType}_${scopeId}_${agentId}` })) as { thread?: { threadId?: string } } | null;
       return out?.thread?.threadId ?? null;
     } catch {
       return null;

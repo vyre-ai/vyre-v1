@@ -254,6 +254,19 @@ const onlyPeople = (ctx: ChatCtx): void => {
   if (ctx.principal.kind !== "person") raise(ctx, "validation.precondition_failed", "A person answers this, not an agent.");
 };
 
+/**
+ * The answer card (ui/blocks QuestionBlock) sends `{ keys, text? }`; the stored shape is a key (single), a list of keys (multi) or text (free), with typed text as `{ other }`. Both reach the same stored answer,
+ * so the agent reads one shape whichever surface answered.
+ */
+export function canonicalAnswer(mode: string, answer: unknown): unknown {
+  if (answer === null || typeof answer !== "object" || Array.isArray(answer) || !Array.isArray((answer as { keys?: unknown }).keys)) return answer;
+  const { keys, text } = answer as { keys: unknown[]; text?: unknown };
+  const typed = typeof text === "string" && text.trim() !== "" ? text.trim() : "";
+  if (mode === "free") return typed;
+  if (mode === "single") return keys.length > 0 ? keys[0] : typed !== "" ? { other: typed } : [];
+  return [...keys, ...(typed !== "" ? [{ other: typed }] : [])];
+}
+
 /** Does `answer` fit the question? single: one option (or free text where Other is on); multi: a list of options; free: text. */
 function answerFits(data: Record<string, unknown>, answer: unknown): boolean {
   const mode = String(data["mode"] ?? "free");
@@ -277,16 +290,26 @@ export async function answerBlock(ctx: ChatCtx, input: { threadId: string; block
   if (block.type !== "question") raise(ctx, "validation.precondition_failed", "Approve or send back a plan with its own buttons.");
   if (block.state === "done") {
     // Answering twice with the same answer is the same answer (an offline resend); a different one comes too late.
-    if (JSON.stringify(block.answer) === JSON.stringify(input.answer)) return { ok: true };
+    if (JSON.stringify(block.answer) === JSON.stringify(canonicalAnswer(String((block.data as Record<string, unknown>)["mode"] ?? "free"), input.answer))) return { ok: true };
     raise(ctx, "validation.precondition_failed", "This question was already answered.");
   }
-  if (!answerFits(block.data, input.answer)) raise(ctx, "validation.bad_input", "That answer does not fit the question.");
+  const given = canonicalAnswer(String((block.data as Record<string, unknown>)["mode"] ?? "free"), input.answer);
+  if (!answerFits(block.data, given)) raise(ctx, "validation.bad_input", "That answer does not fit the question.");
 
   const by = askerOf(ctx);
-  ctx.db.run("UPDATE chat_block SET state = 'done', answer = ?, answeredBy = ?, answeredAt = ? WHERE id = ?", JSON.stringify(input.answer), by, ctx.now(), block.id);
-  patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), answer: input.answer, answeredBy: by } }));
+  ctx.db.run("UPDATE chat_block SET state = 'done', answer = ?, answeredBy = ?, answeredAt = ? WHERE id = ?", JSON.stringify(given), by, ctx.now(), block.id);
+  patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), answer: given, answeredBy: by } }));
   // The engine reads block.answered and queues a wake, so the parked turn continues in the same thread.
   ctx.emit("block.answered", t.id, { threadId: t.id, blockId: block.id, by });
+  // The agent hears the answer as the person's own message, which wakes the lead agent the way any message does (a CLI engine has no parked call to resume). The words name each pick and its key.
+  if (ctx.call) {
+    const data = block.data as { options?: Array<{ key?: unknown; label?: unknown }> };
+    const label = (k: unknown): string => { const o = (data.options ?? []).find((x) => String(x.key) === String(k)); return o && typeof o.label === "string" ? `${o.label} (${String(k)})` : String(k); };
+    const picks = (Array.isArray(given) ? given : [given]).map((a) => (a !== null && typeof a === "object" ? String((a as { other?: unknown }).other ?? "") : label(a))).filter((x) => x !== "");
+    if (picks.length > 0) {
+      try { await ctx.call("chat.post", { threadId: t.id, body: `Answered: ${picks.join(", ")}`, idempotencyKey: `answer_${block.id}` }); } catch (e) { ctx.log.warn("the answer could not be sent to the agent", { error: e instanceof Error ? e.message : String(e) }); }
+    }
+  }
   return { ok: true };
 }
 
