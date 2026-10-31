@@ -38,8 +38,9 @@ function SpaceEntryBody({ onTarget, onBack, onCreatePersonal, onCreateMacServer,
   useEffect(() => {
     const doc = (globalThis as { document?: Document }).document;
     const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape' && !busy) { event.preventDefault(); back(); } };
-    doc?.addEventListener('keydown', onKey);
-    return () => doc?.removeEventListener('keydown', onKey);
+    // in the capture phase: a focused field (the address, the owner link) must not swallow Escape, whatever it does with the key on its way up
+    doc?.addEventListener('keydown', onKey, true);
+    return () => doc?.removeEventListener('keydown', onKey, true);
   }, [page, busy, onBack, kind, where]);
 
   const submit = async (): Promise<void> => {

@@ -1,0 +1,1 @@
+- Escape goes back from the Join and Create steps even while the address or owner-link field has focus (the listener is in the capture phase); auth.entry live passes 12 of 12.
