@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mintRecordId } from "../../../lib/ids.ts";
 import { openRecords } from "../impl.ts";
-import { createReviewHandlers, propose } from "../handlers/review.ts";
+import { askedFields, createReviewHandlers, propose } from "../handlers/review.ts";
 import type { RvCtx } from "../handlers/review.ts";
 import { createViewHandlers } from "../handlers/views.ts";
 
@@ -225,4 +225,14 @@ test("view: the saved view from the schema module resolved to its rows, a page a
   await assert.rejects(k.views["records.view"](k.ctx, { type: "person", viewId: "viw_other" }), code("validation.not_found"));
   const noCall = await kit();
   await assert.rejects(noCall.views["records.view"](noCall.ctx, { type: "person", viewId: "viw_open" }), code("internal.unavailable"));
+});
+
+test("completeness: only types a person fills in are asked; agent, task, report, envelope and project ask for nothing; marked fields narrow the ask", () => {
+  const f = (name: string, extra: Record<string, unknown> = {}) => ({ name, kind: "text", ...extra });
+  for (const name of ["agent", "task", "report", "envelope", "project"]) assert.deepEqual(askedFields({ name, fields: [f("a"), f("b")] }), [], `${name} is never asked`);
+  assert.deepEqual(askedFields({ name: "anything", system: true, fields: [f("a")] }), [], "a type flagged system is never asked");
+  assert.deepEqual(askedFields({ name: "mine", template: "project", fields: [f("a")] }), [], "a project template is never asked");
+  assert.deepEqual(askedFields({ name: "lead", fields: [f("a"), f("b")] }).map((x) => x.name), ["a", "b"], "with no marks a person's type asks for every fillable field");
+  assert.deepEqual(askedFields({ name: "lead", fields: [f("a"), f("b", { ask: true }), f("c")] }).map((x) => x.name), ["b"], "marked fields are the only ones asked");
+  assert.deepEqual(askedFields({ name: "lead", fields: [f("a"), f("b", { ask: false })] }).map((x) => x.name), ["a"], "a field marked not to ask is left out");
 });

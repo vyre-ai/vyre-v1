@@ -75,6 +75,17 @@ export function toggleFold(folded: readonly string[], key: string): string[] {
 export const RING_R = 9;
 export const RING_C = 2 * Math.PI * RING_R;
 
+const SYSTEM_TYPES = new Set(["agent", "task", "report", "envelope", "project"]);
+
+/**
+ * Whether a type's page asks people to fill fields ("8 of 11", Ask for these). Only types where a person supplies the facts do; the system's own types (agent, task, report, envelope) and
+ * projects keep their own pages and never ask. The server names the fields (only those marked to be asked); a type with none to ask shows no ring.
+ */
+export function asksForFields(def: Pick<TypeDef, "key"> & { system?: boolean; template?: string }, c?: Pick<Completeness, "total">): boolean {
+  if (SYSTEM_TYPES.has(def.key) || def.system === true || def.template === "project") return false;
+  return c === undefined || c.total > 0;
+}
+
 export interface Ring { fraction: number; dash: string; label: string; complete: boolean }
 
 /** The ring: how much of it is drawn and the words beside it ("8 of 11"). */

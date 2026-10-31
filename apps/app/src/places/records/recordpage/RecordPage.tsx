@@ -14,7 +14,7 @@ import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
 import {
-  PANE_TABS, RING_R, activityLine, ago, askText, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
+  PANE_TABS, RING_R, activityLine, ago, askText, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
   shownFields, sourceText, splitLinks, toggleFold, valueText,
 } from "./model.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
@@ -273,7 +273,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   }
   const prefs = pq.status === "ready" ? pq.data : { folded: [], keepVisible: [] };
   const sections = sectionsOf(def, lq.status === "ready" ? lq.data : undefined, pq.status === "ready" ? pq.data : undefined);
-  const ring = cq.status === "ready" ? ringOf(cq.data) : null;
+  const ring = cq.status === "ready" && asksForFields(def, cq.data) ? ringOf(cq.data) : null;
   const nodes = mq.status === "ready" ? mq.data.nodes : [];
   const title = String(row.fields[def.titleField] ?? "") || "Untitled";
   const sf = def.summaryField ? def.fields.find((x) => x.key === def.summaryField) : undefined;

@@ -143,6 +143,20 @@ const empty = (v: unknown): boolean => {
 const DERIVED_FTYPES = new Set(["formula", "lookup", "rollup", "autonumber", "created_time", "modified_time", "created_by", "modified_by", "button"]);
 const fillable = (f: FieldDef): boolean => f["derived"] !== true && !(typeof f["ftype"] === "string" && DERIVED_FTYPES.has(f["ftype"]));
 
+/** Types whose facts the system keeps, not a person: nobody is asked to fill them in. */
+export const SYSTEM_TYPES: ReadonlySet<string> = new Set(["agent", "task", "report", "envelope", "project"]);
+
+/**
+ * The fields "Ask for these" asks for. A type where a person supplies the facts (contacts, companies, leads) asks for its fillable fields; when some are marked `ask: true`, only those.
+ * A system type (agent, task, report, envelope) and a project ask for nothing.
+ */
+export function askedFields(def: TypeDef): FieldDef[] {
+  if (SYSTEM_TYPES.has(def.name) || def["system"] === true || def["template"] === "project") return [];
+  const fillables = def.fields.filter(fillable);
+  const marked = fillables.filter((f) => f["ask"] === true);
+  return marked.length > 0 ? marked : fillables.filter((f) => f["ask"] !== false);
+}
+
 /** When a field last changed (ms), from its clock row; the record's own update time when the field has no clock row. */
 function changedAt(tx: Tx, type: string, id: string, field: string, fallback: number): number {
   try {
@@ -227,7 +241,7 @@ export function createReviewHandlers(deps: RvDeps): ReviewHandlers {
     "records.completeness": (ctx, input) => guard(ctx, async () => {
       const def = await needType(store, input.type);
       const rec = await need(input.type, input.recordId);
-      const asked = def.fields.filter(fillable);
+      const asked = askedFields(def);
       const missing = asked.filter((f) => empty(rec.data[f.name])).map((f) => ({ field: f.name, title: f.label ?? f.name }));
       return { filled: asked.length - missing.length, total: asked.length, missing };
     }),

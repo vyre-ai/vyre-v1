@@ -63,7 +63,7 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
     const ticked = on.has(src.sessionKey);
     const dir = folderName(src.cwd), when = relativeDate(modifiedAt(src.updatedAt), now);
     rows.push(
-      <Pressable key={src.sessionKey} testID={`session-${src.sessionKey}`} accessibilityRole="checkbox" accessibilityState={{ checked: ticked }} onPress={() => toggle(src.sessionKey)} style={[s.row, ticked && s.rowOn]}>
+      <Pressable key={src.sessionKey} testID={`session-${src.sessionKey}`} accessibilityRole="checkbox" aria-checked={ticked} accessibilityState={{ checked: ticked }} onPress={() => toggle(src.sessionKey)} style={[s.row, ticked && s.rowOn]}>
         <View style={[s.box, ticked && s.boxOn]}>{ticked ? <Text style={s.tick}>{"✓"}</Text> : null}</View>
         <View style={s.text}>
           <Text style={s.name} numberOfLines={1}>{sessionName(src)}</Text>
@@ -87,7 +87,7 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
       {found !== null && found.length === 0 ? <Text testID="sessions-none" style={s.note}>None found</Text> : null}
       {(found ?? []).length > 0 ? (
         <View style={s.bar}>
-          <Pressable testID="sessions-all" accessibilityRole="checkbox" accessibilityLabel="Select all" accessibilityState={{ checked: all === "all" ? true : all === "some" ? "mixed" : false }} onPress={toggleAll} style={s.allRow}>
+          <Pressable testID="sessions-all" accessibilityRole="checkbox" accessibilityLabel="Select all" aria-checked={all === "all" ? true : all === "some" ? "mixed" : false} accessibilityState={{ checked: all === "all" ? true : all === "some" ? "mixed" : false }} onPress={toggleAll} style={s.allRow}>
             <View style={[s.box, all !== "none" && s.boxOn]}><Text style={s.tick}>{all === "all" ? "✓" : all === "some" ? "-" : ""}</Text></View>
             <Text style={s.allText}>Select all</Text>
           </Pressable>
