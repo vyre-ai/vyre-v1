@@ -1,12 +1,12 @@
 // gate (lane L6): one approval model for every outward or risky act (spec 2.14, 4.4; architecture 4.6).
-// Declares the ten Gate act kinds. `invoke` calls gate.park when authorize returns hold; approving a task calls gate.release.
+// Declares the Gate act kinds. `invoke` calls gate.park when authorize returns hold; approving a task calls gate.release.
 // DECISION: all ten acts send on approve through `gate.release`, which re-invokes the parked capability with an approval token bound to the payload hash.
 // DECISION: timeouts, approvers and humanToo follow spec 2.14. Defaults (24 h, escalate, 4 h email backstop) apply to every act; Policies override them per act.
 // DECISION: Gate events use retention 'audit'. gate.release and gate.park are system capabilities (no tool); approving goes through tasks.act.
 import { defineManifest, ev, gateAct, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, principalRef, risk } from './_common.ts';
 
-const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'campaign_launch', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change');
+const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'campaign_launch', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change', 'approve');
 const holdState = t.enm('held', 'approved', 'denied', 'expired');
 const approverRule = t.str({ description: "role:<name>, owner or asker", examples: ['role:admin'] });
 const ruleRow = t.obj({
@@ -39,6 +39,8 @@ export default defineManifest({
     gateAct('signature_send', 'Send a document for signature', 'high', 'file'),
     gateAct('spend_raise', 'Raise a spend cap', 'medium', 'table'),
     gateAct('signin_change', 'Change how people sign in to the Space', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
+    // Ask mode in a chat: the agent stops before any step that changes something and the person it works for allows it, whatever the step is.
+    gateAct('approve', 'Allow this step', 'medium', 'doc_excerpt', { approvers: { default: 'asker', peopleOnly: true } }),
   ],
   events: [
     ev('gate.requested', 'A gated act stopped and became an Approve task with the exact preview', { p: { holdId, act: actKey, capName: t.str(), taskId: id.task, principal: principalRef, actingFor: t.opt(t.str()), runId: t.opt(id.run), expiresAt: t.ts() }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
