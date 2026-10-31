@@ -16,10 +16,11 @@ import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
 import {
-  PANE_TABS, RING_R, activityLine, ago, askText, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
+  PANE_TABS, RING_R, activityLine, ago, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
   shownFields, sourceText, splitLinks, toggleFold, valueText,
 } from "./model.ts";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
+import { channelFieldToAdd, findContact } from "./askfor.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 
 export interface RecordPageStart {
@@ -311,6 +312,18 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
 
   const fieldProps = { row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
 
+  // Ask for these: the person's conversation in the Inbox with a drafted message. A record with nobody to reach opens its empty Email (or Phone) field instead
+  const askForThese = (missing: readonly { field: string; title: string }[]): void => {
+    findContact(data.call, def, row).then((contact) => {
+      if (contact) { data.nav.askFor({ type, recordId: row.id, title, missing: [...missing], contact }); return; }
+      const f = channelFieldToAdd(def, row);
+      if (!f) { setFlash({ text: "Add an email or phone to this record first.", bad: true }); return; }
+      setAll(true);
+      fieldProps.onEdit(f);
+      setFlash({ text: `Add ${f.title.toLowerCase()} to ask for these.` });
+    }).catch(() => setFlash({ text: "Could not open the conversation. Try again.", bad: true }));
+  };
+
   const body: ReactElement[] = [];
   // the first frame draws what the screen shows (about the first eight fields); the sections below it join after the first paint, with the right pane (navigate budget, 50 ms)
   let drawn = 0;
@@ -368,7 +381,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
                 createElement("circle", { cx: 12, cy: 12, r: RING_R, fill: "none", style: { stroke: "var(--line-2)", strokeWidth: 3 } }),
                 createElement("circle", { cx: 12, cy: 12, r: RING_R, fill: "none", strokeDasharray: ring.dash, transform: "rotate(-90 12 12)", strokeLinecap: "round", style: { stroke: ring.complete ? "var(--ok)" : "var(--accent)", strokeWidth: 3 } })) : null}
               <Text style={p.ringText} testID="ring-label">{ring.label}</Text>
-              {cq.status === "ready" && cq.data.missing.length > 0 ? <Pressable accessibilityRole="button" testID="ask-missing" onPress={() => data.nav.openChat(type, row.id, askText(cq.data, title))}><Text style={p.ringLink}>Ask for these</Text></Pressable> : null}
+              {cq.status === "ready" && cq.data.missing.length > 0 ? <Pressable accessibilityRole="button" testID="ask-missing" onPress={() => askForThese(cq.data.missing)}><Text style={p.ringLink}>Ask for these</Text></Pressable> : null}
             </View>
           ) : null}
           {map ? <View style={p.mapBox} testID="relation-map-box">{nodes.length > 1 ? <RelationMap nodes={nodes} edges={mapEdges} onOpen={(n) => data.nav.openRecord(n.type, n.recordId)} /> : <Text style={p.paneEmpty}>Nothing is linked to this record yet.</Text>}</View> : null}

@@ -5,3 +5,4 @@ export { RecordPageDataProvider, useLive, useOptionalPageData, usePageData } fro
 export type { LiveCap, RecordPageData, RecordPageNav } from "./data.tsx";
 export { errorText, saveField, savePrefs, saveValue, sourceOf, undoSave } from "./actions.ts";
 export * from "./model.ts";
+export * from "./askfor.ts";

@@ -12,6 +12,7 @@ import { Calendar } from "../../places/inbox/calendar/Calendar.tsx";
 import { ContactList, ListLoading } from "../../places/inbox/contactlist/ContactList.tsx";
 import { CallConversation } from "../../places/inbox/callpane/index.ts";
 import type { OpenTask } from "../../places/inbox/callpane/index.ts";
+import { getAsk } from "../../places/inbox/contacttab/ask.ts";
 import { InboxUnmatched } from "../../places/inbox/unmatched/index.ts";
 import { ConnectChannel } from "../../places/inbox/connect/index.ts";
 import { InboxDataProvider, useCanSend } from "../../places/inbox/sidebar/data.tsx";
@@ -83,6 +84,9 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
       />
     );
   }
+  // "Ask for these" from a record: the person's conversation opens by contact (it may not exist yet) with the message drafted
+  const askContact = !openId ? target.args["contactId"] : undefined;
+  if (askContact) return <CallConversation key={`ask:${target.args["ask"] ?? askContact}`} conversationId="" contactId={askContact} {...(getAsk(target.args["ask"]) ? { ask: getAsk(target.args["ask"])! } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
   if (openId && missing) return <NotFound what="conversation" />;
   // the conversation with the call bar and, after a call, the ended strip when the phone is on this contact
   if (openId) return <CallConversation key={openId} conversationId={openId} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
@@ -94,6 +98,7 @@ function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | 
   const winW = useWindowDimensions().width;
   const phone = winW > 0 && winW < 720;
   const { state } = useInboxState();
+  const { target } = usePlaceHash();
   const [entered, setEntered] = useState(false);
   const first = useRef(true);
   useEffect(() => { if (first.current) { first.current = false; return; } setEntered(true); }, [state.scope, state.view, state.main]);
@@ -105,7 +110,7 @@ function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | 
       </View>
     );
   }
-  const inMain = entered || (openId !== null && openId !== "");
+  const inMain = entered || (openId !== null && openId !== "") || !!target.args["contactId"];
   return (
     <View testID="inbox-place" style={st.row}>
       {inMain ? (
