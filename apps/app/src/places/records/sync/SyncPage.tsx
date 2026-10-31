@@ -156,8 +156,8 @@ export function SyncPage({ type, call, nav, now = Date.now, title }: SyncPagePro
           title={`Remove ${st.app.title} from Records?`} onClose={() => setRemoving(false)} testID="sync-remove-dialog"
           actions={[
             { label: "Cancel", onPress: () => setRemoving(false) },
-            { label: "Remove the records too", danger: true, onPress: () => void remove("remove"), testID: "sync-remove-all" },
-            { label: "Keep the records", primary: true, onPress: () => void remove("keep"), testID: "sync-remove-keep" },
+            { label: "Remove records", danger: true, onPress: () => void remove("remove"), testID: "sync-remove-all" },
+            { label: "Keep records", primary: true, onPress: () => void remove("keep"), testID: "sync-remove-keep" },
           ]}
         >
           <Text style={s.dialogText}>Syncing stops either way and nothing changes in {st.app.title}. Keep the records and they stay here as ordinary records. Remove them and a copy waits in Trash for 30 days.</Text>
@@ -184,7 +184,7 @@ const s = StyleSheet.create({
   bar: { height: 6, borderRadius: 3, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
   barFill: { height: 6, borderRadius: 3, backgroundColor: "var(--accent)" as string },
   filterRow: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  filterText: { flex: 1, minWidth: 160, fontSize: 12.5, color: "var(--ink-3)" as string },
+  filterText: { flexGrow: 1, flexBasis: 220, fontSize: 12.5, color: "var(--ink-3)" as string },
   stats: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   stat: { minWidth: 104, flexGrow: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string },
   statValue: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string, fontVariant: ["tabular-nums"] },
@@ -194,8 +194,8 @@ const s = StyleSheet.create({
   secHead: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, marginBottom: 4 },
   rowBtns: { flexDirection: "row", gap: 4 },
   actions: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", paddingTop: 4, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", ...(web ? ({ cursor: "pointer" } as object) : {}) },
-  btnPrimary: { backgroundColor: "var(--accent)" as string },
+  btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center", ...(web ? ({ cursor: "pointer" } as object) : {}) },
+  btnPrimary: { backgroundColor: "var(--accent)" as string, borderColor: "transparent" },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnText: { fontSize: 13, color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--accent-ink, #fff)" as string, fontWeight: "600" },

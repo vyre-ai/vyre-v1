@@ -67,7 +67,7 @@ export function SyncChip({ app, openUrl, onSync }: { app: App; openUrl?: string 
 const ICONS: Record<Exclude<MarkKind, "none" | "saving">, string[]> = {
   lock: ["M4.5 7.5h7v5.5h-7z", "M6 7.5V5.8a2 2 0 014 0v1.7"],
   saved: ["M3.5 8.5l3 3 6-6.5"],
-  failed: ["M8 3v6M8 12h.01"],
+  failed: ["M13 6A5 5 0 004.2 4.2L3 5.5M3 2.5v3h3", "M3 10a5 5 0 008.8 1.8L13 10.5M13 13.5v-3h-3"],
   local: ["M4 8h8"],
 };
 const MARK_COLOR: Record<MarkKind, string> = { none: "var(--ink-4)", lock: "var(--ink-4)", saving: "var(--accent)", saved: "var(--ok)", failed: "var(--danger)", local: "var(--ink-4)" };
