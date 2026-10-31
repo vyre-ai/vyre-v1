@@ -158,3 +158,17 @@ test("record marks name the rows that differ and whether the caller was given th
   assert.equal(cal.typeShared, true);
   assert.equal(cal.audience, "added");
 });
+
+test("the caller's rights come back with the shares, so the app draws Share and Export only for those who can", async () => {
+  const r = rig();
+  await audienceSet(r.ctx, { resource: deal, audience: "added" });
+  await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view" });
+  await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "edit", reshare: true, export: true });
+  assert.deepEqual((await sharesOf(r.ctx, { resource: deal })).can, { manage: true, share: true, export: true });
+  assert.deepEqual((await sharesOf(r.as("usr_cal"), { resource: deal })).can, { manage: false, share: false, export: false });
+  assert.deepEqual((await sharesOf(r.as("usr_bea"), { resource: one })).can, { manage: false, share: true, export: true });
+  assert.deepEqual((await recordMarks(r.as("usr_cal"), { type: "deal" })).can, { manage: false, share: false, export: false });
+  assert.equal(await code(recordMarks(r.as("usr_dee"), { type: "deal" })), "permission.no_grant", "Dee was not added, so she is told nothing about the type");
+  await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view", export: true });
+  assert.equal((await recordMarks(r.as("usr_cal"), { type: "deal" })).can.export, true);
+});

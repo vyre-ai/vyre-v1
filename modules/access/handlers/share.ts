@@ -588,7 +588,7 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
   }
   if (!RECORDS.has(res.type)) return { shares };
   const audience = audienceOf(res);
-  const out: { shares: typeof shares; audience: Audience; exporters: Exporters; inherits?: string } = { shares, audience, exporters: exportersOf(store, res) };
+  const out: { shares: typeof shares; audience: Audience; exporters: Exporters; inherits?: string; can: Rights } = { shares, audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
   // a record follows its type until it is cut off from it
   if (res.type === "record" && audience === "space" && res.parentId !== null && store.resources.get(res.parentId)?.type === "record_type") out.inherits = res.parentId;
   return out;
@@ -601,6 +601,13 @@ export type Exporters = "admins" | "viewers" | "chosen";
 /** Grants an audience choice made for itself: the admins who keep a type that is only for people added, or the person who made a record only theirs. */
 const AUDIENCE_SOURCE = "audience";
 const KEEPERS = ["rol_owner", "rol_admin"] as const;
+
+export interface Rights { manage: boolean; share: boolean; export: boolean }
+/** What the caller may do with a record type or a record, so the app draws the Share and Export buttons only for those who can. */
+function rightsOf(ctx: ShareCtx, store: AccessStore, res: ResourceRec): Rights {
+  const have = callerLevel(ctx, store, res);
+  return { manage: atLeast(res.type, have, "manage"), share: have !== null && atLeast(res.type, have, "edit") && mayShareOn(ctx, store, res, have), export: have !== null && mayExport(ctx, store, res) };
+}
 
 function audienceOf(res: ResourceRec): Audience {
   const a = res.row?.["audience"];
@@ -662,6 +669,7 @@ export async function recordMarks(ctx: ShareCtx, input: { type: string }) {
   const trace = ctx.trace.traceId;
   const typeRes = store.resources.get(input.type);
   if (!typeRes || typeRes.type !== "record_type") raise(trace, "validation.not_found", "no such record type");
+  must(ctx, store, typeRes, "view", "listing it");
   const snap = store.snapshot();
   const me = snap.info(ctx.principal.id);
   const now = ctx.now();
@@ -686,7 +694,7 @@ export async function recordMarks(ctx: ShareCtx, input: { type: string }) {
     if (audience === "space" && n === 0 && !mine) continue;
     rows.push({ id: r.id, audience, direct: n, mine });
   }
-  return { typeShared: !!me && typeRes.ownerId !== ctx.principal.id && named(input.type, true), audience: audienceOf(typeRes), rows: rows.sort((a, b) => (a.id < b.id ? -1 : 1)) };
+  return { can: rightsOf(ctx, store, typeRes), typeShared: !!me && typeRes.ownerId !== ctx.principal.id && named(input.type, true), audience: audienceOf(typeRes), rows: rows.sort((a, b) => (a.id < b.id ? -1 : 1)) };
 }
 
 // ---- folders -------------------------------------------------------------------------------------------------------
