@@ -52,7 +52,7 @@ function populated(): Harness {
 const spacesFor = (cap: string): Harness[] => (cap === "network.certificate_renew" || cap === "network.relay_set" || cap === "network.server_reconnect" ? [populated()] : [harness(), populated()]);
 
 test("a real handler exists for exactly the capabilities the registry declares for network", () => {
-  assert.equal(caps.length, 19);
+  assert.equal(caps.length, 21);
   assert.deepEqual(Object.keys(handlers).sort(), caps.map((c) => c.name).sort());
 });
 
