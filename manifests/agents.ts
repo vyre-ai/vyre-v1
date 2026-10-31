@@ -278,7 +278,7 @@ export default defineManifest({
       in: { on: t.union(t.obj({ event: t.str(), filter: t.opt(t.json()) }), t.obj({ run: id.run }), t.obj({ at: t.ts() })), timeout: t.opt(t.str({ examples: ['30d'] })) },
       out: { runId: id.run }, cap: 'runs.wait_for', effects: 'write', planMode: 'allowed',
     }),
-    atool('ask_question', 'Ask the person a structured question (single, multi or free text) instead of guessing; the turn parks until answered', {
+    atool('ask_question', 'Ask the person a structured question (single, multi or free text) instead of guessing; the turn parks until answered. To ask them to connect a folder you cannot see, use options keyed mount:google_drive, mount:onedrive, mount:sharepoint or mount:github', {
       in: { prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(t.obj({ key: t.str(), label: t.str(), detail: t.opt(t.str()) }))), allowOther: t.opt(t.bool()) },
       out: { blockId: id.block, messageId: id.message }, cap: 'chat.question.ask', effects: 'write', planMode: 'allowed', blocks: ['question'],
     }),

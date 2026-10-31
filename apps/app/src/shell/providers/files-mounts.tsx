@@ -6,12 +6,13 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MountSheet, MountsDataProvider, UnmountSheet } from "../../places/files/mounts/index.ts";
 import { Mark } from "../../places/files/mounts/icons.tsx";
-import type { Accounts, MountRow, MountsData } from "../../places/files/mounts/index.ts";
+import { accountKey } from "../../places/files/mounts/model.ts";
+import type { Accounts, MountRow, MountsData, SourceId } from "../../places/files/mounts/index.ts";
 import { connectGithub, loadAccounts, mountLine, peopleOf, thisDevice, writableFolders } from "./files-mounts-data.ts";
 import { useOpenConnect } from "../connect/index.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
-export type MountRequest = { kind: "mount"; into: string | null } | { kind: "unmount"; mount: MountRow };
+export type MountRequest = { kind: "mount"; into: string | null; source?: SourceId } | { kind: "unmount"; mount: MountRow };
 
 /** What the sheet needs, read from the Space when it opens: who is connected, the folders a mount can go into, the people it can be shared with. */
 export function useMountsData(rt: ShellRuntime): MountsData | null {
@@ -53,13 +54,14 @@ export function useMountsData(rt: ShellRuntime): MountsData | null {
 }
 
 /** The sheets over the Files place: the mount sheet, or the Unmount sheet for a mounted folder. */
-export function MountSheets({ rt, request, onClose, onChanged }: { rt: ShellRuntime; request: MountRequest | null; onClose(): void; onChanged(): void }): ReactElement | null {
+export function MountSheets({ rt, request, onClose, onChanged, onMounted }: { rt: ShellRuntime; request: MountRequest | null; onClose(): void; onChanged(): void; onMounted?(info: { folderId: string; name: string }): void }): ReactElement | null {
   const data = useMountsData(rt);
   if (!request || !data) return null;
   return (
     <MountsDataProvider value={data}>
       {request.kind === "mount"
-        ? <MountSheet into={request.into ?? undefined} onClose={onClose} onMounted={(info) => { onChanged(); onClose(); rt.open({ subject: { type: "folder", id: info.folderId } }); }} />
+        ? <MountSheet into={request.into ?? undefined} onClose={onClose} {...(request.source && data.accounts[accountKey(request.source)].connected ? { initial: { step: 2 as const, source: request.source } } : {})}
+            onMounted={(info) => { onChanged(); onClose(); if (onMounted) onMounted({ folderId: info.folderId, name: info.name }); else rt.open({ subject: { type: "folder", id: info.folderId } }); }} />
         : <UnmountSheet mount={request.mount} onClose={onClose} onRemoved={() => { onChanged(); onClose(); }} />}
     </MountsDataProvider>
   );
