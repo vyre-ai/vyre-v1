@@ -10,7 +10,9 @@ import type { AskBundle } from "../ask/bundle.ts";
 import { installFocusRing } from "../a11y.ts";
 import { accountFixedLine, BUILDER_MODES, VAL_LABEL } from "../chrome.ts";
 import type { BuilderMode } from "../chrome.ts";
-import { accountDefaultInput, accountMenu, applyAccount } from "../connect/accounts.ts";
+import { accountDefaultInput, accountMenu, accountNeed, applyAccount, connectedOption, menuIsEmpty } from "../connect/accounts.ts";
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectEntries } from "../../../shell/connect/model.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import { fieldsFromSchema, asFixture } from "../builder/fields.ts";
 import { MessageComposer } from "../builder/MessageComposer.tsx";
@@ -75,6 +77,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   runLog?: unknown;
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
+  const openConnect = useOpenConnect();
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const ordered = layout ? frameFor(layout).ordered : false;
   useEffect(() => { installFocusRing(); }, []);
@@ -266,13 +269,17 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
             onOpen={(x, y) => {
               const entries: MenuEntry[] = [];
               for (const item of accountPick.items) {
+                // the "No accounts yet" row is not an account: with a way to connect it gives way to Connect
+                if (!item.account && openConnect) continue;
                 const onSelect = (): void => {
                   if (!item.account) return;
                   onChange(updateStep(def, node.id, { input: applyAccount(node.input ?? {}, accountPick.field, item.account) }));
                 };
                 entries.push(item.checked ? { label: item.label, checked: true, onSelect } : { label: item.label, onSelect });
               }
-              openMenu(entries, x, y, "other");
+              const need = accountNeed(accountPick.field, node.input ?? {});
+              const empty = menuIsEmpty(accountPick);
+              openMenu(need ? connectEntries(entries, need, openConnect, (made) => onChange(updateStep(def, node.id, { input: applyAccount(node.input ?? {}, accountPick.field, connectedOption(made)) })), empty) : entries, x, y, "other");
             }}
           />
         ) : null}

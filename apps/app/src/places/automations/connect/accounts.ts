@@ -1,5 +1,6 @@
 // The account a step shows. Same decision as modules/automations/accounts.ts.
 // The app cannot import modules, so the pure choice is duplicated here. It does not write and does not call the network.
+import type { Connected, ConnectNeed } from "../../../shell/connect/model.ts";
 export interface AccountOption {
   app: string;
   id: string;
@@ -237,4 +238,21 @@ export function accountMenu(spec: {
         account,
       }));
   return { field, value, items };
+}
+
+/** What the Account picker connects when it has nothing to pick, or one more. A connection with no connector has no flow to open. */
+export function accountNeed(field: AccountField, input: Record<string, unknown>): ConnectNeed | undefined {
+  if (field === "mailboxId") return { kind: "mailbox" };
+  const app = appForAccount(input, field);
+  return app === "connection" ? undefined : { kind: "connector", service: app };
+}
+
+/** A just-connected account as the picker's own row, so the step can take it before the list has loaded again. */
+export function connectedOption(account: Connected): AccountOption {
+  return { app: account.app, id: account.id, title: account.title, state: "active" };
+}
+
+/** No real account in the menu: only the placeholder row. */
+export function menuIsEmpty(menu: AccountMenu): boolean {
+  return menu.items.every((item) => !item.account);
 }
