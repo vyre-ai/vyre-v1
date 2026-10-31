@@ -7,6 +7,7 @@ import type { PlaceDevice, PlaceInput } from "../../../agent/src/placement/index
 import type { ResolvedAccount, SessionSpec, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { flagOn } from "./extra/config.ts";
 import { ensure, mintEngineId, openerOf, raise } from "../projections.ts";
+import { chosenFor } from "./place-pref.ts";
 import type { EngineCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -44,7 +45,7 @@ function engineOf(ctx: EngineCtx, threadId: string, agentId: string): string {
   return typeof e === "string" && e !== "" ? e : "claude_code";
 }
 
-function askerOf(ctx: EngineCtx): string {
+export function askerOf(ctx: EngineCtx): string {
   const p = ctx.principal;
   if (p.kind === "person") return p.id;
   const f = (ctx as { actingFor?: string }).actingFor;
@@ -61,15 +62,16 @@ export async function placementDecide(ctx: CallCtx, input: { threadId: string; a
   ]);
   const kind = (KINDS.has(t.thread.kind) ? t.thread.kind : "chat") as ThreadKind;
   const persons = new Set((t.thread.members ?? []).filter((m) => m.kind === "person").map((m) => m.id)).size;
+  const chosen = await chosenFor(ctx, input.threadId);
   const place: PlaceInput = {
     thread: { kind, persons, onSharedRecord: kind === "ask" && t.thread.scopeType === "record" && persons > 1 },
     item: { kind: input.kind === "message" ? "message" : input.kind },
     agent: { hasComputer: a.agent.hasComputer === true },
     engine: engineOf(ctx, input.threadId, input.agentId),
-    asker: { devices: devicesFrom(d, ctx.now()), runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in") },
+    asker: { devices: devicesFrom(d, ctx.now()), runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
   };
   const p = placeTurn(place);
-  return { placement: p.placement, reason: p.reason, ...(p.wakeLine ? { wakeLine: p.wakeLine } : {}) };
+  return { placement: p.placement, reason: p.reason, ...(p.wakeLine ? { wakeLine: p.wakeLine } : {}), ...(p.nodeId ? { nodeId: p.nodeId } : {}) };
 }
 
 export function poolStatus(ctx: EngineCtx, _input: Record<string, never>) {
