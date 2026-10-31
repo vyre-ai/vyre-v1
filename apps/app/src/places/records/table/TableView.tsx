@@ -26,6 +26,9 @@ import { allIds, eachId, recordsWord } from "./bulk.ts";
 import { plainError } from "../typeedit/model.ts";
 import { makeRecord } from "./make.ts";
 import { filterMenuEntries } from "./filtermenu.ts";
+import { useRecordAccess } from "../sharing/useRecordAccess.ts";
+import type { RowMark } from "../sharing/model.ts";
+import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { FieldsPanel, fieldMenuEntries } from "../typeedit/index.ts";
 import type { FieldMode } from "../typeedit/index.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
@@ -70,11 +73,19 @@ interface RowProps {
   selected: boolean;
   tint: string | null;
   names: (id: string) => string;
+  mark: RowMark | null;
   onSelect: (id: string) => void;
   onOpen: (id: string) => void;
 }
 
-const TableRow = memo(function TableRow({ row, n, y, width, cols, from, to, pad, selected, tint, names, onSelect, onOpen }: RowProps): ReactElement {
+/** What a mark on a row says when hovered. */
+const MARK_HELP: Readonly<Record<RowMark, string>> = { private: "Set apart from its type", shared: "Shared with people" };
+const MARK_SVG: Readonly<Record<RowMark, string>> = {
+  private: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7.5h7v5.5h-7z"/><path d="M6 7.5V5.6a2 2 0 014 0v1.9"/></svg>',
+  shared: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.5a2.3 2.3 0 11-4.6 0 2.3 2.3 0 014.6 0z"/><path d="M1.8 13a4.2 4.2 0 018.4 0"/><path d="M10.5 3.5a2.3 2.3 0 010 4.4"/><path d="M12 9.2a4.2 4.2 0 012.2 3.8"/></svg>',
+};
+
+const TableRow = memo(function TableRow({ row, n, y, width, cols, from, to, pad, selected, tint, names, mark, onSelect, onOpen }: RowProps): ReactElement {
   const [over, setOver] = useState(false);
   const last = useRef(0);
   const bg = selected ? "var(--sel)" : over ? "var(--hover)" : tint ?? "var(--win)";
@@ -106,6 +117,7 @@ const TableRow = memo(function TableRow({ row, n, y, width, cols, from, to, pad,
           {row ? (
             <>
               <Text numberOfLines={1} style={[styles.cellText, styles.title]}>{cellText(primary.field, row.fields[primary.field.key], names) || "Untitled"}</Text>
+              {mark ? <Tooltip text={MARK_HELP[mark]}><View testID={`mark-${row.id}`} accessibilityLabel={MARK_HELP[mark]}><Glyph name={mark === "private" ? "lock" : "people"} size={12} color="var(--ink-3)" /></View></Tooltip> : null}
               {over || selected ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable>
               ) : null}
@@ -130,6 +142,7 @@ interface PieceProps {
   hot: boolean;
   tint: string | null;
   names: (id: string) => string;
+  mark: RowMark | null;
   onTap: (id: string, meta?: boolean) => void;
   onOpen: (id: string) => void;
   onHot: (id: string | null) => void;
@@ -151,7 +164,7 @@ function samePiece<T extends PieceProps>(a: T, b: T): boolean {
 }
 
 const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): ReactElement {
-  const { row, n, y, selected, hot, primary, names, onTap, onOpen, onHot, onMenu } = p;
+  const { row, n, y, selected, hot, primary, names, mark, onTap, onOpen, onHot, onMenu } = p;
   ensureRowCss();
   const bg = bgOf(p);
   const title = row ? cellText(primary.field, row.fields[primary.field.key], names) || "Untitled" : "";
@@ -168,6 +181,7 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
     createElement("div", { className: "vrt-g" }, String(n)),
     createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none" } },
       row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(row.id, title, false), title) : createElement("div", { style: GHOST }),
+      row && mark ? createElement("span", { className: "vrt-mk", title: MARK_HELP[mark], "aria-label": MARK_HELP[mark], "data-testid": `mark-${row.id}`, dangerouslySetInnerHTML: { __html: MARK_SVG[mark] } }) : null,
       row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
     ),
   );
@@ -198,6 +212,7 @@ function ensureRowCss(): void {
     // the dot sits 1 px above the middle by its bottom margin, not by position: relative, which made every chip dot (three a row) a paint layer of its own
     + ".vrt-chip::before{content:\"\";display:inline-block;width:6px;height:6px;border-radius:3px;margin-right:5px;margin-bottom:2px;vertical-align:middle;background:hsl(var(--h) 65% 52%)}"
     + ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}"
+    + ".vrt-mk{display:inline-flex;flex:none;color:var(--ink-3)}"
     + ".vrt-g{width:" + GUTTER + "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
   injectCss(d, CSS_ID, css);
   cssDone = true;
@@ -357,6 +372,7 @@ interface BodyProps {
   hot: string | null;
   colourField: FieldDef | undefined;
   names: (id: string) => string;
+  marks: ReadonlyMap<string, RowMark>;
   onTap: (id: string, meta?: boolean) => void;
   onOpen: (id: string) => void;
   onHot: (id: string | null) => void;
@@ -367,7 +383,7 @@ interface BodyProps {
 
 /** The rows the scroll meets: on the web each row is its frozen piece (number and title, in the one sticky layer) and its scrolling body; elsewhere one TableRow. */
 function Body(p: BodyProps): ReactElement {
-  const { items, loaded, total, width, cols, colWin, selected, sel, hot, colourField, names, onTap, onOpen, onHot, onMenu } = p;
+  const { items, loaded, total, width, cols, colWin, selected, sel, hot, colourField, names, marks, onTap, onOpen, onHot, onMenu } = p;
   // the top and the way the scroll last moved, which decides the side the drawn rows reach out to
   const [pos, setPos] = useState<{ top: number; dir: 1 | -1 }>({ top: p.top, dir: 1 });
   const { setTop: register } = p;
@@ -403,21 +419,21 @@ function Body(p: BodyProps): ReactElement {
       const tint = colourOf(colourField, it.row);
       const picked = selected === it.row.id || isPickedRow(sel, it.row.id);
       if (web && primary) {
-        const piece = { row: it.row, n: it.n, y, selected: picked, hot: hot === it.row.id, tint, names, onTap, onOpen, onHot, onMenu };
+        const piece = { row: it.row, n: it.n, y, selected: picked, hot: hot === it.row.id, tint, names, mark: marks.get(it.row.id) ?? null, onTap, onOpen, onHot, onMenu };
         frozen.push(<RowFrozen key={it.row.id} {...piece} primary={primary} />);
         rows.push(<RowBody key={it.row.id} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
-      } else rows.push(<TableRow key={it.row.id} row={it.row} n={it.n} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={tint} names={names} onSelect={p.onSelect} onOpen={onOpen} />);
+      } else rows.push(<TableRow key={it.row.id} row={it.row} n={it.n} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={tint} names={names} mark={marks.get(it.row.id) ?? null} onSelect={p.onSelect} onOpen={onOpen} />);
       continue;
     }
     const r = rowAt(i);
     const picked = r !== null && (selected === r.id || isPickedRow(sel, r.id));
     if (web && primary) {
-      const piece = { row: r, n: i + 1, y, selected: picked, hot: r !== null && hot === r.id, tint: r ? colourOf(colourField, r) : null, names, onTap, onOpen, onHot, onMenu };
+      const piece = { row: r, n: i + 1, y, selected: picked, hot: r !== null && hot === r.id, tint: r ? colourOf(colourField, r) : null, names, mark: r ? marks.get(r.id) ?? null : null, onTap, onOpen, onHot, onMenu };
       frozen.push(<RowFrozen key={r ? r.id : `p${i}`} {...piece} primary={primary} />);
       rows.push(<RowBody key={r ? r.id : `p${i}`} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
       continue;
     }
-    rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={r ? colourOf(colourField, r) : null} names={names} onSelect={p.onSelect} onOpen={onOpen} />);
+    rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={r ? colourOf(colourField, r) : null} names={names} mark={r ? marks.get(r.id) ?? null : null} onSelect={p.onSelect} onOpen={onOpen} />);
   }
   return <View style={{ height: total * ROW_H, width }} testID="records-body" accessibilityLabel={`${total} rows`}>{rows}{web ? <View testID="records-frozen" style={styles.frozenLayer}>{frozen}</View> : null}</View>;
 }
@@ -452,7 +468,11 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const slim = phone > 0 && phone < 720;
   const tight = phone > 0 && phone < 1180;   // beside the sidebar a 1024 window has no room for seven labelled buttons: icons only, so the type and view names keep their room
   const typeList = useScreenQuery<TypesOut>(SCREENS.types, "types");
+  const access = useRecordAccess(type);
+  const [sharedOnly, setSharedOnly] = useState(false);
   const [v, setV] = useState<TableViewState>(base);
+  /** The view with "Shared with me" on top of it: the rows given to the viewer by name. Not saved with the view. */
+  const vq = useMemo<TableViewState>(() => (sharedOnly && access.sharedIds ? { ...v, clauses: [...v.clauses, { field: "id", op: "in", value: access.sharedIds }] } : v), [v, sharedOnly, access.sharedIds]);
   const [folded, setFolded] = useState<readonly string[]>([]);
   const [finding, setFinding] = useState(base.find !== "");
   const [selected, setSelected] = useState<string | null>(null);
@@ -477,7 +497,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const width = totalWidth(cols);
   const groupField = v.group ? def.fields.find((f) => f.key === v.group) : undefined;
   const colourField = v.colour ? def.fields.find((f) => f.key === v.colour) : undefined;
-  const counts = useLive("records.counts", countSpec(type, v, def.titleField));
+  const counts = useLive("records.counts", countSpec(type, vq, def.titleField));
   const count = counts.status === "ready" ? counts.data.count : null;
 
   // the window of rows the screen meets, and the 200 the query is asked for
@@ -486,7 +506,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   // the window the query is asked for follows the scroll a beat behind: the fetch and its 200-row copy run in a low-priority render, not in the frame that mounts the rows
   const wanted = useDeferredValue(queryOffset(first, total0));
   const offset = v.group ? 0 : wanted;
-  const q = useLive("records.query", querySpec(type, v, def.titleField, offset));
+  const q = useLive("records.query", querySpec(type, vq, def.titleField, offset));
   const kept = useRef<{ offset: number; rows: RecordRow[] } | null>(null);
   if (q.status === "ready" && (kept.current?.rows !== q.data.rows || kept.current.offset !== (v.group ? 0 : offset))) kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
   const loaded = kept.current;
@@ -569,7 +589,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const nPicked = pickCount(sel, count ?? 0);
   /** The bulk work in flight or just done: a confirm to answer, a progress line, then what was deleted with Undo. */
   const [work, setWork] = useState<{ kind: "confirm"; ids: readonly string[]; every: boolean; n: number } | { kind: "busy"; text: string } | { kind: "done"; ids: readonly string[]; failed: number } | null>(null);
-  const viewFilter = filterOf(v, def.titleField);
+  const viewFilter = filterOf(vq, def.titleField);
   const deleteNow = async (ids: readonly string[], every: boolean): Promise<void> => {
     let all = ids;
     if (every) {
@@ -591,7 +611,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     if (!every && ids.length === 1) out.push({ label: "Open", onSelect: () => data.nav.openRecord(ids[0] as string) });
     // records.query and records.export take a filter that is opaque JSON over the type's own fields: there is no "id in [...]" form in manifests/records.ts, so a hand-picked set cannot be
     // exported yet (contract request to the lead). Everything else exports the view's rows: Select all N, and a menu opened with nothing picked.
-    if (every || ids.length === 0) {
+    if ((every || ids.length === 0) && (!access.on || access.can.export)) {
       out.push({
         label: "Export as CSV",
         onSelect: () => { void data.call("records.export", { type, format: "csv", ...(viewFilter === undefined ? {} : { filter: viewFilter }), ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}) }); },
@@ -720,6 +740,8 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={tight} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y, "other")} />
         <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={tight} testID="records-fields" onPress={data.canEditSchema === true ? () => setPanel({}) : keep("fields")} />
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} />
+        {access.on && access.hasShared ? <HeadButton icon="people" label="Shared with me" bare={tight} on={lit(sharedOnly)} testID="records-shared" onPress={() => setSharedOnly(!sharedOnly)} /> : null}
+        {access.on && (access.can.manage || access.can.share) ? <HeadButton icon="share" label="Share" bare={tight} testID="records-share-btn" onPress={() => data.share?.open({ type: "record_type", id: type, name: def.plural })} /> : null}
         {headerExtra}
         <HeadButton icon="plus" label="New" bare={tight} filled testID="records-new" onPress={startNew} />
       </View>
@@ -782,7 +804,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       ) : null}
       <View style={styles.sheet} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} {...({ onKeyDown } as object)}>
         {count === 0 && !items?.length && adding === null ? (
-          <States kind="empty" title={v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: startNew } })} />
+          <States kind="empty" title={sharedOnly ? "Nothing is shared with you here." : v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(sharedOnly ? { action: { label: "Show all", onPress: () => setSharedOnly(false) } } : v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: startNew } })} />
         ) : (
           <Scroller
             handle={scroller} width={width} height={total * ROW_H} onScroll={onScroll}
@@ -811,7 +833,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
           >
             <Body
               setTop={bodyTop} top={top.current} viewH={viewH} total={total} items={items} loaded={loaded} width={width} cols={cols} colWin={colWin} selected={selected} sel={sel} hot={hot}
-              colourField={colourField} names={data.nameOf} onTap={onTap} onOpen={onOpen} onHot={setHot} onMenu={onRowMenu} onSelect={setSelected} onFold={setFolded}
+              colourField={colourField} names={data.nameOf} marks={access.marks} onTap={onTap} onOpen={onOpen} onHot={setHot} onMenu={onRowMenu} onSelect={setSelected} onFold={setFolded}
             />
           </Scroller>
         )}
