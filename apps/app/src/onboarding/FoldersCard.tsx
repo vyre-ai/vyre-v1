@@ -1,78 +1,76 @@
-// The "Local folders" step on the desktop app: the system folder dialog (the shell's pick_paths), the picked folders as rows, and Continue mounts them through mounts.add, the call Files uses.
+// The "Local folders" step on the desktop: the system folder dialog (the shell's pick_paths), and each pick is mounted at once through mounts.add, the call Files uses.
+// A row says Adding, then Added with a check, or fails with Retry. Removing an Added row unmounts it (mounts.remove). Continue only moves on.
 // The folders stay on this computer (live only). On the web and the phone the step keeps the card that opens Files.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
-import { thisDevice, writableFolders } from "../shell/providers/files-mounts-data.ts";
+import { baseName, mountLocalFolder, mountPlace, parentOf, pickFolders, shellInvoke, unmountFolder } from "../shell/providers/local-folder-mount.ts";
+import type { Invoke, MountPlace } from "../shell/providers/local-folder-mount.ts";
 
-type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
-export const shellInvoke = (): Invoke | undefined => (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
+export { shellInvoke };
 
-const baseName = (p: string): string => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
-const parentOf = (p: string): string => p.split(/[\\/]/).filter(Boolean).slice(-3, -1).join("/");
+type Status = "adding" | "added" | "failed";
+interface FolderRow { path: string; status: Status; mountId?: string }
 
 export function FoldersCard({ call, gate, invoke = shellInvoke() }: { call: CapCall; gate?(save: (() => Promise<boolean>) | null): void; invoke?: Invoke | undefined }): ReactElement {
-  const [paths, setPaths] = useState<readonly string[]>([]);
+  const [rows, setRows] = useState<readonly FolderRow[]>([]);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const where = useRef<{ into: string; deviceId: string } | null>(null);
-  useEffect(() => {
-    let off = false;
-    void Promise.all([thisDevice(call), writableFolders(call).catch(() => [])]).then(([device, folders]) => {
-      if (!off && device && folders[0]) where.current = { into: folders[0].id, deviceId: device.id };
-    });
-    return () => { off = true; };
-  }, [call]);
-  const pick = async (): Promise<void> => {
-    if (!invoke || busy) return;
-    setError("");
+  const where = useRef<MountPlace | null>(null);
+  const set = (path: string, patch: Partial<FolderRow>): void => setRows((old) => old.map((r) => (r.path === path ? { ...r, ...patch } : r)));
+  const mount = async (path: string): Promise<void> => {
+    set(path, { status: "adding" });
     try {
-      const got = await invoke("pick_paths", { options: { title: "Choose a folder", multiple: false, directory: true, filters: [] } });
-      const next = Array.isArray(got) ? got.filter((p): p is string => typeof p === "string") : [];
-      setPaths((old) => { const all = [...old]; for (const p of next) if (!all.includes(p)) all.push(p); return all; });
-    } catch { setError("Could not open the folder dialog."); }
+      const at = where.current ?? (await mountPlace(call));
+      if (!at) { set(path, { status: "failed" }); setError("This computer is not ready to share folders yet. Try again in a moment."); return; }
+      where.current = at;
+      const out = await mountLocalFolder(call, path, at);
+      set(path, { status: "added", ...(out.mountId ? { mountId: out.mountId } : {}) });
+    } catch { set(path, { status: "failed" }); setError(`Could not add ${baseName(path)}. Try again.`); }
   };
-  const save = async (): Promise<boolean> => {
-    if (busy || paths.length === 0) return false;
-    const at = where.current ?? (await (async () => {
-      const [device, folders] = await Promise.all([thisDevice(call), writableFolders(call).catch(() => [])]);
-      return device && folders[0] ? { into: folders[0].id, deviceId: device.id } : null;
-    })());
-    if (!at) { setError("This computer is not ready to share folders yet. Try again in a moment."); return false; }
-    where.current = at;
-    setBusy(true); setError("");
-    const left: string[] = [];
-    for (const path of paths) {
-      try {
-        await call("mounts.add", { into: at.into, source: { kind: "local", deviceId: at.deviceId, localPath: path }, name: baseName(path), mode: "live_only", idempotencyKey: `mount:local:${path}:${at.into}` });
-      } catch { left.push(path); }
+  const pick = async (): Promise<void> => {
+    if (!invoke) return;
+    setError("");
+    let next: string[];
+    try { next = await pickFolders(invoke); } catch { setError("Could not open the folder dialog."); return; }
+    const fresh = next.filter((p) => !rows.some((r) => r.path === p));
+    if (fresh.length === 0) return;
+    setRows((old) => [...old, ...fresh.map((path): FolderRow => ({ path, status: "adding" }))]);
+    for (const path of fresh) void mount(path);
+  };
+  const remove = async (r: FolderRow): Promise<void> => {
+    if (r.status === "adding") return;
+    setError("");
+    if (r.status === "added" && r.mountId) {
+      try { await unmountFolder(call, r.mountId); } catch { setError(`Could not remove ${baseName(r.path)}. Try again.`); return; }
     }
-    setBusy(false);
-    setPaths(left);
-    if (left.length > 0) { setError(left.length === 1 ? `Could not add ${baseName(left[0]!)}. Try again.` : `Could not add ${left.length} folders. Try again.`); return false; }
-    return true;
+    setRows((old) => old.filter((x) => x.path !== r.path));
   };
+  const added = rows.filter((r) => r.status === "added").length;
+  const adding = rows.some((r) => r.status === "adding");
   useEffect(() => {
     if (!gate) return undefined;
-    gate(paths.length === 0 ? null : save);
+    gate(added > 0 && !adding ? async () => true : null);
     return () => gate(null);
   });
-  const rows: ReactElement[] = [];
-  paths.forEach((p, i) => {
-    rows.push(
-      <View key={p} testID={`folder-row-${i}`} style={s.row}>
-        <Text style={s.name} numberOfLines={1}>{baseName(p)}</Text>
-        <Text style={s.note} numberOfLines={1}>{parentOf(p)}</Text>
-        <Pressable testID={`folder-remove-${i}`} accessibilityRole="button" accessibilityLabel={`Remove ${baseName(p)}`} onPress={() => setPaths((old) => old.filter((x) => x !== p))} style={s.x}><Text style={s.xText}>{"×"}</Text></Pressable>
+  const list: ReactElement[] = [];
+  rows.forEach((r, i) => {
+    list.push(
+      <View key={r.path} testID={`folder-row-${i}`} style={s.row}>
+        <Text style={s.name} numberOfLines={1}>{baseName(r.path)}</Text>
+        <Text style={s.note} numberOfLines={1}>{parentOf(r.path)}</Text>
+        {r.status === "adding" ? <Text testID={`folder-status-${i}`} style={s.state}>Adding</Text> : null}
+        {r.status === "added" ? <Text testID={`folder-status-${i}`} accessibilityLabel="Added" style={s.ok}>{"Added \u2713"}</Text> : null}
+        {r.status === "failed" ? <Pressable testID={`folder-retry-${i}`} accessibilityRole="button" accessibilityLabel={`Retry ${baseName(r.path)}`} onPress={() => { setError(""); void mount(r.path); }} style={s.retry}><Text style={s.retryText}>Retry</Text></Pressable> : null}
+        <Pressable testID={`folder-remove-${i}`} accessibilityRole="button" accessibilityLabel={`Remove ${baseName(r.path)}`} disabled={r.status === "adding"} onPress={() => void remove(r)} style={[s.x, r.status === "adding" && s.off]}><Text style={s.xText}>{"\u00d7"}</Text></Pressable>
       </View>,
     );
   });
   return (
     <View testID="folders-card" style={s.col}>
-      {rows.length > 0 ? <View style={s.list}>{rows}</View> : null}
+      {list.length > 0 ? <View style={s.list}>{list}</View> : null}
       {error ? <Text accessibilityRole="alert" testID="folders-error" style={s.err}>{error}</Text> : null}
-      <Pressable testID="folders-add" accessibilityRole="button" disabled={busy || !invoke} onPress={() => void pick()} style={[s.primary, (busy || !invoke) && s.off]}><Text style={s.primaryText}>{busy ? "Adding" : "Add folder"}</Text></Pressable>
+      <Pressable testID="folders-add" accessibilityRole="button" disabled={!invoke} onPress={() => void pick()} style={[s.primary, !invoke && s.off]}><Text style={s.primaryText}>Add folder</Text></Pressable>
     </View>
   );
 }
@@ -85,6 +83,10 @@ const s = StyleSheet.create({
   note: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   x: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   xText: { fontSize: 18, color: "var(--ink-3)" as string },
+  state: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  ok: { fontSize: 12.5, color: "var(--accent)" as string },
+  retry: { height: 28, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  retryText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   err: { fontSize: 13, color: "var(--danger)" as string },
   primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
   primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
