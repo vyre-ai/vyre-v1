@@ -5,9 +5,11 @@ import type { EngineCtx } from "../projections.ts";
 import { mcpOauth, pluginRuntime } from "../plugin-host.ts";
 import { OauthError, bindOauthStore } from "../mcp-oauth.ts";
 import { PluginError } from "../plugin-runtime.ts";
+import { watchConnection } from "../connection-watch.ts";
 import type { ServerSpec } from "../plugin-runtime.ts";
 
 const rt = (ctx: EngineCtx) => pluginRuntime() ?? raise(ctx, "provider.unavailable", "Outside tools cannot run on this server: there is no sandbox to run them in.");
+const call = (ctx: EngineCtx) => (cap: string, input: unknown): Promise<unknown> => ctx.call(cap, input);
 const asError = (ctx: EngineCtx, e: unknown): never => {
   if (e instanceof PluginError) return raise(ctx, e.code, e.message);
   throw e;
@@ -24,8 +26,10 @@ export async function mcpTools(ctx: EngineCtx, input: { agentId: string; server?
   for (const spec of list) {
     try {
       const tools = await runtime.tools(spec, { agentId: input.agentId, asker: actorOf(ctx) });
+      await watchConnection(call(ctx), spec, "ok");
       out.push({ key: spec.key, name: spec.name, from: spec.from, ...(spec.hub ? { hub: spec.hub as "composio" | "pipedream" } : {}), ...(spec.oauth ? { oauth: true } : {}), ok: true, tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, readOnly: t.readOnly })) });
     } catch (e) {
+      await watchConnection(call(ctx), spec, { error: e instanceof Error ? e.message : "" });
       out.push({ key: spec.key, name: spec.name, from: spec.from, ...(spec.hub ? { hub: spec.hub as "composio" | "pipedream" } : {}), ...(spec.oauth ? { oauth: true } : {}), ok: false, error: e instanceof Error ? e.message : "The server did not answer.", tools: [] });
     }
   }
@@ -37,8 +41,9 @@ export async function mcpCall(ctx: EngineCtx, input: { agentId: string; server: 
   if (!spec) raise(ctx, "validation.not_found", `This agent has no outside tool server called ${input.server}.`);
   try {
     const r = await rt(ctx).callTool(spec, { agentId: input.agentId, asker: actorOf(ctx) }, input.tool, input.input ?? {});
+    await watchConnection(call(ctx), spec, r.isError && /answered 401/.test(r.text) ? { error: r.text } : "ok");
     return { isError: r.isError, text: r.text, ...(r.structured !== undefined ? { structured: r.structured } : {}) };
-  } catch (e) { return asError(ctx, e); }
+  } catch (e) { await watchConnection(call(ctx), spec, { error: e instanceof Error ? e.message : "" }); return asError(ctx, e); }
 }
 
 // ---- signing in to a remote server with OAuth

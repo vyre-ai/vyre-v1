@@ -134,5 +134,17 @@ test("Team: the admin connects with a Shared key; each member's agent runs on th
     assert.match(dead, /^FAILED/);
     assert.ok(!dead.includes(HUB_KEY));
     assert.ok(!/\n\s+at /.test(dead), "no stack");
+
+    // the admins get one item, however many calls fail; it closes when a call works again
+    await ask("usr_noah", "list channels", "team-dead2");
+    const mine = async () => ((await api("usr_olivia", "tasks.list", { scope: "all", kinds: ["unblock"], states: ["todo", "doing"] })).data.tasks as Array<{ title: string; summary?: string; assigned: { kind: string; id: string } }>).filter((t) => /Composio key/.test(t.title));
+    const items = await mine();
+    assert.equal(items.length, 1, JSON.stringify(items));
+    assert.equal(items[0]!.title, "Replace the Composio key");
+    assert.deepEqual(items[0]!.assigned, { kind: "role", id: "admin" });
+    assert.ok(!JSON.stringify(items).includes(HUB_KEY));
+    state.revoked = false;
+    assert.match(await ask("usr_mia", "list channels", "team-back"), /^GOT/);
+    assert.equal((await mine()).length, 0, "the item closed when the hub answered again");
   } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1800) : e); throw e; } finally { await stop(d); await hub.close(); }
 });
