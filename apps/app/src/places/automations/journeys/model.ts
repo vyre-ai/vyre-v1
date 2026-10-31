@@ -213,3 +213,54 @@ export function automationsByStage(stages: readonly Stage[]): { id: string; stag
   return stages.flatMap((g) => g.automations.map((id) => ({ id, stage: g.title })));
 }
 export const agentNames = (t: Task, name: (id: string) => string): string => joinNames(agentSeats(t).map((a) => a.ref.id), name);
+
+// ---------------------------------------------------------------- fields of a stage and its gates
+// A stage holds fields of its Journey's record type (they form a group named after it on the record page), and may ask for fields to be filled to enter it and to leave it. These three lists
+// ride on the stage as `fields`, `needToEnter` and `needToLeave`.
+
+export type FieldList = "fields" | "needToEnter" | "needToLeave";
+export type StageX = Stage & { fields?: readonly string[]; needToEnter?: readonly string[]; needToLeave?: readonly string[] };
+export const FIELD_LISTS: readonly { list: FieldList; label: string; empty: string }[] = [
+  { list: "fields", label: "Fields for this stage", empty: "No fields for this stage yet." },
+  { list: "needToEnter", label: "Must be filled to move here", empty: "Nothing is required to enter." },
+  { list: "needToLeave", label: "Must be filled to move on", empty: "Nothing is required to leave." },
+];
+/** The record type's own base fields, which a stage does not hold. */
+export const BASE_FIELDS: readonly string[] = ["name", "stage", "subject", "owner", "entered_at"];
+
+export const listOf = (s: Stage, list: FieldList): readonly string[] => (s as StageX)[list] ?? [];
+
+function withList(s: Stage, list: FieldList, keys: readonly string[]): Stage {
+  const { [list]: _drop, ...rest } = s as StageX;
+  return (keys.length > 0 ? { ...rest, [list]: [...keys] } : rest) as Stage;
+}
+
+/** Adds a field to one of a stage's lists. A field belongs to one stage's group at most, so adding it to `fields` takes it out of every other stage. */
+export function addToList(stages: readonly Stage[], stageKey: string, list: FieldList, field: string): Stage[] {
+  return stages.map((s) => {
+    if (s.key === stageKey) return listOf(s, list).includes(field) ? s : withList(s, list, [...listOf(s, list), field]);
+    return list === "fields" && listOf(s, "fields").includes(field) ? withList(s, "fields", listOf(s, "fields").filter((k) => k !== field)) : s;
+  });
+}
+
+export function removeFromList(stages: readonly Stage[], stageKey: string, list: FieldList, field: string): Stage[] {
+  return stages.map((s) => (s.key === stageKey ? withList(s, list, listOf(s, list).filter((k) => k !== field)) : s));
+}
+
+export interface TypeField { key: string; title: string; type: string }
+/** The field types a stage can add on the spot; the Fields panel in Records has the rest. */
+export const NEW_FIELD_TYPES: readonly { key: string; title: string }[] = [
+  { key: "text", title: "Text" }, { key: "longtext", title: "Long text" }, { key: "number", title: "Number" }, { key: "date", title: "Date" }, { key: "checkbox", title: "Checkbox" },
+];
+
+/** A field key from a title that no field of the type has yet. */
+export function fieldKeyFor(title: string, taken: readonly string[]): string {
+  const slug = title.normalize("NFKD").replace(/[^\x00-\x7F]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+  const base = /^[a-z]/.test(slug) ? slug : slug ? `f_${slug}` : "";
+  if (!base) return "";
+  if (!taken.includes(base)) return base;
+  for (let n = 2; ; n++) if (!taken.includes(`${base}_${n}`)) return `${base}_${n}`;
+}
+
+/** The fields a stage can pick from a record type: its own, not the base ones every Journey record has. */
+export const pickableFields = (fields: readonly TypeField[]): TypeField[] => fields.filter((f) => !BASE_FIELDS.includes(f.key));

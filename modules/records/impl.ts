@@ -120,6 +120,29 @@ function assertWriteOnce(def: TypeDef, current: Record<string, unknown>, patch: 
   }
 }
 
+const blank = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
+
+/**
+ * A status field whose stages list fields to fill (`stageGates`, kept by the schema module) refuses a stage change while they are empty. The values counted are the record's own with this patch
+ * on top, so one update can fill the fields and change the stage. Every caller comes through here: a person, an Automation, an agent.
+ */
+function assertStageGates(def: TypeDef, current: Record<string, unknown>, patch: Record<string, unknown>): void {
+  for (const f of def.fields) {
+    const gates = f["stageGates"] as Record<string, { enter?: string[]; leave?: string[] }> | undefined;
+    if (!gates || !Object.prototype.hasOwnProperty.call(patch, f.name)) continue;
+    const from = current[f.name], to = patch[f.name];
+    if (typeof to !== "string" || same(from, to)) continue;
+    const merged = { ...current, ...patch };
+    const wants: { key: string; stage: string; when: "enter" | "leave" }[] = [
+      ...((typeof from === "string" ? gates[from]?.leave : undefined) ?? []).map((key) => ({ key, stage: from as string, when: "leave" as const })),
+      ...(gates[to]?.enter ?? []).map((key) => ({ key, stage: to, when: "enter" as const })),
+    ];
+    const open = wants.filter((w, i) => blank(merged[w.key]) && wants.findIndex((x) => x.key === w.key) === i)
+      .map((w) => ({ ...w, title: String(def.fields.find((x) => x.name === w.key)?.label ?? w.key) }));
+    if (open.length) throw new RecordsError("stage_gate", `Fill these first: ${open.map((m) => m.title).join(", ")}.`, { reason: "fields_required", fields: open, toStage: to });
+  }
+}
+
 export function openRecords(o: { path?: string; space?: string; actor?: string; clock?: () => number; opened?: { host: ProjectionHost; store: Store } } = {}): RecordsHandle {
   // `opened` is the Space store the host hands over (P-H_08); without it (tests) the module opens a private one
   const opened = o.opened ?? openRecordStore({
@@ -161,6 +184,7 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
       const clean = scrub(def, { ...patch });
       const row = await inner.get(type, id);
       if (row && row.version === base) assertWriteOnce(def, row.data, clean);
+      if (row) assertStageGates(def, row.data, clean);
       return inner.update(type, id, clean, base);
     },
     async remove(type, id, base) {
