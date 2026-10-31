@@ -31,6 +31,7 @@ import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { channelFieldToAdd, findContact } from "./askfor.ts";
 import { ActivityTab, ChatTab, CommentsTab, FilesTab } from "../recordpane/index.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
+import { SealedField } from "./SealedField.tsx";
 
 export interface RecordPageStart {
   /** The relationship map open. */
@@ -124,6 +125,8 @@ function FieldRow(q: FieldProps): ReactElement {
         {q.editing!.error ? <Text style={p.errText} accessibilityRole="alert" testID={`error-${f.key}`}>{q.editing!.error}</Text> : null}
       </View>
     );
+  } else if (f.type === "sealed") {
+    body = <SealedField field={f} row={row} type={q.type} />;
   } else if (f.type === "relation") {
     const cards: ReactElement[] = [];
     for (const id of relationIds(f, row)) cards.push(<RelationCard key={id} field={f} id={id} />);
