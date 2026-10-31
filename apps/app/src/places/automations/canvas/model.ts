@@ -276,7 +276,7 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
     const prompt = str(inp["prompt"]).replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
     const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? n.ai.keyId) : "";
     const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? n.ai.backupKeyId) : "";
-    const on = key ? (back ? `${key}, then ${back}` : key) : "your own AI account";
+    const on = n.ai?.mode === "task" ? (n.ai.reviewer || n.ai.approver ? "An agent's task, with a check before it goes on" : "An agent's task") : key ? (back ? `${key}, then ${back}` : key) : "your own AI account";
     return prompt ? `${prompt.length > 70 ? `${prompt.slice(0, 70)}...` : prompt}. ${on}` : "Write what the AI should do";
   }
   const bits: string[] = [];

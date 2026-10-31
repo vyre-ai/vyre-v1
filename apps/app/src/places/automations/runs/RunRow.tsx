@@ -6,9 +6,11 @@ import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { pressPoint } from "./actions.tsx";
-import { IconButton, QuietButton, StatusMark, TestBadge, webOnly } from "./parts.tsx";
+import { Face, IconButton, QuietButton, StatusMark, TestBadge, webOnly } from "./parts.tsx";
 import { moreLabel } from "../a11y.ts";
 import { isTest, metaLine, rowTime, runTitle } from "./model.ts";
+import { workLabel } from "./work.ts";
+import type { WorkMark } from "./work.ts";
 import type { Run } from "./model.ts";
 
 export interface RunRowProps {
@@ -22,6 +24,8 @@ export interface RunRowProps {
   /** Shows the Automation's name above the outcome (Failed runs lists runs of many Automations). */
   title?: string;
   rowKey: string;
+  /** Who holds the baton of the work this run made, when it has open work. */
+  work?: { mark: WorkMark; name: string };
   /** Failed runs list: Open, Retry and Stop stay on the row instead of appearing on hover (the prototype shows them always). */
   alwaysActions?: boolean;
   onStop?(run: Run): void;
@@ -31,13 +35,14 @@ export interface RunRowProps {
   onMenu(run: Run, x: number, y: number): void;
 }
 
-export function RunRow({ run, now, selected = false, open = false, currentVersion, title, rowKey, alwaysActions = false, onStop, onOpen, onOpenMain, onRetry, onMenu }: RunRowProps): ReactElement {
+export function RunRow({ work, run, now, selected = false, open = false, currentVersion, title, rowKey, alwaysActions = false, onStop, onOpen, onOpenMain, onRetry, onMenu }: RunRowProps): ReactElement {
   const [over, setOver] = useState(false);
   const [focus, setFocus] = useState(false);
   const lit = over || focus;
   const version = run.definitionVersion !== undefined && currentVersion !== undefined && run.definitionVersion !== currentVersion ? `v${run.definitionVersion}` : null;
   const trailing = (
     <View style={r.tr}>
+      {work ? <View testID={`work-${run.id}`} accessibilityLabel={workLabel(work.mark, work.name)} {...webOnly({ title: workLabel(work.mark, work.name) })}><Face name={work.name} seedId={work.mark.who.id} kind={work.mark.who.kind === "person" ? "person" : "agent"} size={20} /></View> : null}
       {isTest(run) ? <TestBadge /> : null}
       {version ? <Text style={r.ver}>{version}</Text> : null}
       {alwaysActions && open ? (

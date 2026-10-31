@@ -1,7 +1,7 @@
 // Run history (spec 3.7, 2.13): the runs of one Automation (or agent, site, or every run you may see), newest first under Today, Yesterday and Earlier. A failed run nobody retried
 // waits at the top under Needs attention with Retry step and Copy trace id on its row. The filter is a quiet menu in the header. Every item is 44 px tall, so the list virtualises
 // and nothing shifts while it loads. Click opens the run chat to the side, double click in Main; right-click, the More button and Shift-F10 open the row menu.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -16,6 +16,8 @@ import { IconButton, QuietButton, StatusMark, moveRowFocus, webOnly } from "./pa
 import type { KeyEventLike } from "./parts.tsx";
 import { RunRow } from "./RunRow.tsx";
 import { each } from "./each.ts";
+import { loadOpenWork, marksByRun } from "./work.ts";
+import type { WorkMark } from "./work.ts";
 
 type ListOut = CapMap["runs.list"]["out"];
 
@@ -42,6 +44,13 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
   const [filter, setFilter] = useState<FilterKey>(initialFilter);
   const q = useScreenQuery<ListOut>(HISTORY, "runs", { scope, ...(subject ? { subject } : {}) });
   const runs: readonly Run[] = q.status === "ready" ? q.data.runs : [];
+  // the Work column: who holds the baton of the open work a run made (read again when the list changes)
+  const [marks, setMarks] = useState<ReadonlyMap<string, WorkMark>>(new Map());
+  useEffect(() => {
+    let live = true;
+    void loadOpenWork(data.call).then((tasks) => { if (live) setMarks(marksByRun(tasks)); });
+    return () => { live = false; };
+  }, [data, runs]);
   const now = data.clock().now;
   const handled = useMemo(() => handledIds(runs), [runs]);
   const shown = useMemo(() => runs.filter((r) => matchesFilter(r, filter)), [runs, filter]);
@@ -85,7 +94,7 @@ export function RunHistory({ subject, scope = subject ? "subject" : "mine", curr
     if (it.k === "att") return renderAtt(it.run);
     return (
       <RunRow
-        run={it.run} now={now} rowKey={it.run.id} selected={selectedRunId === it.run.id} open={needsAttention(it.run, handled)} {...(currentVersion !== undefined ? { currentVersion } : {})}
+        run={it.run} now={now} rowKey={it.run.id} {...(marks.get(it.run.id) ? { work: { mark: marks.get(it.run.id)!, name: data.name(marks.get(it.run.id)!.who.id) } } : {})} selected={selectedRunId === it.run.id} open={needsAttention(it.run, handled)} {...(currentVersion !== undefined ? { currentVersion } : {})}
         onOpen={(r) => data.nav.openRunSide(r.id)} onOpenMain={(r) => data.nav.openRun(r.id)} onRetry={(r) => void actions.retryStep(r)} onMenu={menu}
       />
     );

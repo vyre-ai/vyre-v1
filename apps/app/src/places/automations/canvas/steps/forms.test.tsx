@@ -192,3 +192,45 @@ test("no control is shown for the AI step's nudge or escalation settings, which 
   const out = panel({ id: "a", key: "ai", input: { prompt: "p" }, ai: { nudgeMinutes: 5, escalateTo: { kind: "person", id: "usr_x" } } });
   assert.equal(/nudge|escalat/i.test(out), false);
 });
+
+// ---- the AI step as an agent task (work baton, lane W2)
+
+test("the AI step has an Answer or Task switch, and a step without a mode is an answer", () => {
+  const answer = panel({ id: "a", key: "ai", input: { prompt: "p" } });
+  assert.ok(has(answer, 'data-testid="ai-mode"'));
+  assert.match(tag(answer, "ai-mode-answer"), /aria-checked="true"/);
+  assert.match(tag(answer, "ai-mode-task"), /aria-checked="false"/);
+  assert.ok(has(answer, 'data-testid="field-prompt"') && !has(answer, 'data-testid="ai-seats"'), "an answer keeps its own form");
+  const task = panel({ id: "a", key: "ai", input: { prompt: "p" }, ai: { mode: "task" } });
+  assert.match(tag(task, "ai-mode-task"), /aria-checked="true"/);
+});
+
+test("a task step shows the goal, the seats with faces, the deliverable as fields, what done means, and keeps the rarely used settings under More", () => {
+  const schema = { type: "object", required: ["letter", "pages"], properties: { letter: { type: "string" }, pages: { type: "integer" } } };
+  const out = panel({ id: "t", key: "ai", input: { prompt: "Draft the letter for {{ trigger.name }}", outputSchema: schema }, ai: { mode: "task", agentId: "agt_x", reviewer: { kind: "person", id: "usr_maya" }, doneMeans: ["Names the client", "States the fee"], nudgeMinutes: 10 } });
+  for (const id of ["field-prompt", "insert-data", "ai-seats", "choose-assigned", "choose-reviewer", "choose-approver", "rows-deliverable", "field-done-means", "ai-more"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.match(tag(out, "field-prompt"), /aria-label="Goal"/);
+  assert.equal(value(out, "rows-deliverable-key-0"), "letter");
+  assert.equal(value(out, "rows-deliverable-value-1"), "whole number");
+  assert.ok(has(out, "Names the client") && has(out, "States the fee"));
+  assert.match(tag(out, "choose-reviewer"), /aria-label="Reviewer: /);
+  assert.equal(has(out, 'data-testid="field-nudge"'), false, "Nudge after is under More, which starts closed");
+  assert.equal(has(out, 'data-testid="choose-escalate"'), false);
+  assert.equal(has(out, 'data-testid="ai-account"'), false, "the agent works on its own account");
+  noDash(out);
+});
+
+test("a deliverable that is more than simple fields keeps its raw shape editor", () => {
+  const out = panel({ id: "t", key: "ai", input: { prompt: "p", outputSchema: { type: "object", properties: { a: { type: "object", properties: { b: { type: "string" } } } } } }, ai: { mode: "task", agentId: "agt_x" } });
+  assert.ok(has(out, 'data-testid="field-schema"') && !has(out, 'data-testid="rows-deliverable"'));
+});
+
+test("the card of a task step says it is an agent's task, not whose account it runs on", () => {
+  const def: Definition = { triggers: [{ key: "manual" }], nodes: [
+    { id: "t", key: "ai", input: { prompt: "Draft the letter" }, ai: { mode: "task", agentId: "agt_x" }, next: ["u"] },
+    { id: "u", key: "ai", input: { prompt: "Draft the letter" }, ai: { mode: "task", agentId: "agt_x", reviewer: { kind: "person", id: "usr_m" } } },
+  ] };
+  const subs = Object.fromEntries(layout(def, {}).cards.filter((c) => c.node).map((c) => [c.id, c.sub]));
+  assert.equal(subs["t"], "Draft the letter. An agent's task");
+  assert.equal(subs["u"], "Draft the letter. An agent's task, with a check before it goes on");
+});
