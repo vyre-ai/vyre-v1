@@ -283,7 +283,10 @@ async function providersOf(ctx: AutoCtx): Promise<ProviderLite[] | null> {
   if (!ctx.call) return null;
   try {
     const r = (await ctx.call("providers.list", {})) as { providers?: ProviderLite[] } | null;
-    return Array.isArray(r?.providers) ? r!.providers : [];
+    const list = Array.isArray(r?.providers) ? r!.providers : [];
+    // a Personal Space runs on the person's own computer: their sign-in needs no "the Space may use it" switch there
+    const personal = await (ctx.call("spaces.get", {}) as Promise<{ space?: { kind?: string } } | null>).then((x) => x?.space?.kind === "personal", () => false);
+    return personal ? list.map((p) => (p.connection === "subscription" ? { ...p, spaceMayUse: true } : p)) : list;
   } catch {
     return null;
   }
