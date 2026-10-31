@@ -1458,98 +1458,6 @@
       ],
       "type": "object"
     },
-    "s_0fe6023263": {
-      "properties": {
-        "alerts": {
-          "$ref": "#/$defs/s_564b5d059b"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "definition": {
-          "$ref": "#/$defs/s_1fca2adde6"
-        },
-        "description": {
-          "type": "string"
-        },
-        "followers": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "groupId": {
-          "examples": [
-            "agr_a1b2c3"
-          ],
-          "pattern": "^agr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "id": {
-          "examples": [
-            "aut_a1b2c3"
-          ],
-          "pattern": "^aut_[a-z0-9]+$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "personal",
-            "space"
-          ],
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "type": "string"
-        },
-        "pausedReason": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "on",
-            "off",
-            "draft",
-            "paused"
-          ],
-          "type": "string"
-        },
-        "updatedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "version": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "kind",
-        "ownerId",
-        "status",
-        "version",
-        "definition",
-        "followers",
-        "alerts",
-        "createdAt",
-        "updatedAt"
-      ],
-      "type": "object"
-    },
     "s_101a8e8ab2": {
       "properties": {
         "activeSec": {
@@ -1986,6 +1894,201 @@
         "pageId",
         "title",
         "kind"
+      ],
+      "type": "object"
+    },
+    "s_189461ec38": {
+      "properties": {
+        "allowSelfTrigger": {
+          "type": "boolean"
+        },
+        "nodes": {
+          "items": {
+            "properties": {
+              "ai": {
+                "properties": {
+                  "agentId": {
+                    "examples": [
+                      "agt_a1b2c3"
+                    ],
+                    "pattern": "^agt_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "approver": {
+                    "$ref": "#/$defs/s_f05a3f77df"
+                  },
+                  "assigned": {
+                    "$ref": "#/$defs/s_f05a3f77df"
+                  },
+                  "backupKeyId": {
+                    "type": "string"
+                  },
+                  "doneMeans": {
+                    "items": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "maxItems": 20,
+                    "type": "array"
+                  },
+                  "escalateTo": {
+                    "$ref": "#/$defs/s_f05a3f77df"
+                  },
+                  "keyId": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "enum": [
+                      "answer",
+                      "task"
+                    ],
+                    "type": "string"
+                  },
+                  "nudgeMinutes": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "reviewer": {
+                    "$ref": "#/$defs/s_f05a3f77df"
+                  },
+                  "timeoutMinutes": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              },
+              "askBeforeSending": {
+                "type": "boolean"
+              },
+              "branches": {
+                "items": {
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "when": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "to"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "id": {
+                "examples": [
+                  "step_1"
+                ],
+                "type": "string"
+              },
+              "input": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "key": {
+                "description": "A StepDef key",
+                "examples": [
+                  "records.update"
+                ],
+                "type": "string"
+              },
+              "next": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "onError": {
+                "properties": {
+                  "codes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "max": {
+                    "maximum": 10,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "mode": {
+                    "enum": [
+                      "fail",
+                      "continue",
+                      "retry",
+                      "route",
+                      "skip",
+                      "substitute"
+                    ],
+                    "type": "string"
+                  },
+                  "output": {
+                    "description": "Any JSON value"
+                  },
+                  "route": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "type": "object"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "input"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "start": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "triggers": {
+          "items": {
+            "properties": {
+              "config": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "filter": {
+                "description": "Any JSON value"
+              },
+              "key": {
+                "examples": [
+                  "record_change"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "triggers",
+        "nodes"
       ],
       "type": "object"
     },
@@ -2935,186 +3038,6 @@
         "ringSeconds",
         "voicemail",
         "voicemailTranscript"
-      ],
-      "type": "object"
-    },
-    "s_1fca2adde6": {
-      "properties": {
-        "allowSelfTrigger": {
-          "type": "boolean"
-        },
-        "nodes": {
-          "items": {
-            "properties": {
-              "ai": {
-                "properties": {
-                  "agentId": {
-                    "examples": [
-                      "agt_a1b2c3"
-                    ],
-                    "pattern": "^agt_[a-z0-9]+$",
-                    "type": "string"
-                  },
-                  "approver": {
-                    "$ref": "#/$defs/s_f05a3f77df"
-                  },
-                  "assigned": {
-                    "$ref": "#/$defs/s_f05a3f77df"
-                  },
-                  "backupKeyId": {
-                    "type": "string"
-                  },
-                  "escalateTo": {
-                    "$ref": "#/$defs/s_f05a3f77df"
-                  },
-                  "keyId": {
-                    "type": "string"
-                  },
-                  "nudgeMinutes": {
-                    "minimum": 1,
-                    "type": "integer"
-                  },
-                  "reviewer": {
-                    "$ref": "#/$defs/s_f05a3f77df"
-                  },
-                  "timeoutMinutes": {
-                    "minimum": 1,
-                    "type": "integer"
-                  }
-                },
-                "type": "object"
-              },
-              "askBeforeSending": {
-                "type": "boolean"
-              },
-              "branches": {
-                "items": {
-                  "properties": {
-                    "label": {
-                      "type": "string"
-                    },
-                    "to": {
-                      "type": "string"
-                    },
-                    "when": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "label",
-                    "to"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "id": {
-                "examples": [
-                  "step_1"
-                ],
-                "type": "string"
-              },
-              "input": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "key": {
-                "description": "A StepDef key",
-                "examples": [
-                  "records.update"
-                ],
-                "type": "string"
-              },
-              "next": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "onError": {
-                "properties": {
-                  "codes": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "max": {
-                    "maximum": 10,
-                    "minimum": 1,
-                    "type": "integer"
-                  },
-                  "mode": {
-                    "enum": [
-                      "fail",
-                      "continue",
-                      "retry",
-                      "route",
-                      "skip",
-                      "substitute"
-                    ],
-                    "type": "string"
-                  },
-                  "output": {
-                    "description": "Any JSON value"
-                  },
-                  "route": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "mode"
-                ],
-                "type": "object"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "key",
-              "input"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "start": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "triggers": {
-          "items": {
-            "properties": {
-              "config": {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              "filter": {
-                "description": "Any JSON value"
-              },
-              "key": {
-                "examples": [
-                  "record_change"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "key"
-            ],
-            "type": "object"
-          },
-          "minItems": 1,
-          "type": "array"
-        }
-      },
-      "required": [
-        "triggers",
-        "nodes"
       ],
       "type": "object"
     },
@@ -8613,6 +8536,26 @@
       },
       "type": "array"
     },
+    "s_633be31f62": {
+      "enum": [
+        "send",
+        "post",
+        "pay",
+        "delete",
+        "transfer",
+        "enroll_node",
+        "connection_change",
+        "push_protected",
+        "campaign_launch",
+        "secret_export",
+        "site_promote",
+        "signature_send",
+        "spend_raise",
+        "signin_change",
+        "approve"
+      ],
+      "type": "string"
+    },
     "s_635108e53b": {
       "properties": {
         "accountId": {
@@ -9663,17 +9606,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_6fdf6d9f56": {
-      "properties": {
-        "automation": {
-          "$ref": "#/$defs/s_0fe6023263"
-        }
-      },
-      "required": [
-        "automation"
-      ],
-      "type": "object"
     },
     "s_703c2127ff": {
       "items": {
@@ -11579,6 +11511,87 @@
       ],
       "type": "object"
     },
+    "s_8c12c43d93": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_633be31f62"
+        },
+        "afterHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "agentOkFor": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "approvers": {
+          "description": "role:<name>, owner or asker",
+          "examples": [
+            "role:admin"
+          ],
+          "type": "string"
+        },
+        "emailBackstopHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "escalateTo": {
+          "enum": [
+            "delegate",
+            "role"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "hold",
+            "allow"
+          ],
+          "type": "string"
+        },
+        "onTimeout": {
+          "enum": [
+            "drop",
+            "escalate"
+          ],
+          "type": "string"
+        },
+        "peopleOnly": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "floor",
+            "agent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "act",
+        "mode",
+        "approvers",
+        "peopleOnly",
+        "afterHours",
+        "onTimeout",
+        "escalateTo",
+        "emailBackstopHours",
+        "scope"
+      ],
+      "type": "object"
+    },
     "s_8c166bd533": {
       "properties": {
         "type": {
@@ -12126,6 +12139,17 @@
       ],
       "type": "object"
     },
+    "s_91772fbd09": {
+      "properties": {
+        "automation": {
+          "$ref": "#/$defs/s_f31ee14211"
+        }
+      },
+      "required": [
+        "automation"
+      ],
+      "type": "object"
+    },
     "s_9206859ebe": {
       "properties": {
         "mailbox": {
@@ -12159,25 +12183,6 @@
         "recordId"
       ],
       "type": "object"
-    },
-    "s_93c2cb3346": {
-      "enum": [
-        "send",
-        "post",
-        "pay",
-        "delete",
-        "transfer",
-        "enroll_node",
-        "connection_change",
-        "push_protected",
-        "campaign_launch",
-        "secret_export",
-        "site_promote",
-        "signature_send",
-        "spend_raise",
-        "signin_change"
-      ],
-      "type": "string"
     },
     "s_93ed523472": {
       "properties": {
@@ -12767,86 +12772,6 @@
         "itemCount",
         "whoCanExport",
         "yourLevel"
-      ],
-      "type": "object"
-    },
-    "s_9c5782a1af": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_93c2cb3346"
-        },
-        "actingFor": {
-          "type": "string"
-        },
-        "capName": {
-          "examples": [
-            "mail.send"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "hld_a1b2c3"
-          ],
-          "pattern": "^hld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "payloadHash": {
-          "type": "string"
-        },
-        "principal": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "held",
-            "approved",
-            "denied",
-            "expired"
-          ],
-          "type": "string"
-        },
-        "taskId": {
-          "examples": [
-            "tsk_a1b2c3"
-          ],
-          "pattern": "^tsk_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "act",
-        "capName",
-        "taskId",
-        "principal",
-        "state",
-        "payloadHash",
-        "createdAt",
-        "expiresAt"
       ],
       "type": "object"
     },
@@ -14558,6 +14483,86 @@
       "required": [
         "groupId",
         "name"
+      ],
+      "type": "object"
+    },
+    "s_b4489a688c": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_633be31f62"
+        },
+        "actingFor": {
+          "type": "string"
+        },
+        "capName": {
+          "examples": [
+            "mail.send"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "hld_a1b2c3"
+          ],
+          "pattern": "^hld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/$defs/s_6c1eb10d98"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "approved",
+            "denied",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "examples": [
+            "tsk_a1b2c3"
+          ],
+          "pattern": "^tsk_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "act",
+        "capName",
+        "taskId",
+        "principal",
+        "state",
+        "payloadHash",
+        "createdAt",
+        "expiresAt"
       ],
       "type": "object"
     },
@@ -19403,6 +19408,98 @@
       ],
       "type": "object"
     },
+    "s_f31ee14211": {
+      "properties": {
+        "alerts": {
+          "$ref": "#/$defs/s_564b5d059b"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "definition": {
+          "$ref": "#/$defs/s_189461ec38"
+        },
+        "description": {
+          "type": "string"
+        },
+        "followers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "groupId": {
+          "examples": [
+            "agr_a1b2c3"
+          ],
+          "pattern": "^agr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "id": {
+          "examples": [
+            "aut_a1b2c3"
+          ],
+          "pattern": "^aut_[a-z0-9]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "personal",
+            "space"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "pausedReason": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "on",
+            "off",
+            "draft",
+            "paused"
+          ],
+          "type": "string"
+        },
+        "updatedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "ownerId",
+        "status",
+        "version",
+        "definition",
+        "followers",
+        "alerts",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
     "s_f34c269949": {
       "properties": {
         "envelopeId": {
@@ -19612,87 +19709,6 @@
       "required": [
         "on",
         "channelId"
-      ],
-      "type": "object"
-    },
-    "s_f5d992e1ed": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_93c2cb3346"
-        },
-        "afterHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "agentOkFor": {
-          "enum": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "type": "string"
-        },
-        "approvers": {
-          "description": "role:<name>, owner or asker",
-          "examples": [
-            "role:admin"
-          ],
-          "type": "string"
-        },
-        "emailBackstopHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "escalateTo": {
-          "enum": [
-            "delegate",
-            "role"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "hold",
-            "allow"
-          ],
-          "type": "string"
-        },
-        "onTimeout": {
-          "enum": [
-            "drop",
-            "escalate"
-          ],
-          "type": "string"
-        },
-        "peopleOnly": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "space",
-            "floor",
-            "agent"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "act",
-        "mode",
-        "approvers",
-        "peopleOnly",
-        "afterHours",
-        "onTimeout",
-        "escalateTo",
-        "emailBackstopHours",
-        "scope"
       ],
       "type": "object"
     },
@@ -32912,11 +32928,15 @@
                       "kind": "person"
                     },
                     "backupKeyId": "example",
+                    "doneMeans": [
+                      "example"
+                    ],
                     "escalateTo": {
                       "id": "usr_a1b2c3",
                       "kind": "person"
                     },
                     "keyId": "example",
+                    "mode": "answer",
                     "nudgeMinutes": 1,
                     "reviewer": {
                       "id": "usr_a1b2c3",
@@ -33012,11 +33032,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -33082,7 +33106,7 @@
       "input": {
         "properties": {
           "definition": {
-            "$ref": "#/$defs/s_1fca2adde6"
+            "$ref": "#/$defs/s_189461ec38"
           },
           "description": {
             "type": "string"
@@ -33123,7 +33147,7 @@
       "module": "automations",
       "name": "automations.create",
       "output": {
-        "$ref": "#/$defs/s_6fdf6d9f56"
+        "$ref": "#/$defs/s_91772fbd09"
       },
       "permission": "automations.personal",
       "resource": {
@@ -34344,11 +34368,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -34431,7 +34459,7 @@
       "module": "automations",
       "name": "automations.get",
       "output": {
-        "$ref": "#/$defs/s_6fdf6d9f56"
+        "$ref": "#/$defs/s_91772fbd09"
       },
       "permission": null,
       "resource": {
@@ -35240,11 +35268,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -35337,7 +35369,7 @@
       "module": "automations",
       "name": "automations.make_personal_copy",
       "output": {
-        "$ref": "#/$defs/s_6fdf6d9f56"
+        "$ref": "#/$defs/s_91772fbd09"
       },
       "permission": "automations.personal",
       "resource": {
@@ -35719,11 +35751,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -35794,7 +35830,7 @@
       "name": "automations.move",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_6fdf6d9f56"
+        "$ref": "#/$defs/s_91772fbd09"
       },
       "permission": null,
       "resource": {
@@ -36126,11 +36162,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -36242,7 +36282,7 @@
       "output": {
         "properties": {
           "automation": {
-            "$ref": "#/$defs/s_0fe6023263"
+            "$ref": "#/$defs/s_f31ee14211"
           },
           "needs": {
             "$ref": "#/$defs/s_967ea1a53f"
@@ -36514,11 +36554,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -36651,7 +36695,7 @@
       "output": {
         "properties": {
           "automation": {
-            "$ref": "#/$defs/s_0fe6023263"
+            "$ref": "#/$defs/s_f31ee14211"
           },
           "diff": {
             "$ref": "#/$defs/s_4860ff32a0"
@@ -36846,11 +36890,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -36940,7 +36988,7 @@
       "module": "automations",
       "name": "automations.restore_version",
       "output": {
-        "$ref": "#/$defs/s_6fdf6d9f56"
+        "$ref": "#/$defs/s_91772fbd09"
       },
       "permission": null,
       "resource": {
@@ -37390,11 +37438,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -37480,7 +37532,7 @@
       "module": "automations",
       "name": "automations.set_enabled",
       "output": {
-        "$ref": "#/$defs/s_6fdf6d9f56"
+        "$ref": "#/$defs/s_91772fbd09"
       },
       "permission": null,
       "resource": {
@@ -37890,11 +37942,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -37992,7 +38048,7 @@
       "module": "automations",
       "name": "automations.templates.use",
       "output": {
-        "$ref": "#/$defs/s_6fdf6d9f56"
+        "$ref": "#/$defs/s_91772fbd09"
       },
       "permission": "automations.personal",
       "resource": {
@@ -38356,11 +38412,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -38442,7 +38502,7 @@
       "module": "automations",
       "name": "automations.undelete",
       "output": {
-        "$ref": "#/$defs/s_6fdf6d9f56"
+        "$ref": "#/$defs/s_91772fbd09"
       },
       "permission": null,
       "resource": {
@@ -38492,11 +38552,15 @@
                       "kind": "person"
                     },
                     "backupKeyId": "example",
+                    "doneMeans": [
+                      "example"
+                    ],
                     "escalateTo": {
                       "id": "usr_a1b2c3",
                       "kind": "person"
                     },
                     "keyId": "example",
+                    "mode": "answer",
                     "nudgeMinutes": 1,
                     "reviewer": {
                       "id": "usr_a1b2c3",
@@ -38590,11 +38654,15 @@
                         "kind": "person"
                       },
                       "backupKeyId": "example",
+                      "doneMeans": [
+                        "example"
+                      ],
                       "escalateTo": {
                         "id": "usr_a1b2c3",
                         "kind": "person"
                       },
                       "keyId": "example",
+                      "mode": "answer",
                       "nudgeMinutes": 1,
                       "reviewer": {
                         "id": "usr_a1b2c3",
@@ -38667,7 +38735,7 @@
             "type": "string"
           },
           "definition": {
-            "$ref": "#/$defs/s_1fca2adde6"
+            "$ref": "#/$defs/s_189461ec38"
           },
           "description": {
             "type": "string"
@@ -38688,7 +38756,7 @@
       "module": "automations",
       "name": "automations.update",
       "output": {
-        "$ref": "#/$defs/s_6fdf6d9f56"
+        "$ref": "#/$defs/s_91772fbd09"
       },
       "permission": null,
       "resource": {
@@ -38733,11 +38801,15 @@
                       "kind": "person"
                     },
                     "backupKeyId": "example",
+                    "doneMeans": [
+                      "example"
+                    ],
                     "escalateTo": {
                       "id": "usr_a1b2c3",
                       "kind": "person"
                     },
                     "keyId": "example",
+                    "mode": "answer",
                     "nudgeMinutes": 1,
                     "reviewer": {
                       "id": "usr_a1b2c3",
@@ -38801,7 +38873,7 @@
       "input": {
         "properties": {
           "definition": {
-            "$ref": "#/$defs/s_1fca2adde6"
+            "$ref": "#/$defs/s_189461ec38"
           },
           "kind": {
             "enum": [
@@ -38863,6 +38935,146 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "handle": "#Dana_Lawmatics"
+          },
+          "name": "example",
+          "output": {
+            "uses": [
+              {
+                "automations": [
+                  {
+                    "automationId": "aut_a1b2c3",
+                    "name": "example",
+                    "status": "example",
+                    "steps": [
+                      {
+                        "nodeId": "example",
+                        "title": "example"
+                      }
+                    ]
+                  }
+                ],
+                "handle": "#Dana_Lawmatics"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "handle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.vault_usage",
+      "output": {
+        "properties": {
+          "uses": {
+            "items": {
+              "properties": {
+                "automations": {
+                  "items": {
+                    "properties": {
+                      "automationId": {
+                        "examples": [
+                          "aut_a1b2c3"
+                        ],
+                        "pattern": "^aut_[a-z0-9]+$",
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "steps": {
+                        "items": {
+                          "properties": {
+                            "nodeId": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "nodeId",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "automationId",
+                      "name",
+                      "status",
+                      "steps"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "handle": {
+                  "examples": [
+                    "#Dana_Lawmatics"
+                  ],
+                  "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "handle",
+                "automations"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "uses"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -82591,7 +82803,7 @@
                   "type": "boolean"
                 },
                 "key": {
-                  "$ref": "#/$defs/s_93c2cb3346"
+                  "$ref": "#/$defs/s_633be31f62"
                 },
                 "peopleOnly": {
                   "type": "boolean"
@@ -82769,7 +82981,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "adminOnly": {
             "type": "boolean"
@@ -83007,7 +83219,7 @@
       "output": {
         "properties": {
           "hold": {
-            "$ref": "#/$defs/s_9c5782a1af"
+            "$ref": "#/$defs/s_b4489a688c"
           }
         },
         "required": [
@@ -83079,7 +83291,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "cursor": {
             "type": "string"
@@ -83119,7 +83331,7 @@
         "properties": {
           "holds": {
             "items": {
-              "$ref": "#/$defs/s_9c5782a1af"
+              "$ref": "#/$defs/s_b4489a688c"
             },
             "type": "array"
           },
@@ -83193,7 +83405,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "actingFor": {
             "type": "string"
@@ -83512,7 +83724,7 @@
         "properties": {
           "rules": {
             "items": {
-              "$ref": "#/$defs/s_f5d992e1ed"
+              "$ref": "#/$defs/s_8c12c43d93"
             },
             "type": "array"
           }
@@ -83586,7 +83798,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "afterHours": {
             "minimum": 1,
@@ -83657,7 +83869,7 @@
       "output": {
         "properties": {
           "rule": {
-            "$ref": "#/$defs/s_f5d992e1ed"
+            "$ref": "#/$defs/s_8c12c43d93"
           }
         },
         "required": [
@@ -167462,6 +167674,165 @@
     {
       "effects": "write",
       "emits": [
+        "task.created",
+        "task.requested",
+        "task.assigned",
+        "task.link_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "question": "Which of the two dates is right?",
+            "taskId": "tsk_a1b2c3",
+            "to": {
+              "id": "usr_a1b2c3",
+              "kind": "person"
+            }
+          },
+          "name": "example",
+          "output": {
+            "answerTaskId": "tsk_a1b2c3",
+            "task": {
+              "actions": [
+                {
+                  "key": "approve",
+                  "label": "Approve",
+                  "note": "required"
+                }
+              ],
+              "approver": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "assigned": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "blocked": true,
+              "blocks": [
+                {
+                  "data": {},
+                  "type": "record_card",
+                  "v": 1
+                }
+              ],
+              "createdAt": 1760000000000,
+              "createdBy": "example",
+              "dependsOn": [
+                "tsk_a1b2c3"
+              ],
+              "due": 1760000000000,
+              "effort": 1,
+              "fileIds": [
+                "fil_a1b2c3"
+              ],
+              "followers": [
+                "example"
+              ],
+              "id": "tsk_a1b2c3",
+              "kind": "work",
+              "parentTaskId": "tsk_a1b2c3",
+              "recordId": "rec_a1b2c3",
+              "reviewLoops": 1,
+              "reviewer": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "snoozedUntil": 1760000000000,
+              "source": {
+                "id": "run_a1b2c3",
+                "kind": "chat"
+              },
+              "state": "todo",
+              "summary": "example",
+              "takenBy": "usr_a1b2c3",
+              "threadId": "thr_a1b2c3",
+              "title": "example",
+              "updatedAt": 1760000000000,
+              "why": "example",
+              "workingNotes": {}
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "question": {
+            "examples": [
+              "Which of the two dates is right?"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "$ref": "#/$defs/s_f05a3f77df"
+          }
+        },
+        "required": [
+          "taskId",
+          "question"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "tasks",
+      "name": "tasks.ask",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "answerTaskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "task": {
+            "$ref": "#/$defs/s_08caf54cab"
+          }
+        },
+        "required": [
+          "task",
+          "answerTaskId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/taskId",
+        "type": "task"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "task_ask",
+          "toolset": "tasks"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "task.assigned"
       ],
       "errors": [
@@ -167594,6 +167965,158 @@
       "surfaces": {
         "http": "auto",
         "mcp": {
+          "toolset": "tasks"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "task.created",
+        "task.requested",
+        "task.assigned",
+        "task.link_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "reason": "I cannot open the client folder",
+            "taskId": "tsk_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "task": {
+              "actions": [
+                {
+                  "key": "approve",
+                  "label": "Approve",
+                  "note": "required"
+                }
+              ],
+              "approver": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "assigned": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "blocked": true,
+              "blocks": [
+                {
+                  "data": {},
+                  "type": "record_card",
+                  "v": 1
+                }
+              ],
+              "createdAt": 1760000000000,
+              "createdBy": "example",
+              "dependsOn": [
+                "tsk_a1b2c3"
+              ],
+              "due": 1760000000000,
+              "effort": 1,
+              "fileIds": [
+                "fil_a1b2c3"
+              ],
+              "followers": [
+                "example"
+              ],
+              "id": "tsk_a1b2c3",
+              "kind": "work",
+              "parentTaskId": "tsk_a1b2c3",
+              "recordId": "rec_a1b2c3",
+              "reviewLoops": 1,
+              "reviewer": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "snoozedUntil": 1760000000000,
+              "source": {
+                "id": "run_a1b2c3",
+                "kind": "chat"
+              },
+              "state": "todo",
+              "summary": "example",
+              "takenBy": "usr_a1b2c3",
+              "threadId": "thr_a1b2c3",
+              "title": "example",
+              "updatedAt": 1760000000000,
+              "why": "example",
+              "workingNotes": {}
+            },
+            "unblockTaskId": "tsk_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "reason": {
+            "examples": [
+              "I cannot open the client folder"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "tasks",
+      "name": "tasks.block",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "task": {
+            "$ref": "#/$defs/s_08caf54cab"
+          },
+          "unblockTaskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "unblockTaskId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/taskId",
+        "type": "task"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "task_block",
           "toolset": "tasks"
         }
       },
@@ -167922,6 +168445,162 @@
           "toolset": "tasks"
         },
         "outboundWebhook": true
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "task.transitioned",
+        "task.completed",
+        "task.approved",
+        "task.rejected"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "reason": "example",
+            "taskId": "tsk_a1b2c3",
+            "verdict": "approve"
+          },
+          "name": "example",
+          "output": {
+            "next": "done",
+            "task": {
+              "actions": [
+                {
+                  "key": "approve",
+                  "label": "Approve",
+                  "note": "required"
+                }
+              ],
+              "approver": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "assigned": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "blocked": true,
+              "blocks": [
+                {
+                  "data": {},
+                  "type": "record_card",
+                  "v": 1
+                }
+              ],
+              "createdAt": 1760000000000,
+              "createdBy": "example",
+              "dependsOn": [
+                "tsk_a1b2c3"
+              ],
+              "due": 1760000000000,
+              "effort": 1,
+              "fileIds": [
+                "fil_a1b2c3"
+              ],
+              "followers": [
+                "example"
+              ],
+              "id": "tsk_a1b2c3",
+              "kind": "work",
+              "parentTaskId": "tsk_a1b2c3",
+              "recordId": "rec_a1b2c3",
+              "reviewLoops": 1,
+              "reviewer": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "snoozedUntil": 1760000000000,
+              "source": {
+                "id": "run_a1b2c3",
+                "kind": "chat"
+              },
+              "state": "todo",
+              "summary": "example",
+              "takenBy": "usr_a1b2c3",
+              "threadId": "thr_a1b2c3",
+              "title": "example",
+              "updatedAt": 1760000000000,
+              "why": "example",
+              "workingNotes": {}
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "tasks",
+      "name": "tasks.decide",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "next": {
+            "enum": [
+              "done",
+              "fixes"
+            ],
+            "type": "string"
+          },
+          "task": {
+            "$ref": "#/$defs/s_08caf54cab"
+          }
+        },
+        "required": [
+          "task",
+          "next"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/taskId",
+        "type": "task"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "task_decide",
+          "toolset": "tasks"
+        }
       },
       "v": 1
     },
@@ -169771,6 +170450,175 @@
     {
       "effects": "write",
       "emits": [
+        "task.transitioned",
+        "task.completed",
+        "task.approved",
+        "task.sent_back",
+        "task.assigned"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fixes": [
+              "example"
+            ],
+            "note": "example",
+            "taskId": "tsk_a1b2c3",
+            "verdict": "approve"
+          },
+          "name": "example",
+          "output": {
+            "next": "approval",
+            "task": {
+              "actions": [
+                {
+                  "key": "approve",
+                  "label": "Approve",
+                  "note": "required"
+                }
+              ],
+              "approver": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "assigned": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "blocked": true,
+              "blocks": [
+                {
+                  "data": {},
+                  "type": "record_card",
+                  "v": 1
+                }
+              ],
+              "createdAt": 1760000000000,
+              "createdBy": "example",
+              "dependsOn": [
+                "tsk_a1b2c3"
+              ],
+              "due": 1760000000000,
+              "effort": 1,
+              "fileIds": [
+                "fil_a1b2c3"
+              ],
+              "followers": [
+                "example"
+              ],
+              "id": "tsk_a1b2c3",
+              "kind": "work",
+              "parentTaskId": "tsk_a1b2c3",
+              "recordId": "rec_a1b2c3",
+              "reviewLoops": 1,
+              "reviewer": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "snoozedUntil": 1760000000000,
+              "source": {
+                "id": "run_a1b2c3",
+                "kind": "chat"
+              },
+              "state": "todo",
+              "summary": "example",
+              "takenBy": "usr_a1b2c3",
+              "threadId": "thr_a1b2c3",
+              "title": "example",
+              "updatedAt": 1760000000000,
+              "why": "example",
+              "workingNotes": {}
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fixes": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "note": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "send_back"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "tasks",
+      "name": "tasks.review",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "next": {
+            "enum": [
+              "approval",
+              "done",
+              "fixes",
+              "person"
+            ],
+            "type": "string"
+          },
+          "task": {
+            "$ref": "#/$defs/s_08caf54cab"
+          }
+        },
+        "required": [
+          "task",
+          "next"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/taskId",
+        "type": "task"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "task_review",
+          "toolset": "tasks"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "task.snoozed"
       ],
       "errors": [
@@ -169873,6 +170721,162 @@
       "surfaces": {
         "http": "auto",
         "mcp": {
+          "toolset": "tasks"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "task.transitioned",
+        "task.completed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "outputs": {},
+            "summary": "Drafted the letter and checked the dates",
+            "taskId": "tsk_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "next": "review",
+            "task": {
+              "actions": [
+                {
+                  "key": "approve",
+                  "label": "Approve",
+                  "note": "required"
+                }
+              ],
+              "approver": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "assigned": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "blocked": true,
+              "blocks": [
+                {
+                  "data": {},
+                  "type": "record_card",
+                  "v": 1
+                }
+              ],
+              "createdAt": 1760000000000,
+              "createdBy": "example",
+              "dependsOn": [
+                "tsk_a1b2c3"
+              ],
+              "due": 1760000000000,
+              "effort": 1,
+              "fileIds": [
+                "fil_a1b2c3"
+              ],
+              "followers": [
+                "example"
+              ],
+              "id": "tsk_a1b2c3",
+              "kind": "work",
+              "parentTaskId": "tsk_a1b2c3",
+              "recordId": "rec_a1b2c3",
+              "reviewLoops": 1,
+              "reviewer": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "snoozedUntil": 1760000000000,
+              "source": {
+                "id": "run_a1b2c3",
+                "kind": "chat"
+              },
+              "state": "todo",
+              "summary": "example",
+              "takenBy": "usr_a1b2c3",
+              "threadId": "thr_a1b2c3",
+              "title": "example",
+              "updatedAt": 1760000000000,
+              "why": "example",
+              "workingNotes": {}
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "outputs": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "summary": {
+            "examples": [
+              "Drafted the letter and checked the dates"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "tasks",
+      "name": "tasks.submit",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "next": {
+            "enum": [
+              "review",
+              "approval",
+              "done"
+            ],
+            "type": "string"
+          },
+          "task": {
+            "$ref": "#/$defs/s_08caf54cab"
+          }
+        },
+        "required": [
+          "task",
+          "next"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/taskId",
+        "type": "task"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "name": "task_submit",
           "toolset": "tasks"
         }
       },
@@ -197587,7 +198591,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "by": {
             "type": "string"
@@ -197635,7 +198639,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "by": {
             "type": "string"
@@ -197691,7 +198695,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "escalatedTo": {
             "type": "string"
@@ -197749,7 +198753,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "actingFor": {
             "type": "string"
@@ -197816,7 +198820,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "agentId": {
             "examples": [
@@ -215156,6 +216160,39 @@
     }
   ],
   "gateActs": [
+    {
+      "appliesTo": {
+        "actors": [
+          "agent",
+          "automation",
+          "campaign"
+        ],
+        "humanToo": false
+      },
+      "approvers": {
+        "default": "asker",
+        "peopleOnly": true
+      },
+      "key": "approve",
+      "module": "gate",
+      "preview": {
+        "blocks": [
+          {
+            "from": "$input",
+            "type": "doc_excerpt"
+          }
+        ]
+      },
+      "risk": "medium",
+      "sendsOnApprove": "gate.release",
+      "timeout": {
+        "afterHours": 24,
+        "emailBackstopHours": 4,
+        "escalateTo": "delegate",
+        "onTimeout": "escalate"
+      },
+      "title": "Allow this step"
+    },
     {
       "appliesTo": {
         "actors": [
@@ -232901,6 +233938,14 @@
           "backupKeyId": {
             "type": "string"
           },
+          "doneMeans": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
           "escalateTo": {
             "$ref": "#/$defs/s_f05a3f77df"
           },
@@ -232910,6 +233955,13 @@
           },
           "keyId": {
             "description": "Inference key: a subscription sign-in or a shared API key",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "answer",
+              "task"
+            ],
             "type": "string"
           },
           "nudgeMinutes": {
@@ -232948,6 +234000,13 @@
             "type": "string"
           },
           "modelUsed": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
             "type": "string"
           },
           "text": {
@@ -233653,6 +234712,9 @@
           "title": {
             "description": "Task title. Templating allowed: {{ trigger.x }}, {{ steps.name.out.y }}",
             "type": "string"
+          },
+          "wait": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -233666,6 +234728,16 @@
       "module": "steps-core",
       "output": {
         "properties": {
+          "outputs": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "state": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
           "taskId": {
             "examples": [
               "tsk_a1b2c3"
@@ -233685,6 +234757,9 @@
         "max": 3
       },
       "sample": {
+        "outputs": {},
+        "state": "example",
+        "summary": "example",
         "taskId": "tsk_a1b2c3"
       },
       "title": "Create a task"

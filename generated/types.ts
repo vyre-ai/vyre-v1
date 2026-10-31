@@ -2207,6 +2207,8 @@ export type AutomationsCreateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -2274,6 +2276,8 @@ export type AutomationsCreateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2510,6 +2514,8 @@ export type AutomationsGetOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2715,6 +2721,8 @@ export type AutomationsMakePersonalCopyOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2839,6 +2847,8 @@ export type AutomationsMoveOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2976,6 +2986,8 @@ export type AutomationsPackagesImportOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3122,6 +3134,8 @@ export type AutomationsPromoteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3239,6 +3253,8 @@ export type AutomationsRestoreVersionOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3372,6 +3388,8 @@ export type AutomationsSetEnabledOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3506,6 +3524,8 @@ export type AutomationsTemplatesUseOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3631,6 +3651,8 @@ export type AutomationsUndeleteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3714,6 +3736,8 @@ export type AutomationsUpdateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3779,6 +3803,8 @@ export type AutomationsUpdateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3859,6 +3885,8 @@ export type AutomationsValidateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3873,6 +3901,23 @@ export type AutomationsValidateOut = {
       nodeId?: string;
       severity: "error" | "warning";
       message: string;
+    }>;
+};
+export type AutomationsVaultUsageIn = {
+  handle?: string;
+};
+export type AutomationsVaultUsageOut = {
+  uses: Array<{
+      handle: string;
+      automations: Array<{
+          automationId: string;
+          name: string;
+          status: string;
+          steps: Array<{
+              nodeId: string;
+              title: string;
+            }>;
+        }>;
     }>;
 };
 export type AutomationsVersionsIn = {
@@ -11312,7 +11357,7 @@ export type FormsUpdateOut = {
 export type GateActsListIn = Record<string, unknown>;
 export type GateActsListOut = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;
@@ -11333,7 +11378,7 @@ export type GateEffectiveRuleIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   adminOnly?: boolean;
 };
 export type GateEffectiveRuleOut = {
@@ -11363,7 +11408,7 @@ export type GateHoldsGetIn = {
 export type GateHoldsGetOut = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
     capName: string;
     taskId: string;
     runId?: string;
@@ -11380,7 +11425,7 @@ export type GateHoldsGetOut = {
 };
 export type GateHoldsListIn = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -11388,7 +11433,7 @@ export type GateHoldsListIn = {
 export type GateHoldsListOut = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       capName: string;
       taskId: string;
       runId?: string;
@@ -11410,7 +11455,7 @@ export type GateParkIn = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -11447,7 +11492,7 @@ export type GateRulesListIn = {
 };
 export type GateRulesListOut = {
   rules: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       mode: "hold" | "allow";
       approvers: string;
       peopleOnly: boolean;
@@ -11461,7 +11506,7 @@ export type GateRulesListOut = {
     }>;
 };
 export type GateRulesSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -11473,7 +11518,7 @@ export type GateRulesSetIn = {
 };
 export type GateRulesSetOut = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;
@@ -25550,6 +25595,67 @@ export type TasksActOut = {
   };
   result?: unknown;
 };
+export type TasksAskIn = {
+  taskId: string;
+  question: string;
+  to?: {
+    kind: "person" | "agent" | "group" | "role" | "automation";
+    id: string;
+  };
+};
+export type TasksAskOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  answerTaskId: string;
+};
 export type TasksAssignIn = {
   taskId: string;
   slot: "assigned" | "reviewer" | "approver";
@@ -25609,6 +25715,63 @@ export type TasksAssignOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksBlockIn = {
+  taskId: string;
+  reason: string;
+};
+export type TasksBlockOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  unblockTaskId: string;
 };
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
@@ -25707,6 +25870,64 @@ export type TasksCreateOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksDecideIn = {
+  taskId: string;
+  verdict: "approve" | "reject";
+  reason?: string;
+};
+export type TasksDecideOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "done" | "fixes";
 };
 export type TasksDelegateIn = {
   taskId: string;
@@ -26484,6 +26705,65 @@ export type TasksReleaseOut = {
     updatedAt: number;
   };
 };
+export type TasksReviewIn = {
+  taskId: string;
+  verdict: "approve" | "send_back";
+  fixes?: Array<string>;
+  note?: string;
+};
+export type TasksReviewOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "approval" | "done" | "fixes" | "person";
+};
 export type TasksSnoozeIn = {
   taskId: string;
   until: number | null;
@@ -26539,6 +26819,64 @@ export type TasksSnoozeOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksSubmitIn = {
+  taskId: string;
+  outputs?: Record<string, unknown>;
+  summary: string;
+};
+export type TasksSubmitOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "review" | "approval" | "done";
 };
 export type TasksTakeIn = {
   taskId: string;
@@ -30198,6 +30536,7 @@ export interface CapMap {
   "automations.undelete": { in: AutomationsUndeleteIn; out: AutomationsUndeleteOut };
   "automations.update": { in: AutomationsUpdateIn; out: AutomationsUpdateOut };
   "automations.validate": { in: AutomationsValidateIn; out: AutomationsValidateOut };
+  "automations.vault_usage": { in: AutomationsVaultUsageIn; out: AutomationsVaultUsageOut };
   "automations.versions": { in: AutomationsVersionsIn; out: AutomationsVersionsOut };
   "automations.webhook_url.get": { in: AutomationsWebhookUrlGetIn; out: AutomationsWebhookUrlGetOut };
   "automations.webhook_url.rotate": { in: AutomationsWebhookUrlRotateIn; out: AutomationsWebhookUrlRotateOut };
@@ -31519,9 +31858,12 @@ export interface CapMap {
   "sync_types.undo_push": { in: SyncTypesUndoPushIn; out: SyncTypesUndoPushOut };
   "sync_types.update": { in: SyncTypesUpdateIn; out: SyncTypesUpdateOut };
   "tasks.act": { in: TasksActIn; out: TasksActOut };
+  "tasks.ask": { in: TasksAskIn; out: TasksAskOut };
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
+  "tasks.block": { in: TasksBlockIn; out: TasksBlockOut };
   "tasks.count_needs_you": { in: TasksCountNeedsYouIn; out: TasksCountNeedsYouOut };
   "tasks.create": { in: TasksCreateIn; out: TasksCreateOut };
+  "tasks.decide": { in: TasksDecideIn; out: TasksDecideOut };
   "tasks.delegate": { in: TasksDelegateIn; out: TasksDelegateOut };
   "tasks.dependencies.add": { in: TasksDependenciesAddIn; out: TasksDependenciesAddOut };
   "tasks.dependencies.remove": { in: TasksDependenciesRemoveIn; out: TasksDependenciesRemoveOut };
@@ -31536,7 +31878,9 @@ export interface CapMap {
   "tasks.my_work": { in: TasksMyWorkIn; out: TasksMyWorkOut };
   "tasks.needs_you": { in: TasksNeedsYouIn; out: TasksNeedsYouOut };
   "tasks.release": { in: TasksReleaseIn; out: TasksReleaseOut };
+  "tasks.review": { in: TasksReviewIn; out: TasksReviewOut };
   "tasks.snooze": { in: TasksSnoozeIn; out: TasksSnoozeOut };
+  "tasks.submit": { in: TasksSubmitIn; out: TasksSubmitOut };
   "tasks.take": { in: TasksTakeIn; out: TasksTakeOut };
   "tasks.transition": { in: TasksTransitionIn; out: TasksTransitionOut };
   "tasks.update": { in: TasksUpdateIn; out: TasksUpdateOut };
@@ -32772,14 +33116,14 @@ export type FormSubmittedPayload = {
 };
 export type GateApprovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   by: string;
   forPerson?: string;
 };
 export type GateDeniedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   by: string;
   mode: "send_back" | "drop";
@@ -32787,14 +33131,14 @@ export type GateDeniedPayload = {
 };
 export type GateExpiredPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
 };
 export type GateRequestedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   capName: string;
   taskId: string;
   principal: {
@@ -32806,7 +33150,7 @@ export type GateRequestedPayload = {
   expiresAt: number;
 };
 export type GateRuleChangedPayload = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   by: string;

@@ -56,6 +56,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.undelete": async (ctx) => { throw new VyreErr(notImplemented("automations.undelete", ctx.trace)); },
   "automations.update": async (ctx) => { throw new VyreErr(notImplemented("automations.update", ctx.trace)); },
   "automations.validate": async (ctx) => { throw new VyreErr(notImplemented("automations.validate", ctx.trace)); },
+  "automations.vault_usage": async (ctx) => { throw new VyreErr(notImplemented("automations.vault_usage", ctx.trace)); },
   "automations.versions": async (ctx) => { throw new VyreErr(notImplemented("automations.versions", ctx.trace)); },
   "automations.webhook_url.get": async (ctx) => { throw new VyreErr(notImplemented("automations.webhook_url.get", ctx.trace)); },
   "automations.webhook_url.rotate": async (ctx) => { throw new VyreErr(notImplemented("automations.webhook_url.rotate", ctx.trace)); },
