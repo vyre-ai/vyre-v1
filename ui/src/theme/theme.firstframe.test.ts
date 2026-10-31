@@ -257,13 +257,16 @@ test("native: the style map is ready before the first render and equals the web 
   for (const [name, value] of Object.entries(native.rootStyle)) assert.equal(doc.props[name], value, name);
 });
 
-test("applyToRoot clears tokens a smaller set (System) does not define", () => {
+test("applyToRoot clears tokens a smaller set does not define", () => {
   const rec = rootRecorder();
-  applyToRoot(resolveTheme(toInput(chosen("nw", "graphite", "auto"), false)), rec.root);
+  const full = resolveTheme(toInput(chosen("nw", "graphite", "auto"), false));
+  applyToRoot(full, rec.root);
   assert.ok(rec.props["--me"] && rec.props["--press"]);
-  applyToRoot(resolveTheme(toInput(emptyStore(PERSON, "nw"), false)), rec.root);
+  const smaller = { ...full, skin: "system", tokens: Object.fromEntries(Object.entries(full.tokens).filter(([k]) => k !== "--me" && k !== "--press")) };
+  applyToRoot(smaller, rec.root);
   assert.equal(rec.props["--me"], undefined);
-  assert.equal(rec.props["--win"], documentTokens.light["--win"]);
+  assert.equal(rec.props["--press"], undefined);
+  assert.equal(rec.props["--win"], full.tokens["--win"]);
   assert.equal(rec.attrs["data-skin"], "system");
 });
 

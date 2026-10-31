@@ -40,6 +40,10 @@ export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPag
   const signIn = async (): Promise<void> => {
     try { const o = (await data.call("providers.subscription_start", { providerKey: provider.providerKey, idempotencyKey: `again-${provider.id}-${data.clock().now}` })) as { instruction: string }; onNote(o.instruction); } catch (e) { onNote(e instanceof Error ? e.message : "That did not work."); }
   };
+  const tags = Array.isArray(models)
+    // ui-rows-lint: not a list (model names as wrapped tags)
+    ? models.map((m) => <View key={m} style={s.chip}><Mono size={12}>{m}</Mono></View>)
+    : null;
   return (
     <View style={s.page} testID="provider-page" accessibilityLabel={`${provider.name}, AI provider`}>
       <View style={s.bar}><View style={{ flex: 1 }} /><AskButton place="vault" context={{ kind: "vault_item", id: provider.itemId, title: provider.name, access: "manage" }} agents={[{ id: "assistant", name: "Assistant", assistant: true }, ...people.all.filter((x) => x.kind === "agent").map((x) => ({ id: x.id, name: x.name }))]} testID="provider-ask" onAsk={(agent, mode, about) => data.nav.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title })} /></View>
@@ -65,7 +69,7 @@ export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPag
           {models === null ? <Text style={s.dim} testID="provider-models">Loading</Text>
             : models === "failed" ? <View style={s.boxRow} testID="provider-models"><Text style={[s.dim, { flex: 1 }]}>Could not load the models</Text><Btn label="Try again" onPress={() => setTries((n) => n + 1)} testID="provider-models-retry" /></View>
             : models.length === 0 ? <Text style={s.dim} testID="provider-models">No models listed</Text>
-            : <View style={s.chips} testID="provider-models">{models.map((m) => <View key={m} style={s.chip}><Mono size={12}>{m}</Mono></View>)}</View>}
+            : <View style={s.chips} testID="provider-models">{tags}</View>}
         </View>
 
         <View style={s.head}><Text accessibilityRole="header" style={s.h2}>Used by</Text></View>
