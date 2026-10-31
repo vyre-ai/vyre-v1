@@ -24,7 +24,7 @@ export type OpenConnect = (need: ConnectNeed) => Promise<Connected | null>;
 
 export const CONNECT_ANOTHER = "+ Connect another";
 
-const SERVICE_WORDS: Readonly<Record<string, string>> = { google: "Google", microsoft: "Microsoft", github: "GitHub", ms: "Microsoft" };
+const SERVICE_WORDS: Readonly<Record<string, string>> = { google: "Google", microsoft: "Microsoft", github: "GitHub", ms: "Microsoft", dropbox: "Dropbox" };
 
 function serviceWord(service: string): string {
   return SERVICE_WORDS[service] ?? service.charAt(0).toUpperCase() + service.slice(1);

@@ -18,6 +18,7 @@ type Done = (account: Connected) => void;
 
 export default function ConnectSheets({ rt, need, onDone, onCancel }: FlowProps): ReactElement {
   if (need.kind === "mailbox") return <MailboxSheet rt={rt} onDone={onDone} onCancel={onCancel} />;
+  if (need.kind === "connector" && need.service === "dropbox") return <DropboxSheet rt={rt} onDone={onDone} onCancel={onCancel} />;
   if (need.kind === "connector") return <ConnectorSheet rt={rt} service={need.service} onDone={onDone} onCancel={onCancel} />;
   return <VaultFlow rt={rt} need={need} onDone={onDone} onCancel={onCancel} />;
 }
@@ -121,6 +122,43 @@ function ConnectorSheet({ rt, service, onDone, onCancel }: { rt: FlowProps["rt"]
         : <Btn label={busy ? "Opening" : `Sign in with ${word}`} primary disabled={busy} onPress={() => void start()} testID="connect-go" />}</>}
     >
       <Text style={s.body}>{made ? "Finish signing in in the window that opened, then come back." : `Sign in to ${word} once. It stays yours.`}</Text>
+      {line ? <Text accessibilityRole="alert" style={s.danger} testID="connect-line">{line}</Text> : null}
+    </Sheet>
+  );
+}
+
+/** Dropbox signs in through its own capabilities: start gives the address to approve at, and the callback page finishes it. The flow is done once the account shows in the list. */
+function DropboxSheet({ rt, onDone, onCancel }: { rt: FlowProps["rt"]; onDone: Done; onCancel: () => void }): ReactElement {
+  const [started, setStarted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [line, setLine] = useState<string | null>(null);
+  const start = async (): Promise<void> => {
+    setBusy(true); setLine(null);
+    try {
+      const out = (await rt.call("dropbox.connect.start", {})) as { authUrl: string };
+      rt.openUrl(out.authUrl);
+      setStarted(true);
+    } catch (e) { setLine(reason(e, "That did not connect.")); }
+    setBusy(false);
+  };
+  const finish = async (): Promise<void> => {
+    setBusy(true); setLine(null);
+    try {
+      const out = (await rt.call("dropbox.account.list", {})) as { connections: Array<{ connectionId: string; ownerKind: string; email?: string; name?: string }> };
+      const mine = out.connections.filter((c) => c.ownerKind === "person").at(-1) ?? out.connections.at(-1);
+      if (mine) { onDone({ id: mine.connectionId, title: mine.email ?? mine.name ?? "Dropbox", app: "dropbox" }); return; }
+      setLine("Not finished yet. Approve the sign-in, then try again.");
+    } catch (e) { setLine(reason(e, "That did not check.")); }
+    setBusy(false);
+  };
+  return (
+    <Sheet
+      title="Connect Dropbox" onClose={onCancel} testID="connect-dropbox"
+      footer={<><Btn label="Cancel" onPress={onCancel} testID="connect-cancel" /><View style={{ flex: 1 }} />{started
+        ? <Btn label={busy ? "Checking" : "I have signed in"} primary disabled={busy} onPress={() => void finish()} testID="connect-signed-in" />
+        : <Btn label={busy ? "Opening" : "Sign in with Dropbox"} primary disabled={busy} onPress={() => void start()} testID="connect-go" />}</>}
+    >
+      <Text style={s.body}>{started ? "Finish signing in in the window that opened, then come back." : "Sign in to Dropbox once. It stays yours."}</Text>
       {line ? <Text accessibilityRole="alert" style={s.danger} testID="connect-line">{line}</Text> : null}
     </Sheet>
   );

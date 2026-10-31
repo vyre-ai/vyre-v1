@@ -10,10 +10,11 @@
 // until a cursor is stored; once one is, every pass reads the feed. Graph returns a delta link with the first listing, so it is on the feed from the first pass.
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+import { dropbox } from "./dropbox-provider.ts";
 
 type Row = Record<string, unknown>;
 
-export type MountKind = "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+export type MountKind = "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
 export type MountMode = "server_copy" | "live_only";
 
 export interface MountRec {
@@ -352,6 +353,7 @@ export function providerOf(kind: MountKind): Provider {
     case "google_drive": return google;
     case "sharepoint": return graph;
     case "onedrive": return { ...graph, label: "OneDrive" };
+    case "dropbox": return dropbox;
     case "local": return local;
     case "github": return github;
   }
@@ -361,8 +363,9 @@ export const PROVIDER_LABEL: Record<MountKind, string> = {
   google_drive: "Google Drive",
   sharepoint: "SharePoint",
   onedrive: "OneDrive",
+  dropbox: "Dropbox",
   local: "Local folder",
   github: "GitHub",
 };
 
-export const isCloud = (kind: MountKind): boolean => kind === "google_drive" || kind === "sharepoint" || kind === "onedrive";
+export const isCloud = (kind: MountKind): boolean => kind === "google_drive" || kind === "sharepoint" || kind === "onedrive" || kind === "dropbox";

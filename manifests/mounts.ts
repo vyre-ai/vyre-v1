@@ -6,11 +6,11 @@
 import { create, defineManifest, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, runStarted } from './_common.ts';
 
-const kind = t.enm('google_drive', 'sharepoint', 'onedrive', 'local', 'github');
+const kind = t.enm('google_drive', 'sharepoint', 'onedrive', 'dropbox', 'local', 'github');
 const mode = t.enm('server_copy', 'live_only');
 
 const source = t.obj({
-  kind, connectionId: t.opt(id.connection), ref: t.opt(t.str({ description: 'Drive or folder id, library path, or owner/repo' })),
+  kind, connectionId: t.opt(id.connection), ref: t.opt(t.str({ description: 'Drive or folder id, library path, Dropbox folder id or / for all of Dropbox, or owner/repo' })),
   path: t.opt(t.str()), branch: t.opt(t.str()), deviceId: t.opt(id.device), localPath: t.opt(t.str({ description: 'Path on the device; only the device sees it' })),
 });
 
@@ -39,13 +39,13 @@ export default defineManifest({
     ev('mount.resumed', 'A paused mount resumed', { p: { mountId: id.mount, folderId: id.folder }, subject: ['folder', '/folderId'] }),
   ],
   capabilities: [
-    read('mounts.browse', 'Browse a drive, library or repository search to pick what to mount', {
+    read('mounts.browse', 'Browse a drive, library, Dropbox folder or repository search to pick what to mount', {
       in: { kind, connectionId: t.opt(id.connection), parent: t.opt(t.str()), q: t.opt(t.str()), ...pageIn }, out: { items: t.arr(browseItem), ...pageOut },
       tool: 'files', errors: ['provider.auth_failed', 'provider.unavailable'],
     }),
     read('mounts.list', 'List mounts the caller can see', { in: { kind: t.opt(kind), ...pageIn }, out: { mounts: t.arr(mountRow), ...pageOut }, tool: 'files', label: 'filter' }),
     read('mounts.get', 'Read one mount: state, lag, pending changes and conflicts (the sync line of a folder)', { in: { mountId: id.mount }, out: { mount: mountRow }, tool: 'files', label: 'check' }),
-    create('mounts.add', 'Mount a Google or SharePoint folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run', {
+    create('mounts.add', 'Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run', {
       in: { into: id.folder, source, name: t.opt(t.str()), mode: t.opt(mode), reviewChanges: t.opt(t.bool()) },
       out: { mountId: id.mount, folderId: id.folder, ...runStarted }, make: ['folder', '/into'], perm: 'files.write', run: { kind: 'mount_sync', stoppable: true },
       emits: ['folder.mounted', 'mount.synced', 'mount.failed'], audit: 'always', tool: 'files', cli: 'vyre mounts add', errors: ['provider.auth_failed', 'provider.unavailable', 'validation.duplicate'],

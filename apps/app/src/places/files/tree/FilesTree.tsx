@@ -35,7 +35,7 @@ function NavRow({ id, title, glyph, selected, count, onPress, hint }: { id: stri
 const DEPTH_PX = 14;
 
 /** The mark of a mounted folder's source: a computer for a folder on one, the provider's mark for the rest. */
-const markOf = (provider: string): MarkKind => (/google/i.test(provider) ? "google_drive" : /microsoft|sharepoint|onedrive/i.test(provider) ? "microsoft" : /github/i.test(provider) ? "github" : "local");
+const markOf = (provider: string): MarkKind => (/google/i.test(provider) ? "google_drive" : /microsoft|sharepoint|onedrive/i.test(provider) ? "microsoft" : /dropbox/i.test(provider) ? "dropbox" : /github/i.test(provider) ? "github" : "local");
 
 /** A section head that opens and closes (Knowledge, Space), with the small + where the section takes a new folder. */
 function SectionHead({ id, label, open, onToggle, onAdd }: { id: string; label: string; open: boolean; onToggle(): void; onAdd?: (() => void) | undefined }): ReactElement {

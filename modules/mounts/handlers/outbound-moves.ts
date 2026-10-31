@@ -59,8 +59,8 @@ function liveMount(tx: ProjTx, id: string): Row | undefined {
   return m && m["deleted_at"] === null ? m : undefined;
 }
 
-/** Only a provider Vyre writes to takes moves from here (Drive, SharePoint, OneDrive); a local folder and a GitHub mount do their own. */
-const goesOut = (mount: Row): boolean => mount["kind"] === "google_drive" || mount["kind"] === "sharepoint" || mount["kind"] === "onedrive";
+/** Only a provider Vyre writes to takes moves from here (Drive, SharePoint, OneDrive, Dropbox); a local folder and a GitHub mount do their own. */
+const goesOut = (mount: Row): boolean => mount["kind"] === "google_drive" || mount["kind"] === "sharepoint" || mount["kind"] === "onedrive" || mount["kind"] === "dropbox";
 
 /** The folder item a moved thing landed in, when that folder is in a live mount that takes moves. */
 function destination(tx: ProjTx, folderId: string): { parent: Row; mount: Row } | undefined {

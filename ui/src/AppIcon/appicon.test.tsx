@@ -75,6 +75,8 @@ test("a web address or a name finds its brand", () => {
   assert.equal(brandForDomain("db.amazonaws.com"), "aws");
   assert.equal(brandForDomain("example.org"), null);
   assert.equal(brandForUrl("https://github.com/vyre-ai"), "github");
+  assert.equal(brandForUrl("https://www.dropbox.com/home/Sales"), "dropbox");
+  assert.equal(brandForName("Dropbox"), "dropbox");
   assert.equal(brandForUrl("notion.so/login"), "notion");
   assert.equal(brandForUrl("not a url"), null);
   assert.equal(brandForName("Stripe webhooks"), "stripe");

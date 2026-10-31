@@ -33,12 +33,13 @@ test("Connect a folder is in the folder menu (for a folder you can manage), the 
   assert.equal(filesData(rt).nav.connectFolder, undefined);
 });
 
-test("accounts: Google and Microsoft come from the Space's active connections, GitHub from the App's installation, this computer from the device; nothing connected says so", async () => {
+test("accounts: Google and Microsoft come from the Space's active connections, Dropbox from the Dropbox accounts, GitHub from the App's installation, this computer from the device; nothing connected says so", async () => {
   const call = async (cap: string): Promise<unknown> => {
     if (cap === "connections.list") return { connections: [
       { connectionId: "con_g", connector: "google", title: "firm@example.com", state: "active" },
       { connectionId: "con_m", connector: "microsoft", title: "firm@contoso.com", state: "needs_reconnect" },
     ] };
+    if (cap === "dropbox.account.list") return { connections: [{ connectionId: "con_s", ownerKind: "space", accountId: "dbid:S", email: "team@example.com" }, { connectionId: "con_d", ownerKind: "person", accountId: "dbid:P", email: "me@example.com" }] };
     if (cap === "github.health") return { state: "healthy", latencyMs: 40 };
     if (cap === "github.installations.list") return { installations: [{ id: 1, account: "acme" }] };
     throw new Error(cap);
@@ -48,8 +49,9 @@ test("accounts: Google and Microsoft come from the Space's active connections, G
   assert.equal(a.microsoft.connected, false, "a connection that needs reconnecting is not connected");
   assert.deepEqual(a.local, { label: "Irfad's MacBook", connected: true, deviceId: "dev_1" });
   assert.deepEqual(a.github, { label: "acme", connected: true });
+  assert.deepEqual(a.dropbox, { label: "me@example.com", connected: true, connectionId: "con_d" }, "the person's own Dropbox before the Space's");
   const none = await loadAccounts(async () => { throw new Error("no"); }, null);
-  assert.deepEqual(Object.values(none).map((x) => x.connected), [false, false, false, false]);
+  assert.deepEqual(Object.values(none).map((x) => x.connected), [false, false, false, false, false]);
 });
 
 test("this computer is the device the person is on; a revoked or absent one is not offered", async () => {

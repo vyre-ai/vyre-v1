@@ -21,6 +21,7 @@ test("an empty picker ends in Connect with the thing's own words", () => {
   assert.equal(need({ kind: "ai" }), "Add an AI account");
   assert.equal(need({ kind: "key" }), "Add a key");
   assert.equal(need({ kind: "number" }), "Connect Twilio");
+  assert.equal(need({ kind: "connector", service: "dropbox" }), "Connect Dropbox");
   assert.equal(need({ kind: "connector", service: "google" }), "Connect Google");
   const entries = connectEntries([], { kind: "mailbox" }, async () => made, () => undefined, true);
   assert.deepEqual(labels(entries), ["Connect a mailbox"]);
