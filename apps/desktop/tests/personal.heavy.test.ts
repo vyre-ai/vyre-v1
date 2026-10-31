@@ -227,9 +227,11 @@ test("the built app starts Personal, claims over HTTP, imports fixture sessions 
     }, 60_000, first.out);
     // The person's own assistant answers too. It was made at the claim, before this AI account existed, and has to hold what any agent holds to read the key and to speak.
     const me = ok(await post(state.url, state.token, "identity.whoami"), "identity.whoami").principal.id as string;
-    const assistants = ok(await post(state.url, state.token, "agents.list", { section: "personal", limit: 100 }), "agents.list").agents as { agentId: string; ownerId: string; role?: string }[];
-    const assistant = assistants.find((x) => x.ownerId === me && x.role === "assistant");
-    assert.ok(assistant, "the person has a private assistant");
+    // a consumer makes it when the account exists, so on a slow runner it can still be a moment away
+    const assistant = await until("the person's private assistant", async () => {
+      const listed = ok(await post(state.url, state.token, "agents.list", { section: "personal", limit: 100 }), "agents.list").agents as { agentId: string; ownerId: string; role?: string }[];
+      return listed.find((x) => x.ownerId === me && x.role === "assistant") ?? null;
+    }, 30_000, first.out);
     const assistantThread = ok(await post(state.url, state.token, "chat.start", { idempotencyKey: "pp-assistant-chat", kind: "chat", agentIds: [assistant.agentId] }), "chat.start (assistant)").thread.threadId as string;
     ok(await post(state.url, state.token, "chat.post", { idempotencyKey: "pp-assistant-hello", threadId: assistantThread, body: "hello", mentions: [{ kind: "agent", id: assistant.agentId }] }), "chat.post (assistant)");
     await until("the assistant's reply from the sandboxed CLI", async () => {
