@@ -8,7 +8,7 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { saveInterview } from "./interview.ts";
 import { ToolTile } from "./ProviderLogo.tsx";
 import { Glyph } from "./StepGlyph.tsx";
-import { ROLES, TOOLS, suggest } from "./work-kinds.ts";
+import { POPULAR_ROLES, POPULAR_TOOLS, ROLES, TOOLS, suggest } from "./work-kinds.ts";
 
 const STYLES = ["Short and to the point", "Full detail"] as const;
 const ASK = ["What do you do most?", "Which tools do you use?", "How should updates read?"] as const;
@@ -28,7 +28,9 @@ export function InterviewCard({ call, onSaved }: { call: CapCall; onSaved(count:
   const picked = q === 0 ? work : tools;
   const setPicked = q === 0 ? setWork : setTools;
   const list = q === 0 ? ROLES : TOOLS;
-  const near = suggest(list as readonly (string | readonly [string, string])[], typed, picked);
+  // before anything is typed, the most common picks show so the list is never empty; typing narrows the whole list
+  const popular = (q === 0 ? POPULAR_ROLES : POPULAR_TOOLS).filter((n) => !picked.includes(n)).slice(0, 8);
+  const near = typed.trim() === "" && q < 2 ? (q === 0 ? popular : popular.map((n) => TOOLS.find((t) => t[0] === n) ?? ([n, ""] as const))) : suggest(list as readonly (string | readonly [string, string])[], typed, picked);
   const text = typed.trim();
   const exact = list.some((x) => (typeof x === "string" ? x : x[0]).toLowerCase() === text.toLowerCase());
   const add = (name: string): void => { const n = name.trim(); if (n !== "" && !picked.includes(n)) setPicked([...picked, n]); setTyped(""); setHi(0); };
@@ -40,7 +42,7 @@ export function InterviewCard({ call, onSaved }: { call: CapCall; onSaved(count:
     else if (k === "Backspace" && typed === "" && picked.length > 0) setPicked(picked.slice(0, -1));
   };
   const enter = (): void => {
-    if (rowCount > 0) { const n = near[hi]; add(hi < near.length && n !== undefined ? (typeof n === "string" ? n : n[0]) : text); }
+    if (rowCount > 0 && text !== "") { const n = near[hi]; add(hi < near.length && n !== undefined ? (typeof n === "string" ? n : n[0]) : text); }
     else if (picked.length > 0) setQ(q + 1);
   };
   const ready = q === 0 ? work.length > 0 : q === 1 ? tools.length > 0 : style !== "";
