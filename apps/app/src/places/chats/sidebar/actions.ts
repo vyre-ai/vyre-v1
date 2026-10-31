@@ -9,6 +9,14 @@ export interface SidebarApi {
   newChat(agent?: { agentId: string; name: string }): ChatRow;
   star(type: "thread" | "agent" | "channel", id: string, on: boolean): Promise<void>;
   markRead(threadId: string): Promise<void>;
+  /** Archive leaves my list only; an @mention of me brings the chat back. Unarchive puts it back by hand. */
+  archive(threadId: string): Promise<void>;
+  unarchive(threadId: string): Promise<void>;
+  /** A chat only I am in: hidden everywhere until the retention purge; restore is the Undo. */
+  deleteChat(threadId: string): Promise<void>;
+  restoreChat(threadId: string): Promise<void>;
+  /** A chat with other people: I stop being in it and they keep it. */
+  leaveChat(threadId: string): Promise<void>;
   act(item: NeedsItem): Promise<void>;
 }
 
@@ -32,6 +40,11 @@ export function createSidebarApi(data: ChatsSidebarData, onLocal: (row: ChatRow)
     },
     async star(type, id, on) { await data.call("stars.toggle", { resource: { type, id }, on }); },
     async markRead(threadId) { await data.call("threads.mark_read", { threadId }); },
+    async archive(threadId) { await data.call("threads.archive", { threadId }); },
+    async unarchive(threadId) { await data.call("threads.unarchive", { threadId }); },
+    async deleteChat(threadId) { await data.call("threads.delete", { threadId }); },
+    async restoreChat(threadId) { await data.call("threads.restore", { threadId }); },
+    async leaveChat(threadId) { await data.call("threads.leave", { threadId }); },
     async act(item) { const a = item.task.actions[0]; if (a) await data.call("tasks.act", { taskId: item.task.id, action: a.key }); },
   };
 }

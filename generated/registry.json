@@ -20012,6 +20012,29 @@
       ],
       "type": "object"
     },
+    "s_f86fc4b1fa": {
+      "properties": {
+        "person": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "person",
+        "threadId"
+      ],
+      "type": "object"
+    },
     "s_f905e4d1fb": {
       "properties": {
         "reason": {
@@ -50676,7 +50699,8 @@
         "message.received",
         "message.mentioned",
         "message.direct",
-        "thread.replied"
+        "thread.replied",
+        "thread.unarchived"
       ],
       "errors": [
         "internal.unexpected",
@@ -51167,6 +51191,21 @@
           },
           "name": "example",
           "output": {
+            "archived": [
+              {
+                "agents": [
+                  "agt_a1b2c3"
+                ],
+                "kind": "chat",
+                "lastAt": 1760000000000,
+                "preview": "example",
+                "starred": true,
+                "threadId": "thr_a1b2c3",
+                "title": "example",
+                "unread": 1,
+                "working": true
+              }
+            ],
             "earlier": [
               {
                 "agents": [
@@ -51252,6 +51291,9 @@
       "name": "chat.recent",
       "output": {
         "properties": {
+          "archived": {
+            "$ref": "#/$defs/s_625a2fc1a8"
+          },
           "earlier": {
             "$ref": "#/$defs/s_625a2fc1a8"
           },
@@ -51284,6 +51326,7 @@
           "today",
           "yesterday",
           "earlier",
+          "archived",
           "nextUnread"
         ],
         "type": "object"
@@ -51294,7 +51337,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -52176,7 +52219,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "transcripts.purged"
+        "transcripts.purged",
+        "thread.erased"
       ],
       "errors": [
         "internal.unexpected",
@@ -146702,8 +146746,8 @@
       "effects": "write",
       "emits": [
         "provider.added",
-        "vault.folder_created",
-        "vault.item_created"
+        "vault.item_created",
+        "vault.folder_created"
       ],
       "errors": [
         "internal.unexpected",
@@ -146950,8 +146994,8 @@
       "effects": "write",
       "emits": [
         "provider.added",
-        "vault.folder_created",
-        "vault.item_created"
+        "vault.item_created",
+        "vault.folder_created"
       ],
       "errors": [
         "internal.unexpected",
@@ -147488,8 +147532,8 @@
       "effects": "write",
       "emits": [
         "provider.added",
-        "vault.folder_created",
-        "vault.item_created"
+        "vault.item_created",
+        "vault.folder_created"
       ],
       "errors": [
         "internal.unexpected",
@@ -184025,6 +184069,79 @@
     {
       "effects": "write",
       "emits": [
+        "thread.archived"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "archived": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "chat",
+      "name": "threads.archive",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "thread.closed"
       ],
       "errors": [
@@ -184122,6 +184239,76 @@
         "mcp": {
           "toolset": "chats"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "thread.deleted"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "deleted": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "chat",
+      "name": "threads.delete",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Delete a chat only I am in (me and agents): hidden everywhere, running turns stop first, undone with threads.restore until the retention purge removes it. A chat with other people is left, not deleted",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
       },
       "v": 1
     },
@@ -184299,6 +184486,75 @@
         "mcp": {
           "toolset": "chats"
         }
+      },
+      "v": 1
+    },
+    {
+      "audit": "sensitive",
+      "effects": "write",
+      "emits": [
+        "channel.member_removed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "ok": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "chat",
+      "name": "threads.leave",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Leave a chat that has other people in it: I stop being a member, they keep it. A channel is left with channels.leave",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
       },
       "v": 1
     },
@@ -185036,6 +185292,109 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "thread.restored"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "thread": {
+              "agents": [
+                {
+                  "accountRef": "example",
+                  "agentId": "agt_a1b2c3",
+                  "effort": "low",
+                  "mode": "lead",
+                  "model": "claude-sonnet-5-5",
+                  "provider": "anthropic",
+                  "watches": true
+                }
+              ],
+              "channelId": "chn_a1b2c3",
+              "closedAt": 1760000000000,
+              "createdAt": 1760000000000,
+              "folderId": "fld_a1b2c3",
+              "kind": "chat",
+              "lastMessageAt": 1760000000000,
+              "listed": true,
+              "members": [
+                {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                }
+              ],
+              "mode": "ask",
+              "parentMessageId": "msg_a1b2c3",
+              "parentThreadId": "thr_a1b2c3",
+              "path": [
+                {
+                  "threadId": "thr_a1b2c3",
+                  "title": "example"
+                }
+              ],
+              "planMode": true,
+              "recordId": "rec_a1b2c3",
+              "replyCount": 1,
+              "scopeId": "example",
+              "scopeType": "record",
+              "starter": "example",
+              "threadId": "thr_a1b2c3",
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "chat",
+      "name": "threads.restore",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_5798a865e5"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Undo the delete of my chat (the Undo toast), while it has not been purged",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "thread.updated"
@@ -185373,6 +185732,79 @@
       "since": "1.0.0",
       "summary": "Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved",
       "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "thread.unarchived"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "archived": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "chat",
+      "name": "threads.unarchive",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Put an archived chat back in my list",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "chats"
@@ -219259,6 +219691,21 @@
     },
     {
       "module": "chat",
+      "name": "thread.archived",
+      "payload": {
+        "$ref": "#/$defs/s_f86fc4b1fa"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/threadId",
+        "type": "entity"
+      },
+      "summary": "A person archived a chat: it left their list only",
+      "sv": 1,
+      "vis": "owner"
+    },
+    {
+      "module": "chat",
       "name": "thread.closed",
       "payload": {
         "properties": {
@@ -219283,6 +219730,22 @@
       "summary": "A thread was closed",
       "sv": 1,
       "vis": "participants"
+    },
+    {
+      "module": "chat",
+      "name": "thread.deleted",
+      "payload": {
+        "$ref": "#/$defs/s_f86fc4b1fa"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/threadId",
+        "type": "entity"
+      },
+      "summary": "A person deleted a chat only they were in: hidden everywhere, kept for Undo and the audit trail until the retention purge",
+      "sv": 1,
+      "vis": "owner"
     },
     {
       "module": "chat",
@@ -219470,6 +219933,22 @@
       "vis": "participants"
     },
     {
+      "module": "chat",
+      "name": "thread.restored",
+      "payload": {
+        "$ref": "#/$defs/s_f86fc4b1fa"
+      },
+      "replay": "pure",
+      "retention": "audit",
+      "subject": {
+        "id": "/threadId",
+        "type": "entity"
+      },
+      "summary": "A person undid the delete of their chat",
+      "sv": 1,
+      "vis": "owner"
+    },
+    {
       "module": "engine",
       "name": "thread.reviewer_changed",
       "payload": {
@@ -219592,6 +220071,49 @@
       "summary": "A thread, chat or channel main thread was started",
       "sv": 1,
       "vis": "participants"
+    },
+    {
+      "module": "chat",
+      "name": "thread.unarchived",
+      "payload": {
+        "properties": {
+          "person": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "person",
+              "mention"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "person",
+          "threadId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/threadId",
+        "type": "entity"
+      },
+      "summary": "A chat came back into a person's list: they unarchived it, or someone @mentioned them in it",
+      "sv": 1,
+      "vis": "owner"
     },
     {
       "module": "chat",

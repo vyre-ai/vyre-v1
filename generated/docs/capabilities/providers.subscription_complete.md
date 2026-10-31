@@ -19,7 +19,7 @@ Finish a subscription sign-in. Pass the pasted code where the provider shows one
 | HTTP | POST /v1/providers/subscription_complete |
 | MCP tool | providers_subscription_complete (vault) |
 | CLI | none |
-| Emits | provider.added, vault.item_created |
+| Emits | provider.added, vault.item_created, vault.folder_created |
 
 ## Input
 

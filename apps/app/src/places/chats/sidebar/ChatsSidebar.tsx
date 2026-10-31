@@ -19,8 +19,9 @@ import { createSidebarApi } from "./actions.ts";
 import type { SidebarApi } from "./actions.ts";
 import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQuery, useSidebarData } from "./data.tsx";
 import type { ChatsSidebarData } from "./data.tsx";
+import { chatMenuEntries } from "./chat-menu.ts";
 import {
-  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, groupRecent, matchesFilter, matchesQuery, needsKind, refetch, selectable, stepKey, waitingAgents, whenLabel,
+  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, archivedRows, groupRecent, matchesFilter, matchesQuery, needsKind, refetch, selectable, stepKey, waitingAgents, whenLabel,
 } from "./model.ts";
 import type { Agent, ChatRow, Entry, Filter, Group, NeedsItem, RecentOut, SectionError, SectionKey } from "./model.ts";
 import { REPORT_PROBLEM_EVENT } from "../../../../../../ui/src/States/index.tsx";
@@ -45,7 +46,9 @@ type ChannelsOut = CapMap["channels.list"]["out"];
 type AgentsOut = CapMap["agents.list"]["out"];
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
 
-const EMPTY_RECENT: RecentOut = { starred: [], today: [], yesterday: [], earlier: [], nextUnread: null };
+/** How long the Undo for Delete chat stays on screen. */
+export const UNDO_MS = 8_000;
+const EMPTY_RECENT: RecentOut = { starred: [], today: [], yesterday: [], earlier: [], archived: [], nextUnread: null };
 
 /** Rows that react to the pointer: tools and times appear on hover or selection. */
 function Hot({ children }: { children: (over: boolean) => ReactElement }): ReactElement {
@@ -98,6 +101,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const [archive, setArchive] = useState<ImportedRow[]>([]);
   // null: the group follows its default (open unless long); a press on its head decides.
   const [importedOpen, setImportedOpen] = useState<boolean | null>(null);
+  // The Archived section starts collapsed (a count on its head); a press opens it.
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   // The New channel and Browse channels sheets: opened from this sidebar, or by a request from Cmd-K or the new menu (one waiting before this mounted is taken now). A Personal Space has none.
   const personal = data.space.personal === true;
@@ -157,6 +162,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     () => groupRecent(recent, local, agentName).map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)) })).filter((g) => g.rows.length),
     [recent, local, agentName, filter, query],
   );
+  const archivedChats: ChatRow[] = useMemo(() => archivedRows(recent, agentName).filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)), [recent, agentName, filter, query]);
   const working = useMemo(() => {
     const set = new Set<string>();
     for (const g of groups) for (const r of g.rows) if (r.working && r.kind === "agent") set.add(agents.find((a) => a.name === r.who)?.agentId ?? r.who);
@@ -164,8 +170,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed: (importedOpen ?? importedStartsOpen(archive.length)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, personal, searching: query.trim() !== "", ...(narrow ? { needsLimit: 3 } : {}) }),
-    [personal, query, needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, narrow, imported, importedOpen, archive.length],
+    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(archive.length)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, personal, searching: query.trim() !== "", ...(narrow ? { needsLimit: 3 } : {}) }),
+    [personal, query, needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, narrow, imported, importedOpen, archive.length, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -173,11 +179,29 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   // Choosing a thing takes the phone from the list to the page (the slot's openBody); on a computer it does nothing.
   const leave = (): void => slot?.openBody();
   const toggle = (s: SectionKey): void => {
+    if (s === "archived") { setArchivedOpen((o) => !o); return; }
     if (s === "imported") { setImportedOpen(!(importedOpen ?? importedStartsOpen(archive.length))); return; }
     toggleClosed(s);
   };
   const toggleClosed = (s: SectionKey): void => setClosed((c) => { const n = new Set(c); if (n.has(s)) n.delete(s); else n.add(s); return n; });
   const guard = (p: Promise<unknown>): void => void p.catch(() => undefined);
+  // after a write to my list the list is read again at once (the live read also hears the event; this is for a read that is not subscribed)
+  const again = (p: Promise<unknown>): void => void p.then(() => { refetch(data.screens); }, () => undefined);
+  // Delete chat: gone from the list now, with an Undo for UNDO_MS; the Undo is threads.restore. The bar is this sidebar's own, so nothing else needs a toast host.
+  const [undo, setUndo] = useState<{ threadId: string; title: string } | null>(null);
+  useEffect(() => {
+    if (!undo) return undefined;
+    const t = setTimeout(() => setUndo(null), UNDO_MS);
+    return () => clearTimeout(t);
+  }, [undo]);
+  const deleteWithUndo = (r: ChatRow): void => {
+    void api.deleteChat(r.threadId).then(() => { setUndo({ threadId: r.threadId, title: r.title }); refetch(data.screens); }, () => undefined);
+  };
+  const restore = (): void => {
+    const gone = undo;
+    setUndo(null);
+    if (gone) again(api.restoreChat(gone.threadId));
+  };
 
   // ----- menus: each entry changes real state or opens the thing
   const filterMenu = (x: number, y: number): void => {
@@ -186,12 +210,15 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     menu.show(items, x, y, "other");
   };
   const nextUnread = (): void => { if (recent.nextUnread) { setCursor(`c:${recent.nextUnread}`); data.nav.openChat(recent.nextUnread); leave(); } };
-  const chatMenu = (r: ChatRow): MenuEntry[] => [
-    { label: "Open", onSelect: () => { data.nav.openChat(r.threadId); leave(); } },
-    { separator: true },
-    { label: r.starred ? "Remove Star" : "Star", onSelect: () => guard(api.star("thread", r.threadId, !r.starred)) },
-    ...(r.unread > 0 ? [{ label: "Mark as Read", onSelect: () => guard(api.markRead(r.threadId)) }] : []),
-  ];
+  const chatMenu = (r: ChatRow): MenuEntry[] => chatMenuEntries(r, {
+    open: () => { data.nav.openChat(r.threadId); leave(); },
+    star: () => guard(api.star("thread", r.threadId, !r.starred)),
+    markRead: () => guard(api.markRead(r.threadId)),
+    archive: () => again(api.archive(r.threadId)),
+    unarchive: () => again(api.unarchive(r.threadId)),
+    leaveChat: () => again(api.leaveChat(r.threadId)),
+    deleteChat: () => deleteWithUndo(r),
+  });
   const faceMenu = (a: Agent): MenuEntry[] => [
     { label: `Chat with ${a.name}`, onSelect: () => { data.nav.openAgentChat(a.agentId); leave(); } },
     { label: "New Chat", onSelect: () => { void api.newChat({ agentId: a.agentId, name: a.name }); leave(); } },
@@ -289,7 +316,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         }
         const recentHead = e.section === "recent";
         return (
-          <SectionHead id={e.section} label={e.label} count={e.section === "needs" || e.section === "imported" ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)} keep={recentHead && filter !== "all"}>
+          <SectionHead id={e.section} label={e.label} count={e.section === "needs" || e.section === "imported" || e.section === "archived" ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)} keep={recentHead && filter !== "all"}>
             {recentHead ? <Tool icon="filter" label="Filter chats" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" /> : null}
             {recentHead ? <Tool icon="plus" label="New chat" onPress={() => { void api.newChat(); leave(); }} testID="new-chat-section" /> : null}
             {e.section === "faces" ? <Tool icon="arrow" label="All agents" onPress={() => { data.nav.openAllAgents(); leave(); }} testID="all-agents" /> : null}
@@ -437,6 +464,12 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
           <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
         )}
       </View>
+      {undo ? (
+        <View testID="chat-deleted" accessibilityRole="alert" style={st.undo}>
+          <Text numberOfLines={1} style={st.undoText}>{`Deleted ${undo.title}`}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Undo delete of ${undo.title}`} testID="undo-delete" onPress={restore} style={st.undoBtn}><Text style={st.undoAct}>Undo</Text></Pressable>
+        </View>
+      ) : null}
       {menu.element}
       {sheet ? <ChannelSheets kind={sheet} channels={allChannels} agents={agents} onSwitch={setSheet} onClose={() => setSheet(null)} /> : null}
     </View>
@@ -451,6 +484,10 @@ const st = StyleSheet.create({
   top: { height: 28, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 6, paddingBottom: 4 },
   assistant: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   assistantOver: { backgroundColor: "var(--press)" as string },
+  undo: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 8, marginBottom: 8, paddingHorizontal: 12, minHeight: 40, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  undoText: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },
+  undoBtn: { height: 28, paddingHorizontal: 8, justifyContent: "center" },
+  undoAct: { fontSize: 13, fontWeight: "600", color: "var(--accent)" as string },
   red: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--danger)" as string },
   list: { flex: 1, minHeight: 0 },
   tools: { flexDirection: "row", alignItems: "center", gap: 6 },

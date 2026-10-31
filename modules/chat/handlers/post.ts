@@ -5,6 +5,7 @@ import {
   MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy,
 } from "../projections.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
+import { unarchiveForMention } from "./archive-state.ts";
 import { saveScreen } from "./screen.ts";
 
 export interface Mention { kind: "person" | "agent"; id: string }
@@ -83,6 +84,8 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
   const direct = author.kind === "person" && isDirect(ctx, root) ? membersOf(ctx.db, root.id).find((p) => !p.startsWith("agt_") && p !== author.id) : undefined;
   if (direct !== undefined) ctx.emit("message.direct", thread.id, { messageId: m.id, threadId: thread.id, personId: direct, author });
   for (const mention of mentions) {
+    // an @mention is the one new message that brings an archived chat back into that person's list (a direct message gets message.direct instead, but the mention still counts)
+    if (mention.kind === "person" && mention.id !== author.id) unarchiveForMention(ctx, root.id, mention.id);
     if (mention.kind !== "person" || mention.id === author.id || mention.id === direct) continue;
     if (isPrivateRoot(root) && !isMember(ctx.db, root.id, mention.id)) continue;
     ctx.emit("message.mentioned", thread.id, { messageId: m.id, threadId: thread.id, personId: mention.id, author, inThread: thread.kind === "thread" });

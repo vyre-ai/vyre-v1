@@ -19,7 +19,7 @@ Remove messages and blocks older than a time from chats and channels, a batch at
 | HTTP | POST /v1/chat/transcript/purge |
 | MCP tool | none |
 | CLI | none |
-| Emits | transcripts.purged |
+| Emits | transcripts.purged, thread.erased |
 
 ## Input
 

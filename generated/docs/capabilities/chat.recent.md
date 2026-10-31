@@ -1,6 +1,6 @@
 # chat.recent
 
-Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse
+Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)
 
 | | |
 |---|---|
@@ -77,6 +77,17 @@ type Out = {
       lastAt: number;
       preview?: string;
     }>;
+  archived: Array<{
+      threadId: string;
+      kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+      title: string;
+      agents: Array<string>;
+      unread: number;
+      working: boolean;
+      starred: boolean;
+      lastAt: number;
+      preview?: string;
+    }>;
   nextUnread: string | null;
 };
 ```
@@ -97,6 +108,21 @@ type Out = {
     "filter": "all"
   },
   "output": {
+    "archived": [
+      {
+        "agents": [
+          "agt_a1b2c3"
+        ],
+        "kind": "chat",
+        "lastAt": 1760000000000,
+        "preview": "example",
+        "starred": true,
+        "threadId": "thr_a1b2c3",
+        "title": "example",
+        "unread": 1,
+        "working": true
+      }
+    ],
     "earlier": [
       {
         "agents": [

@@ -3,6 +3,7 @@
 // DECISION: attachments in a message are Files files the people own; they are not deleted here (governance finds files on its own). The search index follows the events.
 // DECISION: the age purge deletes canonical transcript rows and messages (with their blocks) older than the cutoff, in threads not listed in skipThreadIds (governance passes held threads), oldest first. The thread row and its title stay.
 import { ensure } from "../projections.ts";
+import { deletedBefore, forgetDeleted } from "./archive-state.ts";
 import type { ChatCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -89,13 +90,23 @@ export async function transcriptPurge(ctx: ChatCtx, input: { before: number; lim
   ensure(ctx.db);
   const limit = input.limit ?? DEFAULT_LIMIT;
   const skip = new Set(input.skipThreadIds ?? []);
+  // chats a person deleted (hidden, kept for Undo and the audit trail) go for good once they are older than the cutoff: the one retention purge, no second path
+  let erasedChats = 0;
+  for (const id of deletedBefore(ctx, input.before, skip, limit)) {
+    const ids = family(ctx, id);
+    for (const t of ids) await dropTranscriptFile(ctx, t);
+    for (const t of ids) dropThread(ctx, t);
+    forgetDeleted(ctx, id);
+    ctx.emit("thread.erased", `entity/${id}`, { threadId: id });
+    erasedChats++;
+  }
   // the canonical transcript rows first (they hold the turns' words, oldest first), then the messages; both count against the one batch limit
   const turns = ifTable(() => ctx.db.all(`SELECT thread, idx, at FROM chat_transcript_row`) as Row[], [])
     .filter((r) => Number(r["at"]) < input.before && !skip.has(String(r["thread"])))
     .sort((a, b) => Number(a["at"]) - Number(b["at"]) || String(a["thread"]).localeCompare(String(b["thread"])) || Number(a["idx"]) - Number(b["idx"]));
   const turnBatch = turns.slice(0, limit);
   for (const r of turnBatch) ctx.db.run(`DELETE FROM chat_transcript_row WHERE thread = ? AND idx = ?`, String(r["thread"]), Number(r["idx"]));
-  const room = limit - turnBatch.length;
+  const room = Math.max(0, limit - turnBatch.length - erasedChats);
   const due = (ctx.db.all(`SELECT id, thread, "createdAt" FROM chat_message`) as Row[])
     .filter((m) => Number(m["createdAt"]) < input.before && !skip.has(String(m["thread"])))
     .sort((a, b) => Number(a["createdAt"]) - Number(b["createdAt"]) || String(a["id"]).localeCompare(String(b["id"])));
@@ -106,7 +117,7 @@ export async function transcriptPurge(ctx: ChatCtx, input: { before: number; lim
     ctx.db.run(`DELETE FROM chat_message__fm WHERE id = ?`, id);
     ctx.db.run(`DELETE FROM chat_message WHERE id = ?`, id);
   }
-  const removed = batch.length + turnBatch.length;
+  const removed = batch.length + turnBatch.length + erasedChats;
   ctx.emit("transcripts.purged", `entity/${removed}`, { removed });
-  return { removed, more: turns.length > turnBatch.length || due.length > batch.length };
+  return { removed, more: turns.length > turnBatch.length || due.length > batch.length || erasedChats >= limit };
 }
