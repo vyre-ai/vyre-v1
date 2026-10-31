@@ -49,6 +49,7 @@ export function PendingSecrets({ slots, folderId, onSaved }: { slots: readonly P
   };
   return (
     <View style={s.wrap} testID="pending-secrets">
+      {/* ui-rows-lint: not a list (one or two inline forms, each a sentence with a field and a Save button) */}
       {slots.map((p) => {
         const key = `${p.connectionId}:${p.slot}`;
         return (
