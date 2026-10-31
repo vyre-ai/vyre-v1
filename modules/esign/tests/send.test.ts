@@ -279,3 +279,21 @@ test("health: healthy, down when the provider says so, throws or is not connecte
 test("cleanup", () => {
   configureEsign(null);
 });
+
+test("fetch_signed: the signed document of an envelope that belongs to a record is filed in the record's files folder (moved, not copied)", async () => {
+  const h = harness();
+  const { envelopeId } = await send(h, {}, dana);
+  h.provider.allSigned();
+  await h.call("esign.fetch_signed", { envelopeId });
+  assert.deepEqual(h.callsTo("projects.files_folder").map((c) => c.input), [{ recordId: RECORD }]);
+  assert.deepEqual(h.callsTo("files.move").map((c) => c.input), [{ fileId: FILE, toFolderId: "fld_record_files" }]);
+  assert.equal(h.created.length, 0, "no copy");
+});
+
+test("fetch_signed: an envelope with no record is not filed anywhere new", async () => {
+  const h = harness();
+  const { envelopeId } = await send(h, { recordId: undefined }, dana);
+  h.provider.allSigned();
+  await h.call("esign.fetch_signed", { envelopeId });
+  assert.equal(h.callsTo("files.move").length, 0);
+});

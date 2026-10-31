@@ -3,6 +3,8 @@
 // records.update changes the row (the version moves, the live reads answer again), keeps a history entry and a version, and refuses what a person may not do when `fail` is set.
 import { createFakeReplica, liveQuery } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row } from "../../../../../../client/src/index.ts";
+import { createElement } from "react";
+import { Text } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { LiveCap, RecordPageData } from "./data.tsx";
 import type { Entry, FieldDef, Layout, RelNode, TypeDef, Version } from "./model.ts";
@@ -35,7 +37,7 @@ const NAMES = ["Elena Rivera", "Marcus Pruitt", "Priya Nair"] as const;
 const PROJECTS = ["Rivera engagement", "Rivera matter", "Pruitt estate plan"] as const;
 
 export interface PageSpace { id: "northwind" | "harbor"; people: Record<string, string>; types: TypeDef[] }
-export const northwind: PageSpace = { id: "northwind", people: { usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", usr_omar: "Omar Haddad", agt_docs: "Docs" }, types: [CLIENT, PROJECT] };
+export const northwind: PageSpace = { id: "northwind", people: { usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", usr_omar: "Omar Haddad", agt_docs: "Docs", agt_intake: "Intake" }, types: [CLIENT, PROJECT] };
 export const harbor: PageSpace = { id: "harbor", people: { usr_irfad: "Irfad Imtiaz", usr_ines: "Ines Costa" }, types: [{ ...CLIENT, fields: CLIENT.fields.filter((x) => !["tax", "id_doc", "rating"].includes(x.key)) }, PROJECT] };
 
 const client = (i: number): RecordRow => ({
@@ -59,6 +61,10 @@ export interface SamplePage {
   opened: string[];
   /** the page choices written */
   prefs: { folded: string[]; keepVisible: string[] };
+  /** An agent answers a comment thread the way the Space does: its reply lands under the root and its "is replying" clears. */
+  agentReply(rootId: string, agentId: string, text: string): void;
+  /** What was stored by Attach: file names by folder. */
+  attached: { folderId: string; name: string }[];
 }
 
 export function createSamplePage(space: PageSpace = northwind, o: { fail?: string; prefs?: { folded: string[]; keepVisible: string[] } } = {}): SamplePage {
@@ -126,6 +132,36 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
   replica.resolve("files.folder.get", (t, i: CapMap["files.folder.get"]["in"]) => ({ folder: t.get("folders")?.get(i.folderId) as never }));
   replica.resolve("files.list", (t, i: CapMap["files.list"]["in"]) => ({ files: ([...(t.get("files")?.values() ?? [])] as unknown as Array<{ folderId: string }>).filter((x) => x.folderId === i.folder) as never, folders: [] }));
 
+  // the Activity tab: the same history rows read as what happened, newest first, each field change with the value it replaced
+  replica.resolve("records.activity", (t, i: CapMap["records.activity"]["in"]) => {
+    const t0 = typeOf(i.type);
+    const mine = ([...(t.get("history")?.values() ?? [])] as unknown as (Entry & { recordId: string; id: string })[]).filter((e) => e.recordId === i.recordId);
+    const at = (e: Entry): number => Number(e.hlc.split(":")[0]);
+    mine.sort((a, b) => at(a) - at(b) || a.id.localeCompare(b.id));
+    const last = new Map<string, unknown>();
+    const out: CapMap["records.activity"]["out"]["entries"] = [];
+    for (const e of mine) {
+      const kind = e.reason === "Created" ? "created" : t0?.fields.find((x) => x.key === e.field)?.type === "relation" ? "linked" : "edited";
+      out.push({ id: `${e.id}`, kind, at: at(e), actor: e.actor, ...(kind === "created" ? {} : { field: e.field, from: last.get(e.field) ?? null, to: e.value }) } as never);
+      last.set(e.field, e.value);
+    }
+    out.reverse();
+    const limit = i.limit ?? 50;
+    return { entries: out.slice(0, limit), ...(out.length > limit ? { next: out[limit - 1]!.at } : {}) };
+  });
+  type Cmt = CapMap["records.comments.list"]["out"]["comments"][number];
+  let cmt = 0;
+  replica.resolve("records.comments.list", (t, i: CapMap["records.comments.list"]["in"]) => {
+    const all = ([...(t.get("comments")?.values() ?? [])] as unknown as (Cmt & { gone?: boolean })[]).filter((c) => c.recordId === i.recordId && !c.gone).sort((a, b) => a.at - b.at || a.commentId.localeCompare(b.commentId));
+    const resolvedRoots = new Set(all.filter((c) => c.parentId === undefined && c.resolved).map((c) => c.commentId));
+    const shown = i.includeResolved === true ? all : all.filter((c) => !resolvedRoots.has(c.parentId ?? c.commentId));
+    return { comments: shown as never, resolvedCount: resolvedRoots.size };
+  });
+  const comment = (id: string): (Cmt & { id: string }) | undefined => (replica.rows("comments") as unknown as (Cmt & { id: string })[]).find((c) => c.commentId === id);
+  const putComment = (c: Cmt): void => replica.put("comments", [{ ...c, id: c.commentId }] as unknown as Row[]);
+  const rootOfComment = (c: Cmt): Cmt => (c.parentId ? comment(c.parentId) ?? c : c);
+  const attached: { folderId: string; name: string }[] = [];
+
   let hist = 0;
   const writes: Record<string, (i: never) => unknown> = {
     "records.update": (i: { type: string; recordId: string; patch: Record<string, unknown>; baseVersion?: number }) => {
@@ -144,6 +180,40 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
       replica.put("prefs", [{ id: "p", n: (replica.rows("prefs").length + 1) }] as unknown as Row[]);
       return { folded: [...prefs.folded], keepVisible: [...prefs.keepVisible] };
     },
+    "records.comments.add": (i: { type: string; recordId: string; text: string; parentId?: string; mentions?: { kind: "person" | "agent"; id: string }[] }) => {
+      const parent = i.parentId ? comment(i.parentId) : undefined;
+      const root = parent ? rootOfComment(parent) : undefined;
+      const mentions = i.mentions ?? [];
+      const c: Cmt = {
+        commentId: `rcm_${++cmt}`, type: i.type, recordId: i.recordId, ...(root ? { parentId: root.commentId } : {}), text: i.text, by: "usr_irfad", at: SAMPLE_NOW + cmt * 1000, resolved: false, mentions,
+        replying: mentions.filter((m) => m.kind === "agent").map((m) => m.id),
+      };
+      putComment(c);
+      return { comment: c };
+    },
+    "records.comments.edit": (i: { commentId: string; text: string }) => {
+      const c = comment(i.commentId);
+      if (!c) throw new Error("no such comment");
+      if (c.by !== "usr_irfad") throw new Error("only your own");
+      const next = { ...c, text: i.text, editedAt: SAMPLE_NOW + 5000 };
+      putComment(next);
+      return { comment: next };
+    },
+    "records.comments.resolve": (i: { commentId: string; resolved: boolean }) => {
+      const c = comment(i.commentId);
+      if (!c) throw new Error("no such comment");
+      const root = rootOfComment(c);
+      const next: Cmt = { ...root, resolved: i.resolved, ...(i.resolved ? { resolvedBy: "usr_irfad" } : {}) };
+      if (!i.resolved) delete (next as { resolvedBy?: string }).resolvedBy;
+      putComment(next);
+      return { comment: next };
+    },
+    "records.comments.delete": (i: { commentId: string }) => {
+      const c = comment(i.commentId);
+      if (!c) return { deleted: false };
+      for (const x of replica.rows("comments") as unknown as (Cmt & { id: string })[]) if (x.commentId === c.commentId || x.parentId === c.commentId) replica.put("comments", [{ ...x, gone: true }] as unknown as Row[]);
+      return { deleted: true };
+    },
     "records.value_source": () => ({ source: { kind: "agent", actor: "Docs", at: SAMPLE_NOW - DAY, state: "counted" } }),
   };
   const data: RecordPageData = {
@@ -156,7 +226,29 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
       return w(input as never);
     },
     now: () => SAMPLE_NOW, nameOf: (id) => space.people[id] ?? id,
-    nav: { openRecord: (t, id) => void opened.push(`record:${t}:${id}`), openChat: (t, id) => void opened.push(`chat:${t}:${id}`), askFor: (x) => void opened.push(`ask:${x.type}:${x.recordId}:${x.contact.contactId}:${x.missing.map((m) => m.field).join(",")}`), openFiles: (t, id) => void opened.push(`files:${t}:${id}`), openSource: (l) => void opened.push(`source:${l}`) },
+    me: { id: "usr_irfad", name: space.people["usr_irfad"] ?? "Irfad" },
+    mentionables: () => Object.entries(space.people).filter(([id]) => id !== "usr_irfad").map(([id, name]) => ({ id, name, kind: id.startsWith("agt_") ? ("agent" as const) : ("person" as const), ...(id.startsWith("agt_") ? { sub: "Agent" } : {}) })),
+    renderChat: (type, id) => createElement(Text, { testID: "sample-chat" }, `Ask pane for ${type} ${id}`),
+    files: {
+      folderOf: async (t) => (replica.rows("folders") as unknown as { id: string; forRecord?: string }[]).find((f) => f.forRecord === t.recordId)?.id ?? null,
+      attach: async (files, t) => {
+        const found = (replica.rows("folders") as unknown as { id: string; forRecord?: string }[]).find((f) => f.forRecord === t.recordId);
+        const folderId = found?.id ?? `fld_rec_${t.recordId}`;
+        if (!found) replica.put("folders", [{ id: folderId, folderId, name: t.title, path: `/Record files/${t.title}`, forRecord: t.recordId }] as unknown as Row[]);
+        for (const f of files) {
+          attached.push({ folderId, name: f.name });
+          replica.put("files", [{ id: `fil_${attached.length}`, fileId: `fil_${attached.length}`, folderId, name: f.name, kind: "file", size: 2048 * attached.length }] as unknown as Row[]);
+        }
+        return folderId;
+      },
+    },
+    nav: { openFile: (id) => void opened.push(`file:${id}`), openRecord: (t, id) => void opened.push(`record:${t}:${id}`), openChat: (t, id) => void opened.push(`chat:${t}:${id}`), askFor: (x) => void opened.push(`ask:${x.type}:${x.recordId}:${x.contact.contactId}:${x.missing.map((m) => m.field).join(",")}`), openFiles: (t, id) => void opened.push(`files:${t}:${id}`), openSource: (l) => void opened.push(`source:${l}`) },
   };
-  return { data, replica, calls, opened, prefs };
+  const agentReply = (rootId: string, agentId: string, text: string): void => {
+    const root = comment(rootId);
+    if (!root) throw new Error("no such thread");
+    for (const c of replica.rows("comments") as unknown as (Cmt & { id: string })[]) if (c.commentId === rootId || c.parentId === rootId) putComment({ ...c, replying: c.replying.filter((a) => a !== agentId) });
+    putComment({ commentId: `rcm_${++cmt}`, type: root.type, recordId: root.recordId, parentId: rootId, text, by: agentId, at: SAMPLE_NOW + cmt * 1000, resolved: false, mentions: [], replying: [] });
+  };
+  return { data, replica, calls, opened, prefs, agentReply, attached };
 }

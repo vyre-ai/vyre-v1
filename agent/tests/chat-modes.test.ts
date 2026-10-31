@@ -191,3 +191,10 @@ test("Plan: tools that change or send are not offered and a call to one is refus
   assert.equal(res.kind, "error");
   assert.equal(r.seen.length, 0, "nothing reached the pipeline");
 });
+
+test("Ask first: an agent's comment on a record is a reply and never waits, while its other record writes do", () => {
+  const { catalog } = loadGenerated();
+  const tool = (cap: string) => catalog.all.find((t) => t.cap === cap)!;
+  assert.equal(tool("records.comments.add").planMode, "allowed", "a comment is a reply, like posting in a chat it was asked into");
+  assert.equal(tool("records.update").planMode, "blocked", "any other write from the same pane still waits for the person's yes");
+});

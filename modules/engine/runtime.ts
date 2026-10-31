@@ -9,7 +9,9 @@ import { bindBridge, createBridge } from "./handlers/bridge.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
-import { buildOpener, roleBlocks } from "./session.ts";
+import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
+import { remoteLauncher, routed } from "./node-turns.ts";
+import type { NodeRelay } from "./node-turns.ts";
 import { withRecall } from "./recall.ts";
 import { withChatSettings } from "./chat-settings.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
@@ -17,6 +19,7 @@ import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "
 import { withTranscript } from "./transcript.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
+import { onTurnEnded } from "./handlers/task-baton.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { createPluginTools } from "./plugin-tools.ts";
@@ -41,6 +44,8 @@ export interface EngineHostSeam {
   /** The host's invoke pipeline, for tools on API-key chats: each tool call is one capability invoke as the agent acting for the asker. Absent: an API chat answers in words only. */
   invoke?: Invoke;
   space?: string;
+  /** The computers that joined the Space, for a turn pinned to one of them (node-turns.ts). Absent: no turn runs on a server. */
+  nodes?: NodeRelay;
   /** True when the person is on their own computer (a local model on this machine is then reachable). */
   own?: (person: string) => boolean;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
@@ -186,7 +191,7 @@ async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => numbe
 
 let defaultBuilt: DefaultSandbox | null = null;
 /** The default sandbox plan for this platform, built once per runtime. */
-const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}) })).plan;
+export const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}) })).plan;
 /** Stop the default sandbox's wall (daemon shutdown, tests). */
 export async function closeDefaultSandbox(): Promise<void> { const d = defaultBuilt; defaultBuilt = null; await d?.close(); }
 
@@ -199,8 +204,17 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
   const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
-  const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
-  closeOpener = opener ? () => opener.close() : null;
+  const baseOpen = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
+  // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
+  const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
+  const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call };
+  const nodeOpener = (nodeId: string) => {
+    let o = nodeOpeners.get(nodeId);
+    if (!o) { o = buildNodeOpener(openerHost, remoteLauncher(h.nodes as NodeRelay, nodeId)); nodeOpeners.set(nodeId, o); }
+    return o.openSession;
+  };
+  const openSession = host.session && h.nodes && !host.openSession ? routed(baseOpen, { call: h.call, relay: h.nodes, nodeOpener, db: ctx.db }) : baseOpen;
+  closeOpener = opener ? async () => { await opener.close(); await Promise.all([...nodeOpeners.values()].map((o) => o.close())); } : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
     const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.stream ? { stream: h.stream } : {}), addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
@@ -252,6 +266,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     };
     engine.subscribe((ev) => {
       if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
+      if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
+        void onTurnEnded(ctx, { call: h.call, now, ...(h.log ? { log: h.log } : {}) }, engine, ev).catch((err) => h.log?.("a task baton check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
+      }
       if (ev.type !== "turn.completed") return;
       void reviewAfter({ call: h.call, ...(h.postAs ? { postAs: h.postAs } : {}) }, ctx.db, engine, ev, () => mintEngineId("msg", now())).catch((err) => h.log?.("the reviewer could not be asked", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
     });
@@ -286,4 +303,39 @@ export async function wakeAfterUnblock(ctx: EngineCtx, taskId: string): Promise<
   await open(ctx, row.thread_id);
   engine.wake(row.thread_id, row.agent_id);
   return true;
+}
+
+type AnsweredRow = { messageId: string; author: { kind: string; id: string }; blocks?: Array<{ type?: string; id?: string; data?: Record<string, unknown> }> };
+
+/** The answer to a question as the agent reads it: the label of the option chosen, the words the person gave, or what a card handed back (a command's output, a folder that was mounted). */
+export function answerWords(data: Record<string, unknown>): string {
+  const options = Array.isArray(data["options"]) ? (data["options"] as Array<{ key?: unknown; label?: unknown }>) : [];
+  const one = (a: unknown): string => {
+    if (typeof a === "string") return String(options.find((o) => o.key === a)?.label ?? a);
+    if (a !== null && typeof a === "object" && typeof (a as { other?: unknown }).other === "string") return (a as { other: string }).other;
+    return JSON.stringify(a);
+  };
+  const a = data["answer"];
+  return (Array.isArray(a) ? a.map(one).join(", ") : one(a)).slice(0, 8000);
+}
+
+/**
+ * A question block was answered (ask_question, a plan, a Mount card, a Run this card): the answer goes to the agent that asked it. Nothing woke the agent before, so a parked question never carried on.
+ * The answer is posted in the thread as the person who gave it, mentioning the agent, which is the ordinary way an agent is told something: its next turn runs on the same account as any reply.
+ */
+export async function wakeAfterAnswer(ctx: EngineCtx, event: { payload: { threadId: string; blockId: string; by: string } }): Promise<boolean> {
+  const h = host;
+  if (!h) return false;
+  const { threadId, blockId, by } = event.payload;
+  if (!by.startsWith("usr_")) return false;
+  const list = (await h.call("chat.messages.list", { threadId, limit: 100 }, by)) as { messages: AnsweredRow[] };
+  for (const m of list.messages) {
+    const b = (m.blocks ?? []).find((x) => x.id === blockId);
+    if (!b || m.author.kind !== "agent" || b.type !== "question" || b.data === undefined) continue;
+    const body = answerWords(b.data);
+    if (body === "") return false;
+    await h.call("chat.post", { threadId, body, mentions: [{ kind: "agent", id: m.author.id }], idempotencyKey: `answer:${blockId}` }, by);
+    return true;
+  }
+  return false;
 }

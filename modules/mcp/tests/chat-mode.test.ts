@@ -30,3 +30,12 @@ test("an outside actor, a session with no chat, and a chat that cannot be read a
   assert.equal(await withChatMode({ ...runtime("plan"), invoke: (async () => { throw new Error("down"); }) as Invoke }, c), c);
   assert.equal(await withChatMode(runtime("yolo"), c), c);
 });
+
+test("a chat that builds a connector lists the builder's tools from its first turn, whatever its mode; any other chat does not", async () => {
+  const titled = (title: string, mode: unknown = "auto") => ({ ...runtime(mode), invoke: (async () => ({ status: "ok", output: { thread: { mode, title } } })) as Invoke });
+  const built = await withChatMode(titled("Add Fathom to Automations"), caller());
+  assert.ok(built.preload?.includes("connectors_define") && built.preload.includes("automations_read_docs"));
+  assert.equal(built.mode, "auto");
+  assert.ok((await withChatMode(titled("Build a connector", "yolo"), caller())).preload?.includes("connectors_publish"), "even when the mode is not one it carries");
+  assert.equal((await withChatMode(titled("Intake desk"), caller())).preload, undefined);
+});

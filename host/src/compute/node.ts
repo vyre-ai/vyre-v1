@@ -24,8 +24,42 @@ export interface NodeDeps {
   socket?(url: string, headers?: Record<string, string>): NodeSocket;
   /** Makes what runs a job on this machine (the agent computers module's Docker host, behind its host seam). It gets the one door into an agent's home that a job's token opens. Without it the node takes no jobs. */
   makeHost?(link: HomeLink): { run(kind: string, input: unknown): Promise<unknown> };
+  /**
+   * Runs the CLI engine of a turn pinned to this computer. The Space sends the program, folder and environment over the live socket and gets the output back; the sign-in it fills into the
+   * environment lives only in this process's environment, never on disk here. Without it this computer takes no turns.
+   */
+  cliLauncher?: NodeLauncher;
 }
 export type NodeEnd = "stopped" | "declined" | "removed";
+
+/** A CLI engine process on this machine (structural: the host never imports the agent package). */
+export interface NodeProc {
+  readonly pid: number | undefined;
+  readonly stdout: AsyncIterable<Uint8Array | string>;
+  write(data: string): Promise<void>;
+  endInput(): void;
+  readonly exited: Promise<{ code: number | null; signal: string | null }>;
+  stderrTail(): string;
+  kill(signal?: "SIGTERM" | "SIGKILL"): void;
+}
+/** Starts a CLI engine process here, inside this machine's sandbox. Rejects with an `error.code` of engine.* when it cannot (not installed, no sandbox). */
+export interface NodeLauncher { spawn(spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<NodeProc> }
+const LOOPBACK = /https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/g;
+const MAX_PROCS = 16;
+
+/**
+ * A job that gives an agent computer its Vault channel carries the address to ask, as the Space sees itself (its Docker gateway); from this computer the Space is at the address it joined by.
+ * Only the origin changes: the path, and the token, stay as the Space made them.
+ */
+export function withServerOrigin(input: unknown, server: string): unknown {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) return input;
+  const o = input as Record<string, unknown>;
+  if (typeof o["fillUrl"] !== "string") return input;
+  try {
+    const u = new URL(o["fillUrl"]);
+    return { ...o, fillUrl: `${server.replace(/\/+$/, "")}${u.pathname}${u.search}` };
+  } catch { return input; }
+}
 
 /** The part of a WebSocket the live view uses. */
 export interface NodeSocket {
@@ -202,7 +236,7 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
   async function run(job: NodeJob): Promise<void> {
     try {
       if (!host) throw new Error("This computer does not take jobs yet.");
-      const result = await als.run({ token: job.token, computerId: job.computerId }, () => host.run(job.kind, job.input));
+      const result = await als.run({ token: job.token, computerId: job.computerId }, () => host.run(job.kind, withServerOrigin(job.input, server)));
       // The copy of an agent's home on this machine is a working mirror: Files holds the truth. It is wiped when the computer sleeps, but only after the sync that closed the session finished (a pass
       // that left anything undone keeps it, and the next wake syncs it), and always when the computer is removed.
       if ((job.kind === "stop" && (result as { homeSynced?: unknown } | null)?.homeSynced === true) || job.kind === "remove") wipeMirror(job.agentId);
@@ -236,6 +270,51 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
   // (its address stays here); they go up the one socket, tagged with the view the Space named. This machine hosts only the computers it made, so a view of any other is refused by its own host.
   let ended = false;   // the node's loop has returned: the view socket goes with it
   const openSocket = d.socket ?? platformSocket;
+  // ---- engine processes: a turn pinned to this computer runs its CLI here, through the launcher this machine was given
+  const procs = new Map<string, NodeProc>();
+  /** The Space's loopback address means nothing here: its tools are reached at the address this computer joined by. */
+  const toSpace = (v: string): string => v.replace(LOOPBACK, server);
+  function cli(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void {
+    const proc = typeof m["proc"] === "string" && /^prc_[a-f0-9]{24}$/.test(m["proc"]) ? m["proc"] : "";
+    if (!proc) return;
+    if (m["t"] === "cli_spawn") {
+      const argv = Array.isArray(m["argv"]) ? (m["argv"] as unknown[]).filter((x): x is string => typeof x === "string") : [];
+      const envIn = m["env"] && typeof m["env"] === "object" ? (m["env"] as Record<string, unknown>) : {};
+      const env: Record<string, string> = {};
+      for (const [k, v] of Object.entries(envIn)) if (typeof v === "string") env[k] = toSpace(v);
+      if (!d.cliLauncher || argv.length === 0 || procs.has(proc) || procs.size >= MAX_PROCS) { say({ t: "cli_failed", proc, code: "engine.cli_failed", reason: "This computer cannot run an engine right now." }); return; }
+      void (async () => {
+        try {
+          // the folder the Space named is the Space's own; an engine here works in a folder of this computer's, made per process
+          const cwd = path.join(d.dataDir, "turns", proc);
+          fs.mkdirSync(cwd, { recursive: true, mode: 0o700 });
+          const p = await d.cliLauncher!.spawn({ argv: argv.map(toSpace), cwd, env });
+          procs.set(proc, p);
+          d.log(`engine ${proc} started: ${path.basename(String(argv[0]))}`);
+          say({ t: "cli_started", proc, ...(p.pid !== undefined ? { pid: p.pid } : {}) });
+          const out = (async () => { for await (const chunk of p.stdout) say({ t: "cli_out", proc, data: Buffer.from(typeof chunk === "string" ? chunk : chunk).toString("base64") }); })();
+          const exit = await p.exited;
+          await out.catch(() => undefined);
+          const tail = p.stderrTail();
+          if (tail) say({ t: "cli_out", proc, err: true, data: Buffer.from(tail).toString("base64") });
+          procs.delete(proc);
+          fs.rmSync(cwd, { recursive: true, force: true });
+          d.log(`engine ${proc} ended: ${exit.code ?? exit.signal ?? "unknown"}`);
+          say({ t: "cli_exit", proc, code: exit.code, signal: exit.signal });
+        } catch (e) {
+          procs.delete(proc);
+          const code = typeof (e as { code?: unknown }).code === "string" && String((e as { code: string }).code).startsWith("engine.") ? (e as { code: string }).code : "engine.cli_failed";
+          say({ t: "cli_failed", proc, code, reason: (e instanceof Error ? e.message : "The engine could not start.").slice(0, 300) });
+        }
+      })();
+      return;
+    }
+    const p = procs.get(proc);
+    if (!p) return;
+    if (m["t"] === "cli_in" && typeof m["data"] === "string") void p.write(Buffer.from(m["data"], "base64").toString("utf8")).catch(() => undefined);
+    else if (m["t"] === "cli_end") p.endInput();
+    else if (m["t"] === "cli_kill") p.kill(m["signal"] === "SIGKILL" ? "SIGKILL" : "SIGTERM");
+  }
   async function liveView(): Promise<void> {
     const url = `${server.replace(/^http/, "ws")}/compute/stream`;
     const up = openSocket(url, { authorization: `Bearer ${credential}` });
@@ -245,7 +324,7 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     await new Promise<void>((resolve) => {
       let hb: ReturnType<typeof setInterval> | undefined;
       let watch: ReturnType<typeof setInterval> | undefined;
-      const end = (): void => { if (hb) clearInterval(hb); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
+      const end = (): void => { for (const p of procs.values()) p.kill("SIGKILL"); if (hb) clearInterval(hb); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
       d.signal.addEventListener("abort", end, { once: true });
       watch = setInterval(() => { if (removed || ended) end(); }, 500); watch.unref?.();
       up.onOpen(() => { hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.(); });
@@ -255,6 +334,7 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
         let m: { t?: unknown; view?: unknown; computerId?: unknown; data?: unknown };
         try { m = JSON.parse(data) as typeof m; } catch { return; }
         const view = typeof m.view === "string" && VIEW_ID.test(m.view) ? m.view : "";
+        if (typeof m.t === "string" && m.t.startsWith("cli_")) { cli(m as Record<string, unknown>, say); return; }
         if (m.t === "close" && view) { local.get(view)?.close(); local.delete(view); return; }
         if (m.t === "input" && view && typeof m.data === "string" && m.data.length <= 4096) { local.get(view)?.send(m.data); return; }
         if (m.t !== "open" || !view || typeof m.computerId !== "string" || !COMPUTER_ID.test(m.computerId) || local.has(view)) return;
@@ -283,7 +363,7 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
   }
   void (async () => {
     // Held open for as long as this computer is admitted; a dropped socket is dialled again after a pause.
-    while (host && !d.signal.aborted && !removed && !ended) {
+    while ((host || d.cliLauncher) && !d.signal.aborted && !removed && !ended) {
       await liveView().catch(() => undefined);
       await d.sleep(Math.min(Math.max(pollMs, 500), 5_000), d.signal).catch(() => undefined);
     }

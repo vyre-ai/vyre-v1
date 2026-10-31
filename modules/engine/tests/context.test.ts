@@ -174,3 +174,38 @@ test("a chat's reviewer is told it is the reviewer, and the lead is told its wor
   const none = await createContextBuilder({ call: fake({ ...FULL, "engine.reviewer.get": { reviewer: null } }).call, now: () => at }).build(input());
   assert.doesNotMatch(none.sections.find((s) => s.id === "where")!.text, /review/i);
 });
+
+// ---- the connector builder skill
+
+const withConnector: SkillsPort = {
+  async index() {
+    return [
+      { name: "working-in-vyre", description: "How an agent works inside Vyre.", tier: "builtin" },
+      { name: "focus-vault", description: "Work in the Vault.", tier: "builtin" },
+      { name: "connector-builder", description: "Connect an app or API to Automations: hook up an app, use a key in a flow. Finds docs, offers actions, tests reads.", tier: "builtin" },
+    ];
+  },
+  async load(name) { return name === "connector-builder" ? { name, body: "# Connector builder\nFind the docs first." } : name === "focus-vault" ? { name, body: "Use a secret by handle." } : name === "working-in-vyre" ? { name, body: "# Working in Vyre\nThe manual." } : null; },
+};
+const threadTitled = (title: string, screen?: boolean): Record<string, unknown> => ({ ...FULL, "threads.get": { thread: { kind: "ask", title, scopeType: "vault_item", scopeId: "vit_1", members: [], agents: [] } }, ...(screen ? { "chat.screen.get": { screen: { place: "vault", title: "Resend" } } } : {}) });
+
+test("a chat that Add to Automations started loads the connector-builder skill as its focus, even from the Vault screen", async () => {
+  const ctx = await createContextBuilder({ call: fake(threadTitled("Add Resend to Automations", true)).call, skills: withConnector, now: () => at }).build(input());
+  const focus = ctx.sections.find((s) => s.id === "focus")?.text ?? "";
+  assert.match(focus, /^connector-builder\n# Connector builder\nFind the docs first\./);
+});
+
+test("Build a connector is the same, and a Vault chat with any other title keeps the Vault focus", async () => {
+  const built = await createContextBuilder({ call: fake(threadTitled("Build a connector")).call, skills: withConnector, now: () => at }).build(input());
+  assert.match(built.sections.find((s) => s.id === "focus")?.text ?? "", /^connector-builder\n/);
+  const other = await createContextBuilder({ call: fake(threadTitled("Ask about Resend", true)).call, skills: withConnector, now: () => at }).build(input());
+  assert.match(other.sections.find((s) => s.id === "focus")?.text ?? "", /^focus-vault\n/);
+});
+
+test("in any other chat the skill is in the index with a description that says what to ask for", async () => {
+  const ctx = await createContextBuilder({ call: fake(FULL).call, skills: withConnector, now: () => at }).build(input());
+  const line = /- connector-builder: ([^\n]*)/.exec(ctx.sections.find((s) => s.id === "skills")?.text ?? "")?.[1] ?? "";
+  assert.match(line, /Connect an app or API to Automations/);
+  assert.match(line, /hook up an app/);
+  assert.equal(ctx.sections.some((s) => s.id === "focus"), false, "not loaded until the person asks for it");
+});

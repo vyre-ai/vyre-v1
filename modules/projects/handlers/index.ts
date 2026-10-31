@@ -5,9 +5,11 @@ import { linkTasks, openTaskThread, plan, reschedule, stagesSet, unlinkTasks } f
 import {
   create, fileChat, fromChannel, get, list, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, sharedView, unshareOut, templatesList, unpinFile,
 } from "./project.ts";
+import { recordFilesFolder } from "./folders.ts";
 import { teammatesCreate, teammatesList, teammatesRemove } from "./teammates.ts";
 
 export const handlers = {
+  "projects.files_folder": (ctx: never, input: { type?: string; recordId: string; create?: boolean }) => recordFilesFolder(ctx, input),
   "projects.teammates.create": teammatesCreate,
   "projects.teammates.list": teammatesList,
   "projects.teammates.remove": teammatesRemove,

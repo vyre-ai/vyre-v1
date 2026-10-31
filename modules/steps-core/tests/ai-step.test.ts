@@ -21,7 +21,11 @@ test("the step sends the rendered prompt, the mapped input and the attempt key t
   assert.deepEqual(r.output, { text: "Done.", keyUsed: "#Mine_Anthropic", modelUsed: "anthropic" });
   const sent = h.log[0]!;
   assert.equal(sent.cap, "engine.step_turn");
-  assert.equal(sent.input.prompt, 'Summarise r1\n\nInput data:\n{\n  "n": 2\n}');
+  const prompt = String(sent.input.prompt);
+  assert.match(prompt, /^## Goal\nSummarise r1\n\n## Context\n/, "the rendered instruction is the goal");
+  assert.match(prompt, /## Inputs\nn: 2\n/, "the mapped input is in the brief as a named field");
+  assert.match(prompt, /- find: \{"rows":\[\{"id":"r1"\}\]\}/, "earlier steps are in the brief by name");
+  assert.deepEqual([...prompt.matchAll(/^## (.+)$/gm)].map((m) => m[1]), ["Goal", "Context", "Inputs", "Rules"]);
   assert.deepEqual({ ...sent.input, prompt: undefined }, { prompt: undefined, agentId: "agt_helper", keyId: "#Team_Key", backupKeyId: "#Backup", timeoutMinutes: 3, runId: "run_t1", stepId: "ask", idempotencyKey: "run_t1:ask:1" });
 });
 

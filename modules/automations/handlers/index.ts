@@ -9,7 +9,15 @@ import { acceptConnectorOffer, connectorOffers, declineConnectorOffer } from "./
 import { httpRead, httpSend } from "./http-step.ts";
 import { openDocument } from "./open-document.ts";
 import { openMcp } from "./open-mcp.ts";
+import { readDocs } from "./read-docs.ts";
+import { connectorCard } from "./connector-card.ts";
 import { vaultUsage } from "./vault-usage.ts";
+import { allLevels } from "../connector-level.ts";
+import type { LevelDb } from "../connector-level.ts";
+import type { AutoCtx } from "../projections.ts";
+
+/** Which connector actions were tried against the real app: the picker marks the ones that were not. */
+const connectorLevels = (ctx: AutoCtx): { levels: { actionKey: string; level: "draft" | "tested" }[] } => ({ levels: allLevels(ctx.db as LevelDb) });
 import { connectorShares, shareConnector } from "./connector-share.ts";
 import { tryConnectorRead } from "./try-read.ts";
 import { migrateRuns, migrationPreview } from "./migrate.ts";
@@ -70,6 +78,9 @@ export const handlers = {
   "automations.undelete": undelete,
   "automations.update": update,
   "automations.vault_usage": vaultUsage,
+  "automations.connector_levels": connectorLevels,
+  "automations.read_docs": readDocs,
+  "automations.connector_card": connectorCard,
   "automations.validate": validate,
   "automations.versions": versions,
   "automations.webhook_url.get": webhookGet,

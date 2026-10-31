@@ -63,6 +63,7 @@ export function fakeWorld(clock: { t: number }) {
   const agents = new Map<string, Record<string, unknown>>();
   const trashed: string[] = [];
   const handlers: Record<string, Handler> = {
+    "schema.types.list": () => ({ types: [...types.values()].map((t) => ({ key: t.key })).concat([{ key: "contact" }]) }),
     "schema.types.get": (i) => { const t = types.get(i.type) ?? fail("validation.not_found", "no such type"); return { type: { ...t, plural: t.title, icon: "x", label: 0, system: false, fields: [], version: 1 } }; },
     "schema.describe": () => ({ types: [...types.values()].map((t) => ({ ...t, fields: t.template ? [{ key: "status", type: "status", title: "Status", options: { stages: [{ key: "planning" }, { key: "active" }, { key: "done" }] } }] : [] })) }),
     "records.create": (i, o) => keyed(o, "rc", () => { const id = next("rec"); const r = { id, type: i.type, fields: { ...i.fields } }; records.set(id, r); return { record: recordOut(r) }; }),
@@ -88,6 +89,7 @@ export function fakeWorld(clock: { t: number }) {
     "records.query": (i) => ({ rows: [...records.values()].filter((r) => r.type === i.type).map(recordOut) }),
     "access.shares_of": (i) => ({ shares: (i.resource.type === "record" ? recordShares.get(i.resource.id) ?? [] : []).map((g) => ({ grant: { subject: g.subject, level: g.level, resource: i.resource }, through: "direct" })) }),
     "access.grants.list": (i) => ({ grants: grants.filter((g) => g.resource.type === i.resource.type && g.resource.id === i.resource.id && (!i.source || g.source === i.source)).map((g) => ({ id: g.id, subject: g.subject, level: g.level, source: g.source })) }),
+    "files.move": (i) => ({ file: { fileId: i.fileId, folderId: i.toFolderId } }),
     "files.get": (i) => (i.fileId === "fil_missing" ? fail("validation.not_found", "no such file") : { file: { fileId: i.fileId, name: "x.pdf" } }),
     "channels.create": (i, o) => keyed(o, "cc", () => {
       const channelId = next("chn");

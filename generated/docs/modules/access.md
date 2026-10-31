@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (60)
+## Capabilities (62)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -13,6 +13,8 @@ Requires: files.
 - [access.actors.set_engineer_mcp](../capabilities/access.actors.set_engineer_mcp.md): Allow or stop an outside actor using the Engineer MCP toolset
 - [access.actors.update](../capabilities/access.actors.update.md): Change the roles or declared provider of an outside actor
 - [access.check](../capabilities/access.check.md): Access checker: can principal P do action A on resource R, with each step in plain words
+- [access.connector_builder.grant](../capabilities/access.connector_builder.grant.md): Give an assistant the Connector builder role (Member permissions plus connectors.manage), making the role if the Space has none. Needs access.manage.
+- [access.connector_builder.status](../capabilities/access.connector_builder.status.md): Does this assistant hold the permission to build connectors, and may the caller give it
 - [access.deciders](../capabilities/access.deciders.md): The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else
 - [access.grants.list](../capabilities/access.grants.list.md): List grants by resource, subject or source (Console Grants)
 - [access.grants.update](../capabilities/access.grants.update.md): Change the level, conditions or expiry of a grant

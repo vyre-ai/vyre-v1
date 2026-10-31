@@ -77,7 +77,8 @@ export async function myComputers(ctx: NetworkCtx, _input: In) {
 }
 
 export async function myComputerRemove(ctx: NetworkCtx, input: { serverId: string }) {
-  if (!mine(ctx, servers(ctx)).some((s) => s.serverId === input.serverId)) return failWith(ctx.trace.traceId, "validation.not_found", "That computer is not yours.", { serverId: input.serverId });
+  // someone else's computer and one that is not there answer the same: nothing was removed, and nothing is told about who owns what
+  if (!mine(ctx, servers(ctx)).some((s) => s.serverId === input.serverId)) return { removed: false };
   revoke(ctx, input.serverId);
   return { removed: true };
 }

@@ -4,7 +4,7 @@
 // `host.open(tab, input)`. Every card has a right-click menu (long press on a phone), is reachable by keyboard, and paints the quiet
 // hover; colours are skin tokens, so a skin switch repaints with no re-render.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
@@ -153,6 +153,30 @@ function baseMenu(host: BlockHost, type: PartOneType, block: Block, actions: { k
 
 /* ---------- terminal ---------- */
 
+const RISK_COLOR = { read: "var(--ok)", change: "var(--warn)", danger: "var(--danger)" } as const;
+const RISK_TEXT = { read: "Only reads", change: "Changes something", danger: "Destructive or elevated" } as const;
+const riskSeen = new Map<string, "read" | "change" | "danger">();
+
+/** One command the agent ran, with the dot of what it could do (terminal.risk, asked once per command). No dot where the host cannot answer. */
+function CommandLine({ command, host }: { command: string; host: BlockHost }): ReactElement {
+  const [risk, setRisk] = useState<"read" | "change" | "danger" | null>(riskSeen.get(command) ?? null);
+  useEffect(() => {
+    if (risk !== null) return undefined;
+    let live = true;
+    void Promise.resolve(host.invoke("terminal.risk", { command })).then(
+      (r) => { const v = (r as { risk?: string } | null)?.risk; if (v === "read" || v === "change" || v === "danger") { riskSeen.set(command, v); if (live) setRisk(v); } },
+      () => undefined,
+    );
+    return () => { live = false; };
+  }, [command, host, risk]);
+  return (
+    <View style={styles.cmdLine}>
+      {risk ? <View testID={`cmd-risk-${risk}`} accessibilityRole="image" accessibilityLabel={RISK_TEXT[risk]} style={[styles.cmdDot, { backgroundColor: RISK_COLOR[risk] as string }]} /> : null}
+      <Text style={styles.termDim}>{`$ ${command}`}</Text>
+    </View>
+  );
+}
+
 export function TerminalBlock({ block, host }: BlockViewProps): ReactElement {
   const d = terminalData(block.data);
   const [starred, setStarred] = useState(d.starred);
@@ -178,7 +202,7 @@ export function TerminalBlock({ block, host }: BlockViewProps): ReactElement {
   const shown = d.commands.slice(-3);
   const lines = tailLines(d.tail);
   const screen: ReactNode[] = [];
-  for (const [i, c] of shown.entries()) screen.push(<Text key={`c${c.startedAt}-${i}`} style={styles.termDim}>{`$ ${c.command}`}</Text>);
+  for (const [i, c] of shown.entries()) screen.push(<CommandLine key={`c${c.startedAt}-${i}`} command={c.command} host={host} />);
   for (const [i, line] of lines.entries()) screen.push(<Text key={`l${i}`} style={styles.termLine}>{line === "" ? " " : line}</Text>);
   const totalMs = d.commands.reduce((sum, c) => sum + (c.durationMs ?? 0), 0);
   return (
@@ -586,6 +610,8 @@ const styles = StyleSheet.create({
   bad: { color: "var(--danger)" as string },
   counts: { fontFamily: MONO, fontSize: 12, lineHeight: 18 },
   term: { marginTop: 6, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 8, backgroundColor: "#16161A" },
+  cmdLine: { flexDirection: "row", alignItems: "center", gap: 6 },
+  cmdDot: { width: 7, height: 7, borderRadius: 4 },
   termDim: { fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "#8A8A92" },
   termLine: { fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "#D8D8DE" },
   opts: { marginHorizontal: -6, gap: 2 },

@@ -117,6 +117,20 @@ export type AccessCheckOut = {
     decisionId: string;
   };
 };
+export type AccessConnectorBuilderGrantIn = {
+  agentId: string;
+};
+export type AccessConnectorBuilderGrantOut = {
+  roleId: string;
+  created: boolean;
+};
+export type AccessConnectorBuilderStatusIn = {
+  agentId: string;
+};
+export type AccessConnectorBuilderStatusOut = {
+  allowed: boolean;
+  canGrant: boolean;
+};
 export type AccessDecidersIn = {
   resource: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -2112,6 +2126,24 @@ export type AutomationsAnalyticsOut = {
       count: number;
     }>;
 };
+export type AutomationsConnectorCardIn = {
+  threadId: string;
+  title: string;
+  items: Array<{
+      text: string;
+      done: boolean;
+    }>;
+};
+export type AutomationsConnectorCardOut = {
+  messageId: string;
+};
+export type AutomationsConnectorLevelsIn = Record<string, unknown>;
+export type AutomationsConnectorLevelsOut = {
+  levels: Array<{
+      actionKey: string;
+      level: "draft" | "tested";
+    }>;
+};
 export type AutomationsConnectorOfferAcceptIn = {
   itemId: string;
 };
@@ -2207,6 +2239,8 @@ export type AutomationsCreateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -2274,6 +2308,8 @@ export type AutomationsCreateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2510,6 +2546,8 @@ export type AutomationsGetOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2715,6 +2753,8 @@ export type AutomationsMakePersonalCopyOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2839,6 +2879,8 @@ export type AutomationsMoveOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2976,6 +3018,8 @@ export type AutomationsPackagesImportOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3122,6 +3166,8 @@ export type AutomationsPromoteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3168,6 +3214,22 @@ export type AutomationsPromoteOut = {
         reason: string;
       }>;
   };
+};
+export type AutomationsReadDocsIn = {
+  url: string;
+  focus?: string;
+};
+export type AutomationsReadDocsOut = {
+  ok: boolean;
+  reason?: string;
+  finalUrl?: string;
+  kind?: "openapi" | "html" | "text";
+  text?: string;
+  links?: Array<{
+      text: string;
+      url: string;
+    }>;
+  truncated?: boolean;
 };
 export type AutomationsReplayIn = {
   automationId: string;
@@ -3239,6 +3301,8 @@ export type AutomationsRestoreVersionOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3372,6 +3436,8 @@ export type AutomationsSetEnabledOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3506,6 +3572,8 @@ export type AutomationsTemplatesUseOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3566,10 +3634,13 @@ export type AutomationsTryReadIn = {
   markedSafe?: boolean;
   vaultItemId: string;
   actionKey?: string;
+  header?: string;
+  prefix?: string;
 };
 export type AutomationsTryReadOut = {
   level: "tested" | "draft";
   reason?: string;
+  status?: number;
 };
 export type AutomationsUndeleteIn = {
   automationId: string;
@@ -3631,6 +3702,8 @@ export type AutomationsUndeleteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3714,6 +3787,8 @@ export type AutomationsUpdateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3779,6 +3854,8 @@ export type AutomationsUpdateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3859,6 +3936,8 @@ export type AutomationsValidateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -7360,6 +7439,7 @@ export type ConnectionsCreateOut = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
   authUrl?: string;
 };
@@ -7387,6 +7467,7 @@ export type ConnectionsGetOut = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
 };
 export type ConnectionsListIn = {
@@ -7410,6 +7491,7 @@ export type ConnectionsListOut = {
       lastSyncAt?: number;
       createdAt: number;
       handles: Array<string>;
+      filled: Array<string>;
     }>;
   next?: string;
   total?: number;
@@ -7431,6 +7513,29 @@ export type ConnectionsResumeIn = {
 };
 export type ConnectionsResumeOut = {
   ok: boolean;
+};
+export type ConnectionsSetSecretIn = {
+  connectionId: string;
+  slot: string;
+  handle: string;
+};
+export type ConnectionsSetSecretOut = {
+  connection: {
+    connectionId: string;
+    connector: string;
+    title: string;
+    owner: {
+      kind: "person" | "space";
+      id: string;
+    };
+    state: "pending" | "active" | "paused" | "needs_reconnect" | "failing";
+    pausedBy?: string;
+    scopes: Array<string>;
+    lastSyncAt?: number;
+    createdAt: number;
+    handles: Array<string>;
+    filled: Array<string>;
+  };
 };
 export type ConnectionsTestIn = {
   connectionId: string;
@@ -7460,6 +7565,7 @@ export type ConnectionsUpdateOut = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
 };
 export type ConnectorsBuildIn = {
@@ -7471,6 +7577,36 @@ export type ConnectorsBuildIn = {
 export type ConnectorsBuildOut = {
   runId: string;
   draftId: string;
+};
+export type ConnectorsDefineIn = {
+  key: string;
+  title?: string;
+  domains: Array<string>;
+  auth: {
+    type: "none" | "api_key" | "bearer";
+    secret?: string;
+    header?: string;
+    prefix?: string;
+  };
+  secrets?: Array<{
+      name: string;
+      description: string;
+    }>;
+  actions: Array<{
+      name: string;
+      method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+      url: string;
+      headers?: Record<string, string>;
+      query?: Record<string, string>;
+      output?: string;
+      write?: boolean;
+    }>;
+};
+export type ConnectorsDefineOut = {
+  key: string;
+  draftId: string;
+  actions: Array<string>;
+  domains: Array<string>;
 };
 export type ConnectorsDiffIn = {
   key: string;
@@ -7533,11 +7669,12 @@ export type ConnectorsInitIn = {
   title: string;
   mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
   docsUrl?: string;
+  source?: boolean;
   idempotencyKey: string;
 };
 export type ConnectorsInitOut = {
   key: string;
-  folderId: string;
+  folderId?: string;
 };
 export type ConnectorsListIn = {
   state?: "live" | "draft" | "failing_tests";
@@ -9582,6 +9719,7 @@ export type EngineTurnFinishOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnGetIn = {
@@ -9614,6 +9752,7 @@ export type EngineTurnGetOut = {
           }>;
         traceId: string;
       };
+      nodeId?: string;
     };
     machine: "host" | "device";
     keyUsed?: string;
@@ -9676,6 +9815,7 @@ export type EngineTurnRecordOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnRecordUsageIn = {
@@ -9720,6 +9860,7 @@ export type EngineTurnRetryOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnStartIn = {
@@ -9758,6 +9899,7 @@ export type EngineTurnStartOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnWaitIn = {
@@ -9802,6 +9944,7 @@ export type EngineTurnsListOut = {
           }>;
         traceId: string;
       };
+      nodeId?: string;
     }>;
   next?: string;
   total?: number;
@@ -21274,6 +21417,14 @@ export type ProjectsFileChatIn = {
 export type ProjectsFileChatOut = {
   ok: boolean;
 };
+export type ProjectsFilesFolderIn = {
+  type?: string;
+  recordId: string;
+  create?: boolean;
+};
+export type ProjectsFilesFolderOut = {
+  folderId: string | null;
+};
 export type ProjectsFromChannelIn = {
   channelId: string;
   type?: string;
@@ -21867,6 +22018,24 @@ export type ProvidersTestOut = {
   latencyMs: number;
   detail?: string;
 };
+export type RecordsActivityIn = {
+  type: string;
+  recordId: string;
+  limit?: number;
+  before?: number;
+};
+export type RecordsActivityOut = {
+  entries: Array<{
+      id: string;
+      kind: "created" | "edited" | "stage" | "linked" | "unlinked" | "removed" | "restored" | "synced";
+      at: number;
+      actor: string;
+      field?: string;
+      from?: unknown;
+      to?: unknown;
+    }>;
+  next?: number;
+};
 export type RecordsAsOfIn = {
   type: string;
   recordId: string;
@@ -21909,6 +22078,113 @@ export type RecordsChangesOut = {
       op: "upsert" | "patch" | "delete";
     }>;
   next: number;
+};
+export type RecordsCommentsAddIn = {
+  type: string;
+  recordId: string;
+  text: string;
+  parentId?: string;
+  mentions?: Array<{
+      kind: "person" | "agent";
+      id: string;
+    }>;
+  idempotencyKey: string;
+};
+export type RecordsCommentsAddOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
+};
+export type RecordsCommentsDeleteIn = {
+  commentId: string;
+};
+export type RecordsCommentsDeleteOut = {
+  deleted: boolean;
+};
+export type RecordsCommentsEditIn = {
+  commentId: string;
+  text: string;
+};
+export type RecordsCommentsEditOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
+};
+export type RecordsCommentsListIn = {
+  type: string;
+  recordId: string;
+  includeResolved?: boolean;
+};
+export type RecordsCommentsListOut = {
+  comments: Array<{
+      commentId: string;
+      type: string;
+      recordId: string;
+      parentId?: string;
+      text: string;
+      by: string;
+      at: number;
+      editedAt?: number;
+      resolved: boolean;
+      resolvedBy?: string;
+      mentions: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
+      replying: Array<string>;
+    }>;
+  resolvedCount: number;
+};
+export type RecordsCommentsResolveIn = {
+  commentId: string;
+  resolved: boolean;
+};
+export type RecordsCommentsResolveOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
 };
 export type RecordsCompletenessIn = {
   type: string;
@@ -26228,6 +26504,67 @@ export type TasksActOut = {
   };
   result?: unknown;
 };
+export type TasksAskIn = {
+  taskId: string;
+  question: string;
+  to?: {
+    kind: "person" | "agent" | "group" | "role" | "automation";
+    id: string;
+  };
+};
+export type TasksAskOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  answerTaskId: string;
+};
 export type TasksAssignIn = {
   taskId: string;
   slot: "assigned" | "reviewer" | "approver";
@@ -26288,6 +26625,63 @@ export type TasksAssignOut = {
     updatedAt: number;
   };
 };
+export type TasksBlockIn = {
+  taskId: string;
+  reason: string;
+};
+export type TasksBlockOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  unblockTaskId: string;
+};
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
   count: number;
@@ -26330,6 +26724,7 @@ export type TasksCreateIn = {
       label: string;
       note?: "required" | "optional";
     }>;
+  notes?: Record<string, string>;
   decisionId?: string;
   payloadHash?: string;
   idempotencyKey: string;
@@ -26385,6 +26780,64 @@ export type TasksCreateOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksDecideIn = {
+  taskId: string;
+  verdict: "approve" | "reject";
+  reason?: string;
+};
+export type TasksDecideOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "done" | "fixes";
 };
 export type TasksDelegateIn = {
   taskId: string;
@@ -27162,6 +27615,65 @@ export type TasksReleaseOut = {
     updatedAt: number;
   };
 };
+export type TasksReviewIn = {
+  taskId: string;
+  verdict: "approve" | "send_back";
+  fixes?: Array<string>;
+  note?: string;
+};
+export type TasksReviewOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "approval" | "done" | "fixes" | "person";
+};
 export type TasksSnoozeIn = {
   taskId: string;
   until: number | null;
@@ -27217,6 +27729,64 @@ export type TasksSnoozeOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksSubmitIn = {
+  taskId: string;
+  outputs?: Record<string, unknown>;
+  summary: string;
+};
+export type TasksSubmitOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "review" | "approval" | "done";
 };
 export type TasksTakeIn = {
   taskId: string;
@@ -27343,6 +27913,7 @@ export type TasksUpdateIn = {
       v?: number;
       data: unknown;
     }>;
+  threadId?: string;
 };
 export type TasksUpdateOut = {
   task: {
@@ -30754,6 +31325,8 @@ export interface CapMap {
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
+  "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
+  "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
   "access.deciders": { in: AccessDecidersIn; out: AccessDecidersOut };
   "access.grants.list": { in: AccessGrantsListIn; out: AccessGrantsListOut };
   "access.grants.update": { in: AccessGrantsUpdateIn; out: AccessGrantsUpdateOut };
@@ -30849,6 +31422,8 @@ export interface CapMap {
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
+  "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
+  "automations.connector_levels": { in: AutomationsConnectorLevelsIn; out: AutomationsConnectorLevelsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
   "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
   "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
@@ -30880,6 +31455,7 @@ export interface CapMap {
   "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
+  "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -31101,9 +31677,11 @@ export interface CapMap {
   "connections.pause": { in: ConnectionsPauseIn; out: ConnectionsPauseOut };
   "connections.reconnect": { in: ConnectionsReconnectIn; out: ConnectionsReconnectOut };
   "connections.resume": { in: ConnectionsResumeIn; out: ConnectionsResumeOut };
+  "connections.set_secret": { in: ConnectionsSetSecretIn; out: ConnectionsSetSecretOut };
   "connections.test": { in: ConnectionsTestIn; out: ConnectionsTestOut };
   "connections.update": { in: ConnectionsUpdateIn; out: ConnectionsUpdateOut };
   "connectors.build": { in: ConnectorsBuildIn; out: ConnectorsBuildOut };
+  "connectors.define": { in: ConnectorsDefineIn; out: ConnectorsDefineOut };
   "connectors.diff": { in: ConnectorsDiffIn; out: ConnectorsDiffOut };
   "connectors.export": { in: ConnectorsExportIn; out: ConnectorsExportOut };
   "connectors.get": { in: ConnectorsGetIn; out: ConnectorsGetOut };
@@ -31962,6 +32540,7 @@ export interface CapMap {
   "projects.cascade": { in: ProjectsCascadeIn; out: ProjectsCascadeOut };
   "projects.create": { in: ProjectsCreateIn; out: ProjectsCreateOut };
   "projects.file_chat": { in: ProjectsFileChatIn; out: ProjectsFileChatOut };
+  "projects.files_folder": { in: ProjectsFilesFolderIn; out: ProjectsFilesFolderOut };
   "projects.from_channel": { in: ProjectsFromChannelIn; out: ProjectsFromChannelOut };
   "projects.get": { in: ProjectsGetIn; out: ProjectsGetOut };
   "projects.link_tasks": { in: ProjectsLinkTasksIn; out: ProjectsLinkTasksOut };
@@ -31996,9 +32575,15 @@ export interface CapMap {
   "providers.subscription_complete": { in: ProvidersSubscriptionCompleteIn; out: ProvidersSubscriptionCompleteOut };
   "providers.subscription_start": { in: ProvidersSubscriptionStartIn; out: ProvidersSubscriptionStartOut };
   "providers.test": { in: ProvidersTestIn; out: ProvidersTestOut };
+  "records.activity": { in: RecordsActivityIn; out: RecordsActivityOut };
   "records.as_of": { in: RecordsAsOfIn; out: RecordsAsOfOut };
   "records.bulk_upsert": { in: RecordsBulkUpsertIn; out: RecordsBulkUpsertOut };
   "records.changes": { in: RecordsChangesIn; out: RecordsChangesOut };
+  "records.comments.add": { in: RecordsCommentsAddIn; out: RecordsCommentsAddOut };
+  "records.comments.delete": { in: RecordsCommentsDeleteIn; out: RecordsCommentsDeleteOut };
+  "records.comments.edit": { in: RecordsCommentsEditIn; out: RecordsCommentsEditOut };
+  "records.comments.list": { in: RecordsCommentsListIn; out: RecordsCommentsListOut };
+  "records.comments.resolve": { in: RecordsCommentsResolveIn; out: RecordsCommentsResolveOut };
   "records.completeness": { in: RecordsCompletenessIn; out: RecordsCompletenessOut };
   "records.counts": { in: RecordsCountsIn; out: RecordsCountsOut };
   "records.create": { in: RecordsCreateIn; out: RecordsCreateOut };
@@ -32266,9 +32851,12 @@ export interface CapMap {
   "sync_types.undo_push": { in: SyncTypesUndoPushIn; out: SyncTypesUndoPushOut };
   "sync_types.update": { in: SyncTypesUpdateIn; out: SyncTypesUpdateOut };
   "tasks.act": { in: TasksActIn; out: TasksActOut };
+  "tasks.ask": { in: TasksAskIn; out: TasksAskOut };
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
+  "tasks.block": { in: TasksBlockIn; out: TasksBlockOut };
   "tasks.count_needs_you": { in: TasksCountNeedsYouIn; out: TasksCountNeedsYouOut };
   "tasks.create": { in: TasksCreateIn; out: TasksCreateOut };
+  "tasks.decide": { in: TasksDecideIn; out: TasksDecideOut };
   "tasks.delegate": { in: TasksDelegateIn; out: TasksDelegateOut };
   "tasks.dependencies.add": { in: TasksDependenciesAddIn; out: TasksDependenciesAddOut };
   "tasks.dependencies.remove": { in: TasksDependenciesRemoveIn; out: TasksDependenciesRemoveOut };
@@ -32283,7 +32871,9 @@ export interface CapMap {
   "tasks.my_work": { in: TasksMyWorkIn; out: TasksMyWorkOut };
   "tasks.needs_you": { in: TasksNeedsYouIn; out: TasksNeedsYouOut };
   "tasks.release": { in: TasksReleaseIn; out: TasksReleaseOut };
+  "tasks.review": { in: TasksReviewIn; out: TasksReviewOut };
   "tasks.snooze": { in: TasksSnoozeIn; out: TasksSnoozeOut };
+  "tasks.submit": { in: TasksSubmitIn; out: TasksSubmitOut };
   "tasks.take": { in: TasksTakeIn; out: TasksTakeOut };
   "tasks.transition": { in: TasksTransitionIn; out: TasksTransitionOut };
   "tasks.update": { in: TasksUpdateIn; out: TasksUpdateOut };
@@ -34708,6 +35298,22 @@ export type PullRequestOpenedPayload = {
   recordId?: string;
   author: string;
 };
+export type RecordCommentAddedPayload = {
+  recordId: string;
+  type: string;
+  commentId: string;
+  parentId?: string;
+  mentions: Array<{
+      kind: "person" | "agent";
+      id: string;
+    }>;
+};
+export type RecordCommentResolvedPayload = {
+  recordId: string;
+  type: string;
+  commentId: string;
+  resolved: boolean;
+};
 export type RecordCreatedPayload = {
   recordId: string;
   type: string;
@@ -36408,6 +37014,8 @@ export interface EventMap {
   "pull_request.closed": PullRequestClosedPayload;
   "pull_request.merged": PullRequestMergedPayload;
   "pull_request.opened": PullRequestOpenedPayload;
+  "record.comment_added": RecordCommentAddedPayload;
+  "record.comment_resolved": RecordCommentResolvedPayload;
   "record.created": RecordCreatedPayload;
   "record.deleted": RecordDeletedPayload;
   "record.gaps_found": RecordGapsFoundPayload;

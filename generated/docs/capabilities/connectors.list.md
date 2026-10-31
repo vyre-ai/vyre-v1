@@ -17,7 +17,7 @@ List connectors: built-in, installed and drafts
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/connectors/list |
-| MCP tool | connectors_list (engineer) |
+| MCP tool | connectors_list (automations) |
 | CLI | vyre connector list |
 | Emits | none |
 

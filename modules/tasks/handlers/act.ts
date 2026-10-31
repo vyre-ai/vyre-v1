@@ -11,6 +11,8 @@ import {
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
 import { KIND_ACTIONS, afterReview, checkMove, commitMove, submitTarget } from "./state.ts";
 import type { Policy } from "../projections.ts";
+import { syncThread } from "./thread.ts";
+import { markResumed } from "./resume.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -115,6 +117,9 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.answer !== undefined && (t.kind === "answer" || t.kind === "unblock")) {
     t.workingNotes = { ...t.workingNotes, answer: JSON.stringify(input.answer) };
     result.answer = input.answer;
+  } else if (note !== "" && (t.kind === "answer" || t.kind === "unblock") && key !== "dismiss" && key !== "cannot") {
+    // an answer typed as a note is the answer: the agent that asked reads it from the task
+    t.workingNotes = { ...t.workingNotes, answer: JSON.stringify(note) };
   }
   if (edits && Object.keys(edits).length > 0) t.workingNotes = { ...t.workingNotes, edits: JSON.stringify(edits) };
 
@@ -125,7 +130,7 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   if (t.source?.kind === "run" && ctx.call && to !== "canceled" && (key === "approve" || key === "answer" || key === "resolved")) {
     const wr = t.workingNotes.wait_reason;
     const reason = wr === "approval" || wr === "background" || wr === "key" ? wr : t.kind === "unblock" ? "background" : "approval";
-    try { await ctx.call("runs.resume", { runId: t.source.id, reason }); result.resumed = true; }
+    try { await ctx.call("runs.resume", { runId: t.source.id, reason }); result.resumed = true; markResumed(ctx, t.id); }
     catch (e) { result.resumed = false; result.resumeError = (e as { error?: { code?: string } }).error?.code ?? "internal.unexpected"; }
   }
   return { task: out(ctx, t), result };
@@ -163,6 +168,7 @@ export async function delegate(ctx: TasksCtx, input: In): Promise<unknown> {
   const note = typeof input.note === "string" && input.note.trim() ? input.note.trim() : undefined;
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.delegated", t, { from, to, passedTo }, clean({ type: "delegated", by: from, note }));
+  await syncThread(ctx, t);
   return { task: out(ctx, t), passedTo };
 }
 
@@ -180,6 +186,7 @@ export async function escalate(ctx: TasksCtx, input: In): Promise<unknown> {
   delete t.takenBy; delete t.takenAt; delete t.snoozedUntil;
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.escalated", t, { to: target, reason: input.reason }, { type: "escalated", by: ctx.principal.id });
+  await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }
 

@@ -39,7 +39,7 @@ export function agentHosts(computers: readonly Computer[], nameOf: (agentId: str
 
 /** The hosts of this Space. The server and the agent computers are read only in a Team Space; a read that fails leaves its part out. */
 export async function loadHosts(call: Call, o: { team: boolean; now: number; nameOf(agentId: string): string }): Promise<HostChoice[]> {
-  const devices = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then((r) => r.devices, () => [] as Device[]);
+  const devices = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then((r) => r.devices ?? [], () => [] as Device[]);
   const out = deviceHosts(devices, o.now);
   if (o.team) {
     out.push({ key: "server", label: "Space server", kind: "server", online: true });
@@ -47,6 +47,13 @@ export async function loadHosts(call: Call, o: { team: boolean; now: number; nam
     out.push(...agentHosts(computers, o.nameOf));
   }
   return out;
+}
+
+/** The id of this computer as the Space knows it (the device the person is signed in on), or the only computer they have; undefined when there is none. A terminal on a computer needs it. */
+export async function thisDeviceId(call: Call): Promise<string | undefined> {
+  const devices = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then((r) => r.devices ?? [], () => [] as Device[]);
+  const mine = devices.filter((d) => d.revokedAt === undefined && (d.class === "desktop" || d.class === "daemon"));
+  return (mine.find((d) => d.current === true) ?? (mine.length === 1 ? mine[0] : undefined))?.id;
 }
 
 /** The call that opens a session on one host. */

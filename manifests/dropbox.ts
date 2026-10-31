@@ -4,7 +4,7 @@
 // DECISION: the sign-in is this module's own, not the connectors module's. A built-in connector keeps no sign-in address, and the Dropbox app key is configuration read from the Vault, never part of a manifest.
 // DECISION: connections are `con_` ids kept in dropbox_account; the module checks ownership itself (a person's own, or the Space's), so no capability binds to a `connection` resource.
 // DECISION: writes that change the person's own Dropbox files use the Gate act 'post'; delete uses 'delete'. A write that names `rev` lands only on that revision (validation.version_conflict otherwise).
-import { defineManifest, ev, health, outward, read, t, write } from '../packages/contracts/src/index.ts';
+import { conn as connector, defineManifest, ev, health, outward, read, t, write } from '../packages/contracts/src/index.ts';
 import { id } from './_common.ts';
 
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
@@ -82,6 +82,13 @@ export default defineManifest({
     ev('dropbox.changes_received', 'Dropbox said files changed in these accounts', { p: { eventId: t.str(), accounts: t.arr(t.str()) }, subject: ['entity', '/eventId'], replay: 'stub' }),
   ],
   capabilities,
+  // The connector entry is what gives the module its network: ctx.http reaches only the domains of the module's connectors, and a module with none is refused every call. Sign-in is the module's own
+  // (see the DECISION above), so this entry declares no secrets and no actions.
+  connectors: [connector('dropbox', 'Dropbox', {
+    mode: 'oauth_app', scope: 'person',
+    auth: { type: 'oauth2', authUrl: 'https://www.dropbox.com/oauth2/authorize', tokenUrl: 'https://api.dropboxapi.com/oauth2/token', scopes: ['account_info.read', 'files.metadata.read', 'files.metadata.write', 'files.content.read', 'files.content.write'], pkce: true },
+    domains: ['api.dropboxapi.com', 'notify.dropboxapi.com'], secrets: [], actions: [], rate: { rps: 10, burst: 20 }, health: 'dropbox.account',
+  })],
   health: [
     health('dropbox.account', 'Dropbox', 'dropbox.health', 'Connect Dropbox again from the folder\'s sync line.', { pauses: ['sync'] }),
   ],

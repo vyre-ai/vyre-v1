@@ -1,0 +1,1 @@
+- The click checker treats resize separators as drag and keyboard controls, not buttons.

@@ -1,12 +1,13 @@
 // "Run this" (rc.8): an agent asked the person to run a command (terminal.request). Run in my terminal types the command on the host and waits for the person to press Enter; the card then watches the
 // session until the command is done and hands what it printed back as the answer. Nothing runs without the person pressing Enter, and what comes back is what terminal.read returns (already scrubbed).
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { thisDeviceId } from "./hosts.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 type Row = CapMap["terminal.list"]["out"]["terminals"][number];
 
 export interface RunDeps { call: Call; newKey(): string; sleep?: (ms: number) => Promise<void> }
-export interface RunTarget { host?: "agent_computer" | "space_server" | "device"; agentId?: string }
+export interface RunTarget { host?: "agent_computer" | "space_server" | "device"; agentId?: string; /** This computer, when the caller already knows it. */ deviceId?: string }
 
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -17,9 +18,11 @@ export async function sessionFor(d: RunDeps, t: RunTarget): Promise<string> {
   const hit = list.filter((r) => r.state !== "exited" && r.host === host && (host !== "agent_computer" || t.agentId === undefined || r.agentId === t.agentId)).sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
   if (hit) return hit.terminalId;
   const key = d.newKey();
+  // a terminal on a computer names the computer: this one
+  const deviceId = host === "device" ? t.deviceId ?? await thisDeviceId(d.call) : undefined;
   const opened = host === "space_server"
     ? ((await d.call("terminal.open_server", { idempotencyKey: key })) as { terminal: { terminalId: string } })
-    : ((await d.call("terminal.open", { host, ...(host === "agent_computer" && t.agentId ? { agentId: t.agentId } : {}), idempotencyKey: key })) as { terminal: { terminalId: string } });
+    : ((await d.call("terminal.open", { host, ...(host === "agent_computer" && t.agentId ? { agentId: t.agentId } : {}), ...(deviceId ? { deviceId } : {}), idempotencyKey: key })) as { terminal: { terminalId: string } });
   return opened.terminal.terminalId;
 }
 

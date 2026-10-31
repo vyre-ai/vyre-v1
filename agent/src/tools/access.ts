@@ -6,6 +6,9 @@ import type { Catalog, Level, Refusal, ThreadFacts, ToolCtx, ToolDef, ToolSet } 
 /** The one write an Ask pane offers a view-only person: it stores a drafted change for the editors and writes nothing else (ARCH 4.13). */
 export const ASK_VIEW_EXTRAS: ReadonlySet<string> = new Set(["access.propose_change"]);
 
+/** In a task thread the agent finishes every turn with one of these, so they are in its list without a search. */
+export const TASK_BATON_TOOLS: ReadonlySet<string> = new Set(["task_submit", "task_ask", "task_block", "task_review", "task_decide", "tasks_take"]);
+
 export interface AccessDeps {
   catalog: Catalog;
   /** The frozen default listed set (about 60 tool names, docs/frozen/agent-tools.md). Every other tool is found with tool_search (ruling 8). */
@@ -45,9 +48,10 @@ export function toolsFor(deps: AccessDeps, ctx: ToolCtx): ToolSet {
   const level = askLevel(deps, ctx.asker, ctx.thread);
   const listed: ToolDef[] = [];
   const searchable: ToolDef[] = [];
+  const inTask = ctx.thread.scope?.type === "task";
   for (const t of deps.catalog.all) {
     if (refusalFor(deps, ctx, t, level) !== null) continue;
-    (deps.defaults.has(t.name) ? listed : searchable).push(t);
+    (deps.defaults.has(t.name) || (inTask && TASK_BATON_TOOLS.has(t.name)) ? listed : searchable).push(t);
   }
   return { level, listed, searchable };
 }

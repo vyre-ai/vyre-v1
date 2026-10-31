@@ -158,7 +158,7 @@ export type InvokeResult =
 
 const defaultHex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 const DESTRUCTIVE = /(^|[._])(delete|remove|purge|erase|destroy)([._]|$)/;
-const SCOPED_RECORD_READS=new Set(["records.get","records.query","records.search","records.history"]);
+const SCOPED_RECORD_READS=new Set(["records.get","records.query","records.search","records.history","records.activity"]);
 const noop = (): void => {};
 const nullLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };
 

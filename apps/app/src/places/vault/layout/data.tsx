@@ -54,6 +54,8 @@ export interface VaultData {
   me: Principal;
   /** The Space's name, for handles like #Northwind_GoHighLevel. */
   spaceName: string;
+  /** The person's assistant agent id, for the permission it needs to build connectors. Without it that check is skipped. */
+  assistantId?: string;
   /** A Personal Space: sharing has no meaning here, so the Share action, the Shared section and the sharing lists are not drawn. */
   personal?: boolean;
   nav: VaultNav;

@@ -13,7 +13,7 @@ export const TASK_STATES: readonly { key: TaskState; title: string }[] = [
   { key: "todo", title: "To do" }, { key: "doing", title: "Doing" }, { key: "in_review", title: "In review" },
   { key: "awaiting_approval", title: "Awaiting approval" }, { key: "done", title: "Done" }, { key: "canceled", title: "Canceled" },
 ];
-export type TaskCap = "tasks.act" | "tasks.transition" | "tasks.update" | "tasks.assign" | "tasks.delegate" | "tasks.take" | "tasks.release" | "tasks.snooze" | "tasks.followers.add" | "tasks.followers.remove" | "tasks.working_notes.set" | "tasks.working_notes.delete";
+export type TaskCap = "tasks.act" | "tasks.transition" | "tasks.update" | "tasks.assign" | "tasks.delegate" | "tasks.take" | "tasks.release" | "tasks.snooze" | "tasks.followers.add" | "tasks.followers.remove" | "tasks.working_notes.set" | "tasks.working_notes.delete" | "tasks.submit" | "tasks.review" | "tasks.decide";
 export function actionInput(task: TaskView, key: string, note: string, answer: string): Record<string, unknown> {
   const action = task.actions.find((item) => item.key === key);
   if (!action) throw new Error("This action is no longer offered. Refresh the task.");

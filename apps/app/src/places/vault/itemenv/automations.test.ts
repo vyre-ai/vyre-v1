@@ -32,3 +32,13 @@ test("usage rows come out of the reply and a bad reply is no rows", () => {
   assert.deepEqual(usedByOf(null), []);
   assert.deepEqual(usedByOf({ uses: "x" }), []);
 });
+
+test("without the builder permission an admin allows it in one tap and anyone else asks an admin, once", () => {
+  const base = { online: true, yourLevel: "use", accounts: [{ state: "ok" }] };
+  assert.deepEqual(gateFor({ ...base, builder: { allowed: true, canGrant: false } }), { state: "ready" });
+  assert.deepEqual(gateFor({ ...base, builder: { allowed: false, canGrant: true } }), { state: "no_builder" });
+  assert.deepEqual(gateFor({ ...base, builder: { allowed: false, canGrant: false } }), { state: "ask_admin" });
+  assert.deepEqual(gateFor({ ...base, builder: { allowed: false, canGrant: false }, asked: true }), { state: "asked" });
+  assert.deepEqual(gateFor({ ...base, builder: null }), { state: "ready" });
+  assert.deepEqual(gateFor({ ...base, accounts: [], builder: { allowed: false, canGrant: true } }), { state: "no_ai" }, "an AI account comes first");
+});

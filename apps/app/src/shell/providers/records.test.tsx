@@ -78,12 +78,14 @@ test("the tree's folders come from the list's folder rows, personal and Space ap
   assert.deepEqual(nodes.map((n) => [n.id, n.parentId, n.section, n.via]), [["fld_a", null, "personal", "owner"], ["fld_b", "fld_a", "space", "space"]]);
 });
 
-test("a name is looked up from the Space's people, then yourself, else the id", () => {
+test("a name is looked up from the Space's people, then yourself, else a plain word and never the id", () => {
   const rt = runtimeOver(createSampleFiles());
   const name = nameLookup(rt);
   assert.equal(name("usr_maya"), "Maya Chen");
   assert.equal(name("usr_irfad"), "Irfad Imtiaz");
-  assert.equal(name("usr_zed"), "usr_zed");
+  assert.equal(name("usr_zed"), "Someone");
+  assert.equal(name("svc_host"), "Vyre", "the server itself reads as Vyre");
+  assert.equal(name("agt_gone"), "An agent");
 });
 
 test("opening a record or a file goes through the shell's door", () => {

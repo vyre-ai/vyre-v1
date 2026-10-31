@@ -17,7 +17,7 @@ Read one connection
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/connections/get |
-| MCP tool | connections_get (engineer) |
+| MCP tool | connections_get (automations) |
 | CLI | none |
 | Emits | none |
 
@@ -47,6 +47,7 @@ type Out = {
     lastSyncAt?: number;
     createdAt: number;
     handles: Array<string>;
+    filled: Array<string>;
   };
 };
 ```
@@ -72,6 +73,9 @@ type Out = {
       "connectionId": "con_a1b2c3",
       "connector": "hubspot",
       "createdAt": 1760000000000,
+      "filled": [
+        "example"
+      ],
       "handles": [
         "#Dana_Lawmatics"
       ],

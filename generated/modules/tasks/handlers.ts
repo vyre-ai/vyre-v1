@@ -6,9 +6,12 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.act": Handler<"tasks.act", X>;
+  "tasks.ask": Handler<"tasks.ask", X>;
   "tasks.assign": Handler<"tasks.assign", X>;
+  "tasks.block": Handler<"tasks.block", X>;
   "tasks.count_needs_you": Handler<"tasks.count_needs_you", X>;
   "tasks.create": Handler<"tasks.create", X>;
+  "tasks.decide": Handler<"tasks.decide", X>;
   "tasks.delegate": Handler<"tasks.delegate", X>;
   "tasks.dependencies.add": Handler<"tasks.dependencies.add", X>;
   "tasks.dependencies.remove": Handler<"tasks.dependencies.remove", X>;
@@ -23,7 +26,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.my_work": Handler<"tasks.my_work", X>;
   "tasks.needs_you": Handler<"tasks.needs_you", X>;
   "tasks.release": Handler<"tasks.release", X>;
+  "tasks.review": Handler<"tasks.review", X>;
   "tasks.snooze": Handler<"tasks.snooze", X>;
+  "tasks.submit": Handler<"tasks.submit", X>;
   "tasks.take": Handler<"tasks.take", X>;
   "tasks.transition": Handler<"tasks.transition", X>;
   "tasks.update": Handler<"tasks.update", X>;

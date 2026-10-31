@@ -158,7 +158,7 @@ test("card text: the title falls back to the step's name and the second line say
   assert.equal(byId(l.cards, "wait").sub, "They reply by text, up to 1 day");
   assert.equal(subtitleOf({ id: "s", key: "stop", input: {} }), "The run ends here");
   assert.equal(subtitleOf({ id: "s", key: "ai", input: {} }), "Write what the AI should do");
-  assert.equal(subtitleOf({ id: "s", key: "ai", input: { prompt: "Summarise\nthe note" } }), "Summarise the note. your own AI account");
+  assert.equal(subtitleOf({ id: "s", key: "ai", input: { prompt: "Summarise\nthe note" } }), "Summarise the note");
   assert.equal(subtitleOf({ id: "h", key: "http_request", input: { method: "GET", url: "https://api.example.com/v1/items" } }), "GET api.example.com/v1/items");
   assert.equal(subtitleOf({ id: "h", key: "http_request", input: { method: "POST", url: "https://api.example.com/orders" } }), "POST api.example.com/orders");
   assert.equal(subtitleOf({ id: "h", key: "http_request", askBeforeSending: true, input: { method: "POST", url: "https://api.example.com/orders" } } as never), "POST api.example.com/orders, asks before sending");
