@@ -17,3 +17,14 @@ test("only a saved item that can be an app gets an offer", () => {
   run(ctx as never, { payload: { itemId: "vit_nokind", name: "Old event" } });
   assert.deepEqual(listOpenOffers(ctx.db as OfferDb).map((o) => o.itemId).sort(), ["vit_acme", "vit_env", "vit_login", "vit_nokind"]);
 });
+
+test("an offer for a Mine item is for the person who saved it; an offer for a shared item is the Space's", () => {
+  const h = harness();
+  const ctx = h.ctxFor(null, alice);
+  const run = consumers["automations.connector_offer"].run;
+  run(ctx as never, { actor: "usr_alice", payload: { itemId: "vit_mine", kind: "api_key", scope: "mine", name: "Mine key" } });
+  run(ctx as never, { actor: "usr_alice", payload: { itemId: "vit_shared", kind: "api_key", scope: "shared", name: "Shared key" } });
+  const ids = (viewer?: string): string[] => listOpenOffers(ctx.db as OfferDb, viewer).map((o) => o.itemId).sort();
+  assert.deepEqual(ids("usr_alice"), ["vit_mine", "vit_shared"]);
+  assert.deepEqual(ids("usr_bob"), ["vit_shared"], "another person does not see a Mine offer");
+});

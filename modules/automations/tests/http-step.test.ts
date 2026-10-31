@@ -179,9 +179,11 @@ test("a request that does not finish in 30 seconds is refused as a network failu
   setDocumentNetwork({ ...deps, connect: (r) => new Promise((_resolve, reject) => { r.signal.addEventListener("abort", () => reject(new Error("aborted"))); }) });
   const real = AbortSignal.timeout;
   AbortSignal.timeout = ((ms: number) => real.call(AbortSignal, Math.min(ms, 50))) as typeof AbortSignal.timeout;
+  // AbortSignal.timeout's timer is unref'd, so with the request pending the event loop would be empty and the run would end; a live host keeps the loop running, so the test does too.
+  const alive = setInterval(() => undefined, 1_000);
   try {
     assert.equal(await code(httpRead(ctx, { method: "GET", url: "https://api.example.com/slow" })), "provider.network");
-  } finally { AbortSignal.timeout = real; }
+  } finally { AbortSignal.timeout = real; clearInterval(alive); }
 });
 
 test("HEAD returns the status and headers and no body", async () => {

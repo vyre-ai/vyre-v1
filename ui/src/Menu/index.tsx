@@ -6,14 +6,14 @@
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
+import { filterMenuEntries, isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
 import { MenuPortal } from "./portal.tsx";
 
 export type { MenuEntry, MenuHead, MenuItem, MenuProps, MenuSeparator, MenuSource } from "./props.ts";
-export { REPORT_A_PROBLEM, appendReportProblem, resolveMenuItems } from "./props.ts";
+export { REPORT_A_PROBLEM, appendReportProblem, filterMenuEntries, resolveMenuItems } from "./props.ts";
 
 /* ---------- Report a problem hook-up ---------- */
 
@@ -236,7 +236,10 @@ const MENU_H = 120;
 
 export function Menu(props: MenuViewProps): ReactElement | null {
   const { onClose, reportContext } = props;
-  const entries = useMemo(() => menuEntries(props, reportContext), [props.items, props.source, reportContext]);
+  const all = useMemo(() => menuEntries(props, reportContext), [props.items, props.source, reportContext]);
+  const searching = props.search !== undefined;
+  const [query, setQuery] = useState("");
+  const entries = useMemo(() => (searching ? filterMenuEntries(all, query) : all), [all, searching, query]);
   const window = useWindowDimensions();
   const [gone, setGone] = useState(false);
   const [active, setActive] = useState(() => moveActive(entries, -1, "Home"));
@@ -252,8 +255,8 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   const land = useCallback((index: number) => {
     if (index < 0) return;
     setActive(index);
-    focusNode(nodes.current[index]);
-  }, []);
+    if (!searching) focusNode(nodes.current[index]);
+  }, [searching]);
 
   useEffect(() => {
     land(moveActive(entries, -1, "Home"));
@@ -282,7 +285,12 @@ export function Menu(props: MenuViewProps): ReactElement | null {
       land(moveActive(entries, active, event.shiftKey === true ? "ArrowUp" : "ArrowDown"));
       return;
     }
-    if (key.length === 1 && key !== " " && event.metaKey !== true && event.ctrlKey !== true) {
+    if (key === "Enter" && searching) {
+      const at = entries[active];
+      if (at !== undefined && isItem(at)) { event.preventDefault?.(); choose(at); }
+      return;
+    }
+    if (!searching && key.length === 1 && key !== " " && event.metaKey !== true && event.ctrlKey !== true) {
       const now = Date.now();
       const text = now - typed.current.at < 700 ? typed.current.text + key : key;
       typed.current = { text, at: now };
@@ -333,10 +341,20 @@ export function Menu(props: MenuViewProps): ReactElement | null {
           const { width, height } = event.nativeEvent.layout;
           if (width !== size.w || height !== size.h) setSize({ w: width, h: height });
         }}
-        style={[styles.panel, { left, top, maxHeight: Math.max(120, window.height - 12) }, webProps({ style: { overflowY: "auto" } }).style as object | undefined]}
+        style={[styles.panel, { left, top, maxHeight: Math.max(120, window.height - 12) }, props.width !== undefined ? { width: props.width, minWidth: props.width, maxWidth: props.width } : null, webProps({ style: { overflowY: "auto" } }).style as object | undefined]}
         {...webProps({ onKeyDown })}
       >
+        {searching ? (
+          <View style={styles.search}>
+            <MenuIcon icon="search" color="var(--ink-3)" />
+            <TextInput
+              autoFocus value={query} onChangeText={(t) => { setQuery(t); setActive(-1); }} placeholder={props.search} placeholderTextColor="var(--ink-3)"
+              accessibilityLabel={props.search} testID="menu-search" style={styles.searchInput}
+            />
+          </View>
+        ) : null}
         {rows}
+        {searching && rows.length === 0 ? <Text style={styles.none} testID="menu-none">Nothing matches.</Text> : null}
       </View>
     </View>
     </MenuPortal>
@@ -375,7 +393,8 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       style={[styles.item, wash, entry.disabled === true ? { opacity: 0.45 } : null]}
       {...webProps({ ...(report ? { dataSet: { report: "true" } } : {}), ...(entry.disabled === true && entry.reason !== undefined ? { title: entry.reason } : {}) })}
     >
-      {entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
+      {entry.leading !== undefined ? <View style={styles.leading}>{entry.leading}</View> : null}
+      {entry.leading === undefined && entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
       <Text numberOfLines={1} style={[styles.label, { color: ink }]}>{entry.label}</Text>
       {entry.count !== undefined ? <Text style={styles.count} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
       {entry.checked === true ? <Text style={[styles.check, entry.count !== undefined && styles.checkAfterCount, { color: ink }]}>{"✓"}</Text> : null}
@@ -392,6 +411,8 @@ export interface OpenMenu {
   source: MenuSource;
   context?: ReportContext;
   nonce: number;
+  search?: string;
+  width?: number;
 }
 
 interface PointerLike {
@@ -471,22 +492,22 @@ export function resetAnchor(): void { lastAnchor = null; }
 /** One open menu for a surface. `element` goes anywhere in the tree; `show` opens it at a point. */
 export function useMenu(): {
   element: ReactElement | null;
-  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext) => void;
+  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext, opts?: { search?: string; width?: number }) => void;
   hide: () => void;
 } {
   const [open, setOpen] = useState<OpenMenu | null>(null);
   const counter = useRef(0);
   useEffect(() => { listenForPresses(); }, []);
-  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext) => {
+  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext, opts?: { search?: string; width?: number }) => {
     counter.current += 1;
     const at = resolveMenuPoint(x, y);
     x = at.x;
     y = at.y;
-    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }) });
+    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }), ...(opts?.search === undefined ? {} : { search: opts.search }), ...(opts?.width === undefined ? {} : { width: opts.width }) });
   }, []);
   const hide = useCallback(() => setOpen(null), []);
   const element = open === null ? null : (
-    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} />
+    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} {...(open.search === undefined ? {} : { search: open.search })} {...(open.width === undefined ? {} : { width: open.width })} />
   );
   return { element, show, hide };
 }
@@ -512,6 +533,10 @@ const styles = StyleSheet.create({
   checkAfterCount: { marginLeft: 0 },
   count: { marginLeft: "auto", minWidth: 24, textAlign: "right", fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   iconSlot: { width: ICON_SIZE, height: ICON_SIZE, alignItems: "center", justifyContent: "center" },
+  leading: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingHorizontal: 9, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as ViewStyle) },
+  none: { paddingVertical: 10, paddingHorizontal: 9, fontSize: 12.5, color: "var(--ink-3)" as string },
   head: { paddingTop: 6, paddingBottom: 4, paddingHorizontal: 9, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   sep: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 4, marginHorizontal: 6 },
 });
