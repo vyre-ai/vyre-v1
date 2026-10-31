@@ -13,7 +13,7 @@ import type { ShellRuntime } from "../src/shell/providers/runtime.tsx";
 import { ConnectSpaceWelcome, SessionGate, signInInvite } from "../src/shell/session/SessionGate.tsx";
 import { JoinFlow } from "../src/join/JoinFlow.tsx";
 import { createRoot } from "test-renderer";
-import { find, flush, installDom, mount, textOf } from "../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf } from "../../../ui/src/testing/dom.ts";
 import { shellKey } from "../src/shell/spaces/keys.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -144,6 +144,26 @@ function asPackaged<T>(run: () => T): T {
   g.__TAURI__ = { core: { invoke: async () => undefined } };
   try { return run(); } finally { if (had) g.__TAURI__ = before; else delete g.__TAURI__; }
 }
+
+test("Close search is a visible button in the sheet that closes it; the dim area is not a second labelled Close search", async () => {
+  const restore = installDom();
+  try {
+    const { data } = setup();
+    let closed = 0;
+    const root = await mount(createRoot, <CmdK data={data} onClose={() => { closed++; }} />);
+    await flush();
+    assert.ok(find(root, "cmdk-veil"), "the sheet is open");
+    const closeBtn = find(root, "cmdk-close");
+    assert.ok(closeBtn, "the sheet has its own Close button");
+    assert.equal(closeBtn.props["aria-label"], "Close search");
+    await press(closeBtn);
+    await flush();
+    assert.equal(closed, 1, "pressing Close search closes the sheet");
+    assert.equal(find(root, "cmdk-veil"), null, "and it is gone");
+    const all = renderToStaticMarkup(<CmdK data={data} />);
+    assert.equal((all.match(/aria-label="Close search"/g) ?? []).length, 1, "one button is called Close search, not the backdrop too");
+  } finally { restore(); }
+});
 
 test("the packaged shell with no stored Space opens on the three doors once the window is read, and never offers tauri as a host", async () => {
   // the static page and the first client render are the browser's frame; the desktop app's doors draw right after mount, so the test mounts and waits for that frame

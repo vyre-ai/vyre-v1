@@ -79,6 +79,8 @@ export interface CmdKBodyProps {
   platform?: KeyPlatform;
   /** Inline in a tab (new-tab search) instead of a sheet: no veil, Enter fills the tab. */
   inline?: boolean;
+  /** A visible Close button at the end of the search row (the sheet; not the inline new-tab page). */
+  onClose?: () => void;
   autoFocus?: boolean;
 }
 
@@ -98,7 +100,7 @@ function scopeLine(state: CmdKState): string | null {
   return lead ?? (note ? note.charAt(0).toUpperCase() + note.slice(1) : null);
 }
 
-export function CmdKBody({ controller, placeholder = "Search agents, chats, people, records, files, actions…", platform = "mac", inline = false, autoFocus = true }: CmdKBodyProps): ReactElement {
+export function CmdKBody({ controller, placeholder = "Search agents, chats, people, records, files, actions…", platform = "mac", inline = false, autoFocus = true, onClose }: CmdKBodyProps): ReactElement {
   const state = useCmdKState(controller);
   const [menu, setMenu] = useState<{ items: MenuEntry[]; x: number; y: number } | null>(null);
   const input = useRef<unknown>(null);
@@ -182,6 +184,11 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
         >
           <Text style={[styles.filterText, state.filter.length ? { color: "var(--accent)" } : null]}>{state.filter.length ? `Filter · ${state.filter.length}` : "Filter"}</Text>
         </Pressable>
+        {onClose && !inline ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Close search" testID="cmdk-close" onPress={onClose} style={({ hovered }: { hovered?: boolean }) => [styles.closeBtn, hovered === true ? { backgroundColor: "var(--hover)" } : null]}>
+            <Text style={styles.filterText}>{"×"}</Text>
+          </Pressable>
+        ) : null}
       </View>
       {line ? <View testID="cmdk-scope" style={styles.scopes}><Text style={styles.scopesText} numberOfLines={2}>{line}</Text></View> : null}
       <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
@@ -243,9 +250,10 @@ export function CmdK({ data, initialQuery = "", platform = "mac", onClose, onTim
   if (!state.open) return null;
   return (
     <View testID="cmdk-veil" style={styles.veil}>
-      <Pressable accessibilityLabel="Close search" onPress={() => ctl.close()} style={StyleSheet.absoluteFill} />
+      {/* the dim area outside the sheet closes it too; it is not a labelled button (the real one is the × in the sheet), and its middle is under the sheet */}
+      <Pressable accessible={false} onPress={() => ctl.close()} style={StyleSheet.absoluteFill} />
       <View style={styles.sheet}>
-        <CmdKBody controller={ctl} platform={platform} {...(data.spaceName ? { placeholder: `Search ${data.spaceName()}` } : {})} />
+        <CmdKBody controller={ctl} platform={platform} onClose={() => ctl.close()} {...(data.spaceName ? { placeholder: `Search ${data.spaceName()}` } : {})} />
       </View>
     </View>
   );
@@ -271,6 +279,7 @@ const styles = StyleSheet.create({
   newtab: { flex: 1, width: "100%", alignItems: "center", paddingTop: 40, paddingHorizontal: 16 },
   head: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" },
   input: { flex: 1, height: 52, paddingHorizontal: 18, fontSize: 16, color: "var(--ink)", backgroundColor: "transparent" },
+  closeBtn: { width: 26, height: 26, marginRight: 12, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   filterBtn: { height: 26, paddingHorizontal: 9, marginRight: 12, borderRadius: 6, justifyContent: "center" },
   filterText: { fontSize: 12, color: "var(--ink-3)" },
   scopes: { paddingVertical: 6, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" },
