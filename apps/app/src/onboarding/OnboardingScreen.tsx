@@ -309,7 +309,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
     return (
       <View testID="onboarding" style={[s.page, (narrow || phone) && s.pageNarrow]}>
         {closeBtn}
-      <View testID="onboarding-chat" style={s.chat}><Finished flow={p.flow} steps={steps} progress={p.progress} device={device} onOpen={open} two={!phone && width >= 640} {...(p.onClose ? { onHome: p.onClose } : {})} /></View>
+        <View testID="onboarding-chat" style={s.chat}><Finished flow={p.flow} steps={steps} progress={p.progress} device={device} onOpen={open} two={!phone && width >= 640} {...(p.onClose ? { onHome: p.onClose } : {})} /></View>
       </View>
     );
   }
