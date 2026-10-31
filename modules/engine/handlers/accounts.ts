@@ -69,6 +69,8 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   ]);
   const member = t.thread.agents.find((x) => x.agentId === input.agentId);
   const provider = member?.provider ?? providerOfModel(member?.model ?? a.agent.model);
+  // a Personal Space runs on the person's own computer, so a turn on its host is a turn on their computer: their sign-in needs no "the Space may use it" switch there
+  const personal = await (ctx.call("spaces.get", {}) as Promise<{ space?: { kind?: string } }>).then((r) => r.space?.kind === "personal", () => false);
   const res = resolveAccount({
     starter: t.thread.starter,
     ...(input.askerId ? { steerer: input.askerId } : {}),
@@ -79,7 +81,7 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     backupRefs: defaults.fallback.flatMap((f) => (f.accountRef ? [f.accountRef] : [])),
     policy: policy.allowedAccounts,
     accounts: accounts.rows,
-    onServer: placement.placement !== "device",
+    onServer: placement.placement !== "device" && !personal,
     ...(input.unavailable?.length ? { unavailable: input.unavailable } : {}),
   });
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)

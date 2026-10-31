@@ -22,6 +22,9 @@ export interface MenuItem {
   /** A quiet number shown in a right-aligned column (ruling 39): filter menus put their counts here, never in the label. */
   count?: number;
   danger?: boolean;
+  /** Shown but not choosable; `reason` is said on hover (a title), so a person sees why. */
+  disabled?: boolean;
+  reason?: string;
   onSelect?: () => void;
 }
 

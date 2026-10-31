@@ -63,11 +63,11 @@ test("Record types: plural names, a type icon on each row, rows divided inside o
 
 test("Record types: each source label, and the source app's icon beside Synced from", () => {
   const out = html(createSampleSchema(northwind, { withSynced: true }), <RecordTypesList />);
-  assert.equal(textOf(out, "type-tag-clients"), "Built in");
-  assert.equal(textOf(out, "type-tag-onboarding"), "Journey");
+  // Built in, Journey and Site table are sections of the page now, not a tag on each row
+  assert.equal(textOf(out, "type-tag-clients"), null);
+  assert.ok(has(out, 'data-testid="types-section-Journeys"') && has(out, 'data-testid="types-section-Sites"') && has(out, 'data-testid="types-section-Built in"'));
   assert.equal(textOf(out, "type-tag-hires"), "Synced from HubSpot");
   assert.equal(textOf(out, "type-tag-issues"), "Synced from GitHub");
-  assert.equal(textOf(out, "type-tag-pages"), "Site table");
   const hub = out.split('data-testid="type-source-hires"')[1]?.split("</div></div>")[0] ?? "";
   assert.ok(has(hub, 'data-testid="appicon-hubspot"'), "HubSpot's own icon");
   const gh = out.split('data-testid="type-source-issues"')[1]?.split("</div></div>")[0] ?? "";

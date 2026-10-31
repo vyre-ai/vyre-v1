@@ -23,7 +23,10 @@ import {
   FaceLru, faceClassOf, faceRule, flingWindow, hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, sortable, toSaved, toggleHidden, totalWidth, safeBitmapUrl,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
+import { makeRecord } from "./make.ts";
 import { filterMenuEntries } from "./filtermenu.ts";
+import { FieldsPanel, fieldMenuEntries } from "../typeedit/index.ts";
+import type { FieldMode } from "../typeedit/index.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 
@@ -466,6 +469,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const top = useRef(0);
   const bodyTop = useRef<((top: number) => void) | null>(null);
   const [box, setBox] = useState({ w: 1000, h: 640 });
+  const [panel, setPanel] = useState<{ field?: string; mode?: FieldMode } | null>(null);
   const [reopen, setReopen] = useState<{ kind: "filter" | "fields" | "colour"; x: number; y: number } | null>(null);
 
   const cols = useMemo(() => columnsOf(def, v.hidden), [def, v.hidden]);
@@ -553,9 +557,8 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     const name = adding.name.trim();
     if (name === "") { setAdding({ ...adding, error: `Give the ${def.title.toLowerCase()} a ${titleLabel}.` }); return; }
     setAdding({ name, busy: true });
-    data.call("records.create", { type, fields: { [def.titleField]: name }, idempotencyKey: `new-${type}-${Date.now()}` }).then((out) => {
+    makeRecord(data.call, def, name, `new-${type}-${Date.now()}`).then((id) => {
       setAdding(null);
-      const id = (out as { record?: { id?: string } } | undefined)?.record?.id;
       if (id) data.nav.openRecord(id);
     }, (e: unknown) => {
       const x = e as { error?: { message?: string }; message?: string };
@@ -665,9 +668,11 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   }
   function colMenu(f: FieldDef, x: number, y: number): void {
     const entries: MenuEntry[] = [];
+    const editing = data.canEditSchema === true;
     if (sortable(f)) entries.push({ label: "Sort ascending", onSelect: () => set(setSort(v, f.key, "asc")) }, { label: "Sort descending", onSelect: () => set(setSort(v, f.key, "desc")) });
     if (groupable(f)) entries.push({ label: "Group by this field", onSelect: () => set({ ...v, group: f.key }) });
     if (f.key !== def.titleField) entries.push({ separator: true }, { label: "Hide field", onSelect: () => set(toggleHidden(v, f.key)) });
+    entries.push(...fieldMenuEntries(editing, def, f, (mode) => setPanel({ field: f.key, mode })));
     menu.show(entries, x, y);
   }
 
@@ -712,7 +717,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={lit(v.clauses.length > 0)} bare={tight} testID="records-filter" onPress={keep("filter")} />
         <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={lit(sortKey !== undefined)} bare={tight} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y, "other")} />
         <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={tight} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y, "other")} />
-        <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={tight} testID="records-fields" onPress={keep("fields")} />
+        <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={tight} testID="records-fields" onPress={data.canEditSchema === true ? () => setPanel({}) : keep("fields")} />
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} />
         {headerExtra}
         <HeadButton icon="plus" label="New" bare={tight} filled testID="records-new" onPress={startNew} />
@@ -826,6 +831,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         </View>
       )}
       {menu.element}
+      {panel ? <FieldsPanel key={`${panel.field ?? ""}:${panel.mode ?? ""}`} call={data.call} type={def} hidden={v.hidden} onToggleHidden={(field) => set(toggleHidden(v, field))} onClose={() => setPanel(null)} {...(panel.field && panel.mode ? { initial: { field: panel.field, mode: panel.mode } } : {})} /> : null}
     </View>
   );
 }

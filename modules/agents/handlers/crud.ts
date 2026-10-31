@@ -543,7 +543,14 @@ export async function renameOldAssistants(ctx: AgentsCtx): Promise<string[]> {
   const done: string[] = [];
   for (const a of mine) {
     const who = listed.principals?.find((p) => p.id === a.ownerId);
-    if (who && await renameFollowing(ctx, a, who.name, who.name)) done.push(a.id);
+    if (who && await renameFollowing(ctx, a, who.name, who.name)) { done.push(a.id); continue; }
+    // The person's name may be unreadable here (the list not ready at boot, or the name changed since the assistant was made): the exact old shape "<First> Assistant" is still the old default.
+    const first = /^([^\s’']+) Assistant$/.exec(a.name)?.[1];
+    if (first === undefined) continue;
+    const target = assistantNames(a.ownerId, first, false)[0]!;
+    if (target === a.name || agentByName(ctx.db, target)) continue;
+    try { await update({ ...ctx, actingFor: a.ownerId }, { agentId: a.id, patch: { name: target } }); done.push(a.id); }
+    catch (e) { ctx.log.warn("agents: an assistant could not be renamed", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" }); }
   }
   return done;
 }

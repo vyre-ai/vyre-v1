@@ -1,0 +1,1 @@
+Setup can be closed any time (X, Esc or Finish later) and resumed from a small Finish setup entry; every step has Skip and Continue, the last says Done, and First win offers four starter routines to run.

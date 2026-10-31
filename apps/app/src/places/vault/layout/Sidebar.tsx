@@ -9,6 +9,7 @@ import { sameSelection } from "./model.ts";
 import type { Counts, Folder, Selection } from "./model.ts";
 import { Glyph, IconBtn } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
+import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 
 export interface SidebarProps {
   counts: Counts;
@@ -49,7 +50,7 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
     );
   }
   return (
-    <View style={s.side} testID="vault-sidebar" accessibilityRole="menu" accessibilityLabel="Vault sections">
+    <ResizableColumn paneKey="vault-sidebar" defaultWidth={240} grow="right" min={200} maxFraction={0.5} style={s.side as never} testID="vault-sidebar" role="menu" label="Vault sections">
       <View style={s.title}><Text accessibilityRole="header" style={s.titleText}>Vault</Text></View>
       <View style={s.group}>
         {counts.requested > 0 ? item({ kind: "requested" }, "requested", "Requested", "requested", counts.requested) : null}
@@ -83,7 +84,7 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
         {item({ kind: "mine" }, "mine", "Mine", "mine", counts.mine)}
         <Row id="nav-advanced" title="Advanced" leading={<View style={s.lead}><Glyph name="advanced" size={16} color="var(--ink-2)" /></View>} onPress={onAdvanced} />
       </View>
-    </View>
+    </ResizableColumn>
   );
 }
 

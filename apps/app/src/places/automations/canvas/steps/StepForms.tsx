@@ -1,9 +1,11 @@
 // The forms of the three live steps in the step panel: HTTP request, Run code and the AI step. Every control writes the definition through one function of edits.ts and shows what the server will
 // check when the automation is turned on. Nothing here holds a key: an HTTP request names a Vault item by handle, and the lists of items, agents and people come from the signed-in person's own view.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import type { MenuEntry } from "../../../../../../../ui/src/Menu/index.tsx";
 import { Choice, Field, Group, Hint, Rows } from "../fields.tsx";
+import { useOpenConnect } from "../../../../shell/connect/context.ts";
+import { connectEntries } from "../../../../shell/connect/model.ts";
 import { updateStep } from "../model.ts";
 import type { DefNode, Definition, KeyChoice } from "../model.ts";
 import {
@@ -36,6 +38,18 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
   const item = items.find((i) => i.handle === chosen.item);
   const fieldKeys = item?.fieldKeys ?? [];
   const setAuthPart = (patch: Partial<typeof auth>): void => write(setAuth(input, { ...auth, ...patch }));
+  const openConnect = useOpenConnect();
+  // a key added in place is taken once the Vault list has loaded again and holds it
+  const [wanted, setWanted] = useState<string | null>(null);
+  useEffect(() => {
+    if (!wanted) return;
+    const found = items.find((i) => i.id === wanted);
+    if (!found) return;
+    setWanted(null);
+    setAuthPart({ handle: joinHandle(found.handle, found.fieldKeys.length === 1 ? found.fieldKeys[0]! : "") });
+    // setAuthPart is rebuilt each render and only reads the current form
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wanted, items]);
   return (
     <>
       <Choice
@@ -76,12 +90,12 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
           <>
             <Choice
               label="Vault key" value={item ? item.name : auth.handle !== "" ? chosen.item : (sentence(vault, "Your Vault could not be read") ?? "Choose a key")} testID="choose-vault-key"
-              onOpen={(x, y) => openMenu(
-                items.length === 0
-                  ? [{ label: vault.state === "loading" ? "Loading..." : "No keys in the Vault yet", onSelect: () => undefined }]
-                  : items.map((i) => ({ label: i.name, checked: i.handle === chosen.item, onSelect: () => setAuthPart({ handle: joinHandle(i.handle, i.fieldKeys.length === 1 ? i.fieldKeys[0]! : "") }) })),
-                x, y, "other",
-              )}
+              onOpen={(x, y) => {
+                const list: MenuEntry[] = items.map((i) => ({ label: i.name, checked: i.handle === chosen.item, onSelect: () => setAuthPart({ handle: joinHandle(i.handle, i.fieldKeys.length === 1 ? i.fieldKeys[0]! : "") }) }));
+                const took = (made: { id: string }): void => setWanted(made.id);
+                if (items.length === 0 && vault.state === "loading") { openMenu([{ label: "Loading...", onSelect: () => undefined }], x, y, "other"); return; }
+                openMenu(connectEntries(list, { kind: "key" }, openConnect, took, items.length === 0), x, y, "other");
+              }}
             />
             {auth.handle !== "" && fieldKeys.length > 1 ? (
               <Choice
@@ -136,6 +150,7 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
   const input = inputOf(node);
   const writeInput = (next: Input): void => onChange(updateStep(def, node.id, { input: next }));
   const writeAi = (ai: NonNullable<DefNode["ai"]>): void => onChange(updateStep(def, node.id, { ai }));
+  const openConnect = useOpenConnect();
   const [schemaProblem, setSchemaProblem] = useState<string | null>(null);
   const [minutesProblem, setMinutesProblem] = useState<string | null>(null);
   const ai = node.ai ?? {};
@@ -146,7 +161,8 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
     const entries: MenuEntry[] = [{ label: none, checked: !ai[field], onSelect: () => writeAi(withAi(ai, field, undefined)) }];
     if (pickable.length > 0) entries.push({ separator: true });
     for (const k of pickable) entries.push({ label: `${k.name}${k.kind === "subscription" ? " (sign-in)" : " (API key)"}`, checked: ai[field] === k.id, onSelect: () => writeAi(withAi(ai, field, k.id)) });
-    openMenu(entries, x, y, "other");
+    // the connect item ends the menu; when the flow finishes the new account is the one this field takes
+    openMenu(connectEntries(entries, { kind: "ai" }, openConnect, (made) => writeAi(withAi(ai, field, made.id)), pickable.length === 0), x, y, "other");
   };
   const pickWho = (field: "reviewer" | "approver") => (x: number, y: number): void => {
     const people = who.state === "ready" ? who.items : [];

@@ -12,7 +12,8 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { RowExtras } from "../sidebar/data.tsx";
-import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
+import { useCanSend, useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
+import { ConnectChannel } from "../connect/index.ts";
 import {
   CHANNELS, CHANNEL_LABEL, SCREENS, VIEW_LABEL, callEntry, callsState, contactEntry, isFiltering, listState, listTime, narrow, pinned, scopeTitle, showingNames, threadEntry, unreadMeta,
 } from "../sidebar/model.ts";
@@ -174,6 +175,7 @@ export function ListLoading({ bare = false }: { bare?: boolean }): ReactElement 
 
 function List(): ReactElement {
   const data = useInboxData();
+  const canSend = useCanSend();
   const { state, dispatch } = useInboxState();
   const menu = useMenu();
   const online = useOnline();
@@ -289,7 +291,7 @@ function List(): ReactElement {
           <Glyph name="chevd" size={9} />
         </Pressable>
         <IconButton icon="filter" label="Filter" on={isFiltering(state)} testID="inbox-filter" onPress={(x, y) => showFilter(x, y, state)} />
-        <IconButton icon="call" label="Dial" testID="inbox-dial" onPress={() => data.nav.openDialer()} />
+        <IconButton icon="call" label="Dial" testID="inbox-dial" onPress={() => (canSend === false ? dispatch({ type: "connect" }) : data.nav.openDialer())} />
       </View>
       {showing.length > 0 ? (
         <View style={styles.showing} testID="inbox-showing">
@@ -299,7 +301,9 @@ function List(): ReactElement {
         </View>
       ) : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="inbox-offline">Offline, showing your saved copy</Text>}
-      {q.status !== "ready" ? <ListLoading bare /> : entries.length === 0 ? (
+      {q.status !== "ready" ? <ListLoading bare /> : entries.length === 0 && !filtered && canSend === false ? (
+        <ConnectChannel />
+      ) : entries.length === 0 ? (
         <States kind="empty" title={filtered ? "Nothing matches these filters." : view === "calls" ? "No calls yet." : "No messages yet."} icon="inbox" {...(filtered ? { action: { label: "Show all", onPress: () => dispatch({ type: "showAll" }) } } : view === "calls" ? {} : { action: { label: "New message", onPress: () => data.nav.compose() } })} />
       ) : (
         <View style={styles.listBox} {...({ onKeyDown } as object)}>

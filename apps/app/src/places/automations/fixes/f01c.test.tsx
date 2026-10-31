@@ -19,10 +19,10 @@ const has = (s: string, needle: string): boolean => s.includes(needle);
 const at = (s: string, needle: string): number => { const i = s.indexOf(needle); assert.ok(i >= 0, `expected ${needle}`); return i; };
 const nw = (): ConfigSample => createConfigSample(northwind);
 
-test("detail header: the Journey name, its record count and late count, Open records in Records, and the Stages, Fields and Settings tabs with their counts", () => {
+test("detail header: the Journey name, its record count and late count, Open board, and the Stages, Fields and Settings tabs with their counts", () => {
   const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" />);
   assert.ok(has(out, 'data-testid="journey-designer"') && has(out, "Client onboarding") && has(out, "14 records") && has(out, "1 late"));
-  assert.ok(has(out, 'data-testid="open-records"') && has(out, "Open records in Records"));
+  assert.ok(has(out, 'data-testid="open-records"') && has(out, "Open board"));
   const tabs = ["stages", "fields", "settings"].map((k) => at(out, `data-testid="subtab-${k}"`));
   assert.deepEqual([...tabs].sort((a, b) => a - b), tabs, "Stages, Fields, Settings in that order");
   assert.ok(has(out, ">5<") && has(out, ">11<"), "five stages and eleven fields (seven from the template, four of its own)");

@@ -48,3 +48,26 @@ test("the QR path draws every dark module once", () => {
   const cells = (qrPath(m).match(/h(\d+)v1/g) ?? []).reduce((sum, seg) => sum + Number(seg.slice(1, -2)), 0);
   assert.equal(cells, dark);
 });
+
+test("an address only this computer can use never gets a code or a QR", async () => {
+  for (const address of ["http://127.0.0.1:60649", "http://localhost:3000", "http://[::1]:80", "http://0.0.0.0:80", "http://169.254.3.4:80"]) {
+    installDom();
+    const calls: string[] = [];
+    const call = (async (cap: string) => { calls.push(cap); return { code: "X", expiresAt: 1 }; }) as unknown as CapCall;
+    const r = createRoot();
+    await act(async () => { r.render(<PairPhoneCard call={call} address={address} onPaired={() => undefined} onTeamSpace={() => undefined} />); });
+    await flush();
+    const root = r.container as never;
+    assert.deepEqual(calls, [], address);
+    assert.equal(find(root, "pair-qr"), null);
+    assert.equal(find(root, "pair-link"), null);
+    assert.equal(find(root, "pair-done"), null);
+    assert.ok(find(root, "pair-phone-local") && find(root, "pair-team"), address);
+  }
+});
+
+test("phoneCanReach accepts names and Wi-Fi addresses, refuses this computer", async () => {
+  const { phoneCanReach } = await import("../shell/session/desktop.ts");
+  for (const ok of ["https://x.vyre.run", "http://192.168.1.20:8420", "https://example.com"]) assert.equal(phoneCanReach(ok), true, ok);
+  for (const no of ["http://127.0.0.1:1", "http://localhost", "http://[::1]:2", "http://169.254.1.1", "http://[fe80::1]", "nonsense"]) assert.equal(phoneCanReach(no), false, no);
+});

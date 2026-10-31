@@ -3,6 +3,8 @@
 // rules) sit over it. Every door is one `Go` function over the pure `step`: a face's "Open Intake's Page", the helper icon, the channel menu's "Connect an Outside Agent", the Computer
 // chip, a face in the sidebar, a request in Needs you all end in the same place. The data comes from the runtime the shell built for the open Space (live queries over the kept copy
 // and `call`), never from sample data. A link from another place arrives as `hash` and becomes the first thing shown.
+import { ImportedSession } from "../imported/ImportedSession.tsx";
+import type { ImportedData } from "../imported/ImportedSession.tsx";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -22,7 +24,7 @@ import { createComposerFill } from "../conversation/data.tsx";
 import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
-import { AGENT_PANE_W, AgentPane } from "../AgentPane.tsx";
+import { AgentPane } from "../AgentPane.tsx";
 import { ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
 import { TerminalList } from "../terminal/TerminalList.tsx";
 import { TerminalRules } from "../terminal/TerminalRules.tsx";
@@ -143,6 +145,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
 
   /* ---------- the other pages ---------- */
   const needs = useMemo(() => needsData(rt, go, nameOf), [rt, go, nameOf]);
+  const importedData = useMemo<ImportedData>(() => ({ call: rt.call, clock: rt.clock, spaceId: rt.space.id, assistantId: rt.assistant.id, openChat: go.chat }), [rt, go]);
   const helperId = route.view === "helper" ? route.threadId : "";
   const helper = useMemo(() => helperData(rt, go, helperId, nameOf), [rt, go, helperId, nameOf]);
   const agentId = route.view === "agent" ? route.agentId : "";
@@ -159,6 +162,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   let main: ReactElement;
   if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
   else if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
+  else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
   else if (conv) {
@@ -273,9 +277,10 @@ function RecordingLayer({ rt, go, nameOf, list, counter, recordingId }: {
 const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
-  pane: { width: AGENT_PANE_W, minHeight: 0 },
+  // No pixel width on the wrappers: the SidePane inside owns its width (dragged, remembered), so the wrapper must follow it.
+  pane: { minHeight: 0 },
   fill: { flex: 1, minHeight: 0 },
-  terminal: { width: TERMINAL_W, minHeight: 0 },
+  terminal: { minHeight: 0 },
   terminalFull: { flex: 1, minWidth: 0, minHeight: 0 },
   toast: { position: "absolute", left: 16, bottom: 16, maxWidth: 420, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string },
   toastText: { fontSize: 12.5, color: "var(--ink)" as string },

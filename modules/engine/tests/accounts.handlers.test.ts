@@ -26,6 +26,7 @@ const routes = (providers: Prov[], over: Record<string, (i: unknown) => unknown>
   "engine.policy.get": () => ({ allowedAccounts: "any" }),
   "engine.defaults.get": () => ({ fallback: [{ accountRef: "#Team_Anthropic_Key" }] }),
   "engine.placement.decide": () => ({ placement: "host" }),
+  "spaces.get": () => ({ space: { kind: "team" } }),
   ...over,
 });
 
@@ -72,6 +73,18 @@ test("account.resolve: a step key makes it a task; Company only drops personal a
   assert.equal((await accountResolve(onHost.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, null);
   const onDevice = fake(routes(sub, { "engine.placement.decide": () => ({ placement: "device" }) }));
   assert.equal((await accountResolve(onDevice.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, "#Dana_Claude");
+});
+
+test("account.resolve: in a Personal Space the host is the person's own computer, so their sign-in pays without the Space switch; a team host still needs it", async () => {
+  const sub = [prov({ id: "prv_4", handle: "#Dana_ChatGPT", providerKey: "codex", connection: "subscription", engine: "codex", spaceMayUse: false })];
+  const none = { "engine.defaults.get": () => ({ fallback: [] }) };
+  const threads = { "threads.get": () => ({ thread: { starter: "usr_dana", agents: [{ agentId: "agt_1" }] } }) };
+  const personal = fake(routes(sub, { ...none, ...threads, "spaces.get": () => ({ space: { kind: "personal" } }) }));
+  assert.deepEqual(await accountResolve(personal.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Dana_ChatGPT", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_4" });
+  const team = fake(routes(sub, { ...none, ...threads }));
+  assert.equal((await accountResolve(team.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, null);
+  const unknown = fake(routes(sub, { ...none, ...threads, "spaces.get": () => { throw new Error("no spaces module"); } }));
+  assert.equal((await accountResolve(unknown.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, null, "an unknown kind is treated as a team server");
 });
 
 test("probe_account: models counted on success; a failed sign-in comes back as an error with a next step; an unknown account is not_found", async () => {

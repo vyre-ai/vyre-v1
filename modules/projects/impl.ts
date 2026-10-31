@@ -2,6 +2,7 @@
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { grantOnProject } from "./handlers/project.ts";
+import { backfill, onRecordEvent } from "./handlers/folders.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -17,6 +18,22 @@ export const consumers = {
       const id = event.payload["projectId"];
       if (typeof id === "string") await grantOnProject(ctx as never, id);
     },
+  },
+  /** Every project record has its folder in Files > Projects: made with the record, renamed and trashed with it (handlers/folders.ts). */
+  "projects.record_folder": {
+    on: ["record.created", "record.updated", "record.deleted", "record.restored"],
+    async run(ctx: Ctx, event: { name: string; payload: Record<string, unknown>; actor?: string }): Promise<void> {
+      await onRecordEvent(ctx as never, event);
+    },
+  },
+};
+
+/** At boot, and again every ten minutes: project records with an empty folder field get one, and the folders' access is brought back in line with their records. */
+export const periodic = {
+  "projects.folder_backfill": {
+    everyMs: 10 * 60_000,
+    immediate: true,
+    async run(ctx: Ctx): Promise<void> { await backfill(ctx as never); },
   },
 };
 

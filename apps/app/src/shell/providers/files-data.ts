@@ -42,6 +42,7 @@ export interface MountDoor { connect(into: string | null): void }
 
 export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountDoor): FilesData {
   return {
+    ...(rt.space.kind === "personal" ? { personal: true } : {}),
     ...(memory ? { memoryView: memory.view } : {}),
     screens: rt.screens,
     live: (cap, input) => capLive(rt, cap, input as Record<string, unknown>),

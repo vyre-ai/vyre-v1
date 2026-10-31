@@ -62,7 +62,7 @@ export function selectableIndices(entries: readonly MenuEntry[]): number[] {
   const out: number[] = [];
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
-    if (entry !== undefined && isItem(entry)) out.push(i);
+    if (entry !== undefined && isItem(entry) && entry.disabled !== true) out.push(i);
   }
   return out;
 }
@@ -367,12 +367,13 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       aria-label={entry.label}
       aria-checked={entry.checked === true ? true : undefined}
       aria-current={entry.checked === true ? "true" : undefined}
-      onPress={(event) => { event.stopPropagation(); onChoose(); }}
-      onHoverIn={onHover}
-      onFocus={onHover}
+      aria-disabled={entry.disabled === true ? true : undefined}
+      onPress={(event) => { event.stopPropagation(); if (entry.disabled !== true) onChoose(); }}
+      onHoverIn={entry.disabled === true ? undefined : onHover}
+      onFocus={entry.disabled === true ? undefined : onHover}
       testID={report ? "menu-item-report" : `menu-item-${entry.label}`}
-      style={[styles.item, wash]}
-      {...webProps(report ? { dataSet: { report: "true" } } : {})}
+      style={[styles.item, wash, entry.disabled === true ? { opacity: 0.45 } : null]}
+      {...webProps({ ...(report ? { dataSet: { report: "true" } } : {}), ...(entry.disabled === true && entry.reason !== undefined ? { title: entry.reason } : {}) })}
     >
       {entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
       <Text numberOfLines={1} style={[styles.label, { color: ink }]}>{entry.label}</Text>

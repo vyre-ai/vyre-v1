@@ -200,7 +200,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
     journeyRows.push(
       <View key={j.id} {...webOnly({ title: journeyNote(j) })}>
         <Row
-          id={`journey-${j.id}`} title={j.name} selected={selectedJourneyId === j.id}
+          id={`journey-${j.id}`} title={j.name} note={journeyNote(j)} tall selected={selectedJourneyId === j.id}
           leading={<View aria-hidden style={sb.jtile}><Text style={sb.jtileText}>{initials(j.name)}</Text></View>}
           trailing={<Badge n={j.inFlight} testID={`journey-count-${j.id}`} />}
           onPress={() => { data.nav.openJourney(j.id); onChoose?.(); }}

@@ -47,6 +47,8 @@ export interface Go {
   thread(threadId: string): void;
   agent(agentId: string, tab?: TabKey): void;
   needs(taskId?: string): void;
+  /** An imported coding session's transcript. */
+  imported(conversationId: string): void;
   /** The agent's own chat (chat.start returns it). */
   agentChat(agentId: string): void;
   computer(computerId: string, chat?: boolean): void;
@@ -238,6 +240,7 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
     },
     agent: (agentId, tab) => act({ t: "agent", agentId, ...(tab ? { tab } : {}) }),
     needs: (taskId) => act({ t: "needs", ...(taskId ? { taskId } : {}) }),
+    imported: (conversationId) => act({ t: "imported", conversationId }),
     agentChat: (agentId) => {
       void chatWith(rt, agentId).then((id) => { if (id) act({ t: "chat", threadId: id, pane: true }); else say("Could not start the chat. Try again."); });
     },
@@ -281,7 +284,7 @@ export const chatsActions = (go: Go, fill?: ComposerFill): ChatsActions => ({ op
 /** The sidebar: its rows open in this place; Needs you and All agents are this place's own pages. */
 export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void): ChatsSidebarData {
   const base = sidebarData(rt, chatsActions(go));
-  return { ...base, nav: { ...base.nav, openNeedsYou: (taskId?: string) => go.needs(taskId), openAllAgents: () => go.allAgents(), openSearch: () => go.search(), ...(toggleSidebar ? { toggleSidebar } : {}) } };
+  return { ...base, nav: { ...base.nav, openNeedsYou: (taskId?: string) => go.needs(taskId), openAllAgents: () => go.allAgents(), openSearch: () => go.search(), openImported: (id: string) => go.imported(id), ...(toggleSidebar ? { toggleSidebar } : {}) } };
 }
 
 /** The open chat: a face's page, a helper, the Computer chip, a channel's Connect sheet and the Waiting on line are all this place's doors. */

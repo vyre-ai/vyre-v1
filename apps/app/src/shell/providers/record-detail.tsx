@@ -10,6 +10,8 @@ import { ProjectPage } from "../../places/records/projectpage/ProjectPage.tsx";
 import { listProjectImports, ProjectPageDataProvider } from "../../places/records/projectpage/data.tsx";
 import type { ImportedSessionTranscript, ProjectPageData } from "../../places/records/projectpage/data.tsx";
 import { capLive, nameLookup } from "./records-live.ts";
+import { askRequestFor, putAsk } from "../../places/inbox/contacttab/ask.ts";
+import { AgentRecord } from "./agent-record.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export async function resolveRecordType(call: ShellRuntime["call"], recordId: string, hint?: string): Promise<string> {
@@ -54,7 +56,13 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
     live: (cap, input) => capLive(rt, cap, input as Record<string, unknown>), call: rt.call, nameOf: nameLookup(rt), now: () => rt.clock().now,
     nav: {
       openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
-      openChat: (type, id, ask) => { void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [rt.assistant.id], scopeType: type, scopeId: id, ...(ask ? { first: ask } : {}) }).then((out: unknown) => { rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }); }).catch(() => setActionError("Couldn’t open the record’s chat. Try again.")); },
+      openChat: (type, id) => { void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [rt.assistant.id], scopeType: type, scopeId: id }).then((out: unknown) => { rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }); }).catch(() => setActionError("Couldn’t open the record’s chat. Try again.")); },
+      askFor: (input) => {
+        const first = (n: string): string => n.trim().split(/\s+/)[0] ?? n;
+        const request = askRequestFor(input, { sender: first(rt.me.name), spaceKind: rt.space.kind, ...(rt.baseUrl ? { baseUrl: rt.baseUrl } : {}), deferred: (cap) => rt.isDeferred(cap) });
+        putAsk(request);
+        rt.open({ screen: "inbox.contact-tab", args: { contactId: input.contact.contactId, ask: request.id } });
+      },
       openFiles: (type, id) => { void rt.call("records.get", { type, recordId: id }).then((out: unknown) => {
         const folder = (out as { record: { fields: Record<string, unknown> } }).record.fields.folder;
         if (typeof folder !== "string" || !folder) throw new Error("No folder");
@@ -79,6 +87,7 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
   if (actionError) return <States kind="error" message={actionError} retryable onRetry={() => setActionError("")} />;
   if (resolved.error) return <States kind="error" message={resolved.error} />;
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;
+  if (!fields && resolved.type === "agent") return <AgentRecord key={recordId} rt={rt} recordId={resolved.recordId ?? recordId} />;
   return !fields && resolved.projectId !== undefined
     ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} tab={tab} onTabChange={(next) => rt.open({ subject: { type: "project", id: resolved.projectId! }, args: { tab: next } })} /></ProjectPageDataProvider>
     : <RecordPageDataProvider value={data}><RecordPage key={`${resolved.type}:${recordId}`} type={resolved.type} recordId={resolved.recordId ?? recordId} /></RecordPageDataProvider>;

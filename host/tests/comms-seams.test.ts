@@ -30,6 +30,20 @@ test("twilio: an absent API key is null, a recording is fetched only from Twilio
   assert.equal(await h.publicUrl(ctx), "https://space.example");
 });
 
+test("twilio: a Space that added Twilio from the Vault template (one item, its .env fields) is read the same as the two named items", async () => {
+  const tpl: Record<string, string> = { "#Twilio.TWILIO_ACCOUNT_SID": "AC9", "#Twilio.TWILIO_AUTH_TOKEN": "tok9" };
+  const v = { secret: async (h: string) => { const x = tpl[h]; if (x === undefined) throw new Error("no such item"); return x; } };
+  const seen: (string | undefined)[] = [];
+  const fetch: SeamFetch = async (_url, init) => { seen.push(init?.headers?.["authorization"]); return { status: 200, text: async () => "", arrayBuffer: async () => new Uint8Array([1]).buffer }; };
+  const h = createTwilioHost({ vault: v, fetch, blobs: { put: async () => "blb_t" }, publicUrl: async () => "https://space.example" });
+  assert.equal(await h.secret(ctx, "#Twilio_Account"), "AC9");
+  assert.equal(await h.secret(ctx, "#Twilio_Auth"), "tok9");
+  await h.download(ctx, { url: "https://api.twilio.com/2010-04-01/Accounts/AC9/Recordings/RE1.mp3" });
+  assert.equal(seen[0], `Basic ${Buffer.from("AC9:tok9").toString("base64")}`);
+  assert.equal(await h.optionalSecret(ctx, "#Twilio_API_Key"), null, "no template field stands in for the API key");
+  assert.equal(await codeOf(h.secret(ctx, "#Twilio.TWILIO_ACCOUNT_SID")), "permission.no_grant", "the template field is not a handle a module may name");
+});
+
 test("github: the App JWT is signed in the Vault, and a token goes behind a filler handle that fills git once", async () => {
   const filled: [string, string][] = [];
   const filler = createFiller({ git_credential: (ref, value) => filled.push([ref, value]) }, () => 1_000);

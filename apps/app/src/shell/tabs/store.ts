@@ -3,6 +3,7 @@
 // the device, the person and the Space. Nothing here calls the server: a tab list that left the device would make Starred and tabs the same thing, and they are not.
 import type { PlaceId } from "../rail/kits.ts";
 import { PLACE_TITLE } from "../rail/kits.ts";
+import { parseHash } from "../hash/hash.ts";
 
 /** Tabs are device state. Starred is the synced one (spec 3.0). */
 export const TABS_SYNCED = false;
@@ -27,8 +28,18 @@ export interface TabsState {
 
 export const EMPTY_TABS: TabsState = { tabs: [], active: "" };
 
+/**
+ * A tab is unique by what it shows: a place is one tab, an item (thread, record, file...) is one tab by its subject, a Records type is one tab by its type.
+ * Other hash parts (the screen inside a place, view settings) move within the tab and never make another one. A hash that is not `k=v` text is an opaque id and stays as given.
+ */
 export function tabKey(place: PlaceId, hash?: string): string {
-  return hash === undefined || hash === "" ? place : `${place}:${hash}`;
+  if (hash === undefined || hash === "") return place;
+  if (!hash.includes("=")) return `${place}:${hash}`;
+  const t = parseHash(hash);
+  if (t.subject !== undefined) return `${place}:subject=${t.subject.type}:${t.subject.id}`;
+  const type = t.args["type"];
+  if (type !== undefined && type !== "") return `${place}:type=${type}`;
+  return place;
 }
 
 export function findTab(state: TabsState, key: string): TabEntry | undefined {
@@ -41,7 +52,13 @@ export function activeEntry(state: TabsState): TabEntry | undefined {
 
 /** Opens a tab or selects the one already open with that key. `background` opens it behind the current tab (Cmd-click). */
 export function openTab(state: TabsState, tab: TabEntry, background = false): TabsState {
-  if (findTab(state, tab.key) !== undefined) return background ? state : { tabs: state.tabs, active: tab.key };
+  const at = state.tabs.find((t) => t.key === tab.key);
+  if (at !== undefined) {
+    if (background) return state;
+    // the tab follows where its place went (a new screen inside it), so coming back lands there
+    const moved = tab.hash !== undefined && tab.hash !== at.hash && !at.isNew;
+    return { tabs: moved ? state.tabs.map((t) => (t === at ? { ...t, hash: tab.hash as string } : t)) : state.tabs, active: tab.key };
+  }
   const tabs = [...state.tabs, tab];
   return { tabs, active: background && state.active !== "" ? state.active : tab.key };
 }
@@ -133,14 +150,22 @@ export function readTabs(raw: string | null): TabsState | null {
   if (!isRecord(data) || data["v"] !== 1 || typeof data["active"] !== "string" || !Array.isArray(data["tabs"])) return null;
   const tabs: TabEntry[] = [];
   const seen = new Set<string>();
+  const renamed = new Map<string, string>();
   for (const row of data["tabs"] as unknown[]) {
     if (!isRecord(row)) return null;
     const { key, title, place, hash, isNew, pinned } = row;
     if (typeof key !== "string" || typeof title !== "string" || typeof place !== "string" || !KNOWN_PLACES.has(place)) return null;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const hashText = typeof hash === "string" && hash !== "" ? hash : undefined;
+    // tab lists saved before a place was unique can hold the same place or item twice: one tab per identity, the first kept
+    const id = isNew === true ? key : tabKey(place as PlaceId, hashText);
+    renamed.set(key, id);
+    if (seen.has(id)) {
+      if (pinned === true) { const kept = tabs.find((t) => t.key === id); if (kept !== undefined) kept.pinned = true; }
+      continue;
+    }
+    seen.add(id);
     tabs.push({
-      key,
+      key: id,
       title,
       place: place as PlaceId,
       ...(typeof hash === "string" && hash !== "" ? { hash } : {}),
@@ -148,8 +173,15 @@ export function readTabs(raw: string | null): TabsState | null {
       ...(pinned === true ? { pinned: true } : {}),
     });
   }
-  const active = data["active"];
+  const active = renamed.get(data["active"]) ?? data["active"];
   return { tabs, active: tabs.some((t) => t.key === active) ? active : (tabs[0]?.key ?? "") };
+}
+
+/** A tab list without the tabs of places a Space does not show; the selection moves to a neighbour when its tab goes. */
+export function withoutPlaces(state: TabsState, hidden: readonly PlaceId[]): TabsState {
+  if (!state.tabs.some((t) => hidden.includes(t.place))) return state;
+  const tabs = state.tabs.filter((t) => !hidden.includes(t.place));
+  return { tabs, active: tabs.some((t) => t.key === state.active) ? state.active : (tabs[0]?.key ?? "") };
 }
 
 /* ---------- the controller for one Space on one device ---------- */
@@ -177,10 +209,13 @@ export interface TabsControllerOptions {
   storage: TabsStorage | null;
   /** The place a Space opens on when nothing was saved. */
   start: PlaceId;
+  /** Places this Space does not show (a Personal Space has no Apps): never opened as a tab, dropped from a saved list. */
+  hidden?: readonly PlaceId[];
 }
 
 export function createTabsController(options: TabsControllerOptions): TabsController {
   const storeKey = tabsStorageKey(options.deviceId, options.personId, options.spaceId);
+  const hidden = options.hidden ?? [];
   let state: TabsState = (() => {
     let raw: string | null = null;
     try {
@@ -188,7 +223,9 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     } catch {
       raw = null;
     }
-    return readTabs(raw) ?? openTab(EMPTY_TABS, placeTab(options.start));
+    const saved = readTabs(raw);
+    const kept = saved === null ? null : withoutPlaces(saved, hidden);
+    return kept !== null && kept.tabs.length > 0 ? kept : openTab(EMPTY_TABS, placeTab(options.start));
   })();
   const listeners = new Set<() => void>();
 
@@ -212,7 +249,10 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
-    openPlace(place, hash, title, background = false) { set(openTab(state, placeTab(place, hash, title), background)); },
+    openPlace(place, hash, title, background = false) {
+      if (hidden.includes(place)) return;
+      set(openTab(state, placeTab(place, hash, title), background));
+    },
     newTab(from) {
       const tab = newTabEntry(from, state);
       set(openTab(state, tab));

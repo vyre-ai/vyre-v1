@@ -92,7 +92,7 @@ export function failedTotal(autos: readonly AutoRow[]): number {
 }
 
 export function journeyNote(j: JourneyRow): string {
-  return `${j.stages} ${j.stages === 1 ? "stage" : "stages"}${j.inFlight > 0 ? `, ${j.inFlight} in flight` : ""}`;
+  return `${j.stages} ${j.stages === 1 ? "stage" : "stages"}, ${j.inFlight} ${j.inFlight === 1 ? "record" : "records"}`;
 }
 
 export function allGroupKeys(sections: readonly Section[]): Set<string> {

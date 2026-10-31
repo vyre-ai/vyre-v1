@@ -1,0 +1,1 @@
+Settings > This computer now uses the shared rows. Update Vyre is one row (version, status, Check or Install, with the signature note on hover). Your sessions has a Bring your sessions row that opens the onboarding picker in place, and the archive lists each session with its source mark, a one-line title and the date, with Open.

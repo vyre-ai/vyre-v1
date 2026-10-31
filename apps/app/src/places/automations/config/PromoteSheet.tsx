@@ -1,6 +1,8 @@
 // Promote to Space (spec 3.7, 2.12; ARCH 7.7): a Personal Automation runs on its owner's own access; a Space Automation runs on access granted to the Automation itself. This sheet is the
 // access diff before that change: what it stops using of yours, what it will run on, and, for each AI step on a subscription sign-in (which cannot be shared), the shared API key to use
 // instead. Promote stays off until every such step has an API key. Nothing changes until the button is pressed, and the history and versions come with it.
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectEntries } from "../../../shell/connect/model.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -58,6 +60,7 @@ export function PromoteSheet({ automation, onClose, onPromoted, preview: given }
 
 function PromoteBody({ automation, preview, onClose, onPromoted, call, keys, me, name }: { automation: Automation; preview: PromoteDiff; onClose(): void; onPromoted?: (a: Automation) => void; call(cap: string, input: unknown): Promise<unknown>; keys: readonly { id: string; name: string; kind: "subscription" | "api"; shared?: boolean }[]; me: string; name(id: string): string }): ReactElement {
   const { element, show } = useMenu();
+  const openConnect = useOpenConnect();
   const [choices, setChoices] = useState<Choice[]>(() => initialChoices(preview.diff, keys));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -109,7 +112,7 @@ function PromoteBody({ automation, preview, onClose, onPromoted, call, keys, me,
               </View>
               <Pressable
                 accessibilityRole="button" accessibilityLabel={`Key for ${nodeTitle(k.stepId)}, ${label}`} testID={`replace-pick-${k.stepId}`}
-                onPress={(e) => { const n = (e as { nativeEvent?: { clientX?: number; clientY?: number; pageX?: number; pageY?: number } }).nativeEvent ?? {}; show(apiKeys.length ? each(apiKeys, (x) => ({ label: x.name, checked: x.id === chosen, onSelect: () => setChoices((c) => setChoice(c, k.stepId, x.id)) })) : [{ head: "No shared API key yet. Add one in the Vault." }], n.clientX ?? n.pageX ?? 0, n.clientY ?? n.pageY ?? 0, "other", { label: "Shared API keys" }); }}
+                onPress={(e) => { const n = (e as { nativeEvent?: { clientX?: number; clientY?: number; pageX?: number; pageY?: number } }).nativeEvent ?? {}; show(connectEntries(each(apiKeys, (x) => ({ label: x.name, checked: x.id === chosen, onSelect: () => setChoices((c) => setChoice(c, k.stepId, x.id)) })), { kind: "ai" }, openConnect, (made) => setChoices((c) => setChoice(c, k.stepId, made.id)), apiKeys.length === 0), n.clientX ?? n.pageX ?? 0, n.clientY ?? n.pageY ?? 0, "other", { label: "Shared API keys" }); }}
                 style={[s.pick, pointer]}
               >
                 <Glyph name="key" size={13} color="var(--ink-3)" />

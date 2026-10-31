@@ -1,5 +1,6 @@
 // What the Automations place mounts beyond the canvas: the config directory (who can be picked), the runs data, run history on an automation, Failed runs, a run in Main or the side,
 // and the Journey designer with its pane and the new Journey sheet. All of it reads the Space's runtime; nothing here invents a row.
+import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
@@ -56,9 +57,10 @@ export function useDirectory(rt: ShellRuntime): ConfigDirectory {
   }), [list, loaded]);
 }
 
-export function configExtras(directory: ConfigDirectory, nav: Pick<AutomationsNav, "openAutomation"> & { openRuns(id: string): void }): ConfigExtras {
+export function configExtras(directory: ConfigDirectory, nav: Pick<AutomationsNav, "openAutomation"> & { openRuns(id: string): void; openRecords?(recordType: string, stage?: string): void }): ConfigExtras {
   return {
     directory,
+    ...(nav.openRecords ? { openRecords: nav.openRecords } : {}),
     openAutomation: nav.openAutomation,
     openRuns: nav.openRuns,
   };
@@ -95,7 +97,7 @@ export function JourneyView({ journeyId }: { journeyId: string }): ReactElement 
   return (
     <View testID="journey-view" style={j.row}>
       <View style={j.main}><JourneyDesigner key={journeyId} journeyId={journeyId} selection={selection} onSelect={setSelection} /></View>
-      {selection ? <View style={j.pane}><JourneyPane journeyId={journeyId} selection={selection} /></View> : null}
+      {selection ? <ResizableColumn paneKey="journey-pane" defaultWidth={360} grow="left" min={280} style={j.pane as never}><JourneyPane journeyId={journeyId} selection={selection} /></ResizableColumn> : null}
     </View>
   );
 }

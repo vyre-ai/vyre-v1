@@ -11,7 +11,7 @@ export type Scope =
   | { kind: "starred" }
   | { kind: "follow" }
   | { kind: "camp" };
-export type MainView = "list" | "calendar";
+export type MainView = "list" | "calendar" | "connect";
 
 export interface InboxState {
   main: MainView;
@@ -234,6 +234,23 @@ export function navGroups(mailboxes: readonly Mailbox[], counts: Counts | null, 
   return groups.filter((g) => g.items.length > 0);
 }
 
+// ---------------------------------------------------------------- channels
+
+/** The ways to bring mail or texts in. `kind` is what InboxNav.connect takes; each opens the flow that already exists (mail connections, or the Vault's Twilio form). */
+export interface ConnectTile { kind: "gmail" | "outlook" | "imap" | "twilio"; brand: string; label: string; hint: string }
+export const CONNECT_TILES: readonly ConnectTile[] = [
+  { kind: "gmail", brand: "gmail", label: "Gmail", hint: "Sign in with Google" },
+  { kind: "outlook", brand: "microsoft", label: "Outlook", hint: "Sign in with Microsoft" },
+  { kind: "imap", brand: "mail", label: "Other email", hint: "IMAP and SMTP" },
+  { kind: "twilio", brand: "twilio", label: "Twilio", hint: "Texts and calls" },
+];
+
+/** Something can send when a mailbox is live (not disconnected, not receive-only) or a number is claimed. Nothing here until a channel is connected. */
+export function canSend(mailboxes: readonly Mailbox[], counts: Counts | null): boolean {
+  if (mailboxes.some((m) => m.provider !== "inbound_only" && m.state !== "disconnected")) return true;
+  return counts !== null && counts.byInbox.some((c) => c.kind === "number");
+}
+
 export function calendarIds(calendars: readonly CalendarRow[]): string[] {
   return calendars.map((c) => c.id);
 }
@@ -260,6 +277,7 @@ export type Action =
   | { type: "select"; key: string | null }
   | { type: "section"; key: string }
   | { type: "calendar" }
+  | { type: "connect" }
   | { type: "calendarVisible"; id: string }
   | { type: "calendarOnly"; id: string; all: readonly string[] };
 
@@ -275,6 +293,7 @@ export function reduce(s: InboxState, a: Action): InboxState {
     case "select": return { ...s, selected: a.key };
     case "section": return { ...s, closed: toggled(s.closed, a.key) };
     case "calendar": return { ...s, main: "calendar", selected: null };
+    case "connect": return { ...s, main: "connect", selected: null };
     case "calendarVisible": return { ...s, hiddenCalendars: toggled(s.hiddenCalendars, a.id) };
     case "calendarOnly": return { ...s, hiddenCalendars: a.all.filter((id) => id !== a.id) };
   }

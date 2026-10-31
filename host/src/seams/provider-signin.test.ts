@@ -51,7 +51,12 @@ test("claude: the link carries the PKCE challenge of a verifier only the server 
   assert.equal(sent["expires_in"], CLAUDE.lifetimeSec);
   // the verifier sent is the one whose hash is in the link
   assert.equal(crypto.createHash("sha256").update(String(sent["code_verifier"])).digest("base64url"), u.searchParams.get("code_challenge"));
-  assert.equal(port.active("sub_1"), false, "a finished flow is gone");
+  assert.equal(port.active("sub_1"), true, "a finished flow is held until the module has saved it");
+  assert.deepEqual(await port.step({ id: "sub_1", person: "usr_a", code: `AUTHCODE123456#${state}` }), done, "a retry is answered from the finished flow");
+  assert.equal(s.calls.length, 1, "the code was exchanged once");
+  assert.deepEqual(await port.step({ id: "sub_1", person: "usr_b" }), { state: "failed", message: "That sign-in is over. Start again." }, "and only to the person who started it");
+  port.cancel("sub_1");
+  assert.equal(port.active("sub_1"), false, "once saved, the finished flow is gone");
 });
 
 test("claude: a code from another sign-in, a malformed paste and a refusal each say what to do, and the credential is never in the words", async () => {

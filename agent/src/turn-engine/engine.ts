@@ -52,7 +52,7 @@ export interface EngineOptions {
    */
   nextAccount?: (q: AccountQuery) => Promise<ResolvedAccount | null>;
   /** No account could be found for a turn: raise the Unblock task for the starter; when it is answered the host calls wake() to run the turn again. */
-  onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string }) => Promise<void> | void;
+  onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string; routine: boolean }) => Promise<void> | void;
   /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
   onTurnEnd?: (turn: Readonly<TurnRow>, account: ResolvedAccount | null) => Promise<void> | void;
   queue?: QueueStore;
@@ -75,6 +75,20 @@ export interface EngineOptions {
   historyWindow?: number;
   /** Persisted turn.block coalescing interval for streaming text. */
   blockMs?: number;
+  /** A running turn whose session says nothing for this long (and runs no tool) ends as failed with turn_timeout, so a hung provider never leaves a turn running. Default 10 minutes. */
+  idleMs?: number;
+}
+
+/** The events of `src`, but a rejection of `stop` ends the wait even when the source never answers. The source is closed without waiting: a hung one may never return. */
+async function* guarded<T>(src: AsyncIterable<T>, stop: Promise<never>): AsyncGenerator<T> {
+  const it = src[Symbol.asyncIterator]();
+  try {
+    for (;;) {
+      const r = await Promise.race([it.next(), stop]);
+      if (r.done) return;
+      yield r.value;
+    }
+  } finally { void Promise.resolve(it.return?.()).catch(() => undefined); }
 }
 
 /** Provider errors that mean this account cannot serve the turn (agent/src/accounts/fallback.ts holds the same list). */
@@ -134,6 +148,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const schedule = opts.schedule ?? defaultSchedule;
   const historyWindow = opts.historyWindow ?? 50;
   const blockMs = opts.blockMs ?? 250;
+  const idleMs = opts.idleMs ?? 600_000;
   const mine: Placement = opts.holder.startsWith("device:") ? "device" : "host";
 
   const threads = new Map<string, ThreadState>();
@@ -279,8 +294,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     st.running = run;
     leases.setTurn(st.thread.id, opts.holder, turn.id);
     emit({ type: "turn.started", threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, qseq: item.qseq, asker });
+    // The same beat watches for a session that went quiet: no event for idleMs and no tool running ends the turn as turn_timeout.
+    let lastSeen = hr();
+    let inTool = false;
+    let hush: (e: Error) => void = () => undefined;
+    const quiet = new Promise<never>((_, reject) => { hush = reject; });
+    quiet.catch(() => undefined);
     const stopBeat = schedule(() => {
       if (!leases.renew(st.thread.id, opts.holder, now())) { run.lostLease = true; void cancelRunning(st); }
+      else if (!inTool && hr() - lastSeen > idleMs) hush(Object.assign(new Error("the session went quiet"), { code: "turn_timeout" }));
     }, HEARTBEAT_MS);
 
     const trigger = findMessage(st, item.messageId);
@@ -301,8 +323,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
       if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
       if (account === null) {
-        // Nobody has a usable key for this turn: no session, an Unblock for the starter, and the turn ends as failed (no_account) until they add one.
-        try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
+        // Nobody has a usable key for this turn: no session, the turn ends as failed (no_account) until they add one.
+        try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, routine: item.routine }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
         throw Object.assign(new Error("no account can pay for this turn"), { code: "no_account" });
       }
       const failedRefs: string[] = [];
@@ -320,7 +342,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (wait) waits.remove(wait.taskId);
       const t0 = enqueuedHr.get(`${item.threadId}:${item.qseq}`) ?? hr();
       let ended = false;
-      for await (const ev of session.send(input) as AsyncIterable<DriverEvent>) {
+      for await (const ev of guarded(session.send(input) as AsyncIterable<DriverEvent>, quiet)) {
+        lastSeen = hr();
         if (run.cancelled || run.lostLease) break;
         switch (ev.type) {
           case "text":
@@ -331,7 +354,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "tool_call": {
             flush("text");
             flush("tool_call");
-            const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker });
+            inTool = true;
+            const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker }).finally(() => { inTool = false; lastSeen = hr(); });
             if (run.cancelled || run.lostLease) break;
             if (result.held) {
               // Held at the Gate: no mode, Ask, Allow or Auto, turns this into a result. The turn parks on the task.
@@ -384,7 +408,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (!run.cancelled) turn.error = { code, message: e instanceof Error ? e.message : "the turn failed" };
     } finally {
       stopBeat();
-      try { await run.session?.close(); } catch { /* a session that will not close is dropped */ }
+      // a hung session may never close: give it a few seconds, then drop it so the turn can end
+      try { await Promise.race([run.session?.close(), new Promise<void>((done) => { const h = setTimeout(done, 5000); if (typeof h === "object" && "unref" in h) h.unref(); })]); } catch { /* a session that will not close is dropped */ }
     }
 
     const mineStill = leases.renew(st.thread.id, opts.holder, now());

@@ -122,6 +122,10 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
   replica.resolve("records.versions", (t, i: CapMap["records.versions"]["in"]) => ({ versions: ([...(t.get("versions")?.values() ?? [])] as unknown as (Version & { recordId: string })[]).filter((v) => v.recordId === i.recordId).map(({ recordId: _r, ...v }) => v as Version) }));
   replica.resolve("memory.find_by_subject", (t, i: CapMap["memory.find_by_subject"]["in"]) => ({ facts: ([...(t.get("facts")?.values() ?? [])] as unknown as (CapMap["memory.find_by_subject"]["out"]["facts"][number] & { subject: string })[]).filter((x) => x.subject === i.subject).map(({ subject: _s, ...x }) => x as CapMap["memory.find_by_subject"]["out"]["facts"][number]), notes: [] }));
 
+  // the Files reads of a record's folder: folders by id, and the files and folders inside one
+  replica.resolve("files.folder.get", (t, i: CapMap["files.folder.get"]["in"]) => ({ folder: t.get("folders")?.get(i.folderId) as never }));
+  replica.resolve("files.list", (t, i: CapMap["files.list"]["in"]) => ({ files: ([...(t.get("files")?.values() ?? [])] as unknown as Array<{ folderId: string }>).filter((x) => x.folderId === i.folder) as never, folders: [] }));
+
   let hist = 0;
   const writes: Record<string, (i: never) => unknown> = {
     "records.update": (i: { type: string; recordId: string; patch: Record<string, unknown>; baseVersion?: number }) => {
@@ -152,7 +156,7 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
       return w(input as never);
     },
     now: () => SAMPLE_NOW, nameOf: (id) => space.people[id] ?? id,
-    nav: { openRecord: (t, id) => void opened.push(`record:${t}:${id}`), openChat: (t, id, ask) => void opened.push(`chat:${t}:${id}${ask ? `:${ask}` : ""}`), openFiles: (t, id) => void opened.push(`files:${t}:${id}`), openSource: (l) => void opened.push(`source:${l}`) },
+    nav: { openRecord: (t, id) => void opened.push(`record:${t}:${id}`), openChat: (t, id) => void opened.push(`chat:${t}:${id}`), askFor: (x) => void opened.push(`ask:${x.type}:${x.recordId}:${x.contact.contactId}:${x.missing.map((m) => m.field).join(",")}`), openFiles: (t, id) => void opened.push(`files:${t}:${id}`), openSource: (l) => void opened.push(`source:${l}`) },
   };
   return { data, replica, calls, opened, prefs };
 }

@@ -37,6 +37,8 @@ export const ReservedImage = memo(function ReservedImage({ uri, width, height, l
 export interface AvatarSlotProps {
   /** The author's name: the face is drawn from it, so there is nothing to wait for. */
   label: string;
+  /** The author's id: agents and the assistant are drawn from it, so a rename keeps the face. */
+  seedId?: string;
   size?: number;
   /** An agent by default (a stream is an agent's answer). */
   kind?: AvatarKind;
@@ -44,10 +46,10 @@ export interface AvatarSlotProps {
 }
 
 /** A square of a fixed size with the author's shared face in it: the same box whether or not anything has arrived. */
-export const AvatarSlot = memo(function AvatarSlot({ label, size = AVATAR_SIZE, kind = "agent", testID }: AvatarSlotProps) {
+export const AvatarSlot = memo(function AvatarSlot({ label, seedId, size = AVATAR_SIZE, kind = "agent", testID }: AvatarSlotProps) {
   return (
     <View testID={testID} style={[styles.avatar, { width: size, height: size }]}>
-      <Avatar name={label} kind={kind} size={size} />
+      <Avatar name={label} seedId={seedId} kind={kind} size={size} />
     </View>
   );
 });

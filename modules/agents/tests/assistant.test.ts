@@ -102,3 +102,18 @@ test("a changed display name moves an assistant that wears the default; one the 
   assert.deepEqual(await changed(hn.ctx, ev(LEO, "Leo James", "Leon James")), [], "a name the person chose is kept");
   assert.deepEqual(await changed(hn.ctx, ev(DANA, "Ines Reyes", "Ines Reyes", "profile.title")), [], "other settings are ignored");
 });
+
+test("on boot with the people list not readable, the exact old shape '<First> Assistant' is still renamed; other names are not", async () => {
+  const { handlers } = await import("../impl.ts");
+  const get = handlers["agents.get"] as unknown as (c: unknown, i: unknown) => Promise<{ agent: { name: string } }>;
+  const update = handlers["agents.update"] as unknown as (c: unknown, i: unknown) => Promise<unknown>;
+  const hn = harness();
+  const [dana] = await run(hn.person(DANA), born(DANA, "Dana Reyes"));
+  const [leo] = await run(hn.person(LEO), born(LEO, "Leo James"));
+  await update(hn.person(DANA), { agentId: dana!, patch: { name: "Dana Assistant" } });
+  await update(hn.person(LEO), { agentId: leo!, patch: { name: "Leo Reyes Helper" } });
+  assert.deepEqual(await periodic["agents.assistant_names"].run(hn.ctx), [dana], "no principals in the world, the name shape alone decides");
+  assert.equal((await get(hn.person(DANA), { agentId: dana! })).agent.name, "Dana’s Assistant");
+  assert.equal((await get(hn.person(LEO), { agentId: leo! })).agent.name, "Leo Reyes Helper");
+  assert.equal(periodic["agents.assistant_names"].everyMs, 15 * 60_000, "it retries, so a list that was not ready at boot is not missed for a week");
+});

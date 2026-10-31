@@ -41,7 +41,7 @@ test("the three seeds mount and every place opens in each Space with only that S
       await hub.whenReady();
     }
     const places = railPlaces(hub.rail());
-    assert.ok(places.length >= 8, `${id} has a rail`);
+    assert.ok(places.length >= 7, `${id} has a rail`);
     for (const p of places) {
       hub.go(p);
       const out = html(hub);

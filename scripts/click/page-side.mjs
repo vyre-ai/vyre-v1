@@ -58,7 +58,9 @@ export function enumerate(scopeSel) {
   const seen = new Set();
   const out = [];
   const all = [];
-  for (const r of roots) { if (scopeSel && r.matches(SEL)) all.push(r); for (const e of r.querySelectorAll(SEL)) all.push(e); }
+  // A resize separator (role=separator) is a drag and arrow-key control, not a click target: ui/src/SidePane/resize.test.tsx covers its keys and reset.
+  const clickable = (e) => e.getAttribute("role") !== "separator";
+  for (const r of roots) { if (scopeSel && r.matches(SEL) && clickable(r)) all.push(r); for (const e of r.querySelectorAll(SEL)) if (clickable(e)) all.push(e); }
   const matched = new Set(all);
   const shortLabel = (e) => {
     const l = e.getAttribute("aria-label") || e.getAttribute("title") || (e.innerText || "").replace(/\s+/g, " ").trim() || e.getAttribute("data-testid") || e.getAttribute("placeholder") || e.getAttribute("alt") || "";

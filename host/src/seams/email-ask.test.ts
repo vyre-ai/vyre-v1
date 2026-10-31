@@ -93,3 +93,15 @@ test("an agent that asks runs as that agent for the person it acts for, never as
   assert.equal(alone.calls.length, 0, "nothing runs for a caller with no person behind it");
   assert.equal(alone.d.cancel("agt_caller", "eml_1"), 0);
 });
+
+test("with no suggestion an agent that is working or asleep is picked, a paused one never is", async () => {
+  const pick = async (agents: { agentId: string; status: string }[]) => {
+    const { d, calls } = driver((cap, input) => cap === "chat.messages.list" ? { messages: [{ author: { kind: "agent" }, body: "{\"subject\":\"Hello\"}" }] } : cap === "agents.list" ? { agents } : base(cap, input));
+    await d.propose({ instruction: "Friendlier", agentId: null, doc, principal: { kind: "person", id: "usr_me" } });
+    return calls.find((c) => c.cap === "chat.start")!.input["agentIds"];
+  };
+  assert.deepEqual(await pick([{ agentId: "agt_w", status: "working" }]), ["agt_w"]);
+  assert.deepEqual(await pick([{ agentId: "agt_p", status: "paused" }, { agentId: "agt_s", status: "asleep" }, { agentId: "agt_a", status: "awake" }]), ["agt_a"]);
+  assert.deepEqual(await pick([{ agentId: "agt_p", status: "paused" }, { agentId: "agt_s", status: "asleep" }]), ["agt_s"]);
+  await assert.rejects(pick([{ agentId: "agt_p", status: "paused" }]), /No agent is available/);
+});

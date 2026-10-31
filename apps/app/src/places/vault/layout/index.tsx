@@ -17,6 +17,7 @@ import type { Expiry } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
+import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { PolicyView } from "./PolicyView.tsx";
 import { ChromeSheet } from "./ChromeSheet.tsx";
@@ -51,7 +52,7 @@ interface QuietNote { id: number; text: string; undo: (() => Promise<void> | voi
 const LINE_MS = 9000;
 
 export type VaultRoute =
-  | { surface: "layout"; addProvider?: true }
+  | { surface: "layout"; addProvider?: true; addApp?: string }
   | { surface: "share"; itemId: string }
   | { surface: "export"; folderId: string }
   | { surface: "advanced" }
@@ -81,6 +82,9 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   // A link that asks for the sign-in (an agent with no AI account) opens the sheet even when the Vault is already showing.
   const routedAdd = route.surface === "layout" && route.addProvider === true;
   useEffect(() => { if (routedAdd) setAddingProvider(true); }, [routedAdd]);
+  // The Inbox's Twilio tile asks for the Add form on that app's template.
+  const routedApp = route.surface === "layout" ? route.addApp : undefined;
+  useEffect(() => { if (routedApp) setAdding({ app: routedApp }); }, [routedApp]);
   const [importing, setImporting] = useState<boolean>(sheet?.importFrom !== undefined);
   const [addField, setAddField] = useState(false);
   const [lastFolder, setLastFolder] = useState<string | undefined>(undefined);
@@ -212,8 +216,8 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
     </View>
   );
 
-  const listPane = (
-    <View style={[s.listPane, twoPane ? s.listPaneTwo : { flex: 1 }]} testID="vault-list-pane">
+  const listBody = (
+    <>
       {header}
       <View style={s.searchWrap}>
         <View style={s.search}>
@@ -235,8 +239,11 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       )}
       <View style={s.lineSlot}>{note ? <QuietLine text={note.text} onUndo={note.undo ? undoNote : undefined} testID="vault-line" /> : null}</View>
       {!online ? <Text style={s.offline} testID="vault-offline">Offline, showing your saved copy</Text> : null}
-    </View>
+    </>
   );
+  const listPane = twoPane
+    ? <ResizableColumn paneKey="vault-list" defaultWidth={380} grow="right" min={260} maxFraction={0.6} style={[s.listPane, s.listPaneTwo] as never} testID="vault-list-pane">{listBody}</ResizableColumn>
+    : <View style={[s.listPane, { flex: 1 }]} testID="vault-list-pane">{listBody}</View>;
 
   const providerHere = effectiveId ? providerOf.get(effectiveId) : undefined;
   const detail = effectiveId ? (

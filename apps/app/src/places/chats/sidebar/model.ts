@@ -1,6 +1,7 @@
 // Chats sidebar (spec 3.2, 2.23): the pure part. What each section shows, worked out from the capability answers (types from generated/types.ts).
 // No React and no I/O here, so grouping, filters, the Cmd-digit map, next unread and the local new-chat row are tested without a renderer.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import type { ImportedRow } from "../imported/model.ts";
 
 export type RecentOut = CapMap["chat.recent"]["out"];
 export type RecentItem = RecentOut["today"][number];
@@ -30,7 +31,7 @@ export const GROUPS: readonly { key: GroupKey; label: string }[] = [
   { key: "earlier", label: "Earlier" },
 ];
 
-export type SectionKey = "needs" | "faces" | "recent" | "channels";
+export type SectionKey = "needs" | "faces" | "recent" | "channels" | "imported";
 
 /** A recent row as the sidebar draws it. `person` marks a chat with one person; `local` marks one made on this device that the server has not answered yet. */
 export interface ChatRow {
@@ -40,6 +41,8 @@ export interface ChatRow {
   /** The agent's id when the chat is with an agent: the face is seeded by it. */
   whoId?: string | undefined;
   kind: "person" | "agent";
+  /** A group chat: up to three of its agents, drawn as stacked faces. Absent for a chat with one. */
+  members?: { id: string; name: string }[] | undefined;
   unread: number;
   working: boolean;
   starred: boolean;
@@ -56,6 +59,7 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string): Chat
     who: agent !== undefined ? agentName(agent) : item.title,
     ...(agent !== undefined ? { whoId: agent } : {}),
     kind: agent !== undefined ? "agent" : "person",
+    ...(item.agents.length > 1 ? { members: item.agents.slice(0, 3).map((id) => ({ id, name: agentName(id) })) } : {}),
     unread: item.unread,
     working: item.working,
     starred: item.starred,
@@ -143,6 +147,8 @@ export type Entry =
   | { key: string; type: "group"; label: string }
   | { key: string; type: "chat"; row: ChatRow }
   | { key: string; type: "channel"; channel: Channel; project: boolean }
+  /** An imported coding session of the Imported group: its row opens the transcript, or the chat it was continued in. */
+  | { key: string; type: "imported"; row: ImportedRow }
   | { key: string; type: "empty"; text: string }
   /** A read of this section failed: one compact row under its head (the section's other reads and the other sections still draw). */
   | { key: string; type: "error"; section: SectionKey; text: string; cause: string; code?: string; traceId?: string };
@@ -176,6 +182,8 @@ export interface SidebarInput {
   needsLimit?: number;
   /** Sections whose read failed: the row under the head says so (and the section never says "empty"). */
   errors?: Partial<Record<SectionKey, SectionError>>;
+  /** The imported sessions, newest first, already narrowed by the search box. The group is left out when there are none. */
+  imported?: readonly ImportedRow[];
 }
 
 /** The Agents group shows this many agents (the Cmd-1..9 faces); a Space with more has an All agents row for the rest. */
@@ -237,6 +245,10 @@ export function buildEntries(i: SidebarInput): Entry[] {
       out.push({ key: `g:${g.key}`, type: "group", label: g.label });
       for (const r of g.rows) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
     }
+  }
+  if (i.imported?.length) {
+    out.push({ key: "h:imported", type: "head", section: "imported", label: "Imported", count: i.imported.length, open: open("imported") });
+    if (open("imported")) for (const r of i.imported) out.push({ key: `i:${r.conversationId}`, type: "imported", row: r });
   }
   return out;
 }
