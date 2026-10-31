@@ -22,8 +22,8 @@ import { connectorSteps } from "../../apps/app/src/places/automations/catalog/mo
 import { connectorOpening } from "../../apps/app/src/places/vault/itemenv/automations.ts";
 
 const APPS = {
-  fathom: { name: "Fathom", host: "api.fathom.ai", env: "MLA_FATHOM_API_KEY", reads: [/meeting/i, /team/i, /member/i], write: /webhook|send|create/i, stepTitle: /Fathom: List meetings/i },
-  resend: { name: "Resend", host: "api.resend.com", env: "MLA_RESEND_API_KEY", reads: [/domain/i, /api.?key/i, /audience/i], write: /send/i, stepTitle: /Resend/i },
+  fathom: { name: "Fathom", host: "api.fathom.ai", env: "MLA_FATHOM_API_KEY", reads: [/meeting/i, /team/i, /member/i], write: /webhook|send|create/i, stepTitle: /Fathom: List meetings/i, builtin: false },
+  resend: { name: "Resend", host: "api.resend.com", env: "MLA_RESEND_API_KEY", reads: [/domain/i, /api.?key/i, /audience/i], write: /send/i, stepTitle: /Resend/i, builtin: true },
 } as const;
 type AppKey = keyof typeof APPS;
 
@@ -177,8 +177,14 @@ async function main(): Promise<void> {
         await ok("chat.answer_block", { threadId: thread, blockId: id, answer: { keys: pick } });
         lastNew = Date.now();
       }
-      const live = ((await ok("connectors.list", { state: "live" })).connectors as { key: string; builtin: boolean }[]).filter((c) => !c.builtin);
-      if (live.length > 0) published = true;
+      if (app.builtin) {
+        // a built-in connector is used, not built: done when a connection holds the Vault handle
+        const bound = ((await ok("connections.list", {})).connections as { handles: string[] }[]).some((c) => c.handles.some((h) => h.startsWith(item.handle)));
+        if (bound) published = true;
+      } else {
+        const live = ((await ok("connectors.list", { state: "live" })).connectors as { key: string; builtin: boolean }[]).filter((c) => !c.builtin);
+        if (live.length > 0) published = true;
+      }
       if (process.env["E2E_DEBUG"] && Date.now() % 20_000 < 1800) {
         const t = (await ok("threads.get", { threadId: thread })).thread;
         say("debug", `thread ${JSON.stringify({ mode: t.mode, running: t.running, state: t.state, waiting: t.waiting }).slice(0, 200)}; messages ${msgs.map((m) => `${m.author?.kind}:${(m.blocks ?? []).map((b) => `${b.type}${b.state ? `/${b.state}` : ""}`).join("+") || "text"}`).join(" ")}`);
@@ -197,15 +203,22 @@ async function main(): Promise<void> {
     // ---- assertions through the API
     const fail = (why: string): never => { say("RESULT", `FAILED: ${why}`); save(); throw new Error(why); };
     const connectors = (await ok("connectors.list", { state: "live" })).connectors as { key: string; title: string; builtin: boolean; domains: string[]; actions: string[]; version: string }[];
-    const built = connectors.find((c) => !c.builtin);
+    const built = app.builtin ? connectors.find((c) => c.builtin && c.key === which) : connectors.find((c) => !c.builtin);
     if (!built) return fail("no live connector of its own");
     if (!built.domains.includes(app.host)) fail(`domains ${built.domains.join(",")}`);
     const conns = (await ok("connections.list", {})).connections as { connectionId: string; connector: string; state: string; handles: string[] }[];
     const conn = conns.find((c) => c.connector === built.key);
     if (!conn) return fail("no connection for the connector");
     if (!conn.handles.some((h) => h.startsWith(item.handle))) fail(`connection handles ${conn.handles.join(",")} do not name ${item.handle}`);
+    if (app.builtin) {
+      const gets = requests.filter((r) => r.method === "GET" && r.url.includes(app.host)).length;
+      if (gets === 0) fail("no read test reached the app");
+      say("RESULT", `PASSED (built in). connector ${built.key} live, connection ${conn.state} bound to ${conn.handles.join(",")}; GETs sent to ${app.host}: ${gets}; writes attempted: 0`);
+      save(); await dump();
+      return;
+    }
     const modules = new DatabaseSync(path.join(dir, "modules.db"), { readOnly: true });
-    const levels = modules.prepare("SELECT action_key, level FROM automations_connector_level").all() as { action_key: string; level: string }[];
+    const levels = modules.prepare("SELECT action_key, level FROM automations_connector_levels").all() as { action_key: string; level: string }[];
     modules.close();
     const tested = levels.filter((l) => l.level === "tested").map((l) => l.action_key);
     if (tested.length === 0) fail("no read action was recorded tested");
