@@ -194519,6 +194519,38 @@
       "title": "DocuSign"
     },
     {
+      "actions": [],
+      "auth": {
+        "authUrl": "https://www.dropbox.com/oauth2/authorize",
+        "pkce": true,
+        "scopes": [
+          "account_info.read",
+          "files.metadata.read",
+          "files.metadata.write",
+          "files.content.read",
+          "files.content.write"
+        ],
+        "tokenUrl": "https://api.dropboxapi.com/oauth2/token",
+        "type": "oauth2"
+      },
+      "domains": [
+        "api.dropboxapi.com",
+        "notify.dropboxapi.com"
+      ],
+      "health": "dropbox.account",
+      "key": "dropbox",
+      "mode": "oauth_app",
+      "module": "dropbox",
+      "rate": {
+        "burst": 20,
+        "rps": 10
+      },
+      "scope": "person",
+      "secrets": [],
+      "tests": "connectors/dropbox/tests",
+      "title": "Dropbox"
+    },
+    {
       "actions": [
         "dropbox_sign.create",
         "dropbox_sign.status",
