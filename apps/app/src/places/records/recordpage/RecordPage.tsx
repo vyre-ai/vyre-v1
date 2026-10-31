@@ -16,6 +16,8 @@ import { useJourneyStages } from "../journey/useStages.ts";
 import { stageFieldOf as typeStageField, stagesOf, stagesOn } from "../typeedit/stages.ts";
 import { Glyph as Icon } from "../schemamap/icons.tsx";
 import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
+import { FieldMark, SyncChip, historyMenu, markOf, useRecordSync } from "../sync/index.ts";
+import type { HistoryEntry, RecordSync } from "../sync/index.ts";
 import { tabsOf, visibleSections, withStages } from "./groups.ts";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
@@ -96,6 +98,8 @@ function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement
 
 interface FieldProps {
   field: FieldDef; row: RecordRow; type: string; editing: { key: string; text: string; error?: string } | null; nodes: readonly RelNode[];
+  /** A record from an app that syncs into Records: where each field stands. Absent for an ordinary record. */
+  sync?: { state: RecordSync; now: number; onRetry(f: FieldDef): void; onHistory(f: FieldDef, x: number, y: number): void };
   show: (items: readonly MenuEntry[], x: number, y: number) => void; onEdit: (f: FieldDef) => void; onText: (t: string) => void; onCommit: (f: FieldDef, text: string) => void; onCancel: () => void; onValue: (f: FieldDef, v: unknown) => void; onSource: (f: FieldDef, x: number, y: number) => void;
 }
 
@@ -151,10 +155,13 @@ function FieldRow(q: FieldProps): ReactElement {
       : <Text style={p.value}>{text}</Text>;
     body = <Pressable accessibilityRole={kind === "none" ? "text" : "button"} accessibilityLabel={`${f.title}: ${text}`} testID={`field-${f.key}`} onPress={(e) => { if (kind === "choice") { const pt = pointOf(e); chooseFrom(f, q, pt.x, pt.y); } else if (kind !== "none") q.onEdit(f); }}>{shown}</Pressable>;
   }
+  const synced = q.sync?.state.fields.find((x) => x.key === f.key);
+  const mark = synced && q.sync?.state.app ? markOf(synced, q.sync.state.app.title, q.sync.now) : undefined;
   return (
     <View style={p.field} testID={`row-${f.key}`} {...(trig as object)}>
       <Text numberOfLines={1} style={p.label}>{f.title}</Text>
       <View style={p.valueCol}>{body}</View>
+      {mark && synced ? <FieldMark kind={mark.kind} tip={mark.tip} history={synced.history} onRetry={() => q.sync!.onRetry(f)} onHistory={(x, y) => q.sync!.onHistory(f, x, y)} /> : null}
     </View>
   );
 }
@@ -278,6 +285,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const row = rq.status === "ready" ? (rq.data.record as RecordRow | undefined) : undefined;
   const [group, setGroup] = useState("overview");
   const journey = useJourneyStages(data.call, type, def !== undefined && isJourneyDef(def));
+  const rs = useRecordSync(data.call, type, recordId, def !== undefined && (def as { syncedFrom?: string }).syncedFrom !== undefined);
   if (!def || !row) {
     return <View style={p.main} testID="record-page-loading" accessibilityLabel="Loading"><View style={p.head}><Text accessibilityRole="header" style={p.h1}>Record</Text></View></View>;
   }
@@ -303,14 +311,14 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
     saveField(data, type, row, f, text)
       .then((r) => {
         if (r.kind === "bad") { setEditing({ key: f.key, text, error: r.message }); return; }
-        if (r.kind === "saved") setFlash({ text: `Saved ${f.title.toLowerCase()}.`, undo: r.undo });
+        if (r.kind === "saved") { setFlash({ text: `Saved ${f.title.toLowerCase()}.`, undo: r.undo }); rs.touch(); }
       })
       .catch((e: unknown) => { setEditing({ key: f.key, text, error: errorText(e, "Could not save") }); })
       .finally(() => { busy.current = false; });
   };
   const setValue = (f: FieldDef, v: unknown): void => {
     saveValue(data, type, row, f, v)
-      .then((r) => { if (r.kind === "saved") setFlash({ text: `Saved ${f.title.toLowerCase()}.`, undo: r.undo }); })
+      .then((r) => { if (r.kind === "saved") { setFlash({ text: `Saved ${f.title.toLowerCase()}.`, undo: r.undo }); rs.touch(); } })
       .catch((e: unknown) => setFlash({ text: errorText(e, "Could not save"), bad: true }));
   };
   const undo = (u: Undo): void => {
@@ -322,7 +330,20 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   };
   const fold = (s: Section): void => { void savePrefs(data, type, { folded: toggleFold(each(sections.filter((x) => x.folded && x.stage?.state !== "locked"), (x) => x.key), s.key) }); };
 
-  const fieldProps = { row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
+  const syncProps = rs.sync?.synced && rs.sync.app ? {
+    state: rs.sync, now: data.now(),
+    onRetry: (f: FieldDef): void => { const id = rs.sync?.fields.find((x) => x.key === f.key)?.outboxId; if (id) void data.call("connectors.outbox.retry", { outboxId: id }).then(() => rs.touch(), () => setFlash({ text: "Could not try again. Try later.", bad: true })); },
+    onHistory: (f: FieldDef, x: number, y: number): void => {
+      void data.call("sync_types.field_history", { type, recordId: row.id, field: f.key }).then((out) => {
+        const entries = (out as { entries: HistoryEntry[] }).entries;
+        menu.show(historyMenu({
+          title: f.title, app: rs.sync!.app!.title, now: data.now(), entries, show: (v) => valueText(f, v, data.nameOf),
+          onRestore: (e) => { void data.call("sync_types.restore_field", { type, recordId: row.id, field: f.key, historyId: e.historyId }).then(() => { setFlash({ text: `Put back ${f.title.toLowerCase()}.` }); rs.touch(); }, (err: unknown) => setFlash({ text: errorText(err, "Could not put it back"), bad: true })); },
+        }), x, y);
+      }, () => menu.show([{ head: "No earlier values" }], x, y));
+    },
+  } : undefined;
+  const fieldProps = { ...(syncProps ? { sync: syncProps } : {}), row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
 
   // Ask for these: the person's conversation in the Inbox with a drafted message. A record with nobody to reach opens its empty Email (or Phone) field instead
   const askForThese = (missing: readonly { field: string; title: string }[]): void => {
@@ -369,6 +390,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         {wide ? <><Text style={p.slash}>/</Text>
         <Text accessibilityRole="header" aria-level={1} style={p.h1} numberOfLines={1} testID="record-title-crumb">{title}</Text></> : null}
         <View style={p.grow} />
+        {rs.sync?.synced && rs.sync.app ? <SyncChip app={rs.sync.app} openUrl={rs.sync.openUrl} onSync={data.nav.openSync ? () => data.nav.openSync!(type) : undefined} /> : null}
         {late ? <><Pressable accessibilityRole="button" accessibilityLabel="Relationships" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, map && p.lit]}>Relationships</Text> : null}</Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Details" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, paneOpen && p.lit]}>Details</Text> : null}</Pressable></> : null}
       </View>

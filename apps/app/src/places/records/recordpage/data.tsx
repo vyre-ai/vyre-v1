@@ -20,6 +20,8 @@ export interface RecordPageNav {
   openFiles(type: string, recordId: string): void;
   /** The place a fact or a note came from. */
   openSource(link: string): void;
+  /** The Sync page of a record type that syncs from an app (the source chip opens it). */
+  openSync?(type: string): void;
 }
 
 export interface RecordPageData {

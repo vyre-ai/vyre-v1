@@ -23,6 +23,7 @@ import { SCHEMA_PAGE } from "../../places/records/typeedit/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import { AskPane, ASK_CLOSED, askPaneReduce, makeAskVyre } from "../../places/records/askpane/index.ts";
 import { RecordsAssistant } from "./records-ask.tsx";
+import { SyncPage, editMappingOpening } from "../../places/records/sync/index.ts";
 
 const SIDEBAR_W = 240;
 
@@ -45,11 +46,13 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   const { state, dispatch } = useRecordsState();
   // Record types and the Schema map are screens of this place: the sidebar's two rows write their screen id to the hash, and choosing a type in the sidebar gives the body back to the views.
   const schemaView = target.screen === "records.types" ? "types" : target.screen === "records.schema-map" ? "map" : null;
+  // the Sync page of a synced type is a screen of this place too
+  const syncType = target.screen === "records.sync" ? target.args.type ?? null : null;
   const previousType = useRef(state.type);
   useEffect(() => {
-    if (previousType.current !== state.type && (id || schemaView)) opened({});
+    if (previousType.current !== state.type && (id || schemaView || syncType)) opened({});
     previousType.current = state.type;
-  }, [state.type, id, schemaView, opened]);
+  }, [state.type, id, schemaView, syncType, opened]);
   // Ask Vyre opens a pane beside the page, in this tab; it never goes to Chats.
   const [pane, ask] = useReducer(askPaneReduce, ASK_CLOSED);
   const schema = useMemo<SchemaData>(() => ({
@@ -75,7 +78,7 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
       void agentOfRecord(rt.call, recordId).then((r) => { if ("agent" in r) openAgent(rt, r.agent.agentId); else open(); }, open);
     } } };
   }, [rt, type, target.screen, canEdit]);
-  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{pane.open ? <AskPane about={pane.about} onClose={() => ask({ type: "close" })}><RecordsAssistant rt={rt} about={pane.about} /></AskPane> : null}</View></RecordsDataProvider>;
+  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: editMappingOpening(a) } }), closed: () => opened({}) }} /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{pane.open ? <AskPane about={pane.about} onClose={() => ask({ type: "close" })}><RecordsAssistant rt={rt} about={pane.about} /></AskPane> : null}</View></RecordsDataProvider>;
 }
 
 export default function RecordsPlace(_props: { place: string }): ReactElement {
