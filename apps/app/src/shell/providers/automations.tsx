@@ -20,6 +20,7 @@ import type { AccountOption } from "../../places/automations/connect/accounts.ts
 import { connectionRoute } from "../../places/automations/connect/route.ts";
 import { ConfigExtrasProvider } from "../../places/automations/config/data.tsx";
 import { RunsDataProvider } from "../../places/automations/runs/data.tsx";
+import { SideTask } from "./automations-task.tsx";
 import { AutomationRuns, FailedView, JourneyNewView, JourneyView, RunView, configExtras, runsData, useDirectory } from "./automations-parts.tsx";
 import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics, TemplateGallery } from "../../places/automations/operations/StudioViews.tsx";
 import { AutomationsStart } from "../../places/automations/start/AutomationsStart.tsx";
@@ -52,6 +53,8 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [step, setStep] = useState<string | null>(null);
   const [sideRun, setSideRun] = useState<string | null>(null);
+  // a task a run made, beside the run: its thread, brief and baton buttons (the Back button returns to the run)
+  const [sideTask, setSideTask] = useState<string | null>(null);
   // Ask Vyre opens a pane beside the body, in this tab; it never goes to Chats.
   const [asking, setAsking] = useState(false);
   const setView = (next: StudioView): void => { setOverlay(null); setViewRaw(next); };
@@ -63,7 +66,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   // the Automations row in the sidebar leaves the open automation (the hash keeps naming it, so that id is remembered as left)
   const [left, setLeft] = useState<string | null>(null);
   const openId = picked ?? (hashed !== null && hashed === left ? null : hashed);
-  const goHome = (): void => { setOpenId(null); setLeft(hashed); setStep(null); setSideRun(null); };
+  const goHome = (): void => { setOpenId(null); setLeft(hashed); setStep(null); setSideRun(null); setSideTask(null); };
   const missing = useMissing(rt.screens, "automations.canvas", "automation", openId ? { automationId: openId, route: { automationId: openId } } : null);
   useEffect(() => {
     let live = true;
@@ -134,17 +137,19 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const runs = useMemo(() => runsData(rt, {
     openAutomation: (id, stepId) => { data.nav.openAutomation(id); if (stepId) setStep(stepId); },
     openRun: (runId) => data.nav.openRun(runId),
-    openRunSide: (runId) => setSideRun(runId),
+    openRunSide: (runId) => { setSideTask(null); setSideRun(runId); },
+    openTaskSide: (taskId) => setSideTask(taskId),
     ask: (id, context) => data.nav.ask(id, context),
   }), [rt, data]);
   const winW = useWindowDimensions().width;
   const phone = winW > 0 && winW < 720;   // the phone has no sidebar beside the body: the list is the first screen
+  const sideTaskView = sideTask ? <SideTask rt={rt} taskId={sideTask} onBack={() => setSideTask(null)} onOpen={(type, id) => rt.open(type === "task" ? { screen: "tasks.page", args: { taskId: id } } : { subject: { type, id } })} /> : null;
   const canvas = openId ? (
     phone && sideRun ? (
       // on the phone a run takes the whole screen; Close goes back to the editor
       <View style={s.main}>
-        <View style={s.sideHead}><TextButton label="Back" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View>
-        <RunView runId={sideRun} />
+        <View style={s.sideHead}><TextButton label="Back" icon="x" testID="close-side-run" onPress={() => (sideTask ? setSideTask(null) : setSideRun(null))} /></View>
+        {sideTask ? sideTaskView : <RunView runId={sideRun} />}
       </View>
     ) : <View style={s.withSide}>
       <View style={s.main}>
@@ -154,7 +159,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
           {...(step ? { initialSelected: step, initialPanel: true } : {})}
         />
       </View>
-      {sideRun ? <ResizableColumn paneKey="automation-run-side" defaultWidth={380} grow="left" min={280} style={s.side as never}><View style={s.sideHead}><TextButton label="Close" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View><RunView runId={sideRun} /></ResizableColumn> : null}
+      {sideRun ? <ResizableColumn paneKey="automation-run-side" defaultWidth={380} grow="left" min={280} style={s.side as never}><View style={s.sideHead}>{sideTask ? <TextButton label="Back to the run" icon="x" testID="close-side-task" onPress={() => setSideTask(null)} /> : null}<TextButton label="Close" icon="x" testID="close-side-run" onPress={() => { setSideTask(null); setSideRun(null); }} /></View>{sideTask ? sideTaskView : <RunView runId={sideRun} />}</ResizableColumn> : null}
     </View>
   ) : null;
   const main = overlay?.kind === "failed" ? <FailedView selectedRunId={sideRun} />
