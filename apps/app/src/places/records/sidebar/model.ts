@@ -9,8 +9,12 @@ export const SCREENS = { types: "records.types", views: "records.saved-views" } 
 export const DEFAULT_GROUP = "Records";
 export const SITES_GROUP = "Sites";
 
-/** Types a connector or the system writes into. The sidebar hides them while they are empty (Envelopes until e-sign, Issues and Pull requests until GitHub, Problem reports); they stay in Record types and show as soon as they hold a record. */
-export const HIDDEN_WHEN_EMPTY: ReadonlySet<string> = new Set(["envelope", "issue", "pull_request", "report"]);
+/**
+ * Types a connector, a module or the system writes into. A Space starts with Contacts only: these exist because modules need them (Contacts link to Companies, the Meetings module writes
+ * Meetings, Projects and Tasks hold the work) but stay out of the sidebar and the Record types page while they are empty, and show as soon as they hold a record (the first project or
+ * task made from anywhere makes Projects and Tasks appear). Envelopes wait for e-sign, Issues and Pull requests for GitHub, Problem reports for a report.
+ */
+export const HIDDEN_WHEN_EMPTY: ReadonlySet<string> = new Set(["envelope", "issue", "pull_request", "report", "company", "meeting", "note_board", "project", "task", "agent"]);
 
 /** Agents live in Chats; their record type is a Manage row of the sidebar (next to Record types and Schema map), never a type group. */
 export const MANAGE_TYPE = "agent";

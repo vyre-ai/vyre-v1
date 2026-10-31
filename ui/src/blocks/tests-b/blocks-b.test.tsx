@@ -253,7 +253,7 @@ test("helper: title, status, trail, Open, and Stop only while it runs", () => {
   assert.equal(helperTrail([{ title: "A" }, { title: "B" }]), "A / B");
 });
 
-test("diff_card: title, kind, every change with before and after, Apply and Reject", () => {
+test("diff_card: title, kind, every change with before and after, Apply and Discard", () => {
   const markup = html(SAMPLE_DIFF_CARD);
   assert.ok(markup.includes("Let Paralegals attach files to Clients"));
   assert.ok(markup.includes("Role"));
@@ -262,6 +262,7 @@ test("diff_card: title, kind, every change with before and after, Apply and Reje
   assert.ok(markup.includes("roles/paralegal/clients.files"));
   assert.ok(markup.includes(">view<") && markup.includes(">edit<"));
   assert.ok(markup.includes("blk-diff_card-blk_dif1-apply") && markup.includes("blk-diff_card-blk_dif1-reject"));
+  assert.ok(markup.includes(">Apply<") && markup.includes(">Discard<") && !markup.includes(">Reject<"), "the card says Apply and Discard");
   assert.equal(valueText(undefined), "none");
   assert.equal(valueText(["a", "b"]), "a, b");
   assert.equal(valueText(""), "empty");
