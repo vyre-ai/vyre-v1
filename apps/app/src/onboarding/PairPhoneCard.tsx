@@ -1,9 +1,9 @@
-// Phone card: a pairing link that works once for ten minutes. Open it on the phone (scan it if your camera app reads links from the screen) and the phone joins this Space.
+// Phone card: a pairing link that works once for ten minutes. Open it on the phone (scan it if your camera app reads links from the screen) and the phone joins this Space. It makes no link on an address only this computer can use (127.0.0.1, localhost): a phone cannot open that.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
-import { pairLink } from "../shell/session/desktop.ts";
+import { phoneCanReach, pairLink } from "../shell/session/desktop.ts";
 import { QrCode } from "./QrCode.tsx";
 
 export async function makePairLink(call: CapCall, address: string, idempotencyKey: string): Promise<{ link: string; expiresAt: number }> {
@@ -11,7 +11,22 @@ export async function makePairLink(call: CapCall, address: string, idempotencyKe
   return { link: pairLink(address, out.code), expiresAt: out.expiresAt };
 }
 
-export function PairPhoneCard({ call, address, onPaired }: { call: CapCall; address: string; onPaired?(): void }): ReactElement {
+export function PairPhoneCard({ call, address, onPaired, onTeamSpace }: { call: CapCall; address: string; onPaired?(): void; onTeamSpace?(): void }): ReactElement {
+  if (!phoneCanReach(address)) return <PhoneUnreachable onTeamSpace={onTeamSpace} />;
+  return <PairPhoneLive call={call} address={address} onPaired={onPaired} />;
+}
+
+// This Space lives on this computer only (no relay name, no network address), so a phone has nothing to open: say so instead of showing a code that cannot work.
+function PhoneUnreachable({ onTeamSpace }: { onTeamSpace: (() => void) | undefined }): ReactElement {
+  return (
+    <View testID="pair-phone-local" style={s.col}>
+      <Text style={s.dim}>This Space runs on this computer only, so a phone cannot reach it yet. To use Vyre on your phone, make a Team Space: it gets an address your phone can open from anywhere.</Text>
+      {onTeamSpace ? <View style={s.row}><Pressable testID="pair-team" accessibilityRole="button" onPress={onTeamSpace} style={s.primary}><Text style={s.primaryText}>Make a Team Space</Text></Pressable></View> : null}
+    </View>
+  );
+}
+
+function PairPhoneLive({ call, address, onPaired }: { call: CapCall; address: string; onPaired: (() => void) | undefined }): ReactElement {
   const attempt = useRef(0);
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
