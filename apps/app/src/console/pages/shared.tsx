@@ -54,8 +54,11 @@ export function useAction(refresh: () => void) {
 export function Field({ label, value, onChange, testID, secure = false, multiline = false }: { label: string; value: string; onChange: (value: string) => void; testID?: string; secure?: boolean; multiline?: boolean }): ReactElement {
   return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput multiline={multiline} value={value} onChangeText={onChange} accessibilityLabel={label} testID={testID} secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} style={s.input} /></View>;
 }
-export function Button({ label, onPress, disabled = false, testID, danger = false }: { label: string; onPress: () => void; disabled?: boolean; testID?: string; danger?: boolean }): ReactElement {
-  return <Pressable accessibilityRole="button" onPress={onPress} disabled={disabled} testID={testID} style={[s.button, disabled && { opacity: 0.5 }]}><Text style={[s.buttonText, danger && { color: "var(--danger)" as string }]}>{label}</Text></Pressable>;
+/** `why`: a disabled button says why in one quiet line beside it, so nobody meets a dead button without a reason. */
+export function Button({ label, onPress, disabled = false, testID, danger = false, why }: { label: string; onPress: () => void; disabled?: boolean; testID?: string; danger?: boolean; why?: string }): ReactElement {
+  const button = <Pressable accessibilityRole="button" accessibilityState={{ disabled }} onPress={onPress} disabled={disabled} testID={testID} style={[s.button, disabled && { opacity: 0.5 }]}><Text style={[s.buttonText, danger && { color: "var(--danger)" as string }]}>{label}</Text></Pressable>;
+  if (!disabled || !why) return button;
+  return <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>{button}<Text testID={testID ? `${testID}-why` : undefined} style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{why}</Text></View>;
 }
 export function Actions({ children }: { children: ReactNode }): ReactElement { return <View style={s.actions}>{children}</View>; }
 export function Note({ children }: { children: ReactNode }): ReactElement { return <Text accessibilityRole="status" style={s.note}>{children}</Text>; }
