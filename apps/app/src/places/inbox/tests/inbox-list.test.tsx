@@ -116,7 +116,7 @@ test("the sidebar groups inboxes with their unread counts and keeps the lists an
   assert.ok(has(out, 'data-testid="row-nav:view:contact"') && has(out, 'data-testid="row-nav:view:contact-trailing"'), "sidebar rows are ui/Row with slots");
   const dot = (id: string): string => (out.match(/<div[^>]*data-testid="cal-dot-[^"]*"[^>]*>/g) ?? []).find((t) => t.includes(`cal-dot-${id}"`)) ?? "";
   assert.ok(dot("cal_work").includes("background-color") && dot("cal_ms").includes("background-color") && dot("cal_work") !== dot("cal_ms"), "each calendar has its own colour dot");
-  assert.ok(has(out, 'data-testid="inbox-dialer"') && has(out, "Dialer"));
+  assert.ok(has(out, 'data-testid="inbox-dialer"') && has(out, 'data-testid="inbox-dialer-number"'), "the dialer is labelled with the Space's number");
   assert.equal(out.split("background-color:var(--sel)").length - 1, 1, "exactly one row is selected: By contact, with the quiet selection token");
 });
 

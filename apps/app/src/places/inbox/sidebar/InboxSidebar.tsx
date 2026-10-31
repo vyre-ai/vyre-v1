@@ -77,6 +77,9 @@ function Sidebar(): ReactElement {
   const all: readonly ContactRow[] = rows.status === "ready" ? rows.data.rows : [];
   const groups = navGroups(mailboxes, counts.status === "ready" ? counts.data : null, data.numbers?.());
   const unreadOf = (f: (r: ContactRow) => boolean): number => all.reduce((n, r) => n + (f(r) && r.unreadCount > 0 ? 1 : 0), 0);
+  // The first number of the Space labels the dialer, as in the prototype; with no number there is no dialer.
+  const dialNumber = counts.status === "ready" ? counts.data.byInbox.find((c) => c.kind === "number")?.id ?? null : null;
+  const bare = canSend === false; // nothing can send yet: the page is the Connect choice, so the pencil, plus, Lists and dialer stay away
   const total = counts.status === "ready" ? counts.data.total : 0;
 
   const closed = (k: string): boolean => state.closed.includes(k);
@@ -149,8 +152,8 @@ function Sidebar(): ReactElement {
       <View style={styles.top}>
         <Text accessibilityRole="header" style={styles.title}>Inbox</Text>
         <View style={styles.grow} />
-        <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => (canSend === false ? dispatch({ type: "connect" }) : data.nav.compose())} />
-        <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />
+        {bare ? null : <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => data.nav.compose()} />}
+        {bare ? null : <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />}
       </View>
       <View style={[styles.search, focus && styles.searchOn]}>
         <Glyph name="search" size={13} />
@@ -176,8 +179,8 @@ function Sidebar(): ReactElement {
         <SideRow id="calendar" title="Calendar" selected={state.main === "calendar"} glyph={<Glyph name="cal" />}
           onPress={() => { dispatch({ type: "calendar" }); data.nav.openCalendar(); }} />
         {sections}
-        <SectionHead id="lists" label="Lists" closed={closed("lists")} onToggle={() => dispatch({ type: "section", key: "lists" })} />
-        {closed("lists") ? null : [
+        {bare ? null : <SectionHead id="lists" label="Lists" closed={closed("lists")} onToggle={() => dispatch({ type: "section", key: "lists" })} />}
+        {bare || closed("lists") ? null : [
           list("starred", "Starred", "star", (r) => r.starred === true),
           list("follow", "Following", "bell", (r) => r.followed),
           list("camp", "Campaigns", "flag", (r) => r.campaignId !== undefined),
@@ -185,14 +188,16 @@ function Sidebar(): ReactElement {
         {calendars.length > 0 ? <SectionHead id="cals" label="Calendars" closed={closed("cals")} onToggle={() => dispatch({ type: "section", key: "cals" })} /> : null}
         {closed("cals") ? null : calendarRows}
       </ScrollView>
-      <View style={styles.foot}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open the dialer" testID="inbox-dialer" onPress={() => (canSend === false ? dispatch({ type: "connect" }) : data.nav.openDialer())} style={({ hovered }: { hovered?: boolean }) => [styles.dialer, hovered === true && styles.dialerOver]}>
-          <Glyph name="call" size={14} />
-          <Text style={styles.dialerText}>Dialer</Text>
-          <View style={styles.grow} />
-          {keys ? <Text style={styles.keys}>{"⌘⇧K"}</Text> : null}
-        </Pressable>
-      </View>
+      {dialNumber === null ? null : (
+        <View style={styles.foot}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Open the dialer, ${dialNumber}`} testID="inbox-dialer" onPress={() => data.nav.openDialer()} style={({ hovered }: { hovered?: boolean }) => [styles.dialer, hovered === true && styles.dialerOver]}>
+            <Glyph name="call" size={14} />
+            <Text style={styles.dialerText} testID="inbox-dialer-number">{dialNumber}</Text>
+            <View style={styles.grow} />
+            {keys ? <Text style={styles.keys}>{"⌘⇧K"}</Text> : null}
+          </Pressable>
+        </View>
+      )}
       {menu.element}
     </View>
   );

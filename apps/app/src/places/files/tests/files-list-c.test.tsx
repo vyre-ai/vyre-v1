@@ -337,5 +337,6 @@ test("every empty place says two or three words and has its own icon", () => {
     assert.ok(!emptyText(w).endsWith("."), "a title, not a sentence");
   }
   assert.equal(emptyText({ kind: "trash" }), "Trash is empty");
+  assert.equal(emptyIcon({ kind: "trash" }), "trash");
   assert.notEqual(emptyIcon({ kind: "recent" }), emptyIcon({ kind: "folder", id: null }));
 });

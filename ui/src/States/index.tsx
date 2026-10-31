@@ -21,6 +21,7 @@ export const ICON_PATHS: Record<StateIcon, string[]> = {
   chat: ["M3 3.5h10a1 1 0 011 1v6a1 1 0 01-1 1H7l-3 2.5v-2.5H3a1 1 0 01-1-1v-6a1 1 0 011-1z"],
   offline: ["M2 6.2a8 8 0 0112 0M4.3 8.8a4.8 4.8 0 017.4 0M8 12h.01", "M2.5 2.5l11 11"],
   error: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M8 5v3.4M8 10.8h.01"],
+  trash: ["M3 4.5h10", "M6.2 4.5V3.2a.7.7 0 01.7-.7h2.2a.7.7 0 01.7.7v1.3", "M4.3 4.5l.6 8a1 1 0 001 .9h4.2a1 1 0 001-.9l.6-8", "M6.8 7v4M9.2 7v4"],
   done: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M5.6 8.2l1.7 1.7 3.2-3.4"],
 };
 
@@ -29,6 +30,10 @@ export function isStateIcon(name: string): name is StateIcon {
 }
 
 /** The icon sits on a quiet rounded tile, so an empty page reads as designed and not as missing. An error's tile is tinted with the danger colour. */
+export function StateTile({ name }: { name: StateIcon }) {
+  return <Icon name={name} />;
+}
+
 function Icon({ name }: { name: StateIcon }) {
   const tone = name === "error" ? styles.tileError : styles.tile;
   if (Platform.OS !== "web") return <View style={tone}><Text style={styles.glyph}>{name === "error" ? "!" : "o"}</Text></View>;

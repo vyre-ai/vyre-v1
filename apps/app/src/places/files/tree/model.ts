@@ -313,13 +313,13 @@ export function emptyText(where: Where): string {
 }
 
 /** The empty state's icon, from the shared set: each place gets its own so the page reads as designed. */
-export function emptyIcon(where: Where): "files" | "search" | "inbox" | "doc" {
+export function emptyIcon(where: Where): "files" | "search" | "inbox" | "doc" | "trash" {
   switch (where.kind) {
     case "folder": return "files";
     case "recent": return "search";
     case "starred": return "doc";
     case "shared": return "inbox";
-    case "trash": return "inbox";
+    case "trash": return "trash";
     case "knowledge": return "doc";
   }
 }
