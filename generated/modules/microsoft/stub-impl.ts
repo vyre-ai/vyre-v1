@@ -66,6 +66,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "ms.user.complete": async () => ({"accountId":"example","email":"maya@example.com","mailboxId":"mbx_a1b2c3"} as unknown) as never,
   "ms.user.list": async () => ({"accounts":[{"accountId":"example","email":"maya@example.com"}]} as unknown) as never,
   "ms.user.remove": async () => ({"removed":true} as unknown) as never,
+  "ms.user.send_message": async () => ({"sent":true} as unknown) as never,
   "ms.user.start": async () => ({"authUrl":"example","state":"example"} as unknown) as never,
   "ms.workbook.append_rows": async () => ({"address":"example","updatedRows":1} as unknown) as never,
   "ms.workbook.get_range": async () => ({"address":"example","values":[[{}]]} as unknown) as never,

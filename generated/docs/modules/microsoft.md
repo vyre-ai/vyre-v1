@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (66)
+## Capabilities (67)
 
 - [ms.calendar.create_event](../capabilities/ms.calendar.create_event.md): Create an event; Exchange invites the attendees
 - [ms.calendar.delete_event](../capabilities/ms.calendar.delete_event.md): Delete an event; Exchange tells the attendees
@@ -68,6 +68,7 @@ Requires: mail.
 - [ms.user.complete](../capabilities/ms.user.complete.md): Finish signing in from the callback: the state and the code, or the error Microsoft sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync
 - [ms.user.list](../capabilities/ms.user.list.md): Your own signed-in Microsoft accounts
 - [ms.user.remove](../capabilities/ms.user.remove.md): Sign out of your own Microsoft account and remove its token
+- [ms.user.send_message](../capabilities/ms.user.send_message.md): Send a message from your own signed-in Outlook (mail.send_as uses it for a mailbox made by ms.user.complete)
 - [ms.user.start](../capabilities/ms.user.start.md): Start signing in to your own Outlook: the address to approve at
 - [ms.workbook.append_rows](../capabilities/ms.workbook.append_rows.md): Add rows under the last used row of a worksheet in an Excel workbook
 - [ms.workbook.get_range](../capabilities/ms.workbook.get_range.md): Read a range of cells from an Excel workbook in OneDrive or SharePoint

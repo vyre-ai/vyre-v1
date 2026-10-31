@@ -75,6 +75,7 @@
     "google.user.complete@1": "68c4a222ee342db7e49d66f5e467a3abaae35675494878e97312099252fd2429",
     "google.user.list@1": "cb8ae0456612379f8a02aac38f8049c13268b1eb20771d4d3132a056205799f4",
     "google.user.remove@1": "1a0662db8530ba6032b362a266f032de6622b8273279b95037e267fb8f83254e",
+    "google.user.send_message@1": "f34059332a6a81714a2a32db4615cb5121c1cffae1e9495ac5fcc6a69c59a788",
     "google.user.start@1": "03eb860f3beda3815256629662966ba66f3d303fbaf325a055c4757fe1b3d856"
   },
   "events": {

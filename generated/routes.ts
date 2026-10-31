@@ -14249,6 +14249,24 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/user/send_message",
+    "cap": "google.user.send_message",
+    "v": 1,
+    "module": "google",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "send"
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/user/start",
     "cap": "google.user.start",
     "v": 1,
@@ -16616,7 +16634,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/kits/rollback",
@@ -16635,10 +16656,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/kits/test_run",
@@ -21287,6 +21305,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/user/send_message",
+    "cap": "ms.user.send_message",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "send"
+  },
+  {
+    "method": "POST",
     "path": "/v1/ms/user/start",
     "cap": "ms.user.start",
     "v": 1,
@@ -22098,7 +22134,10 @@ const routes3: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/notifications/rules/get",
@@ -22134,10 +22173,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/notifications/send",
@@ -27631,7 +27667,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/steps/test",
@@ -27667,10 +27706,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/stripe/customer/create",

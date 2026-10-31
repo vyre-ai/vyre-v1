@@ -67,6 +67,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.user.complete": Handler<"ms.user.complete", X>;
   "ms.user.list": Handler<"ms.user.list", X>;
   "ms.user.remove": Handler<"ms.user.remove", X>;
+  "ms.user.send_message": Handler<"ms.user.send_message", X>;
   "ms.user.start": Handler<"ms.user.start", X>;
   "ms.workbook.append_rows": Handler<"ms.workbook.append_rows", X>;
   "ms.workbook.get_range": Handler<"ms.workbook.get_range", X>;

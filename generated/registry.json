@@ -97667,6 +97667,157 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.rate_limited",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example",
+            "attachments": [
+              "fil_a1b2c3"
+            ],
+            "bcc": [
+              "maya@example.com"
+            ],
+            "cc": [
+              "maya@example.com"
+            ],
+            "html": "example",
+            "idempotencyKey": "idem_1",
+            "subject": "example",
+            "text": "example",
+            "threadId": "example",
+            "to": [
+              "maya@example.com"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "id": "example",
+            "threadId": "example"
+          }
+        }
+      ],
+      "gate": {
+        "act": "send"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "attachments": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bcc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountId",
+          "to",
+          "subject",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "google",
+      "name": "google.user.send_message",
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [],
       "errors": [
@@ -136456,6 +136607,152 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Sign out of your own Microsoft account and remove its token",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.rate_limited",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example",
+            "attachments": [
+              "fil_a1b2c3"
+            ],
+            "bcc": [
+              "maya@example.com"
+            ],
+            "cc": [
+              "maya@example.com"
+            ],
+            "conversationId": "example",
+            "html": "example",
+            "idempotencyKey": "idem_1",
+            "subject": "example",
+            "text": "example",
+            "to": [
+              "maya@example.com"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "sent": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "send"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "attachments": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bcc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "conversationId": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountId",
+          "to",
+          "subject",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "microsoft",
+      "name": "ms.user.send_message",
+      "output": {
+        "properties": {
+          "sent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sent"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Send a message from your own signed-in Outlook (mail.send_as uses it for a mailbox made by ms.user.complete)",
       "surfaces": {
         "http": "auto"
       },
@@ -196437,6 +196734,7 @@
         "google.user.complete",
         "google.user.list",
         "google.user.remove",
+        "google.user.send_message",
         "google.receive_push",
         "google.gmail.get_profile",
         "google.gmail.list_labels",
@@ -196729,6 +197027,7 @@
         "ms.user.complete",
         "ms.user.list",
         "ms.user.remove",
+        "ms.user.send_message",
         "ms.consent.members",
         "ms.consent.set_excluded",
         "ms.directory.list",
