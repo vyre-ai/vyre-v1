@@ -130,3 +130,15 @@ test("the Finish setup entry shows the handled count, reopens the first open ste
   await act(async () => { g.render(<ResumeChip flow="team" progress={Object.fromEntries(stepsOf("team").map((st) => [st.key, "done" as const]))} device="mac" onOpen={noop} />); });
   assert.equal(find(g.container as never, "resume-chip"), null);
 });
+
+test("on the phone the Finish setup entry floats above the places bar instead of covering Inbox and Records", async () => {
+  const { ResumeChip } = await import("./ResumeChip.tsx");
+  const bottomOf = (compact: boolean): string => {
+    const html = renderToStaticMarkup(<ResumeChip flow="personal" progress={{ ai: "done" }} device={compact ? "phone" : "mac"} compact={compact} onOpen={noop} />);
+    const tag = html.slice(0, html.indexOf(">"));
+    const found = /r-bottom-\w+/.exec(tag);
+    assert.ok(found, "the chip sets its bottom offset");
+    return found[0];
+  };
+  assert.notEqual(bottomOf(true), bottomOf(false), "the phone chip sits higher than the computer chip");
+});
