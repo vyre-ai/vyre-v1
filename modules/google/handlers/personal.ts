@@ -189,7 +189,11 @@ export function userList(ctx: GoogleCtx) {
 }
 
 export async function userRemove(ctx: GoogleCtx, input: unknown) {
-  const a = userAccount(ctx, text(obj(input)["accountId"]) ?? "");
+  return dropAccount(ctx, userAccount(ctx, text(obj(input)["accountId"]) ?? ""));
+}
+
+/** The account, its token and its mailbox row go; its Needs you item is closed. Used by the owner signing out and by the removal wizard. */
+async function dropAccount(ctx: GoogleCtx, a: UserAccount): Promise<{ removed: true }> {
   // Google is told first (best effort: a token it already lost is not a reason to keep the account), then the rows, and with them the sealed token, go
   try {
     const refresh = new TextDecoder().decode(ctx.seal.unseal(JSON.parse(a.refreshSealed)));
@@ -199,6 +203,14 @@ export async function userRemove(ctx: GoogleCtx, input: unknown) {
   ctx.db.run(`DELETE FROM google_user_account WHERE "accountId" = ?`, a.accountId);
   ctx.db.run(`DELETE FROM google_mailbox WHERE "connectionId" = ?`, a.accountId);
   return { removed: true };
+}
+
+/** The removal wizard ends a person's mailbox connections: their sign-ins end with them (the token is gone, not left sealed for nobody). Answers how many it ended. */
+export async function dropAccountsOf(ctx: GoogleCtx, person: string): Promise<number> {
+  ensure(ctx);
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM google_user_account WHERE "ownerId" = ?`, person));
+  for (const r of rows) await dropAccount(ctx, { accountId: str(r, "accountId"), ownerId: person, email: str(r, "email"), refreshSealed: str(r, "refreshSealed"), mailboxId: strOrNull(r, "mailboxId"), fixTaskId: strOrNull(r, "fixTaskId") });
+  return rows.length;
 }
 
 

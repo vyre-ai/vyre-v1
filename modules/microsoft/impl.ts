@@ -103,6 +103,11 @@ export const hostSeams: SeamSetters = { setMsHost };
 
 /** /hooks/microsoft: the subscription's clientState is checked before anything is recorded (handlers/hook.ts); a new subscription's validation token is handed back. */
 export const hostCalls = {
+  /** The removal wizard (host/src/seams/people.ts): a person whose mailbox connections are revoked loses their own sign-ins too. */
+  "microsoft.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string }): Promise<number> => {
+    hostOnly(ctx, "microsoft.reassign_owned");
+    return i.kind === "mailbox_connections" && i.action === "revoke" ? h.dropAccountsOf(ctx as never, i.person) : 0;
+  },
   "microsoft.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
     hostOnly(ctx, "microsoft.accept_webhook");   // a host call: the webhook route is the only way in
     return h.acceptHook(ctx, a);

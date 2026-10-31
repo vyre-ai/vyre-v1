@@ -146,6 +146,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
     routines: "agents", agents: "agents", automations: "automations", vault_mine: "vault", records: "records", projects: "projects",
     files: "files", channels: "chat", private_chats: "chat", memory_from_you: "memory", mailbox_connections: "mail",
   };
+  const ALSO: Record<string, string[]> = { mailbox_connections: ["google", "microsoft"] };
   const ownedFor = (as: { principal: { kind: "person" | "agent" | "service"; id: string } } | undefined) => {
     const gather = async (personId: string) => {
       const out: Record<string, { count: number; sample: unknown[]; ids?: string[] }> = {};
@@ -174,6 +175,8 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
         }
         let moved = 0;
         try { moved = Number(await d.call(`${module}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) }, as)); } catch { return 0; }
+        // modules that hold the sign-ins behind a kind end them with it (a mailbox connection made by a person's own Google or Microsoft sign-in keeps a sealed token there)
+        for (const other of ALSO[kind] ?? []) { try { await d.call(`${other}.reassign_owned`, { person: personId, kind, action, ...(to ? { to } : {}) }, as); } catch { /* module not live */ } }
         for (const a of owned) {
           for (const resource of [{ type: "folder", id: a.folderId }, { type: "agent", id: a.agentId }]) {
             try { await d.call("access.transfer_ownership", { resource, from: personId, to }, as); } catch { /* the resource is gone or access is not live: the reassign itself stands */ }

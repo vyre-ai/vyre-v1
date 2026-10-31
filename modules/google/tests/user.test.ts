@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { receivePush } from "../handlers/workspace.ts";
 import { pullMailbox } from "../handlers/gmail.ts";
-import { userAppSet, userAppStatus, userComplete, userList, userRemove, userSend, userStart } from "../handlers/personal.ts";
+import { userAppSet, userAppStatus, userComplete, userList, dropAccountsOf, userRemove, userSend, userStart } from "../handlers/personal.ts";
 import { codeOf, fixture, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -265,4 +265,17 @@ test("send: the account's own Gmail sends as the account's address with its toke
   assert.match(raw, /^Subject: Hello/m);
   h.ctx.principal = { kind: "person", id: "usr_other01" };
   await expectCode(userSend(h.ctx, { accountId: out.accountId, to: ["pat@acme.test"], subject: "x", text: "y", idempotencyKey: "k2" }), "validation.not_found");
+});
+
+test("the removal wizard ends a person's sign-ins with their mailbox connections: tokens gone, their Needs you item cancelled, nobody else's account touched", async () => {
+  const h = harness();
+  await app(h);
+  const mine = await signIn(h, "c1", MAYA);
+  h.ctx.principal = { kind: "person", id: "usr_other01" };
+  const theirs = await signIn(h, "c2", "pat@gmail.test");
+  h.ctx.principal = { kind: "service", id: "svc_admin" } as never;
+  assert.equal(await dropAccountsOf(h.ctx, "usr_maya01"), 1);
+  assert.deepEqual(h.rows(`SELECT "accountId" FROM google_user_account`).map((r) => r["accountId"]), [theirs.accountId]);
+  assert.notEqual(mine.accountId, theirs.accountId);
+  assert.equal(await dropAccountsOf(h.ctx, "usr_maya01"), 0);
 });

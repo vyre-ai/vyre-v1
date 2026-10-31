@@ -112,6 +112,11 @@ export const hostSeams: SeamSetters = { setGoogleHost };
 
 /** /hooks/google/<kind>: the push secret is checked before anything is recorded (handlers/hook.ts). */
 export const hostCalls = {
+  /** The removal wizard (host/src/seams/people.ts): a person whose mailbox connections are revoked loses their own sign-ins too. */
+  "google.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string }): Promise<number> => {
+    hostOnly(ctx, "google.reassign_owned");
+    return i.kind === "mailbox_connections" && i.action === "revoke" ? h.dropAccountsOf(ctx as never, i.person) : 0;
+  },
   "google.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
     hostOnly(ctx, "google.accept_webhook");   // a host call: the webhook route is the only way in
     return h.acceptHook(ctx, a);

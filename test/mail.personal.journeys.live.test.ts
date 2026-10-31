@@ -6,7 +6,7 @@
 //   3 A revoked sign-in: Home shows one Fix item, Fix opens Connect a mailbox, signing in again clears it.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ask, connectClaude, unlockVault, until } from "./support/mail-world.ts";
+import { ask, connectClaude, makeAgent, unlockVault, until } from "./support/mail-world.ts";
 import { bootScreens, browserOrSkip, open, seat, shoot } from "./support/mail-browser.ts";
 import type { Screens, Seat } from "./support/mail-browser.ts";
 import { standIn } from "./memory-live-kit.ts";
@@ -115,7 +115,7 @@ test("journey 2, Team: the admin sets the app once, two members connect their ow
   try {
     const w = s.world;
     await unlockVault(w);
-    await connectClaude(w);
+    const account = await connectClaude(w);
     w.fake.open("google", "ana@gmail.test", [{ from: "pat@acme.test", subject: "Ana's contract", text: "Ana only." }]);
     w.fake.open("google", "bo@gmail.test", [{ from: "lee@acme.test", subject: "Bo's invoice", text: "Bo only." }]);
     const admin = await seat(s, w.owner, "Owner");
@@ -141,11 +141,15 @@ test("journey 2, Team: the admin sets the app once, two members connect their ow
     assert.equal(await admin.page.getByText("Ana's contract").count() + await admin.page.getByText("Bo's invoice").count(), 0, "the admin sees neither");
     await shoot(admin.page, dir, "admin-inbox");
 
-    // an agent acts for whoever asked: the admin's assistant reads no member's mail
+    // an assistant acts with the access of whoever asked
     const anaBox = ((await ana.ok("mail.mailbox.list", { scope: "all" })).mailboxes as { id: string }[])[0]!;
-    const agent = (await w.owner.ok("agents.create", { name: "Olivia helper", role: "You help Olivia." })).agent.agentId as string;
-    const reply = await ask(w, w.owner, agent, `TOOL mail_message_list ${JSON.stringify({ mailboxId: anaBox.id })}`);
-    assert.ok(!reply.includes("Ana's contract"), `Ana's mailbox is closed to the assistant: ${reply.slice(0, 200)}`);
+    const boBox = ((await bo.ok("mail.mailbox.list", { scope: "all" })).mailboxes as { id: string }[])[0]!;
+    const list = (mailboxId: string) => `TOOL mail_message_list ${JSON.stringify({ mailboxId })}`;
+    const anaHelper = await makeAgent(ana, "Ana helper", account);
+    assert.ok((await ask(w, ana, anaHelper, list(anaBox.id))).includes("Ana's contract"), "Ana's assistant reads Ana's mailbox");
+    assert.ok(!(await ask(w, ana, anaHelper, list(boBox.id))).includes("Bo's invoice"), "and not Bo's");
+    const adminHelper = await makeAgent(w.owner, "Olivia helper", account);
+    assert.ok(!(await ask(w, w.owner, adminHelper, list(anaBox.id))).includes("Ana's contract"), "the admin's assistant reads no member's mailbox");
     await open(admin, s, "/chat");
     await shoot(admin.page, dir, "admin-chat");
     assert.deepEqual([...anaSeat.errors, ...boSeat.errors, ...admin.errors], [], "no page errors");

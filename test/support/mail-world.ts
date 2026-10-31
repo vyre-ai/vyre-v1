@@ -185,13 +185,18 @@ export async function until<T>(f: () => Promise<T | null>, why: string, ms = 30_
   }
 }
 
-/** The owner connects a Claude account and lets the whole Space use it, so any member's agent can answer (every turn still runs for whoever asked). */
-export async function connectClaude(w: MailWorld): Promise<void> {
-  const folder = await w.owner.ok("vault.folders.create", { name: "Accounts", scope: "mine" });
-  const flow = await w.owner.ok("providers.subscription_start", { providerKey: "claude-code" });
-  await w.owner.ok("vault.item.put", { folderId: folder.folder.id, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: CLAUDE_KEY, secret: true }] });
-  const provider = await w.owner.ok("providers.subscription_complete", { flowId: flow.flowId });
-  await w.owner.ok("providers.set_space_use", { providerId: provider.provider.id, allow: true });
+/** The admin files an AI account in a Shared folder, so every member's assistant can answer on it (each turn still runs for whoever asked, with that person's reach). */
+export async function connectClaude(w: MailWorld): Promise<string> {
+  const folder = await w.owner.ok("vault.folders.create", { name: "Team AI", scope: "shared" });
+  const added = await w.owner.ok("providers.add", { providerKey: "anthropic", connection: "api_key", apiKey: CLAUDE_KEY, name: "Team Claude", scope: "shared", folderId: folder.folder.id });
+  return added.provider.handle as string;
+}
+
+/** An assistant of this person, pinned to the Space's AI account so its turns are paid for. */
+export async function makeAgent(who: Person, name: string, account: string): Promise<string> {
+  const agentId = (await who.ok("agents.create", { name, role: `You help ${who.username} with their mail.` })).agent.agentId as string;
+  await who.ok("agents.update", { agentId, patch: { accountPolicy: "key", accountKey: account } });
+  return agentId;
 }
 
 /** A person's agent, and a chat where they ask it something; the answer is the agent's reply (the model stand-in turns `TOOL name {json}` into a tool call made as the asker). */

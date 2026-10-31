@@ -12,4 +12,4 @@ export {
 export { workbookAppend, workbookRange, workbookUpdate } from "./workbook.ts";
 export { acceptHook, sameState } from "./hook.ts";
 export { directoryImport, directoryList, syncMembers } from "./directory.ts";
-export { userAppSet, userAppStatus, userComplete, userList, userRemove, userSend, userStart } from "./personal.ts";
+export { userAppSet, userAppStatus, userComplete, userList, dropAccountsOf, userRemove, userSend, userStart } from "./personal.ts";

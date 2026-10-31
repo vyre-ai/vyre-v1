@@ -6,7 +6,7 @@
 //   - Personal: one person, mail files like any other, and quitting and reopening catches up on what arrived while it was closed.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bootMailWorld, connectClaude, ask, everything, lockVault, setSignInApp, signInAs, unlockVault, until } from "./support/mail-world.ts";
+import { bootMailWorld, connectClaude, makeAgent, ask, everything, lockVault, setSignInApp, signInAs, unlockVault, until } from "./support/mail-world.ts";
 import type { MailWorld, Person } from "./support/mail-world.ts";
 import { standIn } from "./memory-live-kit.ts";
 
@@ -33,7 +33,7 @@ test("Team: two members sign in to their own Gmail; each mailbox is private to i
   const w = await bootMailWorld({ kind: "team", engineOpenSession: standIn });
   try {
     await unlockVault(w);
-    await connectClaude(w);
+    const account = await connectClaude(w);
     w.fake.open("google", "ana@gmail.test", [{ from: "pat@acme.test", subject: "For Ana", text: "Ana's private note" }, { from: "kim@acme.test", subject: "Also Ana", text: "Second" }]);
     w.fake.open("google", "bo@gmail.test", [{ from: "lee@acme.test", subject: "For Bo", text: "Bo's private note" }]);
     w.fake.open("google", "olivia@gmail.test", [{ from: "kim@acme.test", subject: "For Olivia", text: "The admin's own note" }]);
@@ -66,11 +66,18 @@ test("Team: two members sign in to their own Gmail; each mailbox is private to i
     assert.notEqual((await bo.call("google.user.remove", { accountId: anaIn.accountId })).status, 200, "Bo cannot remove Ana's sign-in");
     assert.notEqual((await bo.call("mail.send_as", { mailboxId: anaIn.mailboxId, to: [{ address: "x@y.test" }], subject: "s", text: "t", idempotencyKey: "bo-as-ana" })).status, 200, "Bo cannot send as Ana");
 
-    // an agent acts for whoever asked: the admin's assistant reads no member's mail, and not even the admin's own private mailbox until they allow it
-    const agent = (await w.owner.ok("agents.create", { name: "Olivia helper", role: "You help Olivia with her mail." })).agent.agentId as string;
-    for (const [whose, mailboxId] of [["Ana's", anaIn.mailboxId], ["Bo's", boIn.mailboxId], ["Olivia's own", adminIn.mailboxId]] as const) {
-      const reply = await ask(w, w.owner, agent, `TOOL mail_message_list ${JSON.stringify({ mailboxId })}`);
-      assert.ok(!/For Ana|Ana's private|For Bo|Bo's private|For Olivia|admin's own note/.test(reply), `${whose} mailbox is closed to the assistant: ${reply.slice(0, 200)}`);
+    // an assistant acts with the access of whoever asked: Ana's reads Ana's mailbox and never Bo's; the admin's reads the admin's and never a member's
+    const list = (mailboxId: string | undefined) => `TOOL mail_message_list ${JSON.stringify({ mailboxId })}`;
+    const anaHelper = await makeAgent(ana, "Ana helper", account);
+    const own = await ask(w, ana, anaHelper, list(anaIn.mailboxId));
+    assert.ok(own.includes("For Ana"), `Ana's assistant reads Ana's mailbox: ${own.slice(0, 300)}`);
+    const other = await ask(w, ana, anaHelper, list(boIn.mailboxId));
+    assert.ok(!other.includes("For Bo") && !other.includes("Bo's private"), `Ana's assistant does not read Bo's mailbox: ${other.slice(0, 300)}`);
+    const adminHelper = await makeAgent(w.owner, "Olivia helper", account);
+    assert.ok((await ask(w, w.owner, adminHelper, list(adminIn.mailboxId))).includes("For Olivia"), "the admin's assistant reads the admin's mailbox");
+    for (const mailboxId of [anaIn.mailboxId, boIn.mailboxId]) {
+      const reply = await ask(w, w.owner, adminHelper, list(mailboxId));
+      assert.ok(!/For Ana|Ana's private|For Bo|Bo's private/.test(reply), `the admin's assistant reads no member's mailbox: ${reply.slice(0, 300)}`);
     }
 
     // tokens: sealed, in no Vault item, no file
