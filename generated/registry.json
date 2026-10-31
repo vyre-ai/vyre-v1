@@ -1921,6 +1921,32 @@
       ],
       "type": "object"
     },
+    "s_173d2b8b74": {
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "email": {
+          "examples": [
+            "maya@example.com"
+          ],
+          "pattern": "^[^@\\s]+@[^@\\s]+$",
+          "type": "string"
+        },
+        "mailboxId": {
+          "examples": [
+            "mbx_a1b2c3"
+          ],
+          "pattern": "^mbx_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "email"
+      ],
+      "type": "object"
+    },
     "s_182344e02b": {
       "description": "The page this fact is about",
       "properties": {
@@ -5809,6 +5835,20 @@
       ],
       "type": "string"
     },
+    "s_4541f8f90f": {
+      "properties": {
+        "accounts": {
+          "items": {
+            "$ref": "#/$defs/s_e6d65cc314"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "accounts"
+      ],
+      "type": "object"
+    },
     "s_4590eb98ca": {
       "properties": {
         "sure": {
@@ -9620,6 +9660,21 @@
       ],
       "type": "object"
     },
+    "s_6d0de879ff": {
+      "properties": {
+        "vaultItem": {
+          "examples": [
+            "#Dana_Lawmatics"
+          ],
+          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vaultItem"
+      ],
+      "type": "object"
+    },
     "s_6d2c83cc88": {
       "properties": {
         "run": {
@@ -10285,6 +10340,26 @@
       "required": [
         "personId",
         "kind"
+      ],
+      "type": "object"
+    },
+    "s_7a2160f39e": {
+      "properties": {
+        "clientId": {
+          "type": "string"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "redirectUri": {
+          "type": "string"
+        },
+        "vaultItem": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "configured"
       ],
       "type": "object"
     },
@@ -18634,6 +18709,25 @@
         "ifMissed",
         "active",
         "createdAt"
+      ],
+      "type": "object"
+    },
+    "s_e6d65cc314": {
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "email": {
+          "examples": [
+            "maya@example.com"
+          ],
+          "pattern": "^[^@\\s]+@[^@\\s]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "email"
       ],
       "type": "object"
     },
@@ -67793,19 +67887,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "vaultItem": {
-            "examples": [
-              "#Dana_Lawmatics"
-            ],
-            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "vaultItem"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_6d0de879ff"
       },
       "level": "edit",
       "module": "dropbox",
@@ -97310,6 +97392,499 @@
     {
       "audit": "always",
       "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.auth_failed",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "vaultItem": "#Dana_Lawmatics"
+          },
+          "name": "example",
+          "output": {
+            "clientId": "example",
+            "configured": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_6d0de879ff"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.user.app_set",
+      "output": {
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured",
+          "clientId"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Name the Vault item that holds the Google OAuth client (client_id, and client_secret for a web client)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "clientId": "example",
+            "configured": true,
+            "redirectUri": "example",
+            "vaultItem": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.user.app_status",
+      "output": {
+        "$ref": "#/$defs/s_7a2160f39e"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Whether a Google OAuth client is set up for signing in to your own Gmail, and the redirect address to give Google for it",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "google.user_connected"
+      ],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.bad_response",
+        "provider.network",
+        "validation.bad_input",
+        "validation.duplicate",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "error": "example",
+            "state": "example"
+          },
+          "name": "example",
+          "output": {
+            "accountId": "example",
+            "email": "maya@example.com",
+            "mailboxId": "mbx_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.user.complete",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_173d2b8b74"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Finish signing in from the callback: the state and the code, or the error Google sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "accounts": [
+              {
+                "accountId": "example",
+                "email": "maya@example.com"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.user.list",
+      "output": {
+        "$ref": "#/$defs/s_4541f8f90f"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Your own signed-in Google accounts",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.user.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Sign out of your own Google account: revoke it at Google and remove its token",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.rate_limited",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example",
+            "attachments": [
+              "fil_a1b2c3"
+            ],
+            "bcc": [
+              "maya@example.com"
+            ],
+            "cc": [
+              "maya@example.com"
+            ],
+            "html": "example",
+            "idempotencyKey": "idem_1",
+            "subject": "example",
+            "text": "example",
+            "threadId": "example",
+            "to": [
+              "maya@example.com"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "id": "example",
+            "threadId": "example"
+          }
+        }
+      ],
+      "gate": {
+        "act": "send"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "attachments": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bcc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountId",
+          "to",
+          "subject",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "google",
+      "name": "google.user.send_message",
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "loginHint": "maya@example.com"
+          },
+          "name": "example",
+          "output": {
+            "authUrl": "example",
+            "state": "example"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "loginHint": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.user.start",
+      "output": {
+        "properties": {
+          "authUrl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authUrl",
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Start signing in to your own Gmail: the address to approve at",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
       "emits": [
         "erase.started",
         "erase.completed"
@@ -111712,6 +112287,7 @@
         {
           "input": {
             "address": "maya@example.com",
+            "connectionId": "gua_0123456789abcdef0123456789abcdef",
             "idempotencyKey": "idem_1",
             "imap": {
               "host": "example",
@@ -111748,6 +112324,14 @@
               "maya@example.com"
             ],
             "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "description": "A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) the mailbox reads and sends through",
+            "examples": [
+              "gua_0123456789abcdef0123456789abcdef"
+            ],
+            "pattern": "^(gua|mua)_[0-9a-f]{32}$",
             "type": "string"
           },
           "idempotencyKey": {
@@ -113553,6 +114137,91 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Mark a mailbox private, shared with the Space or shared with chosen people",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "mailbox.sync_failed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "mailboxId": "mbx_a1b2c3",
+            "reason": "example",
+            "state": "error"
+          },
+          "name": "example",
+          "output": {
+            "mailbox": {
+              "address": "maya@example.com",
+              "agentId": "agt_a1b2c3",
+              "id": "mbx_a1b2c3",
+              "kind": "personal",
+              "lastSyncAt": 1760000000000,
+              "ownerId": "usr_a1b2c3",
+              "privacy": "private",
+              "provider": "google",
+              "state": "pending",
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "error",
+              "syncing"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mailboxId",
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "mail",
+      "name": "mail.mailbox.set_sync_state",
+      "output": {
+        "$ref": "#/$defs/s_9206859ebe"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/mailboxId",
+        "type": "mailbox"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -135661,6 +136330,494 @@
       "risk": "high",
       "since": "1.0.0",
       "summary": "Subscribe to recording and transcript ready notices",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.auth_failed",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "vaultItem": "#Dana_Lawmatics"
+          },
+          "name": "example",
+          "output": {
+            "clientId": "example",
+            "configured": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_6d0de879ff"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.user.app_set",
+      "output": {
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured",
+          "clientId"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Name the Vault item that holds the Microsoft OAuth app (client_id, client_secret when it has one, tenant when it is not common)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "clientId": "example",
+            "configured": true,
+            "redirectUri": "example",
+            "vaultItem": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "microsoft",
+      "name": "ms.user.app_status",
+      "output": {
+        "$ref": "#/$defs/s_7a2160f39e"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Whether a Microsoft OAuth app is set up for signing in to your own Outlook, and the redirect address to give Microsoft for it",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "microsoft.user_connected"
+      ],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.bad_response",
+        "provider.network",
+        "validation.bad_input",
+        "validation.duplicate",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "error": "example",
+            "state": "example"
+          },
+          "name": "example",
+          "output": {
+            "accountId": "example",
+            "email": "maya@example.com",
+            "mailboxId": "mbx_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.user.complete",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_173d2b8b74"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Finish signing in from the callback: the state and the code, or the error Microsoft sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "accounts": [
+              {
+                "accountId": "example",
+                "email": "maya@example.com"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "microsoft",
+      "name": "ms.user.list",
+      "output": {
+        "$ref": "#/$defs/s_4541f8f90f"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Your own signed-in Microsoft accounts",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.user.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Sign out of your own Microsoft account and remove its token",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.rate_limited",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example",
+            "attachments": [
+              "fil_a1b2c3"
+            ],
+            "bcc": [
+              "maya@example.com"
+            ],
+            "cc": [
+              "maya@example.com"
+            ],
+            "conversationId": "example",
+            "html": "example",
+            "idempotencyKey": "idem_1",
+            "subject": "example",
+            "text": "example",
+            "to": [
+              "maya@example.com"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "sent": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "send"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "attachments": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bcc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "conversationId": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountId",
+          "to",
+          "subject",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "microsoft",
+      "name": "ms.user.send_message",
+      "output": {
+        "properties": {
+          "sent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sent"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Send a message from your own signed-in Outlook (mail.send_as uses it for a mailbox made by ms.user.complete)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "loginHint": "maya@example.com"
+          },
+          "name": "example",
+          "output": {
+            "authUrl": "example",
+            "state": "example"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "loginHint": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.user.start",
+      "output": {
+        "properties": {
+          "authUrl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authUrl",
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Start signing in to your own Outlook: the address to approve at",
       "surfaces": {
         "http": "auto"
       },
@@ -195573,6 +196730,13 @@
         "google.dwd.map_member",
         "google.dwd.disable",
         "google.health",
+        "google.user.app_status",
+        "google.user.app_set",
+        "google.user.start",
+        "google.user.complete",
+        "google.user.list",
+        "google.user.remove",
+        "google.user.send_message",
         "google.receive_push",
         "google.gmail.get_profile",
         "google.gmail.list_labels",
@@ -195859,6 +197023,13 @@
         "ms.consent.setup",
         "ms.consent.verify",
         "ms.consent.my_account",
+        "ms.user.app_status",
+        "ms.user.app_set",
+        "ms.user.start",
+        "ms.user.complete",
+        "ms.user.list",
+        "ms.user.remove",
+        "ms.user.send_message",
         "ms.consent.members",
         "ms.consent.set_excluded",
         "ms.directory.list",
@@ -206791,6 +207962,21 @@
       "vis": "space"
     },
     {
+      "module": "google",
+      "name": "google.user_connected",
+      "payload": {
+        "$ref": "#/$defs/s_e6d65cc314"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/accountId",
+        "type": "entity"
+      },
+      "summary": "A person signed in to their own Google account",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "module": "access",
       "name": "grant.created",
       "payload": {
@@ -211019,6 +212205,21 @@
         "type": "connector"
       },
       "summary": "A verified Graph change notification arrived",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "microsoft",
+      "name": "microsoft.user_connected",
+      "payload": {
+        "$ref": "#/$defs/s_e6d65cc314"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/accountId",
+        "type": "entity"
+      },
+      "summary": "A person signed in to their own Microsoft account",
       "sv": 1,
       "vis": "space"
     },

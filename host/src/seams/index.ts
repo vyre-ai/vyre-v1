@@ -108,8 +108,8 @@ export const defaultFetch: SeamFetch = async (url, init) => {
 
 /** The drivers the host builds from the Vault and the Space ports alone. */
 export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.freeze({
-  setGoogleHost: (d: SeamDriverDeps) => createGoogleHost(d.common),
-  setMsHost: (d: SeamDriverDeps) => createMsHost(d.common),
+  setGoogleHost: (d: SeamDriverDeps) => createGoogleHost({ ...d.common, publicUrl: d.publicUrl }),
+  setMsHost: (d: SeamDriverDeps) => createMsHost({ ...d.common, publicUrl: d.publicUrl }),
   setImapSecretResolver: (d: SeamDriverDeps) => createImapSecretResolver(d.vault),
   setSourcesSecretResolver: (d: SeamDriverDeps) => createSourcesSecretResolver(d.vault, d.space),
   setResendHost: (d: SeamDriverDeps) => createResendHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
