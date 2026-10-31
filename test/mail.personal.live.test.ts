@@ -81,7 +81,7 @@ test("Team: two members sign in to their own Gmail; each mailbox is private to i
     }
 
     // tokens: sealed, in no Vault item, no file
-    await assertNoSecret(w, [w.fake.refreshOf("ana@gmail.test"), w.fake.refreshOf("bo@gmail.test"), w.fake.refreshOf("olivia@gmail.test")], ["Google_Sign_In", "Olivia_Claude"]);
+    await assertNoSecret(w, [w.fake.refreshOf("ana@gmail.test"), w.fake.refreshOf("bo@gmail.test"), w.fake.refreshOf("olivia@gmail.test")], ["Anthropic", "Google_Sign_In"]);
 
     // nobody has the vault open: new mail still arrives on the sealed token, only what changed is fetched
     await lockVault(w);
