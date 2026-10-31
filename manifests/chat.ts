@@ -100,14 +100,14 @@ export default defineManifest({
     // ---- erase and purge (P-CC_39)
     write('threads.erase', 'Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { threadId: id.thread }, out: { erased: t.bool() }, emits: ['thread.erased'], audit: 'always', risk: 'high' }),
     write('channels.erase', 'Erase one channel for good with all its messages (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { channelId: id.channel }, out: { erased: t.bool() }, emits: ['channel.erased'], audit: 'always', risk: 'high' }),
-    write('chat.transcript.purge', 'Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })), skipThreadIds: t.opt(t.arr(id.thread)) }, out: purgeOut, emits: ['transcripts.purged'], audit: 'always', risk: 'high' }),
+    write('chat.transcript.purge', 'Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })), skipThreadIds: t.opt(t.arr(id.thread)) }, out: purgeOut, emits: ['transcripts.purged', 'thread.erased'], audit: 'always', risk: 'high' }),
     // ---- threads and chats
     create('chat.start', 'Start a chat or an Ask pane with one or more agents, or a direct message with one person (a third person means a channel)', {
       in: {
         kind: t.enm('chat', 'ask'), agentIds: t.arr(id.agent), personId: t.opt(id.user), title: t.opt(t.str()), scopeType: t.opt(t.str()), scopeId: t.opt(t.str()),
         folderId: t.opt(id.folder), recordId: t.opt(id.record), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), first: t.opt(t.str({ description: 'First message body' })),
       },
-      out: { thread: threadRow }, perm: 'chats.private', emits: ['thread.started', 'agent.engaged', 'message.received', 'message.direct'], tool: 'chats', offline: 'queue', cli: 'vyre chat start',
+      out: { thread: threadRow }, perm: 'chats.private', emits: ['thread.started', 'agent.engaged', 'message.received', 'message.direct', 'thread.unarchived'], tool: 'chats', offline: 'queue', cli: 'vyre chat start',
     }),
     create('chat.fork', 'Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back', {
       in: { ...threadT, messageId: t.opt(id.message), title: t.opt(t.str()) }, out: { thread: threadRow, copied: t.int({ minimum: 0 }) },
@@ -148,6 +148,25 @@ export default defineManifest({
     }),
     write('threads.reopen', 'Reopen a closed thread', {
       in: threadT, out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['thread.reopened'], tool: 'chats',
+    }),
+    write('threads.archive', 'Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does', {
+      in: threadT, out: { archived: t.bool() }, on: ['thread', '/threadId'], level: 'view', emits: ['thread.archived'], tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low',
+      agent: { planMode: 'blocked' }, errors: ['validation.bad_input'],
+    }),
+    write('threads.unarchive', 'Put an archived chat back in my list', {
+      in: threadT, out: { archived: t.bool() }, on: ['thread', '/threadId'], level: 'view', emits: ['thread.unarchived'], tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low',
+      agent: { planMode: 'blocked' }, errors: ['validation.bad_input'],
+    }),
+    write('threads.delete', 'Delete a chat only I am in (me and agents): hidden everywhere, running turns stop first, undone with threads.restore until the retention purge removes it. A chat with other people is left, not deleted', {
+      in: threadT, out: { deleted: t.bool() }, on: ['thread', '/threadId'], level: 'view', emits: ['thread.deleted'], audit: 'always', risk: 'medium', idem: 'natural', offline: 'online',
+      agent: false, errors: ['validation.bad_input', 'validation.precondition_failed'],
+    }),
+    write('threads.restore', 'Undo the delete of my chat (the Undo toast), while it has not been purged', {
+      in: threadT, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'view', emits: ['thread.restored'], audit: 'always', risk: 'low', idem: 'natural', offline: 'online', agent: false,
+    }),
+    write('threads.leave', 'Leave a chat that has other people in it: I stop being a member, they keep it. A channel is left with channels.leave', {
+      in: threadT, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'view', emits: ['channel.member_removed'], audit: 'sensitive', risk: 'medium', idem: 'natural', offline: 'online',
+      agent: false, errors: ['validation.bad_input'],
     }),
     write('threads.mark_read', 'Mark a thread read up to a sequence number', {
       in: { ...threadT, upto: t.opt(t.int()) }, out: { unread: t.int() }, on: ['thread', '/threadId'], level: 'view', tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low',
@@ -191,7 +210,7 @@ export default defineManifest({
         screen: t.opt(screenContext),
       },
       out: { message: messageRow }, on: ['thread', '/threadId'], level: 'use', idem: 'key',
-      emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',
+      emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied', 'thread.unarchived'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',
       rate: { n: 120, perSeconds: 60, scope: 'principal' }, errors: ['permission.plan_mode', 'permission.limit'],
     }),
     read('chat.screen.get', 'The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows', {
@@ -225,9 +244,9 @@ export default defineManifest({
     read('chat.pins.list', 'Pinned messages of a thread', {
       in: threadT, out: { messages: t.arr(messageRow) }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter',
     }),
-    read('chat.recent', 'Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse', {
+    read('chat.recent', 'Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)', {
       in: { filter: t.opt(t.enm('all', 'unread', 'people', 'agents')) },
-      out: { starred: t.arr(recentRow), today: t.arr(recentRow), yesterday: t.arr(recentRow), earlier: t.arr(recentRow), nextUnread: t.nullable(id.thread) }, tool: 'chats', label: 'filter',
+      out: { starred: t.arr(recentRow), today: t.arr(recentRow), yesterday: t.arr(recentRow), earlier: t.arr(recentRow), archived: t.arr(recentRow), nextUnread: t.nullable(id.thread) }, tool: 'chats', label: 'filter',
     }),
     read('chat.composer.suggest', 'Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates', {
       in: { symbol: t.enm('@', '#', '/'), q: t.str(), threadId: t.opt(id.thread) },
@@ -248,12 +267,12 @@ export default defineManifest({
         ...threadT, prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(option)), allowOther: t.opt(t.bool()),
         card: t.opt(t.obj({ kind: t.enm('terminal'), command: t.str(), host: t.opt(t.enm('agent_computer', 'space_server', 'device')), risk: t.opt(t.enm('read', 'change', 'danger')) })),
       },
-      out: { blockId: id.block, messageId: id.message }, on: ['thread', '/threadId'], level: 'use', emits: ['message.received', 'block.waiting'],
+      out: { blockId: id.block, messageId: id.message }, on: ['thread', '/threadId'], level: 'use', emits: ['message.received', 'block.waiting', 'thread.unarchived'],
       tool: 'chats', mcpName: 'ask_question', agent: { planMode: 'allowed', blocks: ['question'] },
     }),
     write('chat.plan.propose', 'Propose a plan with steps as a plan block; used when plan mode is on', {
       in: { ...threadT, title: t.str(), steps: t.arr(t.obj({ text: t.str(), detail: t.opt(t.str()) }), { minItems: 1 }), docFileId: t.opt(id.file) },
-      out: { planId: id.plan, blockId: id.block }, on: ['thread', '/threadId'], level: 'use', emits: ['plan.proposed', 'message.received', 'block.waiting'],
+      out: { planId: id.plan, blockId: id.block }, on: ['thread', '/threadId'], level: 'use', emits: ['plan.proposed', 'message.received', 'block.waiting', 'thread.unarchived'],
       tool: 'chats', mcpName: 'plan_propose', agent: { planMode: 'allowed', blocks: ['plan'] },
     }),
     write('chat.approve_plan', 'Approve a plan, optionally with edits; clears plan mode for those steps and the agent executes', {
@@ -270,18 +289,18 @@ export default defineManifest({
     }),
     write('chat.open_tab', 'Open a side tab beside the chat for the person (a file, record, diff, terminal); respects the person tab setting and posts a line', {
       in: { ...threadT, targetType: t.str({ examples: ['file'] }), targetId: t.str(), title: t.opt(t.str()) },
-      out: { opened: t.bool(), reason: t.opt(t.enm('disabled_by_person', 'no_device')) }, on: ['thread', '/threadId'], level: 'use', emits: ['tab.opened', 'message.received'],
+      out: { opened: t.bool(), reason: t.opt(t.enm('disabled_by_person', 'no_device')) }, on: ['thread', '/threadId'], level: 'use', emits: ['tab.opened', 'message.received', 'thread.unarchived'],
       tool: 'chats', mcpName: 'open_tab', agent: { planMode: 'blocked', blocks: ['tab_opened'] }, idem: 'natural',
     }),
     write('chat.handoff', 'Hand work to another agent: opens that agent thread linked from this one, counted against the hop limit', {
       in: { ...threadT, toAgentId: id.agent, note: t.str() }, out: { thread: threadRow, depth: t.int() }, on: ['thread', '/threadId'], level: 'use',
-      emits: ['agent.handoff', 'thread.started', 'message.received'], tool: 'chats', mcpName: 'handoff', errors: ['validation.precondition_failed'],
+      emits: ['agent.handoff', 'thread.started', 'message.received', 'thread.unarchived'], tool: 'chats', mcpName: 'handoff', errors: ['validation.precondition_failed'],
     }),
     write('chat.helper.start', 'Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only', {
       in: {
         ...threadT, title: t.str(), instruction: t.str(), agentId: t.opt(id.agent), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort),
       },
-      out: { helper: threadRow, blockId: id.block }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.started', 'thread.started', 'message.received'],
+      out: { helper: threadRow, blockId: id.block }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.started', 'thread.started', 'message.received', 'thread.unarchived'],
       tool: 'chats', mcpName: 'sub_task_model', agent: { planMode: 'blocked', blocks: ['model_switch', 'helper'] },
     }),
     read('chat.helpers.list', 'Helpers running under a chat, with status', {
@@ -406,6 +425,10 @@ export default defineManifest({
     ev('thread.updated', 'A thread title, folder or listing changed', { p: { threadId: id.thread, fields: t.arr(t.str()) }, subject: ['thread', '/threadId'], vis: 'participants' }),
     ev('thread.closed', 'A thread was closed', { p: { threadId: id.thread }, subject: ['thread', '/threadId'], vis: 'participants' }),
     ev('thread.reopened', 'A thread was reopened', { p: { threadId: id.thread }, subject: ['thread', '/threadId'], vis: 'participants' }),
+    ev('thread.archived', 'A person archived a chat: it left their list only', { p: { person: id.user, threadId: id.thread }, subject: ['entity', '/threadId'], vis: 'owner' }),
+    ev('thread.unarchived', 'A chat came back into a person\'s list: they unarchived it, or someone @mentioned them in it', { p: { person: id.user, threadId: id.thread, reason: t.enm('person', 'mention') }, subject: ['entity', '/threadId'], vis: 'owner' }),
+    ev('thread.deleted', 'A person deleted a chat only they were in: hidden everywhere, kept for Undo and the audit trail until the retention purge', { p: { person: id.user, threadId: id.thread }, subject: ['entity', '/threadId'], vis: 'owner', retention: 'audit' }),
+    ev('thread.restored', 'A person undid the delete of their chat', { p: { person: id.user, threadId: id.thread }, subject: ['entity', '/threadId'], vis: 'owner', retention: 'audit' }),
     ev('thread.replied', 'A reply landed in a thread someone follows', {
       p: { threadId: id.thread, parentThreadId: t.opt(id.thread), messageId: id.message, personId: id.user }, subject: ['thread', '/threadId'], vis: 'participants', notify: 'reply.followed', label: 'subject',
     }),

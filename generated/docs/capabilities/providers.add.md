@@ -19,7 +19,7 @@ Connect a provider with a pasted API key (stored once, used by handle) or a loca
 | HTTP | POST /v1/providers/add |
 | MCP tool | providers_add (vault) |
 | CLI | none |
-| Emits | provider.added, vault.item_created |
+| Emits | provider.added, vault.item_created, vault.folder_created |
 
 ## Input
 

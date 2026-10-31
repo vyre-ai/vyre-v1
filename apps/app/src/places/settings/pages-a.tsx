@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistant } from "../../../../../ui/src/Avatar/index.tsx";
+import { useOpenConnect } from "../../shell/connect/context.ts";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
@@ -255,6 +256,7 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
   const mine = boxes.status === "ready" ? boxes.data.mailboxes.map((m) => ({ id: m.id, address: m.address, provider: m.provider, state: m.state })) : [];
   const suites = suiteSections(mine, calendars ?? []);
   const personal = useIsPersonal();
+  const openConnect = useOpenConnect();
   const firm: ReactElement[] = [];
   suites.forEach((suite, si) => firm.push(
     <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
@@ -268,9 +270,9 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
       )}
       <Section title="Mail and calendar">
         {list}
-        <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("mailbox")} control={<Glyph name="chevR" size={13} />} />
+        <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "mailbox" }) : data.nav.connect("mailbox"))} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
-        <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("twilio")} control={<Glyph name="chevR" size={13} />} />
+        <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "number" }) : data.nav.connect("twilio"))} control={<Glyph name="chevR" size={13} />} />
       </Section>
       <SignInApps />
       <RegistrySections page="connections" rows={rows} found={found} />

@@ -6,6 +6,8 @@ import { StateTile } from "../../../../../../ui/src/States/index.tsx";
 import { AppIcon } from "../../../../../../ui/src/AppIcon/index.tsx";
 import { CONNECT_TILES } from "../sidebar/model.ts";
 import type { ConnectTile } from "../sidebar/model.ts";
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import type { ConnectNeed } from "../../../shell/connect/model.ts";
 import { useInboxData } from "../sidebar/data.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
 
@@ -16,7 +18,13 @@ function Mark({ tile }: { tile: ConnectTile }): ReactElement {
 
 export function ConnectChannel({ onPick }: { onPick?: (tile: ConnectTile) => void }): ReactElement {
   const data = useInboxData();
-  const pick = (tile: ConnectTile): void => { data.nav.connect(tile.kind); onPick?.(tile); };
+  const openConnect = useOpenConnect();
+  // each tile opens its own connect sheet right here; where there is no door (a test, a screenshot) the old navigation stays
+  const pick = (tile: ConnectTile): void => {
+    const need: ConnectNeed | null = tile.kind === "gmail" ? { kind: "mailbox", provider: "google" } : tile.kind === "outlook" ? { kind: "mailbox", provider: "microsoft" } : tile.kind === "imap" ? { kind: "mailbox", provider: "imap" } : tile.kind === "twilio" ? { kind: "number" } : null;
+    if (openConnect && need) void openConnect(need); else data.nav.connect(tile.kind);
+    onPick?.(tile);
+  };
   return (
     <View style={s.wrap} testID="inbox-connect-channel" accessibilityLabel="Connect a channel">
       <StateTile name="inbox" />

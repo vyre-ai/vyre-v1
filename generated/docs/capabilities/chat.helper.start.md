@@ -19,7 +19,7 @@ Start a helper sub-task thread with its own model, provider and effort; helper c
 | HTTP | POST /v1/chat/helper/start |
 | MCP tool | sub_task_model (chats) |
 | CLI | none |
-| Emits | helper.started, thread.started, message.received |
+| Emits | helper.started, thread.started, message.received, thread.unarchived |
 
 ## Input
 

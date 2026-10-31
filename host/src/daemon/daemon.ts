@@ -1145,6 +1145,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // Repair legacy Personal roots before any HTTP request can use an inherited Space grant.
       for (const row of db!.all("SELECT id FROM files_folder WHERE root_key LIKE 'personal:%'") as { id: string }[]) await ensureFileRoot({ id: row.id, type: "folder", parentId: null, privateRoot: true });
 
+      // A Vault folder the AI provider flows made quietly (before they declared it) has rows in the Vault but no resource in access, so putting an item into it answered "not found" to its own owner.
+      // Register each one that is missing, owned by the person the row names. A folder that is already registered is left alone.
+      try {
+        for (const row of db!.all("SELECT id, owner FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null }[]) {
+          if (access.snap.resource(row.id)) continue;
+          const made = await spaceLog.appendResult({
+            id: `evt_res_${row.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: row.id,
+            payload: { id: row.id, type: "vault_folder", parent_id: spaceId, label: 0, owner_id: row.owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+          });
+          if (made.ok && !made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
+        }
+      } catch { /* a Space without a Vault has no table to repair */ }
+
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
       if (loaded.serving.get("runs") === "live") {
         const recovering = runsHost.recover().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "runs.recover_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
