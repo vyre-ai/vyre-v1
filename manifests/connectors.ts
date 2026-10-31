@@ -117,9 +117,19 @@ export default defineManifest({
     read('connectors.list', 'List connectors: built-in, installed and drafts', { in: { state: t.opt(t.enm('live', 'draft', 'failing_tests')), ...pageIn }, out: { connectors: t.arr(connectorRow), ...pageOut }, perm: 'connectors.manage', tool: 'engineer', cli: 'vyre connector list' }),
     read('connectors.get', 'Read one connector: auth, egress domains, secret names, sources, synced types and actions', { in: { key: id.connector }, out: { connector: connectorRow }, on: ['connector', '/key'], tool: 'engineer' }),
     create('connectors.init', 'Scaffold a connector folder: connector.toml, transforms.js, tests, README', {
-      in: { key: id.connector, title: t.str(), mode, docsUrl: t.opt(t.str()) }, out: { key: id.connector, folderId: id.folder },
+      in: { key: id.connector, title: t.str(), mode, docsUrl: t.opt(t.str()), source: t.opt(t.bool()) }, out: { key: id.connector, folderId: t.opt(id.folder) },
       // The key names the new connector, never an existing parent. Authorize its Space; connector.created registers the new resource there.
       perm: 'connectors.manage', emits: ['connector.created'], audit: 'always', tool: 'engineer', cli: 'vyre connector init',
+    }),
+    write('connectors.define', 'Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.', {
+      in: {
+        key: id.connector, title: t.opt(t.str()), domains: t.arr(t.str(), { minItems: 1 }),
+        auth: t.obj({ type: t.enm('none', 'api_key', 'bearer'), secret: t.opt(t.str()), header: t.opt(t.str()), prefix: t.opt(t.str()) }),
+        secrets: t.opt(t.arr(t.obj({ name: t.str(), description: t.str() }))),
+        actions: t.arr(t.obj({ name: t.str(), method: t.opt(t.enm('GET', 'POST', 'PUT', 'PATCH', 'DELETE')), url: t.str(), headers: t.opt(t.rec(t.str())), query: t.opt(t.rec(t.str())), output: t.opt(t.str()), write: t.opt(t.bool()) }), { minItems: 1 }),
+      },
+      out: { key: id.connector, draftId, actions: t.arr(t.str()), domains: t.arr(t.str()) },
+      on: ['connector', '/key'], perm: 'connectors.manage', emits: ['connector.built'], audit: 'always', tool: 'engineer',
     }),
     write('connectors.build', 'Run the build-connector flow: read the app docs, draft the connector, ask for a key through a Vault request, run the harness', {
       in: { key: id.connector, docsUrl: t.opt(t.str()), notes: t.opt(t.str()) }, out: { ...runStarted, draftId },

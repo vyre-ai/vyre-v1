@@ -47,7 +47,7 @@ test("GET sends only the plan and a 204 is tested", async () => {
   const out = await tryConnectorRead(ctx, readInput());
   assert.equal(calls, 1);
   assert.deepEqual(seen, PLAN);
-  assert.deepEqual(out, { level: "tested" });
+  assert.deepEqual(out, { level: "tested", status: 204 });
   assertNoSentinel(seen);
   assertNoSentinel(out);
 });
@@ -60,7 +60,7 @@ test("a 500 stays a draft", async () => {
   });
   const out = await tryConnectorRead(ctx, readInput());
   assert.deepEqual(seen, PLAN);
-  assert.deepEqual(out, { level: "draft", reason: "The read did not succeed." });
+  assert.deepEqual(out, { level: "draft", reason: "The read did not succeed.", status: 500 });
   assertNoSentinel(seen);
   assertNoSentinel(out);
 });
@@ -97,7 +97,7 @@ test("a successful read records tested and does not store the key", async () => 
   } as AutoCtx;
   setConnectorReadSender(async () => ({ status: 200 }));
   const out = await tryConnectorRead(ctx, readInput({ actionKey: "stripe-listcustomers" }));
-  assert.deepEqual(out, { level: "tested" });
+  assert.deepEqual(out, { level: "tested", status: 200 });
   assert.deepEqual(args, [["stripe-listcustomers", "tested", 5]]);
   assertNoSentinel(args);
   assertNoSentinel(out);
@@ -119,4 +119,21 @@ test("a valid GET with no sender stays a draft", async () => {
   } finally {
     globalThis.fetch = prior;
   }
+});
+
+test("an agent cannot mark a write safe: a POST it marks is not sent", async () => {
+  let calls = 0;
+  setConnectorReadSender(async () => { calls += 1; return { status: 200 }; });
+  const agentCtx = { ...ctx, principal: { kind: "agent", id: "agt_x" } } as AutoCtx;
+  const out = await tryConnectorRead(agentCtx, readInput({ method: "POST", markedSafe: true }));
+  assert.deepEqual(out, { level: "draft", reason: "Only a read can be tried." });
+  assert.equal(calls, 0);
+});
+
+test("the header and prefix the docs name reach the sender, and a bad header name does not", async () => {
+  const plans: unknown[] = [];
+  setConnectorReadSender(async (plan) => { plans.push(plan); return { status: 200 }; });
+  await tryConnectorRead(ctx, readInput({ header: "X-Api-Key", prefix: "" }));
+  await tryConnectorRead(ctx, readInput({ header: "Bad Header\r\nX: y" }));
+  assert.deepEqual(plans, [{ ...PLAN, header: "X-Api-Key", prefix: "" }, PLAN]);
 });

@@ -9,6 +9,10 @@ import type { EngineSession, OpenSession, TurnInput } from "../../agent/src/turn
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 type Obj = Record<string, unknown>;
 
+/** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
+export const CONNECTOR_CHAT = /^(Add .+ to Automations|Build a connector)$/;
+export const CONNECTOR_SKILL = "connector-builder";
+
 /** The skills a turn can see: an index line each, and the body of one by name. The loader is the skills module's; this is the port the context binds to. */
 export interface SkillsPort {
   index(agentId: string, asker: string): Promise<ReadonlyArray<{ name: string; description: string; tier: "builtin" | "space" | "agent" }>>;
@@ -207,7 +211,9 @@ export function createContextBuilder(d: ContextDeps) {
     add("where", true, where.join("\n"));
 
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it
-    const focusName = screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
+    // A chat that Add to Automations or Build a connector started is a connector build whatever screen it was sent from: that skill is the focus. Anywhere else it is in the skills index by its description.
+    const connectorChat = CONNECTOR_CHAT.test(str(th?.["title"]) ?? "");
+    const focusName = connectorChat ? CONNECTOR_SKILL : screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
     if (d.skills) {
       const idx = await d.skills.index(agentId, asker).catch(() => []);
       const manual = await d.skills.load("working-in-vyre", agentId, asker).catch(() => null);

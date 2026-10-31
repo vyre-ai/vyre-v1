@@ -380,6 +380,16 @@ export default defineManifest({
       errors: ['permission.needs_approval', 'provider.network', 'validation.precondition_failed', 'validation.too_large', 'permission.no_grant'],
       agent: false,
     }),
+    read('automations.read_docs', 'Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.', {
+      in: { url: t.str(), focus: t.opt(t.str()) },
+      out: { ok: t.bool(), reason: t.opt(t.str()), finalUrl: t.opt(t.str()), kind: t.opt(t.enm('openapi', 'html', 'text')), text: t.opt(t.str()), links: t.opt(t.arr(t.obj({ text: t.str(), url: t.str() }))), truncated: t.opt(t.bool()) },
+      tool: 'automations', agent: { planMode: 'allowed' },
+    }),
+    write('automations.connector_card', 'Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.', {
+      in: { threadId: id.thread, title: t.str(), items: t.arr(t.obj({ text: t.str(), done: t.bool() }), { minItems: 1, maxItems: 20 }) },
+      out: { messageId: t.str() },
+      tool: 'automations', agent: { planMode: 'blocked' },
+    }),
     read('automations.vault_usage', 'Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.', {
       in: { handle: t.opt(id.handle) },
       out: { uses: t.arr(t.obj({ handle: id.handle, automations: t.arr(t.obj({ automationId: id.automation, name: t.str(), status: t.str(), steps: t.arr(t.obj({ nodeId: t.str(), title: t.str() })) })) })) },
@@ -421,8 +431,10 @@ export default defineManifest({
         markedSafe: t.opt(t.bool()),
         vaultItemId: t.str(),
         actionKey: t.opt(t.str()),
+        header: t.opt(t.str({ description: 'The header the app wants the key in. Default Authorization.' })),
+        prefix: t.opt(t.str({ description: 'Text before the key in that header. Default Bearer for Authorization, none otherwise.' })),
       },
-      out: { level: t.enm('tested', 'draft'), reason: t.opt(t.str()) },
+      out: { level: t.enm('tested', 'draft'), reason: t.opt(t.str()), status: t.opt(t.int()) },
       tool: 'automations',
       agent: { planMode: 'blocked' },
     }),
