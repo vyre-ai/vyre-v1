@@ -146702,8 +146702,8 @@
       "effects": "write",
       "emits": [
         "provider.added",
-        "vault.folder_created",
-        "vault.item_created"
+        "vault.item_created",
+        "vault.folder_created"
       ],
       "errors": [
         "internal.unexpected",
@@ -146950,8 +146950,8 @@
       "effects": "write",
       "emits": [
         "provider.added",
-        "vault.folder_created",
-        "vault.item_created"
+        "vault.item_created",
+        "vault.folder_created"
       ],
       "errors": [
         "internal.unexpected",
@@ -147488,8 +147488,8 @@
       "effects": "write",
       "emits": [
         "provider.added",
-        "vault.folder_created",
-        "vault.item_created"
+        "vault.item_created",
+        "vault.folder_created"
       ],
       "errors": [
         "internal.unexpected",
