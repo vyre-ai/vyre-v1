@@ -13,7 +13,7 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useFilesData, useFolderNodes, useLive, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
 import {
-  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
+  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyIcon, emptyText, fileLine, folderLine, kindLabel, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
 import type { Line, SortKey, Spring } from "../tree/model.ts";
 import { iconOfKind } from "../tree/parts.tsx";
@@ -299,7 +299,7 @@ function List(): ReactElement {
       {ql ? <QuickLook line={ql} now={c.now} offsetMin={c.offsetMin} nameOf={data.nameOf} onClose={() => dispatch({ type: "quicklook", key: null })} onOpen={() => { dispatch({ type: "quicklook", key: null }); open(ql); }} /> : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="files-offline">Offline, showing your saved copy</Text>}
       {src.status !== "ready" ? <ListLoading bare /> : lines.length === 0 ? (
-        <States kind="empty" title={emptyText(state.where)} icon="files" {...(state.where.kind === "folder" && here !== undefined ? { action: upload ? { label: "Add files", onPress: upload } : { label: "New folder", onPress: () => data.nav.newFolder(scopeHere, here) } } : {})} />
+        <States kind="empty" title={emptyText(state.where)} icon={emptyIcon(state.where)} {...(state.where.kind === "folder" && here !== undefined ? { action: upload ? { label: "Add files", onPress: upload } : { label: "New folder", onPress: () => data.nav.newFolder(scopeHere, here) } } : {})} />
       ) : (
         <View ref={box} style={styles.listBox} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} {...({ onKeyDown, tabIndex: 0 } as object)}>
           {grid ? (

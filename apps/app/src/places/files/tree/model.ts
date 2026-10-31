@@ -235,19 +235,27 @@ export type Action =
   | { type: "back" }
   | { type: "forward" };
 
+/** Recent is a list of what you opened last, so it opens newest first; leaving it puts the sort back to the name. A sort you chose inside another place stays. */
+function sortFor(from: Where, to: Where, s: FilesState): Pick<FilesState, "sort" | "dir"> {
+  if (from.kind === to.kind) return { sort: s.sort, dir: s.dir };
+  if (to.kind === "recent") return { sort: "updated", dir: "desc" };
+  if (from.kind === "recent") return { sort: "name", dir: "asc" };
+  return { sort: s.sort, dir: s.dir };
+}
+
 export function reduce(s: FilesState, a: Action): FilesState {
   switch (a.type) {
     case "go": return sameWhere(s.where, a.where)
       ? { ...s, where: a.where, selection: [], anchor: null, quickLook: null }
-      : { ...s, where: a.where, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where].slice(-50), forward: [] };
+      : { ...s, ...sortFor(s.where, a.where, s), where: a.where, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where].slice(-50), forward: [] };
     case "hidden": return { ...s, showHidden: a.on };
     case "back": {
       const prev = s.back[s.back.length - 1];
-      return prev === undefined ? s : { ...s, where: prev, selection: [], anchor: null, quickLook: null, back: s.back.slice(0, -1), forward: [...s.forward, s.where] };
+      return prev === undefined ? s : { ...s, ...sortFor(s.where, prev, s), where: prev, selection: [], anchor: null, quickLook: null, back: s.back.slice(0, -1), forward: [...s.forward, s.where] };
     }
     case "forward": {
       const next = s.forward[s.forward.length - 1];
-      return next === undefined ? s : { ...s, where: next, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where], forward: s.forward.slice(0, -1) };
+      return next === undefined ? s : { ...s, ...sortFor(s.where, next, s), where: next, selection: [], anchor: null, quickLook: null, back: [...s.back, s.where], forward: s.forward.slice(0, -1) };
     }
     case "click": return clickSelect(s, a.order, a.key, a.mods);
     case "arrow": return arrowSelect(s, a.order, a.dir, a.shift);
@@ -292,14 +300,27 @@ export function crumbs(nodes: readonly { id: string; name: string; parentId: str
   return out;
 }
 
+/** The empty state's line: two or three words, the way the prototype says it. */
 export function emptyText(where: Where): string {
   switch (where.kind) {
-    case "folder": return "This folder is empty.";
-    case "recent": return "Nothing opened recently.";
-    case "starred": return "Nothing starred yet.";
-    case "shared": return "Nothing has been shared with you yet.";
-    case "trash": return "The Trash is empty.";
-    case "knowledge": return "No notes in Knowledge yet.";
+    case "folder": return "Empty folder";
+    case "recent": return "Nothing recent";
+    case "starred": return "Nothing starred";
+    case "shared": return "Nothing shared";
+    case "trash": return "Trash is empty";
+    case "knowledge": return "No notes yet";
+  }
+}
+
+/** The empty state's icon, from the shared set: each place gets its own so the page reads as designed. */
+export function emptyIcon(where: Where): "files" | "search" | "inbox" | "doc" {
+  switch (where.kind) {
+    case "folder": return "files";
+    case "recent": return "search";
+    case "starred": return "doc";
+    case "shared": return "inbox";
+    case "trash": return "inbox";
+    case "knowledge": return "doc";
   }
 }
 

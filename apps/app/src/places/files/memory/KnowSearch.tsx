@@ -82,7 +82,7 @@ export function KnowSearch({ q }: { q: string }): ReactElement {
   return (
     <View style={frame.main} testID="know-search">
       <KnowHeader crumbs={[{ t: "Knowledge", route: { v: "learned" } }, { t: "Search" }]} q={q} focusSearch />
-      <KnowColumn testID="know-search-body" label="Search" title="Search" lede="Ask in plain words or type a name. Vyre matches meaning as well as words, on this server, so nothing leaves it.">
+      <KnowColumn testID="know-search-body" label="Search" title="Search" lede="Ask in plain words or type a name.">
         <Flash flash={doing.flash} onClose={() => doing.setFlash(null)} />
         <ErrorLine text={doing.err ?? failed} />
         {none ? (

@@ -346,7 +346,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                 channels={(["email", "sms"] as const).filter((c) => options?.channels.includes(c) ?? false).map((c) => (c === "email" ? "email" as const : "text" as const))}
                 onChannel={(c) => pickChan(c === "email" ? "email" : "sms")}
                 to={mail
-                  ? <Recipients to={namedTo(draft.to, conv.address, unmatched ? null : conv.displayName)} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
+                  ? <Recipients to={namedTo(draft.to, conv.address, unmatched ? null : conv.displayName)} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} hideToLabel onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
                   : <Text style={s.toText} numberOfLines={1}>{textTo ? `${conv.displayName} \u00b7 ${textTo}` : "No phone number for this contact"}</Text>}
                 senders={listed}
                 senderId={inbox?.id ?? null}

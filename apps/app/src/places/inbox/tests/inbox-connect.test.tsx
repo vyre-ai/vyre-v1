@@ -29,12 +29,15 @@ test("no channel connected: the empty Inbox says Connect a channel with four til
   for (const label of ["Gmail", "Outlook", "Other email", "Twilio"]) assert.ok(has(out, `>${label}<`), label);
   assert.ok(has(out, 'data-appicon="gmail"') && has(out, 'data-appicon="microsoft"') && has(out, 'data-appicon="twilio"'), "real brand marks");
   assert.ok(!has(out, "New message") && !has(out, "No messages yet."));
+  // the page is the choice alone: no view menu, filter or dial that could not do anything yet
+  assert.ok(!has(out, 'data-testid="inbox-view"') && !has(out, 'data-testid="inbox-filter"') && !has(out, 'data-testid="inbox-dial"'));
 });
 
 test("with a mailbox connected the empty Inbox is the normal one, with New message", () => {
   const out = html(connected, <ContactList />);
   assert.ok(has(out, "No messages yet.") && has(out, "New message"));
   assert.ok(!has(out, "inbox-connect-channel"));
+  assert.ok(has(out, 'data-testid="inbox-view"') && has(out, 'data-testid="inbox-filter"') && has(out, 'data-testid="inbox-dial"'), "the controls are back once a channel can send");
 });
 
 test("a claimed number alone also counts as a channel", () => {

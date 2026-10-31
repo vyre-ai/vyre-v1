@@ -231,7 +231,7 @@ test("the line's menu: open, Quick Look, share and rename where they apply, the 
 test("moving to the Trash and restoring change what the Trash and the folder list", async () => {
   const s = createSampleFiles();
   const html = (initial: Partial<FilesState>): string => wrap(s, initial, <FilesList />);
-  assert.ok(has(html({ where: { kind: "trash" } }), "The Trash is empty."));
+  assert.ok(has(html({ where: { kind: "trash" } }), "Trash is empty"));
   await s.data.call("files.delete", { fileId: "fil_deck" });
   assert.deepEqual(lines(html({ where: { kind: "trash" } })), ["file:fil_deck"]);
   assert.ok(!lines(html(folder("fld_sales"))).includes("file:fil_deck"));
@@ -240,13 +240,13 @@ test("moving to the Trash and restoring change what the Trash and the folder lis
   assert.ok(!has(wrap(s, {}, <FilesTree />), 'data-testid="count-trash"'), "the Trash left the sidebar");
   assert.deepEqual(items(moreMenuEntries({ showHidden: false, trashCount: 1, toggleHidden: () => undefined, selectAll: () => undefined, openTrash: () => undefined })).map((e) => [e.label, e.count]), [["Show Hidden Files", undefined], ["Select All", undefined], ["Trash", 1]], "the more menu has the Trash with its count");
   await s.data.call("files.restore", { fileId: "fil_deck" });
-  assert.ok(lines(html(folder("fld_sales"))).includes("file:fil_deck") && has(html({ where: { kind: "trash" } }), "The Trash is empty."));
+  assert.ok(lines(html(folder("fld_sales"))).includes("file:fil_deck") && has(html({ where: { kind: "trash" } }), "Trash is empty"));
 });
 
 test("an empty place says so with the shared empty state", () => {
-  assert.ok(has(list(folder("fld_nothing")), "This folder is empty."));
-  assert.ok(has(list({ where: { kind: "trash" } }), "The Trash is empty."));
-  assert.ok(has(list({ where: { kind: "shared" } }, harbor), "Nothing has been shared with you yet."));
+  assert.ok(has(list(folder("fld_nothing")), "Empty folder"));
+  assert.ok(has(list({ where: { kind: "trash" } }), "Trash is empty"));
+  assert.ok(has(list({ where: { kind: "shared" } }, harbor), "Nothing shared"));
 });
 
 test("the list opens offline from the kept copy and says so", () => {
