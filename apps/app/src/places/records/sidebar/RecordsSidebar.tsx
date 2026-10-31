@@ -1,6 +1,6 @@
 // Records > sidebar (spec 3.4), drawn in the shell's shared place sidebar slot (P-L9d_22: the slot gives the title, the collapse button, the search field and the phone list): record types in their groups with row counts (Records first, a Sites group for site tables), the saved views of the open type, and Manage
 // (Record types, Schema map). Every row is a ui/Row with a leading glyph and a trailing count; click opens; folded sections stay folded.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -8,6 +8,7 @@ import { SidebarContent, matchRows } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
+import { TypeSheet } from "../typeedit/index.ts";
 import { StarredGroup } from "../starred/index.ts";
 import type { StarsOut } from "../starred/index.ts";
 import { useOptionalRecordsData, useRecordsData, useScreenQuery } from "./data.tsx";
@@ -30,12 +31,19 @@ function SideRow({ id, title, glyph, selected, trailing, onPress, tile }: { id: 
   );
 }
 
-function SectionHead({ id, label, closed, onToggle }: { id: string; label: string; closed: boolean; onToggle: () => void }): ReactElement {
-  return (
+function SectionHead({ id, label, closed, onToggle, onAdd }: { id: string; label: string; closed: boolean; onToggle: () => void; onAdd?: (() => void) | undefined }): ReactElement {
+  const head = (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: !closed }} testID={`sec-${id}`} onPress={onToggle} style={({ hovered }: { hovered?: boolean }) => [styles.sec, hovered === true && styles.secOver]}>
       <View style={closed ? styles.chevShut : undefined}><Glyph name="chevd" size={10} /></View>
       <Text style={styles.secText}>{label}</Text>
     </Pressable>
+  );
+  if (!onAdd) return head;
+  return (
+    <View style={styles.secRow}>
+      <View style={styles.secGrow}>{head}</View>
+      <Pressable accessibilityRole="button" accessibilityLabel="New record type" testID="sidebar-new-type" onPress={onAdd} style={({ hovered }: { hovered?: boolean }) => [styles.secAdd, hovered === true && styles.secOver]}><Glyph name="plus" size={12} /></Pressable>
+    </View>
   );
 }
 
@@ -69,12 +77,15 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   const fold = (k: string) => (): void => dispatch({ type: "section", key: k });
   const choose = (): void => slot?.openBody();
   const saved = allSaved.filter((v) => hit(v.title));
+  const canEdit = data.canEditSchema === true;
+  const [making, setMaking] = useState(false);
+  const addType = canEdit ? (): void => setMaking(true) : undefined;
 
   const sections: ReactElement[] = [];
   for (const g of groups) {
     const items = g.items.filter((t) => hit(t.label));
     if (items.length === 0) continue;
-    sections.push(<SectionHead key={`h-${g.key}`} id={g.key} label={g.label} closed={closed(g.key)} onToggle={fold(g.key)} />);
+    sections.push(<SectionHead key={`h-${g.key}`} id={g.key} label={g.label} closed={closed(g.key)} onToggle={fold(g.key)} onAdd={sections.length === 0 ? addType : undefined} />);
     if (closed(g.key)) continue;
     for (const t of items) {
       sections.push(
@@ -101,6 +112,7 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   const agentType = types.status === "ready" ? types.data.types.find((t) => t.key === MANAGE_TYPE) : undefined;
   if (agentType && hit(agentType.plural)) manage.push(<SideRow key="agents" id={`type:${MANAGE_TYPE}`} title={agentType.plural} glyph={typeIcon(agentType.icon)} selected={open === MANAGE_TYPE && state.viewId === null} trailing={<Text style={styles.count} testID={`count-${MANAGE_TYPE}`}>{compact(agentType.rowCount)}</Text>} onPress={() => { dispatch({ type: "open", key: MANAGE_TYPE }); choose(); }} />);
   if (hit("Record types")) manage.push(<SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={data.screen === "records.types"} onPress={() => { data.nav.openRecordTypes(); choose(); }} />);
+  if (canEdit && hit("New record type")) manage.push(<SideRow key="new-type" id="manage:new" title="New record type" glyph="plus" selected={false} onPress={() => setMaking(true)} />);
   if (hit("Schema map")) manage.push(<SideRow key="map" id="manage:map" title="Schema map" glyph="schema" selected={data.screen === "records.schema-map"} onPress={() => { data.nav.openSchemaMap(); choose(); }} />);
 
   return (
@@ -113,6 +125,7 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
         {manage.length > 0 ? <SectionHead id="manage" label="Manage" closed={closed("manage")} onToggle={fold("manage")} /> : null}
         {closed("manage") ? null : manage}
       </ScrollView>
+      {making ? <TypeSheet call={data.call} takenKeys={types.status === "ready" ? types.data.types.map((t) => t.key) : []} onClose={() => setMaking(false)} onDone={(key) => { dispatch({ type: "open", key }); choose(); }} /> : null}
     </View>
   );
 }
@@ -143,6 +156,9 @@ const styles = StyleSheet.create({
   trail: { flexDirection: "row", alignItems: "center", gap: 6 },
   count: { fontSize: 11.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   sec: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, marginTop: 10, paddingHorizontal: 8, borderRadius: 6 },
+  secRow: { flexDirection: "row", alignItems: "center" },
+  secGrow: { flex: 1 },
+  secAdd: { width: 24, height: 24, marginTop: 10, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   secOver: { backgroundColor: "var(--hover)" as string },
   secText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   chevShut: { transform: [{ rotate: "-90deg" }] },

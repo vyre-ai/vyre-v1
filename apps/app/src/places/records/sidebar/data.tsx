@@ -31,6 +31,8 @@ export interface RecordsData {
   /** The name of a person, agent or group by id, for the person fields. */
   nameOf(id: string): string;
   nav: RecordsNav;
+  /** May this person change record types and fields (the Console's schema.manage; the owner of a Personal Space)? Left out, the editing controls are not drawn. */
+  canEditSchema?: boolean;
 }
 
 const DataCtx = createContext<RecordsData | null>(null);
