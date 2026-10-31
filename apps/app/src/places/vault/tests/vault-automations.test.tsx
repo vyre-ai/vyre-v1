@@ -33,7 +33,7 @@ test("the Automations that use the key are listed with their steps and each one 
   assert.match(text, /New lead to GoHighLevel/);
   assert.match(text, /Create contact/);
   assert.match(text, /2 steps/);
-  await press(find(root, "used-by-aut_nightly"));
+  await press(find(root, "row-aut_nightly"));
   assert.ok(v.opened.includes("automation:aut_nightly"));
 });
 

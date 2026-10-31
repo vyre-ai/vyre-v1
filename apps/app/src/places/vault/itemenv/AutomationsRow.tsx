@@ -2,7 +2,8 @@
 // message carries the app name and the handle, never a value). Below it, the Automations whose steps already use the key. A blocker is one sentence and one button, never a raw error.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useOnline, useVaultData } from "../layout/data.tsx";
 import type { ItemKind } from "../layout/model.ts";
 import { Btn, Glyph } from "../layout/parts.tsx";
@@ -65,11 +66,11 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
       ) : (
         <View testID="item-used-by">
           {used.map((u) => (
-            <Pressable key={u.automationId} accessibilityRole="button" accessibilityLabel={`Open ${u.name}`} testID={`used-by-${u.automationId}`} onPress={() => data.nav.openAutomation?.(u.automationId)} style={s.use}>
-              <Text numberOfLines={1} style={s.useName}>{u.name}</Text>
-              <Text numberOfLines={1} style={s.useSteps}>{u.steps.length === 1 ? u.steps[0]!.title : stepsLine(u.steps.length)}</Text>
-              <Glyph name="chevron" size={13} />
-            </Pressable>
+            <Row
+              key={u.automationId} id={u.automationId} title={u.name}
+              trailing={<View style={s.trail}><Text numberOfLines={1} style={s.useSteps}>{u.steps.length === 1 ? u.steps[0]!.title : stepsLine(u.steps.length)}</Text><Glyph name="chevron" size={13} /></View>}
+              onPress={() => data.nav.openAutomation?.(u.automationId)}
+            />
           ))}
         </View>
       )}
@@ -84,7 +85,6 @@ const s = StyleSheet.create({
   notice: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, marginBottom: 8, backgroundColor: "var(--accent-wash)" as string },
   noticeText: { flex: 1, minWidth: 180, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
   note: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 4, paddingVertical: 4 },
-  use: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 34, paddingHorizontal: 4 },
-  useName: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
+  trail: { flexDirection: "row", alignItems: "center", gap: 8 },
   useSteps: { maxWidth: 160, fontSize: 12.5, color: "var(--ink-3)" as string },
 });
