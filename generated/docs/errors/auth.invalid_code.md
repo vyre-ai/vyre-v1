@@ -9,6 +9,7 @@ HTTP 401. Retryable: no.
 - access.actors.redeem
 - connections.complete_auth
 - dropbox.connect.complete
+- engine.mcp.oauth_complete
 - forms.submit
 - identity.claim_owner
 - identity.github_sign_in
