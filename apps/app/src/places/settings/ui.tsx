@@ -66,6 +66,8 @@ export interface SettingsRowProps {
   id: string;
   label: string;
   sub?: string;
+  /** The sub line is an error the person must hear about: it is announced as an alert. */
+  subAlert?: boolean;
   lead?: ReactNode;
   control?: ReactNode;
   first?: boolean;
@@ -78,14 +80,14 @@ export interface SettingsRowProps {
 }
 
 /** One row anatomy: lead mark, label, a sub line only when it adds information, control on the right. Hover paints the whole row when it can be pressed. */
-export function SettingsRow({ id, label, sub, lead, control, first = false, onPress, indent = false, found = false, danger = false }: SettingsRowProps): ReactElement {
+export function SettingsRow({ id, label, sub, subAlert = false, lead, control, first = false, onPress, indent = false, found = false, danger = false }: SettingsRowProps): ReactElement {
   const [over, setOver] = useState(false);
   const body = (
     <>
       {lead ? <View style={s.lead}>{lead}</View> : null}
       <View style={s.text}>
         <Text numberOfLines={1} style={[s.label, indent && { color: "var(--ink-2)" as string }, danger && { color: "var(--danger)" as string }]}>{label}</Text>
-        {sub ? <Text numberOfLines={2} style={s.sub}>{sub}</Text> : null}
+        {sub ? <Text numberOfLines={2} style={s.sub} {...(subAlert ? { accessibilityRole: "alert" as const } : {})}>{sub}</Text> : null}
       </View>
       {control ? <View style={s.control}>{control}</View> : null}
     </>

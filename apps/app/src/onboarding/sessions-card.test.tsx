@@ -42,7 +42,7 @@ test("Select all ticks every row, the count follows, and Import names the count"
   assert.ok(textOf(find(root, "sessions-import")).includes("Import 3"));
   await press(find(root, "session-claude:a1"));
   assert.ok(textOf(find(root, "sessions-count")).includes("2 of 3 selected"));
-  assert.deepEqual((find(root, "sessions-all")?.props.accessibilityState as { checked: unknown }).checked, "mixed");
+  assert.equal(find(root, "sessions-all")?.props["aria-checked"], "mixed");
   await press(find(root, "sessions-all"));
   assert.ok(textOf(find(root, "sessions-count")).includes("3 of 3 selected"), "from some, Select all ticks the rest");
 });
@@ -58,7 +58,15 @@ test("the folder filter narrows the rows and Select all then covers only those",
 
 test("when the import is done the card says Imported 3, They are in Chats, links there, and Continue (the gate) finishes the step", async () => {
   installDom();
-  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string, args?: { source?: { sessionKey?: string } }) => (cmd === "discover_session_sources" ? found() : { sourceKey: "k", title: "t", startedAt: 1, messages: [{ sourceMessageId: "m1", role: "user", text: "hi", at: 1 }], ...(args ? {} : {}) }) } };
+  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string, args?: { sessionKey?: string }) => {
+    if (cmd === "discover_session_sources") return found();
+    // read_session_source answers { source, text }: the transcript as the provider's own JSON lines
+    const source = found().find((s) => s.sessionKey === args?.sessionKey)!;
+    const line = source.provider === "codex"
+      ? { type: "response_item", timestamp: "2026-01-01T00:00:00Z", payload: { type: "message", id: "m1", role: "user", content: [{ type: "input_text", text: "hi" }] } }
+      : { type: "user", uuid: "m1", timestamp: "2026-01-01T00:00:00Z", message: { role: "user", content: "hi" } };
+    return { source, text: JSON.stringify(line) };
+  } } };
   const calls: string[] = [];
   const call = (async (cap: string) => { calls.push(cap); return {}; }) as unknown as CapCall;
   let done = 0, chats = 0;

@@ -275,7 +275,8 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
   const agents = useMemo(() => withRealAssistant(props.agents), [props.agents]);
   const storage = useMemo<AskStorage>(() => props.storage ?? layeredStorage(webStorage()), [props.storage]);
   const [version, setVersion] = useState(0);
-  const [picker, setPicker] = useState<{ anchor: Rect } | null>(null);
+  // startOpen draws the picker from the first render (at the window's corner); the effect below then measures the button and moves it
+  const [picker, setPicker] = useState<{ anchor: Rect } | null>(startOpen ? { anchor: { x: 0, y: 0, w: 0, h: 0 } } : null);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(-1);
   const [mainOver, setMainOver] = useState(false);
