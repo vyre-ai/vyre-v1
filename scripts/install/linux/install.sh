@@ -658,8 +658,12 @@ services:
     group_add:
       - "\${DOCKER_GID}"
     cap_drop: [ALL]
+    # bubblewrap (the engine's sandbox) needs user namespaces and a readable /proc, which Docker's default profile withholds. This container already holds the Docker socket, which is root on this
+    # machine, so these two add no reach the socket does not; the engine itself still runs inside bubblewrap with the network wall.
     security_opt:
       - no-new-privileges:true
+      - seccomp=unconfined
+      - systempaths=unconfined
 COMPOSE
   printf '%s\n' "$CHANNEL" >"$DIR/channel"
 }

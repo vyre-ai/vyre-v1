@@ -8,7 +8,7 @@ import { harness } from "../fixtures/harness.ts";
 import type { SessionSpec } from "../../../agent/src/turn-engine/types.ts";
 
 const spec = { threadId: "thr_1", agent: { id: "agt_1" }, asker: "usr_dana", turnId: "trn_1", traceId: "a".repeat(32) } as unknown as SessionSpec;
-const relay = (on: boolean): NodeRelay => ({ connected: () => on, spawn: async () => { throw Object.assign(new Error("The server is not connected to the Space right now."), { code: "engine.server_off" }); } });
+const relay = (on: boolean, secure = true): NodeRelay => ({ connected: () => on, secure: () => secure, spawn: async () => { throw Object.assign(new Error("The server is not connected to the Space right now."), { code: "engine.server_off" }); } });
 
 test("only a turn the person pinned to a server is routed: a connected server opens through its opener, anything else opens as before", async () => {
   const h = harness();
@@ -46,4 +46,14 @@ test("the launcher keeps the server's own refusal code, and the turn record name
   assert.equal(turn.nodeId, undefined);
   setTurnNode(h.db, turn.turnId, "srv_home");
   assert.equal(turnGet(h.ctx as never, { turnId: turn.turnId }).what.turn.nodeId, "srv_home");
+});
+
+test("a server whose link is not private gets no key: the turn fails with engine.link_insecure before the Vault is read or any opener runs", async () => {
+  const h = harness();
+  const opened: string[] = [];
+  const open = async (): Promise<never> => { opened.push("x"); return {} as never; };
+  const insecure = routed(open as never, { call: async () => ({ placement: "host", reason: "chosen_server", nodeId: "srv_home" }), relay: relay(true, false), nodeOpener: () => open as never, db: h.db });
+  await assert.rejects(() => insecure(spec), (e) => (e as { code?: string }).code === "engine.link_insecure" && /secure link/.test((e as Error).message));
+  assert.deepEqual(opened, [], "no opener ran, so no account key was looked up");
+  assert.equal(nodeOfTurn(h.db, "trn_1"), undefined, "and the turn is not recorded as run there");
 });

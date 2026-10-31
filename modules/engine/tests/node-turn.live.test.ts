@@ -46,10 +46,12 @@ test("a turn pinned to an enrolled server runs its engine there; the node id is 
   const { nodeId, abort, running } = await enroll(d, nodeDir, log, fakeCliLauncher(seen));
   try {
     const value = (v: string, itemId: string): Lookup => ({ kind: "value", itemId, value: v, spaceOnly: false, injectIntoDeployments: false });
-    const source: ValueSource = { lookup: async (h) => (h === "#Dana_Claude.setup_token" ? value(SECRET, "vit_claude") : { kind: "unknown" }) };
+    const looked: string[] = [];
+    const source: ValueSource = { lookup: async (h) => { looked.push(h); return h === "#Dana_Claude.setup_token" ? value(SECRET, "vit_claude") : { kind: "unknown" }; } };
     const minted: string[] = [];
     const session = { source, reportMiss: () => undefined, mcp: { mint: async (i: { threadId: string }) => { minted.push(i.threadId); return { sessionId: "ses_1", sessionToken: "vys_token_1_0123456789abcdef0123456789", url: "http://127.0.0.1:41800/mcp", expiresAt: 9_999_999_999_999 }; }, close: async () => undefined } };
-    const relay: NodeRelay = { spawn: (n, s) => d.nodeRelay.spawnProc(n, s) as never, connected: (n) => d.nodeRelay.connected(n) };
+    let secure = true;
+    const relay: NodeRelay = { spawn: (n, s) => d.nodeRelay.spawnProc(n, s) as never, connected: (n) => d.nodeRelay.connected(n), secure: () => secure };
     const nodeOpen = buildNodeOpener({ session, call: async () => ({}) }, remoteLauncher(relay, nodeId));
     const db = sql();
     let pinned: { reason: string; nodeId?: string; wakeLine?: string } = { reason: "chosen_server", nodeId };
@@ -88,5 +90,16 @@ test("a turn pinned to an enrolled server runs its engine there; the node id is 
     assert.equal(failed?.code, "engine.server_off");
     assert.equal(seen.env.length, 1, "no second engine started");
     assert.deepEqual(hostOpened, []);
+
+    // the link is not private: no key is looked up, no engine starts, and the turn fails with the reason
+    pinned = { reason: "chosen_server", nodeId };
+    secure = false;
+    const before = looked.length;
+    engine.receive({ threadId: "T1", author: { kind: "person", id: "dana" }, body: "once more" });
+    await engine.idle("T1");
+    const insecure = engine.events().filter((e) => e.type === "turn.failed").at(-1) as { code?: string } | undefined;
+    assert.equal(insecure?.code, "engine.link_insecure");
+    assert.equal(looked.length, before, "the Vault was not read for it");
+    assert.equal(seen.env.length, 1, "no engine started");
   } finally { abort.abort(); await running.catch(() => undefined); await d.stop(); fs.rmSync(nodeDir, { recursive: true, force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
 });

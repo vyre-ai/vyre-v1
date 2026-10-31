@@ -500,6 +500,8 @@ test("node_write_config keeps the code out of output and arguments, at mode 0600
   assert.match(yml, /\/var\/run\/docker\.sock:\/var\/run\/docker\.sock/);
   assert.match(yml, /image: \$\{VYRE_IMAGE\}/);
   assert.match(yml, /cap_drop: \[ALL\]/);
+  assert.match(yml, /seccomp=unconfined/);
+  assert.match(yml, /systempaths=unconfined/);
   assert.doesNotMatch(yml, /VYRE-AB23/, "the code is in node.env only");
   const dry = sh(INSTALL, body.replace("DRY=0", "DRY=1").replace(dir, path.join(dir, "elsewhere")));
   assert.match(dry.stdout, /would write .*node\.env/);

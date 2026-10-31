@@ -22,7 +22,7 @@ export const post = async (d: Daemon, p: string, body: unknown, token?: string):
 };
 
 /** `bootCore` is the seeded Space of fixtures/seed/core (a test passes it: only a test file may import the fixtures). */
-export async function boot(bootCore: () => { store: { db: { exec(sql: string): void } }; file: string; close(): void }): Promise<{ d: Daemon; dir: string }> {
+export async function boot(bootCore: () => { store: { db: { exec(sql: string): void } }; file: string; close(): void }, extra: { computeStreamSecure?: (req: import("node:http").IncomingMessage) => boolean } = {}): Promise<{ d: Daemon; dir: string }> {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-relay-space-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
@@ -32,7 +32,7 @@ export async function boot(bootCore: () => { store: { db: { exec(sql: string): v
     config: loadConfig(["--data-dir", dir, "--port", "0", "--space-kind", "personal"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "relay-space", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } } }),
-    fetch: caddyFetch, computeLeaseMs: 700,
+    fetch: caddyFetch, computeLeaseMs: 700, ...extra,
     session: (h) => (/^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER_TOKEN ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "mac" } : null),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });

@@ -10,6 +10,10 @@ export const isTurnStatus = (b: Pick<MessageBlock, "type">): boolean => b.type =
 const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { key: string; label: string }[]; retryable: boolean }> = {
   no_account: { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
   account_unavailable: { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
+  "engine.server_off": { message: "Your server is off, so this chat did not run.", retryable: true },
+  "engine.link_insecure": { message: "Your server needs a secure link (https) before it can run your chats.", retryable: true },
+  "engine.cli_missing": { message: "The engine is not installed on your server.", retryable: true },
+  "sandbox.unavailable": { message: "Your server cannot sandbox the engine.", retryable: true },
   turn_timeout: { message: "That took too long, so it was stopped.", retryable: true },
 };
 

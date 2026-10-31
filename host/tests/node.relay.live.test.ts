@@ -82,3 +82,30 @@ test("a node that is not running an engine launcher refuses, and a node that goe
     await assert.rejects(() => d.nodeRelay.spawnProc(nodeId, { argv: ["x"], env: {} }), (e) => (e as { code?: string }).code === "engine.server_off");
   } finally { abort.abort(); await d.stop(); fs.rmSync(nodeDir, { recursive: true, force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("a node whose link is not private is sent nothing: the Space refuses to start an engine on it, and the node never hears of it", async () => {
+  const { d, dir } = await bootRig(bootCore, { computeStreamSecure: () => false });
+  const nodeDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-relay-node-"));
+  const log: string[] = [];
+  const seen = { argv: [] as string[][], env: [] as Record<string, string>[], cwd: [] as string[] };
+  const { nodeId, abort, running } = await enroll(d, nodeDir, log, childLauncher(seen));
+  try {
+    assert.equal(d.nodeRelay.connected(nodeId), true);
+    assert.equal(d.nodeRelay.secure(nodeId), false);
+    await assert.rejects(() => d.nodeRelay.spawnProc(nodeId, { argv: [process.execPath, "-e", "0"], env: { KEY: "sk-ant-oat01-secret" } }), (e) => (e as { code?: string }).code === "engine.link_insecure");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepEqual([seen.argv, seen.env], [[], []], "the spawn frame, with its environment, was never sent");
+  } finally { abort.abort(); await running.catch(() => undefined); await d.stop(); fs.rmSync(nodeDir, { recursive: true, force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a link is private when it is TLS, or from this machine and not forwarded as plain http; a machine on the network cannot claim it", async () => {
+  const { linkIsSecure } = await import("../src/routes/compute-stream.ts");
+  const req = (remote: string, headers: Record<string, string> = {}, encrypted = false) => ({ socket: { remoteAddress: remote, encrypted }, headers }) as never;
+  assert.equal(linkIsSecure(req("203.0.113.9", {}, true)), true, "TLS straight to this server");
+  assert.equal(linkIsSecure(req("127.0.0.1")), true, "this machine");
+  assert.equal(linkIsSecure(req("::1")), true);
+  assert.equal(linkIsSecure(req("127.0.0.1", { "x-forwarded-proto": "https" })), true, "the proxy here terminated TLS");
+  assert.equal(linkIsSecure(req("127.0.0.1", { "x-forwarded-proto": "http" })), false, "the proxy here carried plain http");
+  assert.equal(linkIsSecure(req("192.168.1.20")), false, "plain http from the network");
+  assert.equal(linkIsSecure(req("192.168.1.20", { "x-forwarded-proto": "https" })), false, "a machine on the network cannot say it was https");
+});

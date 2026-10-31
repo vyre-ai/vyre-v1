@@ -50,6 +50,22 @@ export interface ComputeStreamDeps {
   recheckMs?: number;
   /** A node that has said nothing for this long is dropped. Default 60 s. */
   deadMs?: number;
+  /** Is this node's link private (TLS, or a peer on this machine)? Default: see linkIsSecure. A test passes its own. */
+  secure?: (req: http.IncomingMessage) => boolean;
+}
+
+const isLoopback = (a: string | undefined): boolean => !!a && (a === "::1" || a.startsWith("127.") || a.startsWith("::ffff:127."));
+
+/**
+ * Whether a node's connection is private enough to send it a person's account key: TLS straight to this server, or a peer on this machine. Behind a proxy on this machine (Caddy) the
+ * proxy says which it was (x-forwarded-proto): only https counts, and the header is believed only from a loopback peer, so a machine on the network cannot claim it. A plain-HTTP link from
+ * another machine is not secure: its traffic can be read and changed on the way.
+ */
+export function linkIsSecure(req: Pick<http.IncomingMessage, "socket" | "headers">): boolean {
+  if ((req.socket as { encrypted?: boolean }).encrypted === true) return true;
+  if (!isLoopback(req.socket.remoteAddress)) return false;
+  const proto = req.headers["x-forwarded-proto"];
+  return proto === undefined ? true : String(proto).split(",")[0]?.trim().toLowerCase() === "https";
 }
 
 /** How a relayed process ended (the same shape the local launcher reports). */
@@ -73,6 +89,8 @@ export class RelayError extends Error {
 }
 
 export interface ComputeStream {
+  /** Is this node's link private (see linkIsSecure)? False for one that is not connected. */
+  secure(nodeId: string): boolean;
   /** Start a process on a node, over its socket. Rejects with RelayError (engine.server_off) when the node is not connected, or with the node's own refusal. */
   spawnProc(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<RelayProc>;
   /** Does this upgrade request belong here? The live hub leaves such a request alone. */
@@ -86,7 +104,7 @@ export interface ComputeStream {
   close(): void;
 }
 
-interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number }
+interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean }
 interface ProcState {
   id: string; nodeId: string; started(pid: number | undefined): void; failed(e: RelayError): void; out(bytes: Buffer, err: boolean): void; exit(x: RelayExit): void;
 }
@@ -160,7 +178,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       if (!who) { refuseUpgrade(socket, "401 Unauthorized"); return; }
       const peer = accept(req, socket, head, MAX_NODE_FRAME);
       if (!peer) return;
-      const conn: NodeConn = { nodeId: who.serverId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now() };
+      const conn: NodeConn = { nodeId: who.serverId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req) };
       const old = nodes.get(conn.nodeId);
       if (old) dropNode(old, 4000);
       nodes.set(conn.nodeId, conn);
@@ -307,6 +325,8 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
   async function spawnProc(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<RelayProc> {
     const node = nodes.get(nodeId);
     if (!node?.peer.open) throw new RelayError("engine.server_off", "The server is not connected to the Space right now.");
+    // the engine's environment holds the person's own account key: it goes only over a private link
+    if (!node.secure) throw new RelayError("engine.link_insecure", "This server is connected over a link that is not private. Use an https address for the Space.");
     if (node.procs.size >= MAX_PROCS_PER_NODE) throw new RelayError("engine.server_busy", "The server is already running as many engines as it can.");
     const id = `prc_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(12)), (x) => x.toString(16).padStart(2, "0")).join("")}`;
     const chunks: Buffer[] = [];
@@ -384,6 +404,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       return 1;
     },
     connected: (nodeId) => nodes.get(nodeId)?.peer.open === true,
+    secure: (nodeId) => nodes.get(nodeId)?.secure === true,
     close() { clearInterval(timer); for (const n of [...nodes.values()]) dropNode(n, 1001); },
   };
 }

@@ -14,6 +14,7 @@ import type { Db } from "./projections.ts";
 export interface NodeRelay {
   spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<CliProcess>;
   connected(nodeId: string): boolean;
+  secure(nodeId: string): boolean;
 }
 
 const TABLE = "CREATE TABLE IF NOT EXISTS engine_turn_node (turn_id TEXT PRIMARY KEY, node_id TEXT NOT NULL)";
@@ -47,16 +48,19 @@ export function remoteLauncher(relay: NodeRelay, nodeId: string): Launcher {
   };
 }
 
-export interface Place { nodeId: string; line?: string }
+export interface Place { nodeId: string; line?: string; code?: string }
 
 /** Where this turn is pinned to run, if it is pinned to a server: undefined means "as usual". `line` is set when the server is off. */
-export async function serverFor(call: (cap: string, input: unknown, as?: string) => Promise<unknown>, relay: Pick<NodeRelay, "connected">, spec: SessionSpec): Promise<Place | undefined> {
+export async function serverFor(call: (cap: string, input: unknown, as?: string) => Promise<unknown>, relay: Pick<NodeRelay, "connected" | "secure">, spec: SessionSpec): Promise<Place | undefined> {
   let decided: { placement?: string; reason?: string; nodeId?: string; wakeLine?: string };
   try { decided = (await call("engine.placement.decide", { threadId: spec.threadId, agentId: spec.agent.id, kind: "message" }, spec.asker)) as typeof decided; }
   catch { return undefined; }   // a thread or agent decide does not know (an automation step): nothing pins it
   if (decided.reason === "server_off" && decided.nodeId) return { nodeId: decided.nodeId, line: decided.wakeLine ?? "Your server is off" };
   if (decided.reason !== "chosen_server" || !decided.nodeId) return undefined;
-  return relay.connected(decided.nodeId) ? { nodeId: decided.nodeId } : { nodeId: decided.nodeId, line: "Your server is off" };
+  if (!relay.connected(decided.nodeId)) return { nodeId: decided.nodeId, line: "Your server is off" };
+  // the engine's environment will hold the person's own account key: it is filled only for a server whose link is private (https, or this machine); nothing is read from the Vault before this
+  if (!relay.secure(decided.nodeId)) return { nodeId: decided.nodeId, code: "engine.link_insecure", line: "Your server needs a secure link (https) before it can run your chats." };
+  return { nodeId: decided.nodeId };
 }
 
 /** The session opener with the turn's pin applied: a pinned turn opens through its server's opener, a server that is off fails the turn with its line. */
@@ -66,7 +70,7 @@ export function routed(inner: OpenSession, o: { call(cap: string, input: unknown
   return async (spec) => {
     const place = await serverFor(o.call, relay, spec);
     if (!place) return inner(spec);
-    if (place.line !== undefined) throw new DriverError("engine.server_off", place.line);
+    if (place.line !== undefined) throw new DriverError(place.code ?? "engine.server_off", place.line);
     if (spec.turnId) setTurnNode(o.db, spec.turnId, place.nodeId);
     return o.nodeOpener(place.nodeId)(spec);
   };

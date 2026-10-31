@@ -12,7 +12,7 @@ import type { HostInfo, ServerInfo, Sheet } from "./computers-model.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Tip, pointer } from "./ui.tsx";
 
 const WHERE = "Any Linux machine or Mac that stays on. A small cloud server from Hetzner or DigitalOcean works.";
-const LAN_ONLY = "This address works only while the server and this computer are on the same network.";
+const LAN_ONLY = "Works only while the server and this computer are on the same network. Over plain http the server can run agent computers, but not your chats: those need an https address.";
 const NO_ADDRESS = "This Space has no address another machine can reach. Set up Phone access (a vyre.run address) first, then add the server.";
 const POLL_MS = 2000;
 

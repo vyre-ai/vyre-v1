@@ -8,9 +8,10 @@ LABEL org.opencontainers.image.title="vyred" \
       org.opencontainers.image.source="https://github.com/vyre-ai/vyre" \
       org.opencontainers.image.licenses="MIT"
 
-# git for project checkouts, tmux for terminals, tini as PID 1 (it reaps children and keeps tmux sessions alive across a vyred restart).
+# git for project checkouts, tmux for terminals, tini as PID 1 (it reaps children and keeps tmux sessions alive across a vyred restart), bubblewrap for the sandbox a CLI engine runs in
+# on a computer that joined a Space (--role compute).
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates git tmux tini \
+ && apt-get install -y --no-install-recommends ca-certificates git tmux tini bubblewrap \
  && rm -rf /var/lib/apt/lists/*
 
 # The node image ships uid 1000 as `node`. vyred runs as that user and owns /data.
@@ -22,7 +23,17 @@ COPY --chown=node:node . /opt/vyre
 RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts \
  && npm cache clean --force
 
-ENV VYRE_DATA_DIR=/data \
+# The CLI engines a pinned chat runs with on a computer that joined a Space: Claude Code and Codex, each at an exact version (an engine that changes under a person between two chats is not what
+# they signed in to). Bump the pins on purpose; a build with an unpinned package is refused. They run only inside bubblewrap (modules/engine/node-cli.ts), with the person's own sign-in filled in
+# for the length of a turn.
+ARG ENGINE_PACKAGES="@anthropic-ai/claude-code@2.1.316 @openai/codex@0.166.0"
+RUN for p in $ENGINE_PACKAGES; do case "$p" in *@[0-9]*) ;; *) echo "not pinned: $p" >&2; exit 1;; esac; done \
+ && npm install --global --omit=dev --no-fund --no-audit $ENGINE_PACKAGES \
+ && npm cache clean --force
+
+ENV CLAUDE_CODE_DISABLE_AUTOUPDATE=1 \
+    DISABLE_AUTOUPDATER=1 \
+    VYRE_DATA_DIR=/data \
     VYRE_ROLE=space \
     VYRE_HOST=0.0.0.0 \
     VYRE_PORT=8420 \

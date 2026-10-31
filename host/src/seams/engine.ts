@@ -65,6 +65,8 @@ export interface EngineNodes {
     readonly exited: Promise<{ code: number | null; signal: string | null }>; stderrTail(): string; kill(signal?: "SIGTERM" | "SIGKILL"): void;
   }>;
   connected(nodeId: string): boolean;
+  /** Is the node's link private? An account key is sent only over one that is. */
+  secure(nodeId: string): boolean;
 }
 
 export interface EngineHostDeps {
