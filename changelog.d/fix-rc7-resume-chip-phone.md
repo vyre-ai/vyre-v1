@@ -1,0 +1,1 @@
+- On the phone, the Finish setup entry floats above the places bar instead of covering Inbox and Records.
