@@ -2113,6 +2113,24 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/connector_card",
+    "cap": "automations.connector_card",
+    "v": 1,
+    "module": "automations",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/connector_offer/accept",
     "cap": "automations.connector_offer.accept",
     "v": 1,
@@ -2682,6 +2700,24 @@ const routes0: Route[] = [
     },
     "idempotency": "natural",
     "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/automations/read_docs",
+    "cap": "automations.read_docs",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -5320,7 +5356,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5339,7 +5375,7 @@ const routes0: Route[] = [
     "idempotency": "key",
     "risk": "high",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "post"
   },
   {
@@ -5358,7 +5394,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5377,7 +5413,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5396,7 +5432,7 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5415,7 +5451,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "high",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5434,7 +5470,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5453,7 +5489,7 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5472,7 +5508,7 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5491,7 +5527,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5510,7 +5546,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5529,9 +5565,12 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/computers/chrome/screenshot",
@@ -5548,7 +5587,7 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5567,12 +5606,9 @@ const routes0: Route[] = [
     "idempotency": "key",
     "risk": "high",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "send"
-  }
-];
-
-const routes1: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/computers/chrome/snapshot",
@@ -5589,7 +5625,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5608,7 +5644,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5627,7 +5663,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5646,7 +5682,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5665,7 +5701,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5684,7 +5720,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5703,7 +5739,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5722,7 +5758,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5741,7 +5777,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5760,7 +5796,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "high",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "delete"
   },
   {
@@ -5779,7 +5815,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5798,7 +5834,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5817,7 +5853,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5836,7 +5872,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5855,7 +5891,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5874,7 +5910,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5892,7 +5928,25 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/computers/hosts",
+    "cap": "computers.hosts",
+    "v": 1,
+    "module": "computers",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5910,7 +5964,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5928,7 +5982,7 @@ const routes1: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5947,7 +6001,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5966,7 +6020,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5984,7 +6038,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6002,7 +6056,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6020,7 +6074,7 @@ const routes1: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6039,7 +6093,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6058,7 +6112,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "high",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "delete"
   },
   {
@@ -6077,7 +6131,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6096,7 +6150,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6115,7 +6169,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6134,7 +6188,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6153,7 +6207,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6172,7 +6226,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6191,7 +6245,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6210,7 +6264,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6229,7 +6283,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6248,7 +6302,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6267,7 +6321,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6286,7 +6340,7 @@ const routes1: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6305,7 +6359,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6324,7 +6378,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6343,7 +6397,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6362,7 +6416,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6381,7 +6435,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6400,7 +6454,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6811,6 +6865,25 @@ const routes1: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/connectors/define",
+    "cap": "connectors.define",
+    "v": 1,
+    "module": "connectors",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "connector",
+      "id": "/key"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/connectors/diff",
     "cap": "connectors.diff",
     "v": 1,
@@ -7083,42 +7156,6 @@ const routes1: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/connectors/sync_poll",
-    "cap": "connectors.sync_poll",
-    "v": 1,
-    "module": "connectors",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/connectors/sync_run",
-    "cap": "connectors.sync_run",
-    "v": 1,
-    "module": "connectors",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
     "teamOnly": false,
     "gate": null
   },
@@ -8256,6 +8293,330 @@ const routes1: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/dropbox/account/list",
+    "cap": "dropbox.account.list",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/account/remove",
+    "cap": "dropbox.account.remove",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/app/set",
+    "cap": "dropbox.app.set",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/app/status",
+    "cap": "dropbox.app.status",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/connect/complete",
+    "cap": "dropbox.connect.complete",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/connect/start",
+    "cap": "dropbox.connect.start",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/create_folder",
+    "cap": "dropbox.files.create_folder",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/delete",
+    "cap": "dropbox.files.delete",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/download",
+    "cap": "dropbox.files.download",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/get_metadata",
+    "cap": "dropbox.files.get_metadata",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/latest_cursor",
+    "cap": "dropbox.files.latest_cursor",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/list_folder",
+    "cap": "dropbox.files.list_folder",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/list_revisions",
+    "cap": "dropbox.files.list_revisions",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/longpoll",
+    "cap": "dropbox.files.longpoll",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/restore",
+    "cap": "dropbox.files.restore",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/files/upload",
+    "cap": "dropbox.files.upload",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/health",
+    "cap": "dropbox.health",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dropbox/receive_webhook",
+    "cap": "dropbox.receive_webhook",
+    "v": 1,
+    "module": "dropbox",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/dropbox_sign/cancel",
     "cap": "dropbox_sign.cancel",
     "v": 1,
@@ -9029,6 +9390,44 @@ const routes1: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/engine/placement/options",
+    "cap": "engine.placement.options",
+    "v": 1,
+    "module": "engine",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/engine/placement/set",
+    "cap": "engine.placement.set",
+    "v": 1,
+    "module": "engine",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -10700,7 +11099,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/files/shared_with_me",
@@ -11109,10 +11511,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/forms/choices_candidates",
@@ -12670,6 +13069,44 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/docs/insert_text",
+    "cap": "google.docs.insert_text",
+    "v": 1,
+    "module": "google",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/docs/replace_text",
+    "cap": "google.docs.replace_text",
+    "v": 1,
+    "module": "google",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
   },
   {
     "method": "POST",
@@ -16200,7 +16637,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/logs/settings_set",
@@ -16643,10 +17083,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/mailbox/set_privacy",
@@ -19124,6 +19561,44 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mounts/doc_insert_text",
+    "cap": "mounts.doc_insert_text",
+    "v": 1,
+    "module": "mounts",
+    "effects": "outward",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mounts/doc_replace_text",
+    "cap": "mounts.doc_replace_text",
+    "v": 1,
+    "module": "mounts",
+    "effects": "outward",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
     "path": "/v1/mounts/editors",
     "cap": "mounts.editors",
     "v": 1,
@@ -19133,6 +19608,25 @@ const routes3: Route[] = [
     "level": "view",
     "resource": {
       "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mounts/file_link",
+    "cap": "mounts.file_link",
+    "v": 1,
+    "module": "mounts",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -19340,6 +19834,63 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mounts/sheet_append",
+    "cap": "mounts.sheet_append",
+    "v": 1,
+    "module": "mounts",
+    "effects": "outward",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mounts/sheet_read",
+    "cap": "mounts.sheet_read",
+    "v": 1,
+    "module": "mounts",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mounts/sheet_write",
+    "cap": "mounts.sheet_write",
+    "v": 1,
+    "module": "mounts",
+    "effects": "outward",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
   },
   {
     "method": "POST",
@@ -20446,6 +20997,63 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/workbook/append_rows",
+    "cap": "ms.workbook.append_rows",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/workbook/get_range",
+    "cap": "ms.workbook.get_range",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/workbook/update_range",
+    "cap": "ms.workbook.update_range",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
     "path": "/v1/network/certificate_renew",
     "cap": "network.certificate_renew",
     "v": 1,
@@ -20620,6 +21228,42 @@ const routes3: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/my_computer_remove",
+    "cap": "network.my_computer_remove",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/my_computers",
+    "cap": "network.my_computers",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -21488,7 +22132,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/plugins/marketplaces/list",
@@ -21885,6 +22532,25 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/projects/files_folder",
+    "cap": "projects.files_folder",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/projects/from_channel",
     "cap": "projects.from_channel",
     "v": 1,
@@ -22147,10 +22813,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/projects/shared_view",
@@ -22520,6 +23183,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/records/activity",
+    "cap": "records.activity",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/records/as_of",
     "cap": "records.as_of",
     "v": 1,
@@ -22572,6 +23254,98 @@ const routes4: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/comments/add",
+    "cap": "records.comments.add",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/comments/delete",
+    "cap": "records.comments.delete",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/comments/edit",
+    "cap": "records.comments.edit",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/comments/list",
+    "cap": "records.comments.list",
+    "v": 1,
+    "module": "records",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/records/comments/resolve",
+    "cap": "records.comments.resolve",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -26891,7 +27665,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sync/doc/close",
@@ -27056,151 +27833,6 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/sync_specs/apply",
-    "cap": "sync_specs.apply",
-    "v": 1,
-    "module": "connectors",
-    "effects": "write",
-    "permission": "connectors.manage",
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "key",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_specs/backfill",
-    "cap": "sync_specs.backfill",
-    "v": 1,
-    "module": "connectors",
-    "effects": "write",
-    "permission": "connectors.manage",
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "key",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_specs/get",
-    "cap": "sync_specs.get",
-    "v": 1,
-    "module": "connectors",
-    "effects": "read",
-    "permission": "connectors.manage",
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_specs/preview",
-    "cap": "sync_specs.preview",
-    "v": 1,
-    "module": "connectors",
-    "effects": "read",
-    "permission": "connectors.manage",
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_specs/remove",
-    "cap": "sync_specs.remove",
-    "v": 1,
-    "module": "connectors",
-    "effects": "write",
-    "permission": "connectors.manage",
-    "level": "edit",
-    "resource": {
-      "type": "record_type",
-      "id": "/type"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_specs/sample",
-    "cap": "sync_specs.sample",
-    "v": 1,
-    "module": "connectors",
-    "effects": "read",
-    "permission": "connectors.manage",
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_specs/survey",
-    "cap": "sync_specs.survey",
-    "v": 1,
-    "module": "connectors",
-    "effects": "read",
-    "permission": "connectors.manage",
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_specs/validate",
-    "cap": "sync_specs.validate",
-    "v": 1,
-    "module": "connectors",
-    "effects": "read",
-    "permission": "connectors.manage",
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
     "path": "/v1/sync_types/confirm_deletes",
     "cap": "sync_types.confirm_deletes",
     "v": 1,
@@ -27248,25 +27880,6 @@ const routes4: Route[] = [
     "resource": {
       "type": "connection",
       "id": "/connectionId"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_types/field_history",
-    "cap": "sync_types.field_history",
-    "v": 1,
-    "module": "connectors",
-    "effects": "read",
-    "permission": null,
-    "level": "view",
-    "resource": {
-      "type": "record",
-      "id": "/recordId"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -27389,25 +28002,6 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/sync_types/record_state",
-    "cap": "sync_types.record_state",
-    "v": 1,
-    "module": "connectors",
-    "effects": "read",
-    "permission": null,
-    "level": "view",
-    "resource": {
-      "type": "record",
-      "id": "/recordId"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
     "path": "/v1/sync_types/replay_conflict",
     "cap": "sync_types.replay_conflict",
     "v": 1,
@@ -27437,25 +28031,6 @@ const routes4: Route[] = [
       "type": "space"
     },
     "idempotency": "key",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_types/restore_field",
-    "cap": "sync_types.restore_field",
-    "v": 1,
-    "module": "connectors",
-    "effects": "write",
-    "permission": "records.edit",
-    "level": "edit",
-    "resource": {
-      "type": "record",
-      "id": "/recordId"
-    },
-    "idempotency": "natural",
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
@@ -27507,25 +28082,6 @@ const routes4: Route[] = [
     "module": "connectors",
     "effects": "read",
     "permission": "connectors.manage",
-    "level": "view",
-    "resource": {
-      "type": "record_type",
-      "id": "/type"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sync_types/status",
-    "cap": "sync_types.status",
-    "v": 1,
-    "module": "connectors",
-    "effects": "read",
-    "permission": null,
     "level": "view",
     "resource": {
       "type": "record_type",
@@ -27595,6 +28151,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/ask",
+    "cap": "tasks.ask",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/assign",
     "cap": "tasks.assign",
     "v": 1,
@@ -27609,6 +28184,25 @@ const routes4: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/tasks/block",
+    "cap": "tasks.block",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -27652,6 +28246,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/decide",
+    "cap": "tasks.decide",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/delegate",
     "cap": "tasks.delegate",
     "v": 1,
@@ -27668,10 +28281,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/tasks/dependencies/add",
@@ -27918,6 +28528,25 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/review",
+    "cap": "tasks.review",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/snooze",
     "cap": "tasks.snooze",
     "v": 1,
@@ -27932,6 +28561,25 @@ const routes5: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/tasks/submit",
+    "cap": "tasks.submit",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -28965,6 +29613,25 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/terminal/request",
+    "cap": "terminal.request",
+    "v": 1,
+    "module": "terminal",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/terminal/resize",
     "cap": "terminal.resize",
     "v": 1,
@@ -28979,6 +29646,24 @@ const routes5: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/terminal/risk",
+    "cap": "terminal.risk",
+    "v": 1,
+    "module": "terminal",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },
@@ -29035,7 +29720,7 @@ const routes5: Route[] = [
     "risk": "high",
     "offline": "online",
     "teamOnly": false,
-    "gate": null
+    "gate": "approve"
   },
   {
     "method": "POST",

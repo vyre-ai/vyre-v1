@@ -169,8 +169,8 @@ function Block({ title, lines }: { title: string; lines: string[] }): ReactEleme
 const s = StyleSheet.create({
   frame: { flex: 1, flexDirection: "row", minHeight: 0 },
   main: { flex: 1, minWidth: 0 },
-  bar: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 12 },
-  search: { width: 260, height: 32, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--hover)" as string },
+  bar: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 12, flexWrap: "wrap" },
+  search: { width: 260, maxWidth: "100%", height: 32, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--hover)" as string },
   input: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none", outlineWidth: 0 } as object) },
   ib: { width: 30, height: 30, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   ibOn: { backgroundColor: "var(--accent-wash)" as string },

@@ -35,10 +35,10 @@ test("a project with no folder shows the field as empty, not as a link", () => {
 
 test("the Files tab lists the files in the project's folder next to the button that opens it", () => {
   const out = page(sample(true), "files");
-  assert.ok(out.includes('data-testid="folder-contents"') && out.includes("Engagement letter.pdf") && out.includes('data-testid="open-files"'));
+  assert.ok(out.includes('data-testid="pane-files-list"') && out.includes("Engagement letter.pdf") && out.includes('data-testid="open-files"'));
 });
 
-test("the Files tab of a project with no folder lists nothing and still offers the button", () => {
+test("the Files tab of a project with no folder lists nothing and offers Attach, which makes the folder", () => {
   const out = page(sample(false), "files");
-  assert.ok(!out.includes('data-testid="folder-contents"') && out.includes('data-testid="open-files"'));
+  assert.ok(!out.includes('data-testid="pane-files-list"') && out.includes('data-testid="pane-files-empty"') && out.includes('data-testid="attach-files"') && !out.includes('data-testid="open-files"'));
 });

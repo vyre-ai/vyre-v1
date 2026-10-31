@@ -16,6 +16,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "connections.test": async (ctx) => { throw new VyreErr(notImplemented("connections.test", ctx.trace)); },
   "connections.update": async (ctx) => { throw new VyreErr(notImplemented("connections.update", ctx.trace)); },
   "connectors.build": async (ctx) => { throw new VyreErr(notImplemented("connectors.build", ctx.trace)); },
+  "connectors.define": async (ctx) => { throw new VyreErr(notImplemented("connectors.define", ctx.trace)); },
   "connectors.diff": async (ctx) => { throw new VyreErr(notImplemented("connectors.diff", ctx.trace)); },
   "connectors.export": async (ctx) => { throw new VyreErr(notImplemented("connectors.export", ctx.trace)); },
   "connectors.get": async (ctx) => { throw new VyreErr(notImplemented("connectors.get", ctx.trace)); },

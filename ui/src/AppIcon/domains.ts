@@ -28,7 +28,7 @@ const TPLDOM: Record<string, string> = {
   ghl: "gohighlevel.com", twilio: "twilio.com", stripe: "stripe.com", openai: "openai.com", anthropic: "anthropic.com", opencode: "opencode.ai", openrouter: "openrouter.ai", xai: "x.ai", grok: "grok.com", resend: "resend.com",
   slack: "slack.com", github: "github.com", supabase: "supabase.com", zoom: "zoom.us", meta: "facebook.com", airtable: "airtable.com", notion: "notion.so",
   calendly: "calendly.com", quickbooks: "quickbooks.intuit.com", lawmatics: "lawmatics.com", aws: "aws.amazon.com", cloudflare: "cloudflare.com", google: "google.com",
-  postgres: "postgresql.org", claude: "claude.ai", clio: "clio.com", namecheap: "namecheap.com", sentry: "sentry.io",
+  postgres: "postgresql.org", dropbox: "dropbox.com", claude: "claude.ai", clio: "clio.com", namecheap: "namecheap.com", sentry: "sentry.io",
 };
 const DOMKEY: Record<string, string> = { "googleapis.com": "google", "accounts.google.com": "google", "meta.com": "meta", "intuit.com": "quickbooks", "amazonaws.com": "aws", "postgresql.org": "db" };
 

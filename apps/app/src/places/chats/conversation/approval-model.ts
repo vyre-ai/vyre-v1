@@ -64,3 +64,21 @@ export const denyNote = (reason: string): string => (reason.trim() === "" ? "Not
 
 /** The outcome of a task that has already ended, read from its state. */
 export const outcomeOf = (state: string): "allowed" | "denied" | null => (state === "done" ? "allowed" : state === "canceled" ? "denied" : null);
+
+export interface DiffLine { kind: "add" | "del"; text: string }
+
+/** A compact diff of an edit: the lines taken out and the lines put in, in order, with the unchanged lines left out. At most `max` lines show; `more` counts the rest. Long files are compared on their first 400 lines. */
+export function diffLines(before: string, after: string, max = 8): { lines: DiffLine[]; more: number } {
+  const a = before.split("\n").slice(0, 400);
+  const b = after.split("\n").slice(0, 400);
+  const lcs: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
+  const out: DiffLine[] = [];
+  let i = 0; let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) { i++; j++; }
+    else if (i < a.length && (j === b.length || lcs[i + 1]![j]! >= lcs[i]![j + 1]!)) { if (a[i]!.trim() !== "") out.push({ kind: "del", text: a[i]! }); i++; }
+    else { if (b[j]!.trim() !== "") out.push({ kind: "add", text: b[j]! }); j++; }
+  }
+  return { lines: out.slice(0, max), more: Math.max(0, out.length - max) };
+}

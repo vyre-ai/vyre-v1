@@ -3,6 +3,8 @@
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { TextStyle } from "react-native";
+import { splitRefs, withFileLinks } from "../../../../../../ui/src/Viewer/index.tsx";
+import type { FileLinks } from "../../../../../../ui/src/Viewer/index.tsx";
 
 export type Piece = { kind: "text" | "code" | "bold"; text: string };
 
@@ -47,19 +49,21 @@ export function blocks(md: string): Block[] {
   return out;
 }
 
-function Spans({ text, style }: { text: string; style?: TextStyle }): ReactElement {
+function Spans({ text, style, links }: { text: string; style?: TextStyle; links?: FileLinks | undefined }): ReactElement {
   const parts: ReactNode[] = [];
   const pieces = inline(text);
   for (let i = 0; i < pieces.length; i++) {
     const p = pieces[i] as Piece;
     if (p.kind === "code") parts.push(<Text key={i} style={s.code}>{p.text}</Text>);
     else if (p.kind === "bold") parts.push(<Text key={i} style={s.bold}>{p.text}</Text>);
+    else if (links) parts.push(<Text key={i}>{withFileLinks(splitRefs(p.text), links)}</Text>);
     else parts.push(p.text);
   }
   return <Text style={[s.p, style]}>{parts}</Text>;
 }
 
-export function Prose({ text }: { text: string }): ReactElement {
+/** The words of a note. With `links`, the file names, [[links]] and paths in it are links that open the file in a tab. */
+export function Prose({ text, links }: { text: string; links?: FileLinks | undefined }): ReactElement {
   const out: ReactElement[] = [];
   const all = blocks(text);
   for (let i = 0; i < all.length; i++) {
@@ -67,11 +71,11 @@ export function Prose({ text }: { text: string }): ReactElement {
     if (b.kind === "ul") {
       const items: ReactElement[] = [];
       for (let j = 0; j < b.items.length; j++) {
-        items.push(<View key={j} style={s.li} accessibilityRole="listitem"><Text style={s.dot}>{"\u2022"}</Text><View style={s.liText}><Spans text={b.items[j] as string} /></View></View>);
+        items.push(<View key={j} style={s.li} accessibilityRole="listitem"><Text style={s.dot}>{"\u2022"}</Text><View style={s.liText}><Spans text={b.items[j] as string} links={links} /></View></View>);
       }
       out.push(<View key={i} style={s.ul} accessibilityRole="list">{items}</View>);
     } else if (b.kind === "p") {
-      out.push(<Spans key={i} text={b.text} style={s.para} />);
+      out.push(<Spans key={i} text={b.text} style={s.para} links={links} />);
     } else {
       const style = b.kind === "h1" ? s.h1 : b.kind === "h2" ? s.h2 : s.h3;
       out.push(<Text key={i} accessibilityRole="header" aria-level={Number(b.kind.slice(1))} style={style}>{b.text}</Text>);

@@ -17,7 +17,7 @@ Run the harness on recorded responses and report each case
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/connectors/test |
-| MCP tool | connectors_test (engineer) |
+| MCP tool | connectors_test (automations) |
 | CLI | vyre connector test |
 | Emits | none |
 

@@ -124,7 +124,9 @@ test("markup shows Ask <agent> once something is marked, red numbered boxes with
 
 test("inline **bold** and [[link]] markers become runs and never count in find", () => {
   assert.equal(stripInline("The fee is **$250** and [[Pricing landscape]]"), "The fee is $250 and Pricing landscape");
-  assert.deepEqual(inlineRuns("a **b** [[c]] d"), [{ text: "a " }, { text: "b", bold: true }, { text: " " }, { text: "c", link: true }, { text: " d" }]);
+  assert.deepEqual(inlineRuns("a **b** [[c]] d"), [{ text: "a " }, { text: "b", bold: true }, { text: " " }, { text: "c", link: true, ref: "c", kind: "wiki" }, { text: " d" }]);
+  assert.deepEqual(inlineRuns("see [the plan](docs/plan.md)."), [{ text: "see " }, { text: "the plan", link: true, ref: "docs/plan.md", kind: "md" }, { text: "." }]);
+  assert.equal(stripInline("see [the plan](docs/plan.md)."), "see the plan.");
   assert.equal(inlineRuns("x **y** z").map((r) => r.text).join(""), stripInline("x **y** z"));
   const blocks: DocBlock[] = [{ id: "a", tag: "p", text: "The **fee** is [[fee]] schedule" }];
   assert.equal(findMatches(blocks.map((b) => stripInline(b.text)), "fee").length, 3 - 1, "markers are not matched");
@@ -212,4 +214,12 @@ test("a plan has no View and Edit switch: its blocks edit in place (editing prop
   assert.ok(!plan.includes('data-testid="vw-mode"'), "a plan has no View and Edit switch");
   assert.ok(!plan.includes("<textarea"), "blocks read as text until one is pressed");
   assert.equal(renderToStaticMarkup(<Viewer fileId="p" title="plan" kind="plan" editing blocks={blocks} />).match(/<textarea/g)?.length, 2);
+});
+
+test("a file that lives at a provider shows one Open in button in the header, with its words; without it there is none", () => {
+  const on = renderToStaticMarkup(<Viewer fileId="f_1" title="Plan" kind="document" blocks={BLOCKS} openIn={{ label: "Open in Google Docs", onOpen: () => undefined }} />);
+  assert.ok(on.includes('data-testid="vw-open-in"') && on.includes('aria-label="Open in Google Docs"'));
+  assert.ok(on.includes(">Open in Google Docs<"));
+  const off = renderToStaticMarkup(<Viewer fileId="f_1" title="Plan" kind="document" blocks={BLOCKS} />);
+  assert.ok(!off.includes("vw-open-in"));
 });

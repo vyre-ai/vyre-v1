@@ -4,11 +4,17 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (31)
+## Capabilities (37)
 
+- [records.activity](../capabilities/records.activity.md): What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes
 - [records.as_of](../capabilities/records.as_of.md): Read a record as it was at a time
 - [records.bulk_upsert](../capabilities/records.bulk_upsert.md): Create or update many records by match key, quietly (no automations unless asked)
 - [records.changes](../capabilities/records.changes.md): Change feed of a record type since a sequence number (RecordStore.changes)
+- [records.comments.add](../capabilities/records.comments.add.md): Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)
+- [records.comments.delete](../capabilities/records.comments.delete.md): Delete your own comment (or any, with manage on the record)
+- [records.comments.edit](../capabilities/records.comments.edit.md): Edit your own comment
+- [records.comments.list](../capabilities/records.comments.list.md): Comments on a record as threads (a root comment and its replies, oldest first); resolved threads only when asked for
+- [records.comments.resolve](../capabilities/records.comments.resolve.md): Resolve a comment thread or reopen it
 - [records.completeness](../capabilities/records.completeness.md): Completeness of one record (for example 8 of 11) with the missing fields; Ask for these turns the list into a short-lived form
 - [records.counts](../capabilities/records.counts.md): Cached row count for a view
 - [records.create](../capabilities/records.create.md): Create a record
@@ -38,9 +44,11 @@ Requires: nothing.
 - [records.versions](../capabilities/records.versions.md): List versions of a record (One History)
 - [records.view](../capabilities/records.view.md): Read a saved view of a record type resolved for the table: the view definition and its rows with the saved filter, sort and group applied, a page at a time
 
-## Events (13)
+## Events (15)
 
 - [field.revealed](../events/field.revealed.md): A sealed field was revealed to one actor (audited)
+- [record.comment_added](../events/record.comment_added.md): A comment or reply was left on a record; mentions names the people and agents it calls on
+- [record.comment_resolved](../events/record.comment_resolved.md): A comment thread was resolved or reopened
 - [record.created](../events/record.created.md): A record was created; fields carries the initial values (sealed and Restricted values as ciphertext only)
 - [record.deleted](../events/record.deleted.md): A record moved to Trash; prev carries the values it held (sealed and Restricted values as ciphertext only)
 - [record.gaps_found](../events/record.gaps_found.md): A gap-check rule found missing or stale fields on a record

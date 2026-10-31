@@ -1,4 +1,4 @@
-// The sample Space behind the mount sheet tests and screenshots (Northwind, the same people and folders the prototype's Files uses): a Google Drive, a SharePoint and OneDrive tree,
+// The sample Space behind the mount sheet tests and screenshots (Northwind, the same people and folders the prototype's Files uses): a Google Drive, a SharePoint and OneDrive tree, a Dropbox,
 // folders on this computer, a list of GitHub repositories, five folders already mounted. `call` answers mounts.browse, mounts.list, mounts.add, mounts.remove and access.share
 // from memory, so every control in the sheets works the way it will against the kernel.
 import type { MountsData } from "./data.tsx";
@@ -31,6 +31,12 @@ const ONEDRIVE: Node[] = [
     { ref: "od:OneDrive/Shared with me", name: "Shared with me" },
   ] },
 ];
+const DROPBOX: Node[] = [
+  { ref: "/", name: "All of Dropbox" },
+  { ref: "id:sales", name: "Sales", kids: dir("id:sales", ["Q4", "Proposals"]) },
+  { ref: "id:clients", name: "Client files" },
+  { ref: "id:brand", name: "Brand assets" },
+];
 const LOCAL: Node[] = [
   { ref: "~/Desktop", name: "Desktop" },
   { ref: "~/Documents", name: "Documents", kids: dir("~/Documents", ["Taxes", "Scans"]) },
@@ -48,7 +54,7 @@ export const REPOS: ReadonlyArray<readonly [string, string, string]> = [
   ["irfad7/dotfiles", "Public · Shell", "Oct 2"],
 ];
 
-const TREES: Partial<Record<MountKind, Node[]>> = { google_drive: GOOGLE, sharepoint: SHAREPOINT, onedrive: ONEDRIVE, local: LOCAL };
+const TREES: Partial<Record<MountKind, Node[]>> = { google_drive: GOOGLE, sharepoint: SHAREPOINT, onedrive: ONEDRIVE, dropbox: DROPBOX, local: LOCAL };
 
 function find(nodes: readonly Node[], ref: string): Node | undefined {
   for (const n of nodes) {
@@ -59,11 +65,12 @@ function find(nodes: readonly Node[], ref: string): Node | undefined {
   return undefined;
 }
 
-const PROVIDER: Record<MountKind, string> = { google_drive: "Google Drive", sharepoint: "SharePoint", onedrive: "OneDrive", local: "This computer", github: "GitHub" };
+const PROVIDER: Record<MountKind, string> = { google_drive: "Google Drive", sharepoint: "SharePoint", onedrive: "OneDrive", local: "This computer", dropbox: "Dropbox", github: "GitHub" };
 
 export const northwindAccounts: Accounts = {
   google_drive: { label: "irfad@northwind.example", connected: true, connectionId: "con_google" },
   microsoft: { label: "irfad@northwind.example", connected: true, connectionId: "con_ms" },
+  dropbox: { label: "irfad@northwind.example", connected: true, connectionId: "con_dropbox" },
   local: { label: "Irfad's MacBook", connected: true, deviceId: "dev_macbook" },
   github: { label: "irfad7", connected: true, connectionId: "con_github" },
 };

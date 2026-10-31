@@ -6,7 +6,7 @@
 import { objectsOf } from "./get.ts";
 import type { ObjectActions } from "./get.ts";
 import { canonical } from "../../../lib/canonical.ts";
-import { generateMain } from "./source.ts";
+import { buildDef, generateMain } from "./source.ts";
 import { shapeCreated, shapeList, ShapeError } from "./shape.ts";
 import { unflatten } from "../syncspec.ts";
 import { oauthOf, refreshSlot } from "./oauth.ts";
@@ -22,10 +22,19 @@ export interface ConnectorRow {
 }
 export interface TestResult { passed: number; failed: number; cases: { name: string; ok: boolean; message?: string }[] }
 
+/** What an agent or a person says a connector is, in one call: the hosts it may reach, how it signs in, and its actions. The same rules as a source folder apply (buildDef). */
+export interface DefineInput {
+  key: string; title?: string; domains: string[];
+  auth: { type: "none" | "api_key" | "bearer"; secret?: string; header?: string; prefix?: string };
+  secrets?: { name: string; description: string }[];
+  actions: { name: string; method?: string; url: string; headers?: Record<string, string>; query?: Record<string, string>; output?: string; write?: boolean }[];
+}
+
 export interface RuntimeHandlers {
   "connectors.list"(ctx: ConnectorsCtx, input: { state?: ConnectorState; cursor?: string; limit?: number }): Promise<{ connectors: ConnectorRow[]; next?: string; total?: number }>;
   "connectors.get"(ctx: ConnectorsCtx, input: { key: string }): Promise<{ connector: ConnectorRow }>;
-  "connectors.init"(ctx: ConnectorsCtx, input: { key: string; title: string; mode: Mode; docsUrl?: string }): Promise<{ key: string; folderId: string }>;
+  "connectors.init"(ctx: ConnectorsCtx, input: { key: string; title: string; mode: Mode; docsUrl?: string; source?: boolean }): Promise<{ key: string; folderId?: string }>;
+  "connectors.define"(ctx: ConnectorsCtx, input: DefineInput): Promise<{ key: string; draftId: string; actions: string[]; domains: string[] }>;
   "connectors.build"(ctx: ConnectorsCtx, input: { key: string; docsUrl?: string; notes?: string }): Promise<{ runId: string; draftId: string }>;
   "connectors.test"(ctx: ConnectorsCtx, input: { key: string; draftId?: string }): Promise<{ result: TestResult }>;
   "connectors.run"(ctx: ConnectorsCtx, input: { key: string; action: string; connectionId: string; input: unknown; dryRun?: boolean }): Promise<{ output: unknown; dryRun: boolean }>;
@@ -388,13 +397,43 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         auth: { type: input.mode === "webhook_only" ? "none" : "api_key", ...(input.mode === "webhook_only" ? {} : { secret: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key` }) },
         domains: [], secrets: input.mode === "webhook_only" ? [] : [{ name: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key`, description: `API key for ${input.title}` }], actions: [], tests: [],
       };
-      if (!deps.writeSource) refuse(ctx, "internal.unavailable", "Files is not available to write the connector source.");
-      const folderId = await writeSource(ctx, input.key, def);
+      // source: false keeps the draft in the module (an agent defines it with connectors.define); the default writes the editable folder in Files
+      const withSource = input.source !== false;
+      if (withSource && !deps.writeSource) refuse(ctx, "internal.unavailable", "Files is not available to write the connector source.");
+      const folderId = withSource ? await writeSource(ctx, input.key, def) : undefined;
       tx.run("INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 0, '0.0.0', 'draft', ?, ?, ?)", input.key, input.title, def.mode, def.scope, JSON.stringify(def), now, now);
       const draftId = mintShort("cdr", now);
       tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", draftId, input.key, JSON.stringify(def), input.docsUrl ?? null, ctx.actor ?? null, now, now);
       ctx.emit("connector.created", `connector/${input.key}`, { key: input.key });
-      return { key: input.key, folderId };
+      return { key: input.key, ...(folderId !== undefined ? { folderId } : {}) };
+    },
+
+    "connectors.define": async (ctx, input) => {
+      const c = need(ctx, input.key);
+      if (c.builtin === 1) refuse(ctx, "validation.precondition_failed", `${c.key} is built in: it changes with a release.`);
+      if (sourceOf(c.key)) refuse(ctx, "validation.precondition_failed", `${c.key} is edited in its Files folder. Change the files there.`);
+      const live = JSON.parse(c.def) as ConnectorDef;
+      const slot = input.auth.secret ?? input.secrets?.[0]?.name;
+      const secrets = input.auth.type === "none" ? [] : (input.secrets && input.secrets.length > 0 ? input.secrets : [{ name: slot ?? "Key", description: `API key for ${input.title ?? live.title}` }]);
+      const main: Record<string, unknown> = {
+        title: input.title ?? live.title, mode: live.mode, scope: live.scope, domains: input.domains,
+        auth: { type: input.auth.type, ...(input.auth.type === "none" ? {} : { secret: input.auth.secret ?? secrets[0]!.name }), ...(input.auth.header ? { header: input.auth.header } : {}), ...(input.auth.prefix !== undefined ? { prefix: input.auth.prefix } : {}) },
+        secrets,
+      };
+      const docs = input.actions.map((a) => ({ path: `actions/${a.name}.json`, doc: { ...a, method: (a.method ?? "GET").toUpperCase(), ...(a.write === undefined && (a.method ?? "GET").toUpperCase() !== "GET" ? { write: true } : {}) } }));
+      const def = buildDef(ctx, c.key, main, docs, []);
+      // an action that is not a GET changes something in the app; it must say so, so a dry run never sends it and the Gate holds it
+      for (const a of def.actions) if ((a.method ?? "GET") !== "GET" && a.write !== true) refuse(ctx, "validation.bad_input", `${a.name} is a ${a.method}: mark it write.`);
+      for (const a of def.actions) if (a.url && !checkEgress(a.url, def.domains).ok) refuse(ctx, "validation.bad_input", `${a.name} reaches a host that is not in domains.`);
+      const now = nowOf(deps);
+      let row = tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE key = ? ORDER BY created_at DESC, rowid DESC LIMIT 1", c.key);
+      if (!row) {
+        const id = mintShort("cdr", now);
+        tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, c.key, JSON.stringify(def), null, ctx.actor ?? null, now, now);
+        row = tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ?", id)!;
+      } else tx.run("UPDATE cn_drafts SET def = ?, updated_at = ? WHERE draft_id = ?", JSON.stringify(def), now, row.draft_id);
+      ctx.emit("connector.built", `connector/${c.key}`, { key: c.key, draftId: row.draft_id });
+      return { key: c.key, draftId: row.draft_id, actions: def.actions.map((a) => a.name), domains: def.domains };
     },
 
     "connectors.build": async (ctx, input) => {

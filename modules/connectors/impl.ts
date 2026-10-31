@@ -121,7 +121,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
 }
 
 const NAMES = [
-  "connectors.list", "connectors.get", "connectors.init", "connectors.build", "connectors.test", "connectors.run", "connectors.diff", "connectors.publish", "connectors.versions",
+  "connectors.list", "connectors.get", "connectors.init", "connectors.define", "connectors.build", "connectors.test", "connectors.run", "connectors.diff", "connectors.publish", "connectors.versions",
   "connectors.rollback", "connectors.export", "connectors.remove", "connectors.health",
   "connections.list", "connections.get", "connections.create", "connections.update", "connections.pause", "connections.resume", "connections.reconnect", "connections.complete_auth",
   "connections.test", "connections.delete",

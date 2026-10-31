@@ -137,6 +137,14 @@ const capabilities = [
   gw('ms.drive.create_folder', 'Create a folder', { driveId: t.opt(t.str()), parentId: t.opt(t.str()), name: t.str() }, { item: driveItem }, { gate: 'post', tool: 'files', deferred: true }),
   gw('ms.drive.share_item', 'Create a sharing link or invite people; Microsoft emails them', { driveId: t.opt(t.str()), itemId: t.str(), emails: t.opt(t.arr(email)), role: t.enm('read', 'write') }, { shared: t.bool(), link: t.opt(t.str()) }, { gate: 'send', tool: 'files', deferred: true }),
   gw('ms.drive.delete_item', 'Delete an item', { driveId: t.opt(t.str()), itemId: t.str() }, { deleted: t.bool() }, { gate: 'delete', tool: 'files', deferred: true }),
+  // ---- Excel workbooks in a drive: cells are read and written in place, nothing is downloaded
+  gr('ms.workbook.get_range', 'Read a range of cells from an Excel workbook in OneDrive or SharePoint', { driveId: t.opt(t.str()), itemId: t.str(), sheet: t.str({ examples: ['Sheet1'] }), range: t.str({ examples: ['A1:C10'] }) },
+    { address: t.str(), values: t.arr(t.arr(t.json())) }, { tool: 'files', deferred: true }),
+  gw('ms.workbook.update_range', 'Write a block of cells in an Excel workbook; a single start cell grows to the size of the values', {
+    driveId: t.opt(t.str()), itemId: t.str(), sheet: t.str(), range: t.str({ examples: ['B2'] }), values: t.arr(t.arr(t.json()), { minItems: 1 }),
+  }, { address: t.str(), updatedCells: t.int({ minimum: 0 }) }, { gate: 'post', tool: 'files', deferred: true }),
+  gw('ms.workbook.append_rows', 'Add rows under the last used row of a worksheet in an Excel workbook', { driveId: t.opt(t.str()), itemId: t.str(), sheet: t.str(), values: t.arr(t.arr(t.json()), { minItems: 1 }) },
+    { address: t.str(), updatedRows: t.int({ minimum: 0 }) }, { gate: 'post', tool: 'files', deferred: true }),
   // ---- Teams recordings and transcripts (needs OnlineMeetingRecording.Read.All and OnlineMeetingTranscript.Read.All)
   gr('ms.teams.recordings.list_recordings', 'Recordings of an online meeting', { onlineMeetingId: t.str() }, { recordings: t.arr(t.obj({ id: t.str(), createdAt: t.opt(t.str()), contentUrl: t.opt(t.str()) })) }, { tool: 'inbox', deferred: true }),
   gr('ms.teams.recordings.get_recording', 'Download a Teams recording into a blob', { onlineMeetingId: t.str(), recordingId: t.str() }, { blobId: id.blob, size: t.int() }, { tool: 'inbox', deferred: true }),

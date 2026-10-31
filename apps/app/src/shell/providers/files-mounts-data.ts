@@ -9,13 +9,14 @@ const MICROSOFT = /microsoft|graph|sharepoint|onedrive|\bms\b/i;
 
 interface Conn { connectionId: string; connector: string; title: string; state: string }
 
-/** Who is connected where. Google Drive and Microsoft 365 are the Space's connections; GitHub is the GitHub App's installation; this computer is the device the person is on. A source with no connection says so, and the sheet sends the person to connect it. */
+/** Who is connected where. Google Drive and Microsoft 365 are the Space's connections; Dropbox is the person's own (or the Space's) Dropbox account; GitHub is the GitHub App's installation; this computer is the device the person is on. A source with no connection says so, and the sheet sends the person to connect it. */
 export async function loadAccounts(call: Call, device?: { id: string; name: string } | null): Promise<Accounts> {
   const conns = await (call("connections.list", {}) as Promise<{ connections: Conn[] }>).then((o) => o.connections, () => [] as Conn[]);
   const active = (re: RegExp): Conn | undefined => conns.find((c) => c.state === "active" && re.test(c.connector));
   const google = active(GOOGLE);
   const ms = active(MICROSOFT);
   // The installations are asked for only once the GitHub App exists: with no App the call is sure to fail (a 502 in the network log), and the sheet just says GitHub is not connected.
+  const dropbox = await (call("dropbox.account.list", {}) as Promise<{ connections: Array<{ connectionId: string; ownerKind: string; email?: string; name?: string }> }>).then((o) => o.connections.find((c) => c.ownerKind === "person") ?? o.connections[0], () => undefined);
   const health = await (call("github.health", {}) as Promise<{ state?: string; detail?: string }>).then((h) => h, () => null);
   const appSetUp = health !== null && !/not set up/i.test(health.detail ?? "");
   const installs = appSetUp ? await (call("github.installations.list", {}) as Promise<{ installations: Array<{ account: string }> }>).then((o) => o.installations, () => []) : [];
@@ -23,6 +24,7 @@ export async function loadAccounts(call: Call, device?: { id: string; name: stri
   return {
     google_drive: google ? { label: google.title, connected: true, connectionId: google.connectionId } : none,
     microsoft: ms ? { label: ms.title, connected: true, connectionId: ms.connectionId } : none,
+    dropbox: dropbox ? { label: dropbox.email ?? dropbox.name ?? "Dropbox", connected: true, connectionId: dropbox.connectionId } : none,
     local: device ? { label: device.name, connected: true, deviceId: device.id } : none,
     github: installs[0] ? { label: installs[0].account, connected: true } : none,
   };

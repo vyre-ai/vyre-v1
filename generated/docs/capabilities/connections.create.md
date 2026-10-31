@@ -17,7 +17,7 @@ Plug an account into a connector; secrets are named Vault items, never values
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/connections/create |
-| MCP tool | connections_create (engineer) |
+| MCP tool | connections_create (automations) |
 | CLI | none |
 | Emits | connection.created, connection.pending |
 

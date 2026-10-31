@@ -13,6 +13,7 @@ import { nameOf } from "./misc-common.ts";
 import { chooseProfilePhoto } from "./settings-photo.ts";
 import { loadSecurity } from "./settings-security.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
+import { addServerAsked, useAddServerNonce } from "../computers-available.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -66,9 +67,10 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
     void loadSecurity(rt.call, rt.space, rt.clock().now).then((x) => { if (live) setSignIn(x); }, () => undefined);
     return () => { live = false; };
   }, [rt, security]);
+  const nonce = useAddServerNonce();
   const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn) : null), [rt, signIn]);
   if (!data) return <View style={s.page} testID="settings-loading" />;
-  return <SettingsDataProvider value={data}><SettingsPlace />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} /> : null}</SettingsDataProvider>;
+  return <SettingsDataProvider value={data}><SettingsPlace key={nonce} {...(addServerAsked() ? { initialPage: "computer" as const } : {})} />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} /> : null}</SettingsDataProvider>;
 }
 
 const s = StyleSheet.create({ page: { flex: 1, backgroundColor: "var(--win)" as string } });

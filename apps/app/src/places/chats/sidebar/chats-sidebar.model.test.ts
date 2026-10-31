@@ -77,7 +77,11 @@ test("the list runs Needs you (only when something waits), Agents, Channels with
   assert.ok(!kinds.includes("channel:ch:old"), "archived channels stay out");
   const none = buildEntries(base);
   assert.ok(!none.some((x) => x.key === "h:needs"), "no Needs you header when nothing waits");
-  assert.ok(!none.some((x) => x.key === "h:channels"), "no Channels header when there are none");
+  assert.ok(none.some((x) => x.key === "h:channels"), "a Team Space with no channels still has the header, so the first one can be made");
+  assert.ok(none.some((x) => x.type === "action" && x.to === "new-channel" && x.label === "Create a channel"), "and a row that makes it");
+  assert.ok(!e.some((x) => x.type === "action"), "the row is for the empty section only");
+  assert.ok(!buildEntries({ ...base, personal: true }).some((x) => x.key === "h:channels" || x.type === "action"), "a Personal Space has no channels section");
+  assert.ok(!buildEntries({ ...base, searching: true }).some((x) => x.key === "h:channels"), "a search with no channel match does not offer the empty section");
 });
 
 test("a closed section keeps its header and drops its rows", () => {

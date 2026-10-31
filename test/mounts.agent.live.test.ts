@@ -47,11 +47,39 @@ test("mounts live: a chat agent lists a mounted folder and reads its file throug
     await ok(d, "chat.post", { threadId: askThread, body: `TOOL files_write ${JSON.stringify({ fileId: nda!.fileId, content: { text: "NDA changed in Ask mode" }, reason: "Agent edit", idempotencyKey: "ma-agent-write-ask" })}`, mentions: [{ kind: "agent", id: agent.id }] });
     const hold = await waitFor(async () => {
       await d.hooks?.pump?.();
-      const holds = (await call(d, "gate.holds.list", { state: "held" })).data.holds as Array<{ act: string; capName: string }> | undefined;
+      const holds = (await call(d, "gate.holds.list", { states: ["held"] })).data.holds as Array<{ act: string; capName: string; taskId: string }> | undefined;
       return holds?.find((h) => h.capName === "files.write") ?? null;
     });
     assert.equal(hold.act, "approve", "the step waits for the person to allow it");
     assert.equal((await ok(d, "files.read", { fileId: nda!.fileId, as: "text" })).text, "NDA v1", "Ask mode wrote nothing");
+
+    // Allow, as the chat's approval card does (tasks.act approve): the turn continues and the write goes on, held back only by the mount's Review changes
+    await ok(d, "tasks.act", { taskId: hold.taskId, action: "approve" });
+    const staged = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const open = (await call(d, "changesets.list", { folderId: added.folderId, state: "open" })).data.changesets as unknown[] | undefined;
+      return open && open.length > 0 ? open : null;
+    });
+    assert.ok(staged.length >= 1, "after Allow the write waits as a change for review");
+
+    // Deny with a reason: the turn ends and the reason reaches the agent
+    const denyThread = (await ok(d, "chat.start", { kind: "chat", agentIds: [agent.id] })).thread.threadId as string;
+    await ok(d, "chat.post", { threadId: denyThread, body: `TOOL files_write ${JSON.stringify({ fileId: nda!.fileId, content: { text: "NDA denied edit" }, reason: "Agent edit", idempotencyKey: "ma-agent-write-deny" })}`, mentions: [{ kind: "agent", id: agent.id }] });
+    const second = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const holds = (await call(d, "gate.holds.list", { states: ["held"] })).data.holds as Array<{ taskId: string; capName: string }> | undefined;
+      return holds?.find((h) => h.capName === "files.write") ?? null;
+    });
+    await ok(d, "tasks.act", { taskId: second.taskId, action: "reject", note: "Wait for Maya" });
+    const task = (await ok(d, "tasks.get", { taskId: second.taskId })).task as { state: string };
+    assert.notEqual(task.state, "awaiting_approval", "the denied hold is answered");
+    const told = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const msgs = (await call(d, "chat.messages.list", { threadId: denyThread })).data.messages as Array<{ author?: { kind?: string }; body?: string }>;
+      return msgs.find((m) => m.author?.kind === "agent" && /Wait for Maya/.test(m.body ?? ""))?.body ?? null;
+    });
+    assert.match(told, /Wait for Maya/, "the reason reaches the agent");
+    assert.equal((await ok(d, "files.read", { fileId: nda!.fileId, as: "text" })).text, "NDA v1", "a denied step wrote nothing");
 
     // Auto mode: the agent may act without asking first, so what holds the write back is the mount's own Review changes
     const started = await ok(d, "chat.start", { kind: "chat", agentIds: [agent.id] });

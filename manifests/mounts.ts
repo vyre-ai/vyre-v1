@@ -5,15 +5,15 @@
 // DECISION: writes to a cloud mount are conditional on the revision they were based on; a file that moved on is never overwritten, the Vyre edit is kept beside it as "<name> (<who>'s edit)".
 // DECISION: GitHub mounts are clones made through the git module with the installation token; mounts.add hands the clone to git and registers the mount.
 // DECISION: mounts.browse is a read although it calls the provider, because it only lists names the person can already open there.
-import { create, defineManifest, ev, health, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, runStarted } from './_common.ts';
 
-const kind = t.enm('google_drive', 'sharepoint', 'onedrive', 'local', 'github');
+const kind = t.enm('google_drive', 'sharepoint', 'onedrive', 'dropbox', 'local', 'github');
 const mode = t.enm('server_copy', 'live_only');
 const person = t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) });
 
 const source = t.obj({
-  kind, connectionId: t.opt(id.connection), ref: t.opt(t.str({ description: 'Drive or folder id, library path, or owner/repo' })),
+  kind, connectionId: t.opt(id.connection), ref: t.opt(t.str({ description: 'Drive or folder id, library path, Dropbox folder id or / for all of Dropbox, or owner/repo' })),
   path: t.opt(t.str()), branch: t.opt(t.str()), deviceId: t.opt(id.device), localPath: t.opt(t.str({ description: 'Path on the device; only the device sees it' })),
 });
 
@@ -31,6 +31,11 @@ const fileSource = t.obj({
 
 const revision = t.obj({
   revisionId: t.str(), at: t.opt(t.ts()), size: t.opt(t.int({ minimum: 0 })), current: t.bool(), by: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()), actor: t.opt(t.str()) })),
+});
+
+const fileLink = t.obj({
+  mountId: id.mount, kind, type: t.enm('google_doc', 'google_sheet', 'google_slides', 'google_file', 'word', 'excel', 'powerpoint', 'sharepoint_file', 'onedrive_file', 'dropbox_file'),
+  openIn: t.str({ examples: ['Google Docs'] }), webUrl: t.str(), edit: t.arr(t.enm('replace_text', 'insert_text', 'read_cells', 'write_cells', 'append_rows')),
 });
 
 const browseItem = t.obj({ ref: t.str(), name: t.str(), isFolder: t.bool(), path: t.opt(t.str()), shared: t.opt(t.bool()) });
@@ -57,13 +62,13 @@ export default defineManifest({
     ev('mount.resumed', 'A paused mount resumed', { p: { mountId: id.mount, folderId: id.folder }, subject: ['folder', '/folderId'] }),
   ],
   capabilities: [
-    read('mounts.browse', 'Browse a drive, library or repository search to pick what to mount', {
+    read('mounts.browse', 'Browse a drive, library, Dropbox folder or repository search to pick what to mount', {
       in: { kind, connectionId: t.opt(id.connection), parent: t.opt(t.str()), q: t.opt(t.str()), ...pageIn }, out: { items: t.arr(browseItem), ...pageOut },
       tool: 'files', errors: ['provider.auth_failed', 'provider.unavailable'],
     }),
     read('mounts.list', 'List mounts the caller can see', { in: { kind: t.opt(kind), ...pageIn }, out: { mounts: t.arr(mountRow), ...pageOut }, tool: 'files', label: 'filter' }),
     read('mounts.get', 'Read one mount: state, lag, pending changes and conflicts (the sync line of a folder)', { in: { mountId: id.mount }, out: { mount: mountRow }, tool: 'files', label: 'check' }),
-    create('mounts.add', 'Mount a Google or SharePoint folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run', {
+    create('mounts.add', 'Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run', {
       in: { into: id.folder, source, name: t.opt(t.str()), mode: t.opt(mode), reviewChanges: t.opt(t.bool()) },
       out: { mountId: id.mount, folderId: id.folder, ...runStarted }, make: ['folder', '/into'], perm: 'files.write', run: { kind: 'mount_sync', stoppable: true },
       emits: ['folder.mounted', 'mount.synced', 'mount.failed'], audit: 'always', tool: 'files', cli: 'vyre mounts add', errors: ['provider.auth_failed', 'provider.unavailable', 'validation.duplicate'],
@@ -86,6 +91,30 @@ export default defineManifest({
       in: { mountId: id.mount, deviceId: id.device, changes: t.arr(t.obj({ path: t.str(), op: t.enm('add', 'modify', 'delete', 'rename'), blobId: t.opt(id.blob), mtime: t.ts(), from: t.opt(t.str()) })) },
       out: { applied: t.int(), conflicts: t.int() }, level: 'use', idem: 'key', emits: ['file.version_added', 'file.conflict_kept', 'mount.synced'], offline: 'online',
     }),
+    // ---- mounted files at their provider (live folders L3): where they open, and editing them in place through the provider's own API
+    read('mounts.file_link', 'Where a mounted file opens at its provider (Google Docs, Sheets, Slides, Word, Excel, PowerPoint, Dropbox) and what an agent can do to it in place', {
+      in: { fileId: id.file }, out: { link: t.opt(fileLink), reason: t.opt(t.str()) }, on: ['file', '/fileId'], tool: 'files', deferred: true,
+    }),
+    outward('mounts.doc_replace_text', 'Replace text in a mounted Google Doc, in the Doc itself; the change shows in its Google version history', {
+      in: { fileId: id.file, find: t.str({ minLength: 1 }), replace: t.str(), matchCase: t.opt(t.bool()) }, out: { replaced: t.int({ minimum: 0 }) }, on: ['file', '/fileId'], level: 'edit', gate: 'post', audit: 'always',
+      tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'provider.auth_failed'],
+    }),
+    outward('mounts.doc_insert_text', 'Insert text into a mounted Google Doc after or before some existing text, or at its start or end; refuses if the Doc changed meanwhile', {
+      in: { fileId: id.file, text: t.str({ minLength: 1 }), where: t.opt(t.enm('after', 'before', 'start', 'end')), anchor: t.opt(t.str({ minLength: 1 })), matchCase: t.opt(t.bool()) }, out: { inserted: t.bool() },
+      on: ['file', '/fileId'], level: 'edit', gate: 'post', audit: 'always', tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'validation.not_found', 'validation.version_conflict', 'provider.auth_failed'],
+    }),
+    read('mounts.sheet_read', 'Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file', {
+      in: { fileId: id.file, sheet: t.opt(t.str({ description: 'Worksheet name; needed for Excel' })), range: t.str({ examples: ['A1:D20'] }) }, out: { values: t.arr(t.arr(t.json())) },
+      on: ['file', '/fileId'], tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'provider.auth_failed'],
+    }),
+    outward('mounts.sheet_write', 'Write cells of a mounted Google Sheet or Excel workbook in the provider file itself', {
+      in: { fileId: id.file, sheet: t.opt(t.str()), range: t.str({ examples: ['B2'] }), values: t.arr(t.arr(t.json()), { minItems: 1 }) }, out: { updatedCells: t.int({ minimum: 0 }) },
+      on: ['file', '/fileId'], level: 'edit', gate: 'post', audit: 'always', tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'provider.auth_failed'],
+    }),
+    outward('mounts.sheet_append', 'Add rows under the last used row of a mounted Google Sheet or Excel worksheet', {
+      in: { fileId: id.file, sheet: t.opt(t.str()), values: t.arr(t.arr(t.json()), { minItems: 1 }) }, out: { updatedRows: t.int({ minimum: 0 }) },
+      on: ['file', '/fileId'], level: 'edit', gate: 'post', audit: 'always', tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'provider.auth_failed'],
+    }),
     write('mounts.open', 'Open a file of a mount: ask the provider what it holds now and fetch the content only when the copy in Vyre is not that version', {
       in: { fileId: id.file }, out: { mounted: t.bool(), fetched: t.bool(), offline: t.opt(t.bool()), changesetId: t.opt(id.changeset), source: t.opt(fileSource) },
       on: ['file', '/fileId'], perm: null, level: 'view', emits: ['file.version_added'], tool: 'files', offline: 'online',
@@ -100,8 +129,8 @@ export default defineManifest({
     read('mounts.editors', 'Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)', {
       in: { fileIds: t.arr(id.file, { maxItems: 200 }) }, out: { editors: t.arr(t.obj({ fileId: id.file, provider: t.str(), name: t.opt(t.str()), email: t.opt(t.str()), at: t.opt(t.ts()) })) }, tool: 'files', label: 'check',
     }),
-    write('mounts.nudge', 'A provider push notice (Drive channel, Graph subscription) or an app showing a mount asks for a sync pass (system)', {
-      in: { source: t.enm('google', 'microsoft', 'client'), channelId: t.opt(t.str()), subscriptionId: t.opt(t.str()), replacedBy: t.opt(t.str()), mountId: t.opt(id.mount) },
+    write('mounts.nudge', 'A provider push notice (Drive channel, Graph subscription, Dropbox account) or an app showing a mount asks for a sync pass (system)', {
+      in: { source: t.enm('google', 'microsoft', 'dropbox', 'client'), channelId: t.opt(t.str()), subscriptionId: t.opt(t.str()), replacedBy: t.opt(t.str()), mountId: t.opt(id.mount) },
       out: { mounts: t.int({ minimum: 0 }), passes: t.int({ minimum: 0 }) }, perm: null, level: 'use', emits: ['mount.synced', 'mount.failed'], tool: 'files', offline: 'online',
     }),
     read('mounts.lag', 'Worst mount lag in seconds and the mounts that are failing', {

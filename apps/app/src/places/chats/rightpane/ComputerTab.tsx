@@ -4,7 +4,6 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { NeedsTeamSpace } from "../../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -52,9 +51,6 @@ export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: Virtual
   const data = usePaneData();
   const name = data.agent.name;
   const computerId = data.agent.computerId ?? "";
-  if (data.space.personal) {
-    return <View testID="computer-personal" style={st.padded}><NeedsTeamSpace what="Agent computers" density="regular" /></View>;
-  }
   if (computerId === "") {
     return (
       <View testID="computer-none" style={st.padded}>

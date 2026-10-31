@@ -43,6 +43,14 @@ export function useMountsData(rt: ShellRuntime): MountsData | null {
         if (got === "not_set_up") { rt.open({ screen: "mail.connections", args: { kind: "github" } }); return null; }
         return got;
       }
+      // Dropbox signs in over the sheet with its own capabilities; the account it made is read back
+      if (source === "dropbox") {
+        if (!openConnect) return null;
+        const got = await openConnect({ kind: "connector", service: "dropbox" });
+        if (!got) return null;
+        const acc = (await loadAccounts(rt.call, null)).dropbox;
+        return acc.connected ? acc : { label: got.title, connected: true, connectionId: got.id };
+      }
       if (!openConnect) { rt.open({ screen: "mail.connections", args: { kind: source === "google_drive" ? "gmail" : "outlook" } }); return null; }
       const got = await openConnect({ kind: "connector", service: source === "google_drive" ? "google" : "microsoft" });
       if (!got) return null;

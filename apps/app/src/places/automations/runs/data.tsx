@@ -14,6 +14,8 @@ export interface RunsNav {
   openRun(runId: string): void;
   /** The run chat in the side pane. */
   openRunSide(runId: string): void;
+  /** A task a Run made, with its thread, in the side pane. Optional so a runs sample without the shell still renders. */
+  openTaskSide?(taskId: string): void;
   /** Ask Vyre about a failed run. Optional so a runs sample without the shell still renders. */
   ask?(aboutId: string, context?: AskBundle): void;
 }

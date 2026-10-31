@@ -725,7 +725,7 @@ function maySee(ctx: Ctx, row: Row): boolean {
 
 // ---- capabilities -------------------------------------------------------------------------------------------
 
-const KINDS: readonly string[] = ["google_drive", "sharepoint", "onedrive", "local", "github"];
+const KINDS: readonly string[] = ["google_drive", "sharepoint", "onedrive", "dropbox", "local", "github"];
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 function baseName(p: string): string {
@@ -758,7 +758,7 @@ interface SourceIn { kind: MountKind; connectionId?: string; ref?: string; path?
 function sourceOf(ctx: Ctx, o: Row): SourceIn {
   const s = obj(o["source"]);
   const kind = str(s["kind"]);
-  if (!KINDS.includes(kind)) fail(ctx, "validation.bad_input", "source.kind must be google_drive, sharepoint, onedrive, local or github.");
+  if (!KINDS.includes(kind)) fail(ctx, "validation.bad_input", "source.kind must be google_drive, sharepoint, onedrive, dropbox, local or github.");
   const out: SourceIn = { kind: kind as MountKind };
   for (const k of ["connectionId", "ref", "path", "branch", "deviceId", "localPath"] as const) {
     const v = optStr(s, k);
@@ -775,6 +775,9 @@ function sourceOf(ctx: Ctx, o: Row): SourceIn {
     need("A library", out.ref !== undefined);
   } else if (out.kind === "onedrive") {
     need("A connection", out.connectionId !== undefined);
+  } else if (out.kind === "dropbox") {
+    need("A connection", out.connectionId !== undefined);
+    need("A Dropbox folder", out.ref !== undefined);
   } else if (out.kind === "local") {
     need("A device", out.deviceId !== undefined);
     need("A folder path on the device", out.localPath !== undefined);
@@ -821,7 +824,7 @@ async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; f
   };
   const cols = Object.keys(fields);
   ctx.db.run(`INSERT INTO mounts_mount (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, ...cols.map((c) => fields[c]));
-  const rootRemote = source.kind === "google_drive" ? source.ref ?? null : source.kind === "sharepoint" || source.kind === "onedrive" ? source.path ?? null : source.kind === "local" ? "" : null;
+  const rootRemote = source.kind === "google_drive" || source.kind === "dropbox" ? source.ref ?? null : source.kind === "sharepoint" || source.kind === "onedrive" ? source.path ?? null : source.kind === "local" ? "" : null;
   insertItem(ctx, mountId, { key: "root", remoteId: rootRemote, parentKey: null, folderId, name, isFolder: true });
   ctx.emit("folder.mounted", `folder/${folderId}`, { mountId, folderId, kind: source.kind, by: ctx.principal.id });
   const runId = ctx.run ?? nid(ctx, "run");
@@ -871,9 +874,9 @@ async function mountsGet(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
 async function mountsBrowse(ctx: Ctx, input: unknown): Promise<Row> {
   const o = record(ctx, input);
   const kind = reqStr(ctx, o, "kind");
-  if (!KINDS.includes(kind)) fail(ctx, "validation.bad_input", "kind must be google_drive, sharepoint, onedrive, local or github.");
+  if (!KINDS.includes(kind)) fail(ctx, "validation.bad_input", "kind must be google_drive, sharepoint, onedrive, dropbox, local or github.");
   const connectionId = optStr(o, "connectionId");
-  if ((kind === "google_drive" || kind === "sharepoint" || kind === "onedrive") && connectionId === undefined) fail(ctx, "validation.bad_input", "Choose the connection to browse first.");
+  if ((kind === "google_drive" || kind === "sharepoint" || kind === "onedrive" || kind === "dropbox") && connectionId === undefined) fail(ctx, "validation.bad_input", "Choose the connection to browse first.");
   const limitIn = o["limit"];
   const parent = optStr(o, "parent");
   const q = optStr(o, "q");
@@ -1250,9 +1253,10 @@ async function mountsNudge(ctx: Ctx, input: unknown): Promise<Row> {
     }
     return { mounts: rows.length, passes: ran };
   }
-  if (source !== "google" && source !== "microsoft") return fail(ctx, "validation.bad_input", "source must be google, microsoft or client.");
-  const channel = optStr(o, source === "google" ? "channelId" : "subscriptionId");
-  if (channel === undefined) return fail(ctx, "validation.bad_input", source === "google" ? "channelId is required." : "subscriptionId is required.");
+  if (source !== "google" && source !== "microsoft" && source !== "dropbox") return fail(ctx, "validation.bad_input", "source must be google, microsoft, dropbox or client.");
+  // Drive and Dropbox name a channel, Graph a subscription (a Dropbox channel is the account: dbx:<account id>)
+  const channel = optStr(o, source === "microsoft" ? "subscriptionId" : "channelId");
+  if (channel === undefined) return fail(ctx, "validation.bad_input", source === "microsoft" ? "subscriptionId is required." : "channelId is required.");
   const rows = liveMounts(ctx).filter((r) => r["watch_id"] === channel);
   const replacedBy = optStr(o, "replacedBy");
   if (replacedBy !== undefined) {

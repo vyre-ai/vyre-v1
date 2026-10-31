@@ -9,8 +9,11 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { fileLink, openInWords } from "../open-in.ts";
+import type { FileLink } from "../open-in.ts";
 import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
 import { useFilesViewerData } from "./data.tsx";
+import { useFileLinks } from "../links.ts";
 import { boxesOf, nodeFor, docCommentsOf, kindLabel, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKind } from "./model.ts";
 import type { FileComment, ViewerData } from "./model.ts";
 
@@ -30,6 +33,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const d = useFilesViewerData();
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [note, setNote] = useState<string | null>(null);
+  // where a file from a connected folder opens at its provider (Google Docs, Word, Excel, Dropbox); null for a file Vyre holds itself
+  const [link, setLink] = useState<FileLink | null>(null);
   const version = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const say = useCallback((e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work."), []);
@@ -51,6 +56,15 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     return () => { live = false; if (timer.current) clearTimeout(timer.current); };
   }, [d, fileId]);
 
+  const mounted = load.status === "ready" && load.data.file.source !== undefined;
+  useEffect(() => {
+    setLink(null);
+    if (!mounted || !d.openUrl) return undefined;
+    let live = true;
+    void fileLink(d.call, fileId).then((l) => { if (live) setLink(l); });
+    return () => { live = false; };
+  }, [d, fileId, mounted]);
+
   useEffect(() => {
     if (!note) return undefined;
     const t = setTimeout(() => setNote(null), 4500);
@@ -67,6 +81,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const ready = load.status === "ready" ? load : null;
   const kind = ready ? viewerKind(ready.data.file.kind) : "other";
   const text = ready?.data.text ?? "";
+  const fileLinks = useFileLinks(d, ready ? { folderId: ready.data.file.folderId } : null, kind === "document" ? text : "");
   const blocks = useMemo(() => (ready && kind === "document" ? textToBlocks(text, ready.data.file.kind) : []), [ready, kind, text]);
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
@@ -99,13 +114,14 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         fileId={fileId} title={file.name} kind={kind} pane={pane}
         kindLabel={kindLabel(file.name)} subtitle={subtitleOf(ready.data, now, path)}
         {...(kind === "image" && ready.data.previewUrl ? { src: ready.data.previewUrl } : {})}
-        boxes={boxes} strokes={strokes} blocks={blocks} {...(sheet ? { sheet } : {})}
+        boxes={boxes} strokes={strokes} blocks={blocks} {...(fileLinks ? { fileLinks } : {})} {...(sheet ? { sheet } : {})}
         comments={docCommentsOf(ready.comments, d.name, now)}
         ask={{ place: "files", context: { kind: "file", id: fileId, title: file.name, access: ready.data.canEdit ? "edit" : "view" }, agents: d.agents, testID: "file-ask", onAsk: (agent, mode, about) => d.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title }) }}
         {...(siblings ? { siblings, current: fileId, onSibling: (id: string) => d.openFile?.(id) } : {})}
         {...(ready.graph && node ? { graph: ready.graph, nodeId: node, onOpenLink: (id: string) => d.openFile?.(id) } : {})}
         agentName={d.agentFor?.(fileId) ?? d.agents.find((a) => a.assistant)?.name ?? "the agent"}
         {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})} {...(ready.data.canEdit ? { onEdit: edit } : {})}
+        {...(link && d.openUrl ? { openIn: { label: openInWords(link.openIn), onOpen: () => d.openUrl?.(link.webUrl) } } : {})}
         onComment={(quote, textIn) => void commentOnQuote(d, fileId, quote, textIn).then(reload).catch(say)}
         onResolve={(id) => void resolveComment(d, id).then(reload).catch(say)}
         onAskMarkup={(marked) => d.ask?.(d.agents.find((a) => a.assistant)?.id ?? "assistant", "do", { kind: "file_markup", id: fileId, title: `${marked.length} marks on ${file.name}` })}

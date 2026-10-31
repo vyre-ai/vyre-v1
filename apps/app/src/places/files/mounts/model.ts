@@ -1,5 +1,5 @@
 // The mount sheet's logic without a renderer (spec 2.16 Mounts, 3.5 Files > mount a folder): the three steps, what a pick means, the mounts.add input, who can see it, error words.
-// Steps: 1 pick a source (Google Drive, Microsoft 365, this computer, GitHub); 2 browse or search and pick one thing; 3 options (name, who can see it, copy or branch, Into, Review changes).
+// Steps: 1 pick a source (Google Drive, Microsoft 365, Dropbox, this computer, GitHub); 2 browse or search and pick one thing; 3 options (name, who can see it, copy or branch, Into, Review changes).
 // A mount is a real directory synced by the mount engine; access never widens, so "who can see it" is a share made after the mount exists (access.share), never a grant the sheet invents.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
@@ -9,9 +9,9 @@ export type BrowseIn = CapMap["mounts.browse"]["in"];
 export type MountRow = CapMap["mounts.list"]["out"]["mounts"][number];
 
 /** "microsoft" is both Microsoft kinds at one root (kept for callers that browse the whole suite); the sheet lists OneDrive and SharePoint as two sources of the same connection. */
-export type SourceId = "google_drive" | "microsoft" | "onedrive" | "sharepoint" | "local" | "github";
+export type SourceId = "google_drive" | "microsoft" | "onedrive" | "sharepoint" | "dropbox" | "local" | "github";
 /** The connections a Space has: one per account, however many sources it feeds. */
-export type AccountKey = "google_drive" | "microsoft" | "local" | "github";
+export type AccountKey = "google_drive" | "microsoft" | "dropbox" | "local" | "github";
 
 export interface SourceDef {
   id: SourceId;
@@ -22,11 +22,12 @@ export interface SourceDef {
   kinds: readonly MountKind[];
 }
 
-/** The sources the sheet lists, in the order a person looks for them (keys 1 to 5). */
+/** The sources the sheet lists, in the order a person looks for them (keys 1 to 6). */
 export const SOURCES: readonly SourceDef[] = [
   { id: "google_drive", name: "Google Drive", what: "Google Shared Drive or folder", kinds: ["google_drive"] },
   { id: "onedrive", name: "OneDrive", what: "OneDrive folder", kinds: ["onedrive"] },
   { id: "sharepoint", name: "SharePoint", what: "SharePoint site or library", kinds: ["sharepoint"] },
+  { id: "dropbox", name: "Dropbox", what: "Dropbox folder", kinds: ["dropbox"] },
   { id: "github", name: "GitHub", what: "GitHub repository", kinds: ["github"] },
   { id: "local", name: "This computer", what: "Folder on your computer", kinds: ["local"] },
 ];

@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Terminal, hostMenu } from "../../../../../../ui/src/Terminal/index.tsx";
+import { Terminal, hostChoiceMenu, hostMenu } from "../../../../../../ui/src/Terminal/index.tsx";
 import type { TerminalHost, TerminalSource, TerminalViewProps } from "../../../../../../ui/src/Terminal/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -15,9 +15,11 @@ import { errorWords, isRefusal, useLive, useOnline } from "../mounts/live.ts";
 import { TextButton } from "../rightpane/parts.tsx";
 import { STARS_SCREEN, TAB_SCREEN } from "./data.ts";
 import type { TerminalData } from "./data.ts";
-import { chipLabel, uiHost, uiState } from "./model.ts";
+import { chipLabel, lineAfter, uiHost, uiState } from "./model.ts";
 import type { TerminalRow } from "./model.ts";
 import { askServerAccess, attach, closeSession, createSender, openSession, toggleStar } from "./session.ts";
+import { openHostCall } from "./hosts.ts";
+import { useHosts } from "./useHosts.ts";
 import type { SessionDeps } from "./session.ts";
 
 type GetOut = CapMap["terminal.get"]["out"];
@@ -37,6 +39,11 @@ export function sessionProps(row: TerminalRow, o: { replay: string; source?: Ter
   };
 }
 
+/** The key of the host a session runs on, as the host list names it. */
+export function hostKeyOf(row: Pick<TerminalRow, "host" | "deviceId" | "computerId">): string {
+  return row.host === "space_server" ? "server" : row.host === "agent_computer" ? `agent:${row.computerId ?? ""}` : `device:${row.deviceId ?? ""}`;
+}
+
 export function TerminalLoading(): ReactElement {
   return <View testID="terminal-loading" accessibilityLabel="Loading" style={st.root}><View style={st.bar} /><View style={st.screen} /></View>;
 }
@@ -47,9 +54,13 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
   const stars = useLive<StarsOut>(data.screens, STARS_SCREEN, "stars", {});
   const online = useOnline(data.connection);
   const menu = useMenu();
+  const hosts = useHosts(data);
   const [att, setAtt] = useState<Attach>({ status: "loading" });
   const [again, setAgain] = useState(0);
   const [note, setNote] = useState<string | undefined>(undefined);
+  // the line being typed and what it would do (terminal.risk, a moment after the last key): a dot in the bar
+  const [typed, setTyped] = useState("");
+  const [risk, setRisk] = useState<"read" | "change" | "danger" | null>(null);
   const [asked, setAsked] = useState(false);
   const [serverLocked, setServerLocked] = useState(false);
   const sender = useMemo(() => createSender(deps, terminalId, setNote), [deps, terminalId]);
@@ -63,6 +74,15 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
     );
     return () => { live = false; };
   }, [deps, terminalId, again]);
+
+  useEffect(() => {
+    if (typed.trim() === "") { setRisk(null); return undefined; }
+    let live = true;
+    const t = setTimeout(() => {
+      void (data.call("terminal.risk", { command: typed.trim() }) as Promise<{ risk: "read" | "change" | "danger" }>).then((r) => { if (live) setRisk(r.risk); }, () => { if (live) setRisk(null); });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [typed, data]);
 
   useEffect(() => {
     if (note === undefined) return undefined;
@@ -80,6 +100,15 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
       (e: unknown) => { if (h === "server" && isRefusal(e)) setServerLocked(true); else setNote(errorWords(e, "Could not open it.")); },
     );
   }, [deps, who, data.nav]);
+  const pickHost = useCallback((key: string): void => {
+    const h = hosts.find((x) => x.key === key);
+    if (!h) return;
+    const c = openHostCall(h, data.newKey());
+    void (data.call(c.cap, c.input) as Promise<{ terminal: { terminalId: string } }>).then(
+      (o) => data.nav.openTerminal(o.terminal.terminalId),
+      (e: unknown) => { if (h.kind === "server" && isRefusal(e)) setServerLocked(true); else setNote(errorWords(e, "Could not open it.")); },
+    );
+  }, [hosts, data]);
   const onGap = useCallback((): void => setAgain((n) => n + 1), []);
 
   if (q.status === "loading") return <TerminalLoading />;
@@ -93,7 +122,7 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
     { label: "Interrupt", onSelect: () => void sender.interrupt() },
     { separator: true },
     { head: "New terminal on" },
-    ...hostMenu(host, false, openOn),
+    ...(hosts.length > 0 ? hostChoiceMenu(hosts, hostKeyOf(row), pickHost) : hostMenu(host, false, openOn)),
     { separator: true },
     { label: "All Terminals", onSelect: () => data.nav.openList() },
     { label: "Terminal Rules", onSelect: () => data.nav.openRules() },
@@ -134,8 +163,9 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
       <Terminal
         key={`${row.terminalId}:${again}`}
         {...sessionProps(row, { replay: att.replay, source: att.source, starred, ...(online ? (note !== undefined ? { note } : {}) : { note: "Offline" }) })}
-        onInput={(d) => void sender.input(d)} onResize={(c, r) => void sender.resize(c, r)} onInterrupt={() => void sender.interrupt()}
+        onInput={(d) => { setTyped((l) => lineAfter(l, d)); void sender.input(d); }} risk={risk} onResize={(c, r) => void sender.resize(c, r)} onInterrupt={() => void sender.interrupt()}
         onStar={star} onGap={onGap} onHost={openOn}
+        {...(hosts.length > 0 ? { hosts, hostKey: hostKeyOf(row), onPickHost: pickHost } : {})}
       />
       {menu.element}
     </View>

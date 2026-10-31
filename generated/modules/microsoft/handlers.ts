@@ -62,4 +62,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.teams.recordings.list_recordings": Handler<"ms.teams.recordings.list_recordings", X>;
   "ms.teams.recordings.list_transcripts": Handler<"ms.teams.recordings.list_transcripts", X>;
   "ms.teams.recordings.subscribe": Handler<"ms.teams.recordings.subscribe", X>;
+  "ms.workbook.append_rows": Handler<"ms.workbook.append_rows", X>;
+  "ms.workbook.get_range": Handler<"ms.workbook.get_range", X>;
+  "ms.workbook.update_range": Handler<"ms.workbook.update_range", X>;
 }

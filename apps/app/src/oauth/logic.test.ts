@@ -21,6 +21,14 @@ test("a code finishes the sign-in as the signed-in person; a declined sign-in se
   assert.deepEqual(calls, [{ cap: "connections.complete_auth", input: { state: "oas_1", code: "code-1" } }, { cap: "connections.complete_auth", input: { state: "oas_2", error: "access_denied" } }]);
 });
 
+test("a Dropbox sign-in (state dbs_) is finished by the dropbox module, everything else by connectors", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const call: CapCall = async (cap, input) => { calls.push({ cap, input }); return { connectionId: "con_dbx" }; };
+  assert.deepEqual(await completeCallback(call, { state: "dbs_abc", code: "code-d", error: null }), { kind: "connected", connectionId: "con_dbx" });
+  await completeCallback(call, { state: "dbs_def", code: null, error: "access_denied" });
+  assert.deepEqual(calls, [{ cap: "dropbox.connect.complete", input: { state: "dbs_abc", code: "code-d" } }, { cap: "dropbox.connect.complete", input: { state: "dbs_def", error: "access_denied" } }]);
+});
+
 test("nothing is sent without a state or without a code or error", async () => {
   let sent = 0;
   const call: CapCall = async () => { sent++; return {}; };

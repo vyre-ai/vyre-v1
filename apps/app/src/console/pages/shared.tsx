@@ -1,4 +1,4 @@
-import { createElement, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
@@ -9,7 +9,8 @@ import { pendingAction, safeDownload } from "./infra-model.ts";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import { useConsoleData } from "../shell/data.tsx";
-import { useInGroup } from "../shell/ui.tsx";
+import { Lead, PageHelpContext, useInGroup } from "../shell/ui.tsx";
+import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 
 export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean; enabled?: boolean } = {}) {
@@ -64,15 +65,43 @@ export function Button({ label, onPress, disabled = false, testID, danger = fals
   return disabled && why ? <Tip help={why}>{button}</Tip> : button;
 }
 /** A help sentence as a quiet info mark with the sentence in its tooltip. */
-export function Help({ children }: { children: string }): ReactElement {
+export function Help({ children }: { children: string }): ReactElement | null {
   const inGroup = useInGroup();
-  return inGroup ? <View style={{ position: "absolute", top: 6, right: 8, zIndex: 1 }}><Info help={children} /></View> : <Info help={children} />;
+  const register = useContext(PageHelpContext);
+  const [moved, setMoved] = useState(false);
+  useEffect(() => {
+    if (!register || inGroup) return undefined;
+    setMoved(true);
+    const off = register(children);
+    return () => { off(); setMoved(false); };
+  }, [register, inGroup, children]);
+  if (inGroup) return <View style={{ position: "absolute", top: 6, right: 8, zIndex: 1 }}><Info help={children} /></View>;
+  return moved ? null : <Info help={children} />;
 }
 export function Actions({ children }: { children: ReactNode }): ReactElement { return <View style={s.actions}>{children}</View>; }
 export function Note({ children }: { children: ReactNode }): ReactElement { return <Text accessibilityRole="status" style={s.note}>{children}</Text>; }
 export function ReadState({ error, retry }: { error?: string | undefined; retry: () => void }): ReactElement { return error ? <States kind="error" message={error} retryable onRetry={retry} /> : <Text accessibilityRole="progressbar">Loading…</Text>; }
 export function Select({label,value,options,onChange,disabled=false}:{label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean}):ReactElement{
  const menu=useMenu();return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{menu.element}</View>;
+}
+/** A whole number you nudge with - and +, with its explanation as a tooltip. */
+export function Stepper({ label, value, onChange, min = 1, max = 999, help }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; help?: string }): ReactElement {
+  const step = (by: number): void => onChange(Math.min(max, Math.max(min, value + by)));
+  const btn = (text: string, by: number, off: boolean) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={`${by < 0 ? "Fewer" : "More"} ${label}`} disabled={off} onPress={() => step(by)} testID={`step-${by < 0 ? "down" : "up"}`} style={[s.button, { width: 32, alignItems: "center", opacity: off ? 0.4 : 1 }]}><Text style={s.buttonText}>{text}</Text></Pressable>
+  );
+  return (
+    <Tip help={help}>
+      <View style={[s.field, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+        <Text style={s.label}>{label}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>{btn("-", -1, value <= min)}<Text testID="step-value" style={{ minWidth: 28, textAlign: "center", fontSize: 14, color: "var(--ink)" as string }}>{value}</Text>{btn("+", 1, value >= max)}</View>
+      </View>
+    </Tip>
+  );
+}
+/** The props of a pick list row you tap: a face, a name, a check when chosen. Spread into a Row; never a Select button per row. */
+export function pickRow({ id, title, note, face, picked, disabled = false, onPress }: { id: string; title: string; note?: string | undefined; face?: ReactNode; picked: boolean; disabled?: boolean; onPress: () => void }) {
+  return { id, title, ...(note ? { note } : {}), ...(face ? { leading: <Lead>{face}</Lead> } : {}), selected: picked, onPress: () => { if (!disabled) onPress(); }, trailing: picked ? <Glyph name="check" size={14} color="var(--accent)" /> : null };
 }
 /** A row of views on one page ("Server logs", "Services", "Storage"): the open one is filled, the others are quiet. */
 export function Segmented({ options, value, onChange }: { options: readonly { key: string; title: string }[]; value: string; onChange: (key: string) => void }): ReactElement {

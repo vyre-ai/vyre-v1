@@ -38,6 +38,7 @@ type Out = {
   placement: "host" | "device" | "wait";
   reason: string;
   wakeLine?: string;
+  nodeId?: string;
 };
 ```
 
@@ -60,6 +61,7 @@ type Out = {
     "threadId": "thr_a1b2c3"
   },
   "output": {
+    "nodeId": "example",
     "placement": "host",
     "reason": "example",
     "wakeLine": "Your computer is off"

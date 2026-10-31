@@ -35,7 +35,7 @@ function NavRow({ id, title, glyph, selected, count, onPress, hint }: { id: stri
 const DEPTH_PX = 14;
 
 /** The mark of a mounted folder's source: a computer for a folder on one, the provider's mark for the rest. */
-const markOf = (provider: string): MarkKind => (/google/i.test(provider) ? "google_drive" : /sharepoint/i.test(provider) ? "sharepoint" : /onedrive/i.test(provider) ? "onedrive" : /microsoft/i.test(provider) ? "microsoft" : /github/i.test(provider) ? "github" : "local");
+const markOf = (provider: string): MarkKind => (/google/i.test(provider) ? "google_drive" : /sharepoint/i.test(provider) ? "sharepoint" : /onedrive/i.test(provider) ? "onedrive" : /microsoft/i.test(provider) ? "microsoft" : /dropbox/i.test(provider) ? "dropbox" : /github/i.test(provider) ? "github" : "local");
 
 type MountState = { state: string; lastSyncAt?: number };
 

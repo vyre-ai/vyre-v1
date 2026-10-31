@@ -1,5 +1,6 @@
 // Handler table of the engine capabilities that the first engine packet left over (P-L2_13b). handlers/index.ts spreads it into the module table.
 // engine.warm, engine.placement.decide and engine.pool.status wrap the logic of P-L2_04 (agent/src/pool, agent/src/placement); they live in ../place.ts.
+import { placementOptions, placementSet } from "../place-pref.ts";
 import { defaultsGet, defaultsSet, policyGet, policySet, runtimeOptIn, subscriptionShareSet, usePolicyExport } from "./config.ts";
 import { modelsList, providersList } from "./models.ts";
 import { placementDecide, poolStatus, warm } from "../place.ts";
@@ -10,6 +11,8 @@ import { turnAppend, turnEnqueue, turnFallback, turnFinish, turnGet, turnRecord,
 
 export const extraHandlers = {
   "engine.placement.decide": placementDecide,
+  "engine.placement.set": placementSet,
+  "engine.placement.options": placementOptions,
   "engine.pool.status": poolStatus,
   "engine.warm": warm,
   "engine.models.list": modelsList,

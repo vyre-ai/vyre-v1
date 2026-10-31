@@ -15,7 +15,7 @@ Run a JavaScript expression in the page and return the result
 | Idempotency | none |
 | Offline | online |
 | Audit | sensitive |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/chrome/eval |
 | MCP tool | chrome_eval (computer) |
 | CLI | none |
@@ -43,7 +43,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.unavailable

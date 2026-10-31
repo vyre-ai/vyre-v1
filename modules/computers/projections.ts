@@ -82,8 +82,10 @@ export interface ComputerHost {
 
 /** The host's Vault fill channel (P-L2_21): a token per computer and the address agentd posts to. Unbound, a computer has no Vault channel and refuses a #Handle. */
 export interface FillBinding {
-  issue(h: { computerId: string; agentId: string; asker: string }): Promise<{ fillToken: string; revoke(): void }>;
+  issue(h: { computerId: string; agentId: string; asker: string; nodeId?: string }): Promise<{ fillToken: string; revoke(): void }>;
   url(): string;
+  /** Is this server's link to the Space private? A server's computers get a Vault channel only if it is. Absent: no server's computer does. */
+  nodeSecure?(nodeId: string): boolean;
 }
 let fill: FillBinding | null = null;
 export function bindFill(b: FillBinding | null): void { fill = b; }
@@ -124,12 +126,12 @@ export function hostOf(ctx: Pick<CompCtx, "trace"> & Partial<Pick<CompCtx, "db" 
   return hostPort;
 }
 
-/** Is this a Team Space? Agent computers need one (spec 2.7). The host binds the answer; unbound means team. */
+/** Is this a Team Space? Only the labels ask (the Space server is "the Space" in a Team Space and "this computer" in a Personal one); the host binds the answer, unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;
 export function bindTeam(f: ((space: string) => boolean) | null): void { teamSpace = f ?? (() => true); }
-export function needTeam(ctx: Pick<CompCtx, "space" | "trace">): void {
-  if (!teamSpace(ctx.space)) raise(ctx, "permission.needs_team", "Agent computers need a Team Space.");
-}
+export const isTeam = (space: string): boolean => teamSpace(space);
+/** Agent computers are no longer a Team Space feature: a Personal Space runs them on a capable host (a server it added, or this computer with Docker). With no host, provision says so (hostOf) and the UI never offers it. Kept so callers need no change. */
+export function needTeam(_ctx: Pick<CompCtx, "space" | "trace">): void { /* availability is a capable host, not the Space kind */ }
 
 // ---- schema --------------------------------------------------------------------------------------------------------------------------------------------
 

@@ -17,7 +17,7 @@ Read one connection
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/connections/get |
-| MCP tool | connections_get (engineer) |
+| MCP tool | connections_get (automations) |
 | CLI | none |
 | Emits | none |
 

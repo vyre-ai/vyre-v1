@@ -7,7 +7,7 @@ const sq = (x: number, y: number): string => `M${x + 1.2} ${y}h2.1a1.2 1.2 0 011
 
 export type ShellIconName =
   | "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console" | "join"
-  | "moon" | "search" | "chev" | "sync" | "cloudOff" | "user" | "userPlus" | "signOut" | "terminal" | "check" | "more" | "lock";
+  | "moon" | "search" | "chev" | "sync" | "cloudOff" | "user" | "userPlus" | "signOut" | "terminal" | "check" | "more" | "lock" | "monitor" | "cloud" | "server";
 
 export const SHELL_ICONS: Readonly<Record<ShellIconName, readonly string[]>> = {
   lock:["M5 7V5a3 3 0 016 0v2","M4 7h8a1 1 0 011 1v5a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1z","M8 10v1"],
@@ -33,6 +33,9 @@ export const SHELL_ICONS: Readonly<Record<ShellIconName, readonly string[]>> = {
   terminal: ["M3.5 3h9A1.5 1.5 0 0114 4.5v6a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 10.5v-6A1.5 1.5 0 013.5 3z", "M5 6.5l2 1.5-2 1.5M8.5 10h2.5"],
   check: ["M3.5 8.5l3 3 6-7"],
   more: ["M3.5 8h.01M8 8h.01M12.5 8h.01"],
+  monitor: ["M2.5 3h11v7.5h-11z", "M6 13h4", "M8 10.5V13"],
+  server: ["M3 3.5h10v4H3z", "M3 8.5h10v4H3z", "M5.5 5.5h.01", "M5.5 10.5h.01"],
+  cloud: ["M5 12.5h6.5a2.5 2.5 0 00.3-5 3.5 3.5 0 00-6.8.5A2.3 2.3 0 005 12.5z"],
 };
 
 /** The icon as an svg string, for ui/Menu items (which take an svg string as their icon). */

@@ -79,15 +79,17 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [searchOpen, setSearchOpen] = useState(initialSearchOpen);
+  // where new chats run by default in a Team Space: this computer (engine.local_runs on) or the Space (off)
+  const [runsOn, setRunsOn] = useState<"device" | "space">("device");
   const recent = useRef<readonly Hit[]>([]);
-  const flags = useRef({ away: false, offline: false });
+  const flags = useRef<{ away: boolean; offline: boolean; terminal?: boolean }>({ away: false, offline: false });
 
   useEffect(() => { onHub(hub); return () => onHub(null); }, [hub, onHub]);
   useEffect(() => {
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.username ? { username: stored.username } : {}), spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash) => { navRef.current?.go(p,hash);if(phoneGo.current)phoneGo.current(p,hash); },
+    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.username ? { username: stored.username } : {}), spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash, background) => { navRef.current?.go(p,hash,background);if(phoneGo.current&&background!==true)phoneGo.current(p,hash); },
       shell: (screen,args) => {
         const h = navRef.current;
         if (!h) return;
@@ -122,8 +124,18 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     void loadRecent(session.runtime).then((hits) => { if (!off) recent.current = hits; });
     return () => { off = true; };
   }, [session]);
-  const search = useMemo(() => (session ? createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current }) : null), [session, hub]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current })) : null), [session, hub]);
 
+  useEffect(() => {
+    if (!session || stored.def.kind !== "team") return undefined;
+    let off = false;
+    session.call("settings.get", { key: "engine.local_runs" }).then((out) => { if (!off) setRunsOn((out as { row?: { value?: unknown } }).row?.value === false ? "space" : "device"); }, () => undefined);
+    return () => { off = true; };
+  }, [session, stored.def.kind]);
+  const runsOnProp = useMemo(() => (session && stored.def.kind === "team" ? {
+    value: runsOn,
+    set: (v: "device" | "space") => { void session.call("settings.set", { key: "engine.local_runs", value: v === "device" }).then(() => setRunsOn(v), () => hub.flash("Could not change where chats run")); },
+  } : undefined), [session, stored.def.kind, runsOn, hub]);
   const [phone, setPhone] = useState<Phone | undefined>(undefined);
   const connections = useMemo(() => (session ? session.hooks.capQuery<{ connections: { connector: string; state: string }[] }>("connections.list", {}) : null), [session]);
   const telephony = useSyncExternalStore(
@@ -183,7 +195,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
     <>
-      <Shell hub={hub} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
+      <Shell hub={hub} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
       {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} onTiming={(name, ms) => { if (name === "local" && session) speed.record(session.runtime.space.id, "search", ms); }} /> : null}
     </>
   );

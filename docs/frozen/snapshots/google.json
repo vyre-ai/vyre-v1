@@ -16,6 +16,8 @@
     "google.docs.batch_update@1": "25591a11e4ce997b9a79cae441b49ca6d814d2d8923d77d39f37d306e8f66555",
     "google.docs.create_document@1": "80c76399cfee6292458e7452fdfa1e50ba7985b5b99bc20ca32184586005bb77",
     "google.docs.get_document@1": "6be7505d70cd09a8bdab74982bd0b909ac5dbb07a0df0d82a0620124097f74fa",
+    "google.docs.insert_text@1": "2a0643113053e144cb1545933a2323c3d4bc9e62e223d83e3c5dc59b089816c0",
+    "google.docs.replace_text@1": "35c1f16768e68b0fb09cf08593094abc47b76c4c71ed1216c0a7bffc92b3ad5d",
     "google.drive.changes_start_token@1": "9c6a63f08b533e6c8ebb085c136487f99c885e64821d3ede34e9cf4bb861c9a5",
     "google.drive.copy_file@1": "e6ab2983b300ca5435b21197548b69c84ea99107cd5348843e2ca9073d8456a5",
     "google.drive.create_folder@1": "94ae21e23e8e31549abd7aac423210fa16ef4e7b498465092f26396481f38747",

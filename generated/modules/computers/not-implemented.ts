@@ -36,6 +36,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "computers.get": async (ctx) => { throw new VyreErr(notImplemented("computers.get", ctx.trace)); },
   "computers.give_back": async (ctx) => { throw new VyreErr(notImplemented("computers.give_back", ctx.trace)); },
   "computers.health": async (ctx) => { throw new VyreErr(notImplemented("computers.health", ctx.trace)); },
+  "computers.hosts": async (ctx) => { throw new VyreErr(notImplemented("computers.hosts", ctx.trace)); },
   "computers.list": async (ctx) => { throw new VyreErr(notImplemented("computers.list", ctx.trace)); },
   "computers.provision": async (ctx) => { throw new VyreErr(notImplemented("computers.provision", ctx.trace)); },
   "computers.record_start": async (ctx) => { throw new VyreErr(notImplemented("computers.record_start", ctx.trace)); },

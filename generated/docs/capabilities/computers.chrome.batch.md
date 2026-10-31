@@ -15,7 +15,7 @@ Run several Chrome steps in one call; stops at the first held item
 | Idempotency | none |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/chrome/batch |
 | MCP tool | chrome_batch (computer) |
 | CLI | none |
@@ -51,7 +51,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.unavailable

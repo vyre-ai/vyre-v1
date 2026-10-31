@@ -15,7 +15,7 @@ Say what the agent should do with a recording: make a skill, learn a routine, wo
 | Idempotency | key |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/recording/process |
 | MCP tool | computers_recording_process (computer) |
 | CLI | none |
@@ -44,7 +44,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input

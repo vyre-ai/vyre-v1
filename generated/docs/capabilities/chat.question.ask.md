@@ -34,6 +34,12 @@ type In = {
       detail?: string;
     }>;
   allowOther?: boolean;
+  card?: {
+    kind: "terminal";
+    command: string;
+    host?: "agent_computer" | "space_server" | "device";
+    risk?: "read" | "change" | "danger";
+  };
 };
 ```
 
@@ -61,6 +67,12 @@ type Out = {
   "name": "example",
   "input": {
     "allowOther": true,
+    "card": {
+      "command": "example",
+      "host": "agent_computer",
+      "kind": "terminal",
+      "risk": "read"
+    },
     "mode": "single",
     "options": [
       {

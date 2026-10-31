@@ -16,7 +16,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "terminal.open_server": Handler<"terminal.open_server", X>;
   "terminal.read": Handler<"terminal.read", X>;
   "terminal.rename": Handler<"terminal.rename", X>;
+  "terminal.request": Handler<"terminal.request", X>;
   "terminal.resize": Handler<"terminal.resize", X>;
+  "terminal.risk": Handler<"terminal.risk", X>;
   "terminal.rules.get": Handler<"terminal.rules.get", X>;
   "terminal.rules.set": Handler<"terminal.rules.set", X>;
   "terminal.run": Handler<"terminal.run", X>;

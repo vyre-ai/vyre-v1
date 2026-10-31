@@ -95,6 +95,14 @@ test("Computer, asleep: Wake, the last session, and a dimmed screen that wakes o
   assert.ok(!has(out, 'data-testid="computer-take"'), "Take over is for a working computer");
 });
 
+test("Computer, a Personal Space with a capable host (a server, or Docker here) has the Computer tab and sets up an agent's computer like a team one", () => {
+  const s = createSample("personal");
+  const withHost: Sample = { ...s, data: { ...s.data, space: { ...s.data.space, computers: true } } };
+  const out = html(withHost, "computer");
+  assert.ok(has(out, 'data-testid="computer-none"') && has(out, "Set up its computer"), "no computer yet, and the way to make one");
+  assert.ok(!has(out, "Needs a Team Space"));
+});
+
 test("Computer, in a Personal Space there is no Computer tab and the pane opens on Threads; an agent without a computer offers to set one up", () => {
   const personal = html(createSample("personal"), "computer");
   assert.ok(!has(personal, 'data-testid="computer-personal"') && !has(personal, ">Computer<"), "no Computer tab in a Personal Space");
@@ -463,4 +471,12 @@ test("a thread it worked in says how many replies and when the last came", () =>
   assert.equal(workedNote({ ...th, replyCount: 1 } as never, c), "1 reply · last 9:34");
   assert.equal(workedNote({ ...th, replyCount: undefined, lastMessageAt: undefined } as never, c), "Started 32 min ago");
   assert.ok(has(html(s, "threads"), "5 replies · last 9:34"));
+});
+
+test("with a terminal in the shell the pane has a sixth tab after Files, and without one it has five", () => {
+  const s = createSample();
+  const withTerminal = { ...s.data, terminal: { screens: s.data.screens, call: async () => ({ terminals: [] }), connection: s.data.connection, space: { id: "spc_1", name: "Northwind" }, newKey: () => "k", clock: s.data.clock, nav: { openTerminal() {}, closeTab() {}, openList() {}, openRules() {}, openAgent() {} } } } as never;
+  const out = clean(renderToStaticMarkup(<ChatRightPane data={withTerminal} open={true} onToggle={() => undefined} tab="computer" window={ALL} paneWidth={760} />));
+  inOrder(out, [">Computer<", ">Threads<", ">Files<", ">Terminal<", ">Knows<", ">Routines<"]);
+  assert.ok(!has(html(s, "computer", 760), ">Terminal<"));
 });

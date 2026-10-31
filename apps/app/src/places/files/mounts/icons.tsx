@@ -1,4 +1,4 @@
-// Icons and provider marks of the mount sheet, from the prototype's Files (vyre-v1.html, mounts): 16 px stroke icons, the Google Drive, Microsoft 365 and GitHub marks.
+// Icons and provider marks of the mount sheet, from the prototype's Files (vyre-v1.html, mounts): 16 px stroke icons, the Google Drive, Microsoft 365, Dropbox and GitHub marks.
 // Web draws inline SVG; other platforms draw an empty box of the same size until their own icon set lands.
 import { createElement } from "react";
 import type { ReactElement } from "react";
@@ -31,14 +31,14 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", width = 1.4 }: 
   );
 }
 
-export type MarkKind = "google_drive" | "microsoft" | "onedrive" | "sharepoint" | "local" | "github";
+export type MarkKind = "google_drive" | "microsoft" | "onedrive" | "sharepoint" | "dropbox" | "local" | "github";
 
-/** The provider mark: the real brand logo from ui/AppIcon (Google Drive, OneDrive, SharePoint, GitHub), a laptop for this computer. "microsoft" is the suite as a whole (the four squares). */
+/** The provider mark: the real brand logo from ui/AppIcon (Google Drive, OneDrive, SharePoint, Dropbox, GitHub), a laptop for this computer. "microsoft" is the suite as a whole (the four squares). */
 export function Mark({ kind, size = 20 }: { kind: MarkKind; size?: number }): ReactElement {
   if (kind === "local") {
     return <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center", flexShrink: 0 }} testID="mark-local"><Glyph name="laptop" size={size * 0.8} color="var(--ink)" /></View>;
   }
   const brand = kind === "google_drive" ? "gdrive" : kind;
-  const names: Record<string, string> = { gdrive: "Google Drive", onedrive: "OneDrive", sharepoint: "SharePoint", github: "GitHub", microsoft: "Microsoft 365" };
+  const names: Record<string, string> = { gdrive: "Google Drive", onedrive: "OneDrive", sharepoint: "SharePoint", github: "GitHub", dropbox: "Dropbox", microsoft: "Microsoft 365" };
   return <View style={{ flexShrink: 0 }} testID={`mark-${kind}`}><AppIcon brand={brand} size={size} name={names[brand] ?? brand} testID={`mark-icon-${kind}`} /></View>;
 }

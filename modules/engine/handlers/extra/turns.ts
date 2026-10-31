@@ -2,6 +2,7 @@
 //   engine.turn.enqueue/start/append/wait/finish/fallback, engine.turn.get, engine.turns.list, engine.turn.retry.
 // The worker in @vyre/agent calls these through invoke, so every turn event has an owning capability and a trace id. Each turn is one engine_turns row;
 // queue rows stay in engine_thread_queue (shared with the in-process engine). A write that repeats (same queue row, same outcome) answers with the first result.
+import { nodeOfTurn } from "../../node-turns.ts";
 import { PRIORITY_INTERRUPT } from "../../../../agent/src/turn-engine/queue.ts";
 import { actorOf, mintId, raise, sqlQueue } from "../../projections.ts";
 import type { EngineCtx } from "../../projections.ts";
@@ -17,11 +18,17 @@ export const LONG_TASK_MS = 60_000;
 const BLOCKING_CODES: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired"]);
 const DEFAULT_SAMPLE_PERCENT = 5;
 
+/** The server a turn ran on, when its chat was pinned to one (node-turns.ts). */
+function withNode(ctx: EngineCtx, r: Row): Row {
+  const node = nodeOfTurn(ctx.db, str(r["turn_id"]));
+  return node === undefined ? r : { ...r, node_id: node };
+}
+
 function loadTurn(ctx: EngineCtx, turnId: string): Row {
   ensureExtra(ctx.db);
   const r = rows(ctx, "SELECT * FROM engine_turns WHERE turn_id = ?", turnId)[0];
   if (!r) raise(ctx, "validation.not_found", "There is no such turn.", { turnId });
-  return r;
+  return withNode(ctx, r);
 }
 
 const isOpen = (state: string): boolean => state === "running" || state === "waiting" || state === "queued";
@@ -57,7 +64,7 @@ export function turnEnqueue(
 
 export function turnStart(
   ctx: EngineCtx,
-  input: { threadId: string; agentId: string; qseq: number; placement: "host" | "device"; accountRef?: string; engine: string; model: string },
+  input: { threadId: string; agentId: string; qseq: number; placement: "host" | "device"; nodeId?: string; accountRef?: string; engine: string; model: string },
 ): { turn: TurnOut } {
   ensureExtra(ctx.db);
   const q = rows(ctx, "SELECT * FROM engine_thread_queue WHERE thread_id = ? AND qseq = ?", input.threadId, input.qseq)[0];
@@ -88,6 +95,7 @@ export function turnStart(
   ctx.db.run("UPDATE engine_thread_lease SET turn_id = ? WHERE thread_id = ? AND expires_at > ? AND turn_id IS NULL", turnId, input.threadId, now);
   ctx.emit("turn.started", input.threadId, {
     turnId, threadId: input.threadId, agentId: input.agentId, placement: input.placement, engine: input.engine, model: input.model,
+    ...(input.nodeId === undefined ? {} : { nodeId: input.nodeId }),
     ...(input.accountRef === undefined ? {} : { accountRef: input.accountRef }),
   });
   return { turn: turnOf(loadTurn(ctx, turnId)) };
@@ -317,7 +325,7 @@ export function turnsList(ctx: EngineCtx, input: { threadId: string; state?: Tur
   ensureExtra(ctx.db);
   const states = input.state && input.state.length > 0 ? input.state : null;
   const where = states ? ` AND state IN (${states.map(() => "?").join(", ")})` : "";
-  const all = rows(ctx, `SELECT * FROM engine_turns WHERE thread_id = ?${where} ORDER BY started_at DESC, qseq DESC`, input.threadId, ...(states ?? [])).map(turnOf);
+  const all = rows(ctx, `SELECT * FROM engine_turns WHERE thread_id = ?${where} ORDER BY started_at DESC, qseq DESC`, input.threadId, ...(states ?? [])).map((r) => turnOf(withNode(ctx, r)));
   const p = pageOf(all, input);
   return { turns: p.items, ...(p.next === undefined ? {} : { next: p.next }), total: p.total };
 }

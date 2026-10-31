@@ -37,7 +37,7 @@ export interface OpenSessionOptions {
   /** Device-local cards only; never another Space token or key. */
   spaceCards?: readonly SpaceDef[];
   /** Where a click goes: the shell maps a screen or subject to a place and shows it. */
-  navigate?(place: PlaceId, hash: string): void;
+  navigate?(place: PlaceId, hash: string, background?: boolean): void;
   /** A click that opens something of the shell itself (the search, a new tab, the Space switcher): screens whose place is `shell`. */
   shell?(screen: string, args: Record<string, unknown>): void;
   /** The session ended on the server (401): the shell goes back to sign-in. */
@@ -250,7 +250,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     const where = t.screen ? (screens.get(t.screen)?.place ?? "") : (t.subject ? (placeForSubject(t.subject.type) ?? "") : "");
     if (where === "shell") { if (t.screen) o.shell?.(t.screen, t.args ?? {}); return; }
     const place = railPlace(where);
-    if (place && o.navigate) o.navigate(place, targetHash(t));
+    if (place && o.navigate) o.navigate(place, targetHash(t), t.background === true);
   };
 
   const def: SpaceDef = {
@@ -265,7 +265,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     starred: true,
     needsYou: (switcher?.needsYou ?? 0) > 0,
     console: who.roles.some((r) => r === "owner" || r === "admin"),
-    terminal: who.roles.some((r) => r === "owner" || r === "developer"),
+    // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
+    terminal: space.kind === "personal" || who.roles.some((r) => r === "owner" || r === "developer"),
     counts: switcher && switcher.unread > 0 ? { chats: switcher.unread } : {},
     dots: {},
   };

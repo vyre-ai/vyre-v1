@@ -2112,6 +2112,17 @@ export type AutomationsAnalyticsOut = {
       count: number;
     }>;
 };
+export type AutomationsConnectorCardIn = {
+  threadId: string;
+  title: string;
+  items: Array<{
+      text: string;
+      done: boolean;
+    }>;
+};
+export type AutomationsConnectorCardOut = {
+  messageId: string;
+};
 export type AutomationsConnectorOfferAcceptIn = {
   itemId: string;
 };
@@ -2207,6 +2218,8 @@ export type AutomationsCreateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -2274,6 +2287,8 @@ export type AutomationsCreateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2510,6 +2525,8 @@ export type AutomationsGetOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2715,6 +2732,8 @@ export type AutomationsMakePersonalCopyOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2839,6 +2858,8 @@ export type AutomationsMoveOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2976,6 +2997,8 @@ export type AutomationsPackagesImportOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3122,6 +3145,8 @@ export type AutomationsPromoteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3168,6 +3193,22 @@ export type AutomationsPromoteOut = {
         reason: string;
       }>;
   };
+};
+export type AutomationsReadDocsIn = {
+  url: string;
+  focus?: string;
+};
+export type AutomationsReadDocsOut = {
+  ok: boolean;
+  reason?: string;
+  finalUrl?: string;
+  kind?: "openapi" | "html" | "text";
+  text?: string;
+  links?: Array<{
+      text: string;
+      url: string;
+    }>;
+  truncated?: boolean;
 };
 export type AutomationsReplayIn = {
   automationId: string;
@@ -3239,6 +3280,8 @@ export type AutomationsRestoreVersionOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3372,6 +3415,8 @@ export type AutomationsSetEnabledOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3506,6 +3551,8 @@ export type AutomationsTemplatesUseOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3566,10 +3613,13 @@ export type AutomationsTryReadIn = {
   markedSafe?: boolean;
   vaultItemId: string;
   actionKey?: string;
+  header?: string;
+  prefix?: string;
 };
 export type AutomationsTryReadOut = {
   level: "tested" | "draft";
   reason?: string;
+  status?: number;
 };
 export type AutomationsUndeleteIn = {
   automationId: string;
@@ -3631,6 +3681,8 @@ export type AutomationsUndeleteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3714,6 +3766,8 @@ export type AutomationsUpdateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3779,6 +3833,8 @@ export type AutomationsUpdateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3859,6 +3915,8 @@ export type AutomationsValidateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -6128,6 +6186,12 @@ export type ChatQuestionAskIn = {
       detail?: string;
     }>;
   allowOther?: boolean;
+  card?: {
+    kind: "terminal";
+    command: string;
+    host?: "agent_computer" | "space_server" | "device";
+    risk?: "read" | "change" | "danger";
+  };
 };
 export type ChatQuestionAskOut = {
   blockId: string;
@@ -6822,6 +6886,19 @@ export type ComputersHealthOut = {
   awake: number;
   asleep: number;
 };
+export type ComputersHostsIn = Record<string, unknown>;
+export type ComputersHostsOut = {
+  available: boolean;
+  hosts: Array<{
+      hostId: string;
+      kind: "this" | "space" | "server";
+      name: string;
+      online: boolean;
+      canRun: boolean;
+      runs: number;
+      reason?: string;
+    }>;
+};
 export type ComputersListIn = {
   state?: Array<"provisioning" | "asleep" | "waking" | "working" | "takeover" | "error">;
   cursor?: string;
@@ -7453,6 +7530,36 @@ export type ConnectorsBuildOut = {
   runId: string;
   draftId: string;
 };
+export type ConnectorsDefineIn = {
+  key: string;
+  title?: string;
+  domains: Array<string>;
+  auth: {
+    type: "none" | "api_key" | "bearer";
+    secret?: string;
+    header?: string;
+    prefix?: string;
+  };
+  secrets?: Array<{
+      name: string;
+      description: string;
+    }>;
+  actions: Array<{
+      name: string;
+      method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+      url: string;
+      headers?: Record<string, string>;
+      query?: Record<string, string>;
+      output?: string;
+      write?: boolean;
+    }>;
+};
+export type ConnectorsDefineOut = {
+  key: string;
+  draftId: string;
+  actions: Array<string>;
+  domains: Array<string>;
+};
 export type ConnectorsDiffIn = {
   key: string;
   draftId?: string;
@@ -7514,11 +7621,12 @@ export type ConnectorsInitIn = {
   title: string;
   mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
   docsUrl?: string;
+  source?: boolean;
   idempotencyKey: string;
 };
 export type ConnectorsInitOut = {
   key: string;
-  folderId: string;
+  folderId?: string;
 };
 export type ConnectorsListIn = {
   state?: "live" | "draft" | "failing_tests";
@@ -8425,6 +8533,230 @@ export type DocusignStatusIn = {
 export type DocusignStatusOut = {
   status: string;
 };
+export type DropboxAccountListIn = Record<string, unknown>;
+export type DropboxAccountListOut = {
+  connections: Array<{
+      connectionId: string;
+      ownerKind: "person" | "space";
+      accountId: string;
+      email?: string;
+      name?: string;
+    }>;
+};
+export type DropboxAccountRemoveIn = {
+  connectionId: string;
+};
+export type DropboxAccountRemoveOut = {
+  removed: boolean;
+};
+export type DropboxAppSetIn = {
+  vaultItem: string;
+};
+export type DropboxAppSetOut = {
+  configured: boolean;
+  appKey: string;
+  webhooks: boolean;
+};
+export type DropboxAppStatusIn = Record<string, unknown>;
+export type DropboxAppStatusOut = {
+  configured: boolean;
+  appKey?: string;
+  vaultItem?: string;
+  redirectUri?: string;
+  webhooks?: boolean;
+  webhookUri?: string;
+};
+export type DropboxConnectCompleteIn = {
+  state: string;
+  code?: string;
+  error?: string;
+};
+export type DropboxConnectCompleteOut = {
+  connectionId: string;
+  accountId: string;
+  email?: string;
+  name?: string;
+};
+export type DropboxConnectStartIn = {
+  ownerKind?: "person" | "space";
+};
+export type DropboxConnectStartOut = {
+  authUrl: string;
+  state: string;
+};
+export type DropboxFilesCreateFolderIn = {
+  connectionId: string;
+  path: string;
+};
+export type DropboxFilesCreateFolderOut = {
+  entry: {
+    id: string;
+    name: string;
+    path: string;
+    pathLower: string;
+    isFolder: boolean;
+    deleted?: boolean;
+    size?: number;
+    rev?: string;
+    modified?: string;
+    contentHash?: string;
+    webUrl: string;
+  };
+};
+export type DropboxFilesDeleteIn = {
+  connectionId: string;
+  path: string;
+  rev?: string;
+};
+export type DropboxFilesDeleteOut = {
+  deleted: boolean;
+};
+export type DropboxFilesDownloadIn = {
+  connectionId: string;
+  path: string;
+  rev?: string;
+};
+export type DropboxFilesDownloadOut = {
+  blobId: string;
+  size: number;
+  mime: string;
+};
+export type DropboxFilesGetMetadataIn = {
+  connectionId: string;
+  path: string;
+};
+export type DropboxFilesGetMetadataOut = {
+  entry: {
+    id: string;
+    name: string;
+    path: string;
+    pathLower: string;
+    isFolder: boolean;
+    deleted?: boolean;
+    size?: number;
+    rev?: string;
+    modified?: string;
+    contentHash?: string;
+    webUrl: string;
+  };
+};
+export type DropboxFilesLatestCursorIn = {
+  connectionId: string;
+  path?: string;
+  recursive?: boolean;
+};
+export type DropboxFilesLatestCursorOut = {
+  cursor: string;
+};
+export type DropboxFilesListFolderIn = {
+  connectionId: string;
+  path?: string;
+  recursive?: boolean;
+  limit?: number;
+  cursor?: string;
+};
+export type DropboxFilesListFolderOut = {
+  entries: Array<{
+      id: string;
+      name: string;
+      path: string;
+      pathLower: string;
+      isFolder: boolean;
+      deleted?: boolean;
+      size?: number;
+      rev?: string;
+      modified?: string;
+      contentHash?: string;
+      webUrl: string;
+    }>;
+  cursor: string;
+  hasMore: boolean;
+};
+export type DropboxFilesListRevisionsIn = {
+  connectionId: string;
+  path: string;
+  limit?: number;
+};
+export type DropboxFilesListRevisionsOut = {
+  revisions: Array<{
+      id: string;
+      name: string;
+      path: string;
+      pathLower: string;
+      isFolder: boolean;
+      deleted?: boolean;
+      size?: number;
+      rev?: string;
+      modified?: string;
+      contentHash?: string;
+      webUrl: string;
+    }>;
+  deleted: boolean;
+};
+export type DropboxFilesLongpollIn = {
+  connectionId: string;
+  cursor: string;
+  timeoutSeconds?: number;
+};
+export type DropboxFilesLongpollOut = {
+  changes: boolean;
+  backoffSeconds?: number;
+};
+export type DropboxFilesRestoreIn = {
+  connectionId: string;
+  path: string;
+  rev: string;
+};
+export type DropboxFilesRestoreOut = {
+  entry: {
+    id: string;
+    name: string;
+    path: string;
+    pathLower: string;
+    isFolder: boolean;
+    deleted?: boolean;
+    size?: number;
+    rev?: string;
+    modified?: string;
+    contentHash?: string;
+    webUrl: string;
+  };
+};
+export type DropboxFilesUploadIn = {
+  connectionId: string;
+  fileId: string;
+  path: string;
+  rev?: string;
+};
+export type DropboxFilesUploadOut = {
+  entry: {
+    id: string;
+    name: string;
+    path: string;
+    pathLower: string;
+    isFolder: boolean;
+    deleted?: boolean;
+    size?: number;
+    rev?: string;
+    modified?: string;
+    contentHash?: string;
+    webUrl: string;
+  };
+};
+export type DropboxHealthIn = Record<string, unknown>;
+export type DropboxHealthOut = {
+  state: "healthy" | "degraded" | "down";
+  detail?: string;
+  latencyMs?: number;
+};
+export type DropboxReceiveWebhookIn = {
+  eventId: string;
+  accounts: Array<string>;
+  at: number;
+};
+export type DropboxReceiveWebhookOut = {
+  accepted: boolean;
+};
 export type DropboxSignCancelIn = {
   remoteId: string;
 };
@@ -8976,6 +9308,34 @@ export type EnginePlacementDecideOut = {
   placement: "host" | "device" | "wait";
   reason: string;
   wakeLine?: string;
+  nodeId?: string;
+};
+export type EnginePlacementOptionsIn = {
+  threadId: string;
+  agentId?: string;
+};
+export type EnginePlacementOptionsOut = {
+  private: boolean;
+  effective: {
+    target: "device" | "space" | "server";
+    serverId?: string;
+  };
+  options: Array<{
+      target: "device" | "space" | "server";
+      serverId?: string;
+      name: string;
+      online: boolean;
+      reason?: string;
+    }>;
+};
+export type EnginePlacementSetIn = {
+  threadId: string;
+  target: "device" | "space" | "server";
+  serverId?: string;
+};
+export type EnginePlacementSetOut = {
+  target: "device" | "space" | "server";
+  serverId?: string;
 };
 export type EnginePolicyGetIn = Record<string, unknown>;
 export type EnginePolicyGetOut = {
@@ -9325,6 +9685,7 @@ export type EngineTurnFinishOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnGetIn = {
@@ -9357,6 +9718,7 @@ export type EngineTurnGetOut = {
           }>;
         traceId: string;
       };
+      nodeId?: string;
     };
     machine: "host" | "device";
     keyUsed?: string;
@@ -9419,6 +9781,7 @@ export type EngineTurnRecordOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnRecordUsageIn = {
@@ -9463,6 +9826,7 @@ export type EngineTurnRetryOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnStartIn = {
@@ -9470,6 +9834,7 @@ export type EngineTurnStartIn = {
   agentId: string;
   qseq: number;
   placement: "host" | "device";
+  nodeId?: string;
   accountRef?: string;
   engine: string;
   model: string;
@@ -9500,6 +9865,7 @@ export type EngineTurnStartOut = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 export type EngineTurnWaitIn = {
@@ -9544,6 +9910,7 @@ export type EngineTurnsListOut = {
           }>;
         traceId: string;
       };
+      nodeId?: string;
     }>;
   next?: string;
   total?: number;
@@ -12374,6 +12741,32 @@ export type GoogleDocsGetDocumentIn = {
 export type GoogleDocsGetDocumentOut = {
   title: string;
   body: Record<string, unknown>;
+};
+export type GoogleDocsInsertTextIn = {
+  connectionId: string;
+  as?: string;
+  documentId: string;
+  text: string;
+  where?: "after" | "before" | "start" | "end";
+  anchor?: string;
+  matchCase?: boolean;
+  idempotencyKey: string;
+};
+export type GoogleDocsInsertTextOut = {
+  inserted: boolean;
+  index: number;
+};
+export type GoogleDocsReplaceTextIn = {
+  connectionId: string;
+  as?: string;
+  documentId: string;
+  find: string;
+  replace: string;
+  matchCase?: boolean;
+  idempotencyKey: string;
+};
+export type GoogleDocsReplaceTextOut = {
+  replaced: number;
 };
 export type GoogleDriveChangesStartTokenIn = {
   connectionId: string;
@@ -18715,7 +19108,7 @@ export type MemoryVersionsOut = {
 export type MountsAddIn = {
   into: string;
   source: {
-    kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
     connectionId?: string;
     ref?: string;
     path?: string;
@@ -18734,7 +19127,7 @@ export type MountsAddOut = {
   runId: string;
 };
 export type MountsBrowseIn = {
-  kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+  kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
   connectionId?: string;
   parent?: string;
   q?: string;
@@ -18752,6 +19145,27 @@ export type MountsBrowseOut = {
   next?: string;
   total?: number;
 };
+export type MountsDocInsertTextIn = {
+  fileId: string;
+  text: string;
+  where?: "after" | "before" | "start" | "end";
+  anchor?: string;
+  matchCase?: boolean;
+  idempotencyKey: string;
+};
+export type MountsDocInsertTextOut = {
+  inserted: boolean;
+};
+export type MountsDocReplaceTextIn = {
+  fileId: string;
+  find: string;
+  replace: string;
+  matchCase?: boolean;
+  idempotencyKey: string;
+};
+export type MountsDocReplaceTextOut = {
+  replaced: number;
+};
 export type MountsEditorsIn = {
   fileIds: Array<string>;
 };
@@ -18764,6 +19178,20 @@ export type MountsEditorsOut = {
       at?: number;
     }>;
 };
+export type MountsFileLinkIn = {
+  fileId: string;
+};
+export type MountsFileLinkOut = {
+  link?: {
+    mountId: string;
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
+    type: "google_doc" | "google_sheet" | "google_slides" | "google_file" | "word" | "excel" | "powerpoint" | "sharepoint_file" | "onedrive_file" | "dropbox_file";
+    openIn: string;
+    webUrl: string;
+    edit: Array<"replace_text" | "insert_text" | "read_cells" | "write_cells" | "append_rows">;
+  };
+  reason?: string;
+};
 export type MountsGetIn = {
   mountId: string;
 };
@@ -18771,7 +19199,7 @@ export type MountsGetOut = {
   mount: {
     mountId: string;
     folderId: string;
-    kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
     provider: string;
     ref?: string;
     name: string;
@@ -18813,7 +19241,7 @@ export type MountsLagOut = {
   failing: Array<string>;
 };
 export type MountsListIn = {
-  kind?: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+  kind?: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
   cursor?: string;
   limit?: number;
 };
@@ -18821,7 +19249,7 @@ export type MountsListOut = {
   mounts: Array<{
       mountId: string;
       folderId: string;
-      kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+      kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
       provider: string;
       ref?: string;
       name: string;
@@ -18857,7 +19285,7 @@ export type MountsLocalReportOut = {
   conflicts: number;
 };
 export type MountsNudgeIn = {
-  source: "google" | "microsoft" | "client";
+  source: "google" | "microsoft" | "dropbox" | "client";
   channelId?: string;
   subscriptionId?: string;
   replacedBy?: string;
@@ -18916,6 +19344,33 @@ export type MountsResumeIn = {
 export type MountsResumeOut = {
   ok: boolean;
 };
+export type MountsSheetAppendIn = {
+  fileId: string;
+  sheet?: string;
+  values: Array<Array<unknown>>;
+  idempotencyKey: string;
+};
+export type MountsSheetAppendOut = {
+  updatedRows: number;
+};
+export type MountsSheetReadIn = {
+  fileId: string;
+  sheet?: string;
+  range: string;
+};
+export type MountsSheetReadOut = {
+  values: Array<Array<unknown>>;
+};
+export type MountsSheetWriteIn = {
+  fileId: string;
+  sheet?: string;
+  range: string;
+  values: Array<Array<unknown>>;
+  idempotencyKey: string;
+};
+export type MountsSheetWriteOut = {
+  updatedCells: number;
+};
 export type MountsSyncNowIn = {
   mountId: string;
   idempotencyKey: string;
@@ -18934,7 +19389,7 @@ export type MountsUpdateOut = {
   mount: {
     mountId: string;
     folderId: string;
-    kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
     provider: string;
     ref?: string;
     name: string;
@@ -19761,6 +20216,45 @@ export type MsTeamsRecordingsSubscribeOut = {
   subscriptionId: string;
   expiresAt: number;
 };
+export type MsWorkbookAppendRowsIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  sheet: string;
+  values: Array<Array<unknown>>;
+  idempotencyKey: string;
+};
+export type MsWorkbookAppendRowsOut = {
+  address: string;
+  updatedRows: number;
+};
+export type MsWorkbookGetRangeIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  sheet: string;
+  range: string;
+};
+export type MsWorkbookGetRangeOut = {
+  address: string;
+  values: Array<Array<unknown>>;
+};
+export type MsWorkbookUpdateRangeIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  sheet: string;
+  range: string;
+  values: Array<Array<unknown>>;
+  idempotencyKey: string;
+};
+export type MsWorkbookUpdateRangeOut = {
+  address: string;
+  updatedCells: number;
+};
 export type NetworkCertificateRenewIn = {
   host: string;
 };
@@ -19832,17 +20326,43 @@ export type NetworkMyComputerApproveOut = {
   state: "approved";
 };
 export type NetworkMyComputerCodeIn = {
+  nickname?: string;
   idempotencyKey: string;
 };
 export type NetworkMyComputerCodeOut = {
   code: string;
   expiresAt: number;
+  address?: string;
 };
 export type NetworkMyComputerDeclineIn = {
   serverId: string;
 };
 export type NetworkMyComputerDeclineOut = {
   state: "declined";
+};
+export type NetworkMyComputerRemoveIn = {
+  serverId: string;
+};
+export type NetworkMyComputerRemoveOut = {
+  removed: boolean;
+};
+export type NetworkMyComputersIn = Record<string, unknown>;
+export type NetworkMyComputersOut = {
+  computers: Array<{
+      serverId: string;
+      name: string;
+      state: "healthy" | "degraded" | "down";
+      enrollment: "pending" | "approved";
+      fingerprint?: string;
+      lastSeenAt?: number;
+      requestedAt?: number;
+      facts?: {
+        os: string;
+        arch: string;
+        docker: boolean;
+        version: string;
+      };
+    }>;
 };
 export type NetworkPublicHostnamesIn = Record<string, unknown>;
 export type NetworkPublicHostnamesOut = {
@@ -20842,6 +21362,14 @@ export type ProjectsFileChatIn = {
 export type ProjectsFileChatOut = {
   ok: boolean;
 };
+export type ProjectsFilesFolderIn = {
+  type?: string;
+  recordId: string;
+  create?: boolean;
+};
+export type ProjectsFilesFolderOut = {
+  folderId: string | null;
+};
 export type ProjectsFromChannelIn = {
   channelId: string;
   type?: string;
@@ -21435,6 +21963,24 @@ export type ProvidersTestOut = {
   latencyMs: number;
   detail?: string;
 };
+export type RecordsActivityIn = {
+  type: string;
+  recordId: string;
+  limit?: number;
+  before?: number;
+};
+export type RecordsActivityOut = {
+  entries: Array<{
+      id: string;
+      kind: "created" | "edited" | "stage" | "linked" | "unlinked" | "removed" | "restored" | "synced";
+      at: number;
+      actor: string;
+      field?: string;
+      from?: unknown;
+      to?: unknown;
+    }>;
+  next?: number;
+};
 export type RecordsAsOfIn = {
   type: string;
   recordId: string;
@@ -21477,6 +22023,113 @@ export type RecordsChangesOut = {
       op: "upsert" | "patch" | "delete";
     }>;
   next: number;
+};
+export type RecordsCommentsAddIn = {
+  type: string;
+  recordId: string;
+  text: string;
+  parentId?: string;
+  mentions?: Array<{
+      kind: "person" | "agent";
+      id: string;
+    }>;
+  idempotencyKey: string;
+};
+export type RecordsCommentsAddOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
+};
+export type RecordsCommentsDeleteIn = {
+  commentId: string;
+};
+export type RecordsCommentsDeleteOut = {
+  deleted: boolean;
+};
+export type RecordsCommentsEditIn = {
+  commentId: string;
+  text: string;
+};
+export type RecordsCommentsEditOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
+};
+export type RecordsCommentsListIn = {
+  type: string;
+  recordId: string;
+  includeResolved?: boolean;
+};
+export type RecordsCommentsListOut = {
+  comments: Array<{
+      commentId: string;
+      type: string;
+      recordId: string;
+      parentId?: string;
+      text: string;
+      by: string;
+      at: number;
+      editedAt?: number;
+      resolved: boolean;
+      resolvedBy?: string;
+      mentions: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
+      replying: Array<string>;
+    }>;
+  resolvedCount: number;
+};
+export type RecordsCommentsResolveIn = {
+  commentId: string;
+  resolved: boolean;
+};
+export type RecordsCommentsResolveOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
 };
 export type RecordsCompletenessIn = {
   type: string;
@@ -24746,7 +25399,7 @@ export type SpacesMatrixIn = Record<string, unknown>;
 export type SpacesMatrixOut = {
   kind: "personal" | "team";
   features: Array<{
-      key: "apps_public" | "campaign_sending" | "console" | "agent_computers" | "webhooks" | "always_on_runs" | "sharing" | "members";
+      key: "apps_public" | "campaign_sending" | "console" | "webhooks" | "always_on_runs" | "sharing" | "members";
       available: boolean;
       line?: string;
     }>;
@@ -26518,6 +27171,67 @@ export type TasksActOut = {
   };
   result?: unknown;
 };
+export type TasksAskIn = {
+  taskId: string;
+  question: string;
+  to?: {
+    kind: "person" | "agent" | "group" | "role" | "automation";
+    id: string;
+  };
+};
+export type TasksAskOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  answerTaskId: string;
+};
 export type TasksAssignIn = {
   taskId: string;
   slot: "assigned" | "reviewer" | "approver";
@@ -26578,6 +27292,63 @@ export type TasksAssignOut = {
     updatedAt: number;
   };
 };
+export type TasksBlockIn = {
+  taskId: string;
+  reason: string;
+};
+export type TasksBlockOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  unblockTaskId: string;
+};
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
   count: number;
@@ -26620,6 +27391,7 @@ export type TasksCreateIn = {
       label: string;
       note?: "required" | "optional";
     }>;
+  notes?: Record<string, string>;
   decisionId?: string;
   payloadHash?: string;
   idempotencyKey: string;
@@ -26675,6 +27447,64 @@ export type TasksCreateOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksDecideIn = {
+  taskId: string;
+  verdict: "approve" | "reject";
+  reason?: string;
+};
+export type TasksDecideOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "done" | "fixes";
 };
 export type TasksDelegateIn = {
   taskId: string;
@@ -27452,6 +28282,65 @@ export type TasksReleaseOut = {
     updatedAt: number;
   };
 };
+export type TasksReviewIn = {
+  taskId: string;
+  verdict: "approve" | "send_back";
+  fixes?: Array<string>;
+  note?: string;
+};
+export type TasksReviewOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "approval" | "done" | "fixes" | "person";
+};
 export type TasksSnoozeIn = {
   taskId: string;
   until: number | null;
@@ -27507,6 +28396,64 @@ export type TasksSnoozeOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksSubmitIn = {
+  taskId: string;
+  outputs?: Record<string, unknown>;
+  summary: string;
+};
+export type TasksSubmitOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "review" | "approval" | "done";
 };
 export type TasksTakeIn = {
   taskId: string;
@@ -27633,6 +28580,7 @@ export type TasksUpdateIn = {
       v?: number;
       data: unknown;
     }>;
+  threadId?: string;
 };
 export type TasksUpdateOut = {
   task: {
@@ -28886,6 +29834,17 @@ export type TerminalRenameOut = {
     runId?: string;
   };
 };
+export type TerminalRequestIn = {
+  threadId: string;
+  command: string;
+  why: string;
+  host?: "agent_computer" | "space_server" | "device";
+};
+export type TerminalRequestOut = {
+  blockId: string;
+  messageId: string;
+  risk: "read" | "change" | "danger";
+};
 export type TerminalResizeIn = {
   terminalId: string;
   cols: number;
@@ -28893,6 +29852,15 @@ export type TerminalResizeIn = {
 };
 export type TerminalResizeOut = {
   ok: boolean;
+};
+export type TerminalRiskIn = {
+  command: string;
+};
+export type TerminalRiskOut = {
+  risk: "read" | "change" | "danger";
+  verdict: "deny" | "ask" | "allow" | "none";
+  why: string;
+  entry?: string;
 };
 export type TerminalRulesGetIn = Record<string, unknown>;
 export type TerminalRulesGetOut = {
@@ -31119,6 +32087,7 @@ export interface CapMap {
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
+  "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
   "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
   "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
@@ -31150,6 +32119,7 @@ export interface CapMap {
   "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
+  "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -31324,6 +32294,7 @@ export interface CapMap {
   "computers.get": { in: ComputersGetIn; out: ComputersGetOut };
   "computers.give_back": { in: ComputersGiveBackIn; out: ComputersGiveBackOut };
   "computers.health": { in: ComputersHealthIn; out: ComputersHealthOut };
+  "computers.hosts": { in: ComputersHostsIn; out: ComputersHostsOut };
   "computers.list": { in: ComputersListIn; out: ComputersListOut };
   "computers.provision": { in: ComputersProvisionIn; out: ComputersProvisionOut };
   "computers.record_start": { in: ComputersRecordStartIn; out: ComputersRecordStartOut };
@@ -31373,6 +32344,7 @@ export interface CapMap {
   "connections.test": { in: ConnectionsTestIn; out: ConnectionsTestOut };
   "connections.update": { in: ConnectionsUpdateIn; out: ConnectionsUpdateOut };
   "connectors.build": { in: ConnectorsBuildIn; out: ConnectorsBuildOut };
+  "connectors.define": { in: ConnectorsDefineIn; out: ConnectorsDefineOut };
   "connectors.diff": { in: ConnectorsDiffIn; out: ConnectorsDiffOut };
   "connectors.export": { in: ConnectorsExportIn; out: ConnectorsExportOut };
   "connectors.get": { in: ConnectorsGetIn; out: ConnectorsGetOut };
@@ -31452,6 +32424,24 @@ export interface CapMap {
   "docusign.fetch_signed": { in: DocusignFetchSignedIn; out: DocusignFetchSignedOut };
   "docusign.health": { in: DocusignHealthIn; out: DocusignHealthOut };
   "docusign.status": { in: DocusignStatusIn; out: DocusignStatusOut };
+  "dropbox.account.list": { in: DropboxAccountListIn; out: DropboxAccountListOut };
+  "dropbox.account.remove": { in: DropboxAccountRemoveIn; out: DropboxAccountRemoveOut };
+  "dropbox.app.set": { in: DropboxAppSetIn; out: DropboxAppSetOut };
+  "dropbox.app.status": { in: DropboxAppStatusIn; out: DropboxAppStatusOut };
+  "dropbox.connect.complete": { in: DropboxConnectCompleteIn; out: DropboxConnectCompleteOut };
+  "dropbox.connect.start": { in: DropboxConnectStartIn; out: DropboxConnectStartOut };
+  "dropbox.files.create_folder": { in: DropboxFilesCreateFolderIn; out: DropboxFilesCreateFolderOut };
+  "dropbox.files.delete": { in: DropboxFilesDeleteIn; out: DropboxFilesDeleteOut };
+  "dropbox.files.download": { in: DropboxFilesDownloadIn; out: DropboxFilesDownloadOut };
+  "dropbox.files.get_metadata": { in: DropboxFilesGetMetadataIn; out: DropboxFilesGetMetadataOut };
+  "dropbox.files.latest_cursor": { in: DropboxFilesLatestCursorIn; out: DropboxFilesLatestCursorOut };
+  "dropbox.files.list_folder": { in: DropboxFilesListFolderIn; out: DropboxFilesListFolderOut };
+  "dropbox.files.list_revisions": { in: DropboxFilesListRevisionsIn; out: DropboxFilesListRevisionsOut };
+  "dropbox.files.longpoll": { in: DropboxFilesLongpollIn; out: DropboxFilesLongpollOut };
+  "dropbox.files.restore": { in: DropboxFilesRestoreIn; out: DropboxFilesRestoreOut };
+  "dropbox.files.upload": { in: DropboxFilesUploadIn; out: DropboxFilesUploadOut };
+  "dropbox.health": { in: DropboxHealthIn; out: DropboxHealthOut };
+  "dropbox.receive_webhook": { in: DropboxReceiveWebhookIn; out: DropboxReceiveWebhookOut };
   "dropbox_sign.cancel": { in: DropboxSignCancelIn; out: DropboxSignCancelOut };
   "dropbox_sign.create": { in: DropboxSignCreateIn; out: DropboxSignCreateOut };
   "dropbox_sign.fetch_signed": { in: DropboxSignFetchSignedIn; out: DropboxSignFetchSignedOut };
@@ -31495,6 +32485,8 @@ export interface CapMap {
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
+  "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };
+  "engine.placement.set": { in: EnginePlacementSetIn; out: EnginePlacementSetOut };
   "engine.policy.get": { in: EnginePolicyGetIn; out: EnginePolicyGetOut };
   "engine.policy.set": { in: EnginePolicySetIn; out: EnginePolicySetOut };
   "engine.pool.status": { in: EnginePoolStatusIn; out: EnginePoolStatusOut };
@@ -31694,6 +32686,8 @@ export interface CapMap {
   "google.docs.batch_update": { in: GoogleDocsBatchUpdateIn; out: GoogleDocsBatchUpdateOut };
   "google.docs.create_document": { in: GoogleDocsCreateDocumentIn; out: GoogleDocsCreateDocumentOut };
   "google.docs.get_document": { in: GoogleDocsGetDocumentIn; out: GoogleDocsGetDocumentOut };
+  "google.docs.insert_text": { in: GoogleDocsInsertTextIn; out: GoogleDocsInsertTextOut };
+  "google.docs.replace_text": { in: GoogleDocsReplaceTextIn; out: GoogleDocsReplaceTextOut };
   "google.drive.changes_start_token": { in: GoogleDriveChangesStartTokenIn; out: GoogleDriveChangesStartTokenOut };
   "google.drive.copy_file": { in: GoogleDriveCopyFileIn; out: GoogleDriveCopyFileOut };
   "google.drive.create_folder": { in: GoogleDriveCreateFolderIn; out: GoogleDriveCreateFolderOut };
@@ -32046,7 +33040,10 @@ export interface CapMap {
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };
   "mounts.add": { in: MountsAddIn; out: MountsAddOut };
   "mounts.browse": { in: MountsBrowseIn; out: MountsBrowseOut };
+  "mounts.doc_insert_text": { in: MountsDocInsertTextIn; out: MountsDocInsertTextOut };
+  "mounts.doc_replace_text": { in: MountsDocReplaceTextIn; out: MountsDocReplaceTextOut };
   "mounts.editors": { in: MountsEditorsIn; out: MountsEditorsOut };
+  "mounts.file_link": { in: MountsFileLinkIn; out: MountsFileLinkOut };
   "mounts.get": { in: MountsGetIn; out: MountsGetOut };
   "mounts.history": { in: MountsHistoryIn; out: MountsHistoryOut };
   "mounts.lag": { in: MountsLagIn; out: MountsLagOut };
@@ -32058,6 +33055,9 @@ export interface CapMap {
   "mounts.remove": { in: MountsRemoveIn; out: MountsRemoveOut };
   "mounts.restore": { in: MountsRestoreIn; out: MountsRestoreOut };
   "mounts.resume": { in: MountsResumeIn; out: MountsResumeOut };
+  "mounts.sheet_append": { in: MountsSheetAppendIn; out: MountsSheetAppendOut };
+  "mounts.sheet_read": { in: MountsSheetReadIn; out: MountsSheetReadOut };
+  "mounts.sheet_write": { in: MountsSheetWriteIn; out: MountsSheetWriteOut };
   "mounts.sync_now": { in: MountsSyncNowIn; out: MountsSyncNowOut };
   "mounts.update": { in: MountsUpdateIn; out: MountsUpdateOut };
   "ms.calendar.create_event": { in: MsCalendarCreateEventIn; out: MsCalendarCreateEventOut };
@@ -32117,6 +33117,9 @@ export interface CapMap {
   "ms.teams.recordings.list_recordings": { in: MsTeamsRecordingsListRecordingsIn; out: MsTeamsRecordingsListRecordingsOut };
   "ms.teams.recordings.list_transcripts": { in: MsTeamsRecordingsListTranscriptsIn; out: MsTeamsRecordingsListTranscriptsOut };
   "ms.teams.recordings.subscribe": { in: MsTeamsRecordingsSubscribeIn; out: MsTeamsRecordingsSubscribeOut };
+  "ms.workbook.append_rows": { in: MsWorkbookAppendRowsIn; out: MsWorkbookAppendRowsOut };
+  "ms.workbook.get_range": { in: MsWorkbookGetRangeIn; out: MsWorkbookGetRangeOut };
+  "ms.workbook.update_range": { in: MsWorkbookUpdateRangeIn; out: MsWorkbookUpdateRangeOut };
   "network.certificate_renew": { in: NetworkCertificateRenewIn; out: NetworkCertificateRenewOut };
   "network.domain_set": { in: NetworkDomainSetIn; out: NetworkDomainSetOut };
   "network.endpoints": { in: NetworkEndpointsIn; out: NetworkEndpointsOut };
@@ -32127,6 +33130,8 @@ export interface CapMap {
   "network.my_computer_approve": { in: NetworkMyComputerApproveIn; out: NetworkMyComputerApproveOut };
   "network.my_computer_code": { in: NetworkMyComputerCodeIn; out: NetworkMyComputerCodeOut };
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
+  "network.my_computer_remove": { in: NetworkMyComputerRemoveIn; out: NetworkMyComputerRemoveOut };
+  "network.my_computers": { in: NetworkMyComputersIn; out: NetworkMyComputersOut };
   "network.public_hostnames": { in: NetworkPublicHostnamesIn; out: NetworkPublicHostnamesOut };
   "network.relay_set": { in: NetworkRelaySetIn; out: NetworkRelaySetOut };
   "network.server_approve": { in: NetworkServerApproveIn; out: NetworkServerApproveOut };
@@ -32197,6 +33202,7 @@ export interface CapMap {
   "projects.cascade": { in: ProjectsCascadeIn; out: ProjectsCascadeOut };
   "projects.create": { in: ProjectsCreateIn; out: ProjectsCreateOut };
   "projects.file_chat": { in: ProjectsFileChatIn; out: ProjectsFileChatOut };
+  "projects.files_folder": { in: ProjectsFilesFolderIn; out: ProjectsFilesFolderOut };
   "projects.from_channel": { in: ProjectsFromChannelIn; out: ProjectsFromChannelOut };
   "projects.get": { in: ProjectsGetIn; out: ProjectsGetOut };
   "projects.link_tasks": { in: ProjectsLinkTasksIn; out: ProjectsLinkTasksOut };
@@ -32231,9 +33237,15 @@ export interface CapMap {
   "providers.subscription_complete": { in: ProvidersSubscriptionCompleteIn; out: ProvidersSubscriptionCompleteOut };
   "providers.subscription_start": { in: ProvidersSubscriptionStartIn; out: ProvidersSubscriptionStartOut };
   "providers.test": { in: ProvidersTestIn; out: ProvidersTestOut };
+  "records.activity": { in: RecordsActivityIn; out: RecordsActivityOut };
   "records.as_of": { in: RecordsAsOfIn; out: RecordsAsOfOut };
   "records.bulk_upsert": { in: RecordsBulkUpsertIn; out: RecordsBulkUpsertOut };
   "records.changes": { in: RecordsChangesIn; out: RecordsChangesOut };
+  "records.comments.add": { in: RecordsCommentsAddIn; out: RecordsCommentsAddOut };
+  "records.comments.delete": { in: RecordsCommentsDeleteIn; out: RecordsCommentsDeleteOut };
+  "records.comments.edit": { in: RecordsCommentsEditIn; out: RecordsCommentsEditOut };
+  "records.comments.list": { in: RecordsCommentsListIn; out: RecordsCommentsListOut };
+  "records.comments.resolve": { in: RecordsCommentsResolveIn; out: RecordsCommentsResolveOut };
   "records.completeness": { in: RecordsCompletenessIn; out: RecordsCompletenessOut };
   "records.counts": { in: RecordsCountsIn; out: RecordsCountsOut };
   "records.create": { in: RecordsCreateIn; out: RecordsCreateOut };
@@ -32513,9 +33525,12 @@ export interface CapMap {
   "sync_types.undo_push": { in: SyncTypesUndoPushIn; out: SyncTypesUndoPushOut };
   "sync_types.update": { in: SyncTypesUpdateIn; out: SyncTypesUpdateOut };
   "tasks.act": { in: TasksActIn; out: TasksActOut };
+  "tasks.ask": { in: TasksAskIn; out: TasksAskOut };
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
+  "tasks.block": { in: TasksBlockIn; out: TasksBlockOut };
   "tasks.count_needs_you": { in: TasksCountNeedsYouIn; out: TasksCountNeedsYouOut };
   "tasks.create": { in: TasksCreateIn; out: TasksCreateOut };
+  "tasks.decide": { in: TasksDecideIn; out: TasksDecideOut };
   "tasks.delegate": { in: TasksDelegateIn; out: TasksDelegateOut };
   "tasks.dependencies.add": { in: TasksDependenciesAddIn; out: TasksDependenciesAddOut };
   "tasks.dependencies.remove": { in: TasksDependenciesRemoveIn; out: TasksDependenciesRemoveOut };
@@ -32530,7 +33545,9 @@ export interface CapMap {
   "tasks.my_work": { in: TasksMyWorkIn; out: TasksMyWorkOut };
   "tasks.needs_you": { in: TasksNeedsYouIn; out: TasksNeedsYouOut };
   "tasks.release": { in: TasksReleaseIn; out: TasksReleaseOut };
+  "tasks.review": { in: TasksReviewIn; out: TasksReviewOut };
   "tasks.snooze": { in: TasksSnoozeIn; out: TasksSnoozeOut };
+  "tasks.submit": { in: TasksSubmitIn; out: TasksSubmitOut };
   "tasks.take": { in: TasksTakeIn; out: TasksTakeOut };
   "tasks.transition": { in: TasksTransitionIn; out: TasksTransitionOut };
   "tasks.update": { in: TasksUpdateIn; out: TasksUpdateOut };
@@ -32587,7 +33604,9 @@ export interface CapMap {
   "terminal.open_server": { in: TerminalOpenServerIn; out: TerminalOpenServerOut };
   "terminal.read": { in: TerminalReadIn; out: TerminalReadOut };
   "terminal.rename": { in: TerminalRenameIn; out: TerminalRenameOut };
+  "terminal.request": { in: TerminalRequestIn; out: TerminalRequestOut };
   "terminal.resize": { in: TerminalResizeIn; out: TerminalResizeOut };
+  "terminal.risk": { in: TerminalRiskIn; out: TerminalRiskOut };
   "terminal.rules.get": { in: TerminalRulesGetIn; out: TerminalRulesGetOut };
   "terminal.rules.set": { in: TerminalRulesSetIn; out: TerminalRulesSetOut };
   "terminal.run": { in: TerminalRunIn; out: TerminalRunOut };
@@ -33554,6 +34573,16 @@ export type DocusignWebhookReceivedPayload = {
   envelopeId: string;
   status: string;
 };
+export type DropboxChangesReceivedPayload = {
+  eventId: string;
+  accounts: Array<string>;
+};
+export type DropboxConnectedPayload = {
+  connectionId: string;
+  accountId: string;
+  ownerKind: "person" | "space";
+  email?: string;
+};
 export type DropboxSignWebhookReceivedPayload = {
   providerEventId: string;
   envelopeId: string;
@@ -33696,7 +34725,7 @@ export type FolderDeletedPayload = {
 export type FolderMountedPayload = {
   mountId: string;
   folderId: string;
-  kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+  kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
   by: string;
 };
 export type FolderMovedPayload = {
@@ -34943,6 +35972,22 @@ export type PullRequestOpenedPayload = {
   recordId?: string;
   author: string;
 };
+export type RecordCommentAddedPayload = {
+  recordId: string;
+  type: string;
+  commentId: string;
+  parentId?: string;
+  mentions: Array<{
+      kind: "person" | "agent";
+      id: string;
+    }>;
+};
+export type RecordCommentResolvedPayload = {
+  recordId: string;
+  type: string;
+  commentId: string;
+  resolved: boolean;
+};
 export type RecordCreatedPayload = {
   recordId: string;
   type: string;
@@ -35976,6 +37021,7 @@ export type TurnStartedPayload = {
   threadId: string;
   agentId: string;
   placement: string;
+  nodeId?: string;
   engine: string;
   model: string;
   accountRef?: string;
@@ -36384,6 +37430,8 @@ export interface EventMap {
   "document.filled": DocumentFilledPayload;
   "document.template_marked": DocumentTemplateMarkedPayload;
   "docusign.webhook_received": DocusignWebhookReceivedPayload;
+  "dropbox.changes_received": DropboxChangesReceivedPayload;
+  "dropbox.connected": DropboxConnectedPayload;
   "dropbox_sign.webhook_received": DropboxSignWebhookReceivedPayload;
   "email.created": EmailCreatedPayload;
   "email_block.saved": EmailBlockSavedPayload;
@@ -36640,6 +37688,8 @@ export interface EventMap {
   "pull_request.closed": PullRequestClosedPayload;
   "pull_request.merged": PullRequestMergedPayload;
   "pull_request.opened": PullRequestOpenedPayload;
+  "record.comment_added": RecordCommentAddedPayload;
+  "record.comment_resolved": RecordCommentResolvedPayload;
   "record.created": RecordCreatedPayload;
   "record.deleted": RecordDeletedPayload;
   "record.gaps_found": RecordGapsFoundPayload;

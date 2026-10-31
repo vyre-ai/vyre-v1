@@ -159,6 +159,8 @@ export function harness(o: HarnessOptions = {}) {
 
   // the neighbours, with the answers the real modules give
   callees["files.get"] = (i: { fileId: string }) => ({ file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: PDF.length, version: 1 } });
+  callees["projects.files_folder"] = () => ({ folderId: "fld_record_files" });
+  callees["files.move"] = (i: { fileId: string }) => ({ file: { fileId: i.fileId } });
   callees["files.read"] = () => ({ base64: toBase64(PDF), mime: "application/pdf", size: PDF.length, version: 1, truncated: false });
   callees["files.write"] = (i: { fileId: string; content: { base64: string }; reason?: string }) => {
     written.push({ fileId: i.fileId, base64: i.content.base64, ...(i.reason ? { reason: i.reason } : {}) });

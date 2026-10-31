@@ -7,7 +7,10 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "mounts.add": async (ctx) => { throw new VyreErr(notImplemented("mounts.add", ctx.trace)); },
   "mounts.browse": async (ctx) => { throw new VyreErr(notImplemented("mounts.browse", ctx.trace)); },
+  "mounts.doc_insert_text": async (ctx) => { throw new VyreErr(notImplemented("mounts.doc_insert_text", ctx.trace)); },
+  "mounts.doc_replace_text": async (ctx) => { throw new VyreErr(notImplemented("mounts.doc_replace_text", ctx.trace)); },
   "mounts.editors": async (ctx) => { throw new VyreErr(notImplemented("mounts.editors", ctx.trace)); },
+  "mounts.file_link": async (ctx) => { throw new VyreErr(notImplemented("mounts.file_link", ctx.trace)); },
   "mounts.get": async (ctx) => { throw new VyreErr(notImplemented("mounts.get", ctx.trace)); },
   "mounts.history": async (ctx) => { throw new VyreErr(notImplemented("mounts.history", ctx.trace)); },
   "mounts.lag": async (ctx) => { throw new VyreErr(notImplemented("mounts.lag", ctx.trace)); },
@@ -19,6 +22,9 @@ export const handlers: Handlers<HandlerCtx> = {
   "mounts.remove": async (ctx) => { throw new VyreErr(notImplemented("mounts.remove", ctx.trace)); },
   "mounts.restore": async (ctx) => { throw new VyreErr(notImplemented("mounts.restore", ctx.trace)); },
   "mounts.resume": async (ctx) => { throw new VyreErr(notImplemented("mounts.resume", ctx.trace)); },
+  "mounts.sheet_append": async (ctx) => { throw new VyreErr(notImplemented("mounts.sheet_append", ctx.trace)); },
+  "mounts.sheet_read": async (ctx) => { throw new VyreErr(notImplemented("mounts.sheet_read", ctx.trace)); },
+  "mounts.sheet_write": async (ctx) => { throw new VyreErr(notImplemented("mounts.sheet_write", ctx.trace)); },
   "mounts.sync_now": async (ctx) => { throw new VyreErr(notImplemented("mounts.sync_now", ctx.trace)); },
   "mounts.update": async (ctx) => { throw new VyreErr(notImplemented("mounts.update", ctx.trace)); },
 };

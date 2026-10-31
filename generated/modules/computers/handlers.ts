@@ -36,6 +36,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "computers.get": Handler<"computers.get", X>;
   "computers.give_back": Handler<"computers.give_back", X>;
   "computers.health": Handler<"computers.health", X>;
+  "computers.hosts": Handler<"computers.hosts", X>;
   "computers.list": Handler<"computers.list", X>;
   "computers.provision": Handler<"computers.provision", X>;
   "computers.record_start": Handler<"computers.record_start", X>;

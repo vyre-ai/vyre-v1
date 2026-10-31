@@ -3,7 +3,7 @@
 
 import { asRow, certs, endpoints, failWith, healthProbe, hostnames, ingress, queue, readConfig, servers, statusOf, JOIN_CODE_MS } from "./status.ts";
 import type { Mode, NetworkCtx } from "./status.ts";
-import { approve, approveMine, decline, declineMine, enroll, enrollStatus, makeJoinCode, revoke } from "./enroll.ts";
+import { approve, approveMine, decline, declineMine, enroll, enrollStatus, makeJoinCode, mine, revoke } from "./enroll.ts";
 
 export type { NetworkCtx } from "./status.ts";
 
@@ -65,7 +65,23 @@ export async function certificateRenew(ctx: NetworkCtx, input: { host: string })
 }
 
 export async function serverJoinCode(ctx: NetworkCtx, _input: In) { return makeJoinCode(ctx, "space"); }
-export async function myComputerCode(ctx: NetworkCtx, _input: In) { return makeJoinCode(ctx, "personal"); }
+export async function myComputerCode(ctx: NetworkCtx, input: In) {
+  const made = makeJoinCode(ctx, "personal", typeof input["nickname"] === "string" ? input["nickname"] : undefined);
+  const address = readConfig(ctx)?.address;
+  return { ...made, ...(address ? { address } : {}) };
+}
+
+/** What a person sees of the computers they added. The facts (what runs there) and the fingerprint are what they compare before approving. */
+export async function myComputers(ctx: NetworkCtx, _input: In) {
+  return { computers: mine(ctx, servers(ctx)).map((s) => ({ serverId: s.serverId, name: s.name, state: s.state, enrollment: s.enrollment ?? "approved", ...(s.fingerprint ? { fingerprint: s.fingerprint } : {}), ...(s.lastSeenAt !== undefined ? { lastSeenAt: s.lastSeenAt } : {}), ...(s.requestedAt !== undefined ? { requestedAt: s.requestedAt } : {}), ...(s.facts ? { facts: s.facts } : {}) })) };
+}
+
+export async function myComputerRemove(ctx: NetworkCtx, input: { serverId: string }) {
+  // someone else's computer and one that is not there answer the same: nothing was removed, and nothing is told about who owns what
+  if (!mine(ctx, servers(ctx)).some((s) => s.serverId === input.serverId)) return { removed: false };
+  revoke(ctx, input.serverId);
+  return { removed: true };
+}
 
 export async function serverReconnect(ctx: NetworkCtx, input: { serverId: string }) {
   const s = servers(ctx).find((x) => x.serverId === input.serverId);
@@ -98,6 +114,8 @@ export const handlers = {
   "network.enroll_status": enrollStatus,
   "network.server_approve": approve,
   "network.server_decline": decline,
+  "network.my_computers": myComputers,
+  "network.my_computer_remove": myComputerRemove,
   "network.my_computer_approve": approveMine,
   "network.my_computer_decline": declineMine,
   "network.server_reconnect": serverReconnect,

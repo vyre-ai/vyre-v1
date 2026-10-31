@@ -7,6 +7,7 @@ HTTP 502. Retryable: yes.
 ## Raised by
 
 - connectors.push
+- dropbox.files.list_folder
 - engine.step_turn
 - google.gmail.send_message
 - mail.send

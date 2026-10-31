@@ -21,6 +21,8 @@ export interface TermCtx {
   now(): number;
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
+  /** Another module's capability, as the caller (the chat card of terminal.request). */
+  call?(cap: string, input: unknown): Promise<unknown>;
   authorize(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
   vault?: { fill(handle: string, into: { kind: string; ref: string }): Promise<void> };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };

@@ -187,3 +187,109 @@ export function setSchemaText(input: Input, text: string): Edit<Input> {
 }
 
 export const assigneeName = (a: Assignee | undefined, names: (id: string) => string): string => (a ? names(a.id) : "Nobody");
+
+// ---- the agent task kind of the AI step
+
+export type AiMode = "answer" | "task";
+export const modeOf = (ai: DefNode["ai"]): AiMode => (ai?.mode === "task" ? "task" : "answer");
+export const setMode = (ai: DefNode["ai"], mode: AiMode): Ai => withAi(ai, "mode", mode === "task" ? "task" : undefined);
+
+/** What done means, one check per line. */
+export const doneMeansText = (ai: DefNode["ai"]): string => (ai?.doneMeans ?? []).join("\n");
+export function setDoneMeans(ai: DefNode["ai"], text: string): Ai {
+  const lines = text.split("\n").map((l) => l.replace(/^\s*[-*\u2022]\s*/, "").trim()).filter((l) => l !== "").slice(0, 20);
+  return withAi(ai, "doneMeans", lines.length > 0 ? lines : undefined);
+}
+
+/** A task may take hours, so its time limit runs to a day; an answer's limit stays the engine's 30 minutes. */
+export function setTimeLimit(ai: DefNode["ai"], text: string, max: number): Edit<Ai> {
+  const t = text.trim();
+  if (t === "") return { ok: true, value: withAi(ai, "timeoutMinutes", undefined) };
+  const n = Number(t);
+  if (!Number.isInteger(n) || n < 1 || n > max) return { ok: false, message: `Minutes is a whole number from 1 to ${max}.` };
+  return { ok: true, value: withAi(ai, "timeoutMinutes", n) };
+}
+export function setNudgeMinutes(ai: DefNode["ai"], text: string): Edit<Ai> {
+  const t = text.trim();
+  if (t === "") return { ok: true, value: withAi(ai, "nudgeMinutes", undefined) };
+  const n = Number(t);
+  if (!Number.isInteger(n) || n < 1 || n > 1440) return { ok: false, message: "Minutes is a whole number from 1 to 1440." };
+  return { ok: true, value: withAi(ai, "nudgeMinutes", n) };
+}
+
+/** The words a person picks for a field's type, and the JSON Schema each stands for. */
+export const FIELD_TYPES: ReadonlyArray<{ word: string; schema: Record<string, unknown> }> = [
+  { word: "text", schema: { type: "string" } },
+  { word: "number", schema: { type: "number" } },
+  { word: "whole number", schema: { type: "integer" } },
+  { word: "yes/no", schema: { type: "boolean" } },
+  { word: "date", schema: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" } },
+  { word: "list", schema: { type: "array", items: { type: "string" } } },
+  { word: "record link", schema: { type: "string", pattern: "^rec_[a-z0-9]+$" } },
+];
+const wordOf = (p: unknown): string | null => FIELD_TYPES.find((t) => JSON.stringify(t.schema) === JSON.stringify(p))?.word ?? null;
+
+/** The deliverable as a list of fields (name and type word), or null when the shape is more than a flat list of simple fields (then the raw shape is shown). */
+export function fieldsOf(schema: unknown): Pair[] | null {
+  if (schema === undefined) return [];
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return null;
+  const s = schema as Record<string, unknown>;
+  if (s["type"] !== "object" || typeof s["properties"] !== "object" || s["properties"] === null) return null;
+  const keys = Object.keys(s).filter((k) => !["type", "properties", "required"].includes(k));
+  if (keys.length > 0) return null;
+  const out: Pair[] = [];
+  for (const [name, p] of Object.entries(s["properties"] as Record<string, unknown>)) {
+    const word = wordOf(p);
+    if (word === null) return null;
+    out.push({ key: name, value: word });
+  }
+  const required = Array.isArray(s["required"]) ? (s["required"] as unknown[]).map(String) : [];
+  return required.length === out.length && out.every((o) => required.includes(o.key)) ? out : null;
+}
+
+/** The fields back as JSON Schema: every field named is required, because a deliverable that may be missing is not one. An unknown type word is text. */
+export function schemaFromFields(pairs: readonly Pair[]): Record<string, unknown> | undefined {
+  const named = pairs.filter((p) => p.key.trim() !== "");
+  if (named.length === 0) return undefined;
+  const properties: Record<string, unknown> = {};
+  for (const p of named) properties[p.key.trim()] = (FIELD_TYPES.find((t) => t.word === p.value.trim().toLowerCase()) ?? FIELD_TYPES[0]!).schema;
+  return { type: "object", required: named.map((p) => p.key.trim()), properties };
+}
+
+// ---- text with data chips (the Goal of a task step)
+
+export type Seg = { kind: "text"; text: string } | { kind: "chip"; ref: string };
+
+/** A template string as alternating text and data pieces: text, chip, text, chip, text. The string is what is stored; the pieces are what the editor draws. */
+export function splitTemplate(value: string): Seg[] {
+  const out: Seg[] = [];
+  let at = 0;
+  for (const m of value.matchAll(/\{\{\s*([^{}]*?)\s*\}\}/g)) {
+    out.push({ kind: "text", text: value.slice(at, m.index) }, { kind: "chip", ref: m[1]! });
+    at = (m.index ?? 0) + m[0].length;
+  }
+  out.push({ kind: "text", text: value.slice(at) });
+  return out;
+}
+export const joinTemplate = (segs: readonly Seg[]): string => segs.map((s) => (s.kind === "text" ? s.text : `{{ ${s.ref} }}`)).join("");
+
+/** What a chip says, in words: what started the run, or a step's output (by the step's name) and the field. */
+export function chipLabel(ref: string, titleOf: (stepId: string) => string): string {
+  if (ref === "trigger" || ref === "input") return "What started the run";
+  const t = /^(?:trigger|input)\.(.+)$/.exec(ref);
+  if (t) return `Started with ${t[1]}`;
+  const st = /^steps\.([^.\[]+)\.out(?:\.(.+))?$/.exec(ref);
+  if (st) return `${titleOf(st[1]!)}${st[2] ? `: ${st[2]}` : ""}`;
+  return ref;
+}
+
+/** Take one chip out, closing the gap; a chip is the only thing between two pieces of text, so they join. */
+export function dropChip(segs: readonly Seg[], index: number): Seg[] {
+  const out = segs.filter((_, i) => i !== index);
+  const merged: Seg[] = [];
+  for (const s of out) { const last = merged[merged.length - 1]; if (last && last.kind === "text" && s.kind === "text") merged[merged.length - 1] = { kind: "text", text: last.text + s.text }; else merged.push(s); }
+  return merged;
+}
+
+/** Add a chip at the end of the text. */
+export const addChip = (value: string, ref: string): string => `${value}${value === "" || /\s$/.test(value) ? "" : " "}{{ ${ref} }}`;

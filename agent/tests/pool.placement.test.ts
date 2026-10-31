@@ -95,3 +95,22 @@ test("the answer has the shape of engine.placement.decide", () => {
     assert.equal(p.deviceId !== undefined, p.placement === "device", "only a device placement names a device");
   }
 });
+
+test("a chat pinned to the Space runs on the Space; pinned to one of their servers it runs there while the server is on, and waits with its name when it is off", () => {
+  assert.deepEqual(placeTurn(input({ asker: { chosen: { target: "space" } } })), { placement: "host", reason: "chosen_space" });
+  const on = { target: "server" as const, serverId: "srv_home", online: true, name: "home-box" };
+  assert.deepEqual(placeTurn(input({ asker: { chosen: on } })), { placement: "host", reason: "chosen_server", nodeId: "srv_home" });
+  assert.deepEqual(placeTurn(input({ asker: { chosen: { ...on, online: false } } })), { placement: "wait", reason: "server_off", nodeId: "srv_home", wakeLine: "home-box is off" }, "never moved to another machine");
+  assert.equal(placeTurn(input({ asker: { chosen: { target: "server", serverId: "srv_x", online: false } } })).wakeLine, "Your server is off");
+});
+
+test("a chat pinned to this computer waits for it, even when the Space may continue chats; the pin wins over an agent's own computer but never over what the Space runs by itself or a shared chat", () => {
+  const off = { ...laptop, online: false };
+  const pinned = { chosen: { target: "device" as const }, devices: [off], runtimeOptIn: true };
+  assert.deepEqual(placeTurn(input({ asker: pinned })), { placement: "wait", reason: "device_off", wakeLine: DEVICE_OFF_LINE });
+  assert.equal(placeTurn(input({ asker: { runtimeOptIn: true, devices: [off] } })).placement, "host", "unpinned, the general setting moves it as before");
+  assert.equal(placeTurn(input({ agent: { hasComputer: true }, asker: { chosen: { target: "device" } } })).placement, "device");
+  assert.equal(placeTurn(input({ agent: { hasComputer: true } })).reason, "agent_computer");
+  assert.equal(placeTurn(input({ item: { kind: "message", origin: "routine" }, asker: { chosen: { target: "device" } } })).reason, "routine");
+  assert.equal(placeTurn(input({ thread: { persons: 2 }, asker: { chosen: { target: "device" } } })).reason, "shared_thread");
+});

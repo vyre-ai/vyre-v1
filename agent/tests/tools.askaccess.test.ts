@@ -119,3 +119,10 @@ test("an Ask pane with no scope gets the narrowest set, and other thread kinds a
   assert.equal(chat.level, "manage");
   assert.ok(chat.listed.some((t) => t.name === "records_update"));
 });
+
+test("preload lists deferred tools in a thread without a tool_search, and only that thread", () => {
+  const { session } = makeSession();
+  session.preload("thr_pre", ["records_find"]);
+  assert.ok(session.loaded("thr_pre").has("records_find"));
+  assert.equal(session.loaded("thr_other").has("records_find"), false);
+});

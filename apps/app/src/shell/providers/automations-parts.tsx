@@ -66,7 +66,7 @@ export function configExtras(directory: ConfigDirectory, nav: Pick<AutomationsNa
   };
 }
 
-export function runsData(rt: ShellRuntime, nav: { openAutomation(id: string, stepId?: string): void; openRun(id: string): void; openRunSide(id: string): void; ask(id: string, ctx?: Record<string, unknown>): void }): RunsData {
+export function runsData(rt: ShellRuntime, nav: { openAutomation(id: string, stepId?: string): void; openRun(id: string): void; openRunSide(id: string): void; openTaskSide?(id: string): void; ask(id: string, ctx?: Record<string, unknown>): void }): RunsData {
   return {
     screens: rt.screens,
     thread: (threadId) => rt.screens.query("chats.conversation", "messages", { threadId }) as unknown as ReturnType<RunsData["thread"]>,

@@ -13,6 +13,7 @@ import { ConsoleShell } from "../shell/ConsoleShell.tsx";
 import { AgentsRegister } from "../pages/Agents.tsx";
 import { PAGES } from "../shell/nav.ts";
 import { PATHS } from "../shell/glyphs.tsx";
+import { createRoot } from "test-renderer";
 import { hasTip, openSheet } from "./sheet-helper.tsx";
 
 const noop = (): void => undefined;
@@ -44,7 +45,7 @@ test("Lead gives a Row's leading slot its gap", () => {
 
 test("Invite a person is a button that opens a sheet, and the disabled Create says why as its tooltip", async () => {
   const rows = { "access.principals.list": { principals: [] }, "access.roles.list": { roles: [] }, "access.groups.list": { groups: [] } };
-  const out = await openSheet(<People />, rows, "console-invite-open");
+  const out = await openSheet(createRoot, <People />, rows, "console-invite-open");
   assert.ok(!out.before.includes("Create invite"), "no form on the page");
   assert.ok(out.text.includes("Create invite") && hasTip(out.root, "Pick a role first"), "the tooltip names what is missing");
   assert.ok(!out.text.includes("Pick a role first"), "and no sentence sits on the page");
@@ -53,7 +54,7 @@ test("Invite a person is a button that opens a sheet, and the disabled Create sa
 test("Agents: New agent opens a sheet with a model picker, and rows carry a face and a status dot", async () => {
   const agents = { agents: [{ agentId: "agt_intake", name: "Intake", status: "active", role: "Books consults", hasComputer: true, ownerId: "usr_irfad", folderId: "fld_a" }] };
   const rows = { "agents.list": agents, "engine.models.list": { models: [{ provider: "anthropic", model: "claude-opus-5-5", title: "Opus 5.5", driver: "claude_code", allowed: true }] } };
-  const out = await openSheet(<AgentsRegister />, rows, "agent-new");
+  const out = await openSheet(createRoot, <AgentsRegister />, rows, "agent-new");
   assert.ok(!out.before.includes("Role line"), "the create form is not open on the page");
   assert.ok(out.text.includes("New agent") && out.text.includes("Role line") && hasTip(out.root, "Name the agent first"));
   assert.ok(out.find("status-active"), "status is a dot with a word");
@@ -78,4 +79,40 @@ test("on a phone the page title is the way to another page, and the Space name i
   assert.ok(!phone.includes(">Console<"), "the Console label gives its room to the Space name");
   const desk = shell(1280);
   assert.ok(desk.includes('data-testid="console-nav"') && !desk.includes('data-testid="console-pages"') && desk.includes(">Console<"));
+});
+
+test("Stepper nudges a whole number and keeps it inside its bounds", async () => {
+  const { createRoot } = await import("test-renderer");
+  const dom = await import("../../../../../ui/src/testing/dom.ts");
+  const { Stepper } = await import("../pages/shared.tsx");
+  const restore = dom.installDom();
+  try {
+    let value = 8;
+    const root = await dom.mount(createRoot, <ConsoleDataProvider value={createSampleConsole().data}><Stepper label="Tab limit" help="How many tabs" value={value} onChange={(n) => { value = n; }} max={9} /></ConsoleDataProvider>);
+    await dom.press(dom.find(root, "step-up"));
+    assert.equal(value, 9);
+    assert.ok(hasTip(root, "How many tabs"), "the tooltip explains it");
+  } finally { restore(); }
+});
+
+test("Provision computer: agents are rows you tap, not a Select button each, and the primary says why it is off", async () => {
+  const rows = {
+    "computers.list": { computers: [] },
+    "agents.list": { agents: [{ agentId: "agt_docs", name: "Docs", status: "active", hasComputer: false, ownerId: "usr_irfad", folderId: "f" }, { agentId: "agt_intake", name: "Intake", status: "active", hasComputer: true, ownerId: "usr_irfad", folderId: "f" }] },
+    "computers.health": { state: "healthy", runtime: "docker", awake: 0, asleep: 0 },
+  };
+  const { AgentComputers } = await import("../pages/Agents.tsx");
+  const out = await openSheet(createRoot, <AgentComputers />, rows, "computer-new");
+  assert.ok(out.find("row-provision-agent-agt_docs"), "an agent is a row");
+  assert.ok(!out.text.includes("Select"), "no Select button");
+  assert.ok(hasTip(out.root, "Pick an agent"), "Provision says why it is off");
+  const { pickRow } = await import("../pages/shared.tsx");
+  let tapped = 0;
+  const props = pickRow({ id: "r", title: "Docs", picked: false, onPress: () => { tapped++; } });
+  props.onPress();
+  assert.equal(tapped, 1, "a tap picks");
+  pickRow({ id: "r", title: "Docs", picked: false, disabled: true, onPress: () => { tapped++; } }).onPress();
+  assert.equal(tapped, 1, "a disabled row ignores the tap");
+  assert.ok(pickRow({ id: "r", title: "Docs", picked: true, onPress: () => undefined }).trailing, "a picked row shows its check");
+  assert.equal(pickRow({ id: "r", title: "Docs", picked: false, onPress: () => undefined }).trailing, null);
 });

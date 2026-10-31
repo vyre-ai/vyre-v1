@@ -7,7 +7,10 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mounts.add": Handler<"mounts.add", X>;
   "mounts.browse": Handler<"mounts.browse", X>;
+  "mounts.doc_insert_text": Handler<"mounts.doc_insert_text", X>;
+  "mounts.doc_replace_text": Handler<"mounts.doc_replace_text", X>;
   "mounts.editors": Handler<"mounts.editors", X>;
+  "mounts.file_link": Handler<"mounts.file_link", X>;
   "mounts.get": Handler<"mounts.get", X>;
   "mounts.history": Handler<"mounts.history", X>;
   "mounts.lag": Handler<"mounts.lag", X>;
@@ -19,6 +22,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mounts.remove": Handler<"mounts.remove", X>;
   "mounts.restore": Handler<"mounts.restore", X>;
   "mounts.resume": Handler<"mounts.resume", X>;
+  "mounts.sheet_append": Handler<"mounts.sheet_append", X>;
+  "mounts.sheet_read": Handler<"mounts.sheet_read", X>;
+  "mounts.sheet_write": Handler<"mounts.sheet_write", X>;
   "mounts.sync_now": Handler<"mounts.sync_now", X>;
   "mounts.update": Handler<"mounts.update", X>;
 }

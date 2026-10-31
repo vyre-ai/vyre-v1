@@ -4,7 +4,7 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: records, schema.
 
-## Capabilities (58)
+## Capabilities (45)
 
 - [connections.complete_auth](../capabilities/connections.complete_auth.md): Finish an OAuth sign-in from the callback: the state and the code, or the error the app sent back when the person declined. Only the person who started the sign-in can finish it
 - [connections.create](../capabilities/connections.create.md): Plug an account into a connector; secrets are named Vault items, never values
@@ -17,6 +17,7 @@ Requires: records, schema.
 - [connections.test](../capabilities/connections.test.md): Probe a connection with the connector health call
 - [connections.update](../capabilities/connections.update.md): Rename a connection or change its scopes
 - [connectors.build](../capabilities/connectors.build.md): Run the build-connector flow: read the app docs, draft the connector, ask for a key through a Vault request, run the harness
+- [connectors.define](../capabilities/connectors.define.md): Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.
 - [connectors.diff](../capabilities/connectors.diff.md): Diff a draft against the live version of a connector
 - [connectors.export](../capabilities/connectors.export.md): Export a connector as a folder in Files (no public gallery in v1)
 - [connectors.get](../capabilities/connectors.get.md): Read one connector: auth, egress domains, secret names, sources, synced types and actions
@@ -32,36 +33,22 @@ Requires: records, schema.
 - [connectors.rollback](../capabilities/connectors.rollback.md): Put an earlier connector version back live
 - [connectors.run](../capabilities/connectors.run.md): Run one connector action against the live app, sandboxed to the connector domains, with a dry run option
 - [connectors.sync_now](../capabilities/connectors.sync_now.md): Start a sync Run for a synced type or a connection; modes: incremental, reconcile, backfill, dry_run
-- [connectors.sync_poll](../capabilities/connectors.sync_poll.md): Keep a synced type current when the app has no webhook: pull what changed, push what people changed here, and schedule the next poll (called by the scheduler)
-- [connectors.sync_run](../capabilities/connectors.sync_run.md): Run the pass a sync_now asked for, in the background as the person who asked, and finish its Run (called by the scheduler)
 - [connectors.test](../capabilities/connectors.test.md): Run the harness on recorded responses and report each case
 - [connectors.versions](../capabilities/connectors.versions.md): List published versions of a connector
-- [sync_specs.apply](../capabilities/sync_specs.apply.md): Apply a validated SyncSpec: a live connector (with its own tests), a connection holding the Vault handle, the record types with fields, choices, relations and stages, the synced-type bindings, and the first pull
-- [sync_specs.backfill](../capabilities/sync_specs.backfill.md): Bring in everything, not just the first-pull filter: re-applies the stored spec with the filter dropped and starts the pull
-- [sync_specs.get](../capabilities/sync_specs.get.md): Read the SyncSpec a synced type was made from (so Edit mapping can open the agent with it)
-- [sync_specs.preview](../capabilities/sync_specs.preview.md): Dry run of a SyncSpec: the record types it would make, three sample records drawn from the real page, and what the first pull would bring in. Writes nothing to Vyre or to the app
-- [sync_specs.remove](../capabilities/sync_specs.remove.md): Stop syncing an app into Records and remove its connector and connection; keep its records as plain records, or remove them with their types (a copy waits in Trash for 30 days)
-- [sync_specs.sample](../capabilities/sync_specs.sample.md): Read one page of an app, read-only (GET only), with a Vault handle as the key: where the lists are, what one item holds, how the next page is asked for, a total if there is one. Also reads field-metadata and schema endpoints
-- [sync_specs.survey](../capabilities/sync_specs.survey.md): Read up to 12 paths of an app at once, read-only, and say for each what lists it holds, how many items, a total if given. Use it to see which objects an app has
-- [sync_specs.validate](../capabilities/sync_specs.validate.md): Check a SyncSpec against a real sampled page of the app (read-only GET with the Vault handle): the list, ids, next page, every mapped field path, value types and choices. Writes nothing
 - [sync_types.confirm_deletes](../capabilities/sync_types.confirm_deletes.md): Decide what happens when many records vanished at the source: mark them removed or keep them
 - [sync_types.create](../capabilities/sync_types.create.md): Bind a record type (new or existing) to a remote object with field directions, match rule and conflict rule
 - [sync_types.discover](../capabilities/sync_types.discover.md): List remote objects and their fields with a proposed record type and mapping
-- [sync_types.field_history](../capabilities/sync_types.field_history.md): The earlier values of one field that a newest-wins settlement replaced: yours when the app was newer, the app's when you were
 - [sync_types.get](../capabilities/sync_types.get.md): Read the sync binding of a record type (the header line, mapping and rules)
 - [sync_types.list](../capabilities/sync_types.list.md): List synced types with state, pending pushes, conflicts and schema changes
 - [sync_types.log](../capabilities/sync_types.log.md): Sync log: runs, pulls and pushes under one trace id each
 - [sync_types.make_native](../capabilities/sync_types.make_native.md): Detach a synced type and keep it as a native type with its ids, history and attribution
 - [sync_types.pause](../capabilities/sync_types.pause.md): Pause sync of a type
 - [sync_types.preview](../capabilities/sync_types.preview.md): Dry run: what a sync would do, such as will update 34 records in HubSpot, and the first-sync match counts
-- [sync_types.record_state](../capabilities/sync_types.record_state.md): Where one record came from and how each of its synced fields is doing: saved, saving, failed or only here, with the address to open it in the app
 - [sync_types.replay_conflict](../capabilities/sync_types.replay_conflict.md): Replay a conflict on a copy to see what each rule would have produced
 - [sync_types.resolve_conflict](../capabilities/sync_types.resolve_conflict.md): Settle a sync conflict: keep ours, take theirs, or enter a value
-- [sync_types.restore_field](../capabilities/sync_types.restore_field.md): Put an earlier value of a field back (an ordinary edit, newer than the app's value, so it is sent on the next pass) and start that pass
 - [sync_types.resume](../capabilities/sync_types.resume.md): Resume sync of a type
 - [sync_types.review_schema](../capabilities/sync_types.review_schema.md): Accept or ignore remote schema changes; accepted ones go through schema.apply
 - [sync_types.schema_changes](../capabilities/sync_types.schema_changes.md): Remote schema changes waiting for review (for example 3 changes to review)
-- [sync_types.status](../capabilities/sync_types.status.md): The Sync page of a synced type: last pass, counts, failures, pushes waiting, whether a first-pull filter still holds, and the next poll
 - [sync_types.undo_push](../capabilities/sync_types.undo_push.md): Reverse one push using the stored replaced value
 - [sync_types.update](../capabilities/sync_types.update.md): Change field directions, transforms, match, create-at-source, deletes, conflict rule or polling
 

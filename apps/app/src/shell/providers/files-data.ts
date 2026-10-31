@@ -64,6 +64,7 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
       openKnow: (route) => (memory ? memory.open(route) : rt.open({ screen: "files.knowledge", args: routeToArgs(route) })),
       ...(memory ? { leaveMemory: () => memory.open(null) } : {}),
       resolveConflict: (fileId) => rt.open({ screen: "shell.conflicts-tab", args: { entity: "file", recordId: fileId } }),
+      openExternal: (url) => rt.openUrl(url),
     },
   };
 }

@@ -20,13 +20,13 @@ const item = (kind: BrowseItem["kind"], ref: string, name: string, o: Partial<Br
 
 const draftAt = (src: Parameters<typeof chooseSource>[1], picked: BrowseItem, o: Partial<Draft> = {}): Draft => ({ ...next(pick(chooseSource(emptyDraft("fld_github"), src), picked)), ...o });
 
-test("step 1 lists the five sources in order, with the connected account under each; a source with no connection says Connect", () => {
+test("step 1 lists the six sources in order, with the connected account under each; a source with no connection says Connect", () => {
   const s = createSampleMounts();
   const out = html(s, <MountSheet onClose={noop} onMounted={noop} />);
-  const at = ["source:google_drive", "source:onedrive", "source:sharepoint", "source:github", "source:local"].map((id) => out.indexOf(`data-testid="row-${id}"`));
-  assert.ok(at.every((i) => i >= 0), "five source rows");
+  const at = ["source:google_drive", "source:onedrive", "source:sharepoint", "source:dropbox", "source:github", "source:local"].map((id) => out.indexOf(`data-testid="row-${id}"`));
+  assert.ok(at.every((i) => i >= 0), "six source rows");
   assert.deepEqual([...at].sort((a, b) => a - b), at, "in the prototype's order");
-  for (const name of ["Google Drive", "OneDrive", "SharePoint", "This computer", "GitHub", "irfad@northwind.example", "Irfad&#x27;s MacBook", "irfad7"]) assert.ok(has(out, name), name);
+  for (const name of ["Google Drive", "OneDrive", "SharePoint", "Dropbox", "This computer", "GitHub", "irfad@northwind.example", "Irfad&#x27;s MacBook", "irfad7"]) assert.ok(has(out, name), name);
   assert.ok(has(out, 'aria-label="Connect a folder"') && has(out, 'role="dialog"'));
   const off = createSampleMounts({ accounts: { ...northwindAccounts, github: { label: "irfad7", connected: false } } });
   const o2 = html(off, <MountSheet onClose={noop} onMounted={noop} />);
@@ -108,6 +108,8 @@ test("the mounts.add input follows the source: Drive by reference, this computer
   assert.deepEqual(drive, {
     into: "fld_github", source: { kind: "google_drive", connectionId: "con_google", ref: "gd:Sales", path: "Shared drive" }, name: "Sales", reviewChanges: true, idempotencyKey: "mount:google_drive:gd:Sales:fld_github",
   });
+  const dbx = addInput(draftAt("dropbox", item("dropbox", "id:sales", "Sales", { path: "/Sales" })), { ...northwindAccounts, dropbox: { label: "me@example.com", connected: true, connectionId: "con_dbx" } });
+  assert.deepEqual(dbx?.source, { kind: "dropbox", connectionId: "con_dbx", ref: "id:sales", path: "/Sales" }, "a Dropbox folder is its id on the person's own connection");
   const sp = addInput(draftAt("microsoft", item("onedrive", "od:OneDrive/Desktop", "Desktop")), northwindAccounts);
   assert.equal(sp?.source.kind, "onedrive");
   const local = addInput(draftAt("local", item("local", "~/Projects/vyre-site", "vyre-site"), { copy: "live_only", name: "Site" }), northwindAccounts);

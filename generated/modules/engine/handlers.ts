@@ -26,6 +26,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.mcp.tools": Handler<"engine.mcp.tools", X>;
   "engine.models.list": Handler<"engine.models.list", X>;
   "engine.placement.decide": Handler<"engine.placement.decide", X>;
+  "engine.placement.options": Handler<"engine.placement.options", X>;
+  "engine.placement.set": Handler<"engine.placement.set", X>;
   "engine.policy.get": Handler<"engine.policy.get", X>;
   "engine.policy.set": Handler<"engine.policy.set", X>;
   "engine.pool.status": Handler<"engine.pool.status", X>;

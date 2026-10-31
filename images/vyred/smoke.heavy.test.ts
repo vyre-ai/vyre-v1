@@ -23,6 +23,19 @@ const verdictOf = verdict;
 const checkOf = check;
 const roleOf = doctorRole;
 
+test("Dockerfile: Claude Code and Codex are installed at exact versions with bubblewrap, so a computer that joined a Space can run a pinned chat's engine", () => {
+  const d = read("Dockerfile");
+  assert.match(d, /apt-get install -y --no-install-recommends[^\n]*\bbubblewrap\b/);
+  const pins = /^ARG ENGINE_PACKAGES="([^"]+)"$/m.exec(d)?.[1]?.split(" ") ?? [];
+  assert.deepEqual(pins.map((p) => p.replace(/@[0-9][^@]*$/, "")), ["@anthropic-ai/claude-code", "@openai/codex"]);
+  for (const p of pins) assert.match(p, /@\d+\.\d+\.\d+$/, `${p} is pinned to a version`);
+  assert.match(d, /not pinned: \$p/, "an unpinned package refuses the build");
+  assert.match(d, /npm install --global --omit=dev[^\n]*\$ENGINE_PACKAGES/);
+  assert.match(d, /CLAUDE_CODE_DISABLE_AUTOUPDATE=1/);
+  assert.match(read("docker-bake.hcl"), /ENGINE_PACKAGES = ENGINE_PACKAGES/);
+  assert.equal(d.indexOf("npm install --global") < d.indexOf("USER node"), true, "installed as root, before the daemon's user");
+});
+
 test("Dockerfile: Node 24 base pinned by digest, git and tmux installed, tini as PID 1, non-root", () => {
   const d = read("Dockerfile");
   const froms = d.split("\n").filter((l) => /^FROM /.test(l));

@@ -38,6 +38,8 @@ export interface FilesNav {
   reviewChanges?(changesetId: string): void;
   /** Resolve the two edits of a file (the Conflict tag): the shell opens the conflict choice for it. */
   resolveConflict?(fileId: string): void;
+  /** Open an address outside Vyre (a mounted file in its provider's editor): the shell's own way of opening a link. */
+  openExternal?(url: string): void;
 }
 
 /** The side pane that belongs to this place: the list shows its toggle in the header. */

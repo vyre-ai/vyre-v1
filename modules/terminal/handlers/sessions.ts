@@ -8,6 +8,7 @@ import {
   MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
   rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch,
 } from "../projections.ts";
+import { judged, isDangerous } from "../risk.ts";
 import type { HostKind, Lookup, Rules, Secret, SessionRow, Target, TermCtx, TermState, ValueSource, VaultRun, Where } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -367,6 +368,44 @@ export async function health(ctx: TermCtx, _input: Record<string, never>) {
   } catch (e) {
     return { state: "down" as const, detail: e instanceof Error ? e.message.slice(0, 120) : "tmux did not answer", latencyMs: Date.now() - t0, sessions };
   }
+}
+
+/** What a command can do and what the person's rules say about it, before it runs (the dot beside a command). */
+export function risk(ctx: TermCtx, input: { command: string }) {
+  ensure(ctx.db);
+  const command = input.command.trim();
+  if (command === "") raise(ctx, "validation.bad_input", "There is no command.");
+  if (command.length > MAX_COMMAND_CHARS) raise(ctx, "validation.bad_input", "That command is too long.");
+  const j = judged(rulesOf(ctx.db, actorOf(ctx)), command);
+  return { risk: j.risk, verdict: j.verdict, why: j.why, ...(j.entry === undefined ? {} : { entry: j.entry }) };
+}
+
+/**
+ * An agent asks the person to run a command: the chat gets a question card (the command, why, its risk) with three answers. A command the person's own rules deny is not even offered.
+ * What the person ran comes back as the answer, so the parked turn carries on with the output.
+ */
+export async function request(ctx: TermCtx, input: { threadId: string; command: string; why: string; host?: HostKind; idempotencyKey?: string }) {
+  ensure(ctx.db);
+  const command = input.command.trim();
+  const why = input.why.trim();
+  if (command === "" || command.length > MAX_COMMAND_CHARS) raise(ctx, "validation.bad_input", "Give the command to run, up to 20,000 characters.");
+  if (why === "") raise(ctx, "validation.bad_input", "Say why the person should run it.");
+  const j = judged(rulesOf(ctx.db, actorOf(ctx)), command);
+  if (j.verdict === "deny") raise(ctx, "permission.role_lacks_permission", "A rule of the person's stops that command.", { reason: "deny_rule", rule: j.entry });
+  if (!ctx.call) raise(ctx, "internal.unavailable", "The chat is not reachable from here.");
+  const asked = (await ctx.call("chat.question.ask", {
+    threadId: input.threadId, prompt: why.slice(0, 500), mode: "single", allowOther: true,
+    options: [{ key: "run", label: "Run in my terminal" }, { key: "copy", label: "Copy" }, { key: "decline", label: "Decline" }],
+    card: { kind: "terminal", command, ...(input.host === undefined ? {} : { host: input.host }), risk: j.risk },
+    ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `${input.idempotencyKey}:q` }),
+  })) as { blockId: string; messageId: string };
+  return { blockId: asked.blockId, messageId: asked.messageId, risk: j.risk };
+}
+
+/** The Gate's condition on terminal.run (`terminal.is_danger(input.command)`): red commands are held for a yes. Anything unreadable counts as red. */
+export async function isDangerCall(_ctx: unknown, input: unknown): Promise<boolean> {
+  const c = (input as { command?: unknown } | null)?.command;
+  return typeof c !== "string" || isDangerous(c);
 }
 
 export { commandsOf, judge, rulesOf };

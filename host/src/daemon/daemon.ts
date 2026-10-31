@@ -88,6 +88,7 @@ import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
+import type { ComputeStream } from "../routes/compute-stream.ts";
 import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
@@ -244,6 +245,8 @@ export interface DaemonOptions {
   computeLeaseMs?: number;
   /** How often a computer's live-view socket checks that its credential still stands (a test sets it low). Default 2 s. */
   computeStreamRecheckMs?: number;
+  /** Tests: decide whether a node's link counts as private (default: TLS, or a peer on this machine). */
+  computeStreamSecure?: (req: import("node:http").IncomingMessage) => boolean;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -293,6 +296,8 @@ export interface Daemon {
   pollCommands(): Promise<number>;
   /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
   chromeBridge: ChromeBridge;
+  /** Engine processes on computers that joined (a turn pinned to a server): start one on a node, over its live socket. */
+  nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean; secure(nodeId: string): boolean };
   stop(): Promise<void>;
 }
 
@@ -386,7 +391,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
   let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
-  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}) });
+  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
   closers.push(() => computeStream.close());
   let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
@@ -1018,11 +1023,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setComputersFill: (d) => d.vault ? createComputersFillHost({
           space: spaceId, invoke, vault: d.vault, now,
           baseUrl: () => o.computersBaseUrl ?? `http://host.docker.internal:${boundPort}`,
+          nodeSecure: (n) => computeStream.secure(n),
           mount: (h) => fillRoute.mount(h),
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -1561,7 +1567,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   requestStop = () => { void stop(); };
 
   return {
-    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
+    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) },
     runProbes, pollCommands: runCommands,
     stop,
   };

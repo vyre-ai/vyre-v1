@@ -23,8 +23,9 @@ import type { SpaceKind } from "./model.ts";
 import { SpaceSkeleton } from "./Skeleton.tsx";
 import { watchPurge } from "./purge.ts";
 import type { ShellPurge } from "./purge.ts";
+import { requestAddServer } from "../computers-available.ts";
 import { SpaceTile } from "./SpaceSwitcher.tsx";
-import type { SpaceAction } from "./SpaceSwitcher.tsx";
+import type { SpaceAction, SpaceMenuInput } from "./SpaceSwitcher.tsx";
 
 const InboxPhoneShell = lazy(() => import("../providers/inbox.tsx").then((m) => ({ default: m.InboxPhoneShell })));
 const InboxCallTitlePill = lazy(() => import("../providers/inbox.tsx").then((m) => ({ default: m.InboxCallTitlePill })));
@@ -60,6 +61,8 @@ export interface ShellProps {
   phone?: { device: PhoneDeviceLike; data: InboxData };
   /** The purge client and the connection's purge signals: a purged device wipes itself and tells the server with devices.purge_ack. */
   purge?: ShellPurge;
+  /** Where new chats run by default in a Team Space (the Space menu's "Chats run on"). */
+  runsOn?: SpaceMenuInput["runsOn"];
 }
 
 /** The body beside the sidebar. On a computer the sidebar sits left of the place. On the phone a place with a sidebar opens on its list; choosing an item shows the body with Back. */
@@ -112,6 +115,7 @@ export function Shell(props: ShellProps): ReactElement {
     const name = session.def.name;
     if (action === "settings") hub.go("settings");
     else if (action === "terminal") hub.go("chats", "terminal");
+    else if (action === "add-server") { requestAddServer(); hub.go("settings"); }
     else if (action === "profile") hub.go("settings", "profile");
     else if (action === "away") {
       hub.setAway(!state.away);
@@ -179,7 +183,7 @@ export function Shell(props: ShellProps): ReactElement {
     );
   }
 
-  const spaceTile = <SpaceTile spaces={hub.spaces()} openId={state.openId} away={state.away} onSwitch={switchBy} onAction={act} />;
+  const spaceTile = <SpaceTile spaces={hub.spaces()} openId={state.openId} away={state.away} onSwitch={switchBy} onAction={act} {...(props.runsOn ? { runsOn: props.runsOn } : {})} />;
   const frame = (
       <View testID="shell" style={styles.root} accessibilityLabel={`Vyre, ${session.def.name}`}>
         <TitleBar

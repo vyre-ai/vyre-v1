@@ -135,7 +135,7 @@ test("the cards say what each live step does", () => {
   const subs = Object.fromEntries(l.cards.filter((c) => c.node).map((c) => [c.id, c.sub]));
   assert.equal(subs["h"], "GET api.example.com/v1/items");
   assert.equal(subs["c"], "Runs 1 line of code, no network");
-  assert.equal(subs["a"], "Summarise the result. your own AI account");
+  assert.equal(subs["a"], "Summarise the result", "no account words when none was chosen");
 });
 
 test("the Data tab of a live step tells where picked data goes, and each shelf row can be picked", () => {
@@ -191,4 +191,49 @@ test("an HTTP send has Ask before sending, default Off; a read does not, because
 test("no control is shown for the AI step's nudge or escalation settings, which the engine does not honour", () => {
   const out = panel({ id: "a", key: "ai", input: { prompt: "p" }, ai: { nudgeMinutes: 5, escalateTo: { kind: "person", id: "usr_x" } } });
   assert.equal(/nudge|escalat/i.test(out), false);
+});
+
+// ---- the AI step as an agent task (work baton, lane W2)
+
+test("the AI step has an Answer or Task switch, and a step without a mode is an answer", () => {
+  const answer = panel({ id: "a", key: "ai", input: { prompt: "p" } });
+  assert.ok(has(answer, 'data-testid="ai-mode"'));
+  assert.match(tag(answer, "ai-mode-answer"), /aria-checked="true"/);
+  assert.match(tag(answer, "ai-mode-task"), /aria-checked="false"/);
+  assert.ok(has(answer, 'data-testid="field-prompt"') && !has(answer, 'data-testid="ai-seats"'), "an answer keeps its own form");
+  const task = panel({ id: "a", key: "ai", input: { prompt: "p" }, ai: { mode: "task" } });
+  assert.match(tag(task, "ai-mode-task"), /aria-checked="true"/);
+});
+
+test("a task step shows the goal, the seats with faces, the deliverable as fields, what done means, and keeps the rarely used settings under More", () => {
+  const schema = { type: "object", required: ["letter", "pages"], properties: { letter: { type: "string" }, pages: { type: "integer" } } };
+  const out = panel({ id: "t", key: "ai", input: { prompt: "Draft the letter for {{ trigger.name }}", outputSchema: schema }, ai: { mode: "task", agentId: "agt_x", reviewer: { kind: "person", id: "usr_maya" }, doneMeans: ["Names the client", "States the fee"], nudgeMinutes: 10 } });
+  for (const id of ["field-prompt", "insert-data", "ai-seats", "choose-assigned", "choose-reviewer", "choose-approver", "rows-deliverable", "field-done-means", "ai-more"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.match(tag(out, "field-prompt"), /aria-label="Goal"/);
+  assert.equal(value(out, "rows-deliverable-key-0"), "letter");
+  assert.match(tag(out, "rows-deliverable-value-1"), /aria-label="Fields type 2: whole number"/, "the type is picked from a menu, not typed");
+  assert.ok(has(out, 'data-testid="ai-shape-advanced"'), "the raw shape is behind Advanced");
+  assert.ok(has(out, "Names the client") && has(out, "States the fee"));
+  assert.match(tag(out, "choose-reviewer"), /aria-label="Reviewer: /);
+  assert.equal(has(out, 'data-testid="field-nudge"'), false, "Nudge after is under More, which starts closed");
+  assert.equal(has(out, 'data-testid="choose-escalate"'), false);
+  assert.equal(has(out, 'data-testid="ai-account"'), false, "the agent works on its own account");
+  noDash(out);
+});
+
+test("a deliverable that is more than simple fields keeps its raw shape editor", () => {
+  const out = panel({ id: "t", key: "ai", input: { prompt: "p", outputSchema: { type: "object", properties: { a: { type: "object", properties: { b: { type: "string" } } } } } }, ai: { mode: "task", agentId: "agt_x" } });
+  assert.ok(has(out, 'data-testid="ai-shape-advanced"') && !has(out, 'data-testid="rows-deliverable"'), "no field list for a deeper shape; its editor is under Advanced");
+});
+
+test("the card of a task step says it is an agent task in one short line, with no braces and no account", () => {
+  const def: Definition = { triggers: [{ key: "manual" }], nodes: [
+    { id: "t", key: "ai", input: { prompt: "Draft the letter" }, ai: { mode: "task", agentId: "agt_x" }, next: ["u"] },
+    { id: "u", key: "ai", input: { prompt: "Draft the letter" }, ai: { mode: "task", agentId: "agt_x", reviewer: { kind: "person", id: "usr_m" } } },
+  ] };
+  const subs = Object.fromEntries(layout(def, {}).cards.filter((c) => c.node).map((c) => [c.id, c.sub]));
+  assert.equal(subs["t"], "Draft the letter. Agent task");
+  assert.equal(subs["u"], "Draft the letter. Agent task");
+  assert.equal(layout({ triggers: [{ key: "manual" }], nodes: [{ id: "z", key: "ai", input: { prompt: "Draft for {{ trigger.name }} today." }, ai: { mode: "task", agentId: "a" } }] } as Definition, {}).cards.find((c) => c.id === "z")?.sub, "Draft for \u2026 today. Agent task", "data references are an ellipsis, never braces");
+  assert.equal(layout({ triggers: [{ key: "manual" }], nodes: [{ id: "z", key: "ai", input: { prompt: "Draft for {{ trigger.name }}." }, ai: { mode: "task", agentId: "a" } }] } as Definition, {}).cards.find((c) => c.id === "z")?.sub, "Draft for \u2026 \u00b7 Agent task");
 });

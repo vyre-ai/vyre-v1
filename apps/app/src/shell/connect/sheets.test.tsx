@@ -51,3 +51,29 @@ test("the connector sheet signs in, then finishes once the connection is active"
   await flush();
   assert.deepEqual(done, [{ id: "con_9", title: "Google", app: "google" }]);
 });
+
+test("the Dropbox sheet starts the sign-in with its own capability, opens the address, and hands the account back once it is listed", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const opened: string[] = [];
+  const done: Connected[] = [];
+  const rt = {
+    call: async (cap: string, input?: unknown) => {
+      calls.push({ cap, input });
+      if (cap === "dropbox.connect.start") return { authUrl: "https://www.dropbox.com/oauth2/authorize?state=dbs_1", state: "dbs_1" };
+      if (cap === "dropbox.account.list") return { connections: [{ connectionId: "con_dbx1", ownerKind: "person", accountId: "dbid:A", email: "maya@firm.example" }] };
+      return {};
+    },
+    openUrl: (url: string) => { opened.push(url); },
+    open: () => undefined,
+  } as unknown as ShellRuntime;
+  const root = await mount(createRoot, <ConnectSheets rt={rt} need={{ kind: "connector", service: "dropbox" }} onDone={(a) => done.push(a)} onCancel={() => undefined} />);
+  assert.ok(find(root, "connect-dropbox"), "the Dropbox sheet, not the generic one");
+  await press(find(root, "connect-go"));
+  await flush();
+  assert.deepEqual(opened, ["https://www.dropbox.com/oauth2/authorize?state=dbs_1"]);
+  assert.equal(calls.some((c) => c.cap === "connections.create"), false, "the connectors module is not involved");
+  assert.deepEqual(done, []);
+  await press(find(root, "connect-signed-in"));
+  await flush();
+  assert.deepEqual(done, [{ id: "con_dbx1", title: "maya@firm.example", app: "dropbox" }]);
+});

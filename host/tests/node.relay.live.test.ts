@@ -1,0 +1,119 @@
+// An engine process on a computer that joined the Space, on a booted daemon: the Space starts a process on the node over the node's live socket, feeds it input, reads its output and end, and
+// kills it; a node that is not connected is refused with the server_off code; a node that goes away ends its processes. The node runs in this process (runComputeNode) with a launcher that starts
+// a real child process; the Space's loopback address in the process's arguments is rewritten to the address the node joined by.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type { NodeLauncher, NodeProc } from "../src/compute/node.ts";
+import { bootCore } from "../../fixtures/seed/core/index.ts";
+import { boot as bootRig, enroll } from "./node-rig.ts";
+
+const boot = () => bootRig(bootCore);
+
+
+/** A launcher that starts a real child process, as the node's sandboxed one would. */
+function childLauncher(seen: { argv: string[][]; env: Record<string, string>[]; cwd: string[] }): NodeLauncher {
+  return {
+    async spawn(spec): Promise<NodeProc> {
+      seen.argv.push([...spec.argv]); seen.env.push({ ...spec.env }); seen.cwd.push(spec.cwd ?? "");
+      const [cmd, ...args] = spec.argv;
+      const child = spawn(cmd!, args, { cwd: spec.cwd, env: { ...process.env, ...spec.env }, stdio: ["pipe", "pipe", "pipe"] });
+      let tail = "";
+      child.stderr.setEncoding("utf8"); child.stderr.on("data", (c: string) => { tail = (tail + c).slice(-4096); });
+      const exited = new Promise<{ code: number | null; signal: string | null }>((r) => child.once("close", (code, signal) => r({ code, signal })));
+      await new Promise<void>((ok, bad) => { child.once("spawn", ok); child.once("error", bad); });
+      return {
+        pid: child.pid, stdout: child.stdout as AsyncIterable<Uint8Array>, exited, stderrTail: () => tail,
+        write: (data) => new Promise<void>((ok, bad) => child.stdin.write(data, (e) => (e ? bad(e) : ok()))),
+        endInput: () => { child.stdin.end(); }, kill: (sig = "SIGTERM") => { child.kill(sig); },
+      };
+    },
+  };
+}
+
+const text = async (it: AsyncIterable<Uint8Array>): Promise<string> => { let out = ""; for await (const c of it) out += Buffer.from(c).toString("utf8"); return out; };
+
+test("the Space runs a process on an approved node: input goes in, output and the end come back, the loopback address is the node's server address, and a kill ends it", async () => {
+  const { d, dir } = await boot();
+  const nodeDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-relay-node-"));
+  const log: string[] = [];
+  const seen = { argv: [] as string[][], env: [] as Record<string, string>[], cwd: [] as string[] };
+  const { nodeId, abort, running } = await enroll(d, nodeDir, log, childLauncher(seen));
+  try {
+    const prog = "process.stdin.on('data',c=>process.stdout.write('echo:'+c)).on('end',()=>{process.stdout.write('|'+process.env.SECRET+'|'+process.argv[1]);process.exit(3)})";
+    const proc = await d.nodeRelay.spawnProc(nodeId, { argv: [process.execPath, "-e", prog, "http://127.0.0.1:8421/mcp/x"], env: { SECRET: "http://localhost:1/s" } });
+    assert.ok(proc.pid !== undefined);
+    await proc.write("hello ");
+    await proc.write("node");
+    proc.endInput();
+    const out = await text(proc.stdout);
+    const exit = await proc.exited;
+    assert.ok(out.startsWith("echo:hello echo:node") || out.startsWith("echo:hello node"), out);
+    assert.ok(out.includes(`|${d.url}/s|${d.url}/mcp/x`), `the Space's loopback address became the node's server address: ${out}`);
+    assert.equal(exit.code, 3);
+    assert.ok(seen.cwd[0]!.startsWith(path.join(nodeDir, "turns")), "the engine works in a folder of the node's own");
+    assert.ok(log.some((l) => /engine prc_[a-f0-9]+ started/.test(l)) && log.some((l) => /engine prc_[a-f0-9]+ ended: 3/.test(l)), JSON.stringify(log));
+
+    const long = await d.nodeRelay.spawnProc(nodeId, { argv: [process.execPath, "-e", "setInterval(()=>{},1000)"], env: {} });
+    long.kill("SIGKILL");
+    const killed = await long.exited;
+    assert.equal(killed.signal, "SIGKILL");
+
+    await assert.rejects(() => d.nodeRelay.spawnProc("srv_nobody", { argv: ["x"], env: {} }), (e) => (e as { code?: string }).code === "engine.server_off");
+  } finally { abort.abort(); await running.catch(() => undefined); await d.stop(); fs.rmSync(nodeDir, { recursive: true, force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a node that is not running an engine launcher refuses, and a node that goes away ends the process it was running", async () => {
+  const { d, dir } = await boot();
+  const nodeDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-relay-node-"));
+  const log: string[] = [];
+  const seen = { argv: [] as string[][], env: [] as Record<string, string>[], cwd: [] as string[] };
+  const { nodeId, abort, running } = await enroll(d, nodeDir, log, childLauncher(seen));
+  try {
+    const proc = await d.nodeRelay.spawnProc(nodeId, { argv: [process.execPath, "-e", "setInterval(()=>{},1000)"], env: {} });
+    await assert.rejects(() => d.nodeRelay.spawnProc(nodeId, { argv: ["definitely-not-installed-xyz"], env: {} }).then(() => { throw new Error("started"); }), (e) => (e as { code?: string }).code !== undefined);
+    abort.abort();
+    await running.catch(() => undefined);
+    const gone = await proc.exited;
+    assert.ok(gone.code === null, "the process ended as killed when its node went away");
+    await assert.rejects(() => d.nodeRelay.spawnProc(nodeId, { argv: ["x"], env: {} }), (e) => (e as { code?: string }).code === "engine.server_off");
+  } finally { abort.abort(); await d.stop(); fs.rmSync(nodeDir, { recursive: true, force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a node whose link is not private is sent nothing: the Space refuses to start an engine on it, and the node never hears of it", async () => {
+  const { d, dir } = await bootRig(bootCore, { computeStreamSecure: () => false });
+  const nodeDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-relay-node-"));
+  const log: string[] = [];
+  const seen = { argv: [] as string[][], env: [] as Record<string, string>[], cwd: [] as string[] };
+  const { nodeId, abort, running } = await enroll(d, nodeDir, log, childLauncher(seen));
+  try {
+    assert.equal(d.nodeRelay.connected(nodeId), true);
+    assert.equal(d.nodeRelay.secure(nodeId), false);
+    await assert.rejects(() => d.nodeRelay.spawnProc(nodeId, { argv: [process.execPath, "-e", "0"], env: { KEY: "sk-ant-oat01-secret" } }), (e) => (e as { code?: string }).code === "engine.link_insecure");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.deepEqual([seen.argv, seen.env], [[], []], "the spawn frame, with its environment, was never sent");
+  } finally { abort.abort(); await running.catch(() => undefined); await d.stop(); fs.rmSync(nodeDir, { recursive: true, force: true }); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a link is private when it is TLS, or from this machine and not forwarded as plain http; a machine on the network cannot claim it", async () => {
+  const { linkIsSecure } = await import("../src/routes/compute-stream.ts");
+  const req = (remote: string, headers: Record<string, string> = {}, encrypted = false) => ({ socket: { remoteAddress: remote, encrypted }, headers }) as never;
+  assert.equal(linkIsSecure(req("203.0.113.9", {}, true)), true, "TLS straight to this server");
+  assert.equal(linkIsSecure(req("127.0.0.1")), true, "this machine");
+  assert.equal(linkIsSecure(req("::1")), true);
+  assert.equal(linkIsSecure(req("127.0.0.1", { "x-forwarded-proto": "https" })), true, "the proxy here terminated TLS");
+  assert.equal(linkIsSecure(req("127.0.0.1", { "x-forwarded-proto": "http" })), false, "the proxy here carried plain http");
+  assert.equal(linkIsSecure(req("192.168.1.20")), false, "plain http from the network");
+  assert.equal(linkIsSecure(req("192.168.1.20", { "x-forwarded-proto": "https" })), false, "a machine on the network cannot say it was https");
+});
+
+test("a job that gives a computer its Vault channel is pointed at the address the server joined by: only the origin changes", async () => {
+  const { withServerOrigin } = await import("../src/compute/node.ts");
+  assert.deepEqual(withServerOrigin({ computerId: "cmt_1", fillUrl: "http://host.docker.internal:8420/computers/fill", fillToken: "t" }, "https://home.example.com/"), { computerId: "cmt_1", fillUrl: "https://home.example.com/computers/fill", fillToken: "t" });
+  assert.deepEqual(withServerOrigin({ tabLimit: 3 }, "https://x.example"), { tabLimit: 3 });
+  assert.equal(withServerOrigin(null, "https://x.example"), null);
+  assert.deepEqual(withServerOrigin({ fillUrl: "not a url" }, "https://x.example"), { fillUrl: "not a url" });
+});

@@ -1,6 +1,6 @@
 # network.my_computer_code
 
-Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents
+Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space
 
 | | |
 |---|---|
@@ -25,6 +25,7 @@ Make a join code for your own computer (a Mac, PC or Linux box): it will run onl
 
 ```ts
 type In = {
+  nickname?: string;
   idempotencyKey: string;
 };
 ```
@@ -35,6 +36,7 @@ type In = {
 type Out = {
   code: string;
   expiresAt: number;
+  address?: string;
 };
 ```
 
@@ -51,9 +53,11 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "idempotencyKey": "idem_1"
+    "idempotencyKey": "idem_1",
+    "nickname": "home-box"
   },
   "output": {
+    "address": "example",
     "code": "VYRE-1234-ABCD",
     "expiresAt": 1760000000000
   }

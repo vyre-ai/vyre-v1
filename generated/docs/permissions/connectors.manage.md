@@ -17,6 +17,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - calendar.connect_provider
 - connections.create
 - connectors.build
+- connectors.define
 - connectors.diff
 - connectors.export
 - connectors.init
@@ -34,6 +35,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - documenso.create
 - docusign.cancel
 - docusign.create
+- dropbox.app.set
 - dropbox_sign.cancel
 - dropbox_sign.create
 - esign.provider_set

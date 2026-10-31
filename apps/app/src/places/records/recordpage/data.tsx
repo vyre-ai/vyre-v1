@@ -5,9 +5,10 @@ import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { AskForInput } from "./askfor.ts";
+import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
 
 export type LiveCap =
-  | "records.get" | "schema.describe" | "schema.layout.get" | "records.completeness" | "records.page_prefs.get" | "records.relations_map" | "records.history" | "records.versions" | "memory.find_by_subject" | "files.list" | "files.folder.get";
+  | "records.get" | "schema.describe" | "schema.layout.get" | "records.completeness" | "records.page_prefs.get" | "records.relations_map" | "records.history" | "records.activity" | "records.comments.list" | "records.versions" | "memory.find_by_subject" | "files.list" | "files.folder.get";
 
 export interface RecordPageNav {
   /** A linked record opens as a tab on its own page. */
@@ -22,7 +23,12 @@ export interface RecordPageNav {
   openSource(link: string): void;
   /** The Sync page of a record type that syncs from an app (the source chip opens it). */
   openSync?(type: string): void;
+  /** A file opens in the viewer. */
+  openFile?(fileId: string): void;
 }
+
+/** A file picked or dropped on the Files tab. */
+export interface AttachFile { name: string; mime: string; file: { arrayBuffer(): Promise<ArrayBuffer>; type?: string } }
 
 export interface RecordPageData {
   live<C extends LiveCap>(cap: C, input: CapMap[C]["in"]): LiveQuery<CapMap[C]["out"]>;
@@ -31,6 +37,18 @@ export interface RecordPageData {
   now(): number;
   nameOf(id: string): string;
   nav: RecordPageNav;
+  /** You: your comments can be edited, and a mention of you is not a request to yourself. */
+  me?: { id: string; name: string };
+  /** The people and agents a comment can @mention (you left out). */
+  mentionables?(): readonly PickEntry[];
+  /** The Chat tab: this record's Ask pane drawn in place. The shell fills it in; where it cannot, the tab says so. */
+  renderChat?(type: string, recordId: string): ReactElement;
+  /** The Files tab: the record's own folder (its `folder` field, else the one made for it on the first attach) and storing files in it. Where the shell cannot, the tab lists the folder only. */
+  files?: {
+    folderOf(target: { type: string; recordId: string; title: string }): Promise<string | null>;
+    /** Store the files in the record's folder, making it first when there is none. Resolves with the folder's id. */
+    attach(files: readonly AttachFile[], target: { type: string; recordId: string; title: string }): Promise<string>;
+  };
 }
 
 const Ctx = createContext<RecordPageData | null>(null);

@@ -1,10 +1,13 @@
 import { useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Avatar } from "../Avatar/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { useMenu } from "../Menu/index.tsx";
 import { actionInput, TASK_STATES, taskDue } from "./model.ts";
 import type { TaskCap, TaskRef, TaskView } from "./model.ts";
+import { BatonActions, BriefCard, DeliverableCard, FixesList, Stepper } from "./Baton.tsx";
+import { briefOf, deliverableOf, fixesOf, isBaton, myMove, nowStep, stepsOf, wantedFields } from "./baton.ts";
 export type { TaskCap, TaskRef, TaskView } from "./model.ts";
 
 export interface TaskPageProps {
@@ -15,6 +18,8 @@ export interface TaskPageProps {
   onBack(): void; onOpen(type: string, id: string): void;
   children?: ReactNode; nameOf?(type: string, id: string): string;
 }
+/** The notes the baton keeps for itself; the page shows them as cards, not as rows of raw text. */
+const BATON_NOTE = /^(brief|done_means|output_schema|outputs|summary|fixes|asked|answer|baton\..*|thread\.origin|run\.resumed)$/;
 const label = (value: string): string => value.replaceAll("_", " ").replace(/^\w/, (c) => c.toUpperCase());
 const dueInput = (at: number | undefined): string => at === undefined ? "" : new Date(at - new Date(at).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
@@ -24,9 +29,11 @@ export function TaskPage({ task, me, principals, history, online, onCommand, onB
   const [tab, setTab] = useState("task"), [note, setNote] = useState(""), [answer, setAnswer] = useState("");
   const [editing, setEditing] = useState(false), [title, setTitle] = useState(task.title), [summary, setSummary] = useState(task.summary ?? ""), [why, setWhy] = useState(task.why ?? "");
   const [due, setDue] = useState(dueInput(task.due)), [effort, setEffort] = useState(task.effort === undefined ? "" : String(task.effort));
-  const [noteKey, setNoteKey] = useState(""), [noteValue, setNoteValue] = useState("");
+  const [noteKey, setNoteKey] = useState(""), [noteValue, setNoteValue] = useState(""), [addingNote, setAddingNote] = useState(false);
   const [busy, setBusy] = useState(false), [line, setLine] = useState(""), [error, setError] = useState("");
   const inflight = useRef(false);
+  const baton = isBaton(task), brief = baton ? briefOf(task) : null, fixes = baton ? fixesOf(task) : [], delivered = baton ? deliverableOf(task) : null, move = baton ? myMove(task, me) : null;
+  const notes = Object.entries(task.workingNotes).filter(([key]) => !BATON_NOTE.test(key));
   const who = (id: string): string => principals.find((person) => person.id === id)?.name ?? "Unavailable teammate";
   const named = (type: string, id: string): string => nameOf?.(type, id) ?? (type === "person" || type === "agent" ? who(id) : `Linked ${type}`);
   const run = async (cap: TaskCap, input: Record<string, unknown>, message: string): Promise<boolean> => {
@@ -64,6 +71,13 @@ export function TaskPage({ task, me, principals, history, online, onCommand, onB
       {task.source?.kind === "journey" ? <Row title="Journey" note={named("journey", task.source.id)} onPress={() => onOpen("journey", task.source!.id)} /> : null}
       <View style={s.heading}><Pressable accessibilityRole="button" accessibilityLabel="Task status" disabled={busy || !online} onPress={status} style={s.status}><Text style={s.buttonText}>{TASK_STATES.find((state) => state.key === task.state)?.title ?? task.state}</Text></Pressable><Text style={s.quiet}>{label(task.kind)}{task.blocked ? " · Blocked" : ""}</Text></View>
       <Text accessibilityRole="header" style={s.title}>{task.title}</Text>{task.summary ? <Text style={s.summary}>{task.summary}</Text> : null}
+      {baton ? <View testID="baton" style={{ gap: 12 }}>
+        <Stepper steps={stepsOf(task)} namer={{ name: who }} />
+        {brief ? <BriefCard text={brief.text} doneMeans={brief.doneMeans} /> : null}
+        {fixes.length > 0 && nowStep(task) === "assigned" ? <FixesList fixes={fixes} /> : null}
+        {delivered && (nowStep(task) === "review" || nowStep(task) === "approve" || task.state === "done") ? <DeliverableCard deliverable={delivered} by={who(task.assigned.id)} /> : null}
+        {move && !editing ? <BatonActions key={`${task.state}:${task.updatedAt}`} move={move} wanted={wantedFields(task)} busy={busy || !online} onCall={(call) => void run(call.cap, call.input, call.message)} /> : null}
+      </View> : null}
       {!online ? <Text accessibilityRole="status" style={s.quiet}>Offline, showing your saved task. Reconnect to make changes.</Text> : null}
       {/* ui-rows-lint: not a list (two navigation tabs) */}
       <View style={s.tabs}>{["task", "activity"].map((id) => <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} onPress={() => setTab(id)} style={[s.tab, tab === id && s.activeTab]}><Text style={s.buttonText}>{label(id)}</Text></Pressable>)}</View>
@@ -74,11 +88,19 @@ export function TaskPage({ task, me, principals, history, online, onCommand, onB
           {children}
           {/* ui-rows-lint: not a list (horizontal decision action toolbar) */}
           {task.actions.length ? <View style={s.form}>{field("Action note", note, setNote, true)}{task.kind === "answer" ? field("Answer", answer, setAnswer, true) : null}<View style={s.actions}>{task.actions.map((action) => <View key={action.key}>{button(action.label, () => act(action.key), action.key === task.actions[0]?.key)}</View>)}</View></View> : null}
-          <Text style={s.section}>Working notes</Text>{Object.entries(task.workingNotes).map(([key, value]) => <Row key={key} title={key} note={value} trailing={button(`Remove ${key}`, () => void run("tasks.working_notes.delete", { key }, "Note removed"))} />)}
-          {field("Note name", noteKey, setNoteKey)}{field("Working note", noteValue, setNoteValue, true)}{button("Save working note", () => { if (!noteKey.trim()) { setError("Name this working note."); return; } void run("tasks.working_notes.set", { key: noteKey.trim(), value: noteValue }, "Working note saved").then((ok) => { if (ok) { setNoteKey(""); setNoteValue(""); } }); })}
+          {notes.length > 0 ? <Text style={s.section}>Notes</Text> : null}
+          {/* ui-rows-lint: not a list (the few working notes of a task) */}
+          {notes.map(([key, value]) => <Row key={key} title={key} note={value} trailing={button(`Remove ${key}`, () => void run("tasks.working_notes.delete", { key }, "Note removed"))} />)}
+          {addingNote ? <View style={s.noteRow}>
+            <TextInput accessibilityLabel="Note name" placeholder="Name" value={noteKey} onChangeText={setNoteKey} editable={!busy} style={[s.input, { width: 130 }]} />
+            <TextInput accessibilityLabel="Note" placeholder="What to remember" value={noteValue} onChangeText={setNoteValue} editable={!busy} style={[s.input, { flex: 1 }]} />
+            {button("Save", () => { if (!noteKey.trim()) { setError("Name this note."); return; } void run("tasks.working_notes.set", { key: noteKey.trim(), value: noteValue }, "Note saved").then((ok) => { if (ok) { setNoteKey(""); setNoteValue(""); setAddingNote(false); } }); }, true)}
+            {button("Cancel", () => { setAddingNote(false); setNoteKey(""); setNoteValue(""); })}
+          </View> : <Pressable accessibilityRole="button" accessibilityLabel="Add a note" {...(Platform.OS === "web" ? { title: "Keep something about this task where everyone on it can read it" } : {})} onPress={() => setAddingNote(true)} style={s.addNote}><Text style={s.quiet}>+ Add a note</Text></Pressable>}
         </View>
         <View style={[s.properties, narrow && { width: "100%" }]}>
-          {(["assigned", "reviewer", "approver"] as const).map((slot) => <Row key={slot} title={label(slot)} note={task[slot] ? who(task[slot]!.id) : "Not assigned"} onPress={() => chooseSlot(slot, 20, 140)} />)}
+          {/* ui-rows-lint: not a list (the three seats of a task) */}
+          {(["assigned", "reviewer", "approver"] as const).map((slot) => <Row key={slot} title={label(slot)} note={task[slot] ? who(task[slot]!.id) : "Not assigned"} leading={task[slot] ? <Avatar name={who(task[slot]!.id)} seedId={task[slot]!.id} kind={task[slot]!.kind === "role" ? "group" : task[slot]!.kind} size={20} /> : undefined} onPress={() => chooseSlot(slot, 20, 140)} />)}
           <Row title="Due" note={task.due === undefined ? "No due date" : new Date(task.due).toLocaleString()} /><Row title="Effort" note={task.effort === undefined ? "Not estimated" : `${task.effort} min`} />
           {task.takenBy ? <Row title="Taken by" note={who(task.takenBy)} trailing={task.takenBy === me ? button("Give back", () => void run("tasks.release", {}, "Task released")) : null} /> : (task.assigned.kind === "group" || task.assigned.kind === "role") ? button("Take task", () => void run("tasks.take", {}, "Task taken")) : null}
           {task.snoozedUntil ? <Row title="Snoozed until" note={new Date(task.snoozedUntil).toLocaleString()} trailing={button("Clear snooze", () => void run("tasks.snooze", { until: null }, "Snooze cleared"))} /> : null}
@@ -92,4 +114,4 @@ export function TaskPage({ task, me, principals, history, online, onCommand, onB
     </ScrollView>{menu.element}
   </View>;
 }
-const s = StyleSheet.create({ root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string }, toolbar: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 48, paddingHorizontal: 24, borderBottomWidth: 1, borderColor: "var(--line)" as string }, page: { padding: 28, gap: 18, width: "100%", maxWidth: 1180, alignSelf: "center" }, heading: { flexDirection: "row", alignItems: "center", gap: 12 }, title: { fontSize: 28, fontWeight: "600", letterSpacing: -0.65, color: "var(--ink)" as string }, summary: { fontSize: 15, lineHeight: 23, color: "var(--ink-2)" as string }, quiet: { fontSize: 12.5, color: "var(--ink-3)" as string }, body: { fontSize: 14, lineHeight: 23, color: "var(--ink)" as string }, columns: { flexDirection: "row", gap: 28 }, main: { flex: 1, minWidth: 0, gap: 14 }, properties: { width: 260, gap: 6 }, tabs: { flexDirection: "row", gap: 18, borderBottomWidth: 1, borderColor: "var(--line)" as string }, tab: { paddingVertical: 10, borderBottomWidth: 2, borderColor: "transparent" }, activeTab: { borderColor: "var(--accent)" as string }, status: { paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7 }, field: { gap: 6 }, label: { fontSize: 12, color: "var(--ink-3)" as string }, input: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, padding: 10, minHeight: 38, color: "var(--ink)" as string }, form: { gap: 12 }, actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 }, button: { minHeight: 32, alignSelf: "flex-start", justifyContent: "center", paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7 }, primary: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string }, buttonText: { fontSize: 12.5, color: "var(--ink)" as string }, error: { fontSize: 13, color: "var(--danger)" as string }, section: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string } });
+const s = StyleSheet.create({ root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string }, toolbar: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 48, paddingHorizontal: 24, borderBottomWidth: 1, borderColor: "var(--line)" as string }, page: { padding: 28, gap: 18, width: "100%", maxWidth: 1180, alignSelf: "center" }, heading: { flexDirection: "row", alignItems: "center", gap: 12 }, title: { fontSize: 28, fontWeight: "600", letterSpacing: -0.65, color: "var(--ink)" as string }, summary: { fontSize: 15, lineHeight: 23, color: "var(--ink-2)" as string }, quiet: { fontSize: 12.5, color: "var(--ink-3)" as string }, body: { fontSize: 14, lineHeight: 23, color: "var(--ink)" as string }, columns: { flexDirection: "row", gap: 28 }, main: { flex: 1, minWidth: 0, gap: 14 }, properties: { width: 260, gap: 6 }, tabs: { flexDirection: "row", gap: 18, borderBottomWidth: 1, borderColor: "var(--line)" as string }, tab: { paddingVertical: 10, borderBottomWidth: 2, borderColor: "transparent" }, activeTab: { borderColor: "var(--accent)" as string }, status: { paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7 }, field: { gap: 6 }, noteRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }, addNote: { paddingVertical: 6, alignSelf: "flex-start" }, label: { fontSize: 12, color: "var(--ink-3)" as string }, input: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, padding: 10, minHeight: 38, color: "var(--ink)" as string }, form: { gap: 12 }, actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 }, button: { minHeight: 32, alignSelf: "flex-start", justifyContent: "center", paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7 }, primary: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string }, buttonText: { fontSize: 12.5, color: "var(--ink)" as string }, error: { fontSize: 13, color: "var(--danger)" as string }, section: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string } });

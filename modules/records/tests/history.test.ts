@@ -222,3 +222,30 @@ test("sealed values stay masked in history", async () => {
   assert.deepEqual(entries[0]!.value, { sealed: "ssn", masked: true });
   assert.ok(!JSON.stringify(entries).includes("sv_old"));
 });
+
+test("activity lists what happened to a record, newest first: created, one entry per changed field with the old and new value, removed, restored", async () => {
+  const { rec, h, ctx, at } = await setup();
+  at(1000);
+  const id = (await rec.handlers["records.create"](ctx, { type: "item", fields: { name: "A", qty: 1 } })).record.id;
+  at(2000);
+  await rec.handlers["records.update"](ctx, { type: "item", recordId: id, patch: { qty: 2, name: "B" }, baseVersion: 1 });
+  at(3000);
+  await rec.handlers["records.delete"](ctx, { type: "item", recordId: id });
+  at(4000);
+  await rec.handlers["records.restore"](ctx, { type: "item", recordId: id });
+  const { entries } = await h["records.activity"](ctx, { type: "item", recordId: id });
+  assert.deepEqual(entries.map((e) => `${e.kind}${e.field ? `:${e.field}` : ""}`), ["restored", "removed", "edited:qty", "edited:name", "created"]);
+  assert.ok(entries.every((e) => e.actor === "usr_a" || typeof e.actor === "string"));
+  assert.deepEqual(entries.map((e) => e.at), [4000, 3000, 2000, 2000, 1000]);
+  const name = entries.find((e) => e.field === "name")!;
+  assert.equal(name.from, "A");
+  assert.equal(name.to, "B");
+  const qty = entries.find((e) => e.field === "qty")!;
+  assert.deepEqual([qty.from, qty.to], [1, 2]);
+  const page = await h["records.activity"](ctx, { type: "item", recordId: id, limit: 2 });
+  assert.equal(page.entries.length, 2);
+  assert.equal(page.next, 3000);
+  const older = await h["records.activity"](ctx, { type: "item", recordId: id, before: page.next! });
+  assert.deepEqual(older.entries.map((e) => e.kind), ["edited", "edited", "created"]);
+  await assert.rejects(() => h["records.activity"](ctx, { type: "item", recordId: "nope" }), vcode("validation.not_found"));
+});

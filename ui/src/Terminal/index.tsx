@@ -326,6 +326,17 @@ export async function copySelection(selection: string, write: (text: string) => 
   return text;
 }
 
+const RISK_TEXT = { read: "Only reads", change: "Changes something", danger: "Destructive or elevated" } as const;
+const RISK_COLOR = { read: "var(--ok)", change: "var(--warn)", danger: "var(--danger)" } as const;
+
+/** One place a terminal can open. An offline one is shown but not choosable, and says why on hover. */
+export interface TerminalHostChoice { key: string; label: string; kind: TerminalHost; online: boolean; why?: string }
+
+/** The host menu over a list of every computer: the entries of the list, the current one checked, an offline one disabled with its reason. */
+export function hostChoiceMenu(hosts: readonly TerminalHostChoice[], current: string | undefined, onPick: (key: string) => void): MenuEntry[] {
+  return hosts.map((h): MenuEntry => ({ label: h.label, checked: h.key === current, ...(h.online ? { onSelect: () => onPick(h.key) } : { disabled: true, reason: h.why ?? "Offline" }) }));
+}
+
 /** The host switcher menu. The server entry says locked until server.services is granted, and still opens so the locked state can ask. */
 export function hostMenu(current: TerminalHost, serverLocked: boolean, onHost: (host: TerminalHost) => void): MenuEntry[] {
   const out: MenuEntry[] = [];
@@ -380,6 +391,13 @@ export interface TerminalViewProps extends TerminalProps {
   fallbackLabel?: string;
   /** A short confirmation shown at the right of the bar, for example "Copied". */
   note?: string;
+  /** Every computer the person can open a terminal on (this computer, other computers, servers, agent computers). When given, the host chip lists these instead of the three kinds. */
+  /** What the line being typed would do: a dot in the bar (green reads, amber changes, red is destructive and always asks). Null or absent: no dot. */
+  risk?: "read" | "change" | "danger" | null;
+  hosts?: readonly TerminalHostChoice[];
+  /** The key of the host this session runs on, to check it in the list. */
+  hostKey?: string;
+  onPickHost?: (key: string) => void;
   onInput?: (data: string) => void;
   onResize?: (cols: number, rows: number) => void;
   onInterrupt?: () => void;
@@ -481,7 +499,7 @@ export function Terminal(props: TerminalViewProps): ReactElement {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Host: ${props.hostLabel}`}
-      onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => menu.show(hostMenu(props.host, locked && props.host === "server", (h) => props.onHost?.(h)), e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0, "context", { label: "Terminal host" })}
+      onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => menu.show(props.hosts && props.hosts.length > 0 ? hostChoiceMenu(props.hosts, props.hostKey, (k) => props.onPickHost?.(k)) : hostMenu(props.host, locked && props.host === "server", (h) => props.onHost?.(h)), e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0, "context", { label: "Terminal host" })}
       testID="terminal-host"
       style={({ hovered }: { hovered?: boolean }) => [styles.chip, hovered === true && styles.chipHover]}
     >
@@ -512,6 +530,7 @@ export function Terminal(props: TerminalViewProps): ReactElement {
         {session ? sessionChip : hostChip}
         {session ? <Text style={styles.sub} numberOfLines={1} testID="terminal-sub">{sub}</Text> : null}
         <View style={styles.grow} />
+        {props.risk ? <View testID={`terminal-risk-${props.risk}`} accessibilityRole="image" accessibilityLabel={RISK_TEXT[props.risk]} {...webProps({ title: RISK_TEXT[props.risk] })} style={[styles.riskDot, { backgroundColor: RISK_COLOR[props.risk] }]} /> : null}
         {text.length > 0 ? <Text style={styles.note} testID="terminal-note">{text}</Text> : null}
         {session && props.onStar !== undefined ? (
           <Pressable accessibilityRole="button" accessibilityLabel={props.starred === true ? "Remove star" : "Star"} accessibilityState={{ selected: props.starred === true }} onPress={() => props.onStar?.(props.sessionId)} testID="terminal-star" {...webProps({ title: "Star  ⌘D" })} style={({ hovered }: { hovered?: boolean }) => [styles.btn, hovered === true && styles.btnHover]}>
@@ -580,6 +599,7 @@ const styles = StyleSheet.create({
   chipHover: { backgroundColor: "var(--hover)" as string },
   chipText: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   chev: { color: "var(--ink-3)" as string, fontSize: 10 },
+  riskDot: { width: 9, height: 9, borderRadius: 5 },
   statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   statusLocked: { backgroundColor: "var(--ink-4)" as string },
   statusExited: { backgroundColor: "var(--ink-4)" as string },

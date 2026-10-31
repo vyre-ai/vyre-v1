@@ -43,7 +43,7 @@ export function MemoryKeys(): ReactElement | null {
       const cur = k.projectKeys?.[p.projectId] ?? null;
       projectRows.push(
         <SettingsRow
-          key={p.projectId} id={`memory.key.project.${p.projectId}`} label={p.title} first={i === 0} sub={cur === null ? "The Space's account" : "Its own account"}
+          key={p.projectId} id={`memory.key.project.${p.projectId}`} label={p.title} first={i === 0} {...(cur !== null ? { sub: "Its own account" } : {})}
           control={<Choice value={cur ?? NONE} options={optionsOf(k.space as Picker, "The Space's account")} label={`${p.title} memory account`} testID={`ctl-memory-key-project-${p.projectId}`} onChange={(v) => set("project", v === NONE ? null : v, cur, p.projectId)} connect={{ need: AI, empty: (k.space as Picker).choices.length === 0, onConnected: (made) => set("project", made.ref ?? made.id, cur, p.projectId) }} />}
         />,
       );
@@ -53,12 +53,12 @@ export function MemoryKeys(): ReactElement | null {
     <>
       <Section title="Who pays for memory" help="Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model.">
         <SettingsRow
-          id="memory.key.person" label="Your memory" first sub={sub(k.personal, personalNone)}
+          id="memory.key.person" label="Your memory" first
           control={<Choice value={k.personal.accountRef ?? NONE} options={optionsOf(k.personal, personalNone)} label="Your memory account" testID="ctl-memory-key-person" onChange={(v) => set("person", v === NONE ? null : v, k.personal.accountRef)} connect={{ need: AI, empty: k.personal.choices.length === 0, onConnected: (made) => set("person", made.ref ?? made.id, k.personal.accountRef) }} />}
         />
         {k.space ? (
           <SettingsRow
-            id="memory.key.space" label="Space memory" sub={sub(k.space, personalNone)}
+            id="memory.key.space" label="Space memory"
             control={<Choice value={k.space.accountRef ?? NONE} options={optionsOf(k.space, personalNone)} label="Space memory account" testID="ctl-memory-key-space" onChange={(v) => set("space", v === NONE ? null : v, k.space?.accountRef ?? null)} connect={{ need: AI, empty: k.space.choices.length === 0, onConnected: (made) => set("space", made.ref ?? made.id, k.space?.accountRef ?? null) }} />}
           />
         ) : null}

@@ -480,15 +480,55 @@ function docxText(z: ZipEntries): Extracted | null {
   return { text: out.replace(/\t+\n/g, "\n").trimEnd() };
 }
 
+/** The slide files in the order the deck shows them (presentation.xml lists them by relationship id), or by file number when the deck does not say. */
+function slideFiles(z: ZipEntries): string[] {
+  const numbered = [...z.keys()].map((k) => /^ppt\/slides\/slide(\d+)\.xml$/.exec(k)).filter((m): m is RegExpExecArray => m !== null).sort((a, b) => Number(a[1]) - Number(b[1])).map((m) => m[0]);
+  const deck = entryText(z, "ppt/presentation.xml");
+  const rels = entryText(z, "ppt/_rels/presentation.xml.rels");
+  if (deck === undefined || rels === undefined) return numbered;
+  const targets = new Map<string, string>();
+  for (const r of rels.matchAll(/<Relationship\s[^>]*>/g)) {
+    const id = /\bId="([^"]*)"/.exec(r[0])?.[1];
+    const target = /\bTarget="([^"]*)"/.exec(r[0])?.[1];
+    if (id !== undefined && target !== undefined) targets.set(id, target.startsWith("/") ? target.slice(1) : `ppt/${target}`);
+  }
+  const ordered: string[] = [];
+  for (const id of deck.matchAll(/<p:sldId\s[^>]*>/g)) {
+    const file = targets.get(/\br:id="([^"]*)"/.exec(id[0])?.[1] ?? "");
+    if (file !== undefined && z.has(file) && !ordered.includes(file)) ordered.push(file);
+  }
+  // a deck whose list is incomplete falls back to the numbers rather than losing slides
+  return ordered.length === numbered.length ? ordered : numbered;
+}
+
+/** The speaker notes of a slide: the text in the notes page's body placeholder (not the slide image, the slide number or the header). */
+function slideNotes(z: ZipEntries, slide: string): string {
+  const rels = entryText(z, slide.replace("ppt/slides/", "ppt/slides/_rels/") + ".rels");
+  const target = rels === undefined ? undefined : [...rels.matchAll(/<Relationship\s[^>]*>/g)].map((r) => r[0]).find((r) => /\/notesSlide"|notesSlide/.test(/\bType="([^"]*)"/.exec(r)?.[1] ?? ""));
+  const href = target === undefined ? undefined : /\bTarget="([^"]*)"/.exec(target)?.[1];
+  if (href === undefined) return "";
+  const file = href.startsWith("/") ? href.slice(1) : `ppt/${href.replace(/^(\.\.\/)+/, "")}`;
+  const xml = entryText(z, file);
+  if (xml === undefined) return "";
+  let out = "";
+  for (const sp of xml.split(/<p:sp>/).slice(1)) {
+    if (!/<p:ph\b[^>]*\btype="body"/.test(sp)) continue;
+    const re = /<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>|<\/a:p>/g;
+    for (let t = re.exec(sp); t; t = re.exec(sp)) out += t[0] === "</a:p>" ? "\n" : unxml(t[1] ?? "");
+  }
+  return out.trim();
+}
+
 function pptxText(z: ZipEntries): Extracted | null {
-  const slides = [...z.keys()].map((k) => /^ppt\/slides\/slide(\d+)\.xml$/.exec(k)).filter((m): m is RegExpExecArray => m !== null).sort((a, b) => Number(a[1]) - Number(b[1]));
+  const slides = slideFiles(z);
   if (slides.length === 0) return null;
-  const texts = slides.map((m) => {
-    const xml = entryText(z, m[0]) ?? "";
+  const texts = slides.map((file) => {
+    const xml = entryText(z, file) ?? "";
     let out = "";
     const re = /<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>|<\/a:p>/g;
     for (let t = re.exec(xml); t; t = re.exec(xml)) out += t[0] === "</a:p>" ? "\n" : unxml(t[1] ?? "");
-    return out.trimEnd();
+    const notes = slideNotes(z, file);
+    return `${out.trimEnd()}${notes === "" ? "" : `\n\nNotes: ${notes}`}`;
   });
   return { text: texts.join("\f"), pages: slides.length };
 }
@@ -499,7 +539,48 @@ const colIndex = (ref: string): number => {
   return n - 1;
 };
 
+// Excel number formats that show a date or a time: the built-in ids, and any custom format code with a date or time letter outside quotes and brackets.
+const DATE_FORMAT_IDS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56, 57, 58]);
+
+/** The cell format indexes (the `s` of a cell) whose number format is a date or a time. */
+function dateStyles(z: ZipEntries): Set<number> {
+  const out = new Set<number>();
+  const xml = entryText(z, "xl/styles.xml");
+  if (xml === undefined) return out;
+  const custom = new Map<number, string>();
+  for (const f of xml.matchAll(/<numFmt\s[^>]*>/g)) {
+    const id = Number(/\bnumFmtId="(\d+)"/.exec(f[0])?.[1]);
+    const code = /\bformatCode="([^"]*)"/.exec(f[0])?.[1];
+    if (Number.isFinite(id) && code !== undefined) custom.set(id, unxml(code));
+  }
+  const isDateCode = (code: string): boolean => /[ymdhs]/i.test(code.replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "").replace(/\\./g, "").replace(/_./g, "").replace(/\*./g, ""));
+  const xfs = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml)?.[1] ?? "";
+  let at = 0;
+  for (const x of xfs.matchAll(/<xf\b([^>]*?)(?:\/>|>[\s\S]*?<\/xf>)/g)) {
+    const id = Number(/\bnumFmtId="(\d+)"/.exec(x[1] ?? "")?.[1] ?? 0);
+    const code = custom.get(id);
+    if (DATE_FORMAT_IDS.has(id) || (code !== undefined && isDateCode(code))) out.add(at);
+    at += 1;
+  }
+  return out;
+}
+
+/** A date serial as the person would read it: 2026-10-31, 2026-10-31 14:30, or 14:30 for a time of day. */
+export function excelDate(serial: number, date1904: boolean): string | undefined {
+  if (!Number.isFinite(serial) || serial < 0 || serial > 2_958_465) return undefined;
+  const days = Math.floor(serial);
+  const secs = Math.round((serial - days) * 86400);
+  const t = (s: number): string => `${String(Math.floor(s / 3600) % 24).padStart(2, "0")}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}${s % 60 ? `:${String(s % 60).padStart(2, "0")}` : ""}`;
+  if (days === 0) return t(secs);
+  // serial 1 is 1900-01-01 in a workbook that counts from 1900 (which also treats 1900 as a leap year, so day 60 does not exist); 1904 workbooks count from 1904-01-01
+  const ms = date1904 ? Date.UTC(1904, 0, 1) + days * 86_400_000 : Date.UTC(1899, 11, 30) + (days < 60 ? days + 1 : days) * 86_400_000;
+  const day = new Date(ms).toISOString().slice(0, 10);
+  return secs === 0 ? day : `${day} ${t(secs)}`;
+}
+
 function xlsxText(z: ZipEntries): Extracted | null {
+  const dates = dateStyles(z);
+  const date1904 = /<workbookPr\b[^>]*\bdate1904="(?:1|true)"/.test(entryText(z, "xl/workbook.xml") ?? "");
   const shared: string[] = [];
   const sst = entryText(z, "xl/sharedStrings.xml");
   if (sst !== undefined) {
@@ -546,6 +627,12 @@ function xlsxText(z: ZipEntries): Extracted | null {
         else {
           const v = /<v>([^<]*)<\/v>/.exec(inner)?.[1] ?? "";
           value = type === "s" ? shared[Number(v)] ?? "" : type === "b" ? (v === "1" ? "TRUE" : "FALSE") : unxml(v);
+          // a number with a date format reads as a date; a formula nothing has calculated yet reads as the formula
+          if (type === "n" && v !== "" && dates.has(Number(/\bs="(\d+)"/.exec(attrs)?.[1]))) value = excelDate(Number(v), date1904) ?? value;
+          if (v === "") {
+            const f = /<f(?:\s[^>]*)?>([^<]+)<\/f>/.exec(inner)?.[1];
+            if (f !== undefined) value = `=${unxml(f)}`;
+          }
         }
         if (at >= 0) { while (cells.length < at) cells.push(""); cells[at] = value; } else cells.push(value);
       }

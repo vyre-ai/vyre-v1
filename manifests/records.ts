@@ -14,6 +14,18 @@ const valueSource = t.obj({
   kind: t.enm('agent', 'person', 'form', 'automation', 'sync', 'import'), actor: t.str(), link: t.opt(t.str({ description: 'Link to the exact chat, task, run or record the value came from' })),
   at: t.ts(), state: t.enm('counted', 'needs_review', 'rejected'),
 });
+const activityEntry = t.obj({
+  id: t.str({ description: 'Stable id of the entry: the log event it came from, and the field when one event changed several' }),
+  kind: t.enm('created', 'edited', 'stage', 'linked', 'unlinked', 'removed', 'restored', 'synced'),
+  at: t.ts(), actor: t.str(), field: t.opt(t.str()), from: t.opt(t.json()), to: t.opt(t.json()),
+});
+const mentionRef = t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) });
+const commentRow = t.obj({
+  commentId: t.str({ examples: ['rcm_a1b2c3'] }), type: id.recordType, recordId: id.record, parentId: t.opt(t.str({ description: 'The comment this replies to; a thread is a root comment and its replies' })),
+  text: t.str(), by: t.str(), at: t.ts(), editedAt: t.opt(t.ts()), resolved: t.bool(), resolvedBy: t.opt(t.str()), mentions: t.arr(mentionRef),
+  replying: t.arr(t.str({ examples: ['agt_a1b2c3'], description: 'Agents mentioned here that have not answered yet' })),
+});
+const commentId = { commentId: t.str({ examples: ['rcm_a1b2c3'] }) };
 const pendingValue = t.obj({ recordId: id.record, type: id.recordType, field: t.str(), value: t.opt(t.json()), source: valueSource });
 
 const text = (key: string, title: string, o: Partial<FieldTypeDef> = {}) =>
@@ -39,6 +51,8 @@ export default defineManifest({
     ev('record.held', 'A hold was placed on a record', { p: { recordId: id.record, type: id.recordType, reason: t.str() }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('record.hold_released', 'A hold was released', { p: { recordId: id.record, type: id.recordType }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('field.revealed', 'A sealed field was revealed to one actor (audited)', { p: { recordId: id.record, type: id.recordType, field: t.str() }, subject: ['record', '/recordId'], vis: 'participants', label: 'subject' }),
+    ev('record.comment_added', 'A comment or reply was left on a record; mentions names the people and agents it calls on', { p: { recordId: id.record, type: id.recordType, commentId: t.str(), parentId: t.opt(t.str()), mentions: t.arr(mentionRef) }, subject: ['record', '/recordId'], label: 'subject' }),
+    ev('record.comment_resolved', 'A comment thread was resolved or reopened', { p: { recordId: id.record, type: id.recordType, commentId: t.str(), resolved: t.bool() }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('record.value_proposed', 'An agent or automation filled a value; it waits for review or counts straight away, per field', { p: { recordId: id.record, type: id.recordType, field: t.str(), source: valueSource, reviewRequired: t.bool() }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('record.value_reviewed', 'A reviewer accepted or rejected an agent-filled value', { p: { recordId: id.record, type: id.recordType, field: t.str(), decision: t.enm('accepted', 'rejected'), by: t.str() }, subject: ['record', '/recordId'], label: 'subject' }),
     ev('record.gaps_found', 'A gap-check rule found missing or stale fields on a record', { p: { recordId: id.record, type: id.recordType, fields: t.arr(t.str()), ruleId: t.str() }, subject: ['record', '/recordId'], label: 'subject', trigger: { title: 'A record has gaps', fields: ['/type'] } }),
@@ -70,6 +84,20 @@ export default defineManifest({
     read('records.search', 'Search rows by text across a record type', { in: { type: id.recordType, q: t.str(), ...pageIn }, out: { rows: t.arr(recordRow), ...pageOut }, on: ['record_type', '/type'], tool: 'records', label: 'filter' }),
     read('records.changes', 'Change feed of a record type since a sequence number (RecordStore.changes)', { in: { type: id.recordType, since: t.int({ minimum: 0 }), limit: t.opt(t.int()) }, out: { changes: t.arr(t.obj({ seq: t.int(), id: id.record, op: t.enm('upsert', 'patch', 'delete') })), next: t.int() }, on: ['record_type', '/type'] }),
     read('records.history', 'Field history of a record: previous values and merge losers', { in: { ...target, field: t.opt(t.str()) }, out: { entries: t.arr(t.obj({ field: t.str(), value: t.json(), hlc: t.str(), actor: t.str(), reason: t.opt(t.str()) })) }, on: ['record', '/recordId'], tool: 'records' }),
+    read('records.activity', 'What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes', {
+      in: { ...target, limit: t.opt(t.int({ minimum: 1, maximum: 200 })), before: t.opt(t.ts()) },
+      out: { entries: t.arr(activityEntry), next: t.opt(t.ts()) }, on: ['record', '/recordId'], tool: 'records',
+    }),
+    read('records.comments.list', 'Comments on a record as threads (a root comment and its replies, oldest first); resolved threads only when asked for', {
+      in: { ...target, includeResolved: t.opt(t.bool()) }, out: { comments: t.arr(commentRow), resolvedCount: t.int() }, on: ['record', '/recordId'], tool: 'records',
+    }),
+    write('records.comments.add', 'Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)', {
+      in: { ...target, text: t.str({ minLength: 1, maxLength: 4000 }), parentId: t.opt(t.str()), mentions: t.opt(t.arr(mentionRef, { maxItems: 20 })) },
+      out: { comment: commentRow }, on: ['record', '/recordId'], level: 'use', idem: 'key', emits: ['record.comment_added'], tool: 'records', offline: 'queue', agent: { planMode: 'allowed' },
+    }),
+    write('records.comments.edit', 'Edit your own comment', { in: { ...commentId, text: t.str({ minLength: 1, maxLength: 4000 }) }, out: { comment: commentRow }, tool: 'records' }),
+    write('records.comments.resolve', 'Resolve a comment thread or reopen it', { in: { ...commentId, resolved: t.bool() }, out: { comment: commentRow }, emits: ['record.comment_resolved'], tool: 'records' }),
+    write('records.comments.delete', 'Delete your own comment (or any, with manage on the record)', { in: commentId, out: { deleted: t.bool() }, tool: 'records' }),
     read('records.as_of', 'Read a record as it was at a time', { in: { ...target, at: t.ts() }, out: { record: recordRow }, on: ['record', '/recordId'], tool: 'records' }),
     read('records.versions', 'List versions of a record (One History)', { in: target, out: { versions: t.arr(versionRow) }, on: ['record', '/recordId'], tool: 'records' }),
     write('records.restore_version', 'Restore a record to an earlier version', { in: { ...target, versionId: id.version }, out: { record: recordRow }, on: ['record', '/recordId'], perm: 'records.edit', emits: ['record.updated'], tool: 'records', agent: { planMode: 'blocked' } }),
