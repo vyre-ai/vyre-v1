@@ -34,6 +34,7 @@ export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: Main
   return (
     <TabStrip
       label="Open tabs"
+      hideLoneClose
       tabs={tabSpecs(state.tabs)}
       active={state.active}
       onSelect={(key) => {
