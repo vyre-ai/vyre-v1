@@ -1,1 +1,0 @@
-- Finishing a sign-in (providers.subscription_complete) with no code now links the sign-in the person's client already saved in Mine and answers the provider, instead of answering "waiting" because the server's own flow was still open. The open flow is dropped. This restores the sandboxed chat reply flow (golden 7) after the direct sign-in change.

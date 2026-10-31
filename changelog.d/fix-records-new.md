@@ -1,1 +1,0 @@
-- Records: New asks for the title first, creates the record and opens it, and shows the daemon's reason in the bar when it refuses (it used to fail silently with "name is required"). A new Space starts with the neutral record types: the types a Kit declares (Matters, Leads, Client plans, Commissions) arrive with their Kit. A Personal Space no longer shows Apps in the rail.

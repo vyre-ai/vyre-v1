@@ -1,1 +1,0 @@
-- Dependencies: joi is pinned to 18.3.1 (the patch for GHSA-4528-x5fx-h6hg, a quadratic-time email split in `string().email({ multiple: true })`) through an npm override, because mailauth 7.3.0 and 8.0.4 pull an affected joi. Our own code does not call joi.

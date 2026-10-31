@@ -1,2 +1,0 @@
-- Skin menu: every skin row shows a swatch (its background, a surface card and its accent), System has the half-filled circle, the open skin keeps its check, and the title-bar chip shows the open skin's swatch. The icons are inline svg with attributes only, so they draw under the desktop app's Content-Security-Policy.
-- Skin menu: the header reads "Your skin in <Space>" and a "More in Appearance" row opens Settings > Appearance.

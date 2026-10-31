@@ -1,1 +1,0 @@
-- Fixed three dead clicks. The Files view toggle marks the current choice as checked. Records no longer offers Go to row on an empty table. Starting a new record from the empty state replaces the empty message with the new-record row.
