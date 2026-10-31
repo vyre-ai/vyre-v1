@@ -23,6 +23,7 @@ import {
   FaceLru, faceClassOf, faceRule, flingWindow, hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, sortable, toSaved, toggleHidden, totalWidth, safeBitmapUrl,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
+import { plainError } from "../typeedit/model.ts";
 import { makeRecord } from "./make.ts";
 import { filterMenuEntries } from "./filtermenu.ts";
 import { FieldsPanel, fieldMenuEntries } from "../typeedit/index.ts";
@@ -562,7 +563,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       if (id) data.nav.openRecord(id);
     }, (e: unknown) => {
       const x = e as { error?: { message?: string }; message?: string };
-      setAdding({ name, busy: false, error: x?.error?.message ?? x?.message ?? `Could not create the ${def.title.toLowerCase()}.` });
+      setAdding({ name, busy: false, error: plainError(x?.error?.message ?? x?.message, def.title.toLowerCase()) });
     });
   };
   const nPicked = pickCount(sel, count ?? 0);

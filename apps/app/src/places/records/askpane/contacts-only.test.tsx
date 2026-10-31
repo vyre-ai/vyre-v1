@@ -54,7 +54,7 @@ test("one sheet holds the name, the starter chips, the link chips and Ask Vyre; 
   const connectTo = connectChoices([row("contact", 1), row("company", 0), row("meeting", 0), row("project", 0), row("task", 0, true), row("agent", 0, true)], worthShowing);
   assert.deepEqual(connectTo.map((c) => c.key), ["contact"], "only what the person sees can be linked, Contacts first");
   const sheet = clean(renderToStaticMarkup(<TypeSheet call={async () => ({})} takenKeys={[]} connectTo={connectTo} onAsk={() => undefined} onClose={() => undefined} onDone={() => undefined} />));
-  for (const id of ["type-starter-status", "type-starter-owner", "type-starter-due_date", "type-starter-amount", "type-starter-notes", "type-connect-contact", "type-sheet-ask"]) assert.ok(has(sheet, `data-testid="${id}"`), id);
+  for (const id of ["type-starter-email", "type-starter-stage", "type-starter-owner", "type-starter-date", "type-starter-amount", "type-starter-notes", "type-starters-more", "type-connect-contact", "type-sheet-ask"]) assert.ok(has(sheet, `data-testid="${id}"`), id);
   const plain = clean(renderToStaticMarkup(<TypeSheet call={async () => ({})} takenKeys={[]} onClose={() => undefined} onDone={() => undefined} />));
   assert.ok(!has(plain, "Connect it to") && !has(plain, 'data-testid="type-sheet-ask"'), "no targets and no assistant: neither is drawn");
   const rename = clean(renderToStaticMarkup(<TypeSheet call={async () => ({})} takenKeys={[]} connectTo={connectTo} rename={{ key: "client", title: "Client", plural: "Clients", icon: "table" }} onClose={() => undefined} onDone={() => undefined} />));
