@@ -1,4 +1,5 @@
 // One handler per access capability. Share and folders are handlers/share.ts (P-L7_02); requests, reviews and proposals are request.ts, review.ts and propose.ts.
+import { builderGrant, builderStatus } from "./connector-builder.ts";
 import {
   foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, deciders, lists, share, sharesOf, unshare,
 } from "./share.ts";
@@ -56,6 +57,8 @@ export const handlers = {
   "access.reviews.get": reviewsGet,
   "access.reviews.list": reviewsList,
   "access.reviews.start": reviewsStart,
+  "access.connector_builder.grant": builderGrant,
+  "access.connector_builder.status": builderStatus,
   "access.roles.apply": rolesApply,
   "access.roles.assign": rolesAssign,
   "access.roles.create": rolesCreate,

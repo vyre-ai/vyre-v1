@@ -233,3 +233,9 @@ test("a menu with search draws the field, a leading element and the pinned row",
   assert.match(html, /data-logo="x"/);
   assert.match(html, /Build a connector/);
 });
+
+test("an entry with a mark draws a small dot whose text is its tooltip and label", () => {
+  const html = renderToStaticMarkup(<Menu source="other" items={[{ label: "Acme: Create invoice", mark: "Untested" }, { label: "Acme: List invoices" }]} />);
+  assert.match(html, /title="Untested"/);
+  assert.equal((html.match(/data-mark="true"/g) ?? []).length, 1);
+});

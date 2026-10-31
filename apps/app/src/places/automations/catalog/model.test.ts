@@ -57,3 +57,10 @@ test("the catalog loads the built connectors beside the palette, and without the
   const without = await loadProductCatalog(async (cap) => { if (cap.startsWith("connect")) throw new Error("no access"); return cap === "automations.steps.list" ? steps : triggers; });
   assert.ok(without.ok && without.catalog.steps.length === 1);
 });
+
+test("an action nobody tried against the real app is marked untested, and with no levels nothing is claimed", () => {
+  const levels = { levels: [{ actionKey: "acme.list_invoices", level: "tested" }, { actionKey: "acme.create-invoice", level: "draft" }] };
+  const marked = connectorSteps(live, connections, levels).map((s) => [s.title, s.untested === true]);
+  assert.deepEqual(marked, [["Acme: List invoices", false], ["Acme: Create invoice", true]]);
+  assert.ok(connectorSteps(live, connections).every((s) => s.untested === undefined));
+});
