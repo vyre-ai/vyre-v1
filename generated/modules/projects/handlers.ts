@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.cascade": Handler<"projects.cascade", X>;
   "projects.create": Handler<"projects.create", X>;
   "projects.file_chat": Handler<"projects.file_chat", X>;
+  "projects.files_folder": Handler<"projects.files_folder", X>;
   "projects.from_channel": Handler<"projects.from_channel", X>;
   "projects.get": Handler<"projects.get", X>;
   "projects.link_tasks": Handler<"projects.link_tasks", X>;

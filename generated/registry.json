@@ -143246,6 +143246,96 @@
     },
     {
       "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "create": true,
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "folderId": "fld_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "create": {
+            "type": "boolean"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "projects",
+      "name": "projects.files_folder",
+      "output": {
+        "properties": {
+          "folderId": {
+            "anyOf": [
+              {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "folderId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
       "emits": [
         "project.created",
         "record.created"
@@ -147253,6 +147343,9 @@
       "since": "1.0.0",
       "summary": "Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)",
       "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "records"

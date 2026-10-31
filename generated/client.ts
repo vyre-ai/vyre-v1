@@ -1730,6 +1730,7 @@ export function createClient(transport: Transport) {
       cascade: call("projects.cascade", 1),
       create: call("projects.create", 1),
       file_chat: call("projects.file_chat", 1),
+      files_folder: call("projects.files_folder", 1),
       from_channel: call("projects.from_channel", 1),
       get: call("projects.get", 1),
       link_tasks: call("projects.link_tasks", 1),

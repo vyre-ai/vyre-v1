@@ -39353,6 +39353,42 @@
     },
     {
       "blocks": [],
+      "cap": "projects.files_folder",
+      "deferred": false,
+      "description": "The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "create": {
+            "type": "boolean"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_files_folder",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.from_channel",
       "deferred": false,
       "description": "Make this channel a project: create the record and attach the channel, a folder and an empty plan",
@@ -40763,7 +40799,7 @@
         "type": "object"
       },
       "name": "records_comments_add",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "records",
       "v": 1
     },

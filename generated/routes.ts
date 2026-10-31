@@ -22477,6 +22477,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/projects/files_folder",
+    "cap": "projects.files_folder",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/projects/from_channel",
     "cap": "projects.from_channel",
     "v": 1,
@@ -27645,7 +27664,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sync/doc/update",
@@ -27663,10 +27685,7 @@ const routes4: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sync/endpoints",
