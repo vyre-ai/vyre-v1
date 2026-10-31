@@ -5,6 +5,8 @@ import { Row } from "../Row/index.tsx";
 import { useMenu } from "../Menu/index.tsx";
 import { actionInput, TASK_STATES, taskDue } from "./model.ts";
 import type { TaskCap, TaskRef, TaskView } from "./model.ts";
+import { BatonActions, BriefCard, DeliverableCard, FixesList, Stepper } from "./Baton.tsx";
+import { briefOf, deliverableOf, fixesOf, isBaton, myMove, nowStep, stepsOf, wantedFields } from "./baton.ts";
 export type { TaskCap, TaskRef, TaskView } from "./model.ts";
 
 export interface TaskPageProps {
@@ -15,6 +17,8 @@ export interface TaskPageProps {
   onBack(): void; onOpen(type: string, id: string): void;
   children?: ReactNode; nameOf?(type: string, id: string): string;
 }
+/** The notes the baton keeps for itself; the page shows them as cards, not as rows of raw text. */
+const BATON_NOTE = /^(brief|done_means|output_schema|outputs|summary|fixes|asked|answer|baton\..*|thread\.origin|run\.resumed)$/;
 const label = (value: string): string => value.replaceAll("_", " ").replace(/^\w/, (c) => c.toUpperCase());
 const dueInput = (at: number | undefined): string => at === undefined ? "" : new Date(at - new Date(at).getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
@@ -27,6 +31,7 @@ export function TaskPage({ task, me, principals, history, online, onCommand, onB
   const [noteKey, setNoteKey] = useState(""), [noteValue, setNoteValue] = useState("");
   const [busy, setBusy] = useState(false), [line, setLine] = useState(""), [error, setError] = useState("");
   const inflight = useRef(false);
+  const baton = isBaton(task), brief = baton ? briefOf(task) : null, fixes = baton ? fixesOf(task) : [], delivered = baton ? deliverableOf(task) : null, move = baton ? myMove(task, me) : null;
   const who = (id: string): string => principals.find((person) => person.id === id)?.name ?? "Unavailable teammate";
   const named = (type: string, id: string): string => nameOf?.(type, id) ?? (type === "person" || type === "agent" ? who(id) : `Linked ${type}`);
   const run = async (cap: TaskCap, input: Record<string, unknown>, message: string): Promise<boolean> => {
@@ -64,6 +69,13 @@ export function TaskPage({ task, me, principals, history, online, onCommand, onB
       {task.source?.kind === "journey" ? <Row title="Journey" note={named("journey", task.source.id)} onPress={() => onOpen("journey", task.source!.id)} /> : null}
       <View style={s.heading}><Pressable accessibilityRole="button" accessibilityLabel="Task status" disabled={busy || !online} onPress={status} style={s.status}><Text style={s.buttonText}>{TASK_STATES.find((state) => state.key === task.state)?.title ?? task.state}</Text></Pressable><Text style={s.quiet}>{label(task.kind)}{task.blocked ? " · Blocked" : ""}</Text></View>
       <Text accessibilityRole="header" style={s.title}>{task.title}</Text>{task.summary ? <Text style={s.summary}>{task.summary}</Text> : null}
+      {baton ? <View testID="baton" style={{ gap: 12 }}>
+        <Stepper steps={stepsOf(task)} namer={{ name: who }} />
+        {brief ? <BriefCard text={brief.text} doneMeans={brief.doneMeans} /> : null}
+        {fixes.length > 0 && nowStep(task) === "assigned" ? <FixesList fixes={fixes} /> : null}
+        {delivered && (nowStep(task) === "review" || nowStep(task) === "approve" || task.state === "done") ? <DeliverableCard deliverable={delivered} by={who(task.assigned.id)} /> : null}
+        {move && !editing ? <BatonActions key={`${task.state}:${task.updatedAt}`} move={move} wanted={wantedFields(task)} busy={busy || !online} onCall={(call) => void run(call.cap, call.input, call.message)} /> : null}
+      </View> : null}
       {!online ? <Text accessibilityRole="status" style={s.quiet}>Offline, showing your saved task. Reconnect to make changes.</Text> : null}
       {/* ui-rows-lint: not a list (two navigation tabs) */}
       <View style={s.tabs}>{["task", "activity"].map((id) => <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} onPress={() => setTab(id)} style={[s.tab, tab === id && s.activeTab]}><Text style={s.buttonText}>{label(id)}</Text></Pressable>)}</View>
@@ -74,7 +86,7 @@ export function TaskPage({ task, me, principals, history, online, onCommand, onB
           {children}
           {/* ui-rows-lint: not a list (horizontal decision action toolbar) */}
           {task.actions.length ? <View style={s.form}>{field("Action note", note, setNote, true)}{task.kind === "answer" ? field("Answer", answer, setAnswer, true) : null}<View style={s.actions}>{task.actions.map((action) => <View key={action.key}>{button(action.label, () => act(action.key), action.key === task.actions[0]?.key)}</View>)}</View></View> : null}
-          <Text style={s.section}>Working notes</Text>{Object.entries(task.workingNotes).map(([key, value]) => <Row key={key} title={key} note={value} trailing={button(`Remove ${key}`, () => void run("tasks.working_notes.delete", { key }, "Note removed"))} />)}
+          <Text style={s.section}>Working notes</Text>{Object.entries(task.workingNotes).filter(([key]) => !BATON_NOTE.test(key)).map(([key, value]) => <Row key={key} title={key} note={value} trailing={button(`Remove ${key}`, () => void run("tasks.working_notes.delete", { key }, "Note removed"))} />)}
           {field("Note name", noteKey, setNoteKey)}{field("Working note", noteValue, setNoteValue, true)}{button("Save working note", () => { if (!noteKey.trim()) { setError("Name this working note."); return; } void run("tasks.working_notes.set", { key: noteKey.trim(), value: noteValue }, "Working note saved").then((ok) => { if (ok) { setNoteKey(""); setNoteValue(""); } }); })}
         </View>
         <View style={[s.properties, narrow && { width: "100%" }]}>
