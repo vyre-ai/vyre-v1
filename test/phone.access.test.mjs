@@ -20,7 +20,7 @@ import { startRelayBox } from "../host/src/seams/relay.ts";
 
 function world(names = () => "ok") {
   const rt = createRuntime({ worker, Class: W.RouteRelay, classes: { TICKETS: W.PairTicket, CODES: W.CodeSlot, SIGNIN: W.SigninSlot, HOSTS: W.HostSlot },
-    env: { NAMES_FETCH: async (u) => new Response(JSON.stringify({ data: { status: names(new URL(u).searchParams.get("name")) } })), RELAY_PUBLIC_URL: "ws://relay.test" } });
+    env: { DOH_FETCH: async () => new Response(JSON.stringify({ Status: 0 })), ORIGIN_FETCH: async () => new Response("origin", { status: 200 }), NAMES_FETCH: async (u) => new Response(JSON.stringify({ data: { status: names(new URL(u).searchParams.get("name")) } })), RELAY_PUBLIC_URL: "ws://relay.test" } });
   return rt;
 }
 
@@ -102,7 +102,7 @@ test("a taken name fails with words a person can read, and release gives the nam
   assert.equal(ok.state, "claimed");
   await h.ask("phone_release", "alex");
   assert.deepEqual([h.row().state, h.row().name], ["none", null]);
-  assert.equal((await rt.fetch("https://alex.vyre.run/")).status, 301, "no longer served");
+  assert.equal(await (await rt.fetch("https://alex.vyre.run/")).text(), "origin", "no longer served: the request goes to the host's own origin");
   // a second computer cannot take it
   const rt2h = await host(rt);
   t.after(async () => { await rt2h.stop(); });
