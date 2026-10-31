@@ -35,21 +35,21 @@ export const KITS: Readonly<Record<string, KitDef>> = {
     id: "northwind",
     name: "Team",
     top: ["home", "chats", "inbox", "records", "files"],
-    bottom: ["apps", "automations", "vault", "settings", "console", "join"],
+    bottom: ["apps", "automations", "vault", "settings", "console"],
     start: "chats",
   },
   studio: {
     id: "studio",
     name: "Studio",
     top: ["home", "chats", "inbox", "files"],
-    bottom: ["apps", "vault", "settings", "join"],
+    bottom: ["apps", "vault", "settings"],
     start: "chats",
   },
   personal: {
     id: "personal",
     name: "Personal",
     top: ["home", "chats", "inbox", "records", "files"],
-    bottom: ["automations", "vault", "settings", "join"],
+    bottom: ["automations", "vault", "settings"],
     start: "home",
   },
 };
@@ -97,3 +97,6 @@ export function railFor(input: RailInput): RailGroups {
 export function railPlaces(groups: RailGroups): PlaceId[] {
   return [...groups.top, ...groups.bottom].map((e) => e.place);
 }
+
+/** Places with no screen in the signed-in shell: never on a rail, never a tab. "join" is the old "+" at the foot of the rail; Add a Space lives in the Space menu. */
+export const NO_SCREEN_PLACES: readonly PlaceId[] = ["join"];
