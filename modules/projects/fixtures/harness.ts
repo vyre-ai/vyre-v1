@@ -24,7 +24,7 @@ type Handler = (input: any, opts?: { idempotencyKey?: string }) => unknown;   //
 const fail = (code: string, message: string): never => { throw Object.assign(new Error(message), { error: { code, message } }); };
 
 export interface FakeTask { id: string; title: string; state: string; due?: number | undefined; assigned?: { kind: string; id: string } | undefined; recordId: string; dependsOn: string[]; threadId?: string | undefined; createdAt: number }
-export interface Grant { resource: { type: string; id: string }; subject: { kind: string; id: string }; level: string; source: string }
+export interface Grant { id?: string; resource: { type: string; id: string }; subject: { kind: string; id: string }; level: string; source: string }
 
 /** The neighbours of Projects, in memory. Each keeps what it was told, so a test can look at what the project asked for. */
 export function fakeWorld(clock: { t: number }) {
@@ -32,7 +32,9 @@ export function fakeWorld(clock: { t: number }) {
   const records = new Map<string, { id: string; type: string; fields: Record<string, unknown> }>();
   const tasks = new Map<string, FakeTask>();
   const grants: Grant[] = [];
-  const folders = new Map<string, { folderId: string; parentId?: string; name: string }>();
+  const folders = new Map<string, { folderId: string; parentId?: string; name: string; deleted?: boolean }>();
+  /** What access.shares_of answers for a record: the grants its sharing holds. */
+  const recordShares = new Map<string, Array<{ subject: { kind: string; id: string }; level: string }>>();
   const channels = new Map<string, { channelId: string; mainThreadId: string; name: string; folderId?: string; recordId?: string }>();
   const posts: Array<{ threadId: string; body: string }> = [];
   const threadFolders = new Map<string, string>();
@@ -68,11 +70,24 @@ export function fakeWorld(clock: { t: number }) {
     "records.update": (i) => { const r = records.get(i.recordId) ?? fail("validation.not_found", "no such record"); for (const [k, v] of Object.entries(i.patch)) { if (v === null) delete r.fields[k]; else r.fields[k] = v; } return { record: recordOut(r) }; },
     "files.folder.search": (i) => ({ folders: [...folders.values()].filter((f) => f.name.toLowerCase().includes(String(i.q).toLowerCase())).map((f) => ({ ...f, path: f.name })) }),
     "files.folder.create": (i, o) => keyed(o, "fc", () => {
-      if ([...folders.values()].some((f) => f.parentId === i.parentId && f.name === i.name)) fail("validation.duplicate", "a folder with that name exists");
+      if ([...folders.values()].some((f) => f.parentId === i.parentId && f.name === i.name && !f.deleted)) fail("validation.duplicate", "a folder with that name exists");
       const folderId = next("fld");
       folders.set(folderId, { folderId, parentId: i.parentId, name: i.name });
       return { folder: { folderId, parentId: i.parentId, name: i.name, path: `Projects/${i.name}` } };
     }),
+    "files.folder.get": (i) => { const f = folders.get(i.folderId) ?? fail("validation.not_found", "no such folder"); return { folder: { ...f, path: `Projects/${f.name}` } }; },
+    "files.folder.rename": (i) => {
+      const f = folders.get(i.folderId) ?? fail("validation.not_found", "no such folder");
+      if (f.name === i.name) return { folder: f };
+      if ([...folders.values()].some((o) => o.parentId === f.parentId && o.name === i.name && !o.deleted)) fail("validation.duplicate", "a folder with that name exists");
+      f.name = i.name;
+      return { folder: f };
+    },
+    "files.folder.delete": (i) => { (folders.get(i.folderId) ?? fail("validation.not_found", "no such folder")).deleted = true; return { deleted: true }; },
+    "files.folder.restore": (i) => { const f = folders.get(i.folderId) ?? fail("validation.not_found", "no such folder"); delete f.deleted; return { folder: f }; },
+    "records.query": (i) => ({ rows: [...records.values()].filter((r) => r.type === i.type).map(recordOut) }),
+    "access.shares_of": (i) => ({ shares: (i.resource.type === "record" ? recordShares.get(i.resource.id) ?? [] : []).map((g) => ({ grant: { subject: g.subject, level: g.level, resource: i.resource }, through: "direct" })) }),
+    "access.grants.list": (i) => ({ grants: grants.filter((g) => g.resource.type === i.resource.type && g.resource.id === i.resource.id && (!i.source || g.source === i.source)).map((g) => ({ id: g.id, subject: g.subject, level: g.level, source: g.source })) }),
     "files.get": (i) => (i.fileId === "fil_missing" ? fail("validation.not_found", "no such file") : { file: { fileId: i.fileId, name: "x.pdf" } }),
     "channels.create": (i, o) => keyed(o, "cc", () => {
       const channelId = next("chn");
@@ -91,9 +106,10 @@ export function fakeWorld(clock: { t: number }) {
     "agents.create": (i, o) => keyed(o, "ag", () => { const agentId = next("agt"); agents.set(agentId, { agentId, name: i.name, ...(i.role ? { role: i.role } : {}), status: "awake", ...(i.projectId ? { teammateOf: i.projectId } : {}) }); return { agent: agents.get(agentId) }; }),
     "agents.get": (i) => ({ agent: agents.get(i.agentId) ?? (i.agentId === BOT ? { agentId: BOT, name: "Helper", status: "awake" } : fail("validation.not_found", "no such agent")) }),
     "agents.delete": (i) => { trashed.push(i.agentId); agents.delete(i.agentId); return { deleted: true }; },
-    "access.share": (i, o) => keyed(o, "as", () => { grants.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: { id: next("gnt") } }; }),
+    "access.share": (i, o) => keyed(o, "as", () => { const id = next("gnt"); grants.push({ id, resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: { id } }; }),
     "access.unshare": (i) => {
       const before = grants.length;
+      if (i.grantId) { const at = grants.findIndex((g) => g.id === i.grantId); if (at >= 0) grants.splice(at, 1); return { revoked: before - grants.length }; }
       for (let x = grants.length - 1; x >= 0; x--) {
         const g = grants[x] as Grant;
         if (g.source === i.source && g.resource.type === i.resource.type && g.resource.id === i.resource.id && (!i.subject || (g.subject.id === i.subject.id && g.subject.kind === i.subject.kind))) grants.splice(x, 1);
@@ -118,7 +134,7 @@ export function fakeWorld(clock: { t: number }) {
     },
     "tasks.dependencies.remove": (i) => { const t = tasks.get(i.taskId) ?? fail("validation.not_found", "no such task"); t.dependsOn = t.dependsOn.filter((d) => d !== i.dependsOnId); return { task: taskRow(t) }; },
   };
-  return { calls, records, tasks, grants, folders, channels, posts, threadFolders, types, handlers, root, down, unknown, next, agents, trashed };
+  return { calls, records, recordShares, tasks, grants, folders, channels, posts, threadFolders, types, handlers, root, down, unknown, next, agents, trashed };
 }
 export type FakeWorld = ReturnType<typeof fakeWorld>;
 
