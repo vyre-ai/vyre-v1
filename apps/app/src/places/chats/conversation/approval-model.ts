@@ -1,5 +1,6 @@
 // The approval card of a chat (rc.8): when a turn parks on a hold the person answers it in the chat, with what the agent wants to do, a short excerpt, and Allow or Deny. This file is the words,
 // without a renderer. The hold is a task of kind approve (tasks.get); its first block carries { act, cap, input }; the actions are approve and reject.
+import { appName, hubById } from "../../../../../../lib/mcp-hubs.ts";
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const text = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
@@ -21,15 +22,26 @@ const WANTS: Record<string, string> = {
 };
 
 /** The phrase after "<Agent> wants to": a known step reads in plain words, any other is its name spelled out. */
-export function wantsPhrase(cap: string, subject?: string): string {
+export function wantsPhrase(cap: string, subject?: string, input?: Obj): string {
+  const outside = cap === "engine.mcp.call" && input ? outsideTool(input) : null;
+  if (outside) return outside.phrase;
   const base = WANTS[cap] ?? (cap === "" ? "do a step" : `run ${cap.replace(/[._]+/g, " ")}`);
   const fileStep = cap.startsWith("files.") && cap !== "files.folder.create";
   return subject && (fileStep || cap === "records.update" || cap === "records.delete") ? `${base} ${subject}` : base;
 }
 
 /** The first line of the card: who wants what. */
-export function wantsLine(agent: string, cap: string, subject?: string): string {
-  return `${agent} wants to ${wantsPhrase(cap, subject)}`;
+export function wantsLine(agent: string, cap: string, subject?: string, input?: Obj): string {
+  return `${agent} wants to ${wantsPhrase(cap, subject, input)}`;
+}
+
+/** A change made through an outside tool server: "send message in Slack" for a hub tool (the hub names the app in the tool), the tool's own words for any other server. */
+function outsideTool(input: Obj): { phrase: string; hub?: string; fields: Obj } | null {
+  const tool = text(input["tool"]);
+  if (!tool) return null;
+  const hub = hubById(text(input["server"]));
+  const words = (hub ? tool.replace(/^[A-Za-z0-9]+[_-]/, "") : tool).replace(/[_-]+/g, " ").toLowerCase();
+  return { phrase: hub ? `${words} in ${appName(hub.appOf(tool))}` : words, ...(hub ? { hub: hub.name } : {}), fields: obj(input["input"]) };
 }
 
 const SKIP = new Set(["idempotencyKey", "reason", "baseVersion", "as"]);
@@ -40,7 +52,12 @@ const label = (k: string): string => {
 };
 
 /** A few lines of what the step carries: the new text of a file, a mail's subject and body, or the plain fields of any other. Ids and keys are left out; nothing is shown that the person cannot read. */
-export function excerptLines(input: Obj, max = 5): Array<{ label: string; text: string }> {
+export function excerptLines(input: Obj, max = 5, cap?: string): Array<{ label: string; text: string }> {
+  const outside = cap === "engine.mcp.call" ? outsideTool(input) : null;
+  if (outside) {
+    const lines = excerptLines(outside.fields, outside.hub ? max - 1 : max);
+    return outside.hub ? [...lines, { label: "Runs through", text: outside.hub }] : lines;
+  }
   const out: Array<{ label: string; text: string }> = [];
   const content = obj(input["content"]);
   const body = text(content["text"]);
@@ -55,8 +72,8 @@ export function excerptLines(input: Obj, max = 5): Array<{ label: string; text: 
 }
 
 /** The one-line row an answered card collapses to: "Allowed · edit Q4 pricing.docx". */
-export function doneLine(outcome: "allowed" | "denied", cap: string, subject?: string): string {
-  return `${outcome === "allowed" ? "Allowed" : "Denied"} · ${wantsPhrase(cap, subject)}`;
+export function doneLine(outcome: "allowed" | "denied", cap: string, subject?: string, input?: Obj): string {
+  return `${outcome === "allowed" ? "Allowed" : "Denied"} · ${wantsPhrase(cap, subject, input)}`;
 }
 
 /** What goes back to the agent with a Deny: the person's words, or a plain default (a send back needs a note). */

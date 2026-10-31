@@ -87,3 +87,10 @@ test("an edit of an existing file shows what is taken out and put in", async () 
   assert.match(diff, /Basic 49/);
   assert.equal(find(root, "approval-excerpt-tsk_1"), null, "the diff replaces the new-text excerpt");
 });
+
+test("a change through an outside hub reads as the app and the action, with where it runs", () => {
+  const input = { agentId: "agt_1", server: "composio", tool: "SLACK_SEND_MESSAGE", input: { channel: "general", text: "hello" } };
+  assert.equal(wantsLine("Ops", "engine.mcp.call", undefined, input), "Ops wants to send message in Slack");
+  assert.deepEqual(excerptLines(input, 5, "engine.mcp.call"), [{ label: "Channel", text: "general" }, { label: "Text", text: "hello" }, { label: "Runs through", text: "Composio" }]);
+  assert.equal(doneLine("allowed", "engine.mcp.call", undefined, input), "Allowed · send message in Slack");
+});
