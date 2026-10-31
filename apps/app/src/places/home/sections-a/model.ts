@@ -175,6 +175,30 @@ export function seatLabel(t: Task, me: string): "Review" | "Approve" | null {
   return null;
 }
 
+/** Does the baton of this work task rest with me: the doer while it is To do or Doing, the reviewer in review, the approver in approval. Only a task passed along a baton (it has a reviewer, an approver or a brief) counts. */
+export function batonWithMe(t: Task, me: string): boolean {
+  if (t.kind !== "work" || t.blocked) return false;
+  const notes = (t as { workingNotes?: Record<string, string> }).workingNotes ?? {};
+  if (!t.reviewer && !t.approver && notes["brief"] === undefined) return false;
+  if (t.state === "todo" || t.state === "doing") return t.assigned.id === me;
+  if (t.state === "in_review") return t.reviewer?.id === me;
+  if (t.state === "awaiting_approval") return t.approver?.id === me;
+  return false;
+}
+
+/** What I am asked to do now with a task the baton is with me on. */
+export function turnWord(t: Task, me: string): "Do" | "Review" | "Approve" | null {
+  if (!batonWithMe(t, me)) return null;
+  return t.state === "in_review" ? "Review" : t.state === "awaiting_approval" ? "Approve" : "Do";
+}
+
+/** The tasks whose baton is with me, oldest hand-over first, and the rest left for the dated groups. */
+export function splitTurn(open: readonly Task[], me: string): { turn: Task[]; rest: Task[] } {
+  const turn = open.filter((t) => batonWithMe(t, me)).sort((a, b) => a.updatedAt - b.updatedAt);
+  const ids = new Set(turn.map((t) => t.id));
+  return { turn, rest: open.filter((t) => !ids.has(t.id)) };
+}
+
 export type StatusIcon = "todo" | "doing" | "review" | "blocked" | "done";
 export function statusIcon(t: Pick<Task, "state" | "blocked"> & { kind?: Task["kind"] }): StatusIcon {
   if (t.state === "done") return "done";

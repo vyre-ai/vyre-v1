@@ -21,6 +21,7 @@ import type { AgentPageData } from "./data.tsx";
 import { ChatsTab } from "./ChatsTab.tsx";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.tsx";
 import { RoleLine } from "./RoleLine.tsx";
+import { WorkingOn } from "./WorkingOn.tsx";
 import { SettingsTab } from "./SettingsTab.tsx";
 import { DEFAULT_TAB, TABS, collect, spendRatio, statusLine, stripOf } from "./model.ts";
 import type { TabKey } from "./model.ts";
@@ -153,6 +154,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
             ))}
           </View>
         ) : <View testID="agent-strip-loading" style={st.skStrip} />}
+        <WorkingOn />
         <TabMeasure titles={TAB_TITLES} onWidth={titles.set} />
         <TabStrip tabs={strip} active={tab} onSelect={select} label={`${name}'s page`} />
         <View testID={`page-body-${tab}`} style={st.body}>

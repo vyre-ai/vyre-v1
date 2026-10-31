@@ -273,11 +273,13 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
     return `${lines === 0 ? "Write the code" : `Runs ${lines} ${lines === 1 ? "line" : "lines"} of code`}, ${reach}`;
   }
   if (k === "ai") {
-    const prompt = str(inp["prompt"]).replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
+    // one short line: what it is asked to do (data references become an ellipsis, not braces), and where it runs only when that was chosen
+    const prompt = str(inp["prompt"]).replace(/\{\{[^}]*\}\}/g, "\u2026").replace(/\s+/g, " ").trim().replace(/\u2026[.]+$/, "\u2026").replace(/[.]+$/, "");
+    if (!prompt) return "Write what the AI should do";
     const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? n.ai.keyId) : "";
     const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? n.ai.backupKeyId) : "";
-    const on = n.ai?.mode === "task" ? (n.ai.reviewer || n.ai.approver ? "An agent's task, with a check before it goes on" : "An agent's task") : key ? (back ? `${key}, then ${back}` : key) : "your own AI account";
-    return prompt ? `${prompt.length > 70 ? `${prompt.slice(0, 70)}...` : prompt}. ${on}` : "Write what the AI should do";
+    const tail = n.ai?.mode === "task" ? "Agent task" : key ? (back ? `${key}, then ${back}` : key) : "";
+    return `${prompt.length > 60 ? `${prompt.slice(0, 60)}...` : prompt}${tail ? `${prompt.endsWith("\u2026") ? " \u00b7 " : ". "}${tail}` : ""}`;
   }
   const bits: string[] = [];
   for (const [name, v] of Object.entries(inp)) {

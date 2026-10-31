@@ -12,7 +12,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useActions } from "./actions.ts";
 import { useHomeData, usePrincipals, useScreenQuery, useSelection } from "./data.tsx";
 import type { Principal } from "./data.tsx";
-import { ASSIGN_GROUPS, DAY_MS, MY_WORK_LIMIT, STATE_LABEL, dayNumber, dueCount, dueLabel, givenSub, orderMyWork, seatLabel, statusIcon, workGroups } from "./model.ts";
+import { ASSIGN_GROUPS, DAY_MS, MY_WORK_LIMIT, STATE_LABEL, dayNumber, dueCount, dueLabel, givenSub, orderMyWork, seatLabel, splitTurn, statusIcon, turnWord, workGroups } from "./model.ts";
 import type { Ref, Task } from "./model.ts";
 import { PERSONAL_STAGE, planEdits, planStages, planTasks } from "./plan.ts";
 import type { PlanContext } from "./plan.ts";
@@ -107,9 +107,12 @@ export function MyWork(): ReactElement {
   const given = useScreenQuery<Out>(WORK_SCREEN, "list", { section: "assigned_by_me" });
   const clock = data.clock();
   const tasks = open.status === "ready" ? open.data.tasks : [];
-  const groups = workGroups(tasks, clock);
+  // the work whose baton is with me comes first, in a group of its own; the rest fall into the dated groups
+  const { turn, rest } = splitTurn(tasks, data.me.id);
+  const groups = workGroups(rest, clock);
   const givenTasks = given.status === "ready" ? orderMyWork(given.data.tasks) : [];
   const keys: string[] = [];
+  for (const t of turn) keys.push(`work:${t.id}`);
   for (const g of groups) for (const t of g.rows) keys.push(`work:${t.id}`);
   for (const t of givenTasks) keys.push(`given:${t.id}`);
   const keyList = keys.join("|");
@@ -128,7 +131,7 @@ export function MyWork(): ReactElement {
 
   const today = dayNumber(clock.now, clock.offsetMin);
   const row = (t: Task, key: string, givenRow: boolean): ReactElement => {
-    const seat = seatLabel(t, data.me.id);
+    const seat = turnWord(t, data.me.id) ? `Your turn: ${turnWord(t, data.me.id)}` : seatLabel(t, data.me.id);
     const late = t.due !== undefined && dayNumber(t.due, clock.offsetMin) < today && !givenRow;
     const chip = t.recordId ? data.recordTitle(t.recordId) ?? "Project" : "Personal";
     const sub = givenRow ? givenSub(t, p.name, p.kindOf) : "";
@@ -157,6 +160,10 @@ export function MyWork(): ReactElement {
   };
 
   const body: ReactElement[] = [];
+  if (turn.length) {
+    body.push(<View key="g-turn" style={local.group} testID="group-turn"><Text style={local.groupText}>Your turn<Text style={local.groupCount}>{`  ${turn.length}`}</Text></Text></View>);
+    for (const t of turn) body.push(row(t, `work:${t.id}`, false));
+  }
   for (const g of groups) {
     const head = (
       <View key={`g-${g.name}`} style={[local.group]} testID={`group-${g.name}`}>

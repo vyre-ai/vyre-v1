@@ -84,3 +84,14 @@ test("after a send back the doer sees the fixes as a checklist", () => {
   assert.match(html, /1\. Use her full name/);
   assert.match(html, /role="checkbox"/);
 });
+
+test("working notes are one quiet Add a note row, not a form, and the seats in the side column show faces", () => {
+  const html = page(work({ workingNotes: { brief: "B", reminder: "Call on Monday" } }));
+  assert.match(html, /aria-label="Add a note"/);
+  assert.doesNotMatch(html, /aria-label="Working note"|aria-label="Note name"|Save working note/, "the form is closed until asked for");
+  assert.match(html, /Call on Monday/);
+  assert.match(html, /aria-label="Remove reminder"/);
+  const at = html.lastIndexOf(">Assigned<");
+  assert.match(html.slice(at, at + 200), /Drafter/, "the seat is named");
+  assert.match(html.slice(at - 700, at), /<svg/, "and has a face before it");
+});
