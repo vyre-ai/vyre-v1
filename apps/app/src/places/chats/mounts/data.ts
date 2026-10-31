@@ -122,6 +122,7 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openFolder: (folderId) => rt.open({ subject: { type: "folder", id: folderId } }),
       openAgentFile: (agentId, file) => rt.open({ subject: { type: "agent", id: agentId }, args: { file } }),
       openAutomationRuns: (agentId) => rt.open({ screen: "runs.history", subject: { type: "agent", id: agentId } }),
+      openTask: (taskId) => rt.open({ screen: "tasks.page", args: { taskId } }),
       closePage: () => go.chat(""),
     },
     clock: rt.clock,
