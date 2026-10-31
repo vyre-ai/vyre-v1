@@ -121,6 +121,9 @@ export default defineManifest({
       in: { channelId: id.channel, type: t.opt(id.recordType), title: t.opt(t.str()) }, out: createOut,
       on: ['channel', '/channelId'], perm: 'records.create', level: 'manage', idem: 'key', emits: ['project.created', 'record.created'], tool: 'records',
     }),
+    write('projects.files_folder', 'The folder that holds a record\'s files: a project\'s own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record\'s access mirrored onto it)', {
+      in: { type: t.opt(id.recordType), recordId: id.record, create: t.opt(t.bool()) }, out: { folderId: t.nullable(id.folder) }, on: ['record', '/recordId'], level: 'use', tool: 'records',
+    }),
     read('projects.get', 'Read one project: record fields, channel, folder and counts', { in: { projectId: id.project }, out: { project: projectRow }, on: ['project', '/projectId'], tool: 'records', label: 'check' }),
     read('projects.list', 'List the projects the caller is in (Agents, Projects and Journeys show only those you are in)', {
       in: { type: t.opt(id.recordType), mine: t.opt(t.bool()), status: t.opt(t.str()), ...pageIn }, out: { projects: t.arr(projectRow), ...pageOut }, tool: 'records', label: 'filter',

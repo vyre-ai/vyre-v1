@@ -210,7 +210,8 @@ test("screen: the page has the title, the ring, the sections, the relation cards
 test("screen: on a wide window the sheet is two columns and the right pane starts on Activity", () => {
   const out = page(createSamplePage());
   assert.ok(has(out, 'data-testid="record-pane"') && has(out, 'data-testid="pane-activity"') && has(out, "Maya set status to Active") && !has(out, "Nothing yet"));
-  for (const t of ["Activity", "Comments", "Chat", "Files", "Memory", "History"]) assert.ok(has(out, `>${t}<`), t);
+  for (const t of ["Activity", "Comments", "Chat"]) assert.ok(has(out, `>${t}<`), t);
+  assert.ok(has(out, ">More<") || has(out, "More tabs"), "at 340 px the tabs that do not fit fold behind More");
   assert.ok(has(page(createSamplePage(), undefined, "clients", "cl_1"), 'data-testid="pane-activity-empty"'), "a record nobody has touched says so, in one short line");
   const shut = page(createSamplePage(), { pane: false });
   assert.ok(!has(shut, 'data-testid="record-pane"') && has(shut, 'data-testid="toggle-pane"'));
