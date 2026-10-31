@@ -19,7 +19,7 @@ Register an OpenAI-compatible endpoint (a gateway, vLLM, LiteLLM, a hosted model
 | HTTP | POST /v1/providers/custom_add |
 | MCP tool | providers_custom_add (vault) |
 | CLI | none |
-| Emits | provider.added, vault.item_created |
+| Emits | provider.added, vault.item_created, vault.folder_created |
 
 ## Input
 
