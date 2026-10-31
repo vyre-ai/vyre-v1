@@ -40,7 +40,7 @@ export function ChecklistCard({ id, data }: { id: string; data: unknown }): Reac
 }
 
 const s = StyleSheet.create({
-  card: { marginVertical: 8, maxWidth: 560, width: "100%", borderRadius: 12, backgroundColor: "var(--raised)" as string, paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+  card: { marginVertical: 8, maxWidth: 560, width: "100%", borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
   title: { flex: 1, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   count: { fontSize: 12, color: "var(--ink-3)" as string },
