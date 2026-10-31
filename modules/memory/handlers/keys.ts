@@ -18,7 +18,11 @@ interface ProviderRow { id: string; providerKey: string; name: string; connectio
 export interface Choice { ref: string; title: string; provider: string; kind: "subscription" | "api_key" | "local_model"; mine: boolean; state: string }
 
 async function providers(ctx: MemCtx): Promise<ProviderRow[]> {
-  try { return ((await ctx.call("providers.list", {})) as { providers?: ProviderRow[] }).providers ?? []; } catch { return []; }
+  let list: ProviderRow[];
+  try { list = ((await ctx.call("providers.list", {})) as { providers?: ProviderRow[] }).providers ?? []; } catch { return []; }
+  // a Personal Space runs on the person's own computer: their sign-in needs no "the Space may use it" switch there
+  const personal = await (ctx.call("spaces.get", {}) as Promise<{ space?: { kind?: string } } | null>).then((x) => x?.space?.kind === "personal", () => false);
+  return personal ? list.map((p) => (p.connection === "subscription" ? { ...p, spaceMayUse: true } : p)) : list;
 }
 const refOf = (p: ProviderRow): string => p.handle ?? p.itemId;
 
