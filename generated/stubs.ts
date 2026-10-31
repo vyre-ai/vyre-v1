@@ -406,6 +406,12 @@ export function stubs(ctx: CallCtx) {
       },
       unpin: call("chat.unpin"),
     },
+    comms: {
+      senders: {
+        list: call("comms.senders.list"),
+        set_default: call("comms.senders.set_default"),
+      },
+    },
     computers: {
       chrome: {
         act: call("computers.chrome.act"),
@@ -744,6 +750,7 @@ export function stubs(ctx: CallCtx) {
         list: call("engine.turns.list"),
       },
       usage: {
+        get: call("engine.usage.get"),
         query: call("engine.usage.query"),
       },
       use_policy: {
@@ -2199,6 +2206,9 @@ export function stubs(ctx: CallCtx) {
     },
     threads: {
       add_agent: call("threads.add_agent"),
+      agent: {
+        configure: call("threads.agent.configure"),
+      },
       close: call("threads.close"),
       erase: call("threads.erase"),
       get: call("threads.get"),
@@ -2212,6 +2222,7 @@ export function stubs(ctx: CallCtx) {
       remove_agent: call("threads.remove_agent"),
       reopen: call("threads.reopen"),
       set_folder: call("threads.set_folder"),
+      set_mode: call("threads.set_mode"),
       set_plan_mode: call("threads.set_plan_mode"),
       update: call("threads.update"),
     },

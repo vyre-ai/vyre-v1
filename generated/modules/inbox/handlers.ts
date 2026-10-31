@@ -5,6 +5,8 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "comms.senders.list": Handler<"comms.senders.list", X>;
+  "comms.senders.set_default": Handler<"comms.senders.set_default", X>;
   "inbox.counts": Handler<"inbox.counts", X>;
   "inbox.follow_set": Handler<"inbox.follow_set", X>;
   "inbox.following": Handler<"inbox.following", X>;

@@ -759,6 +759,145 @@
       ],
       "type": "object"
     },
+    "s_08d2db5985": {
+      "properties": {
+        "agents": {
+          "$ref": "#/$defs/s_18a5df4b3d"
+        },
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "closedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "chat",
+            "channel",
+            "thread",
+            "ask",
+            "run",
+            "helper",
+            "console"
+          ],
+          "type": "string"
+        },
+        "lastMessageAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "listed": {
+          "type": "boolean"
+        },
+        "members": {
+          "$ref": "#/$defs/s_39a2155802"
+        },
+        "mode": {
+          "enum": [
+            "ask",
+            "auto",
+            "plan"
+          ],
+          "type": "string"
+        },
+        "parentMessageId": {
+          "examples": [
+            "msg_a1b2c3"
+          ],
+          "pattern": "^msg_[a-z0-9]+$",
+          "type": "string"
+        },
+        "parentThreadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "description": "Address bar parts for helper chats, each a link back",
+          "items": {
+            "$ref": "#/$defs/s_2a7bd8f420"
+          },
+          "type": "array"
+        },
+        "planMode": {
+          "type": "boolean"
+        },
+        "recordId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "replyCount": {
+          "description": "Messages in the thread that are not deleted",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scopeId": {
+          "type": "string"
+        },
+        "scopeType": {
+          "examples": [
+            "record"
+          ],
+          "type": "string"
+        },
+        "starter": {
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "kind",
+        "listed",
+        "planMode",
+        "members",
+        "agents",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_090e0c0321": {
       "properties": {
         "by": {
@@ -4015,6 +4154,27 @@
       ],
       "type": "object"
     },
+    "s_2d9ec6fb5c": {
+      "properties": {
+        "next": {
+          "description": "Cursor for the next page; absent on the last page",
+          "type": "string"
+        },
+        "threads": {
+          "items": {
+            "$ref": "#/$defs/s_08d2db5985"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "threads"
+      ],
+      "type": "object"
+    },
     "s_2e121bf748": {
       "properties": {
         "number": {
@@ -4080,6 +4240,17 @@
       },
       "required": [
         "row"
+      ],
+      "type": "object"
+    },
+    "s_3147f6cf0b": {
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/s_7d00c458a9"
+        }
+      },
+      "required": [
+        "agent"
       ],
       "type": "object"
     },
@@ -4532,6 +4703,13 @@
         "mentions"
       ],
       "type": "object"
+    },
+    "s_3620a2728a": {
+      "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+      "examples": [
+        "mbx_a1b2c3"
+      ],
+      "type": "string"
     },
     "s_36a0ebc91f": {
       "properties": {
@@ -5342,6 +5520,34 @@
         "assigneeId"
       ],
       "type": "object"
+    },
+    "s_3f78412be5": {
+      "anyOf": [
+        {
+          "properties": {
+            "pct": {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            "resetsAt": {
+              "description": "Milliseconds since the Unix epoch",
+              "examples": [
+                1760000000000
+              ],
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "pct"
+          ],
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "s_3f7cb695ae": {
       "properties": {
@@ -7486,6 +7692,17 @@
       },
       "type": "object"
     },
+    "s_5798a865e5": {
+      "properties": {
+        "thread": {
+          "$ref": "#/$defs/s_08d2db5985"
+        }
+      },
+      "required": [
+        "thread"
+      ],
+      "type": "object"
+    },
     "s_584a30adf4": {
       "properties": {
         "fileId": {
@@ -7648,17 +7865,6 @@
       },
       "required": [
         "resource"
-      ],
-      "type": "object"
-    },
-    "s_5a861eae61": {
-      "properties": {
-        "provider": {
-          "$ref": "#/$defs/s_9c8d435efe"
-        }
-      },
-      "required": [
-        "provider"
       ],
       "type": "object"
     },
@@ -10459,6 +10665,175 @@
       ],
       "type": "object"
     },
+    "s_7d00c458a9": {
+      "properties": {
+        "accountFallback": {
+          "items": {
+            "description": "Vault handles, best first: tried in this order when the chat key fails, before the Space backups",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "accountKey": {
+          "description": "Vault handle, never a value",
+          "examples": [
+            "#Team_Anthropic_Key"
+          ],
+          "type": "string"
+        },
+        "accountPolicy": {
+          "enum": [
+            "asker",
+            "key"
+          ],
+          "type": "string"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "captureMode": {
+          "enum": [
+            "auto",
+            "propose",
+            "auto_low_risk",
+            "off"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "face": {
+          "description": "DiceBear Notionists seed tinted per Space",
+          "examples": [
+            "intake"
+          ],
+          "type": "string"
+        },
+        "fallbackModel": {
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "hasComputer": {
+          "type": "boolean"
+        },
+        "lastActiveAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limits": {
+          "$ref": "#/$defs/s_dd54f66d0c"
+        },
+        "memoryKey": {
+          "description": "Vault handle that pays for this agent memory upkeep; never a value",
+          "examples": [
+            "#Team_Anthropic_Key"
+          ],
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerId": {
+          "examples": [
+            "usr_a1b2c3"
+          ],
+          "pattern": "^usr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "pausedBy": {
+          "type": "string"
+        },
+        "pausedReason": {
+          "type": "string"
+        },
+        "role": {
+          "description": "The \"use me when\" line",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "awake",
+            "working",
+            "asleep",
+            "paused"
+          ],
+          "type": "string"
+        },
+        "switchOnLimit": {
+          "type": "boolean"
+        },
+        "teammateOf": {
+          "examples": [
+            "prj_a1b2c3"
+          ],
+          "pattern": "^prj_[a-z0-9]+$",
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "integer"
+        },
+        "toolsAllowed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "toolsDenied": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vaultKeys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "agentId",
+        "name",
+        "face",
+        "status",
+        "ownerId",
+        "folderId",
+        "accountPolicy",
+        "accountFallback",
+        "toolsAllowed",
+        "toolsDenied",
+        "vaultKeys",
+        "limits",
+        "captureMode",
+        "hasComputer",
+        "templateVersion",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_7e1f5a267d": {
       "properties": {
         "expiresAt": {
@@ -12267,17 +12642,6 @@
       ],
       "type": "object"
     },
-    "s_9746c1f86e": {
-      "properties": {
-        "thread": {
-          "$ref": "#/$defs/s_b4cc02fcf3"
-        }
-      },
-      "required": [
-        "thread"
-      ],
-      "type": "object"
-    },
     "s_98c786d7d8": {
       "properties": {
         "e164": {
@@ -12510,139 +12874,6 @@
       "required": [
         "kind",
         "id"
-      ],
-      "type": "object"
-    },
-    "s_9c8d435efe": {
-      "properties": {
-        "address": {
-          "description": "The address a local model or custom endpoint is reached at",
-          "type": "string"
-        },
-        "agentsUsing": {
-          "items": {
-            "examples": [
-              "agt_a1b2c3"
-            ],
-            "pattern": "^agt_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "connection": {
-          "enum": [
-            "subscription",
-            "api_key",
-            "local_model"
-          ],
-          "type": "string"
-        },
-        "engine": {
-          "examples": [
-            "claude-code"
-          ],
-          "type": "string"
-        },
-        "handle": {
-          "examples": [
-            "#Dana_Lawmatics"
-          ],
-          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-          "type": "string"
-        },
-        "id": {
-          "examples": [
-            "prv_a1b2c3"
-          ],
-          "pattern": "^prv_[a-z0-9]+$",
-          "type": "string"
-        },
-        "itemId": {
-          "examples": [
-            "vit_a1b2c3"
-          ],
-          "pattern": "^vit_[a-z0-9]+$",
-          "type": "string"
-        },
-        "keyless": {
-          "type": "boolean"
-        },
-        "logo": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "providerKey": {
-          "examples": [
-            "anthropic"
-          ],
-          "type": "string"
-        },
-        "scope": {
-          "enum": [
-            "mine",
-            "shared"
-          ],
-          "type": "string"
-        },
-        "spaceMayUse": {
-          "type": "boolean"
-        },
-        "state": {
-          "enum": [
-            "ok",
-            "needs_sign_in",
-            "failing"
-          ],
-          "type": "string"
-        },
-        "usage": {
-          "properties": {
-            "costCents": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "periodStart": {
-              "description": "Milliseconds since the Unix epoch",
-              "examples": [
-                1760000000000
-              ],
-              "minimum": 0,
-              "type": "integer"
-            },
-            "tokens": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "tokens",
-            "costCents",
-            "periodStart"
-          ],
-          "type": "object"
-        },
-        "via": {
-          "examples": [
-            "Subscription, yours"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "providerKey",
-        "name",
-        "connection",
-        "via",
-        "scope",
-        "itemId",
-        "agentsUsing",
-        "usage",
-        "engine",
-        "spaceMayUse",
-        "state"
       ],
       "type": "object"
     },
@@ -12995,17 +13226,6 @@
           "type": "integer"
         }
       },
-      "type": "object"
-    },
-    "s_a05c8672b0": {
-      "properties": {
-        "agent": {
-          "$ref": "#/$defs/s_dd56f942f8"
-        }
-      },
-      "required": [
-        "agent"
-      ],
       "type": "object"
     },
     "s_a09e1f5a0b": {
@@ -13581,27 +13801,6 @@
       ],
       "type": "object"
     },
-    "s_a85a72f91c": {
-      "properties": {
-        "next": {
-          "description": "Cursor for the next page; absent on the last page",
-          "type": "string"
-        },
-        "threads": {
-          "items": {
-            "$ref": "#/$defs/s_b4cc02fcf3"
-          },
-          "type": "array"
-        },
-        "total": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "threads"
-      ],
-      "type": "object"
-    },
     "s_a8c0878262": {
       "properties": {
         "agentId": {
@@ -13838,6 +14037,17 @@
       "required": [
         "domain",
         "records"
+      ],
+      "type": "object"
+    },
+    "s_aa420fb556": {
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/s_b943419fb3"
+        }
+      },
+      "required": [
+        "provider"
       ],
       "type": "object"
     },
@@ -14429,137 +14639,6 @@
       },
       "type": "array"
     },
-    "s_b4cc02fcf3": {
-      "properties": {
-        "agents": {
-          "$ref": "#/$defs/s_18a5df4b3d"
-        },
-        "channelId": {
-          "examples": [
-            "chn_a1b2c3"
-          ],
-          "pattern": "^chn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "closedAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "chat",
-            "channel",
-            "thread",
-            "ask",
-            "run",
-            "helper",
-            "console"
-          ],
-          "type": "string"
-        },
-        "lastMessageAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "listed": {
-          "type": "boolean"
-        },
-        "members": {
-          "$ref": "#/$defs/s_39a2155802"
-        },
-        "parentMessageId": {
-          "examples": [
-            "msg_a1b2c3"
-          ],
-          "pattern": "^msg_[a-z0-9]+$",
-          "type": "string"
-        },
-        "parentThreadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "path": {
-          "description": "Address bar parts for helper chats, each a link back",
-          "items": {
-            "$ref": "#/$defs/s_2a7bd8f420"
-          },
-          "type": "array"
-        },
-        "planMode": {
-          "type": "boolean"
-        },
-        "recordId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "replyCount": {
-          "description": "Messages in the thread that are not deleted",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "scopeId": {
-          "type": "string"
-        },
-        "scopeType": {
-          "examples": [
-            "record"
-          ],
-          "type": "string"
-        },
-        "starter": {
-          "type": "string"
-        },
-        "threadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "threadId",
-        "kind",
-        "listed",
-        "planMode",
-        "members",
-        "agents",
-        "createdAt"
-      ],
-      "type": "object"
-    },
     "s_b4d375add9": {
       "properties": {
         "channel": {
@@ -15105,6 +15184,146 @@
       "required": [
         "taskId",
         "follower"
+      ],
+      "type": "object"
+    },
+    "s_b943419fb3": {
+      "properties": {
+        "address": {
+          "description": "The address a local model or custom endpoint is reached at",
+          "type": "string"
+        },
+        "agentsUsing": {
+          "items": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "connection": {
+          "enum": [
+            "subscription",
+            "api_key",
+            "local_model"
+          ],
+          "type": "string"
+        },
+        "engine": {
+          "examples": [
+            "claude-code"
+          ],
+          "type": "string"
+        },
+        "handle": {
+          "examples": [
+            "#Dana_Lawmatics"
+          ],
+          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+          "type": "string"
+        },
+        "id": {
+          "examples": [
+            "prv_a1b2c3"
+          ],
+          "pattern": "^prv_[a-z0-9]+$",
+          "type": "string"
+        },
+        "itemId": {
+          "examples": [
+            "vit_a1b2c3"
+          ],
+          "pattern": "^vit_[a-z0-9]+$",
+          "type": "string"
+        },
+        "itemName": {
+          "description": "The name the person gave this account in the Vault, so two accounts of one provider read differently",
+          "examples": [
+            "Dana Claude Max"
+          ],
+          "type": "string"
+        },
+        "keyless": {
+          "type": "boolean"
+        },
+        "logo": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "providerKey": {
+          "examples": [
+            "anthropic"
+          ],
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "mine",
+            "shared"
+          ],
+          "type": "string"
+        },
+        "spaceMayUse": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "ok",
+            "needs_sign_in",
+            "failing"
+          ],
+          "type": "string"
+        },
+        "usage": {
+          "properties": {
+            "costCents": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "periodStart": {
+              "description": "Milliseconds since the Unix epoch",
+              "examples": [
+                1760000000000
+              ],
+              "minimum": 0,
+              "type": "integer"
+            },
+            "tokens": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "tokens",
+            "costCents",
+            "periodStart"
+          ],
+          "type": "object"
+        },
+        "via": {
+          "examples": [
+            "Subscription, yours"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "providerKey",
+        "name",
+        "connection",
+        "via",
+        "scope",
+        "itemId",
+        "agentsUsing",
+        "usage",
+        "engine",
+        "spaceMayUse",
+        "state"
       ],
       "type": "object"
     },
@@ -17362,172 +17581,6 @@
           "type": "integer"
         }
       },
-      "type": "object"
-    },
-    "s_dd56f942f8": {
-      "properties": {
-        "accountFallback": {
-          "items": {
-            "description": "Vault handles, best first: tried in this order when the chat key fails, before the Space backups",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "accountKey": {
-          "description": "Vault handle, never a value",
-          "examples": [
-            "#Team_Anthropic_Key"
-          ],
-          "type": "string"
-        },
-        "accountPolicy": {
-          "enum": [
-            "asker",
-            "key"
-          ],
-          "type": "string"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "captureMode": {
-          "enum": [
-            "auto",
-            "propose",
-            "auto_low_risk",
-            "off"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "face": {
-          "description": "DiceBear Notionists seed tinted per Space",
-          "examples": [
-            "intake"
-          ],
-          "type": "string"
-        },
-        "fallbackModel": {
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "hasComputer": {
-          "type": "boolean"
-        },
-        "lastActiveAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "limits": {
-          "$ref": "#/$defs/s_dd54f66d0c"
-        },
-        "memoryKey": {
-          "description": "Vault handle that pays for this agent memory upkeep; never a value",
-          "examples": [
-            "#Team_Anthropic_Key"
-          ],
-          "type": "string"
-        },
-        "model": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerId": {
-          "examples": [
-            "usr_a1b2c3"
-          ],
-          "pattern": "^usr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "pausedBy": {
-          "type": "string"
-        },
-        "pausedReason": {
-          "type": "string"
-        },
-        "role": {
-          "description": "The \"use me when\" line",
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "awake",
-            "working",
-            "asleep",
-            "paused"
-          ],
-          "type": "string"
-        },
-        "teammateOf": {
-          "examples": [
-            "prj_a1b2c3"
-          ],
-          "pattern": "^prj_[a-z0-9]+$",
-          "type": "string"
-        },
-        "templateVersion": {
-          "type": "integer"
-        },
-        "toolsAllowed": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "toolsDenied": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "vaultKeys": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "agentId",
-        "name",
-        "face",
-        "status",
-        "ownerId",
-        "folderId",
-        "accountPolicy",
-        "accountFallback",
-        "toolsAllowed",
-        "toolsDenied",
-        "vaultKeys",
-        "limits",
-        "captureMode",
-        "hasComputer",
-        "templateVersion",
-        "createdAt"
-      ],
       "type": "object"
     },
     "s_de4eba3dc2": {
@@ -27933,6 +27986,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "switchOnLimit": true,
               "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
@@ -28029,7 +28083,7 @@
       "name": "agents.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_a05c8672b0"
+        "$ref": "#/$defs/s_3147f6cf0b"
       },
       "permission": "agents.create",
       "resource": {
@@ -28169,6 +28223,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "switchOnLimit": true,
               "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
@@ -28205,7 +28260,7 @@
       "module": "agents",
       "name": "agents.get",
       "output": {
-        "$ref": "#/$defs/s_a05c8672b0"
+        "$ref": "#/$defs/s_3147f6cf0b"
       },
       "permission": null,
       "resource": {
@@ -28431,6 +28486,7 @@
                 "pausedReason": "example",
                 "role": "example",
                 "status": "awake",
+                "switchOnLimit": true,
                 "teammateOf": "prj_a1b2c3",
                 "templateVersion": 1,
                 "toolsAllowed": [
@@ -28513,7 +28569,7 @@
         "properties": {
           "agents": {
             "items": {
-              "$ref": "#/$defs/s_dd56f942f8"
+              "$ref": "#/$defs/s_7d00c458a9"
             },
             "type": "array"
           },
@@ -28670,6 +28726,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "switchOnLimit": true,
               "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
@@ -28708,7 +28765,7 @@
       "module": "agents",
       "name": "agents.pause",
       "output": {
-        "$ref": "#/$defs/s_a05c8672b0"
+        "$ref": "#/$defs/s_3147f6cf0b"
       },
       "permission": null,
       "resource": {
@@ -28775,6 +28832,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "switchOnLimit": true,
               "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
@@ -28810,7 +28868,7 @@
       "module": "agents",
       "name": "agents.restore",
       "output": {
-        "$ref": "#/$defs/s_a05c8672b0"
+        "$ref": "#/$defs/s_3147f6cf0b"
       },
       "permission": null,
       "resource": {
@@ -28879,6 +28937,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "switchOnLimit": true,
               "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
@@ -28929,7 +28988,7 @@
       "module": "agents",
       "name": "agents.restore_version",
       "output": {
-        "$ref": "#/$defs/s_a05c8672b0"
+        "$ref": "#/$defs/s_3147f6cf0b"
       },
       "permission": null,
       "resource": {
@@ -28999,6 +29058,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "switchOnLimit": true,
               "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
@@ -29034,7 +29094,7 @@
       "module": "agents",
       "name": "agents.resume",
       "output": {
-        "$ref": "#/$defs/s_a05c8672b0"
+        "$ref": "#/$defs/s_3147f6cf0b"
       },
       "permission": null,
       "resource": {
@@ -29102,6 +29162,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "switchOnLimit": true,
               "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
@@ -29146,7 +29207,7 @@
       "output": {
         "properties": {
           "agent": {
-            "$ref": "#/$defs/s_dd56f942f8"
+            "$ref": "#/$defs/s_7d00c458a9"
           },
           "undoVersionId": {
             "examples": [
@@ -29791,6 +29852,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "switchOnLimit": true,
               "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
@@ -29838,7 +29900,7 @@
       "module": "agents",
       "name": "agents.set_owner",
       "output": {
-        "$ref": "#/$defs/s_a05c8672b0"
+        "$ref": "#/$defs/s_3147f6cf0b"
       },
       "permission": null,
       "resource": {
@@ -30795,6 +30857,7 @@
               "pausedReason": "example",
               "role": "example",
               "status": "awake",
+              "switchOnLimit": true,
               "teammateOf": "prj_a1b2c3",
               "templateVersion": 1,
               "toolsAllowed": [
@@ -30836,7 +30899,7 @@
       "name": "agents.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_a05c8672b0"
+        "$ref": "#/$defs/s_3147f6cf0b"
       },
       "permission": null,
       "resource": {
@@ -47623,6 +47686,7 @@
                     "kind": "person"
                   }
                 ],
+                "mode": "ask",
                 "parentMessageId": "msg_a1b2c3",
                 "parentThreadId": "thr_a1b2c3",
                 "path": [
@@ -47677,7 +47741,7 @@
       "module": "chat",
       "name": "chat.asks_of",
       "output": {
-        "$ref": "#/$defs/s_a85a72f91c"
+        "$ref": "#/$defs/s_2d9ec6fb5c"
       },
       "permission": null,
       "resource": {
@@ -48035,6 +48099,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -48100,7 +48165,7 @@
             "type": "integer"
           },
           "thread": {
-            "$ref": "#/$defs/s_b4cc02fcf3"
+            "$ref": "#/$defs/s_08d2db5985"
           }
         },
         "required": [
@@ -48175,6 +48240,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -48232,7 +48298,7 @@
             "type": "integer"
           },
           "thread": {
-            "$ref": "#/$defs/s_b4cc02fcf3"
+            "$ref": "#/$defs/s_08d2db5985"
           }
         },
         "required": [
@@ -48311,6 +48377,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -48390,7 +48457,7 @@
             "type": "string"
           },
           "helper": {
-            "$ref": "#/$defs/s_b4cc02fcf3"
+            "$ref": "#/$defs/s_08d2db5985"
           }
         },
         "required": [
@@ -49010,6 +49077,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -49051,7 +49119,7 @@
       "name": "chat.open_as_chat",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -50642,6 +50710,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -50751,7 +50820,7 @@
       "name": "chat.start",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": "chats.private",
       "resource": {
@@ -50814,6 +50883,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -50843,7 +50913,7 @@
       "name": "chat.thread",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -51646,6 +51716,240 @@
         "http": "auto",
         "mcp": {
           "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channel": "email"
+          },
+          "name": "example",
+          "output": {
+            "senders": [
+              {
+                "address": "intake@example.com",
+                "channel": "email",
+                "default": true,
+                "id": "mbx_a1b2c3",
+                "name": "Intake line",
+                "provider": "google",
+                "scope": "mine",
+                "usable": true,
+                "via": "Gmail",
+                "why": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "text"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "inbox",
+      "name": "comms.senders.list",
+      "output": {
+        "properties": {
+          "senders": {
+            "items": {
+              "properties": {
+                "address": {
+                  "description": "The email address or the number",
+                  "examples": [
+                    "intake@example.com"
+                  ],
+                  "type": "string"
+                },
+                "channel": {
+                  "enum": [
+                    "email",
+                    "text"
+                  ],
+                  "type": "string"
+                },
+                "default": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "description": "The mailbox id or the number id: what mail.send (mailboxId, senderId) and telephony.send_sms (numberId, senderId) take",
+                  "examples": [
+                    "mbx_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "examples": [
+                    "Intake line"
+                  ],
+                  "type": "string"
+                },
+                "provider": {
+                  "description": "The provider key",
+                  "examples": [
+                    "google"
+                  ],
+                  "type": "string"
+                },
+                "scope": {
+                  "enum": [
+                    "mine",
+                    "space"
+                  ],
+                  "type": "string"
+                },
+                "usable": {
+                  "type": "boolean"
+                },
+                "via": {
+                  "description": "The provider as a person names it",
+                  "examples": [
+                    "Gmail"
+                  ],
+                  "type": "string"
+                },
+                "why": {
+                  "description": "Plain words for a sender that cannot send right now",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "channel",
+                "name",
+                "address",
+                "via",
+                "provider",
+                "scope",
+                "default",
+                "usable"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "senders"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channel": "email",
+            "senderId": "mbx_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "channel": "email",
+            "senderId": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "text"
+            ],
+            "type": "string"
+          },
+          "senderId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "senderId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "inbox",
+      "name": "comms.senders.set_default",
+      "offline": "queue",
+      "output": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "text"
+            ],
+            "type": "string"
+          },
+          "senderId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "senderId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
         }
       },
       "v": 1
@@ -67725,6 +68029,7 @@
                 "kind": "api_key",
                 "lastProbeAt": 1760000000000,
                 "mine": true,
+                "name": "Dana Claude Max",
                 "ownerId": "usr_a1b2c3",
                 "ref": "#Team_Anthropic_Key",
                 "status": "ok",
@@ -67787,6 +68092,13 @@
                 },
                 "mine": {
                   "type": "boolean"
+                },
+                "name": {
+                  "description": "The name the person gave this account in the Vault; title is the provider",
+                  "examples": [
+                    "Dana Claude Max"
+                  ],
+                  "type": "string"
                 },
                 "ownerId": {
                   "examples": [
@@ -73246,6 +73558,187 @@
         "http": "auto",
         "mcp": {
           "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountRef": "#Team_Anthropic_Key",
+            "agentId": "agt_a1b2c3",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "account": {
+              "name": "Dana Claude Max",
+              "plan": "example",
+              "provider": "anthropic",
+              "ref": "#Team_Anthropic_Key"
+            },
+            "context": {
+              "used": 1,
+              "window": 1
+            },
+            "session": {
+              "pct": 1,
+              "resetsAt": 1760000000000
+            },
+            "source": "provider",
+            "week": {
+              "pct": 1,
+              "resetsAt": 1760000000000
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "accountRef": {
+            "description": "Vault handle or subscription account reference; never a secret value",
+            "examples": [
+              "#Team_Anthropic_Key"
+            ],
+            "type": "string"
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.usage.get",
+      "output": {
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "properties": {
+                  "name": {
+                    "description": "The name the person gave the account in the Vault",
+                    "examples": [
+                      "Dana Claude Max"
+                    ],
+                    "type": "string"
+                  },
+                  "plan": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "examples": [
+                      "anthropic"
+                    ],
+                    "type": "string"
+                  },
+                  "ref": {
+                    "description": "Vault handle or subscription account reference; never a secret value",
+                    "examples": [
+                      "#Team_Anthropic_Key"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "name",
+                  "provider"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "anyOf": [
+              {
+                "properties": {
+                  "used": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "window": {
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "used",
+                  "window"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "session": {
+            "$ref": "#/$defs/s_3f78412be5"
+          },
+          "source": {
+            "enum": [
+              "provider",
+              "estimate",
+              "none"
+            ],
+            "type": "string"
+          },
+          "week": {
+            "$ref": "#/$defs/s_3f78412be5"
+          }
+        },
+        "required": [
+          "account",
+          "context",
+          "session",
+          "week",
+          "source"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
         }
       },
       "v": 1
@@ -110718,6 +111211,9 @@
             "minimum": 0,
             "type": "integer"
           },
+          "senderId": {
+            "$ref": "#/$defs/s_3620a2728a"
+          },
           "subject": {
             "type": "string"
           },
@@ -110844,6 +111340,7 @@
             "idempotencyKey": "idem_1",
             "mailboxId": "mbx_a1b2c3",
             "replyToMessageId": "eml_a1b2c3",
+            "senderId": "mbx_a1b2c3",
             "subject": "example",
             "text": "example",
             "to": [
@@ -110928,6 +111425,9 @@
             "pattern": "^eml_[a-z0-9]+$",
             "type": "string"
           },
+          "senderId": {
+            "$ref": "#/$defs/s_3620a2728a"
+          },
           "subject": {
             "type": "string"
           },
@@ -110996,6 +111496,7 @@
             "campaignId": "cmp_a1b2c3",
             "channel": "email",
             "mailboxId": "mbx_a1b2c3",
+            "senderId": "mbx_a1b2c3",
             "to": [
               {
                 "address": "maya@example.com",
@@ -111046,6 +111547,9 @@
             ],
             "pattern": "^mbx_[a-z0-9]+$",
             "type": "string"
+          },
+          "senderId": {
+            "$ref": "#/$defs/s_3620a2728a"
           },
           "to": {
             "$ref": "#/$defs/s_3d0bb55422"
@@ -140259,6 +140763,7 @@
               "handle": "#Dana_Lawmatics",
               "id": "prv_a1b2c3",
               "itemId": "vit_a1b2c3",
+              "itemName": "Dana Claude Max",
               "keyless": true,
               "logo": "example",
               "name": "example",
@@ -140340,7 +140845,7 @@
       "name": "providers.add",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_5a861eae61"
+        "$ref": "#/$defs/s_aa420fb556"
       },
       "permission": null,
       "resource": {
@@ -140515,6 +141020,7 @@
               "handle": "#Dana_Lawmatics",
               "id": "prv_a1b2c3",
               "itemId": "vit_a1b2c3",
+              "itemName": "Dana Claude Max",
               "keyless": true,
               "logo": "example",
               "name": "example",
@@ -140596,7 +141102,7 @@
             "$ref": "#/$defs/s_8e499b5b27"
           },
           "provider": {
-            "$ref": "#/$defs/s_9c8d435efe"
+            "$ref": "#/$defs/s_b943419fb3"
           }
         },
         "required": [
@@ -140782,6 +141288,7 @@
                 "handle": "#Dana_Lawmatics",
                 "id": "prv_a1b2c3",
                 "itemId": "vit_a1b2c3",
+                "itemName": "Dana Claude Max",
                 "keyless": true,
                 "logo": "example",
                 "name": "example",
@@ -140812,7 +141319,7 @@
         "properties": {
           "providers": {
             "items": {
-              "$ref": "#/$defs/s_9c8d435efe"
+              "$ref": "#/$defs/s_b943419fb3"
             },
             "type": "array"
           }
@@ -140941,6 +141448,7 @@
               "handle": "#Dana_Lawmatics",
               "id": "prv_a1b2c3",
               "itemId": "vit_a1b2c3",
+              "itemName": "Dana Claude Max",
               "keyless": true,
               "logo": "example",
               "name": "example",
@@ -140983,7 +141491,7 @@
       "name": "providers.set_space_use",
       "offline": "online",
       "output": {
-        "$ref": "#/$defs/s_5a861eae61"
+        "$ref": "#/$defs/s_aa420fb556"
       },
       "permission": null,
       "resource": {
@@ -141033,6 +141541,7 @@
               "handle": "#Dana_Lawmatics",
               "id": "prv_a1b2c3",
               "itemId": "vit_a1b2c3",
+              "itemName": "Dana Claude Max",
               "keyless": true,
               "logo": "example",
               "name": "example",
@@ -141078,7 +141587,7 @@
       "output": {
         "properties": {
           "provider": {
-            "$ref": "#/$defs/s_9c8d435efe"
+            "$ref": "#/$defs/s_b943419fb3"
           },
           "waiting": {
             "type": "boolean"
@@ -173071,6 +173580,7 @@
             "numberId": "num_a1b2c3",
             "replyToId": "sms_a1b2c3",
             "sendAt": 1760000000000,
+            "senderId": "num_a1b2c3",
             "to": "+14155550123"
           },
           "name": "example",
@@ -173142,6 +173652,13 @@
             ],
             "minimum": 0,
             "type": "integer"
+          },
+          "senderId": {
+            "description": "An id from comms.senders.list. For a text it is the number id and must equal numberId",
+            "examples": [
+              "num_a1b2c3"
+            ],
+            "type": "string"
           },
           "to": {
             "examples": [
@@ -175627,6 +176144,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -175682,7 +176200,7 @@
       "module": "chat",
       "name": "threads.add_agent",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": "channels.agents",
       "resource": {
@@ -175692,6 +176210,177 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Add an agent to a thread as listening (or leading when it is the only agent)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "thread.updated"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountRef": "example",
+            "agentId": "agt_a1b2c3",
+            "effort": "low",
+            "model": "example",
+            "provider": "example",
+            "scope": "chat",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "thread": {
+              "agents": [
+                {
+                  "accountRef": "example",
+                  "agentId": "agt_a1b2c3",
+                  "effort": "low",
+                  "mode": "lead",
+                  "model": "claude-sonnet-5-5",
+                  "provider": "anthropic",
+                  "watches": true
+                }
+              ],
+              "channelId": "chn_a1b2c3",
+              "closedAt": 1760000000000,
+              "createdAt": 1760000000000,
+              "folderId": "fld_a1b2c3",
+              "kind": "chat",
+              "lastMessageAt": 1760000000000,
+              "listed": true,
+              "members": [
+                {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                }
+              ],
+              "mode": "ask",
+              "parentMessageId": "msg_a1b2c3",
+              "parentThreadId": "thr_a1b2c3",
+              "path": [
+                {
+                  "threadId": "thr_a1b2c3",
+                  "title": "example"
+                }
+              ],
+              "planMode": true,
+              "recordId": "rec_a1b2c3",
+              "replyCount": 1,
+              "scopeId": "example",
+              "scopeType": "record",
+              "starter": "example",
+              "threadId": "thr_a1b2c3",
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "accountRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "max"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "enum": [
+              "chat",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "chat",
+      "name": "threads.agent.configure",
+      "offline": "queue",
+      "output": {
+        "$ref": "#/$defs/s_5798a865e5"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -175744,6 +176433,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -175784,7 +176474,7 @@
       "module": "chat",
       "name": "threads.close",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -175919,6 +176609,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -175960,7 +176651,7 @@
       "module": "chat",
       "name": "threads.get",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -176028,6 +176719,7 @@
                     "kind": "person"
                   }
                 ],
+                "mode": "ask",
                 "parentMessageId": "msg_a1b2c3",
                 "parentThreadId": "thr_a1b2c3",
                 "path": [
@@ -176105,7 +176797,7 @@
       "module": "chat",
       "name": "threads.list",
       "output": {
-        "$ref": "#/$defs/s_a85a72f91c"
+        "$ref": "#/$defs/s_2d9ec6fb5c"
       },
       "permission": null,
       "resource": {
@@ -176355,6 +177047,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -176383,7 +177076,7 @@
       "module": "chat",
       "name": "threads.members.add",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -176446,6 +177139,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -176474,7 +177168,7 @@
       "module": "chat",
       "name": "threads.members.remove",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -176538,6 +177232,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -176586,7 +177281,7 @@
       "module": "chat",
       "name": "threads.remove_agent",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": "channels.agents",
       "resource": {
@@ -176648,6 +177343,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -176688,7 +177384,7 @@
       "module": "chat",
       "name": "threads.reopen",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -176751,6 +177447,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -176807,7 +177504,7 @@
       "name": "threads.set_folder",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -176817,6 +177514,121 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Set the thread work folder (the folder chip above the composer)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "thread.updated",
+        "thread.plan_mode_changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "mode": "ask",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "thread": {
+              "agents": [
+                {
+                  "accountRef": "example",
+                  "agentId": "agt_a1b2c3",
+                  "effort": "low",
+                  "mode": "lead",
+                  "model": "claude-sonnet-5-5",
+                  "provider": "anthropic",
+                  "watches": true
+                }
+              ],
+              "channelId": "chn_a1b2c3",
+              "closedAt": 1760000000000,
+              "createdAt": 1760000000000,
+              "folderId": "fld_a1b2c3",
+              "kind": "chat",
+              "lastMessageAt": 1760000000000,
+              "listed": true,
+              "members": [
+                {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                }
+              ],
+              "mode": "ask",
+              "parentMessageId": "msg_a1b2c3",
+              "parentThreadId": "thr_a1b2c3",
+              "path": [
+                {
+                  "threadId": "thr_a1b2c3",
+                  "title": "example"
+                }
+              ],
+              "planMode": true,
+              "recordId": "rec_a1b2c3",
+              "replyCount": 1,
+              "scopeId": "example",
+              "scopeType": "record",
+              "starter": "example",
+              "threadId": "thr_a1b2c3",
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "ask",
+              "auto",
+              "plan"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "chat",
+      "name": "threads.set_mode",
+      "offline": "queue",
+      "output": {
+        "$ref": "#/$defs/s_5798a865e5"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -176870,6 +177682,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -176915,7 +177728,7 @@
       "name": "threads.set_plan_mode",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -176978,6 +177791,7 @@
                   "kind": "person"
                 }
               ],
+              "mode": "ask",
               "parentMessageId": "msg_a1b2c3",
               "parentThreadId": "thr_a1b2c3",
               "path": [
@@ -177023,7 +177837,7 @@
       "name": "threads.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_9746c1f86e"
+        "$ref": "#/$defs/s_5798a865e5"
       },
       "permission": null,
       "resource": {
@@ -230551,6 +231365,42 @@
       },
       "scope": "person",
       "title": "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)"
+    },
+    {
+      "default": null,
+      "key": "comms.default_sender_email",
+      "module": "inbox",
+      "page": "comms",
+      "schema": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "scope": "person",
+      "title": "Default email sender"
+    },
+    {
+      "default": null,
+      "key": "comms.default_sender_text",
+      "module": "inbox",
+      "page": "comms",
+      "schema": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "scope": "person",
+      "title": "Default text sender"
     },
     {
       "default": 8,

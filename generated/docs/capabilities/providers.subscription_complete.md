@@ -43,6 +43,7 @@ type Out = {
     via: string;
     scope: "mine" | "shared";
     itemId: string;
+    itemName?: string;
     handle?: string;
     agentsUsing: Array<string>;
     usage: {
@@ -89,6 +90,7 @@ type Out = {
       "handle": "#Dana_Lawmatics",
       "id": "prv_a1b2c3",
       "itemId": "vit_a1b2c3",
+      "itemName": "Dana Claude Max",
       "keyless": true,
       "logo": "example",
       "name": "example",

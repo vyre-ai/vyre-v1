@@ -1574,6 +1574,18 @@
     },
     {
       "deferred": false,
+      "name": "comms_senders_list",
+      "summary": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "comms_senders_set_default",
+      "summary": "Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "computer_files_delete",
       "summary": "Delete a file from the agent Files folder; always asks outside work/",
       "toolset": "computer"
@@ -2501,6 +2513,12 @@
       "name": "engine_turns_list",
       "summary": "Turns of a thread, newest first",
       "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_usage_get",
+      "summary": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -7598,6 +7616,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_agent_configure",
+      "summary": "Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_close",
       "summary": "Close a thread (idle with nothing waiting, or done)",
       "toolset": "chats"
@@ -7654,6 +7678,12 @@
       "deferred": false,
       "name": "threads_set_folder",
       "summary": "Set the thread work folder (the folder chip above the composer)",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_set_mode",
+      "summary": "Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode",
       "toolset": "chats"
     },
     {

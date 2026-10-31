@@ -1,6 +1,8 @@
 {
   "module": "inbox",
   "capabilities": {
+    "comms.senders.list@1": "816de82b99e7ff440299fe4e294000b461eef4fbae7ba6fa44ce727a9a886597",
+    "comms.senders.set_default@1": "dd6a2d9477a3926f37f8727541a9fe7b3c5efd4efa072670e9d65ed55a1980b2",
     "inbox.counts@1": "48db347fe1e7d6f2f798973a7d7fb2b27bc933bfb00adf411bdc679025bb2cba",
     "inbox.follow_set@1": "2e527d03e6a1be2ff45242ab0e690c0cde04d26e72840459c4295df4cf865a8e",
     "inbox.following@1": "320ab582627af49bfcd78c463a46016cd411112816c554f355b9cbe0cd581a37",

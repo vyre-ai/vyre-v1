@@ -5,7 +5,7 @@ import type { Handlers } from './handlers.ts';
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
   "engine.account.resolve": async () => ({"accountRef":"#Team_Anthropic_Key","allowed":true,"itemId":"vit_a1b2c3","payer":"usr_a1b2c3","reason":"starter"} as unknown) as never,
-  "engine.accounts.list": async () => ({"accounts":[{"base":"example","driver":"anthropic","keyless":true,"kind":"api_key","lastProbeAt":1760000000000,"mine":true,"ownerId":"usr_a1b2c3","ref":"#Team_Anthropic_Key","status":"ok","title":"example"}]} as unknown) as never,
+  "engine.accounts.list": async () => ({"accounts":[{"base":"example","driver":"anthropic","keyless":true,"kind":"api_key","lastProbeAt":1760000000000,"mine":true,"name":"Dana Claude Max","ownerId":"usr_a1b2c3","ref":"#Team_Anthropic_Key","status":"ok","title":"example"}]} as unknown) as never,
   "engine.complete": async () => ({"text":"example","tokensIn":1,"tokensOut":1} as unknown) as never,
   "engine.defaults.get": async () => ({"effort":"low","fallback":[{"accountRef":"#Team_Anthropic_Key","model":"example","provider":"example"}],"model":"example","provider":"example"} as unknown) as never,
   "engine.defaults.set": async () => ({"ok":true} as unknown) as never,
@@ -61,6 +61,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.turn.start": async () => ({"turn":{"accountRef":"#Team_Anthropic_Key","agentId":"agt_a1b2c3","asker":"example","costMicros":1,"endedAt":1760000000000,"engine":"example","error":{"code":"example","message":"example","next":[{"kind":"example","label":"example"}],"traceId":"0123456789abcdef0123456789abcdef"},"model":"example","runId":"run_a1b2c3","startedAt":1760000000000,"state":"queued","threadId":"thr_a1b2c3","tokensIn":1,"tokensOut":1,"traceId":"0123456789abcdef0123456789abcdef","turnId":"trn_a1b2c3"}} as unknown) as never,
   "engine.turn.wait": async () => ({"ok":true} as unknown) as never,
   "engine.turns.list": async () => ({"next":"example","total":1,"turns":[{"accountRef":"#Team_Anthropic_Key","agentId":"agt_a1b2c3","asker":"example","costMicros":1,"endedAt":1760000000000,"engine":"example","error":{"code":"example","message":"example","next":[{"kind":"example","label":"example"}],"traceId":"0123456789abcdef0123456789abcdef"},"model":"example","runId":"run_a1b2c3","startedAt":1760000000000,"state":"queued","threadId":"thr_a1b2c3","tokensIn":1,"tokensOut":1,"traceId":"0123456789abcdef0123456789abcdef","turnId":"trn_a1b2c3"}]} as unknown) as never,
+  "engine.usage.get": async () => ({"account":{"name":"Dana Claude Max","plan":"example","provider":"anthropic","ref":"#Team_Anthropic_Key"},"context":{"used":1,"window":1},"session":{"pct":1,"resetsAt":1760000000000},"source":"provider","week":{"pct":1,"resetsAt":1760000000000}} as unknown) as never,
   "engine.usage.query": async () => ({"rows":[{"face":"example","key":"example","title":"example","totals":{"costMicros":1,"tokensIn":1,"tokensOut":1,"turns":1}}],"totals":{"costMicros":1,"tokensIn":1,"tokensOut":1,"turns":1}} as unknown) as never,
   "engine.use_policy.export": async () => ({"fileId":"fil_a1b2c3"} as unknown) as never,
   "engine.warm": async () => ({"warm":true} as unknown) as never,

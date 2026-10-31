@@ -36,6 +36,7 @@ type Out = {
       driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       kind: "api_key" | "subscription";
       title: string;
+      name?: string;
       mine: boolean;
       ownerId?: string;
       status: "ok" | "expired" | "failed" | "untested";
@@ -68,6 +69,7 @@ type Out = {
         "kind": "api_key",
         "lastProbeAt": 1760000000000,
         "mine": true,
+        "name": "Dana Claude Max",
         "ownerId": "usr_a1b2c3",
         "ref": "#Team_Anthropic_Key",
         "status": "ok",

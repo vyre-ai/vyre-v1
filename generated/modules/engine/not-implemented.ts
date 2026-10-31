@@ -62,6 +62,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.turn.start": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.start", ctx.trace)); },
   "engine.turn.wait": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.wait", ctx.trace)); },
   "engine.turns.list": async (ctx) => { throw new VyreErr(notImplemented("engine.turns.list", ctx.trace)); },
+  "engine.usage.get": async (ctx) => { throw new VyreErr(notImplemented("engine.usage.get", ctx.trace)); },
   "engine.usage.query": async (ctx) => { throw new VyreErr(notImplemented("engine.usage.query", ctx.trace)); },
   "engine.use_policy.export": async (ctx) => { throw new VyreErr(notImplemented("engine.use_policy.export", ctx.trace)); },
   "engine.warm": async (ctx) => { throw new VyreErr(notImplemented("engine.warm", ctx.trace)); },

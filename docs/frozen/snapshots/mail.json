@@ -31,9 +31,9 @@
     "mail.route.list@1": "20bfa1eb86fcfc5873bb4c443c068c0d022f1fac611e59cb03bb01118485f876",
     "mail.route.remove@1": "1ea3cc3893ae690b8282bd145232ffa79dec8cb250fbf244b79a34a9267395da",
     "mail.route.set@1": "a6016747338854d3db84c7b7c601687dafc8690f901311f5dc4c6ae0dd381f7f",
-    "mail.send@1": "8e261a06edb7095749ff0c2518dd40c7ca57c2b684738cc216f77507313601ff",
-    "mail.send_as@1": "1d0a456f0d7eaa6599ba629302f7effcc9f5e4c3c4513ab3138147c3d6e8f48f",
-    "mail.send_preview@1": "7763ec5967d0d8964ce593482220e9f73a4f20dbcb134dc88d7f42eebafcd8a8",
+    "mail.send@1": "d5f6e81ce72376afc1aa8320d8d8a7bcff60468965151e0aa3bbd86df8d82c3e",
+    "mail.send_as@1": "7f3bface7ae3f761528332b41da76ace08183e4245d348380b8cc510edfe67ff",
+    "mail.send_preview@1": "32f2a274d75efdf6734a2a2b44537b45976c30d8cc98fab181ba2f8f992d1986",
     "mail.status_update@1": "6872129e815039f1ca31b973fa9edf807521993c92ef1f25afcc2b47e48c8705",
     "mail.sync_now@1": "a9e13acac2e720c569ddb90ad7fc7c499d6d08918861556f1076b134a027abe9"
   },

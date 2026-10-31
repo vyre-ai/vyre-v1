@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (60)
+## Capabilities (61)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
@@ -63,6 +63,7 @@ Requires: nothing.
 - [engine.turn.start](../capabilities/engine.turn.start.md): Start a queued turn on the placement chosen (host or device); records account, engine and model
 - [engine.turn.wait](../capabilities/engine.turn.wait.md): Park a turn until a task, an answered block, a run or a time
 - [engine.turns.list](../capabilities/engine.turns.list.md): Turns of a thread, newest first
+- [engine.usage.get](../capabilities/engine.usage.get.md): For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated
 - [engine.usage.query](../capabilities/engine.usage.query.md): Usage by day, person, agent or model; people see their own, managers their agents, admins all
 - [engine.use_policy.export](../capabilities/engine.use_policy.export.md): Export the AI use policy (models, providers, label rules, limits, accounts) as a file
 - [engine.warm](../capabilities/engine.warm.md): Hint that a thread was opened or the composer got focus: warm the engine session (drivers pool, prefix cache)

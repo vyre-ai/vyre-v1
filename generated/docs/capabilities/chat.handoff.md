@@ -49,6 +49,7 @@ type Out = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -121,6 +122,7 @@ type Out = {
           "kind": "person"
         }
       ],
+      "mode": "ask",
       "parentMessageId": "msg_a1b2c3",
       "parentThreadId": "thr_a1b2c3",
       "path": [

@@ -406,6 +406,12 @@ export function createClient(transport: Transport) {
       },
       unpin: call("chat.unpin", 1),
     },
+    comms: {
+      senders: {
+        list: call("comms.senders.list", 1),
+        set_default: call("comms.senders.set_default", 1),
+      },
+    },
     computers: {
       chrome: {
         act: call("computers.chrome.act", 1),
@@ -744,6 +750,7 @@ export function createClient(transport: Transport) {
         list: call("engine.turns.list", 1),
       },
       usage: {
+        get: call("engine.usage.get", 1),
         query: call("engine.usage.query", 1),
       },
       use_policy: {
@@ -2199,6 +2206,9 @@ export function createClient(transport: Transport) {
     },
     threads: {
       add_agent: call("threads.add_agent", 1),
+      agent: {
+        configure: call("threads.agent.configure", 1),
+      },
       close: call("threads.close", 1),
       erase: call("threads.erase", 1),
       get: call("threads.get", 1),
@@ -2212,6 +2222,7 @@ export function createClient(transport: Transport) {
       remove_agent: call("threads.remove_agent", 1),
       reopen: call("threads.reopen", 1),
       set_folder: call("threads.set_folder", 1),
+      set_mode: call("threads.set_mode", 1),
       set_plan_mode: call("threads.set_plan_mode", 1),
       update: call("threads.update", 1),
     },

@@ -11636,6 +11636,62 @@
     },
     {
       "blocks": [],
+      "cap": "comms.senders.list",
+      "deferred": false,
+      "description": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "text"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "comms_senders_list",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "comms.senders.set_default",
+      "deferred": false,
+      "description": "Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "text"
+            ],
+            "type": "string"
+          },
+          "senderId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "senderId"
+        ],
+        "type": "object"
+      },
+      "name": "comms_senders_set_default",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "computers.files.delete",
       "deferred": false,
       "description": "Delete a file from the agent Files folder; always asks outside work/",
@@ -16839,6 +16895,47 @@
       "name": "engine_turns_list",
       "planMode": "allowed",
       "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.usage.get",
+      "deferred": false,
+      "description": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "accountRef": {
+            "description": "Vault handle or subscription account reference; never a secret value",
+            "examples": [
+              "#Team_Anthropic_Key"
+            ],
+            "type": "string"
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_usage_get",
+      "planMode": "allowed",
+      "toolset": "meta",
       "v": 1
     },
     {
@@ -29606,6 +29703,13 @@
             "minimum": 0,
             "type": "integer"
           },
+          "senderId": {
+            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "type": "string"
+          },
           "subject": {
             "type": "string"
           },
@@ -29681,6 +29785,13 @@
               "mbx_a1b2c3"
             ],
             "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "senderId": {
+            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "examples": [
+              "mbx_a1b2c3"
+            ],
             "type": "string"
           },
           "to": {
@@ -49758,6 +49869,13 @@
             "minimum": 0,
             "type": "integer"
           },
+          "senderId": {
+            "description": "An id from comms.senders.list. For a text it is the number id and must equal numberId",
+            "examples": [
+              "num_a1b2c3"
+            ],
+            "type": "string"
+          },
           "to": {
             "examples": [
               "+14155550123"
@@ -50694,6 +50812,93 @@
     },
     {
       "blocks": [],
+      "cap": "threads.agent.configure",
+      "deferred": false,
+      "description": "Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "accountRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "max"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "enum": [
+              "chat",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "threads_agent_configure",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "threads.close",
       "deferred": false,
       "description": "Close a thread (idle with nothing waiting, or done)",
@@ -51043,6 +51248,41 @@
         "type": "object"
       },
       "name": "threads_set_folder",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "threads.set_mode",
+      "deferred": false,
+      "description": "Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "ask",
+              "auto",
+              "plan"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "name": "threads_set_mode",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1

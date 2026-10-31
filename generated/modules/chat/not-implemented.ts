@@ -62,6 +62,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.transcript.summary": async (ctx) => { throw new VyreErr(notImplemented("chat.transcript.summary", ctx.trace)); },
   "chat.unpin": async (ctx) => { throw new VyreErr(notImplemented("chat.unpin", ctx.trace)); },
   "threads.add_agent": async (ctx) => { throw new VyreErr(notImplemented("threads.add_agent", ctx.trace)); },
+  "threads.agent.configure": async (ctx) => { throw new VyreErr(notImplemented("threads.agent.configure", ctx.trace)); },
   "threads.close": async (ctx) => { throw new VyreErr(notImplemented("threads.close", ctx.trace)); },
   "threads.erase": async (ctx) => { throw new VyreErr(notImplemented("threads.erase", ctx.trace)); },
   "threads.get": async (ctx) => { throw new VyreErr(notImplemented("threads.get", ctx.trace)); },
@@ -73,6 +74,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "threads.remove_agent": async (ctx) => { throw new VyreErr(notImplemented("threads.remove_agent", ctx.trace)); },
   "threads.reopen": async (ctx) => { throw new VyreErr(notImplemented("threads.reopen", ctx.trace)); },
   "threads.set_folder": async (ctx) => { throw new VyreErr(notImplemented("threads.set_folder", ctx.trace)); },
+  "threads.set_mode": async (ctx) => { throw new VyreErr(notImplemented("threads.set_mode", ctx.trace)); },
   "threads.set_plan_mode": async (ctx) => { throw new VyreErr(notImplemented("threads.set_plan_mode", ctx.trace)); },
   "threads.update": async (ctx) => { throw new VyreErr(notImplemented("threads.update", ctx.trace)); },
 };

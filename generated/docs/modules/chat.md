@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine.
 
-## Capabilities (70)
+## Capabilities (72)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -63,6 +63,7 @@ Requires: engine.
 - [chat.transcript.summary](../capabilities/chat.transcript.summary.md): The rolling summary of a thread and the pointer to its transcript, used to hand off to another engine
 - [chat.unpin](../capabilities/chat.unpin.md): Remove the pinned marker from a message
 - [threads.add_agent](../capabilities/threads.add_agent.md): Add an agent to a thread as listening (or leading when it is the only agent)
+- [threads.agent.configure](../capabilities/threads.agent.configure.md): Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field
 - [threads.close](../capabilities/threads.close.md): Close a thread (idle with nothing waiting, or done)
 - [threads.erase](../capabilities/threads.erase.md): Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)
 - [threads.get](../capabilities/threads.get.md): Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path
@@ -74,6 +75,7 @@ Requires: engine.
 - [threads.remove_agent](../capabilities/threads.remove_agent.md): Remove an agent from a thread
 - [threads.reopen](../capabilities/threads.reopen.md): Reopen a closed thread
 - [threads.set_folder](../capabilities/threads.set_folder.md): Set the thread work folder (the folder chip above the composer)
+- [threads.set_mode](../capabilities/threads.set_mode.md): Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode
 - [threads.set_plan_mode](../capabilities/threads.set_plan_mode.md): Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved
 - [threads.update](../capabilities/threads.update.md): Rename a thread
 

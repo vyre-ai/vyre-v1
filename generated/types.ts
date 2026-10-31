@@ -1110,6 +1110,7 @@ export type AgentsCreateOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1155,6 +1156,7 @@ export type AgentsGetOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1220,6 +1222,7 @@ export type AgentsListOut = {
       accountKey?: string;
       accountFallback: Array<string>;
       memoryKey?: string;
+      switchOnLimit?: boolean;
       toolsAllowed: Array<string>;
       toolsDenied: Array<string>;
       vaultKeys: Array<string>;
@@ -1269,6 +1272,7 @@ export type AgentsPauseOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1308,6 +1312,7 @@ export type AgentsRestoreOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1349,6 +1354,7 @@ export type AgentsRestoreVersionOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1388,6 +1394,7 @@ export type AgentsResumeOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1428,6 +1435,7 @@ export type AgentsRoleLineSetOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1586,6 +1594,7 @@ export type AgentsSetOwnerOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -1775,6 +1784,7 @@ export type AgentsUpdateOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -5530,6 +5540,7 @@ export type ChatAsksOfOut = {
       scopeId?: string;
       listed: boolean;
       planMode: boolean;
+      mode?: "ask" | "auto" | "plan";
       members: Array<{
           kind: "person" | "agent" | "actor" | "service";
           id: string;
@@ -5637,6 +5648,7 @@ export type ChatForkOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -5681,6 +5693,7 @@ export type ChatHandoffOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -5729,6 +5742,7 @@ export type ChatHelperStartOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -5894,6 +5908,7 @@ export type ChatOpenAsChatOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -6253,6 +6268,7 @@ export type ChatStartOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -6295,6 +6311,7 @@ export type ChatThreadOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -6406,6 +6423,31 @@ export type ChatUnpinIn = {
 };
 export type ChatUnpinOut = {
   pinned: boolean;
+};
+export type CommsSendersListIn = {
+  channel?: "email" | "text";
+};
+export type CommsSendersListOut = {
+  senders: Array<{
+      id: string;
+      channel: "email" | "text";
+      name: string;
+      address: string;
+      via: string;
+      provider: string;
+      scope: "mine" | "space";
+      default: boolean;
+      usable: boolean;
+      why?: string;
+    }>;
+};
+export type CommsSendersSetDefaultIn = {
+  channel: "email" | "text";
+  senderId: string;
+};
+export type CommsSendersSetDefaultOut = {
+  channel: "email" | "text";
+  senderId: string;
 };
 export type ComputersChromeActIn = {
   computerId?: string;
@@ -8613,6 +8655,7 @@ export type EngineAccountsListOut = {
       driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       kind: "api_key" | "subscription";
       title: string;
+      name?: string;
       mine: boolean;
       ownerId?: string;
       status: "ok" | "expired" | "failed" | "untested";
@@ -9469,6 +9512,32 @@ export type EngineTurnsListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type EngineUsageGetIn = {
+  threadId: string;
+  agentId: string;
+  accountRef?: string;
+};
+export type EngineUsageGetOut = {
+  account: {
+    ref: string;
+    name: string;
+    provider: string;
+    plan?: string;
+  } | null;
+  context: {
+    used: number;
+    window: number;
+  } | null;
+  session: {
+    pct: number;
+    resetsAt?: number;
+  } | null;
+  week: {
+    pct: number;
+    resetsAt?: number;
+  } | null;
+  source: "provider" | "estimate" | "none";
 };
 export type EngineUsageQueryIn = {
   by: "day" | "person" | "agent" | "model";
@@ -16062,6 +16131,7 @@ export type MailRouteSetOut = {
 };
 export type MailSendIn = {
   mailboxId: string;
+  senderId?: string;
   route?: "mailbox" | "space_domain";
   to: Array<{
       address: string;
@@ -16097,6 +16167,7 @@ export type MailSendOut = {
 };
 export type MailSendAsIn = {
   mailboxId: string;
+  senderId?: string;
   to: Array<{
       address: string;
       name?: string;
@@ -16128,6 +16199,7 @@ export type MailSendAsOut = {
 };
 export type MailSendPreviewIn = {
   mailboxId: string;
+  senderId?: string;
   channel?: "email";
   to: Array<{
       address: string;
@@ -20919,6 +20991,7 @@ export type ProvidersAddOut = {
     via: string;
     scope: "mine" | "shared";
     itemId: string;
+    itemName?: string;
     handle?: string;
     agentsUsing: Array<string>;
     usage: {
@@ -20973,6 +21046,7 @@ export type ProvidersCustomAddOut = {
     via: string;
     scope: "mine" | "shared";
     itemId: string;
+    itemName?: string;
     handle?: string;
     agentsUsing: Array<string>;
     usage: {
@@ -21015,6 +21089,7 @@ export type ProvidersListOut = {
       via: string;
       scope: "mine" | "shared";
       itemId: string;
+      itemName?: string;
       handle?: string;
       agentsUsing: Array<string>;
       usage: {
@@ -21049,6 +21124,7 @@ export type ProvidersSetSpaceUseOut = {
     via: string;
     scope: "mine" | "shared";
     itemId: string;
+    itemName?: string;
     handle?: string;
     agentsUsing: Array<string>;
     usage: {
@@ -21077,6 +21153,7 @@ export type ProvidersSubscriptionCompleteOut = {
     via: string;
     scope: "mine" | "shared";
     itemId: string;
+    itemName?: string;
     handle?: string;
     agentsUsing: Array<string>;
     usage: {
@@ -27506,6 +27583,7 @@ export type TelephonyRegistrationSubmitOut = {
 };
 export type TelephonySendSmsIn = {
   numberId: string;
+  senderId?: string;
   to: string;
   body: string;
   mediaFileIds?: Array<string>;
@@ -27921,6 +27999,55 @@ export type ThreadsAddAgentOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+  };
+};
+export type ThreadsAgentConfigureIn = {
+  threadId: string;
+  agentId: string;
+  model?: string | null;
+  provider?: string | null;
+  effort?: ("low" | "medium" | "high" | "max") | null;
+  accountRef?: string | null;
+  scope?: "chat" | "agent";
+};
+export type ThreadsAgentConfigureOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -27962,6 +28089,7 @@ export type ThreadsCloseOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -28010,6 +28138,7 @@ export type ThreadsGetOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -28056,6 +28185,7 @@ export type ThreadsListOut = {
       scopeId?: string;
       listed: boolean;
       planMode: boolean;
+      mode?: "ask" | "auto" | "plan";
       members: Array<{
           kind: "person" | "agent" | "actor" | "service";
           id: string;
@@ -28140,6 +28270,7 @@ export type ThreadsMembersAddOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -28182,6 +28313,7 @@ export type ThreadsMembersRemoveOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -28224,6 +28356,7 @@ export type ThreadsRemoveAgentOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -28265,6 +28398,7 @@ export type ThreadsReopenOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -28307,6 +28441,50 @@ export type ThreadsSetFolderOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+  };
+};
+export type ThreadsSetModeIn = {
+  threadId: string;
+  mode: "ask" | "auto" | "plan";
+};
+export type ThreadsSetModeOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -28349,6 +28527,7 @@ export type ThreadsSetPlanModeOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -28391,6 +28570,7 @@ export type ThreadsUpdateOut = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -30142,6 +30322,8 @@ export interface CapMap {
   "chat.transcript.summarize": { in: ChatTranscriptSummarizeIn; out: ChatTranscriptSummarizeOut };
   "chat.transcript.summary": { in: ChatTranscriptSummaryIn; out: ChatTranscriptSummaryOut };
   "chat.unpin": { in: ChatUnpinIn; out: ChatUnpinOut };
+  "comms.senders.list": { in: CommsSendersListIn; out: CommsSendersListOut };
+  "comms.senders.set_default": { in: CommsSendersSetDefaultIn; out: CommsSendersSetDefaultOut };
   "computers.chrome.act": { in: ComputersChromeActIn; out: ComputersChromeActOut };
   "computers.chrome.api": { in: ComputersChromeApiIn; out: ComputersChromeApiOut };
   "computers.chrome.batch": { in: ComputersChromeBatchIn; out: ComputersChromeBatchOut };
@@ -30378,6 +30560,7 @@ export interface CapMap {
   "engine.turn.start": { in: EngineTurnStartIn; out: EngineTurnStartOut };
   "engine.turn.wait": { in: EngineTurnWaitIn; out: EngineTurnWaitOut };
   "engine.turns.list": { in: EngineTurnsListIn; out: EngineTurnsListOut };
+  "engine.usage.get": { in: EngineUsageGetIn; out: EngineUsageGetOut };
   "engine.usage.query": { in: EngineUsageQueryIn; out: EngineUsageQueryOut };
   "engine.use_policy.export": { in: EngineUsePolicyExportIn; out: EngineUsePolicyExportOut };
   "engine.warm": { in: EngineWarmIn; out: EngineWarmOut };
@@ -31416,6 +31599,7 @@ export interface CapMap {
   "terminal.run": { in: TerminalRunIn; out: TerminalRunOut };
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };
+  "threads.agent.configure": { in: ThreadsAgentConfigureIn; out: ThreadsAgentConfigureOut };
   "threads.close": { in: ThreadsCloseIn; out: ThreadsCloseOut };
   "threads.erase": { in: ThreadsEraseIn; out: ThreadsEraseOut };
   "threads.get": { in: ThreadsGetIn; out: ThreadsGetOut };
@@ -31427,6 +31611,7 @@ export interface CapMap {
   "threads.remove_agent": { in: ThreadsRemoveAgentIn; out: ThreadsRemoveAgentOut };
   "threads.reopen": { in: ThreadsReopenIn; out: ThreadsReopenOut };
   "threads.set_folder": { in: ThreadsSetFolderIn; out: ThreadsSetFolderOut };
+  "threads.set_mode": { in: ThreadsSetModeIn; out: ThreadsSetModeOut };
   "threads.set_plan_mode": { in: ThreadsSetPlanModeIn; out: ThreadsSetPlanModeOut };
   "threads.update": { in: ThreadsUpdateIn; out: ThreadsUpdateOut };
   "twilio.a2p.attach_number": { in: TwilioA2pAttachNumberIn; out: TwilioA2pAttachNumberOut };
