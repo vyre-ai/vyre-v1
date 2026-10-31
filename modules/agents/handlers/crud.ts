@@ -6,7 +6,7 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, AWAKE_MS, agentView, markTeammate, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
+  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentView, markTeammate, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
   writeConfig,
 } from "../projections.ts";
@@ -194,7 +194,8 @@ export async function create(ctx: AgentsCtx, input: {
   const tomlText = tomlFor(writeConfig({}, config));
   const template = await readTemplate(ctx);
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
-  const agentMd = starter !== undefined ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role);
+  // the private assistant is the person's own, above any one Space: it starts from its own AGENT.md, never from the Space's Agent template
+  const agentMd = starter !== undefined && input.role?.trim() !== "assistant" ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role);
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
   const rec: AgentRec = {
     id, name, face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
@@ -728,4 +729,34 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
       ctx.log.warn("agents: an agent principal could not be adopted", { agent: p.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
     }
   }
+}
+
+// ---- the starter AGENT.md upgrade ------------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Boot: agents made before the fuller starter carry the old nine-line AGENT.md. One whose file is still version 1 and exactly that old text (no person has saved it) gets today's
+ * default as a new version, so its history keeps the old one. Anything else, a file someone edited or one that started from the Space's Agent template, is left alone.
+ * An assistant still called "<First> Assistant" waits for its rename, so the title it gets is the possessive one. A decision once made is noted and not made again.
+ * Answers the agents it upgraded.
+ */
+export async function upgradeStarterAgentMd(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const done: string[] = [];
+  for (const a of allAgents(ctx.db)) {
+    if (a.agentMdFileId === undefined) continue;
+    const key = `agents.agent_md.v2:${a.id}`;
+    if (meta(ctx.db, key) !== undefined) continue;
+    if (isAssistant(a) && /^[^\s’']+ Assistant$/.test(a.name)) continue;
+    try {
+      const versions = await versionsOf(ctx, a.agentMdFileId);
+      const text = versions.length === 1 ? await textOf(ctx, a.agentMdFileId) : "";
+      if (versions.length !== 1 || !isAgentMdV1(text)) { setMeta(ctx.db, key, "kept"); continue; }
+      await saveFile(ctx, a.agentMdFileId, AGENT_MD_DEFAULT(a.name, a.config.description), "Vyre wrote a fuller starter AGENT.md");
+      setMeta(ctx.db, key, "upgraded");
+      done.push(a.id);
+    } catch (e) {
+      ctx.log.warn("agents: a starter AGENT.md could not be upgraded", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    }
+  }
+  return done;
 }
