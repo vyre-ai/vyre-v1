@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (75)
+## Capabilities (76)
 
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
 - [google.calendar.delete_event](../capabilities/google.calendar.delete_event.md): Delete an event; Google tells the attendees
@@ -80,6 +80,7 @@ Requires: mail.
 - [google.user.complete](../capabilities/google.user.complete.md): Finish signing in from the callback: the state and the code, or the error Google sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync
 - [google.user.list](../capabilities/google.user.list.md): Your own signed-in Google accounts
 - [google.user.remove](../capabilities/google.user.remove.md): Sign out of your own Google account: revoke it at Google and remove its token
+- [google.user.send_message](../capabilities/google.user.send_message.md): Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)
 - [google.user.start](../capabilities/google.user.start.md): Start signing in to your own Gmail: the address to approve at
 
 ## Events (5)

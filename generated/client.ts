@@ -1083,6 +1083,7 @@ export function createClient(transport: Transport) {
         complete: call("google.user.complete", 1),
         list: call("google.user.list", 1),
         remove: call("google.user.remove", 1),
+        send_message: call("google.user.send_message", 1),
         start: call("google.user.start", 1),
       },
     },
@@ -1615,6 +1616,7 @@ export function createClient(transport: Transport) {
         complete: call("ms.user.complete", 1),
         list: call("ms.user.list", 1),
         remove: call("ms.user.remove", 1),
+        send_message: call("ms.user.send_message", 1),
         start: call("ms.user.start", 1),
       },
       workbook: {

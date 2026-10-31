@@ -79,5 +79,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.user.complete": async (ctx) => { throw new VyreErr(notImplemented("google.user.complete", ctx.trace)); },
   "google.user.list": async (ctx) => { throw new VyreErr(notImplemented("google.user.list", ctx.trace)); },
   "google.user.remove": async (ctx) => { throw new VyreErr(notImplemented("google.user.remove", ctx.trace)); },
+  "google.user.send_message": async (ctx) => { throw new VyreErr(notImplemented("google.user.send_message", ctx.trace)); },
   "google.user.start": async (ctx) => { throw new VyreErr(notImplemented("google.user.start", ctx.trace)); },
 };

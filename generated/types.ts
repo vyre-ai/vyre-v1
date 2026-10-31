@@ -13530,6 +13530,22 @@ export type GoogleUserRemoveIn = {
 export type GoogleUserRemoveOut = {
   removed: boolean;
 };
+export type GoogleUserSendMessageIn = {
+  accountId: string;
+  to: Array<string>;
+  cc?: Array<string>;
+  bcc?: Array<string>;
+  subject: string;
+  text?: string;
+  html?: string;
+  threadId?: string;
+  attachments?: Array<string>;
+  idempotencyKey: string;
+};
+export type GoogleUserSendMessageOut = {
+  id: string;
+  threadId: string;
+};
 export type GoogleUserStartIn = {
   loginHint?: string;
 };
@@ -20361,6 +20377,21 @@ export type MsUserRemoveIn = {
 };
 export type MsUserRemoveOut = {
   removed: boolean;
+};
+export type MsUserSendMessageIn = {
+  accountId: string;
+  to: Array<string>;
+  cc?: Array<string>;
+  bcc?: Array<string>;
+  subject: string;
+  text?: string;
+  html?: string;
+  conversationId?: string;
+  attachments?: Array<string>;
+  idempotencyKey: string;
+};
+export type MsUserSendMessageOut = {
+  sent: boolean;
 };
 export type MsUserStartIn = {
   loginHint?: string;
@@ -32265,6 +32296,7 @@ export interface CapMap {
   "google.user.complete": { in: GoogleUserCompleteIn; out: GoogleUserCompleteOut };
   "google.user.list": { in: GoogleUserListIn; out: GoogleUserListOut };
   "google.user.remove": { in: GoogleUserRemoveIn; out: GoogleUserRemoveOut };
+  "google.user.send_message": { in: GoogleUserSendMessageIn; out: GoogleUserSendMessageOut };
   "google.user.start": { in: GoogleUserStartIn; out: GoogleUserStartOut };
   "governance.erase.apply": { in: GovernanceEraseApplyIn; out: GovernanceEraseApplyOut };
   "governance.erase.find": { in: GovernanceEraseFindIn; out: GovernanceEraseFindOut };
@@ -32649,6 +32681,7 @@ export interface CapMap {
   "ms.user.complete": { in: MsUserCompleteIn; out: MsUserCompleteOut };
   "ms.user.list": { in: MsUserListIn; out: MsUserListOut };
   "ms.user.remove": { in: MsUserRemoveIn; out: MsUserRemoveOut };
+  "ms.user.send_message": { in: MsUserSendMessageIn; out: MsUserSendMessageOut };
   "ms.user.start": { in: MsUserStartIn; out: MsUserStartOut };
   "ms.workbook.append_rows": { in: MsWorkbookAppendRowsIn; out: MsWorkbookAppendRowsOut };
   "ms.workbook.get_range": { in: MsWorkbookGetRangeIn; out: MsWorkbookGetRangeOut };

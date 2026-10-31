@@ -1083,6 +1083,7 @@ export function stubs(ctx: CallCtx) {
         complete: call("google.user.complete"),
         list: call("google.user.list"),
         remove: call("google.user.remove"),
+        send_message: call("google.user.send_message"),
         start: call("google.user.start"),
       },
     },
@@ -1615,6 +1616,7 @@ export function stubs(ctx: CallCtx) {
         complete: call("ms.user.complete"),
         list: call("ms.user.list"),
         remove: call("ms.user.remove"),
+        send_message: call("ms.user.send_message"),
         start: call("ms.user.start"),
       },
       workbook: {

@@ -63,6 +63,7 @@
     "ms.user.complete@1": "a6c26a7b85e441d03dad4ba7ab57e13f00d8d4d5b53794d0f039d2beb09a176e",
     "ms.user.list@1": "0257dc292d245da515ddc671648887066ce16a1ba0acaa00b2d5a6809f9b82a7",
     "ms.user.remove@1": "739974ade7e57a7d73487a964e4789c51655715981d98c1aa735058c42db7030",
+    "ms.user.send_message@1": "49ee2357ac67f5b6e6a55ed9989ac1249c3c82caa835d7a6eb1c1ef562160016",
     "ms.user.start@1": "ca8ed073b0910b0b5bef78d1052aad166e24514383274ea89a446d2ef19a0b17",
     "ms.workbook.append_rows@1": "d96d5abd00ddf6b6809de8180ec3f446ba8d11c59673ead16a797af9875d7fb3",
     "ms.workbook.get_range@1": "c88cdf8f43c9bb5955850d207e73870916dedc54d4e3a2fcde12793f2688b0e2",

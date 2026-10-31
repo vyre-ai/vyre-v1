@@ -78,5 +78,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.user.complete": async () => ({"accountId":"example","email":"maya@example.com","mailboxId":"mbx_a1b2c3"} as unknown) as never,
   "google.user.list": async () => ({"accounts":[{"accountId":"example","email":"maya@example.com"}]} as unknown) as never,
   "google.user.remove": async () => ({"removed":true} as unknown) as never,
+  "google.user.send_message": async () => ({"id":"example","threadId":"example"} as unknown) as never,
   "google.user.start": async () => ({"authUrl":"example","state":"example"} as unknown) as never,
 };
