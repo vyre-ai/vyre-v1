@@ -16,7 +16,8 @@ const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["posit
 
 export function RecordShareSheet({ target, directory, onClose }: { target: ShareTarget; directory: ShareDirectory; onClose(): void }): ReactElement {
   const data = useRecordsData();
-  const phone = useWindowDimensions().width < 720;
+  const width = useWindowDimensions().width;
+  const phone = width > 0 && width < 720;
   const key = JSON.stringify({ type: target.type, id: target.id });
   const q = useMemo(() => data.live("access.shares_of", { resource: { type: target.type, id: target.id } } as never), [data, key]);   // eslint-disable-line react-hooks/exhaustive-deps
   const state = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
