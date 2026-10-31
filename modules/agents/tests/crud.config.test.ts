@@ -312,6 +312,19 @@ test("the chat key, the ordered fallback list and the memory key are settings of
   assert.deepEqual([cleared.agent.accountFallback, cleared.agent.memoryKey], [[], undefined]);
 });
 
+test("switch when limits run out is a setting of the agent, on until set to false, kept in agent.toml and checked as true or false", async () => {
+  const hn = harness();
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Switchy", role: "Use me when a limit runs out.", idempotencyKey: "sw1" })).agent;
+  assert.equal(a.switchOnLimit, undefined, "absent means on");
+  const off = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { switchOnLimit: false } });
+  assert.equal(off.agent.switchOnLimit, false);
+  assert.match(String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]), /switch_on_limit = false/);
+  assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.switchOnLimit, false);
+  await assert.rejects(() => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { switchOnLimit: "no" } }), /true or false/);
+  const on = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { switchOnLimit: true } });
+  assert.equal(on.agent.switchOnLimit, true);
+});
+
 test("the server reads an agent's memory key for the nightly job without seeing the agent page; a person who cannot see the agent is told it does not exist", async () => {
   const hn = harness({ allow: (a, r) => !(r.type === "agent" && a.level === "view") });
   const a = (await h["agents.create"]!(hn.ctx, { name: "Hidden", role: "Use me for keys.", idempotencyKey: "kk2" })).agent;

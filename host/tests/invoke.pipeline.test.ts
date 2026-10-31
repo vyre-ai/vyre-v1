@@ -166,6 +166,26 @@ test("Gate: a policy hold parks the call, returns held with ids, audit hold row;
   assert.equal((await r.invoke("mail.send", { id: "rec_1" }, { ...agent, approval: "bad" })).status, "held");
 });
 
+test("Ask first: a write the seed marks askFirst is parked once before its handler runs; a read, an unmarked call and the approved resume are not", async () => {
+  const w = cap({ name: "records.update" });
+  const rd = cap({ name: "records.get", effects: "read" });
+  const parked: Array<{ cap: string; act: string }> = [];
+  const gate: GateHook = {
+    applies: () => null,
+    park: async (a) => { parked.push({ cap: a.cap.name, act: a.act }); return { taskId: "tsk_9" }; },
+    verify: (tok) => tok === "good",
+  };
+  const r = rig([w, rd], { "records.update": () => ({ done: true }), "records.get": () => ({ got: true }) }, { gate });
+  const held = await r.invoke("records.update", { id: "rec_1" }, seed({ askFirst: true }));
+  assert.equal(held.status, "held");
+  assert.deepEqual(parked, [{ cap: "records.update", act: "approve" }]);
+  assert.ok(!r.order.includes("handler"), "a parked call has not run");
+  assert.equal((await r.invoke("records.get", { id: "rec_1" }, seed({ askFirst: true }))).status, "ok", "a read never waits");
+  assert.equal((await r.invoke("records.update", { id: "rec_1" }, seed())).status, "ok", "auto, or no mode: nothing extra is held");
+  assert.equal((await r.invoke("records.update", { id: "rec_1" }, seed({ askFirst: true, approval: "good" }))).status, "ok", "the approved resume goes through");
+  assert.equal(parked.length, 1);
+});
+
 test("capability gate: hook decides; with no hook a declared Gate fails closed", async () => {
   const c = cap({ name: "records.delete", gate: { act: "delete", when: "actor.kind != 'person'" } as never });
   const noHook = rig([c], { "records.delete": () => ({ done: true }) });

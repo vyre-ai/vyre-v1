@@ -7,7 +7,7 @@
 //   resume     the engine's session id is learned from its first event and kept; a process that died between turns, or a cancelled one, is replaced by one started with that id.
 //   steering   a message injected during a turn goes to a persistent engine's stdin at once; for a one-shot engine it becomes the next turn of the same send.
 //   cancel     the process is stopped (TERM, then KILL after the grace time). A cancelled session is dirty: the pool closes it instead of reusing it, and the next one resumes by id.
-import type { DriverEvent, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
+import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
 import { classifyCli } from "./errors.ts";
 import { channel, lines } from "./lines.ts";
@@ -30,6 +30,9 @@ export interface CliSessionDeps {
   /** Extra environment from the sandbox (proxy variables). */
   env: Readonly<Record<string, string>>;
   planMode?: () => boolean;
+  /** The chat's mode and the agent's effort this session was opened for (a different mode or effort opens a different session: the pool key holds both). */
+  mode?: ChatMode;
+  effort?: Effort;
   /** Plugins installed on the agent, for the CLI's own config. */
   plugins?: NativePlugins;
   /** No Vyre tools and none of the CLI's own (SessionSpec.tools "none"). */
@@ -99,7 +102,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
 
   async function start(): Promise<Run> {
     const argv = a.command({
-      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), ...(deps.plugins ? { plugins: deps.plugins } : {}), planMode: deps.planMode?.() ?? false, ...(deps.noTools ? { noTools: true } : {}),
+      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), ...(deps.plugins ? { plugins: deps.plugins } : {}), planMode: deps.mode !== undefined ? deps.mode === "plan" : deps.planMode?.() ?? false, ...(deps.mode !== undefined ? { mode: deps.mode } : {}), ...(deps.effort !== undefined ? { effort: deps.effort } : {}), ...(deps.noTools ? { noTools: true } : {}),
       workFolder: deps.workFolder, system: a.systemFlag ? deps.system : null,
     });
     const proc = await deps.launcher.spawn({

@@ -1,7 +1,7 @@
 // CLI engine drivers (ARCH 6.6, spec 4.14, 4.17): Claude Code, Codex and Grok Build run headless inside the person's sandbox and reach Vyre through one loopback MCP endpoint per session.
 // The shapes here are engine neutral; each engine file maps its own command line and event stream to them. Nothing in this folder holds a key or a login: the sandbox puts the login
 // where the CLI reads it (sandbox/src/creds.ts) and the session token travels in the environment, never in a command line or a file.
-import type { SessionSpec } from "../../turn-engine/types.ts";
+import type { ChatMode, Effort, SessionSpec } from "../../turn-engine/types.ts";
 import type { ModelInfo } from "../api/types.ts";
 
 export type CliId = "claude_code" | "codex" | "grok";
@@ -58,6 +58,10 @@ export interface CommandOptions {
   /** Set when the engine reaches Vyre through a stdio shim (sandbox socket) instead of the URL. */
   mcpStdio?: { command: string; args: readonly string[] };
   planMode: boolean;
+  /** The chat's mode. Absent: the older behaviour, where planMode alone decides. */
+  mode?: ChatMode;
+  /** The agent's effort in this chat. Absent: the engine's own default. */
+  effort?: Effort | null;
   /** The session has no Vyre tools and none of the CLI's own: no MCP server is named and the CLI's tools are off, whatever folder it works in. */
   noTools?: boolean;
   /** A granted work folder: the CLI's own file tools come on and it works there. Null on a chat that runs Vyre tools only. */

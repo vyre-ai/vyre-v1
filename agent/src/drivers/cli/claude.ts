@@ -12,6 +12,7 @@
 // was seen for it (an older CLI, or partial messages off).
 import { arr, num, obj, parseLine, str } from "./json.ts";
 import type { Json } from "./json.ts";
+import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions, NativePlugins } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
 
@@ -172,6 +173,19 @@ const MODELS = [
 
 /** The CLI's own file and shell tools a granted work folder turns on. The sandbox is the wall; this only says what the CLI may ask for inside it. */
 export const WORK_FOLDER_TOOLS: readonly string[] = ["Read", "Edit", "Write", "Glob", "Grep", "Bash"];
+/** The ones that change nothing. Ask first and Plan allow these alone: a headless CLI cannot stop to ask, so a tool that would prompt is withheld and the model asks the person in the chat. */
+export const READ_ONLY_FOLDER_TOOLS: readonly string[] = ["Read", "Glob", "Grep"];
+
+/**
+ * The chat mode as Claude Code's own `--permission-mode` (checked against `claude --help`, 2.1.314: acceptEdits, auto, bypassPermissions, manual, dontAsk, plan; "default" is still accepted as manual):
+ * Ask first is default, Auto is acceptEdits with every folder tool allowed by name (so none prompts), Plan is plan. No mode (a step, a one-shot job) keeps the older rule, where only plan mode is told apart.
+ */
+export function claudePermission(o: Pick<CommandOptions, "mode" | "planMode">): "default" | "acceptEdits" | "plan" {
+  const mode = o.mode ?? (o.planMode ? "plan" : undefined);
+  return mode === "plan" ? "plan" : mode === "auto" ? "acceptEdits" : "default";
+}
+/** Claude Code takes the four efforts under the same names (`--effort`: low, medium, high, xhigh, max). */
+export const claudeEffort = (e: Effort | null | undefined): string | null => (e === undefined || e === null ? null : e);
 
 export const claudeCode: CliAdapter = {
   id: "claude_code",
@@ -182,17 +196,21 @@ export const claudeCode: CliAdapter = {
   env: () => ({}),
   command(o: CommandOptions) {
     const tools = o.noTools !== true;
-    const allowed = tools ? ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? WORK_FOLDER_TOOLS : [])] : [];
+    // Only a chat mode narrows the folder tools; the older planMode flag alone changes the permission mode and nothing else, as before.
+    const folderTools = o.mode === "ask" || o.mode === "plan" ? READ_ONLY_FOLDER_TOOLS : WORK_FOLDER_TOOLS;
+    const allowed = tools ? ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? folderTools : [])] : [];
+    const effort = claudeEffort(o.effort);
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
       ...(tools ? ["--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins)] : []), "--strict-mcp-config",
       // installed plugins load natively: their commands, skills and agents come from the plugin folder in the work folder
       ...(tools ? (o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]) : []),
-      "--permission-mode", o.planMode ? "plan" : "default",
+      "--permission-mode", claudePermission(o),
       ...(allowed.length > 0 ? ["--allowedTools", ...allowed] : []),
       // A chat on the person's computer runs Vyre's tools only: the CLI's own tools are switched off unless a work folder was granted. A session with noTools has neither.
       ...(tools && o.workFolder !== null ? ["--add-dir", o.workFolder] : ["--tools", ""]),
       ...(o.model !== null ? ["--model", o.model] : []),
+      ...(effort !== null ? ["--effort", effort] : []),
       ...(o.resume !== null ? ["--resume", o.resume] : []),
       ...(o.system !== null && o.system !== "" ? ["--append-system-prompt", o.system] : []),
     ];

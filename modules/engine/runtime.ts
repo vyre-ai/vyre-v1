@@ -11,6 +11,8 @@ import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
 import { buildOpener, roleBlocks } from "./session.ts";
 import { withRecall } from "./recall.ts";
+import { withChatSettings } from "./chat-settings.ts";
+import { createLimitSwitch } from "./switch-on-limit.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
@@ -208,11 +210,20 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       call: h.call, skills: h.skills ?? diskSkills(), now, handoff: takeHandoff,
       waiting: (threadId, agentId) => (live?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
+    const limitSwitch = createLimitSwitch({
+      call: h.call, accountFor: (q) => accountFor(h, q), now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
+      modelOf: (threadId, agentId) => { try { return live?.agents(threadId).find((a) => a.id === agentId)?.model; } catch { return undefined; } },
+      providerOf: async (ref, payer) => {
+        const list = (await h.call("engine.accounts.list", {}, payer)) as { accounts: Array<{ ref: string; driver: string }> };
+        const row = list.accounts.find((a) => a.ref === ref);
+        return row ? providerOfDriver(row.driver) : undefined;
+      },
+    });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), now,
+      holder: h.holder, openSession: withChatSettings(withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
-      resolveAccount: (q) => accountFor(h, q),
-      nextAccount: (q) => accountFor(h, q),
+      resolveAccount: (q) => limitSwitch.resolve(q),
+      nextAccount: (q) => limitSwitch.next(q),
       onNoAccount: async (info) => {
         try { await unblock(h, ctx.db, info); }
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }

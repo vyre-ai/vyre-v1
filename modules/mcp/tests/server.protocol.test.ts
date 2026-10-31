@@ -203,6 +203,15 @@ test("agent rules and plan mode narrow a CLI session's list and its calls", asyn
   assert.equal(blocked.result.structuredContent.error.code, "permission.plan_mode");
 });
 
+test("a session opened in Plan by chat mode (mode, not the older planMode flag) offers and runs nothing that changes or sends; Auto and Ask first keep the full list", async () => {
+  const r = rig({ callers: { plan: driver({ sessionId: "ses_p", mode: "plan" }), auto: driver({ sessionId: "ses_a", mode: "auto" }), ask: driver({ sessionId: "ses_k", mode: "ask" }) } });
+  for (const t of await r.list("plan")) assert.equal(g.catalog.byName(t.name)!.planMode === "blocked" || g.catalog.byName(t.name)!.effects === "outward", false, `${t.name} is offered in plan`);
+  assert.equal((await r.callTool("plan", "records_create", {})).result.structuredContent.error.code, "permission.plan_mode");
+  const full = (await r.list("auto")).length;
+  assert.equal((await r.list("ask")).length, full);
+  assert.ok(full > (await r.list("plan")).length);
+});
+
 // ---- tool_search and deferred tools
 
 test("a deferred tool must be found with tool_search before it can be called, and then shows in tools/list", async () => {

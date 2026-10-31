@@ -29,6 +29,8 @@ export interface McpCaller {
   /** AI provider of the engine behind this session, for label-vs-provider checks inside authorize. */
   provider?: string;
   planMode?: boolean;
+  /** The chat's mode when this session opened (a mode change opens a new engine session, so a new token). Plan also sets planMode. */
+  mode?: "ask" | "auto" | "plan";
 }
 
 export interface McpServerDeps {

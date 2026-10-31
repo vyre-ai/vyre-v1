@@ -48,6 +48,11 @@ export interface ThreadFacts {
   /** Ask panes: the object being looked at. */
   scope?: { type: string; id: string };
   planMode: boolean;
+  /**
+   * The chat's mode (threads.set_mode). "ask": a tool that changes or sends something is held for a yes before it runs (the Gate parks it). "auto": tools run at once, and the Gate still holds whatever leaves Vyre.
+   * "plan" is the same as planMode true. Absent: no mode is known (a step, an outside caller), and nothing extra is held.
+   */
+  mode?: "ask" | "auto" | "plan";
 }
 
 export interface AgentRules {

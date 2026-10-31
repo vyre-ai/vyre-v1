@@ -8,7 +8,19 @@
 //  - tool approval in headless mode: the docs name only `--always-approve`; Vyre does not pass it (its tools are gated by Vyre), so whether Grok's MCP calls run unattended is unproven.
 // Measured in 0.6 on Grok Build 1.0.46: it imports MCP servers from ~/.claude.json and ~/.cursor/mcp.json unless switched off, so a Vyre session turns both off and gets Vyre's server only.
 import { createClaudeDecoder, mcpConfigJson } from "./claude.ts";
+import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CommandOptions } from "./types.ts";
+
+/**
+ * CHECKED against `grok --help` (1.0.70): `--permission-mode` takes default, acceptEdits, auto, dontAsk, bypassPermissions, plan (a value outside the list is refused at parse), and `--reasoning-effort`
+ * (alias `--effort`) takes a free value. Ask first is default, Auto is acceptEdits, Plan is plan. Vyre never passes --always-approve or bypassPermissions: Auto here is the CLI's accept-edits mode, and
+ * whatever leaves Vyre is held by the Gate behind the MCP tools in every mode. Max maps to high, the highest effort named in the CLI's strings; an unknown value is the CLI's to refuse.
+ */
+export function grokPermission(o: Pick<CommandOptions, "mode" | "planMode">): "default" | "acceptEdits" | "plan" | null {
+  const mode = o.mode ?? (o.planMode ? "plan" : undefined);
+  return mode === undefined ? null : mode === "plan" ? "plan" : mode === "auto" ? "acceptEdits" : "default";
+}
+export const grokEffort = (e: Effort | null | undefined): string | null => (e === undefined || e === null ? null : e === "max" ? "high" : e);
 
 export const grok: CliAdapter = {
   id: "grok",
@@ -21,7 +33,9 @@ export const grok: CliAdapter = {
     return [
       "grok", "-p", "--output-format", "streaming-json", "--no-auto-update",
       "--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio),
+      ...(grokPermission(o) !== null ? ["--permission-mode", grokPermission(o)!] : []),
       ...(o.model !== null ? ["-m", o.model] : []),
+      ...(grokEffort(o.effort) !== null ? ["--reasoning-effort", grokEffort(o.effort)!] : []),
       ...(o.resume !== null ? ["--resume", o.resume] : []),
     ];
   },
