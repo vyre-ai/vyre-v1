@@ -23,6 +23,7 @@ import { InboxPhoneDock } from "../../places/inbox/softphone/phone.tsx";
 import { CallTitlePill } from "../../places/inbox/softphone/pill.tsx";
 import { inboxData } from "./inbox-data.ts";
 import { capLive } from "./records-live.ts";
+import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -99,7 +100,7 @@ function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | 
   if (!phone) {
     return (
       <View testID="inbox-place" style={st.row}>
-        <View style={st.side}><InboxSidebar /></View>
+        <ResizableColumn paneKey="inbox-sidebar" defaultWidth={SIDEBAR_W} grow="right" min={200} maxFraction={0.5} style={st.sideCol} testID="inbox-sidebar-col"><InboxSidebar /></ResizableColumn>
         <View style={st.main}><Main rt={rt} openId={openId} close={close} /></View>
       </View>
     );
@@ -141,6 +142,7 @@ export default function InboxPlace(): ReactElement {
 const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   side: { width: SIDEBAR_W, minHeight: 0 },
+  sideCol: { minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   backChip: { alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 10 },
   backText: { fontSize: 14, color: "var(--accent)" as string },

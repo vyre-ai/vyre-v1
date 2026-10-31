@@ -1,4 +1,5 @@
 // The Automations place: the shell sidebar slot holds the list, and the body holds the open Automation or an operational view.
+import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useEffect, useMemo, useState } from "react";
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
@@ -135,7 +136,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
           {...(step ? { initialSelected: step, initialPanel: true } : {})}
         />
       </View>
-      {sideRun ? <View style={s.side}><View style={s.sideHead}><TextButton label="Close" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View><RunView runId={sideRun} /></View> : null}
+      {sideRun ? <ResizableColumn paneKey="automation-run-side" defaultWidth={380} grow="left" min={280} style={s.side as never}><View style={s.sideHead}><TextButton label="Close" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View><RunView runId={sideRun} /></ResizableColumn> : null}
     </View>
   ) : null;
   const main = overlay?.kind === "failed" ? <FailedView selectedRunId={sideRun} />

@@ -17,6 +17,7 @@ import {
   PANE_TABS, RING_R, activityLine, ago, askText, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
   shownFields, sourceText, splitLinks, toggleFold, valueText,
 } from "./model.ts";
+import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 
 export interface RecordPageStart {
@@ -210,10 +211,10 @@ function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; de
     <View testID="pane-history"><HistoryTab resourceType="record" resourceId={row.id} recordType={type} versions={historyVersions(vq.data.versions, data.nameOf)} selectedVersionId={null} density="compact" invoke={(cap, input) => data.call(cap, input).then(() => undefined)} /></View>
   ) : <Text style={p.paneEmpty}>Loading</Text>;
   return (
-    <View style={p.pane} testID="record-pane" accessibilityLabel="Record details">
+    <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane" label="Record details">
       <TabStrip tabs={each(PANE_TABS, (t) => ({ key: t.key, title: t.title }))} active={tab} onSelect={(k) => onTab(k as PaneKey)} />
       <ScrollView style={p.paneScroll}>{body}</ScrollView>
-    </View>
+    </ResizableColumn>
   );
 }
 
@@ -371,7 +372,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
           {body}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
         </ScrollView>
-        {paneOpen ? (late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : <View style={p.pane} testID="record-pane-reserved" />) : null}
+        {paneOpen ? (late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane-reserved" />) : null}
       </View>
       {menu.element}
     </View>
