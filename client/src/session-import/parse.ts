@@ -1,6 +1,6 @@
 // Pure parsing boundary shared by packaged clients. Never reads local files.
 import { sanitizeImportedText } from "../../../lib/import-text.ts";
-export interface SessionSource { provider: "codex" | "claude"; sessionId: string; sessionKey: string; cwd?: string | null; gitOriginUrl?: string | null; repositoryMetadataAuthoritative?: boolean }
+export interface SessionSource { provider: "codex" | "claude"; sessionId: string; sessionKey: string; cwd?: string | null; title?: string | null; updatedAt?: string | null; gitOriginUrl?: string | null; repositoryMetadataAuthoritative?: boolean }
 export interface SessionDocument { namespace: string; text: string }
 export interface SessionTool { id: string; name: string; summary: string; ok?: boolean; output?: string }
 export interface SessionMessage { sourceMessageId: string; role: "user" | "assistant"; text: string; at: number; tools?: SessionTool[] }
