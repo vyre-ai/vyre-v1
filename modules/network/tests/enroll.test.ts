@@ -163,7 +163,8 @@ test("your own server: a nickname on the code names it, it is listed for you wit
   assert.equal((await call("network.my_computers", h.ctx, {})).computers[0].enrollment, "approved");
   const other = { ...h.ctx, principal: { kind: "person", id: "usr_other" } };
   assert.deepEqual((await call("network.my_computers", other, {})).computers, [], "someone else's server is not listed");
-  await assert.rejects(() => call("network.my_computer_remove", other, { serverId: asked.serverId }), (e) => codeOf(e) === "validation.not_found");
+  assert.deepEqual(await call("network.my_computer_remove", other, { serverId: asked.serverId }), { removed: false }, "someone else's server is not removed, and nothing says whose it is");
+  assert.equal((await call("network.my_computers", h.ctx, {})).computers.length, 1, "still there");
   assert.deepEqual(await call("network.my_computer_remove", h.ctx, { serverId: asked.serverId }), { removed: true });
   assert.deepEqual((await call("network.my_computers", h.ctx, {})).computers, []);
   assert.equal(await nodeByCredential(h.ctx, "vcc_x"), null);

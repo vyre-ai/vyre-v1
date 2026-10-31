@@ -32,7 +32,14 @@ const TEAM_ONLY = "campaigns.launch";
 test("a Personal Space refuses every team-only capability with permission.needs_team, and a Team Space allows them", () => {
   const set = teamOnlySet(registry.capabilities);
   assert.ok(set.size > 5, `the manifests mark ${set.size} capabilities team-only`);
-  for (const name of [TEAM_ONLY, "computers.chrome.act", "backup.run"]) assert.ok(set.has(name), `${name} is team-only`);
+  for (const name of [TEAM_ONLY, "backup.run"]) assert.ok(set.has(name), `${name} is team-only`);
+  // agent computers are no longer a Team Space feature: they run on a capable host (a server the person added, or this computer with Docker), so the matrix never refuses them
+  const computers = registry.capabilities.filter((c) => c.name.startsWith("computers.")).map((c) => c.name);
+  assert.ok(computers.length > 30, "the computers capabilities are in the registry");
+  for (const name of [...computers, "network.my_computer_code", "network.my_computers", "network.my_computer_remove"]) {
+    assert.ok(!set.has(name), `${name} works in a Personal Space`);
+    assert.doesNotThrow(() => refuseTeamOnly("personal", name, set, TRACE), `${name} is served in a Personal Space (it answers for the host it has, or says there is none)`);
+  }
   for (const name of ["sync.pull", "sync.push", "records.get", "chat.send"]) assert.ok(!set.has(name), `${name} works in a Personal Space`);
   for (const cap of set) {
     assert.throws(() => refuseTeamOnly("personal", cap, set, TRACE), (e: unknown) => codeOf(e) === "permission.needs_team", cap);
