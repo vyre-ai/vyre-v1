@@ -208,6 +208,18 @@ export async function chatWith(rt: Pick<ShellRuntime, "call">, agentId: string):
   }
 }
 
+/** A chat with an agent that opens with the person's own first message. The same message to the same agent comes back to the same chat, so a reload does not start a twin. Null when it could not start. */
+export async function chatOpening(rt: Pick<ShellRuntime, "call">, agentId: string, first: string): Promise<string | null> {
+  let h = 0;
+  for (const ch of first) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  try {
+    const out = (await rt.call("chat.start", { kind: "chat", agentIds: [agentId], first, idempotencyKey: `open_chat_${agentId}_${h.toString(36)}` })) as { thread?: { threadId?: string } } | null;
+    return out?.thread?.threadId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The Ask thread to open for an agent about an object (Ask Vyre): the person's newest Ask thread on it with that agent, else a new one. "Bring this conversation": a new one starts with the person's own
  * first message carrying a summary of the chat they were in, so switching agent does not start from nothing. Null when neither could be had.

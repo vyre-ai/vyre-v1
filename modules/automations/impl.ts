@@ -29,14 +29,14 @@ const CONNECTOR_KINDS: ReadonlySet<string> = new Set(["api_key", "env", "login",
 export const consumers = {
   "automations.connector_offer": {
     on: ["vault.item_created"],
-    run(ctx: Ctx, event: { payload?: Record<string, unknown> }): void {
+    run(ctx: Ctx, event: { payload?: Record<string, unknown>; actor?: string }): void {
       const payload = event.payload ?? {};
       const itemId = typeof payload["itemId"] === "string" ? payload["itemId"] : "";
       const name = typeof payload["name"] === "string" ? payload["name"] : "";
       if (itemId === "") return;
       // a card, a note, a code, an SSH key or an AI account is not an app to connect
       if (typeof payload["kind"] === "string" && !CONNECTOR_KINDS.has(payload["kind"])) return;
-      recordSavedItem(ctx.db as OfferDb, { itemId, name, fieldKeys: [] }, ctx.now());
+      recordSavedItem(ctx.db as OfferDb, { itemId, name, fieldKeys: [] }, ctx.now(), payload["scope"] === "mine" && typeof event.actor === "string" ? event.actor : "");
     },
   },
 };

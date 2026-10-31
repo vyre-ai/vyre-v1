@@ -18,7 +18,7 @@ export interface GoogleHostSeam {
   fileBytes(ctx: SeamCtx, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
   putBlob(ctx: SeamCtx, bytes: Uint8Array, mime: string): Promise<string>;
   download(ctx: SeamCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
-  upload(ctx: SeamCtx, a: { url: string; token: string; fileId: string; metadata: Record<string, unknown> }): Promise<unknown>;
+  upload(ctx: SeamCtx, a: { url: string; token: string; fileId: string; metadata: Record<string, unknown>; method?: "POST" | "PATCH" }): Promise<unknown>;
 }
 
 export interface GoogleSeamDeps {

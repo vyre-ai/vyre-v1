@@ -36,7 +36,7 @@ function feed(w: World, name: string, payload: Row, at?: number): void {
 }
 
 async function addDrive(w: World, extra: Row = {}): Promise<{ mountId: string; folderId: string; runId: string }> {
-  const r = await call(w, "mounts.add", { into: "fld_into", source: { kind: "google_drive", connectionId: "con_g", ref: "root_drv" }, name: "Client Drive", ...extra });
+  const r = await call(w, "mounts.add", { into: "fld_into", source: { kind: "google_drive", connectionId: "con_g", ref: "root_drv" }, name: "Client Drive", mode: "server_copy", ...extra });
   return { mountId: String(r["mountId"]), folderId: String(r["folderId"]), runId: String(r["runId"]) };
 }
 
@@ -139,7 +139,7 @@ test("the Drive change feed: updates, renames, removals, children before parents
 
 test("the Graph delta: first listing finds the root, a later delta renames, adds, removes and ignores other folders; a mounted subfolder only sees its own items", async () => {
   const w = harness();
-  const add = await call(w, "mounts.add", { into: "fld_into", source: { kind: "sharepoint", connectionId: "con_m", ref: "drv1" }, name: "Policies Library" });
+  const add = await call(w, "mounts.add", { into: "fld_into", source: { kind: "sharepoint", connectionId: "con_m", ref: "drv1" }, name: "Policies Library", mode: "server_copy" });
   const mountId = String(add["mountId"]);
   assert.deepEqual(w.files.paths(), ["Policies Library/Policies/handbook.pdf", "Policies Library/readme.md"]);
   assert.deepEqual(w.graph.calls[0]?.input, { connectionId: "con_m", as: ME, driveId: "drv1" });
@@ -155,11 +155,11 @@ test("the Graph delta: first listing finds the root, a later delta renames, adds
   assert.equal(lastSynced(w)["pulled"], 4, "renamed, rewritten, leave.txt added, handbook.pdf removed");
 
   // a subfolder of the library: its root is the folder item, anything outside it never appears
-  const sub = await call(w, "mounts.add", { into: "fld_into", source: { kind: "sharepoint", connectionId: "con_m", ref: "drv1", path: "m1" }, name: "Policies only" });
+  const sub = await call(w, "mounts.add", { into: "fld_into", source: { kind: "sharepoint", connectionId: "con_m", ref: "drv1", path: "m1" }, name: "Policies only", mode: "server_copy" });
   assert.deepEqual(w.files.paths().filter((p) => p.startsWith("Policies only/")), ["Policies only/handbook.pdf"]);
   assert.equal(rootOf(w, String(sub["mountId"]))["remote_id"], "m1");
   // OneDrive needs no library
-  const od = await call(w, "mounts.add", { into: "fld_into", source: { kind: "onedrive", connectionId: "con_m" } });
+  const od = await call(w, "mounts.add", { into: "fld_into", source: { kind: "onedrive", connectionId: "con_m" }, mode: "server_copy" });
   assert.equal((await view(w, String(od["mountId"])))["provider"], "OneDrive");
   assert.deepEqual(w.graph.calls.filter((c) => c.cap === "ms.drive.delta").at(-1)?.input, { connectionId: "con_m", as: ME });
   assert.equal((await view(w, String(od["mountId"])))["name"], "OneDrive");
@@ -444,7 +444,6 @@ test("a GitHub mount is a git folder: init, remote, then pulls through the git m
 test("update, pause, resume and remove: options, events, Trash or keep, and the access check", async () => {
   const w = harness();
   const { mountId, folderId } = await addDrive(w);
-  await expectCode("validation.bad_input", () => call(w, "mounts.update", { mountId, mode: "live_only" }));
   await expectCode("validation.bad_input", () => call(w, "mounts.update", { mountId, mode: "never" }));
   const none = await call(w, "mounts.update", { mountId, mode: "server_copy", reviewChanges: true, pullOnly: false });
   assert.equal(w.named("mount.updated").length, 0, "nothing changed, nothing announced");
@@ -526,7 +525,7 @@ test("add checks its input: kinds, what each needs, repeats, mode, repository na
   await expectCode("validation.bad_input", () => bad({ kind: "local", localPath: "/x" }));
   await expectCode("validation.bad_input", () => bad({ kind: "github", ref: "not a repo" }));
   await expectCode("validation.bad_input", () => bad({ kind: "github" }));
-  await expectCode("validation.bad_input", () => bad({ kind: "google_drive", connectionId: "c", ref: "r" }, { mode: "live_only" }));
+  await expectCode("validation.bad_input", () => bad({ kind: "github", ref: "acme/x" }, { mode: "live_only" }));
   await expectCode("validation.bad_input", () => bad({ kind: "local", deviceId: "d", localPath: "/x" }, { mode: "sometimes" }));
   await expectCode("validation.bad_input", () => call(w, "mounts.add", { source: { kind: "local", deviceId: "d", localPath: "/x" } }));
   assert.equal(w.files.folders.size, 1, "a refused add made no folder");
@@ -541,7 +540,7 @@ test("lag health: healthy when idle, degraded by lag or failures, down at an hou
   const w = harness();
   assert.deepEqual(await call(w, "mounts.lag", {}), { state: "healthy", worstLagSeconds: 0, failing: [] });
   const a = await addDrive(w, { name: "A" });
-  const b = await call(w, "mounts.add", { into: "fld_into", source: { kind: "sharepoint", connectionId: "con_m", ref: "drv1" }, name: "B" });
+  const b = await call(w, "mounts.add", { into: "fld_into", source: { kind: "sharepoint", connectionId: "con_m", ref: "drv1" }, name: "B", mode: "server_copy" });
   assert.equal((await call(w, "mounts.lag", {}))["state"], "healthy");
 
   w.db.run("UPDATE mounts_mount SET stale_since = ? WHERE id = ?", w.now() - (LAG_DEGRADED_S + 5) * 1000, a.mountId);

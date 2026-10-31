@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (53)
+## Capabilities (57)
 
 - [ms.calendar.create_event](../capabilities/ms.calendar.create_event.md): Create an event; Exchange invites the attendees
 - [ms.calendar.delete_event](../capabilities/ms.calendar.delete_event.md): Delete an event; Exchange tells the attendees
@@ -35,10 +35,14 @@ Requires: mail.
 - [ms.drive.delete_item](../capabilities/ms.drive.delete_item.md): Delete an item
 - [ms.drive.delta](../capabilities/ms.drive.delta.md): Item changes since a delta link (mount sync and mount lag)
 - [ms.drive.download_item](../capabilities/ms.drive.download_item.md): Download an item into a blob
+- [ms.drive.download_version](../capabilities/ms.drive.download_version.md): Download one version of an item into a blob
 - [ms.drive.get_item](../capabilities/ms.drive.get_item.md): Read item metadata
 - [ms.drive.list_items](../capabilities/ms.drive.list_items.md): List items in a OneDrive or SharePoint folder
+- [ms.drive.list_versions](../capabilities/ms.drive.list_versions.md): The versions OneDrive or SharePoint keeps of an item, with who saved each
 - [ms.drive.share_item](../capabilities/ms.drive.share_item.md): Create a sharing link or invite people; Microsoft emails them
-- [ms.drive.upload_item](../capabilities/ms.drive.upload_item.md): Upload a Space file into OneDrive or SharePoint
+- [ms.drive.subscribe](../capabilities/ms.drive.subscribe.md): Subscribe to change notifications for a drive
+- [ms.drive.unsubscribe](../capabilities/ms.drive.unsubscribe.md): Remove a drive change subscription
+- [ms.drive.upload_item](../capabilities/ms.drive.upload_item.md): Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag
 - [ms.health](../capabilities/ms.health.md): Health probe: GET /organization
 - [ms.mail.create_draft](../capabilities/ms.mail.create_draft.md): Create a draft in the member mailbox
 - [ms.mail.delete_message](../capabilities/ms.mail.delete_message.md): Delete a message (moves it to Deleted Items)

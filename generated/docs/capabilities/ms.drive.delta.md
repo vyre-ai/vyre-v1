@@ -44,6 +44,11 @@ type Out = {
       folder?: boolean;
       webUrl?: string;
       parentId?: string;
+      eTag?: string;
+      lastModifiedBy?: {
+        name?: string;
+        email?: string;
+      };
     }>;
   removed: Array<string>;
   deltaLink: string;
@@ -72,8 +77,13 @@ type Out = {
   "output": {
     "changed": [
       {
+        "eTag": "example",
         "folder": true,
         "id": "example",
+        "lastModifiedBy": {
+          "email": "example",
+          "name": "example"
+        },
         "lastModifiedDateTime": "example",
         "name": "example",
         "parentId": "example",

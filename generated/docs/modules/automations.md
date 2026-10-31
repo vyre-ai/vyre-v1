@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (54)
+## Capabilities (55)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -57,6 +57,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.undelete](../capabilities/automations.undelete.md): Restore an Automation from Trash
 - [automations.update](../capabilities/automations.update.md): Change the name, description or definition; a definition change saves a new version
 - [automations.validate](../capabilities/automations.validate.md): Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space
+- [automations.vault_usage](../capabilities/automations.vault_usage.md): Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.
 - [automations.versions](../capabilities/automations.versions.md): List versions of an Automation (One History)
 - [automations.webhook_url.get](../capabilities/automations.webhook_url.get.md): The inbound webhook URL of an Automation that has a webhook trigger
 - [automations.webhook_url.rotate](../capabilities/automations.webhook_url.rotate.md): Rotate the secret in the webhook URL; the old URL stops working

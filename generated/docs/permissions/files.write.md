@@ -40,6 +40,7 @@ Area: files. Risk: low. Applies to: file, folder.
 - mounts.add
 - mounts.pause
 - mounts.remove
+- mounts.restore
 - mounts.resume
 - mounts.update
 - runbooks.set_target

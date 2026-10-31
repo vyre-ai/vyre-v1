@@ -21,11 +21,27 @@ function itemOf(handle: string): string {
   return at < 0 ? handle : handle.slice(0, at);
 }
 
-function usesOf(a: Automation): Map<string, Use> {
+/** connectionId to the Vault handles that connection uses. A caller who cannot list connections sees only the handles written in steps. */
+async function handlesByConnection(ctx: AutoCtx): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (!ctx.call) return out;
+  try {
+    const r = (await ctx.call("connections.list", { whose: "all", limit: 500 })) as { connections?: { connectionId?: unknown; handles?: unknown }[] } | null;
+    for (const c of r?.connections ?? []) {
+      if (typeof c.connectionId === "string" && Array.isArray(c.handles)) out.set(c.connectionId, c.handles.filter((h): h is string => typeof h === "string"));
+    }
+  } catch { /* without the list, connector steps are not counted */ }
+  return out;
+}
+
+function usesOf(a: Automation, conns: ReadonlyMap<string, string[]>): Map<string, Use> {
   const out = new Map<string, Use>();
   for (const n of a.definition.nodes) {
     const seen = new Set<string>();
     strings({ input: n.input, ai: n.ai }, (s) => { for (const m of s.match(HANDLE) ?? []) seen.add(itemOf(m)); });
+    // a connector step names its connection; the connection names the Vault items behind it
+    const cid = n.key === "connector_request" ? n.input?.["connectionId"] : undefined;
+    if (typeof cid === "string") for (const h of conns.get(cid) ?? []) seen.add(itemOf(h));
     for (const item of seen) {
       const row = out.get(item) ?? { automationId: a.id, name: a.name, status: a.status, steps: [] };
       row.steps.push({ nodeId: n.id, title: n.title && n.title.trim() !== "" ? n.title : n.key });
@@ -35,12 +51,13 @@ function usesOf(a: Automation): Map<string, Use> {
   return out;
 }
 
-export function vaultUsage(ctx: AutoCtx, input: In): { uses: { handle: string; automations: Use[] }[] } {
+export async function vaultUsage(ctx: AutoCtx, input: In): Promise<{ uses: { handle: string; automations: Use[] }[] }> {
+  const conns = await handlesByConnection(ctx);
   const only = typeof input.handle === "string" && input.handle !== "" ? itemOf(input.handle) : null;
   const byItem = new Map<string, Use[]>();
   for (const a of allAutomations(ctx.db)) {
     if (!canView(ctx, a)) continue;
-    for (const [item, use] of usesOf(a)) {
+    for (const [item, use] of usesOf(a, conns)) {
       if (only !== null && item !== only) continue;
       byItem.set(item, [...(byItem.get(item) ?? []), use]);
     }

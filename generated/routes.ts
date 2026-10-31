@@ -2988,6 +2988,24 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/vault_usage",
+    "cap": "automations.vault_usage",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/versions",
     "cap": "automations.versions",
     "v": 1,
@@ -5551,7 +5569,10 @@ const routes0: Route[] = [
     "offline": "online",
     "teamOnly": true,
     "gate": "send"
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/computers/chrome/snapshot",
@@ -5570,10 +5591,7 @@ const routes0: Route[] = [
     "offline": "online",
     "teamOnly": true,
     "gate": null
-  }
-];
-
-const routes1: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/computers/chrome/sources",
@@ -11093,7 +11111,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/forms/create",
@@ -11113,10 +11134,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/forms/delete",
@@ -12695,6 +12713,25 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/drive/download_revision",
+    "cap": "google.drive.download_revision",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/drive/export_file",
     "cap": "google.drive.export_file",
     "v": 1,
@@ -12773,6 +12810,25 @@ const routes2: Route[] = [
     "method": "POST",
     "path": "/v1/google/drive/list_files",
     "cap": "google.drive.list_files",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/drive/list_revisions",
+    "cap": "google.drive.list_revisions",
     "v": 1,
     "module": "google",
     "effects": "read",
@@ -16589,7 +16645,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mail/message/erase",
@@ -16645,10 +16704,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/message/search",
@@ -19032,6 +19088,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mounts/editors",
+    "cap": "mounts.editors",
+    "v": 1,
+    "module": "mounts",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/mounts/get",
     "cap": "mounts.get",
     "v": 1,
@@ -19041,6 +19115,25 @@ const routes3: Route[] = [
     "level": "view",
     "resource": {
       "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mounts/history",
+    "cap": "mounts.history",
+    "v": 1,
+    "module": "mounts",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -19104,6 +19197,43 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mounts/nudge",
+    "cap": "mounts.nudge",
+    "v": 1,
+    "module": "mounts",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mounts/open",
+    "cap": "mounts.open",
+    "v": 1,
+    "module": "mounts",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/mounts/pause",
     "cap": "mounts.pause",
     "v": 1,
@@ -19137,6 +19267,25 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mounts/restore",
+    "cap": "mounts.restore",
+    "v": 1,
+    "module": "mounts",
+    "effects": "write",
+    "permission": "files.write",
+    "level": "edit",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
   },
   {
     "method": "POST",
@@ -19732,6 +19881,25 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/drive/download_version",
+    "cap": "ms.drive.download_version",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/ms/drive/get_item",
     "cap": "ms.drive.get_item",
     "v": 1,
@@ -19770,6 +19938,25 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/drive/list_versions",
+    "cap": "ms.drive.list_versions",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/ms/drive/share_item",
     "cap": "ms.drive.share_item",
     "v": 1,
@@ -19786,6 +19973,44 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/drive/subscribe",
+    "cap": "ms.drive.subscribe",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "none"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/drive/unsubscribe",
+    "cap": "ms.drive.unsubscribe",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "none"
   },
   {
     "method": "POST",
@@ -21923,7 +22148,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/projects/teammates/create",
@@ -22145,10 +22373,7 @@ const routes3: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/providers/list",
@@ -27449,7 +27674,10 @@ const routes4: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/tasks/take",
@@ -27670,10 +27898,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/decline",
