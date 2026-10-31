@@ -118,7 +118,8 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
         return port.fill(execution,{...binding,handle:secretHandle});
       },
     }: {}) });
-    return (bound[name] as (c: ConnectorsCtx, i: unknown) => Promise<unknown>)(cc, input);
+    // a handler that throws something that is not one of the catalogue errors is a bug: say where, so it can be found (the caller only sees internal.unexpected)
+    return (async () => { try { return await (bound[name] as (c: ConnectorsCtx, i: unknown) => Promise<unknown>)(cc, input); } catch (e) { if (!(e as { error?: unknown })?.error) cc.log?.error(`${name} threw`, { message: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? String(e.stack).split("\n").slice(0, 6).join(" | ") : "" }); throw e; } })();
   };
 }
 

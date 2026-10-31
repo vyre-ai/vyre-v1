@@ -192,7 +192,7 @@ async function main(): Promise<void> {
         const runs = ((await ok("runs.list", { kind: "connector_sync" })).runs ?? []) as { status: string }[];
         if (runs.length > 0 && runs.every((r) => r.status === "succeeded" || r.status === "failed")) done = true;
       }
-      if (!done && Date.now() - lastNew > 200_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 200 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
+      if (!done && Date.now() - lastNew > 150_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 150 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
       await sleep(1500);
     }
     if (!done) throw new Error("the sync was not applied and pulled before the deadline");
@@ -235,7 +235,7 @@ async function main(): Promise<void> {
     if (/sk-ant|pit-[0-9a-f-]{12,}/i.test(fs.readFileSync(path.join(OUT, note("transcript") + ".md"), "utf8")) || fs.readFileSync(path.join(OUT, note("transcript") + ".md"), "utf8").includes(LOCATION)) throw new Error("the transcript holds a secret");
   } catch (e) {
     say("ERROR", e instanceof Error ? e.message : String(e));
-    try { fs.writeFileSync(path.join(OUT, note("host-log") + ".txt"), hostLines(800)); } catch { /* the log is a help, not the result */ }
+    try { d.sink.flush(); fs.writeFileSync(path.join(OUT, note("host-log") + ".txt"), scrub((new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE msg LIKE '%threw%' OR level >= 40 OR cap LIKE 'sync_specs%' ORDER BY id DESC LIMIT 60").all() as { level: number; place?: string; cap?: string; msg: string; attrs?: string }[]).map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 700)}`).join("\n"))); } catch { /* the log is a help, not the result */ }
     // the raw thread with every tool answer, for finding why a tool failed; it can hold record values, so it stays in the scratchpad and is not part of the transcript
     try { if (threadId) fs.writeFileSync(path.join(OUT, note("messages-private") + ".json"), scrub(JSON.stringify((await ok("chat.messages.list", { threadId })).messages, null, 1))); } catch { /* best effort */ }
     save();
