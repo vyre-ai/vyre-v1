@@ -4,9 +4,15 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "records.activity": async () => ({"entries":[{"actor":"example","at":1760000000000,"field":"example","from":{},"id":"example","kind":"created","to":{}}],"next":1760000000000} as unknown) as never,
   "records.as_of": async () => ({"record":{"createdAt":1760000000000,"deletedAt":1760000000000,"fields":{},"holds":1,"id":"rec_a1b2c3","label":1,"type":"contact","updatedAt":1760000000000,"version":1}} as unknown) as never,
   "records.bulk_upsert": async () => ({"created":1,"skipped":1,"updated":1} as unknown) as never,
   "records.changes": async () => ({"changes":[{"id":"rec_a1b2c3","op":"upsert","seq":1}],"next":1} as unknown) as never,
+  "records.comments.add": async () => ({"comment":{"at":1760000000000,"by":"example","commentId":"rcm_a1b2c3","editedAt":1760000000000,"mentions":[{"id":"usr_a1b2c3","kind":"person"}],"parentId":"example","recordId":"rec_a1b2c3","replying":["agt_a1b2c3"],"resolved":true,"resolvedBy":"example","text":"example","type":"contact"}} as unknown) as never,
+  "records.comments.delete": async () => ({"deleted":true} as unknown) as never,
+  "records.comments.edit": async () => ({"comment":{"at":1760000000000,"by":"example","commentId":"rcm_a1b2c3","editedAt":1760000000000,"mentions":[{"id":"usr_a1b2c3","kind":"person"}],"parentId":"example","recordId":"rec_a1b2c3","replying":["agt_a1b2c3"],"resolved":true,"resolvedBy":"example","text":"example","type":"contact"}} as unknown) as never,
+  "records.comments.list": async () => ({"comments":[{"at":1760000000000,"by":"example","commentId":"rcm_a1b2c3","editedAt":1760000000000,"mentions":[{"id":"usr_a1b2c3","kind":"person"}],"parentId":"example","recordId":"rec_a1b2c3","replying":["agt_a1b2c3"],"resolved":true,"resolvedBy":"example","text":"example","type":"contact"}],"resolvedCount":1} as unknown) as never,
+  "records.comments.resolve": async () => ({"comment":{"at":1760000000000,"by":"example","commentId":"rcm_a1b2c3","editedAt":1760000000000,"mentions":[{"id":"usr_a1b2c3","kind":"person"}],"parentId":"example","recordId":"rec_a1b2c3","replying":["agt_a1b2c3"],"resolved":true,"resolvedBy":"example","text":"example","type":"contact"}} as unknown) as never,
   "records.completeness": async () => ({"filled":1,"missing":[{"field":"example","title":"example"}],"total":1} as unknown) as never,
   "records.counts": async () => ({"count":1} as unknown) as never,
   "records.create": async () => ({"record":{"createdAt":1760000000000,"deletedAt":1760000000000,"fields":{},"holds":1,"id":"rec_a1b2c3","label":1,"type":"contact","updatedAt":1760000000000,"version":1}} as unknown) as never,

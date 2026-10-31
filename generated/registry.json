@@ -12743,6 +12743,17 @@
       ],
       "type": "object"
     },
+    "s_96b5c0c5aa": {
+      "properties": {
+        "comment": {
+          "$ref": "#/$defs/s_cdc7d96e9b"
+        }
+      },
+      "required": [
+        "comment"
+      ],
+      "type": "object"
+    },
     "s_98c786d7d8": {
       "properties": {
         "e164": {
@@ -16828,6 +16839,87 @@
         "id",
         "start",
         "end"
+      ],
+      "type": "object"
+    },
+    "s_cdc7d96e9b": {
+      "properties": {
+        "at": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "by": {
+          "type": "string"
+        },
+        "commentId": {
+          "examples": [
+            "rcm_a1b2c3"
+          ],
+          "type": "string"
+        },
+        "editedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mentions": {
+          "$ref": "#/$defs/s_fe17a01e9e"
+        },
+        "parentId": {
+          "description": "The comment this replies to; a thread is a root comment and its replies",
+          "type": "string"
+        },
+        "recordId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "replying": {
+          "items": {
+            "description": "Agents mentioned here that have not answered yet",
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "resolved": {
+          "type": "boolean"
+        },
+        "resolvedBy": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "commentId",
+        "type",
+        "recordId",
+        "text",
+        "by",
+        "at",
+        "resolved",
+        "mentions",
+        "replying"
       ],
       "type": "object"
     },
@@ -143200,6 +143292,164 @@
       "examples": [
         {
           "input": {
+            "before": 1760000000000,
+            "limit": 1,
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "entries": [
+              {
+                "actor": "example",
+                "at": 1760000000000,
+                "field": "example",
+                "from": {},
+                "id": "example",
+                "kind": "created",
+                "to": {}
+              }
+            ],
+            "next": 1760000000000
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "records",
+      "name": "records.activity",
+      "output": {
+        "properties": {
+          "entries": {
+            "items": {
+              "properties": {
+                "actor": {
+                  "type": "string"
+                },
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "from": {
+                  "description": "Any JSON value"
+                },
+                "id": {
+                  "description": "Stable id of the entry: the log event it came from, and the field when one event changed several",
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "created",
+                    "edited",
+                    "stage",
+                    "linked",
+                    "unlinked",
+                    "removed",
+                    "restored",
+                    "synced"
+                  ],
+                  "type": "string"
+                },
+                "to": {
+                  "description": "Any JSON value"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "at",
+                "actor"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "next": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
             "at": 1760000000000,
             "recordId": "rec_a1b2c3",
             "type": "contact"
@@ -143501,6 +143751,489 @@
       "summary": "Change feed of a record type since a sequence number (RecordStore.changes)",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "record.comment_added"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "mentions": [
+              {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              }
+            ],
+            "parentId": "example",
+            "recordId": "rec_a1b2c3",
+            "text": "example",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "comment": {
+              "at": 1760000000000,
+              "by": "example",
+              "commentId": "rcm_a1b2c3",
+              "editedAt": 1760000000000,
+              "mentions": [
+                {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                }
+              ],
+              "parentId": "example",
+              "recordId": "rec_a1b2c3",
+              "replying": [
+                "agt_a1b2c3"
+              ],
+              "resolved": true,
+              "resolvedBy": "example",
+              "text": "example",
+              "type": "contact"
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "mentions": {
+            "items": {
+              "properties": {
+                "id": {
+                  "examples": [
+                    "usr_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "person",
+                    "agent"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "records",
+      "name": "records.comments.add",
+      "offline": "queue",
+      "output": {
+        "$ref": "#/$defs/s_96b5c0c5aa"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "commentId": "rcm_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "deleted": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "commentId": {
+            "examples": [
+              "rcm_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "commentId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "records",
+      "name": "records.comments.delete",
+      "output": {
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Delete your own comment (or any, with manage on the record)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "commentId": "rcm_a1b2c3",
+            "text": "example"
+          },
+          "name": "example",
+          "output": {
+            "comment": {
+              "at": 1760000000000,
+              "by": "example",
+              "commentId": "rcm_a1b2c3",
+              "editedAt": 1760000000000,
+              "mentions": [
+                {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                }
+              ],
+              "parentId": "example",
+              "recordId": "rec_a1b2c3",
+              "replying": [
+                "agt_a1b2c3"
+              ],
+              "resolved": true,
+              "resolvedBy": "example",
+              "text": "example",
+              "type": "contact"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "commentId": {
+            "examples": [
+              "rcm_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commentId",
+          "text"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "records",
+      "name": "records.comments.edit",
+      "output": {
+        "$ref": "#/$defs/s_96b5c0c5aa"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Edit your own comment",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "includeResolved": true,
+            "recordId": "rec_a1b2c3",
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "comments": [
+              {
+                "at": 1760000000000,
+                "by": "example",
+                "commentId": "rcm_a1b2c3",
+                "editedAt": 1760000000000,
+                "mentions": [
+                  {
+                    "id": "usr_a1b2c3",
+                    "kind": "person"
+                  }
+                ],
+                "parentId": "example",
+                "recordId": "rec_a1b2c3",
+                "replying": [
+                  "agt_a1b2c3"
+                ],
+                "resolved": true,
+                "resolvedBy": "example",
+                "text": "example",
+                "type": "contact"
+              }
+            ],
+            "resolvedCount": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "includeResolved": {
+            "type": "boolean"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "records",
+      "name": "records.comments.list",
+      "output": {
+        "properties": {
+          "comments": {
+            "items": {
+              "$ref": "#/$defs/s_cdc7d96e9b"
+            },
+            "type": "array"
+          },
+          "resolvedCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "comments",
+          "resolvedCount"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Comments on a record as threads (a root comment and its replies, oldest first); resolved threads only when asked for",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "record.comment_resolved"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "commentId": "rcm_a1b2c3",
+            "resolved": true
+          },
+          "name": "example",
+          "output": {
+            "comment": {
+              "at": 1760000000000,
+              "by": "example",
+              "commentId": "rcm_a1b2c3",
+              "editedAt": 1760000000000,
+              "mentions": [
+                {
+                  "id": "usr_a1b2c3",
+                  "kind": "person"
+                }
+              ],
+              "parentId": "example",
+              "recordId": "rec_a1b2c3",
+              "replying": [
+                "agt_a1b2c3"
+              ],
+              "resolved": true,
+              "resolvedBy": "example",
+              "text": "example",
+              "type": "contact"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "commentId": {
+            "examples": [
+              "rcm_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "resolved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "commentId",
+          "resolved"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "records",
+      "name": "records.comments.resolve",
+      "output": {
+        "$ref": "#/$defs/s_96b5c0c5aa"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Resolve a comment thread or reopen it",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "records"
+        }
       },
       "v": 1
     },
@@ -206897,6 +207630,97 @@
         ],
         "title": "A pull request is opened"
       },
+      "vis": "space"
+    },
+    {
+      "label": "subject",
+      "module": "records",
+      "name": "record.comment_added",
+      "payload": {
+        "properties": {
+          "commentId": {
+            "type": "string"
+          },
+          "mentions": {
+            "$ref": "#/$defs/s_fe17a01e9e"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId",
+          "type",
+          "commentId",
+          "mentions"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "summary": "A comment or reply was left on a record; mentions names the people and agents it calls on",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "label": "subject",
+      "module": "records",
+      "name": "record.comment_resolved",
+      "payload": {
+        "properties": {
+          "commentId": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "resolved": {
+            "type": "boolean"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId",
+          "type",
+          "commentId",
+          "resolved"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/recordId",
+        "type": "record"
+      },
+      "summary": "A comment thread was resolved or reopened",
+      "sv": 1,
       "vis": "space"
     },
     {

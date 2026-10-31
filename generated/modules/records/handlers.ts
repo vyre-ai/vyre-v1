@@ -5,9 +5,15 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "records.activity": Handler<"records.activity", X>;
   "records.as_of": Handler<"records.as_of", X>;
   "records.bulk_upsert": Handler<"records.bulk_upsert", X>;
   "records.changes": Handler<"records.changes", X>;
+  "records.comments.add": Handler<"records.comments.add", X>;
+  "records.comments.delete": Handler<"records.comments.delete", X>;
+  "records.comments.edit": Handler<"records.comments.edit", X>;
+  "records.comments.list": Handler<"records.comments.list", X>;
+  "records.comments.resolve": Handler<"records.comments.resolve", X>;
   "records.completeness": Handler<"records.completeness", X>;
   "records.counts": Handler<"records.counts", X>;
   "records.create": Handler<"records.create", X>;
