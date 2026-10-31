@@ -103,6 +103,7 @@ export function EffortBars({ effort, testID }: { effort: Effort | undefined; tes
   const lit = effortBars(effort);
   return (
     <View style={s.bars} testID={testID} accessibilityLabel={`Effort ${lit} of 4`}>
+      {/* ui-rows-lint: not a list (the four effort bars of one meter) */}
       {[0, 1, 2, 3].map((i) => <View key={i} style={[s.bar, i < lit && s.barOn]} />)}
     </View>
   );

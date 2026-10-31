@@ -1080,6 +1080,7 @@ export function Composer(props: ComposerProps): ReactElement {
       {chips.length > 0 || cards.length > 0 ? (
         <View style={styles.tray} testID="composer-tray">
           {cards}
+          {/* ui-rows-lint: not a list (attachment and link chips in the tray) */}
           {chips.map((c) => <Chip key={c.key} chip={c} />)}
         </View>
       ) : null}

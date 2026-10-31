@@ -78,6 +78,7 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
         <View style={o.v}>{p.to}</View>
         {p.channels.length > 0 ? (
           <View style={o.seg} accessibilityRole="tablist" testID="out-channel">
+            {/* ui-rows-lint: not a list (the Email and Text segmented switch) */}
             {(["email", "text"] as const).map((c) => (
               <Pressable key={c} accessibilityRole="tab" accessibilityState={{ selected: c === p.channel, disabled: !p.channels.includes(c) }} aria-selected={c === p.channel} disabled={!p.channels.includes(c)} accessibilityLabel={c === "email" ? "Email" : "Text"} testID={`chan-${c}`} onPress={() => p.onChannel(c)} style={[o.segBtn, c === p.channel && o.segOn, !p.channels.includes(c) && o.dim]}>
                 <Text style={[o.segText, c === p.channel && o.segTextOn]}>{c === "email" ? "Email" : "Text"}</Text>
@@ -105,6 +106,7 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
       {open ? (
         <Pop testID="from-menu" label={mail ? "Send from" : "Text from"} style={o.pop}>
           <View style={o.scr}>
+            {/* ui-rows-lint: not a list (group wrappers with a heading; each sender inside is a Row) */}
             {groups.map((g) => (
               <View key={g.via}>
                 <GroupHead label={g.via} />
