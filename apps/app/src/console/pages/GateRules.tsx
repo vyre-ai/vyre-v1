@@ -88,9 +88,9 @@ export function GateRules(): ReactElement {
         return <Row key={act.key} title={title(act)} note={rule ? `${rule.mode === "hold" ? "Approval required" : "Allowed"} · ${rule.approvers} · ${rule.afterHours}h timeout` : "Uses the stricter parent rule"} selected={selected === act.key} onPress={() => choose(act)} />;
       })}
     </Group></Section>}
-    {scope === "floor" && !owner ? <Note>Only the Space owner can change the owner floor. These rules remain visible for review.</Note> : null}
+    {scope === "floor" && !owner ? <Note>Only the Space owner can change the owner floor.</Note> : null}
     {selectedAct && current ? <Section title={selectedAct.title}><Group>
-      {!rules.data.rules.some((rule) => rule.act === selectedAct.key) ? <Note>This draft inherits the stricter parent rule. Saving creates the first override at this scope.</Note> : null}
+      {!rules.data.rules.some((rule) => rule.act === selectedAct.key) ? <Note>This draft inherits the stricter parent rule.</Note> : null}
       <Choice label="Decision" value={current.mode} options={[{ key: "hold", title: "Require approval" }, { key: "allow", title: "Allow without approval" }]} onChange={(value) => patch({ mode: value as Rule["mode"] })} />
       <Choice label="Approver" value={current.approvers} options={[{ key: "asker", title: "The person asking" }, { key: "owner", title: "Space owner" }, { key: "role:admin", title: "An admin" }]} onChange={(value) => patch({ approvers: value })} />
       {!selectedAct.peopleOnly ? <Choice label="Agents may approve through" value={current.agentOkFor ?? "none"} options={[{ key: "none", title: "People only" }, { key: "low", title: "Low-risk actions" }, { key: "medium", title: "Medium-risk actions" }, { key: "high", title: "High-risk actions" }]} onChange={(value) => {

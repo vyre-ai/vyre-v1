@@ -8,7 +8,8 @@
   "modelsSource": "static",
   "engine": "grok",
   "models": [
-    "grok-4"
+    "grok-4",
+    "grok-code-fast-1"
   ],
   "instruction": "Press Sign in with Grok. Vyre starts Grok's own sign-in and gives you its link. Approve it in your browser and the account is saved in your Mine folder."
 }

@@ -154,3 +154,27 @@ test("tokensOf returns the skin's set synchronously", () => {
   assert.equal(tokensOf("missing", "light"), undefined);
   assert.equal(tokensOf("linen", "light") instanceof Promise, false);
 });
+
+test("every skin and System define every token the app uses", async () => {
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const root = new URL("../../../", import.meta.url).pathname;
+  const used = new Set<string>();
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      if (name === "node_modules" || name.startsWith(".")) continue;
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) { walk(full); continue; }
+      if (!/\.(ts|tsx)$/.test(name) || /\.test\./.test(name)) continue;
+      for (const m of readFileSync(full, "utf8").matchAll(/var\((--[a-z0-9-]+)\s*\)/g)) used.add(m[1]!);
+    }
+  };
+  walk(join(root, "ui/src")); walk(join(root, "apps/app/src"));
+  const known = new Set<string>([...TOKEN_NAMES, ...Object.keys(typeTokens)]);
+  const undefinedTokens = [...used].filter((n) => !known.has(n) && /^--(win|side|rail|raised|sunk|field|hover|press|sel|ink|line|accent|beacon|me|ok|warn|danger|sh)/.test(n));
+  assert.deepEqual(undefinedTokens, [], "colour and shadow tokens used in code but defined nowhere");
+  for (const mode of MODES) {
+    for (const name of TOKEN_NAMES) assert.ok(name in documentTokens[mode], `System ${mode} ${name}`);
+    for (const skin of skins) for (const name of TOKEN_NAMES) assert.ok(name in skin[mode], `${skin.id} ${mode} ${name}`);
+  }
+});

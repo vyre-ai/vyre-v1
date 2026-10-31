@@ -74,7 +74,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
             <View style={{ flex: 1 }}><Text style={s.switchTitle}>The Space can use this key</Text><Text style={s.switchNote}>Automations and agents without a key of their own run on it.</Text></View>
             <View style={[s.track, spaceMay && s.trackOn]}><View style={[s.knob, spaceMay && s.knobOn]} /></View>
           </Pressable>
-        ) : <Text style={s.note} testID="provider-private">A subscription sign-in stays yours. It follows you across Spaces and devices and cannot be shared.</Text>}
+        ) : <Text style={s.note} testID="provider-private">Only you can use this sign-in.</Text>}
       </ScrollView>
     </View>
   );

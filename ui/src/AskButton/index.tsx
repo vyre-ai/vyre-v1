@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   split: { flexDirection: "row", height: 30, borderRadius: 8, backgroundColor: "var(--accent-wash)" as string, overflow: "hidden" },
   main: { flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 5, paddingRight: 11 },
   mainCompact: { paddingRight: 5 },
-  chev: { alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderLeftWidth: 1, borderLeftColor: "color-mix(in srgb, var(--accent) 25%, transparent)" as string },
+  chev: { alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderLeftWidth: 1, borderLeftColor: "var(--accent-line)" as string },
   ask: { color: "var(--accent)" as string, fontSize: 12.5, fontWeight: "600", lineHeight: 16 },
   focus: { outlineWidth: 2, outlineStyle: "solid", outlineColor: "var(--accent-line)" as string, outlineOffset: -2 },
   assistantTile: { backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },

@@ -45,7 +45,7 @@ export function PluginsPage(): ReactElement {
   const install = (m: string, plugin: string): void => void action.run("plugins.install", { marketplaceId: m, plugin, scope: target === "space" ? "space" : "agent", ...(target === "space" ? {} : { agentId: target }), idempotencyKey: attempt() }, (out: { plugin: Plugin }) => `${out.plugin.name} installed`).then((out) => { if (out) setOpenPlugin((out as { plugin: Plugin }).plugin.pluginId); });
   return <View testID="console-plugins">
     {action.note ? <Note>{action.note}</Note> : null}
-    <Note>Skills, commands and tools for agents. They run in the agent's sandbox, never on this server.</Note>
+    <Note>Skills, commands and tools for agents. They run in the agent's sandbox.</Note>
     <Section title="Marketplaces" count={markets.data.marketplaces.length}><Group>
       {markets.data.marketplaces.length === 0 ? <Row id="mk-none" title="No marketplace yet" note="Add a git address (https) or a folder on this server that holds .claude-plugin/marketplace.json." /> : markets.data.marketplaces.map((m) =>
         <Row key={m.marketplaceId} id={`mk-${m.name}`} title={m.name} note={`${n(m.plugins, "plugin")} · ${m.owner} · ${m.allowed ? "Allowed" : "Not allowed"}${m.warnings.length ? ` · ${n(m.warnings.length, "warning")}` : ""}`}
@@ -55,7 +55,7 @@ export function PluginsPage(): ReactElement {
       {market ? <Actions><Button label="Fetch again" disabled={action.busy} onPress={() => void action.run("plugins.marketplace.refresh", { marketplaceId: market.marketplaceId, idempotencyKey: attempt() }, "Marketplace updated")} /><Button label="Remove marketplace" danger disabled={action.busy} onPress={() => void action.run("plugins.marketplace.remove", { marketplaceId: market.marketplaceId, idempotencyKey: attempt() }, "Marketplace removed").then(() => setMarketId(null))} /></Actions> : null}
       <Group>
         <Field label="Git address or folder" testID="mk-source" value={source} onChange={setSource} />
-        <Actions><Button label="Add marketplace" testID="mk-add" disabled={action.busy || source.trim() === ""} onPress={() => void action.run("plugins.marketplace.add", { source: source.trim(), idempotencyKey: attempt() }, (out: { marketplace: { name: string } }) => `${out.marketplace.name} added and allowed`).then((out) => { if (out) setSource(""); })} /></Actions>
+        <Actions><Button label="Add marketplace" testID="mk-add" disabled={action.busy || source.trim() === ""} why={source.trim()===""?"Add a source first":undefined} onPress={() => void action.run("plugins.marketplace.add", { source: source.trim(), idempotencyKey: attempt() }, (out: { marketplace: { name: string } }) => `${out.marketplace.name} added and allowed`).then((out) => { if (out) setSource(""); })} /></Actions>
       </Group>
     </Section>
     <Section title="Plugins to install" count={browse.data?.total ?? ""}><Group>
@@ -64,7 +64,7 @@ export function PluginsPage(): ReactElement {
       {!browse.data ? <ReadState error={browse.error} retry={browse.refresh} /> : browse.data.plugins.length === 0 ? <Row id="pl-none" title="Nothing to install" note="Add a marketplace first." /> : browse.data.plugins.map((p) => {
         const here = p.installed.some((i) => (target === "space" ? i.scope === "space" : i.agentId === target));
         return <Row key={`${p.marketplaceId}:${p.name}`} id={`browse-${p.name}`} title={p.name} note={`${p.description ?? "No description"} · ${p.marketplace}${p.allowed ? "" : " · Not allowed"}`}
-          trailing={here ? <Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Installed</Text> : <Button label="Install" testID={`install-${p.name}`} disabled={action.busy || !p.allowed} onPress={() => install(p.marketplaceId, p.name)} />} />;
+          trailing={here ? <Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Installed</Text> : <Button label="Install" testID={`install-${p.name}`} disabled={action.busy || !p.allowed} why={!p.allowed?"Blocked by policy":undefined} onPress={() => install(p.marketplaceId, p.name)} />} />;
       })}
     </Group></Section>
     <Section title="Installed" count={installed.data.plugins.length}><Group>
@@ -88,7 +88,7 @@ export function PluginsPage(): ReactElement {
       </Actions>
     </Group></Section> : null}
     <Section title="Outside tools" count={connections.data?.connections.length ?? ""}><Group>
-      <Note>Connect any MCP server: a remote one by its https address, or one that starts from a command in the sandbox. Every model can use its tools.</Note>
+      <Note>Connect an MCP server by its https address or a sandbox command.</Note>
       {(connections.data?.connections ?? []).map((c) => <Row key={c.connectionId} id={`conn-${c.name}`} title={c.name} note={c.url ?? `${c.command ?? ""} ${c.args.join(" ")}`.trim()} trailing={<Button label="Disconnect" disabled={action.busy} onPress={() => void action.run("plugins.connection.remove", { connectionId: c.connectionId, idempotencyKey: attempt() }, "Disconnected")} />} />)}
       <Field label="Name" testID="conn-name" value={conn.name} onChange={(v) => setConn({ ...conn, name: v })} />
       <Field label="Address (https) or leave empty and give a command" testID="conn-url" value={conn.url} onChange={(v) => setConn({ ...conn, url: v })} />
