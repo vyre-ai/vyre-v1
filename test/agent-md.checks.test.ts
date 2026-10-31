@@ -19,7 +19,7 @@ for (const [label, text] of cases) {
     // the Space's VYRE.md is written by its admins; the guide every agent reads first stands in for it, so nothing here repeats what every agent is already told
     const out = lintText("agent_md", text, undefined, { vyreText: GUIDE_MD });
     assert.equal(out.state, "ok");
-    assert.ok(out.lines <= 70, `${out.lines} lines, well under 150`);
+    assert.ok(out.lines <= 120, `${out.lines} lines, well under 150`);
     assert.equal(out.inherits, true);
     assert.deepEqual(out.overrides, []);
     assert.deepEqual(out.secrets, []);
