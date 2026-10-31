@@ -5,6 +5,7 @@ import { memo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
@@ -169,11 +170,7 @@ function useHover(onLong?: () => void): { over: boolean; focus: boolean; phone: 
 function ActionSheet({ open, entries, onClose }: { open: boolean; entries: readonly MenuEntry[]; onClose: () => void }): ReactElement | null {
   return (
     <Sheet open={open} title="Message" onClose={onClose}>
-      {entries.filter(isItem).map((e) => (
-        <Pressable key={e.label} accessibilityRole="button" accessibilityLabel={e.label} testID={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`} onPress={() => { onClose(); e.onSelect?.(); }} style={{ minHeight: 48, justifyContent: "center", paddingHorizontal: 12 }}>
-          <Text style={{ fontSize: 16, color: (e.danger ? "var(--danger)" : "var(--ink)") as string }}>{e.label}</Text>
-        </Pressable>
-      ))}
+      {entries.filter(isItem).map((e) => <Row key={e.label} id={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`} title={e.label} onPress={() => { onClose(); e.onSelect?.(); }} />)}
     </Sheet>
   );
 }

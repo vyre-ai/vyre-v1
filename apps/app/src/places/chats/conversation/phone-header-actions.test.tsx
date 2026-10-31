@@ -36,11 +36,11 @@ test("on a phone a message has no hover bar and a long press opens its actions a
   assert.equal(row.props.tabIndex, undefined, "no focus ring from a tap");
   await act(async () => { (row.props.onTouchStart as () => void)(); await new Promise((r) => setTimeout(r, 520)); });
   await flush();
-  assert.ok(find(root, "sheet-act-copy"), "the long press opened the sheet");
-  await press(find(root, "sheet-act-copy"));
+  assert.ok(find(root, "row-sheet-act-copy"), "the long press opened the sheet");
+  await press(find(root, "row-sheet-act-copy"));
   await flush();
   assert.equal(copied.length, 1, "Copy ran");
-  assert.equal(find(root, "sheet-act-copy"), null, "and the sheet closed");
+  assert.equal(find(root, "row-sheet-act-copy"), null, "and the sheet closed");
   widen(1280);
 });
 
@@ -51,6 +51,6 @@ test("a quick tap is not a long press", async () => {
   const row = find(root, ids(root).find((i) => /^msg-/.test(i))!)!;
   await act(async () => { (row.props.onTouchStart as () => void)(); (row.props.onTouchEnd as () => void)(); await new Promise((r) => setTimeout(r, 520)); });
   await flush();
-  assert.equal(find(root, "sheet-act-copy"), null);
+  assert.equal(find(root, "row-sheet-act-copy"), null);
   widen(1280);
 });
