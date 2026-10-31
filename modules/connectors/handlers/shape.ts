@@ -20,7 +20,9 @@ export function shapeList(body: unknown, link: string | undefined, shape: Action
       data[p] = c.ok ? c.value : null;
     }
     const stamp = shape.updatedAt ? pointerGet(item, shape.updatedAt) : undefined;
-    return { id: String(raw), data, ...(typeof stamp === "string" || typeof stamp === "number" ? { updatedAt: stamp } : {}) };
+    // an epoch number is seconds or milliseconds; the engine reads a date string or milliseconds
+    const at = typeof stamp === "number" ? (stamp > 1e11 ? stamp : stamp * 1000) : stamp;
+    return { id: String(raw), data, ...(typeof at === "string" || typeof at === "number" ? { updatedAt: at } : {}) };
   });
   return { rows, ...(page.next !== undefined ? { next: page.next } : {}) };
 }

@@ -101,6 +101,8 @@ export interface ConnectorsCtx {
   emit(name: string, subject: string, payload: Record<string, unknown>, opts?: { afterFailure?: boolean }): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   http(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string>; /** The Link response header, when the app sent one (link-header pagination). */ link?: string }>;
+  /** Run a capability later as the person who asked (ctx.schedule). Absent in tests, where a pass is run by calling the capability. */
+  schedule?(at: number | string, cap: string, input: unknown): Promise<string>;
   log?: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void };
   actor?: string;
 }

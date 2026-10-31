@@ -8,6 +8,7 @@
 // 10 percent or 50 records pauses and waits for confirmDeletes. Local writes go to the RecordStore directly and are announced with quiet: true unless runAutomations is set.
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { canonical } from "../../../lib/canonical.ts";
+import { formatHlc } from "../../../lib/hlc.ts";
 import { mintRecordId } from "../../../lib/ids.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import type { Store, StoredRecord } from "../../../kernel/src/store/types.ts";
@@ -15,7 +16,11 @@ import { ensureTables, mintShort, same } from "../projections.ts";
 
 export type Direction = "pull" | "push" | "both" | "off";
 export type ConflictRule = "newest" | "source" | "vyre" | "ask";
-export interface SyncFieldMap { local: string; remote: string; direction: Direction; /** Small expression over `value`, applied to what is pulled. */ transform?: string }
+export interface SyncFieldMap {
+  local: string; remote: string; direction: Direction; /** Small expression over `value`, applied to what is pulled. */ transform?: string;
+  /** A relation: the remote value is the id of a record of another synced type, and the field holds a link to the record that id was pulled into (empty until that record has been pulled). */
+  relation?: { syncTypeId: string; type: string };
+}
 export interface SyncBinding {
   syncTypeId: string; type: string; remote: string; connector: string; label?: string;
   fields: SyncFieldMap[]; match: string[]; createAtSource: boolean; deletes: boolean; conflict: ConflictRule;
@@ -23,6 +28,8 @@ export interface SyncBinding {
 }
 export interface SyncDeps {
   local: Store; remote: Store; tx: Tx; now?: () => number;
+  /** The Space name, for the references a relation holds (vyre://<space>/<type>/<id>). */
+  space?: string;
   emit?: (name: string, subject: string, payload: Record<string, unknown>) => unknown;
   maxAttempts?: number;
 }
@@ -31,6 +38,8 @@ export interface SyncReport {
   runId: string; dryRun: boolean;
   local: { created: number; updated: number }; remote: { created: number; updated: number; removed: number };
   matched: number; ambiguous: number; conflicts: number; askedConflicts: number; removedAtSource: number; pausedDeletes: boolean; queued: number; failed: number;
+  /** Records the pass could not write here (a value the record type refuses): each is in the log, and the next pass tries again. */
+  skipped: number;
   summary: string;
 }
 
@@ -62,12 +71,32 @@ async function listAll(store: Store, type: string): Promise<Map<string, StoredRe
   return out;
 }
 
-const theirsOf = (f: SyncFieldMap, rec: StoredRecord): unknown => {
+const urnsOf = (v: unknown): string[] => (Array.isArray(v) ? v.flatMap((x) => (x && typeof x === "object" && typeof (x as { urn?: unknown }).urn === "string" ? [(x as { urn: string }).urn] : [])).sort() : []);
+
+/** The value the remote record holds for a mapped field, as the local field takes it. A relation turns the remote id into a link to the record pulled for it, or null while there is none. */
+const theirsOf = (d: SyncDeps, f: SyncFieldMap, rec: StoredRecord): unknown => {
   const v = rec.data[f.remote];
+  if (f.relation) {
+    if (!present(v)) return null;
+    const hit = d.tx.get<{ local_id: string }>("SELECT local_id FROM sy_links WHERE sync_type = ? AND remote_id = ? AND (removed_at IS NULL OR removed_at = 0)", f.relation.syncTypeId, String(v));
+    return hit ? [{ urn: `vyre://${d.space ?? "space"}/${f.relation.type}/${hit.local_id}` }] : null;
+  }
   if (!present(v) || !f.transform) return v ?? null;
   const out = evalExpr(parseExpr(f.transform), { values: { value: v } });
   return out ?? null;
 };
+
+/** Compare as the field means it: a relation by the records it links, anything else by value. */
+const sameField = (f: SyncFieldMap, a: unknown, b: unknown): boolean => (f.relation ? canonical(urnsOf(a)) === canonical(urnsOf(b)) : same(a, b));
+
+const HISTORY_SQL = "CREATE TABLE IF NOT EXISTS records_field_history (type TEXT NOT NULL, id TEXT NOT NULL, field TEXT NOT NULL, value TEXT, hlc TEXT NOT NULL, actor TEXT NOT NULL, seq INTEGER NOT NULL, reason TEXT NOT NULL)";
+/** The value that lost a newest-wins settlement, kept in the field's history so a person can see it and restore it. */
+function keepLoser(d: SyncDeps, type: string, id: string, field: string, value: unknown, actor: string): void {
+  d.tx.exec(HISTORY_SQL);
+  const at = now(d);
+  const seq = (d.tx.get<{ n: number }>("SELECT count(*) AS n FROM records_field_history WHERE type = ? AND id = ? AND field = ?", type, id, field)?.n ?? 0) + 1;
+  d.tx.run("INSERT INTO records_field_history (type, id, field, value, hlc, actor, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, 'lww_loser')", type, id, field, JSON.stringify(value ?? null), formatHlc({ ms: at, counter: 0, deviceId: "sync" }), actor, seq);
+}
 
 const loadLinks = (tx: Tx, syncTypeId: string): Link[] =>
   tx.all<LinkDb>("SELECT * FROM sy_links WHERE sync_type = ? ORDER BY rowid", syncTypeId).map((r) => ({ localId: r.local_id, remoteId: r.remote_id, base: JSON.parse(r.base) as Record<string, unknown>, removedAt: r.removed_at }));
@@ -106,7 +135,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
 
   const rep: SyncReport = {
     runId, dryRun: dry, local: { created: 0, updated: 0 }, remote: { created: 0, updated: 0, removed: 0 }, matched: 0, ambiguous: 0, conflicts: 0, askedConflicts: 0,
-    removedAtSource: 0, pausedDeletes: false, queued: 0, failed: 0, summary: "",
+    removedAtSource: 0, pausedDeletes: false, queued: 0, failed: 0, skipped: 0, summary: "",
   };
   const localActions: LocalAction[] = [];
   const remoteActions: RemoteAction[] = [];
@@ -117,7 +146,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
 
   const mappedTheirs = (rec: StoredRecord, only?: (f: SyncFieldMap) => boolean): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
-    for (const f of fields) if (!only || only(f)) out[f.local] = theirsOf(f, rec);
+    for (const f of fields) if (!only || only(f)) out[f.local] = theirsOf(d, f, rec);
     return out;
   };
 
@@ -177,6 +206,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
 
   // ---- three-way compare of each pair ----
   const conflictRows: { localId: string; field: string; ours: unknown; theirs: unknown; base: unknown }[] = [];
+  const losses: { localId: string; field: string; value: unknown; actor: string }[] = [];
   for (const { link, local, remote } of pairs) {
     const pullPatch: Record<string, unknown> = {};
     const pushPatch: Record<string, unknown> = {};
@@ -185,11 +215,11 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     for (const f of fields) {
       const base = link.base[f.local];
       const ours = local.data[f.local];
-      const theirs = theirsOf(f, remote);
-      const oursMoved = !same(ours, base);
-      const theirsMoved = !same(theirs, base);
+      const theirs = theirsOf(d, f, remote);
+      const oursMoved = !sameField(f, ours, base);
+      const theirsMoved = !sameField(f, theirs, base);
       if (!oursMoved && !theirsMoved) continue;
-      if (oursMoved && theirsMoved && same(ours, theirs)) { nextBase[f.local] = theirs; continue; }
+      if (oursMoved && theirsMoved && sameField(f, ours, theirs)) { nextBase[f.local] = theirs; continue; }
       let take: "theirs" | "ours" | "none" = "none";
       if (theirsMoved && !oursMoved) take = pullable(f) ? "theirs" : "none";
       else if (oursMoved && !theirsMoved) take = pushable(f) ? "ours" : "none";
@@ -202,8 +232,9 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
         else if (b.conflict === "newest") take = local.updated_at > remote.updated_at ? "ours" : "theirs";
         else { rep.askedConflicts++; conflictRows.push({ localId: local.id, field: f.local, ours, theirs, base }); }
       }
-      if (take === "theirs" && pullOn) { pullPatch[f.local] = theirs; nextBase[f.local] = theirs; }
-      else if (take === "ours" && pushOn) { pushPatch[f.remote] = ours ?? null; pushFields.push(f.local); }
+      const both = oursMoved && theirsMoved;
+      if (take === "theirs" && pullOn) { pullPatch[f.local] = theirs; nextBase[f.local] = theirs; if (both) losses.push({ localId: local.id, field: f.local, value: ours, actor: `sync:${label}` }); }
+      else if (take === "ours" && pushOn) { pushPatch[f.remote] = ours ?? null; pushFields.push(f.local); if (both) losses.push({ localId: local.id, field: f.local, value: theirs, actor: `source:${label}` }); }
     }
     const baseMoved = !same(nextBase, link.base);
     if (Object.keys(pullPatch).length) {
@@ -251,22 +282,28 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   const announce = (name: "record.created" | "record.updated", id: string, payload: Record<string, unknown>): void => {
     d.emit?.(name, `record/${id}`, { recordId: id, type: b.type, ...payload, ...(quiet ? { quiet: true } : {}) });
   };
+  const skip = (what: string, e: unknown): void => { rep.skipped++; log(d, b.syncTypeId, "error", `skipped ${what}: ${msgOf(e)}`, runId, o.traceId); };
   for (const c of creates) {
-    const id = mintRecordId(now(d));
-    const rec = await d.local.create(b.type, id, c.data);
-    saveLink(d.tx, b.syncTypeId, { localId: id, remoteId: c.remote.id, base: c.base, removedAt: null });
-    announce("record.created", id, { fields: { ...rec.data } });
+    try {
+      const id = mintRecordId(now(d));
+      const rec = await d.local.create(b.type, id, c.data);
+      saveLink(d.tx, b.syncTypeId, { localId: id, remoteId: c.remote.id, base: c.base, removedAt: null });
+      announce("record.created", id, { fields: { ...rec.data } });
+    } catch (e) { skip(`${label} record ${c.remote.id}`, e); }
   }
   for (const a of localActions) {
-    if (Object.keys(a.patch).length) {
-      const rec = await d.local.update(b.type, a.localId, a.patch, a.version);
-      const keys = Object.keys(a.patch);
-      const changed: Record<string, unknown> = {};
-      for (const k of keys) changed[k] = Object.prototype.hasOwnProperty.call(rec.data, k) ? rec.data[k] : null;
-      announce("record.updated", a.localId, { fields: changed, prev: a.prev, version: rec.version });
-    }
-    saveLink(d.tx, b.syncTypeId, a.link);
+    try {
+      if (Object.keys(a.patch).length) {
+        const rec = await d.local.update(b.type, a.localId, a.patch, a.version);
+        const keys = Object.keys(a.patch);
+        const changed: Record<string, unknown> = {};
+        for (const k of keys) changed[k] = Object.prototype.hasOwnProperty.call(rec.data, k) ? rec.data[k] : null;
+        announce("record.updated", a.localId, { fields: changed, prev: a.prev, version: rec.version });
+      }
+      saveLink(d.tx, b.syncTypeId, a.link);
+    } catch (e) { skip(`record ${a.localId}`, e); }
   }
+  for (const l of losses) keepLoser(d, b.type, l.localId, l.field, l.value, l.actor);
   for (const l of vanished) if (!rep.pausedDeletes) saveLink(d.tx, b.syncTypeId, { ...l, removedAt: now(d) });
 
   // ---- apply: queue pushes, then flush the outbox ----
@@ -311,6 +348,7 @@ function summarise(r: SyncReport, label: string): string {
   if (r.askedConflicts) parts.push(`ask about ${r.askedConflicts} ${r.askedConflicts === 1 ? "conflict" : "conflicts"}`);
   if (r.removedAtSource) parts.push(`mark ${n(r.removedAtSource, "removed at source")}`);
   if (r.pausedDeletes) parts.push("wait for you to confirm records that vanished");
+  if (r.skipped) parts.push(`skip ${n(r.skipped, "that cannot be written here")}`);
   return parts.length ? `Will ${parts.join(", ")}.` : "Nothing to change.";
 }
 

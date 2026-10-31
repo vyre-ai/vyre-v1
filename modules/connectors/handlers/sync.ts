@@ -35,7 +35,9 @@ export interface LogRow { at: number; kind: "pull" | "push" | "conflict" | "erro
 export interface DiscoveredObject { remote: string; title: string; fields: { remote: string; type: string; proposedKey: string; proposedType: string; sensitive: boolean }[] }
 
 /** What the sync engine (modules/sources) offers the handlers. The host wires it; every method gets the binding it works on. */
+export interface RunReport { summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean }
 export interface SyncEngine {
+  run(ctx: ConnectorsCtx, b: SyncBindingRow, o: { mode: SyncMode; runAutomations?: boolean }): Promise<RunReport>;
   preview(ctx: ConnectorsCtx, b: SyncBindingRow, o: { direction?: "pull" | "push" | "both" }): Promise<PreviewRow>;
   confirmDeletes(ctx: ConnectorsCtx, b: SyncBindingRow, decision: "mark_removed" | "keep"): Promise<number>;
   resolveConflict(ctx: ConnectorsCtx, b: SyncBindingRow, conflictId: string, resolution: "ours" | "theirs" | "value", value?: unknown): Promise<{ recordId: string }>;
@@ -71,6 +73,8 @@ export interface SyncHandlers {
   "connectors.outbox.retry"(ctx: ConnectorsCtx, input: { outboxId: string }): Promise<{ ok: boolean }>;
   "connectors.outbox.cancel"(ctx: ConnectorsCtx, input: { outboxId: string }): Promise<{ ok: boolean }>;
   "connectors.push"(ctx: ConnectorsCtx, input: { outboxId: string }): Promise<{ state: "sent" | "failed"; error?: string }>;
+  "connectors.sync_run"(ctx: ConnectorsCtx, input: { runId: string }): Promise<{ ok: boolean; summary: string }>;
+  "connectors.sync_poll"(ctx: ConnectorsCtx, input: { type: string }): Promise<{ ran: boolean; summary?: string }>;
 }
 
 // ---- tables ----
@@ -82,6 +86,8 @@ CREATE TABLE IF NOT EXISTS cn_synced_types (
   paused INTEGER NOT NULL DEFAULT 0, schema_changes TEXT NOT NULL DEFAULT '[]', created_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS cn_synced_types_connection ON cn_synced_types (connection_id);
+-- The next scheduled poll of a synced type, so one chain of polls runs and a pause or a removal ends it.
+CREATE TABLE IF NOT EXISTS cn_sync_poll (sync_type_id TEXT PRIMARY KEY, at INTEGER NOT NULL);
 -- What a sync_now asked for, found by the Run executor through the run id.
 CREATE TABLE IF NOT EXISTS cn_sync_requests (run_id TEXT PRIMARY KEY, sync_types TEXT NOT NULL, mode TEXT NOT NULL, run_automations INTEGER NOT NULL DEFAULT 0, requested_by TEXT, at INTEGER NOT NULL);
 `;
@@ -224,6 +230,23 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
     if (ops.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:field.add`, ops, reason: "Fields for a synced type" });
   };
 
+  /** A failure is written to the sync log, so the Sync page shows it. */
+  const logError = (syncTypeId: string, summary: string, runId?: string): void => {
+    if (!has("sy_log")) return;
+    tx.run("INSERT INTO sy_log (sync_type, at, kind, summary, run_id, trace_id) VALUES (?, ?, 'error', ?, ?, NULL)", syncTypeId, nowOf(deps), summary.slice(0, 300), runId ?? null);
+  };
+  /** One poll ahead at a time per type: sooner while pushes wait, otherwise at the idle interval. A pause or a removal ends the chain. */
+  const planPoll = async (ctx: ConnectorsCtx, r: SyncDb): Promise<void> => {
+    if (!ctx.schedule || r.paused) return;
+    const at = nowOf(deps);
+    const waiting = tx.get<{ at: number }>("SELECT at FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id);
+    if (waiting && waiting.at > at) return;
+    const polling = parse<PollingRow>(r.polling);
+    const due = at + (pendingOf(r.sync_type_id) > 0 ? polling.activeSec : polling.idleSec) * 1000;
+    tx.run("INSERT INTO cn_sync_poll (sync_type_id, at) VALUES (?, ?) ON CONFLICT(sync_type_id) DO UPDATE SET at = excluded.at", r.sync_type_id, due);
+    try { await ctx.schedule(due, "connectors.sync_poll", { type: r.type }); } catch { tx.run("DELETE FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id); }
+  };
+
   const usable = (ctx: ConnectorsCtx, c: ConnectionDb | undefined, what: string): void => {
     if (!c) refuse(ctx, "validation.precondition_failed", `The connection for ${what} was deleted: bind it to another connection first.`);
     if (c!.state === "paused") refuse(ctx, "validation.precondition_failed", `The connection is paused${c!.paused_by ? ` by ${c!.paused_by}` : ""}: resume it first.`);
@@ -352,6 +375,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       if (!r.paused) return { ok: true };
       tx.run("UPDATE cn_synced_types SET paused = 0, updated_at = ? WHERE sync_type_id = ?", nowOf(deps), r.sync_type_id);
       ctx.emit("sync.type_resumed", `entity/${r.sync_type_id}`, { syncTypeId: r.sync_type_id });
+      await planPoll(ctx, { ...r, paused: 0 });
       return { ok: true };
     },
 
@@ -472,6 +496,8 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       })) as { runId: string };
       tx.run("INSERT OR REPLACE INTO cn_sync_requests (run_id, sync_types, mode, run_automations, requested_by, at) VALUES (?, ?, ?, ?, ?, ?)",
         started.runId, JSON.stringify(rows.map((r) => r.sync_type_id)), mode, input.runAutomations ? 1 : 0, actorOf(ctx), nowOf(deps));
+      // the pass itself runs in the background as the person who asked; where nothing can schedule (a test), the caller runs connectors.sync_run
+      if (ctx.schedule) await ctx.schedule(nowOf(deps), "connectors.sync_run", { runId: started.runId }).catch(() => undefined);
       return { runId: started.runId };
     },
 
@@ -516,6 +542,51 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       const conn = connRow(binding.connection_id);
       usable(ctx, conn, b.type);
       return engineOf(ctx).push(ctx, b, row.outbox_id);
+    },
+
+    "connectors.sync_run": async (ctx, input) => {
+      prep();
+      const req = syncRequest(deps, input.runId);
+      if (!req) return refuse(ctx, "validation.not_found", "There is no sync request for that run.");
+      const engine = engineOf(ctx);
+      const parts: string[] = [];
+      let failed: { code: string; message: string } | undefined;
+      for (const id of req.syncTypeIds) {
+        const r = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE sync_type_id = ?", id);
+        if (!r) continue;
+        try {
+          const out = await engine.run(ctx, rowOf(r), { mode: req.mode, runAutomations: req.runAutomations });
+          parts.push(`${r.type}: ${out.summary}`);
+          if (!out.dryRun) await planPoll(ctx, r);
+        } catch (e) {
+          const err = (e as { error?: { code?: string; message?: string } }).error;
+          const message = err?.message ?? (e instanceof Error ? e.message : "The sync failed.");
+          failed = { code: err?.code ?? "provider.unavailable", message };
+          logError(r.sync_type_id, `sync of ${r.type} failed: ${message}`, input.runId);
+          parts.push(`${r.type}: ${message}`);
+        }
+      }
+      const summary = parts.join(" ") || "Nothing to sync.";
+      await ctx.call("runs.finish", failed ? { runId: input.runId, status: "failed", error: failed } : { runId: input.runId, status: "succeeded", summary });
+      return { ok: failed === undefined, summary };
+    },
+
+    "connectors.sync_poll": async (ctx, input) => {
+      prep();
+      const r = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE type = ?", input.type);
+      if (!r) return { ran: false };
+      tx.run("DELETE FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id);
+      if (r.paused) return { ran: false };
+      const conn = connRow(r.connection_id);
+      let summary: string | undefined;
+      if (conn && conn.state === "active") {
+        try { summary = (await engineOf(ctx).run(ctx, rowOf(r), { mode: "incremental" })).summary; } catch (e) {
+          const err = (e as { error?: { message?: string } }).error;
+          logError(r.sync_type_id, `sync of ${r.type} failed: ${err?.message ?? (e instanceof Error ? e.message : "failed")}`);
+        }
+      }
+      await planPoll(ctx, r);
+      return { ran: summary !== undefined, ...(summary !== undefined ? { summary } : {}) };
     },
   };
 }

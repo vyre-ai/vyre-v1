@@ -40,7 +40,7 @@ export function openConnectors(o: Partial<Omit<SyncDeps, "tx">> & { tx?: Tx; pat
 
 // ---- loader entry ----
 
-type HostCtx = Omit<ConnectorsCtx, "actor"> & { authorize(action:{perm:string|null;level:"use"|"view"|"edit"|"manage"},resource:{type:string;id:string|null}):{effect:string};rememberVaultItem?(id:string):void;assertAuthorized?():void;space:string; principal: { kind:string;id: string };actingFor?:string;depth:number;trace:{traceId:string;spanId:string} };
+type HostCtx = Omit<ConnectorsCtx, "actor"> & { authorize(action:{perm:string|null;level:"use"|"view"|"edit"|"manage"},resource:{type:string;id:string|null}):{effect:string};rememberVaultItem?(id:string):void;assertAuthorized?():void;schedule?(at:number|string,cap:string,input:unknown):Promise<string>;space:string; principal: { kind:string;id: string };actingFor?:string;depth:number;trace:{traceId:string;spanId:string} };
 interface ConnectorsHost { publicBase():string; fill(ctx:HostCtx,binding:{connector:string;connectionId:string;slot:string;handle:string}):Promise<string>;http(ctx:HostCtx,domains:readonly string[],url:string,init?:{method?:string;headers?:Record<string,string>;body?:string}):ReturnType<ConnectorsCtx['http']> }
 let connectorHost:ConnectorsHost|null=null;
 export function setConnectorsHost(host:ConnectorsHost|null):void{connectorHost=host;}
@@ -86,7 +86,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
     const cc: ConnectorsCtx = {
       trace: ctx.trace, emit: (n, s, p, o) => ctx.emit(n, s, p, o), call: (c, i) => ctx.call(c, i),
       http: (url,init) => port&&definition&&stored?.state==='live'?port.http(execution,definition.domains,url,init):ctx.http(url,init),
-      ...(ctx.log ? { log: ctx.log } : {}), ...((ctx.actingFor??ctx.principal?.id)?{actor:ctx.actingFor??ctx.principal!.id}:{}),
+      ...(ctx.log ? { log: ctx.log } : {}), ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}), ...((ctx.actingFor??ctx.principal?.id)?{actor:ctx.actingFor??ctx.principal!.id}:{}),
     };
     const bound = createConnectorsHandlers({ ...handle.deps, writeFolder: (key, files) => writeConnectorFolder(cc, key, files), writeSource: (key, files, register) => writeSourceFolder(cc, key, files, register),
       // the editable source is read through the original caller's Files access, so what they may not open is never compiled
@@ -128,7 +128,7 @@ const NAMES = [
   "sync_types.list", "sync_types.get", "sync_types.discover", "sync_types.create", "sync_types.update", "sync_types.preview", "sync_types.pause", "sync_types.resume", "sync_types.log",
   "sync_types.schema_changes", "sync_types.review_schema", "sync_types.confirm_deletes", "sync_types.make_native", "sync_types.resolve_conflict", "sync_types.replay_conflict", "sync_types.undo_push",
   "connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push",
-  "sync_specs.validate", "sync_specs.preview", "sync_specs.apply", "sync_specs.get", "sync_specs.backfill", "sync_specs.sample", "sync_specs.survey",
+  "sync_specs.validate", "sync_specs.preview", "sync_specs.apply", "sync_specs.get", "sync_specs.backfill", "sync_specs.sample", "sync_specs.survey", "connectors.sync_run", "connectors.sync_poll",
 ] as const satisfies readonly (keyof ConnectorsHandlers)[];
 
 export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as Record<(typeof NAMES)[number], (ctx: HostCtx, input: never) => Promise<unknown>>;

@@ -304,6 +304,12 @@ export default defineManifest({
       in: { syncTypeId: t.opt(syncTypeId), type: t.opt(id.recordType), connectionId: t.opt(id.connection), mode: t.opt(t.enm('incremental', 'reconcile', 'backfill', 'dry_run')), runAutomations: t.opt(t.bool()) },
       out: runStarted, run: { kind: 'connector_sync', stoppable: true }, perm: null, idem: 'key', emits: ['sync.completed', 'sync.conflict', 'sync.deletes_paused', 'sync.schema_changed', 'record.updated'], tool: 'records', offline: 'online',
     }),
+    write('connectors.sync_run', 'Run the pass a sync_now asked for, in the background as the person who asked, and finish its Run (called by the scheduler)', {
+      in: { runId: id.run }, out: { ok: t.bool(), summary: t.str() }, perm: null, emits: ['sync.completed', 'sync.conflict', 'sync.deletes_paused', 'sync.pushed', 'sync.push_failed', 'record.created', 'record.updated'],
+    }),
+    write('connectors.sync_poll', 'Keep a synced type current when the app has no webhook: pull what changed, push what people changed here, and schedule the next poll (called by the scheduler)', {
+      in: { type: id.recordType }, out: { ran: t.bool(), summary: t.opt(t.str()) }, perm: null, emits: ['sync.completed', 'sync.conflict', 'sync.deletes_paused', 'sync.pushed', 'sync.push_failed', 'record.created', 'record.updated'],
+    }),
     read('connectors.outbox.list', 'Pending, failed and recent pushes with their idempotency keys', {
       in: { type: t.opt(id.recordType), state: t.opt(t.enm('pending', 'sent', 'failed', 'canceled', 'undone')), ...pageIn }, out: { items: t.arr(outboxRow), ...pageOut }, perm: 'connectors.manage', tool: 'records',
     }),

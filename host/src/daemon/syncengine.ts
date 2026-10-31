@@ -17,12 +17,15 @@ import type { Page, QuerySpec, Store, StoredRecord } from "../../../kernel/src/s
 
 export interface BindingRow {
   syncTypeId: string; type: string; connector: string; connectionId: string; remote: string;
-  fields: { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; transform?: string }[];
+  fields: { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; transform?: string; relation?: string }[];
   match: string[]; createAtSource: boolean; deletes: "off" | "soft" | "travel"; conflict: "newest" | "source" | "vyre" | "ask";
 }
+export interface RunOut { summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean }
 export interface EngineCtx { trace: { traceId: string }; call(cap: string, input: unknown): Promise<unknown>; emit(name: string, subject: string, payload: Record<string, unknown>): unknown }
 export interface PreviewOut { creates: number; updates: number; removes: number; skips: number; summary: string; matches?: { sure: number; unsure: number; none: number }; samples: { recordId?: string; remoteId?: string; op: string; changes: Record<string, unknown> }[] }
 export interface SyncEngineLike {
+  /** One pass over a synced type: pull, push what people changed, report. Mode backfill and reconcile are the same pass as incremental; the list the connector asks for is what differs. */
+  run(ctx: EngineCtx, b: BindingRow, o: { mode: "incremental" | "reconcile" | "backfill" | "dry_run"; runAutomations?: boolean }): Promise<RunOut>;
   preview(ctx: EngineCtx, b: BindingRow, o: { direction?: "pull" | "push" | "both" }): Promise<PreviewOut>;
   confirmDeletes(ctx: EngineCtx, b: BindingRow, decision: "mark_removed" | "keep"): Promise<number>;
   resolveConflict(ctx: EngineCtx, b: BindingRow, conflictId: string, resolution: "ours" | "theirs" | "value", value?: unknown): Promise<{ recordId: string }>;
@@ -32,15 +35,15 @@ export interface SyncEngineLike {
 }
 
 /** The sources module's engine functions, as the daemon finds them in its exports. */
-export interface SyncDepsLike { local: Store; remote: Store; tx: Tx; now?: () => number; emit?: (name: string, subject: string, payload: Record<string, unknown>) => unknown }
+export interface SyncDepsLike { local: Store; remote: Store; tx: Tx; now?: () => number; space?: string; emit?: (name: string, subject: string, payload: Record<string, unknown>) => unknown }
 export interface SyncBindingLike {
   syncTypeId: string; type: string; remote: string; connector: string; label?: string;
-  fields: { local: string; remote: string; direction: "pull" | "push" | "both" | "off"; transform?: string }[];
+  fields: { local: string; remote: string; direction: "pull" | "push" | "both" | "off"; transform?: string; relation?: { syncTypeId: string; type: string } }[];
   match: string[]; createAtSource: boolean; deletes: boolean; conflict: BindingRow["conflict"];
 }
 export interface SyncReportLike {
   local: { created: number; updated: number }; remote: { created: number; updated: number; removed: number };
-  matched: number; ambiguous: number; conflicts: number; askedConflicts: number; removedAtSource: number; pausedDeletes: boolean; summary: string;
+  matched: number; ambiguous: number; conflicts: number; askedConflicts: number; removedAtSource: number; pausedDeletes: boolean; skipped?: number; summary: string;
 }
 export interface SyncCore {
   runSync(d: SyncDepsLike, b: SyncBindingLike, o?: { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string }): Promise<SyncReportLike>;
@@ -61,7 +64,7 @@ export function coreOf(ns: Record<string, unknown> | undefined): SyncCore {
 }
 
 /** The Space store, opened when first needed (after boot, once every module has named its projections). */
-export interface LocalSide { open(): { store: Store; tx: Tx } }
+export interface LocalSide { open(): { store: Store; tx: Tx }; space?: string }
 
 // ---- the remote Store over one connection
 
@@ -121,10 +124,14 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
   async function all(): Promise<RemoteRow[]> {
     const out: RemoteRow[] = [];
     let after: string | undefined;
+    const seen = new Set<string>();
     do {
       const page = readRows(await run(after === undefined ? nameList : nameAfter, after === undefined ? {} : { after }));
-      out.push(...page.rows);
-      after = page.next;
+      // an app that ignores the page parameter answers the same page again: stop when a page brings nothing new
+      const fresh = page.rows.filter((r) => !seen.has(r.id));
+      for (const r of fresh) seen.add(r.id);
+      out.push(...fresh);
+      after = fresh.length === 0 ? undefined : page.next;
     } while (after !== undefined && out.length < 100_000);
     for (const r of out) stamps.set(r.id, r.updatedAt);
     return out;
@@ -171,9 +178,12 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
 
 // ---- the engine
 
-const bindingOf = (b: BindingRow): SyncBindingLike => ({
+const bindingOf = (b: BindingRow, relations: Map<string, string> = new Map()): SyncBindingLike => ({
   syncTypeId: b.syncTypeId, type: b.type, remote: b.remote, connector: b.connector, label: b.connector,
-  fields: b.fields.map((f) => ({ local: f.key, remote: f.remote, direction: f.dir, ...(f.transform !== undefined ? { transform: f.transform } : {}) })),
+  fields: b.fields.map((f) => ({
+    local: f.key, remote: f.remote, direction: f.dir, ...(f.transform !== undefined ? { transform: f.transform } : {}),
+    ...(f.relation !== undefined && relations.has(f.relation) ? { relation: { syncTypeId: relations.get(f.relation)!, type: f.relation } } : {}),
+  })),
   match: b.match, createAtSource: b.createAtSource, deletes: b.deletes !== "off", conflict: b.conflict,
 });
 
@@ -188,25 +198,44 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
     }
     return p;
   };
-  const depsOf = async (ctx: EngineCtx, b: BindingRow): Promise<{ deps: SyncDepsLike; remote: ReturnType<typeof remoteStore>; tx: Tx; local: Store }> => {
+  const depsOf = async (ctx: EngineCtx, b: BindingRow): Promise<{ deps: SyncDepsLike; remote: ReturnType<typeof remoteStore>; tx: Tx; local: Store; binding: SyncBindingLike }> => {
     const { store, tx } = o.local.open();
     const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector));
-    return { deps: { local: store, remote, tx, ...(o.now ? { now: o.now } : {}), emit: (n, s, p) => ctx.emit(n, s, p) }, remote, tx, local: store };
+    // a relation names a record type; the engine needs the synced type that pulls it, to turn the app's id into a link
+    const relations = new Map<string, string>();
+    for (const f of b.fields) {
+      if (f.relation === undefined || relations.has(f.relation)) continue;
+      const got = await ctx.call("sync_types.get", { type: f.relation }).catch(() => undefined);
+      const id = isObj(got) && isObj(got["syncedType"]) ? got["syncedType"]["syncTypeId"] : undefined;
+      if (typeof id === "string") relations.set(f.relation, id);
+    }
+    return {
+      deps: { local: store, remote, tx, ...(o.now ? { now: o.now } : {}), ...(o.local.space ? { space: o.local.space } : {}), emit: (n, s, p) => ctx.emit(n, s, p) },
+      remote, tx, local: store, binding: bindingOf(b, relations),
+    };
   };
   return {
+    async run(ctx, b, opts) {
+      const { deps, binding } = await depsOf(ctx, b);
+      const dry = opts.mode === "dry_run";
+      const r = await o.core.runSync(deps, binding, { mode: "both", dryRun: dry, ...(opts.runAutomations ? { runAutomations: true } : {}), traceId: ctx.trace.traceId });
+      return { summary: r.summary, pulled: r.local.created + r.local.updated, pushed: r.remote.created + r.remote.updated + r.remote.removed, skipped: r.skipped ?? 0, conflicts: r.conflicts, dryRun: dry };
+    },
     async preview(ctx, b, opts) {
-      const { deps } = await depsOf(ctx, b);
-      const r = await o.core.runSync(deps, bindingOf(b), { mode: opts.direction ?? "both", dryRun: true, traceId: ctx.trace.traceId });
+      const { deps, binding } = await depsOf(ctx, b);
+      const r = await o.core.runSync(deps, binding, { mode: opts.direction ?? "both", dryRun: true, traceId: ctx.trace.traceId });
       return {
         creates: r.local.created + r.remote.created, updates: r.local.updated + r.remote.updated, removes: r.remote.removed + r.removedAtSource, skips: r.conflicts,
         summary: r.summary, matches: { sure: r.matched, unsure: r.ambiguous, none: 0 }, samples: [],
       };
     },
     async confirmDeletes(ctx, b, decision) {
-      return o.core.confirmDeletes((await depsOf(ctx, b)).deps, bindingOf(b), decision);
+      const { deps, binding } = await depsOf(ctx, b);
+      return o.core.confirmDeletes(deps, binding, decision);
     },
     async resolveConflict(ctx, b, conflictId, resolution, value) {
-      return o.core.resolveConflict((await depsOf(ctx, b)).deps, bindingOf(b), conflictId, resolution, value);
+      const { deps, binding } = await depsOf(ctx, b);
+      return o.core.resolveConflict(deps, binding, conflictId, resolution, value);
     },
     async replayConflict(ctx, b, conflictId) {
       const { tx, local, remote } = await depsOf(ctx, b);
@@ -224,11 +253,11 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
       ];
     },
     async undoPush(ctx, b, outboxId) {
-      const { deps, tx, local, remote } = await depsOf(ctx, b);
+      const { deps, tx, local, remote, binding } = await depsOf(ctx, b);
       const row = tx.get<{ op: string; status: string; undone_at: number | null; local_id: string; replaced: string | null }>(
         "SELECT op, status, undone_at, local_id, replaced FROM sy_outbox WHERE outbox_id = ? AND sync_type = ?", outboxId, b.syncTypeId,
       );
-      if (!row || row.op !== "remove" || row.status !== "done" || row.undone_at !== null) return o.core.undoPush(deps, bindingOf(b), outboxId);
+      if (!row || row.op !== "remove" || row.status !== "done" || row.undone_at !== null) return o.core.undoPush(deps, binding, outboxId);
       // Undoing a removal: the app has no way to bring a deleted record back, so it is created again from the snapshot taken just before the delete. No snapshot: say so.
       if (!row.replaced) return { undone: false, reason: "The app record was not saved before it was removed, so it cannot be put back." };
       const snapshot = JSON.parse(row.replaced) as Record<string, unknown>;
@@ -243,9 +272,9 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
       return { undone: true };
     },
     async push(ctx, b, outboxId) {
-      const { deps, tx } = await depsOf(ctx, b);
+      const { deps, tx, binding } = await depsOf(ctx, b);
       o.core.retryPush(deps, outboxId);   // a failed row goes back to pending; a pending one is untouched
-      await o.core.flushOutbox(deps, bindingOf(b));
+      await o.core.flushOutbox(deps, binding);
       const row = tx.get<{ status: string; error: string | null }>("SELECT status, error FROM sy_outbox WHERE outbox_id = ? AND sync_type = ?", outboxId, b.syncTypeId);
       if (row?.status === "done") return { state: "sent" };
       return { state: "failed", ...(row?.error ? { error: row.error } : {}) };
