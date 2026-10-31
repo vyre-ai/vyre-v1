@@ -52,6 +52,7 @@
     "automations.undelete@1": "0620b4f234ec0a9c9464c43a3e52aea45caf437063424ee0f527b1b2741544bc",
     "automations.update@1": "1c88c257167b08e6d2f0fca0dec419b4d452552b3b9522891bf7cd39b318c4f8",
     "automations.validate@1": "be2ac9efd2716d2d50802981f1f5159e3ab576206987a11d9375675b467cc8d9",
+    "automations.vault_usage@1": "ec0a6bb0fdc5feeb92af677d62b56c8b340431d9ad27f13d65a7b54f036bece1",
     "automations.versions@1": "7d23649a0a13baca18afd140ba45b9a6a21f835234262e64176995733db0770c",
     "automations.webhook_url.get@1": "f33ccf2f1bad29340e0c5c466f02caafa78e7f06b9d7664a24dbd75b6c8b7821",
     "automations.webhook_url.rotate@1": "b777fc7cbbf439ec3e80e4aa10acad626ad78f70fcfa8614cc086c1d6456f84a"

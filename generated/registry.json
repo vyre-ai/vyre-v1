@@ -1,5 +1,49 @@
 {
   "$defs": {
+    "s_0046d61ae3": {
+      "properties": {
+        "eTag": {
+          "type": "string"
+        },
+        "folder": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lastModifiedBy": {
+          "properties": {
+            "email": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "lastModifiedDateTime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "webUrl": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
     "s_01082abe49": {
       "properties": {
         "kind": {
@@ -5316,6 +5360,12 @@
       ],
       "type": "object"
     },
+    "s_3bc43d16a7": {
+      "items": {
+        "$ref": "#/$defs/s_6c8b57052a"
+      },
+      "type": "array"
+    },
     "s_3c36137cdc": {
       "properties": {
         "next": {
@@ -6495,108 +6545,6 @@
       ],
       "type": "object"
     },
-    "s_4c00af708c": {
-      "properties": {
-        "conflicts": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "error": {
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "fromDevice": {
-          "examples": [
-            "Irfad's MacBook"
-          ],
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "google_drive",
-            "sharepoint",
-            "onedrive",
-            "local",
-            "github"
-          ],
-          "type": "string"
-        },
-        "lagSeconds": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastSyncAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "mode": {
-          "enum": [
-            "server_copy",
-            "live_only"
-          ],
-          "type": "string"
-        },
-        "mountId": {
-          "examples": [
-            "mnt_a1b2c3"
-          ],
-          "pattern": "^mnt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "pendingChanges": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "provider": {
-          "examples": [
-            "Google Drive"
-          ],
-          "type": "string"
-        },
-        "ref": {
-          "type": "string"
-        },
-        "reviewChanges": {
-          "type": "boolean"
-        },
-        "state": {
-          "enum": [
-            "idle",
-            "syncing",
-            "paused",
-            "failing",
-            "device_offline"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "mountId",
-        "folderId",
-        "kind",
-        "provider",
-        "name",
-        "state",
-        "mode",
-        "reviewChanges",
-        "pendingChanges",
-        "conflicts"
-      ],
-      "type": "object"
-    },
     "s_4c0b859878": {
       "properties": {
         "createdAt": {
@@ -7443,17 +7391,6 @@
       ],
       "type": "object"
     },
-    "s_547685ab39": {
-      "properties": {
-        "item": {
-          "$ref": "#/$defs/s_73f4c17267"
-        }
-      },
-      "required": [
-        "item"
-      ],
-      "type": "object"
-    },
     "s_54a19080d4": {
       "properties": {
         "id": {
@@ -7806,6 +7743,12 @@
       ],
       "type": "object"
     },
+    "s_59e010eed2": {
+      "items": {
+        "$ref": "#/$defs/s_0046d61ae3"
+      },
+      "type": "array"
+    },
     "s_5a34561c27": {
       "items": {
         "properties": {
@@ -8050,6 +7993,17 @@
       },
       "required": [
         "comment"
+      ],
+      "type": "object"
+    },
+    "s_5ec96de3af": {
+      "properties": {
+        "mount": {
+          "$ref": "#/$defs/s_91eb2bd6df"
+        }
+      },
+      "required": [
+        "mount"
       ],
       "type": "object"
     },
@@ -8612,6 +8566,26 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "s_633be31f62": {
+      "enum": [
+        "send",
+        "post",
+        "pay",
+        "delete",
+        "transfer",
+        "enroll_node",
+        "connection_change",
+        "push_protected",
+        "campaign_launch",
+        "secret_export",
+        "site_promote",
+        "signature_send",
+        "spend_raise",
+        "signin_change",
+        "approve"
+      ],
+      "type": "string"
     },
     "s_635108e53b": {
       "properties": {
@@ -9598,6 +9572,57 @@
       ],
       "type": "object"
     },
+    "s_6c8b57052a": {
+      "properties": {
+        "driveId": {
+          "type": "string"
+        },
+        "headRevisionId": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lastModifyingUser": {
+          "properties": {
+            "email": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "modifiedTime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parents": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "webViewLink": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "mimeType"
+      ],
+      "type": "object"
+    },
     "s_6d2c83cc88": {
       "properties": {
         "run": {
@@ -9813,36 +9838,6 @@
       },
       "required": [
         "record"
-      ],
-      "type": "object"
-    },
-    "s_73f4c17267": {
-      "properties": {
-        "folder": {
-          "type": "boolean"
-        },
-        "id": {
-          "type": "string"
-        },
-        "lastModifiedDateTime": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "parentId": {
-          "type": "string"
-        },
-        "size": {
-          "type": "integer"
-        },
-        "webUrl": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name"
       ],
       "type": "object"
     },
@@ -11158,12 +11153,6 @@
       ],
       "type": "object"
     },
-    "s_85e67931de": {
-      "items": {
-        "$ref": "#/$defs/s_73f4c17267"
-      },
-      "type": "array"
-    },
     "s_85f04c7d4f": {
       "properties": {
         "active": {
@@ -11576,6 +11565,87 @@
         "viewId",
         "type",
         "shared"
+      ],
+      "type": "object"
+    },
+    "s_8c12c43d93": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_633be31f62"
+        },
+        "afterHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "agentOkFor": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
+        "approvers": {
+          "description": "role:<name>, owner or asker",
+          "examples": [
+            "role:admin"
+          ],
+          "type": "string"
+        },
+        "emailBackstopHours": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "escalateTo": {
+          "enum": [
+            "delegate",
+            "role"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "hold",
+            "allow"
+          ],
+          "type": "string"
+        },
+        "onTimeout": {
+          "enum": [
+            "drop",
+            "escalate"
+          ],
+          "type": "string"
+        },
+        "peopleOnly": {
+          "type": "boolean"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "floor",
+            "agent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "act",
+        "mode",
+        "approvers",
+        "peopleOnly",
+        "afterHours",
+        "onTimeout",
+        "escalateTo",
+        "emailBackstopHours",
+        "scope"
       ],
       "type": "object"
     },
@@ -12126,6 +12196,118 @@
       ],
       "type": "object"
     },
+    "s_91eb2bd6df": {
+      "properties": {
+        "conflicts": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error": {
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "fromDevice": {
+          "examples": [
+            "Irfad's MacBook"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "google_drive",
+            "sharepoint",
+            "onedrive",
+            "local",
+            "github"
+          ],
+          "type": "string"
+        },
+        "lagSeconds": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastSyncAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "liveVia": {
+          "enum": [
+            "push",
+            "poll"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "server_copy",
+            "live_only"
+          ],
+          "type": "string"
+        },
+        "mountId": {
+          "examples": [
+            "mnt_a1b2c3"
+          ],
+          "pattern": "^mnt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pendingChanges": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "examples": [
+            "Google Drive"
+          ],
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "reviewChanges": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "idle",
+            "syncing",
+            "paused",
+            "failing",
+            "device_offline"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "mountId",
+        "folderId",
+        "kind",
+        "provider",
+        "name",
+        "state",
+        "mode",
+        "reviewChanges",
+        "pendingChanges",
+        "conflicts"
+      ],
+      "type": "object"
+    },
     "s_9206859ebe": {
       "properties": {
         "mailbox": {
@@ -12134,6 +12316,28 @@
       },
       "required": [
         "mailbox"
+      ],
+      "type": "object"
+    },
+    "s_920a271d7a": {
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/s_6c8b57052a"
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "type": "object"
+    },
+    "s_921597cfe1": {
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/s_0046d61ae3"
+        }
+      },
+      "required": [
+        "item"
       ],
       "type": "object"
     },
@@ -12159,25 +12363,6 @@
         "recordId"
       ],
       "type": "object"
-    },
-    "s_93c2cb3346": {
-      "enum": [
-        "send",
-        "post",
-        "pay",
-        "delete",
-        "transfer",
-        "enroll_node",
-        "connection_change",
-        "push_protected",
-        "campaign_launch",
-        "secret_export",
-        "site_promote",
-        "signature_send",
-        "spend_raise",
-        "signin_change"
-      ],
-      "type": "string"
     },
     "s_93ed523472": {
       "properties": {
@@ -12770,86 +12955,6 @@
       ],
       "type": "object"
     },
-    "s_9c5782a1af": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_93c2cb3346"
-        },
-        "actingFor": {
-          "type": "string"
-        },
-        "capName": {
-          "examples": [
-            "mail.send"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "hld_a1b2c3"
-          ],
-          "pattern": "^hld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "payloadHash": {
-          "type": "string"
-        },
-        "principal": {
-          "$ref": "#/$defs/s_6c1eb10d98"
-        },
-        "runId": {
-          "examples": [
-            "run_a1b2c3"
-          ],
-          "pattern": "^run_[a-z0-9]+$",
-          "type": "string"
-        },
-        "state": {
-          "enum": [
-            "held",
-            "approved",
-            "denied",
-            "expired"
-          ],
-          "type": "string"
-        },
-        "taskId": {
-          "examples": [
-            "tsk_a1b2c3"
-          ],
-          "pattern": "^tsk_[a-z0-9]+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "act",
-        "capName",
-        "taskId",
-        "principal",
-        "state",
-        "payloadHash",
-        "createdAt",
-        "expiresAt"
-      ],
-      "type": "object"
-    },
     "s_9c72760d14": {
       "properties": {
         "id": {
@@ -12918,43 +13023,6 @@
       "required": [
         "people",
         "idempotencyKey"
-      ],
-      "type": "object"
-    },
-    "s_9d36938961": {
-      "properties": {
-        "driveId": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "mimeType": {
-          "type": "string"
-        },
-        "modifiedTime": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "parents": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "size": {
-          "type": "integer"
-        },
-        "webViewLink": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "mimeType"
       ],
       "type": "object"
     },
@@ -14561,6 +14629,86 @@
       ],
       "type": "object"
     },
+    "s_b4489a688c": {
+      "properties": {
+        "act": {
+          "$ref": "#/$defs/s_633be31f62"
+        },
+        "actingFor": {
+          "type": "string"
+        },
+        "capName": {
+          "examples": [
+            "mail.send"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "hld_a1b2c3"
+          ],
+          "pattern": "^hld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "payloadHash": {
+          "type": "string"
+        },
+        "principal": {
+          "$ref": "#/$defs/s_6c1eb10d98"
+        },
+        "runId": {
+          "examples": [
+            "run_a1b2c3"
+          ],
+          "pattern": "^run_[a-z0-9]+$",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "held",
+            "approved",
+            "denied",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "taskId": {
+          "examples": [
+            "tsk_a1b2c3"
+          ],
+          "pattern": "^tsk_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "act",
+        "capName",
+        "taskId",
+        "principal",
+        "state",
+        "payloadHash",
+        "createdAt",
+        "expiresAt"
+      ],
+      "type": "object"
+    },
     "s_b4aa39e281": {
       "items": {
         "properties": {
@@ -14682,12 +14830,6 @@
         "reason"
       ],
       "type": "object"
-    },
-    "s_b4d936413b": {
-      "items": {
-        "$ref": "#/$defs/s_9d36938961"
-      },
-      "type": "array"
     },
     "s_b546bcd0e1": {
       "properties": {
@@ -15801,6 +15943,29 @@
       },
       "required": [
         "provider"
+      ],
+      "type": "object"
+    },
+    "s_bf8d452797": {
+      "properties": {
+        "blobId": {
+          "examples": [
+            "blb_a1b2c3"
+          ],
+          "pattern": "^blb_[a-z0-9]+$",
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "blobId",
+        "size",
+        "mimeType"
       ],
       "type": "object"
     },
@@ -17371,17 +17536,6 @@
         "fileId",
         "sheet",
         "rowId"
-      ],
-      "type": "object"
-    },
-    "s_d96ebe6616": {
-      "properties": {
-        "file": {
-          "$ref": "#/$defs/s_9d36938961"
-        }
-      },
-      "required": [
-        "file"
       ],
       "type": "object"
     },
@@ -19615,87 +19769,6 @@
       ],
       "type": "object"
     },
-    "s_f5d992e1ed": {
-      "properties": {
-        "act": {
-          "$ref": "#/$defs/s_93c2cb3346"
-        },
-        "afterHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "agentOkFor": {
-          "enum": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "type": "string"
-        },
-        "approvers": {
-          "description": "role:<name>, owner or asker",
-          "examples": [
-            "role:admin"
-          ],
-          "type": "string"
-        },
-        "emailBackstopHours": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "escalateTo": {
-          "enum": [
-            "delegate",
-            "role"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "hold",
-            "allow"
-          ],
-          "type": "string"
-        },
-        "onTimeout": {
-          "enum": [
-            "drop",
-            "escalate"
-          ],
-          "type": "string"
-        },
-        "peopleOnly": {
-          "type": "boolean"
-        },
-        "scope": {
-          "enum": [
-            "space",
-            "floor",
-            "agent"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "act",
-        "mode",
-        "approvers",
-        "peopleOnly",
-        "afterHours",
-        "onTimeout",
-        "escalateTo",
-        "emailBackstopHours",
-        "scope"
-      ],
-      "type": "object"
-    },
     "s_f905e4d1fb": {
       "properties": {
         "reason": {
@@ -20167,17 +20240,6 @@
       },
       "required": [
         "item"
-      ],
-      "type": "object"
-    },
-    "s_fd00941451": {
-      "properties": {
-        "mount": {
-          "$ref": "#/$defs/s_4c00af708c"
-        }
-      },
-      "required": [
-        "mount"
       ],
       "type": "object"
     },
@@ -38863,6 +38925,146 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "handle": "#Dana_Lawmatics"
+          },
+          "name": "example",
+          "output": {
+            "uses": [
+              {
+                "automations": [
+                  {
+                    "automationId": "aut_a1b2c3",
+                    "name": "example",
+                    "status": "example",
+                    "steps": [
+                      {
+                        "nodeId": "example",
+                        "title": "example"
+                      }
+                    ]
+                  }
+                ],
+                "handle": "#Dana_Lawmatics"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "handle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.vault_usage",
+      "output": {
+        "properties": {
+          "uses": {
+            "items": {
+              "properties": {
+                "automations": {
+                  "items": {
+                    "properties": {
+                      "automationId": {
+                        "examples": [
+                          "aut_a1b2c3"
+                        ],
+                        "pattern": "^aut_[a-z0-9]+$",
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "steps": {
+                        "items": {
+                          "properties": {
+                            "nodeId": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "nodeId",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "automationId",
+                      "name",
+                      "status",
+                      "steps"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "handle": {
+                  "examples": [
+                    "#Dana_Lawmatics"
+                  ],
+                  "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "handle",
+                "automations"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "uses"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -82591,7 +82793,7 @@
                   "type": "boolean"
                 },
                 "key": {
-                  "$ref": "#/$defs/s_93c2cb3346"
+                  "$ref": "#/$defs/s_633be31f62"
                 },
                 "peopleOnly": {
                   "type": "boolean"
@@ -82769,7 +82971,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "adminOnly": {
             "type": "boolean"
@@ -83007,7 +83209,7 @@
       "output": {
         "properties": {
           "hold": {
-            "$ref": "#/$defs/s_9c5782a1af"
+            "$ref": "#/$defs/s_b4489a688c"
           }
         },
         "required": [
@@ -83079,7 +83281,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "cursor": {
             "type": "string"
@@ -83119,7 +83321,7 @@
         "properties": {
           "holds": {
             "items": {
-              "$ref": "#/$defs/s_9c5782a1af"
+              "$ref": "#/$defs/s_b4489a688c"
             },
             "type": "array"
           },
@@ -83193,7 +83395,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "actingFor": {
             "type": "string"
@@ -83512,7 +83714,7 @@
         "properties": {
           "rules": {
             "items": {
-              "$ref": "#/$defs/s_f5d992e1ed"
+              "$ref": "#/$defs/s_8c12c43d93"
             },
             "type": "array"
           }
@@ -83586,7 +83788,7 @@
       "input": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "afterHours": {
             "minimum": 1,
@@ -83657,7 +83859,7 @@
       "output": {
         "properties": {
           "rule": {
-            "$ref": "#/$defs/s_f5d992e1ed"
+            "$ref": "#/$defs/s_8c12c43d93"
           }
         },
         "required": [
@@ -89322,7 +89524,12 @@
           "output": {
             "file": {
               "driveId": "example",
+              "headRevisionId": "example",
               "id": "example",
+              "lastModifyingUser": {
+                "email": "example",
+                "name": "example"
+              },
               "mimeType": "example",
               "modifiedTime": "example",
               "name": "example",
@@ -89383,7 +89590,7 @@
       "module": "google",
       "name": "google.drive.copy_file",
       "output": {
-        "$ref": "#/$defs/s_d96ebe6616"
+        "$ref": "#/$defs/s_920a271d7a"
       },
       "permission": null,
       "resource": {
@@ -89428,7 +89635,12 @@
           "output": {
             "file": {
               "driveId": "example",
+              "headRevisionId": "example",
               "id": "example",
+              "lastModifyingUser": {
+                "email": "example",
+                "name": "example"
+              },
               "mimeType": "example",
               "modifiedTime": "example",
               "name": "example",
@@ -89486,7 +89698,7 @@
       "module": "google",
       "name": "google.drive.create_folder",
       "output": {
-        "$ref": "#/$defs/s_d96ebe6616"
+        "$ref": "#/$defs/s_920a271d7a"
       },
       "permission": null,
       "resource": {
@@ -89538,27 +89750,7 @@
       "module": "google",
       "name": "google.drive.download_file",
       "output": {
-        "properties": {
-          "blobId": {
-            "examples": [
-              "blb_a1b2c3"
-            ],
-            "pattern": "^blb_[a-z0-9]+$",
-            "type": "string"
-          },
-          "mimeType": {
-            "type": "string"
-          },
-          "size": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "blobId",
-          "size",
-          "mimeType"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_bf8d452797"
       },
       "permission": null,
       "resource": {
@@ -89568,6 +89760,86 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Download a Drive file into a blob",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "fileId": "example",
+            "revisionId": "example"
+          },
+          "name": "example",
+          "output": {
+            "blobId": "blb_a1b2c3",
+            "mimeType": "example",
+            "size": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId",
+          "revisionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.drive.download_revision",
+      "output": {
+        "$ref": "#/$defs/s_bf8d452797"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Download one revision of a Drive file into a blob",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -89680,7 +89952,12 @@
           "output": {
             "file": {
               "driveId": "example",
+              "headRevisionId": "example",
               "id": "example",
+              "lastModifyingUser": {
+                "email": "example",
+                "name": "example"
+              },
               "mimeType": "example",
               "modifiedTime": "example",
               "name": "example",
@@ -89701,7 +89978,7 @@
       "module": "google",
       "name": "google.drive.get_file",
       "output": {
-        "$ref": "#/$defs/s_d96ebe6616"
+        "$ref": "#/$defs/s_920a271d7a"
       },
       "permission": null,
       "resource": {
@@ -89835,7 +90112,12 @@
               {
                 "file": {
                   "driveId": "example",
+                  "headRevisionId": "example",
                   "id": "example",
+                  "lastModifyingUser": {
+                    "email": "example",
+                    "name": "example"
+                  },
                   "mimeType": "example",
                   "modifiedTime": "example",
                   "name": "example",
@@ -89893,7 +90175,7 @@
             "items": {
               "properties": {
                 "file": {
-                  "$ref": "#/$defs/s_9d36938961"
+                  "$ref": "#/$defs/s_6c8b57052a"
                 },
                 "fileId": {
                   "type": "string"
@@ -89961,7 +90243,12 @@
             "files": [
               {
                 "driveId": "example",
+                "headRevisionId": "example",
                 "id": "example",
+                "lastModifyingUser": {
+                  "email": "example",
+                  "name": "example"
+                },
                 "mimeType": "example",
                 "modifiedTime": "example",
                 "name": "example",
@@ -90022,7 +90309,7 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_b4d936413b"
+            "$ref": "#/$defs/s_3bc43d16a7"
           },
           "nextPageToken": {
             "type": "string"
@@ -90041,6 +90328,103 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "List or search Drive files and folders (My Drive and Shared Drives)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "fileId": "example"
+          },
+          "name": "example",
+          "output": {
+            "revisions": [
+              {
+                "id": "example",
+                "lastModifyingUser": {
+                  "email": "example",
+                  "name": "example"
+                },
+                "modifiedTime": "example",
+                "size": 1
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_9492b61590"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.drive.list_revisions",
+      "output": {
+        "properties": {
+          "revisions": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "lastModifyingUser": {
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "modifiedTime": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "modifiedTime"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "revisions"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The revisions Drive keeps of a file, with who saved each",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -90354,14 +90738,21 @@
             "connectionId": "con_a1b2c3",
             "fileId": "fil_a1b2c3",
             "idempotencyKey": "idem_1",
+            "ifRevision": "example",
             "name": "example",
-            "parentId": "example"
+            "parentId": "example",
+            "remoteId": "example"
           },
           "name": "example",
           "output": {
             "file": {
               "driveId": "example",
+              "headRevisionId": "example",
               "id": "example",
+              "lastModifyingUser": {
+                "email": "example",
+                "name": "example"
+              },
               "mimeType": "example",
               "modifiedTime": "example",
               "name": "example",
@@ -90370,7 +90761,8 @@
               ],
               "size": 1,
               "webViewLink": "example"
-            }
+            },
+            "stale": true
           }
         }
       ],
@@ -90408,10 +90800,16 @@
             "minLength": 1,
             "type": "string"
           },
+          "ifRevision": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
           "parentId": {
+            "type": "string"
+          },
+          "remoteId": {
             "type": "string"
           }
         },
@@ -90427,7 +90825,18 @@
       "module": "google",
       "name": "google.drive.upload_file",
       "output": {
-        "$ref": "#/$defs/s_d96ebe6616"
+        "properties": {
+          "file": {
+            "$ref": "#/$defs/s_6c8b57052a"
+          },
+          "stale": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "type": "object"
       },
       "permission": null,
       "resource": {
@@ -90436,7 +90845,7 @@
       },
       "risk": "high",
       "since": "1.0.0",
-      "summary": "Upload a Space file into Drive",
+      "summary": "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -125003,6 +125412,119 @@
       "examples": [
         {
           "input": {
+            "fileIds": [
+              "fil_a1b2c3"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "editors": [
+              {
+                "at": 1760000000000,
+                "email": "example",
+                "fileId": "fil_a1b2c3",
+                "name": "example",
+                "provider": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileIds": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fileIds"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "mounts",
+      "name": "mounts.editors",
+      "output": {
+        "properties": {
+          "editors": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "fileId": {
+                  "examples": [
+                    "fil_a1b2c3"
+                  ],
+                  "pattern": "^fil_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "provider": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fileId",
+                "provider"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "editors"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
             "mountId": "mnt_a1b2c3"
           },
           "name": "example",
@@ -125015,6 +125537,8 @@
               "kind": "google_drive",
               "lagSeconds": 1,
               "lastSyncAt": 1760000000000,
+              "live": true,
+              "liveVia": "push",
               "mode": "server_copy",
               "mountId": "mnt_a1b2c3",
               "name": "example",
@@ -125048,7 +125572,7 @@
       "module": "mounts",
       "name": "mounts.get",
       "output": {
-        "$ref": "#/$defs/s_fd00941451"
+        "$ref": "#/$defs/s_5ec96de3af"
       },
       "permission": null,
       "resource": {
@@ -125057,6 +125581,129 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Read one mount: state, lag, pending changes and conflicts (the sync line of a folder)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "revisions": [
+              {
+                "at": 1760000000000,
+                "by": {
+                  "actor": "example",
+                  "email": "example",
+                  "name": "example"
+                },
+                "current": true,
+                "revisionId": "example",
+                "size": 1
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "mounts",
+      "name": "mounts.history",
+      "output": {
+        "properties": {
+          "revisions": {
+            "items": {
+              "properties": {
+                "at": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "by": {
+                  "properties": {
+                    "actor": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "current": {
+                  "type": "boolean"
+                },
+                "revisionId": {
+                  "type": "string"
+                },
+                "size": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "revisionId",
+                "current"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "revisions"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The provider's revisions of a file, newest first, with who saved each (the person or agent for edits sent from Vyre)",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -125174,6 +125821,8 @@
                 "kind": "google_drive",
                 "lagSeconds": 1,
                 "lastSyncAt": 1760000000000,
+                "live": true,
+                "liveVia": "push",
                 "mode": "server_copy",
                 "mountId": "mnt_a1b2c3",
                 "name": "example",
@@ -125221,7 +125870,7 @@
         "properties": {
           "mounts": {
             "items": {
-              "$ref": "#/$defs/s_4c00af708c"
+              "$ref": "#/$defs/s_91eb2bd6df"
             },
             "type": "array"
           },
@@ -125399,6 +126048,256 @@
     {
       "effects": "write",
       "emits": [
+        "mount.synced",
+        "mount.failed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "channelId": "example",
+            "mountId": "mnt_a1b2c3",
+            "replacedBy": "example",
+            "source": "google",
+            "subscriptionId": "example"
+          },
+          "name": "example",
+          "output": {
+            "mounts": 1,
+            "passes": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "channelId": {
+            "type": "string"
+          },
+          "mountId": {
+            "examples": [
+              "mnt_a1b2c3"
+            ],
+            "pattern": "^mnt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "replacedBy": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "google",
+              "microsoft",
+              "client"
+            ],
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "mounts",
+      "name": "mounts.nudge",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "mounts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "passes": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mounts",
+          "passes"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "A provider push notice (Drive channel, Graph subscription) or an app showing a mount asks for a sync pass (system)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "file.version_added"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "changesetId": "chg_a1b2c3",
+            "fetched": true,
+            "mounted": true,
+            "offline": true,
+            "source": {
+              "cached": true,
+              "conflict": true,
+              "lastEditedBy": {
+                "email": "example",
+                "name": "example"
+              },
+              "modifiedAt": 1760000000000,
+              "mountId": "mnt_a1b2c3",
+              "provider": "example",
+              "remoteId": "example",
+              "revisionId": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "mounts",
+      "name": "mounts.open",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fetched": {
+            "type": "boolean"
+          },
+          "mounted": {
+            "type": "boolean"
+          },
+          "offline": {
+            "type": "boolean"
+          },
+          "source": {
+            "properties": {
+              "cached": {
+                "type": "boolean"
+              },
+              "conflict": {
+                "type": "boolean"
+              },
+              "lastEditedBy": {
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "modifiedAt": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "mountId": {
+                "examples": [
+                  "mnt_a1b2c3"
+                ],
+                "pattern": "^mnt_[a-z0-9]+$",
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "remoteId": {
+                "type": "string"
+              },
+              "revisionId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mountId",
+              "provider",
+              "remoteId",
+              "cached",
+              "conflict"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "mounted",
+          "fetched"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Open a file of a mount: ask the provider what it holds now and fetch the content only when the copy in Vyre is not that version",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
         "mount.paused"
       ],
       "errors": [
@@ -125535,6 +126434,97 @@
       "summary": "Remove a mount; keep the files as a plain folder or delete the copy",
       "surfaces": {
         "cli": "vyre mounts remove",
+        "http": "auto",
+        "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "file.version_added",
+        "mount.synced",
+        "mount.failed",
+        "mount.file_sent",
+        "mount.conflict"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.auth_failed",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3",
+            "revisionId": "example"
+          },
+          "name": "example",
+          "output": {
+            "changesetId": "chg_a1b2c3",
+            "restored": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "revisionId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "mounts",
+      "name": "mounts.restore",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "changesetId": {
+            "examples": [
+              "chg_a1b2c3"
+            ],
+            "pattern": "^chg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "restored": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "restored"
+        ],
+        "type": "object"
+      },
+      "permission": "files.write",
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Put an earlier revision of a file back as the newest; it goes out like any edit",
+      "surfaces": {
         "http": "auto",
         "mcp": {
           "toolset": "files"
@@ -125730,6 +126720,8 @@
               "kind": "google_drive",
               "lagSeconds": 1,
               "lastSyncAt": 1760000000000,
+              "live": true,
+              "liveVia": "push",
               "mode": "server_copy",
               "mountId": "mnt_a1b2c3",
               "name": "example",
@@ -125778,7 +126770,7 @@
       "module": "mounts",
       "name": "mounts.update",
       "output": {
-        "$ref": "#/$defs/s_fd00941451"
+        "$ref": "#/$defs/s_5ec96de3af"
       },
       "permission": "files.write",
       "resource": {
@@ -128039,8 +129031,13 @@
           "name": "example",
           "output": {
             "item": {
+              "eTag": "example",
               "folder": true,
               "id": "example",
+              "lastModifiedBy": {
+                "email": "example",
+                "name": "example"
+              },
               "lastModifiedDateTime": "example",
               "name": "example",
               "parentId": "example",
@@ -128098,7 +129095,7 @@
       "module": "microsoft",
       "name": "ms.drive.create_folder",
       "output": {
-        "$ref": "#/$defs/s_547685ab39"
+        "$ref": "#/$defs/s_921597cfe1"
       },
       "permission": null,
       "resource": {
@@ -128239,8 +129236,13 @@
           "output": {
             "changed": [
               {
+                "eTag": "example",
                 "folder": true,
                 "id": "example",
+                "lastModifiedBy": {
+                  "email": "example",
+                  "name": "example"
+                },
                 "lastModifiedDateTime": "example",
                 "name": "example",
                 "parentId": "example",
@@ -128290,7 +129292,7 @@
       "output": {
         "properties": {
           "changed": {
-            "$ref": "#/$defs/s_85e67931de"
+            "$ref": "#/$defs/s_59e010eed2"
           },
           "deltaLink": {
             "type": "string"
@@ -128390,13 +129392,101 @@
             "as": "maya@example.com",
             "connectionId": "con_a1b2c3",
             "driveId": "example",
+            "itemId": "example",
+            "versionId": "example"
+          },
+          "name": "example",
+          "output": {
+            "blobId": "blb_a1b2c3",
+            "size": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "versionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "microsoft",
+      "name": "ms.drive.download_version",
+      "output": {
+        "$ref": "#/$defs/s_0977332dc5"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Download one version of an item into a blob",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example",
             "itemId": "example"
           },
           "name": "example",
           "output": {
             "item": {
+              "eTag": "example",
               "folder": true,
               "id": "example",
+              "lastModifiedBy": {
+                "email": "example",
+                "name": "example"
+              },
               "lastModifiedDateTime": "example",
               "name": "example",
               "parentId": "example",
@@ -128414,7 +129504,7 @@
       "module": "microsoft",
       "name": "ms.drive.get_item",
       "output": {
-        "$ref": "#/$defs/s_547685ab39"
+        "$ref": "#/$defs/s_921597cfe1"
       },
       "permission": null,
       "resource": {
@@ -128456,8 +129546,13 @@
           "output": {
             "items": [
               {
+                "eTag": "example",
                 "folder": true,
                 "id": "example",
+                "lastModifiedBy": {
+                  "email": "example",
+                  "name": "example"
+                },
                 "lastModifiedDateTime": "example",
                 "name": "example",
                 "parentId": "example",
@@ -128507,7 +129602,7 @@
       "output": {
         "properties": {
           "items": {
-            "$ref": "#/$defs/s_85e67931de"
+            "$ref": "#/$defs/s_59e010eed2"
           },
           "nextSkipToken": {
             "type": "string"
@@ -128526,6 +129621,104 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "List items in a OneDrive or SharePoint folder",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example",
+            "itemId": "example"
+          },
+          "name": "example",
+          "output": {
+            "versions": [
+              {
+                "id": "example",
+                "lastModifiedBy": {
+                  "email": "example",
+                  "name": "example"
+                },
+                "lastModifiedDateTime": "example",
+                "size": 1
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_745b46a2f2"
+      },
+      "level": "view",
+      "module": "microsoft",
+      "name": "ms.drive.list_versions",
+      "output": {
+        "properties": {
+          "versions": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "lastModifiedBy": {
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "lastModifiedDateTime": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "lastModifiedDateTime"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "versions"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The versions OneDrive or SharePoint keeps of an item, with who saved each",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -128680,22 +129873,182 @@
             "as": "maya@example.com",
             "connectionId": "con_a1b2c3",
             "driveId": "example",
+            "idempotencyKey": "idem_1",
+            "notificationUrl": "example"
+          },
+          "name": "example",
+          "output": {
+            "expiresAt": 1760000000000,
+            "subscriptionId": "example"
+          }
+        }
+      ],
+      "gate": {
+        "act": "none",
+        "reason": "Registers a change subscription for the Space; nothing is sent to anyone"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "notificationUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "notificationUrl",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "microsoft",
+      "name": "ms.drive.subscribe",
+      "output": {
+        "$ref": "#/$defs/s_7e1f5a267d"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Subscribe to change notifications for a drive",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "subscriptionId": "example"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "none",
+        "reason": "Removes a change subscription; nothing is sent to anyone"
+      },
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_7f24e0525d"
+      },
+      "level": "use",
+      "module": "microsoft",
+      "name": "ms.drive.unsubscribe",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Remove a drive change subscription",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example",
             "fileId": "fil_a1b2c3",
             "folderId": "example",
             "idempotencyKey": "idem_1",
-            "name": "example"
+            "ifMatch": "example",
+            "name": "example",
+            "remoteId": "example"
           },
           "name": "example",
           "output": {
             "item": {
+              "eTag": "example",
               "folder": true,
               "id": "example",
+              "lastModifiedBy": {
+                "email": "example",
+                "name": "example"
+              },
               "lastModifiedDateTime": "example",
               "name": "example",
               "parentId": "example",
               "size": 1,
               "webUrl": "example"
-            }
+            },
+            "stale": true
           }
         }
       ],
@@ -128739,7 +130092,13 @@
             "minLength": 1,
             "type": "string"
           },
+          "ifMatch": {
+            "type": "string"
+          },
           "name": {
+            "type": "string"
+          },
+          "remoteId": {
             "type": "string"
           }
         },
@@ -128755,7 +130114,15 @@
       "module": "microsoft",
       "name": "ms.drive.upload_item",
       "output": {
-        "$ref": "#/$defs/s_547685ab39"
+        "properties": {
+          "item": {
+            "$ref": "#/$defs/s_0046d61ae3"
+          },
+          "stale": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
       },
       "permission": null,
       "resource": {
@@ -128764,7 +130131,7 @@
       },
       "risk": "high",
       "since": "1.0.0",
-      "summary": "Upload a Space file into OneDrive or SharePoint",
+      "summary": "Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -187488,6 +188855,8 @@
         "google.drive.export_file",
         "google.drive.get_permissions",
         "google.drive.upload_file",
+        "google.drive.list_revisions",
+        "google.drive.download_revision",
         "google.drive.create_folder",
         "google.drive.copy_file",
         "google.drive.share_file",
@@ -187779,6 +189148,10 @@
         "ms.drive.download_item",
         "ms.drive.delta",
         "ms.drive.upload_item",
+        "ms.drive.list_versions",
+        "ms.drive.download_version",
+        "ms.drive.subscribe",
+        "ms.drive.unsubscribe",
         "ms.drive.create_folder",
         "ms.drive.share_item",
         "ms.drive.delete_item",
@@ -197587,7 +198960,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "by": {
             "type": "string"
@@ -197635,7 +199008,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "by": {
             "type": "string"
@@ -197691,7 +199064,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "escalatedTo": {
             "type": "string"
@@ -197749,7 +199122,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "actingFor": {
             "type": "string"
@@ -197816,7 +199189,7 @@
       "payload": {
         "properties": {
           "act": {
-            "$ref": "#/$defs/s_93c2cb3346"
+            "$ref": "#/$defs/s_633be31f62"
           },
           "agentId": {
             "examples": [
@@ -202825,6 +204198,58 @@
     },
     {
       "module": "mounts",
+      "name": "mount.conflict",
+      "notify": "sync.attention",
+      "payload": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "keptAs": {
+            "type": "string"
+          },
+          "mountId": {
+            "examples": [
+              "mnt_a1b2c3"
+            ],
+            "pattern": "^mnt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mountId",
+          "folderId",
+          "fileId",
+          "name",
+          "keptAs"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/folderId",
+        "type": "folder"
+      },
+      "summary": "A file changed at the provider while an edit in Vyre waited to go out; the edit was kept beside it as a copy",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "mounts",
       "name": "mount.failed",
       "notify": "sync.attention",
       "payload": {
@@ -202860,6 +204285,60 @@
         "type": "folder"
       },
       "summary": "A mount sync failed and needs attention",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "mounts",
+      "name": "mount.file_sent",
+      "payload": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "mountId": {
+            "examples": [
+              "mnt_a1b2c3"
+            ],
+            "pattern": "^mnt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mountId",
+          "folderId",
+          "fileId",
+          "name",
+          "by"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/folderId",
+        "type": "folder"
+      },
+      "summary": "An edit made in Vyre went out to the provider as a new revision (who made it is in by)",
       "sv": 1,
       "vis": "space"
     },
@@ -215156,6 +216635,39 @@
     }
   ],
   "gateActs": [
+    {
+      "appliesTo": {
+        "actors": [
+          "agent",
+          "automation",
+          "campaign"
+        ],
+        "humanToo": false
+      },
+      "approvers": {
+        "default": "asker",
+        "peopleOnly": true
+      },
+      "key": "approve",
+      "module": "gate",
+      "preview": {
+        "blocks": [
+          {
+            "from": "$input",
+            "type": "doc_excerpt"
+          }
+        ]
+      },
+      "risk": "medium",
+      "sendsOnApprove": "gate.release",
+      "timeout": {
+        "afterHours": 24,
+        "emailBackstopHours": 4,
+        "escalateTo": "delegate",
+        "onTimeout": "escalate"
+      },
+      "title": "Allow this step"
+    },
     {
       "appliesTo": {
         "actors": [
@@ -232282,6 +233794,17 @@
       "title": "Members excluded from the Microsoft connection"
     },
     {
+      "default": "",
+      "key": "mounts.public_address",
+      "module": "mounts",
+      "page": "files",
+      "schema": {
+        "type": "string"
+      },
+      "scope": "space",
+      "title": "The address providers send change notices to; empty means mounts are polled"
+    },
+    {
       "default": false,
       "key": "notifications.alert_replies",
       "module": "notifications",
@@ -234879,7 +236402,7 @@
       "kind": "capability",
       "module": "google",
       "output": {
-        "$ref": "#/$defs/s_d96ebe6616"
+        "$ref": "#/$defs/s_920a271d7a"
       },
       "retry": {
         "backoff": "exp",
@@ -234889,7 +236412,12 @@
       "sample": {
         "file": {
           "driveId": "example",
+          "headRevisionId": "example",
           "id": "example",
+          "lastModifyingUser": {
+            "email": "example",
+            "name": "example"
+          },
           "mimeType": "example",
           "modifiedTime": "example",
           "name": "example",
@@ -234954,7 +236482,7 @@
       "output": {
         "properties": {
           "files": {
-            "$ref": "#/$defs/s_b4d936413b"
+            "$ref": "#/$defs/s_3bc43d16a7"
           }
         },
         "required": [
@@ -234971,7 +236499,12 @@
         "files": [
           {
             "driveId": "example",
+            "headRevisionId": "example",
             "id": "example",
+            "lastModifyingUser": {
+              "email": "example",
+              "name": "example"
+            },
             "mimeType": "example",
             "modifiedTime": "example",
             "name": "example",
@@ -235798,7 +237331,7 @@
       "kind": "capability",
       "module": "microsoft",
       "output": {
-        "$ref": "#/$defs/s_547685ab39"
+        "$ref": "#/$defs/s_921597cfe1"
       },
       "retry": {
         "backoff": "exp",
@@ -235807,8 +237340,13 @@
       },
       "sample": {
         "item": {
+          "eTag": "example",
           "folder": true,
           "id": "example",
+          "lastModifiedBy": {
+            "email": "example",
+            "name": "example"
+          },
           "lastModifiedDateTime": "example",
           "name": "example",
           "parentId": "example",
@@ -235865,7 +237403,7 @@
       "output": {
         "properties": {
           "items": {
-            "$ref": "#/$defs/s_85e67931de"
+            "$ref": "#/$defs/s_59e010eed2"
           }
         },
         "required": [
@@ -235881,8 +237419,13 @@
       "sample": {
         "items": [
           {
+            "eTag": "example",
             "folder": true,
             "id": "example",
+            "lastModifiedBy": {
+              "email": "example",
+              "name": "example"
+            },
             "lastModifiedDateTime": "example",
             "name": "example",
             "parentId": "example",

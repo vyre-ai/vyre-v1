@@ -1,6 +1,6 @@
 # google.drive.upload_file
 
-Upload a Space file into Drive
+Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision
 
 | | |
 |---|---|
@@ -30,6 +30,8 @@ type In = {
   name: string;
   parentId?: string;
   fileId: string;
+  remoteId?: string;
+  ifRevision?: string;
   idempotencyKey: string;
 };
 ```
@@ -47,7 +49,13 @@ type Out = {
     size?: number;
     webViewLink?: string;
     driveId?: string;
+    headRevisionId?: string;
+    lastModifyingUser?: {
+      name?: string;
+      email?: string;
+    };
   };
+  stale?: boolean;
 };
 ```
 
@@ -71,13 +79,20 @@ type Out = {
     "connectionId": "con_a1b2c3",
     "fileId": "fil_a1b2c3",
     "idempotencyKey": "idem_1",
+    "ifRevision": "example",
     "name": "example",
-    "parentId": "example"
+    "parentId": "example",
+    "remoteId": "example"
   },
   "output": {
     "file": {
       "driveId": "example",
+      "headRevisionId": "example",
       "id": "example",
+      "lastModifyingUser": {
+        "email": "example",
+        "name": "example"
+      },
       "mimeType": "example",
       "modifiedTime": "example",
       "name": "example",
@@ -86,7 +101,8 @@ type Out = {
       ],
       "size": 1,
       "webViewLink": "example"
-    }
+    },
+    "stale": true
   }
 }
 ```

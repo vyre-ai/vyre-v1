@@ -48,6 +48,11 @@ type Out = {
         size?: number;
         webViewLink?: string;
         driveId?: string;
+        headRevisionId?: string;
+        lastModifyingUser?: {
+          name?: string;
+          email?: string;
+        };
       };
     }>;
   newStartPageToken?: string;
@@ -79,7 +84,12 @@ type Out = {
       {
         "file": {
           "driveId": "example",
+          "headRevisionId": "example",
           "id": "example",
+          "lastModifyingUser": {
+            "email": "example",
+            "name": "example"
+          },
           "mimeType": "example",
           "modifiedTime": "example",
           "name": "example",
