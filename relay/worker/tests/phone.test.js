@@ -6,12 +6,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import worker, * as W from "../index.js";
 import { createRuntime } from "../fake-cf.js";
+import { forgetUnclaimed } from "../phone.js";
 import * as wire from "./wire.js";
 
 const { newRouteKey, routeId, authMessage, signRoute } = wire;
 
-/** @param {any} t @param {{ hibernateEveryEvent?: boolean, names?: (name: string) => string | Error }} [o] */
+/** @param {any} t @param {{ hibernateEveryEvent?: boolean, names?: (name: string) => string | Error, dns?: (name: string) => boolean | Error }} [o] */
 function world(t, o = {}) {
+  forgetUnclaimed();
   const asked = /** @type {string[]} */ ([]);
   const rt = createRuntime({
     worker, Class: W.RouteRelay, classes: { TICKETS: W.PairTicket, CODES: W.CodeSlot, SIGNIN: W.SigninSlot, HOSTS: W.HostSlot }, hibernateEveryEvent: o.hibernateEveryEvent,
@@ -23,6 +25,15 @@ function world(t, o = {}) {
         if (v instanceof Error) throw v;
         return new Response(JSON.stringify({ data: { name, status: v } }), { status: 200 });
       },
+      // live DNS: a name with an A or CNAME record of its own is a real host
+      DOH_FETCH: async (/** @type {string} */ u) => {
+        const q = new URL(u).searchParams.get("name") || "";
+        const v = (o.dns || (() => false))(q.split(".")[0] || "");
+        if (v instanceof Error) throw v;
+        return new Response(JSON.stringify(v ? { Status: 0, Answer: [{ name: q, type: 1, data: "203.0.113.9" }] } : { Status: 0 }), { status: 200 });
+      },
+      // the host's own origin, for names no route holds
+      ORIGIN_FETCH: async (/** @type {Request} */ r) => new Response(`origin of ${new URL(r.url).hostname}`, { status: r.url.includes("down.") ? 522 : 200 }),
       ASSETS: { fetch: async (/** @type {Request} */ r) => {
         const p = new URL(r.url).pathname;
         return p === "/__vyre/boot.js" ? new Response("boot()", { headers: { "content-type": "text/javascript" } }) : p === "/__vyre/sw.js" ? new Response("sw()", { headers: { "content-type": "application/octet-stream" } }) : new Response(null, { status: 404 });
@@ -85,8 +96,8 @@ for (const hibernateEveryEvent of [false, true]) {
     assert.equal((await a.say({ t: "host.release" })).status, "released");
     assert.equal((await a.say({ t: "host.status" })).status, "none");
     assert.equal((await b.say({ t: "host.claim", name: "alex-phone" })).status, "taken", "never reassigned");
-    // the gateway no longer serves it
-    assert.equal((await rt.fetch("https://alex-phone.vyre.run/")).status, 301);
+    // the gateway no longer serves it: the request goes to the host's own origin
+    assert.equal(await (await rt.fetch("https://alex-phone.vyre.run/")).text(), "origin of alex-phone.vyre.run");
     // the holder takes it back, or picks another name
     assert.equal((await a.say({ t: "host.claim", name: "alex-phone", label: "Laptop" })).status, "claimed");
     assert.equal((await a.say({ t: "host.release" })).status, "released");
@@ -144,17 +155,31 @@ test("the gateway: the shell while the box is online, '<nickname> is asleep' whi
   assert.equal((await (await rt.fetch("https://alex-phone.vyre.run/__vyre/info.json")).json()).online, false);
 });
 
-test("the gateway leaves every other host alone and sends an unclaimed name to the old page", async t => {
+test("the gateway leaves every host no route holds alone: the request goes to its own origin untouched", async t => {
   const rt = world(t);
   assert.equal((await rt.fetch("https://relay.vyre.run/health")).status, 200);
   assert.equal((await rt.fetch("http://relay.test/health")).status, 200);
-  const r = await rt.fetch("https://nobody-here.vyre.run/anything");
-  assert.equal(r.status, 301);
-  assert.equal(r.headers.get("location"), "https://vyre.run/u/nobody-here");
+  // a download bucket, a site, a tunnel: no HostSlot, so the origin answers, and the second look is the cache's
+  for (const host of ["dl", "www", "prototype", "tracker", "nobody-here"]) assert.equal(await (await rt.fetch(`https://${host}.vyre.run/some/file?x=1`)).text(), `origin of ${host}.vyre.run`, host);
+  assert.equal(await (await rt.fetch("https://dl.vyre.run/again")).text(), "origin of dl.vyre.run");
+  // the shell's paths are not an origin's
   assert.equal((await rt.fetch("https://nobody-here.vyre.run/__vyre/boot.js")).status, 404);
-  for (const host of ["names", "web", "app", "reports"]) assert.notEqual((await rt.fetch(`https://${host}.vyre.run/`)).status, 301, host);
-  // two labels deep is not a phone address
-  assert.equal((await rt.fetch("https://a.b-name.vyre.run/")).status, 404);
+  // a Cloudflare error from the origin is a name nobody holds
+  assert.equal((await rt.fetch("https://down.vyre.run/")).status, 404);
+  // a failing lookup never takes a host down: the origin answers
+  rt.env.HOSTS = { idFromName: () => { throw new Error("boom"); }, get: () => { throw new Error("boom"); } };
+  assert.equal(await (await rt.fetch("https://dl-other.vyre.run/")).text(), "origin of dl-other.vyre.run");
+  // two labels deep is not a phone address, and not ours
+  assert.equal(await (await rt.fetch("https://a.b-name.vyre.run/")).text(), "origin of a.b-name.vyre.run");
+});
+
+test("a claim never takes a host that already has a record of its own", async t => {
+  const rt = world(t, { dns: n => n === "docs-site" || n === "dns-down" ? (n === "dns-down" ? new Error("down") : true) : false });
+  const a = await box(rt);
+  assert.equal((await a.say({ t: "host.claim", name: "docs-site" })).status, "taken");
+  assert.equal((await a.say({ t: "host.claim", name: "dns-down" })).status, "unavailable");
+  for (const n of ["dl", "prototype", "tracker", "www", "tess"]) assert.equal((await a.say({ t: "host.claim", name: n })).status, "invalid", n);
+  assert.equal((await a.say({ t: "host.claim", name: "free-name" })).status, "claimed");
 });
 
 test("a staging Worker serves one named host so the whole path runs without the wildcard", async t => {
@@ -164,5 +189,7 @@ test("a staging Worker serves one named host so the whole path runs without the 
   const a = await box(rt);
   await a.say({ t: "host.claim", name: "stage-phone", label: "Stage box" });
   assert.equal((await rt.fetch("https://phone-stage.vyre.run/")).status, 200);
+  assert.equal((await rt.fetch("https://phone-stage.vyre.run/health")).status, 200, "the staging host is the relay's too");
+  assert.equal((await rt.fetch("https://phone-stage.vyre.run/__vyre/nope")).status, 404);
   assert.equal((await rt.fetch("https://stage-phone.vyre.run/")).status, 404, "only the staging host answers there");
 });

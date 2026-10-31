@@ -1,0 +1,44 @@
+# The staging copy of the relay with phone access: its own Worker, its own Durable Objects (so nothing of the live relay's routes, names or tickets is touched), one host and one name.
+# phone-stage.vyre.run is both the relay address (/v1/box, /v1/device) and the gateway for the single name STAGE_NAME. Deployed only by the relay-deploy workflow's staging target.
+name = "vyre-relay-stage"
+main = "index.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+routes = [{ pattern = "phone-stage.vyre.run", custom_domain = true }]
+
+[vars]
+STAGE_HOST = "phone-stage.vyre.run"
+STAGE_NAME = "stagephone"
+RELAY_PUBLIC_URL = "wss://phone-stage.vyre.run"
+
+[assets]
+directory = "./shell-dist"
+binding = "ASSETS"
+run_worker_first = true
+
+[[durable_objects.bindings]]
+name = "ROUTES"
+class_name = "RouteRelay"
+[[durable_objects.bindings]]
+name = "TICKETS"
+class_name = "PairTicket"
+[[durable_objects.bindings]]
+name = "CODES"
+class_name = "CodeSlot"
+[[durable_objects.bindings]]
+name = "SIGNIN"
+class_name = "SigninSlot"
+[[durable_objects.bindings]]
+name = "GITHUB"
+class_name = "GithubLinks"
+[[durable_objects.bindings]]
+name = "HOSTS"
+class_name = "HostSlot"
+
+# a new Worker: one tag creates every class (the live relay's v1 to v6 are its own history)
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RouteRelay", "PairTicket", "CodeSlot", "SigninSlot", "GithubLinks", "HostSlot"]
+
+[observability]
+enabled = false

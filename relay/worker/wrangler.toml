@@ -11,14 +11,11 @@ compatibility_date = "2026-09-01"
 # The relay's one hostname, as a Worker custom domain (it makes the DNS record and the
 # certificate). Approved by the lead, 28 Sep 2026. No workers.dev address.
 workers_dev = false
-# Phone access: every other one-label host under vyre.run reaches this Worker (relay/worker/phone.js). More specific routes and custom domains (relay, names, web) win over the wildcard,
-# and a host with no proxied DNS record never gets here. The wildcard DNS record (proxied) is the deploy workflow's second step.
-routes = [
-  { pattern = "relay.vyre.run", custom_domain = true },
-  { pattern = "*.vyre.run/*", zone_name = "vyre.run" },
-]
+# Phone access hosts (<name>.vyre.run) reach this Worker through a wildcard route and a wildcard proxied DNS record that edge.mjs adds (and can remove) as its own deploy step, not here: the
+# wildcard also catches hosts that are not phone names (the download bucket, the site, the tunnels), which the Worker hands to their own origin, and that is checked live before it stays on.
+routes = [{ pattern = "relay.vyre.run", custom_domain = true }]
 
-# The shell phones load (relay/worker/shell, bundled by the deploy workflow into shell-dist). The Worker serves it only under /__vyre/ on a claimed name.
+# The shell phones load (relay/client/shell, bundled by the deploy workflow into shell-dist). The Worker serves it only under /__vyre/ on a claimed name.
 [assets]
 directory = "./shell-dist"
 binding = "ASSETS"

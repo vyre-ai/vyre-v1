@@ -21,7 +21,11 @@ export const PHONE = Object.freeze({
 });
 
 /** Hosts that are infrastructure, never a person's phone address. The names directory refuses most of these too; this is the gateway's own fence. */
-export const INFRA = Object.freeze(new Set(["names", "app", "api", "www", "relay", "acme", "mail", "docs", "status", "web", "reports", "escrow", "edge", "vyre", "phone", "setup"]));
+export const INFRA = Object.freeze(new Set([
+  "names", "app", "api", "www", "relay", "acme", "mail", "docs", "status", "web", "reports", "escrow", "edge", "vyre", "phone", "setup",
+  // the hosts that exist in the zone today and are not Workers; a claim also checks live DNS (dnsTaken), so a host added later is fenced too
+  "dl", "prototype", "tracker", "tess", "updates", "freemanwine", "vyreqa-lab7",
+]));
 
 const json = (status, body, headers = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...headers } });
 
@@ -34,17 +38,24 @@ export function cleanLabel(s) {
 const esc = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
 
 /**
- * The name this request is for, or null when it is not a phone-access host. `<name>.vyre.run`, one label, not infrastructure. A staging Worker names one host and one name
- * (STAGE_HOST, STAGE_NAME) so the whole path is exercised without a wildcard record.
- * @param {URL} url @param {any} env
+ * What the Worker does with this request's host:
+ *  - `{ name }`: a phone address, `<name>.vyre.run`, one label of a usable shape that is not infrastructure;
+ *  - `{ pass: true }`: any other host under the zone that reached the wildcard route (a download bucket, a site, a tunnel) and belongs to its own origin;
+ *  - null: the relay itself, or a host outside the zone.
+ * A staging Worker names one host and one name (STAGE_HOST, STAGE_NAME) so the whole path runs without a wildcard record.
+ * @param {URL} url @param {any} env @returns {{ name: string } | { pass: true } | null}
  */
-export function hostNameOf(url, env) {
+export function gatewayOf(url, env) {
   const host = url.hostname.toLowerCase();
-  if (env.STAGE_HOST && env.STAGE_NAME) return host === String(env.STAGE_HOST).toLowerCase() && PHONE.nameRe.test(String(env.STAGE_NAME)) ? String(env.STAGE_NAME) : null;
+  if (env.STAGE_HOST && env.STAGE_NAME) {
+    // the staging host is also the relay's own address: its sockets and health check are the relay's, everything else is the one name's
+    if (url.pathname === "/health" || url.pathname.startsWith("/v1/")) return null;
+    return host === String(env.STAGE_HOST).toLowerCase() && PHONE.nameRe.test(String(env.STAGE_NAME)) ? { name: String(env.STAGE_NAME) } : null;
+  }
   const zone = String(env.HOST_ZONE || PHONE.zone).toLowerCase();
-  if (!host.endsWith(`.${zone}`)) return null;
+  if (!host.endsWith(`.${zone}`) || host === String(env.RELAY_HOST || `relay.${zone}`).toLowerCase()) return null;
   const label = host.slice(0, -(zone.length + 1));
-  return PHONE.nameRe.test(label) && !INFRA.has(label) ? label : null;
+  return PHONE.nameRe.test(label) && !INFRA.has(label) ? { name: label } : { pass: true };
 }
 
 /** @param {any} env @param {string} name */
@@ -93,6 +104,21 @@ async function nameStatus(env, name) {
   } catch { return "unavailable"; }
 }
 
+/**
+ * Does <name>.vyre.run already have an A or CNAME record of its own? The phone wildcard is an AAAA record only, so any answer to an A query means a real host (a download bucket, a site, a tunnel)
+ * that a claim must never take over. Fails closed: no answer is "unavailable".
+ * @param {any} env @param {string} name
+ */
+async function dnsTaken(env, name) {
+  const f = typeof env.DOH_FETCH === "function" ? env.DOH_FETCH : globalThis.fetch.bind(globalThis);
+  try {
+    const r = await f(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`${name}.${String(env.HOST_ZONE || PHONE.zone)}`)}&type=A`, { headers: { accept: "application/dns-json" } });
+    const j = /** @type {any} */ (await r.json());
+    if (!r.ok || !j || typeof j.Status !== "number") return "unavailable";
+    return j.Status === 0 && Array.isArray(j.Answer) && j.Answer.length > 0 ? "taken" : "ok";
+  } catch { return "unavailable"; }
+}
+
 const day = () => Math.floor(Date.now() / 86_400_000);
 
 /**
@@ -132,7 +158,9 @@ export async function hostControl(relay, ws, m) {
   if (info.route && info.route !== route) return reply(op, "taken", { name });
   if (!info.route) {
     const s = await nameStatus(env, name);
-    if (s !== "ok") return reply(op, s === "taken" ? "taken" : s, { name });
+    if (s !== "ok") return reply(op, s, { name });
+    const d = await dnsTaken(env, name);
+    if (d !== "ok") return reply(op, d, { name });
   }
   const out = /** @type {any} */ (await (await slot.fetch("https://host/claim", { method: "PUT", body: JSON.stringify({ route, label }) })).json());
   if (out.status !== "claimed") return reply(op, out.status, { name });
@@ -161,9 +189,31 @@ function shellPage(label, name) {
   return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(label || name)}</title><style>${PAGE_STYLE}</style><body><main id="m"><h1>${esc(label || name)}</h1><p id="s">Opening</p></main><script src="/__vyre/boot.js"></script></body></html>`;
 }
 
+/** Names seen unclaimed a moment ago, per isolate, so the hosts under the wildcard that are not phone names cost one lookup a minute, not one per request. */
+const NEGATIVE_MS = 10_000;
+const negative = new Map();
+/** @param {string} host @param {boolean} [set] */
+function unclaimed(host, set = false) {
+  const now = Date.now();
+  if (set) { if (negative.size > 512) negative.clear(); negative.set(host, now + NEGATIVE_MS); return true; }
+  const until = negative.get(host);
+  return until !== undefined && until > now;
+}
+/** Forget a cached "unclaimed" (a claim just made; tests). @param {string} [host] */
+export function forgetUnclaimed(host) { host === undefined ? negative.clear() : negative.delete(host); }
+
+/** The request to the origin of its own host. A staging Worker has no origin behind its host, and an origin that answers with a Cloudflare error is a name nobody holds. @param {Request} request @param {any} env */
+export async function passthrough(request, env) {
+  if (env.STAGE_HOST) return new Response(null, { status: 404 });
+  try {
+    const res = await (typeof env.ORIGIN_FETCH === "function" ? env.ORIGIN_FETCH : globalThis.fetch.bind(globalThis))(request);
+    return res.status >= 520 ? new Response(null, { status: 404 }) : res;
+  } catch { return new Response(null, { status: 404 }); }
+}
+
 /**
  * The gateway for `<name>.vyre.run`.
- *  - a name nobody claimed here: the old redirect to the person's page (a name that is not a person's gets a plain 404);
+ *  - a name nobody claimed here: the request goes on to the host's own origin, untouched (see passthrough);
  *  - `/__vyre/info.json`: { name, label, route, relay, online } for the shell;
  *  - `/__vyre/*`: the shell's static files (env.ASSETS), the service worker allowed to scope the whole origin;
  *  - any other GET: the shell page, or "<nickname> is asleep" (503) when the box is offline. After the first visit the service worker answers navigations itself.
@@ -171,11 +221,15 @@ function shellPage(label, name) {
  */
 export async function onHost(request, env, name) {
   const url = new URL(request.url);
-  const info = env.HOSTS ? /** @type {any} */ (await (await slotOf(env, name).fetch("https://host/info")).json()) : {};
-  if (!info.route || info.released) {
-    return url.pathname.startsWith("/__vyre/") || INFRA.has(name) ? new Response(null, { status: 404 })
-      : new Response(null, { status: 301, headers: { location: `https://vyre.run/u/${name}`, "cache-control": "no-store" } });
-  }
+  // Not ours unless a route holds this name: anything else under the wildcard (a download bucket, a site, a tunnel) goes to its own origin untouched, and an error anywhere here does the same.
+  let info = /** @type {any} */ ({});
+  try {
+    if (env.HOSTS && !unclaimed(url.hostname)) {
+      info = await (await slotOf(env, name).fetch("https://host/info")).json();
+      if (!info.route || info.released) unclaimed(url.hostname, true);
+    }
+  } catch { return passthrough(request, env); }
+  if (!info.route || info.released) return url.pathname.startsWith("/__vyre/") ? new Response(null, { status: 404 }) : passthrough(request, env);
   const relayWss = String(env.RELAY_PUBLIC_URL || "wss://relay.vyre.run");
   const online = async () => {
     try { return Boolean(((await (await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/online")).json())).online); } catch { return false; }
