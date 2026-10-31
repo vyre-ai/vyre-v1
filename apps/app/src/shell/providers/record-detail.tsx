@@ -10,6 +10,8 @@ import { ProjectPage } from "../../places/records/projectpage/ProjectPage.tsx";
 import { listProjectImports, ProjectPageDataProvider } from "../../places/records/projectpage/data.tsx";
 import type { ImportedSessionTranscript, ProjectPageData } from "../../places/records/projectpage/data.tsx";
 import { capLive, nameLookup } from "./records-live.ts";
+import { attachToRecord, findRecordFolder } from "../../places/records/recordpane/files.ts";
+import { RecordsAssistant } from "./records-ask.tsx";
 import { askRequestFor, putAsk } from "../../places/inbox/contacttab/ask.ts";
 import { AgentRecord } from "./agent-record.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -54,7 +56,19 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
   }, [rt, recordId, hint]);
   const data = useMemo<RecordPageData>(() => ({
     live: (cap, input) => capLive(rt, cap, input as Record<string, unknown>), call: rt.call, nameOf: nameLookup(rt), now: () => rt.clock().now,
+    me: { id: rt.me.id, name: rt.me.name },
+    // the people and agents a comment can @mention: everyone the Space knows but you; the assistant is named as such
+    mentionables: () => {
+      const s = rt.principals.getSnapshot();
+      return (s.status === "ready" ? s.data : []).filter((x) => x.id !== rt.me.id && (x.kind === "person" || x.kind === "agent")).map((x) => ({ id: x.id, name: x.name, kind: x.kind as "person" | "agent", ...(x.id === rt.assistant.id ? { sub: "Assistant" } : x.kind === "agent" ? { sub: "Agent" } : {}) }));
+    },
+    renderChat: (type, id) => <RecordsAssistant rt={rt} about={{}} title={id} scope={{ type: "record", id, title: "Record", context: { title: `Record ${type}`, open: [{ type: "record", id }], actions: ["read the record and its history", "answer questions about it"], focus: "" } }} />,
+    files: {
+      folderOf: (t) => findRecordFolder(rt.call, t.recordId),
+      attach: (files, t) => attachToRecord(rt.call, rt.putBlob, files, t, `record-attach:${t.recordId}:${Date.now().toString(36)}`),
+    },
     nav: {
+      openFile: (id) => rt.open({ subject: { type: "file", id } }),
       openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
       openChat: (type, id) => { void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [rt.assistant.id], scopeType: type, scopeId: id }).then((out: unknown) => { rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }); }).catch(() => setActionError("Couldn’t open the record’s chat. Try again.")); },
       askFor: (input) => {

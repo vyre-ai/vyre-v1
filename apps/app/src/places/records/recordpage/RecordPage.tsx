@@ -20,11 +20,12 @@ import { tabsOf, visibleSections, withStages } from "./groups.ts";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
 import {
-  PANE_TABS, RING_R, activityLine, ago, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
+  PANE_TABS, RING_R, ago, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
   shownFields, sourceText, splitLinks, toggleFold, valueText,
 } from "./model.ts";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { channelFieldToAdd, findContact } from "./askfor.ts";
+import { ActivityTab, ChatTab, CommentsTab, FilesTab } from "../recordpane/index.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 
 export interface RecordPageStart {
@@ -171,17 +172,6 @@ function FolderLink({ folderId, type, recordId }: { folderId: string; type: stri
   );
 }
 
-/** What is in the record's folder, so the Files tab shows the files and not only a button. */
-function FolderContents({ folderId, type, recordId }: { folderId: string; type: string; recordId: string }): ReactElement {
-  const data = usePageData();
-  const lq = useLive("files.list", { folder: folderId });
-  if (lq.status !== "ready") return <Text style={p.paneEmpty} testID="folder-contents-loading">Loading</Text>;
-  const kids: ReactElement[] = [];
-  for (const d of lq.data.folders) kids.push(<Row key={d.folderId} id={`folder:${d.folderId}`} title={d.name} note="Folder" onPress={() => data.nav.openFiles(type, recordId)} />);
-  for (const x of lq.data.files) kids.push(<Row key={x.fileId} id={`file:${x.fileId}`} title={x.name} note={x.kind} onPress={() => data.nav.openFiles(type, recordId)} />);
-  return kids.length > 0 ? <View testID="folder-contents">{kids}</View> : <Text style={p.paneEmpty} testID="folder-empty">Nothing in this folder yet.</Text>;
-}
-
 /** A choice or status field: its options in one menu under the value. */
 function chooseFrom(f: FieldDef, q: FieldProps, x: number, y: number): void {
   const items: MenuEntry[] = each(optionsOf(f), (o): MenuEntry => ({ label: o.title, checked: q.row.fields[f.key] === o.key, onSelect: () => q.onValue(f, o.key) }));
@@ -193,26 +183,20 @@ function chooseFrom(f: FieldDef, q: FieldProps, x: number, y: number): void {
 
 function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; def: TypeDef; tab: PaneKey; onTab: (k: PaneKey) => void }): ReactElement {
   const data = usePageData();
-  const hq = useLive("records.history", { type, recordId: row.id });
   const vq = useLive("records.versions", { type, recordId: row.id });
   const mq = useLive("memory.find_by_subject", { subject: row.id });
   const now = data.now();
-  const entries = hq.status === "ready" ? hq.data.entries : [];
-  const lines: ReactElement[] = [];
-  entries.forEach((e, i) => lines.push(<Row key={`${e.hlc}:${i}`} id={`act:${i}`} title={activityLine(e, def, data.nameOf)} note={e.reason ?? ""} leading={<View style={{ marginRight: 8 }}><Face name={data.nameOf(e.actor)} size={20} /></View>} />));
   const facts: ReactElement[] = [];
   if (mq.status === "ready") for (const f of mq.data.facts) facts.push(<Row key={f.factId} id={`fact:${f.factId}`} title={f.text} note={`${f.layer} · ${ago(f.learnedAt, now)}`} onPress={() => data.nav.openSource(f.sourceLink ?? f.sourceRef)} />);
   const notes: ReactElement[] = [];
   if (mq.status === "ready") for (const n of mq.data.notes) notes.push(<Row key={n.noteId} id={`note:${n.noteId}`} title={n.title} note={n.path} onPress={() => data.nav.openSource(n.path)} />);
-  const link = (label: string, on: () => void, id: string): ReactElement => <Pressable accessibilityRole="button" testID={id} onPress={on} style={({ hovered }: { hovered?: boolean }) => [p.open, hovered === true && p.cardOver]}><Text style={p.openText}>{label}</Text></Pressable>;
   let body: ReactElement;
-  if (tab === "activity") body = lines.length > 0 ? <View testID="pane-activity">{lines}</View> : <Text style={p.paneEmpty}>Nothing has changed yet.</Text>;
-  else if (tab === "comments") body = <View testID="pane-comments" style={p.paneBody}><Text style={p.paneText}>Comments and @mentions live in this record's chat, so everyone who follows it sees them.</Text>{link("Open the chat", () => data.nav.openChat(type, row.id), "open-chat-comments")}</View>;
-  else if (tab === "chat") body = <View testID="pane-chat" style={p.paneBody}><Text style={p.paneText}>Ask any agent about this record. It reads the page, the history and its memory.</Text>{link("Chat about this record", () => data.nav.openChat(type, row.id), "open-chat")}</View>;
-  else if (tab === "files") {
-    const folderId = row.fields["folder"];
-    body = <View testID="pane-files" style={p.paneBody}><Text style={p.paneText}>The files that belong to this record are in its folder.</Text>{link("Open its folder", () => data.nav.openFiles(type, row.id), "open-files")}{typeof folderId === "string" && folderId.startsWith("fld_") ? <FolderContents folderId={folderId} type={type} recordId={row.id} /> : null}</View>;
-  }
+  // Comments and Chat fill the pane's height (a field at the bottom); the other tabs scroll
+  let fill = false;
+  if (tab === "activity") body = <ActivityTab type={type} recordId={row.id} def={def} />;
+  else if (tab === "comments") { fill = true; body = <CommentsTab type={type} recordId={row.id} />; }
+  else if (tab === "chat") { fill = true; body = <ChatTab type={type} recordId={row.id} />; }
+  else if (tab === "files") { fill = true; body = <FilesTab type={type} recordId={row.id} title={String(row.fields[def.titleField] ?? row.id)} {...(typeof row.fields["folder"] === "string" ? { fieldFolder: row.fields["folder"] as string } : {})} />; }
   else if (tab === "memory") body = facts.length + notes.length > 0 ? <View testID="pane-memory">{facts}{notes}</View> : <Text style={p.paneEmpty}>No agent has remembered anything about this record.</Text>;
   else body = vq.status === "ready" ? (
     <View testID="pane-history"><HistoryTab resourceType="record" resourceId={row.id} recordType={type} versions={historyVersions(vq.data.versions, data.nameOf)} selectedVersionId={null} density="compact" invoke={(cap, input) => data.call(cap, input).then(() => undefined)} /></View>
@@ -220,7 +204,7 @@ function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; de
   return (
     <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane" label="Record details">
       <TabStrip tabs={each(PANE_TABS, (t) => ({ key: t.key, title: t.title }))} active={tab} onSelect={(k) => onTab(k as PaneKey)} />
-      <ScrollView style={p.paneScroll}>{body}</ScrollView>
+      {fill ? <View style={p.paneFill}>{body}</View> : <ScrollView style={p.paneScroll}>{body}</ScrollView>}
     </ResizableColumn>
   );
 }
@@ -486,6 +470,7 @@ const p = StyleSheet.create({
   flashLink: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   pane: { width: 340, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
   paneScroll: { flex: 1 },
+  paneFill: { flex: 1, minHeight: 0 },
   paneBody: { padding: 16, gap: 10 },
   paneText: { fontSize: 13, color: "var(--ink-2)" as string, lineHeight: 19 },
   paneEmpty: { fontSize: 13, color: "var(--ink-3)" as string, padding: 16 },

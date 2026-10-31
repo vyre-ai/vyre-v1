@@ -161,7 +161,11 @@ const withSuffix = (name: string, n: number): string => {
 /** Store each file in Files and return their ids, in order. A name already taken in the folder gets (2), (3). Nothing is sent if one cannot be read. */
 export async function uploadAttachments(data: ConversationData, files: readonly Upload[], key: string): Promise<string[]> {
   if (files.length === 0) return [];
-  const folderId = await uploadFolder(data);
+  return storeFiles(data, await uploadFolder(data), files, key);
+}
+
+/** Store each file in a folder and return their ids, in order (the same rules as an attachment: inline up to INLINE_LIMIT, else through the upload address; a taken name gets (2), (3)). */
+export async function storeFiles(data: Pick<ConversationData, "call" | "putBlob">, folderId: string, files: readonly Upload[], key: string): Promise<string[]> {
   const ids: string[] = [];
   for (const [i, f] of files.entries()) {
     if (!isBlob(f.file)) throw new Error(`${f.name} cannot be read`);
