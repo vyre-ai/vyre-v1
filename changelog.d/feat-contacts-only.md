@@ -1,5 +1,0 @@
-- A new Space shows only Contacts in Records. Companies, Meetings, Note boards, Projects, Tasks and Agents still exist because modules use them, but stay out of the sidebar and the Record types page until they hold a record (the first project or task makes Projects or Tasks appear).
-- Records with only Contacts ends with a New record type row and a one-line hint, plus Ask Vyre to set it up.
-- The New record type sheet has starter fields (Status, Owner, Due date, Amount, Notes) and Connect it to chips that link the new type to Contacts or another type in the same change.
-- Ask Vyre in Records, Record types and the New record type sheet opens the assistant in a pane of the tab, told which type is open or being made, instead of going to Chats. A proposed schema change shows as a change card with Apply and Discard; nothing is applied until Apply.
-- The change card says Discard where it said Reject.

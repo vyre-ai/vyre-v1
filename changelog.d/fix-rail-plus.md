@@ -1,1 +1,0 @@
-- The rail no longer ends in a "+" that opened an empty Join page. Add a Space is in the Space menu at the top of the rail. Saved Join tabs are dropped on load, and a link to Join opens Home.

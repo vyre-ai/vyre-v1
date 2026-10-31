@@ -1,1 +1,0 @@
-The Ask agent picker is no longer cut off: it opens in the top overlay layer, is as tall as its rows (scrolling past a cap), flips above the button near the bottom of the window, and the Assistant row shows the assistant's real name.

@@ -1,5 +1,41 @@
 # Changelog
 
+- A new Space shows only Contacts in Records. Companies, Meetings, Note boards, Projects, Tasks and Agents still exist because modules use them, but stay out of the sidebar and the Record types page until they hold a record (the first project or task makes Projects or Tasks appear).
+- Records with only Contacts ends with a New record type row and a one-line hint, plus Ask Vyre to set it up.
+- The New record type sheet has starter fields (Status, Owner, Due date, Amount, Notes) and Connect it to chips that link the new type to Contacts or another type in the same change.
+- Ask Vyre in Records, Record types and the New record type sheet opens the assistant in a pane of the tab, told which type is open or being made, instead of going to Chats. A proposed schema change shows as a change card with Apply and Discard; nothing is applied until Apply.
+- The change card says Discard where it said Reject.
+- The assistant now wears the shared Vyre mark on every message, in the chat header, on chat rows and on Needs you rows, whatever it is named. A look picked in Settings (You and your Assistant, Change its look) replaces the mark everywhere. Every other agent's face is drawn from its id, so a rename keeps it. A group chat row shows up to three stacked faces.
+- A reply that could not be made now says why in plain words, with a button to fix it (for example "Connect your AI to get replies."), instead of an empty card labelled "turn status".
+- A reply that stalls with no word from the AI is stopped after ten minutes and says so, instead of staying on "working" forever.
+- Your private assistant is now "<First>’s Assistant" everywhere, including Spaces made before; the rename also catches Spaces where it was missed at start-up. A name you chose yourself is never changed.
+- A folder you pick from this computer is added at once. In onboarding, Local folders mounts each pick as soon as the dialog closes (Adding, then Added, or Retry if it fails), and removing an added row unmounts it; Continue only moves on.
+- In Files, Connect a folder > This computer opens the system folder dialog and mounts the pick live only. The old in-dialog browser was always empty, because the server cannot list a computer's folders. On the web and the phone it says local folders are added from the Mac or PC app.
+- A new Space now has somewhere to mount: the folders a mount can go into start with Personal.
+- A mounted folder shows in the Files sidebar under Space, with its source mark.
+- A Personal Space no longer shows Shared with me.
+- A chat with no AI account now says so in the chat, under your message, with a "Connect your AI" button. It no longer adds a "Connect an AI account" task to Needs you for every message you send.
+- Once you connect an account from that button, the chat says "Connected. Send it again?" with a Retry that re-runs your last message without posting it twice.
+- Tasks left behind by earlier versions ("Connect an AI account", "Add a key so your agent can answer") close by themselves as soon as you have a working AI account.
+- A channel agent that watches unasked and has no AI account leaves one task per person, not one per message.
+- In a Personal Space, your own ChatGPT, Claude or Grok sign-in now answers your chats, runs your routines and keeps your memory up to date. Before, it waited for a "let the Space use it" switch that only makes sense on a shared server, so chats failed with "no account".
+- Fixed: the phone pairing link no longer uses this computer's own address. A local-only Space now says a phone cannot reach it yet and offers a Team Space.
+- The rail no longer ends in a "+" that opened an empty Join page. Add a Space is in the Space menu at the top of the rail. Saved Join tabs are dropped on load, and a link to Join opens Home.
+- The click checker treats resize separators as drag and keyboard controls, not buttons.
+- On the phone, Finish setup is a row at the top of the You page instead of a floating entry over the page.
+- Relation fields on a record page now open the record they point to. The page read the target type under the wrong name, so relations made in Records or by a Journey did not resolve.
+- In the desktop app, "Open the sign-in" and other links that leave the app open in your default browser. Before, the app's window ignored them.
+- Signing in to Claude while your Vault was locked no longer loses the sign-in. The app now asks you to unlock before it sends the pasted code to Claude, so the code still works afterwards. A sign-in that finished but could not be saved is saved the next time you press Finish, and the code is not used twice.
+- Twilio added from the Vault (the Twilio template with TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN) now turns on texting and calls. Before, the connector only read two separately named items.
+- A picker that needs an account, key or mailbox and has none now ends in Connect (Connect a mailbox, Add an AI account, Add a key, Connect Twilio), and in + Connect another when it has some. It opens the real connect flow over the page you are on, and the new account is chosen when the flow finishes. The Automations "things to fix" banner offers the same Connect for a step that needs a mailbox, a connection or an AI account.
+- In "How you work", the common kinds of work and tools now show before you type. The lists are much longer: 334 kinds of work and 276 tools.
+- Every tool shows its own logo, including Google Ads, Meta Ads and GoHighLevel. A name you type yourself shows its first letter.
+- Sessions you import from Claude Code or Codex now show in Chats, in an Imported group under your chats (newest first, folded when there are many), each with its title, source mark and date.
+- Opening one shows the saved transcript, read only, in the same look as a chat with tool calls folded, and one button, Continue here, that starts a real chat with your assistant carrying the transcript. A continued session also shows in your chats list, and its Imported row opens that chat.
+- After "Bring your sessions" finishes it says "Imported 3. They are in Chats." and the summary links to Chats.
+- An Inbox with nothing connected now says "Connect a channel" with Gmail, Outlook, Other email and Twilio, instead of "No messages yet." and a New message button. The pencil, the plus and the Dialer open the same choice until something can send; after that the normal empty Inbox returns with New message. Settings, Connections also has Connect Twilio.
+- Bring your sessions now shows each session's name, folder, date and source, newest first, with Select all, a "3 of 41 selected" count, a folder filter and an "Import 3" button.
+- Every AI provider shows its own logo in the Vault: Codex and ChatGPT (OpenAI), Grok, xAI, OpenRouter and Google Gemini. A local model shows a chip icon, not a letter.
 - Release 1.0.0-rc.6: the polish build. Install and onboarding rebuilt from the approved prototype (welcome doors for just me, invited or my team; direct AI sign-in with no terminal; a type-ahead "what do you do"; sessions, folders, Chrome and a phone QR set up in place), designed empty and error states everywhere, no dead buttons (a click-through gate now fails the build on any), a working Vault Add and Report a problem, phone layouts for Chats and Inbox, and the person's own assistant now answers: it was born without Space access, so its replies failed silently.
 - The 0.6 app icon is back: the halftone V with the violet dot, on the Mac and Windows app and the web app's home-screen icons.
 - AI sign-in is direct again, on the server. Pressing "Sign in" asks the server to start that provider's own sign-in (`providers.subscription_start` now answers the link, the code to type where the provider shows one, and whether a code is pasted back). The browser opens; the person approves; Claude shows a code that is pasted into a field, ChatGPT and Grok show a code to type there and the page finishes by itself (`providers.subscription_complete` takes the pasted `code` and answers `waiting` until the person approves). The token goes straight into the person's own Mine Vault as an ai_subscription item and is never returned to the app, an agent, a log or an event. A person does this; an agent is refused. The API key stays as the alternative.

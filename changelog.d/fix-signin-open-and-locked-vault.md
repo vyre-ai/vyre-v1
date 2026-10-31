@@ -1,2 +1,0 @@
-- In the desktop app, "Open the sign-in" and other links that leave the app open in your default browser. Before, the app's window ignored them.
-- Signing in to Claude while your Vault was locked no longer loses the sign-in. The app now asks you to unlock before it sends the pasted code to Claude, so the code still works afterwards. A sign-in that finished but could not be saved is saved the next time you press Finish, and the code is not used twice.

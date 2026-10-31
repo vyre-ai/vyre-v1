@@ -1,4 +1,0 @@
-- A chat with no AI account now says so in the chat, under your message, with a "Connect your AI" button. It no longer adds a "Connect an AI account" task to Needs you for every message you send.
-- Once you connect an account from that button, the chat says "Connected. Send it again?" with a Retry that re-runs your last message without posting it twice.
-- Tasks left behind by earlier versions ("Connect an AI account", "Add a key so your agent can answer") close by themselves as soon as you have a working AI account.
-- A channel agent that watches unasked and has no AI account leaves one task per person, not one per message.

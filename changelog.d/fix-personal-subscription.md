@@ -1,1 +1,0 @@
-- In a Personal Space, your own ChatGPT, Claude or Grok sign-in now answers your chats, runs your routines and keeps your memory up to date. Before, it waited for a "let the Space use it" switch that only makes sense on a shared server, so chats failed with "no account".
