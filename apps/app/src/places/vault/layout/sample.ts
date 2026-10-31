@@ -334,7 +334,7 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
     openShare: (id) => void opened.push(`share:${id}`), openExport: (id) => void opened.push(`export:${id}`), openAdvanced: () => void opened.push("advanced"), ask: (agentId, mode, about) => void opened.push(`ask:${agentId}:${mode}:${about.id}`),
     openBackups: () => void opened.push("backups"), openDevices: () => void opened.push("devices"), openOutsideActors: () => void opened.push("outside-actors"), openPolicy: () => void opened.push("policy"),
     openRequests: () => void opened.push("requests"), openAgent: (id) => void opened.push(`agent:${id}`),
-    addToAutomations: (item) => void opened.push(`automate:${item.id}:${item.handle}`), openAutomation: (id) => void opened.push(`automation:${id}`), openAddProvider: () => void opened.push("add-provider"),
+    addToAutomations: (item) => void opened.push(`automate:${item.id}:${item.handle}`), syncToRecords: (item) => void opened.push(`records-sync:${item.id}:${item.handle}`), openAutomation: (id) => void opened.push(`automation:${id}`), openAddProvider: () => void opened.push("add-provider"),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 

@@ -27,6 +27,8 @@ export interface VaultNav {
   ask?(agentId: string, mode: "chat" | "do", about: { kind: string; id: string; title: string }): void;
   /** Add to Automations: starts the person's assistant on a connector built from this item. The shell puts the app name and the handle in the first message. */
   addToAutomations?(item: { id: string; name: string; handle: string }): void;
+  /** Sync to Records: starts the person's assistant on bringing an app's records into Records, from this item. */
+  syncToRecords?(item: { id: string; name: string; handle: string }): void;
   /** An Automation that uses an item, opened in Automations. */
   openAutomation?(automationId: string): void;
   /** The Add an AI account sheet, for a blocker that says to connect one. */

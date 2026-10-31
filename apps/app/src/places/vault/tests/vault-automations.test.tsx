@@ -25,6 +25,21 @@ test("a key item offers Add to Automations, and pressing it hands the item and i
   assert.deepEqual(v.opened.filter((x) => x.startsWith("automate:")), ["automate:vit_ghl:#Northwind_GHL"]);
 });
 
+test("a key item also offers Sync to Records, and it waits behind the same blockers", async () => {
+  const v = createSampleVault();
+  const root = await open(v, "vit_ghl");
+  await settle();
+  await press(find(root, "item-sync-records"));
+  assert.deepEqual(v.opened.filter((x) => x.startsWith("records-sync:")), ["records-sync:vit_ghl:#Northwind_GHL"]);
+  const blocked = createSampleVault();
+  const base = blocked.data.call.bind(blocked.data);
+  blocked.data = { ...blocked.data, call: async (cap, input) => (cap === "providers.list" ? { providers: [] } : base(cap, input)) };
+  const again = await open(blocked, "vit_ghl");
+  await settle();
+  await press(find(again, "item-sync-records"));
+  assert.equal(blocked.opened.some((x) => x.startsWith("records-sync:")), false, "a blocked button starts nothing");
+});
+
 test("the Automations that use the key are listed with their steps and each one opens", async () => {
   const v = createSampleVault();
   const root = await open(v, "vit_ghl");

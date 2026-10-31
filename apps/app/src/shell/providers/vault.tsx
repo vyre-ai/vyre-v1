@@ -8,6 +8,7 @@ import { usePlaceHash } from "../hash/context.tsx";
 import type { HashTarget } from "../hash/hash.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import { connectorOpening } from "../../places/vault/itemenv/automations.ts";
+import { syncOpening } from "../../places/records/sync/opening.ts";
 import { openAsk } from "./ask.ts";
 import { attemptKey } from "./files-review.ts";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -68,6 +69,7 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
       ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
       addToAutomations: (item) => openAsk(rt, "assistant", { kind: "vault_item", id: item.id, title: item.name }, undefined, connectorOpening(item)),
+      syncToRecords: (item) => openAsk(rt, "assistant", { kind: "vault_item", id: item.id, title: item.name }, undefined, syncOpening(item)),
       openAutomation: (automationId) => rt.open({ screen: "automations.canvas", args: { automationId } }),
       openAddProvider: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),
     },
