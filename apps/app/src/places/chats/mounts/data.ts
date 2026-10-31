@@ -18,6 +18,8 @@ import { openSession } from "../terminal/session.ts";
 import { anchorOfFocus } from "./route.ts";
 import type { Act } from "./route.ts";
 import { WaitingLine } from "./WaitingOn.tsx";
+import { MountSheets } from "../../../shell/providers/files-mounts.tsx";
+import type { SourceId } from "../../files/mounts/index.ts";
 import type { AgentPageData } from "../agentpage/data.tsx";
 import type { TabKey } from "../agentpage/model.ts";
 import type { ComputerPopupData } from "../computer/data.tsx";
@@ -341,6 +343,7 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
     },
     toast: (text: string) => go.say(text),
     ...(o.focus ? { focus: o.focus } : {}),
+    mountSheet: (p) => createElement(MountSheets, { rt, request: { kind: "mount", into: null, source: p.source as SourceId }, onClose: p.onClose, onChanged: () => undefined, onMounted: p.onMounted }),
     waitingLine: createElement(WaitingLine, { screens: rt.screens, call: rt.call, threadId: o.threadId, agent: o.nameOf(o.leadId) }),
   };
 }

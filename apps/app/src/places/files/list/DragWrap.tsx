@@ -35,7 +35,7 @@ export function useDragDelegation(box: MutableRefObject<View | null>, registry: 
     const el = box.current as unknown as HTMLElement | null;
     if (!el || typeof el.addEventListener !== "function") return undefined;
     const at = (e: Event): DragHandlers | undefined => { const k = keyOf(e); return k === null ? undefined : registry.current.get(k); };
-    const start = (e: DragEvent): void => { const h = at(e); if (!h) return; e.dataTransfer?.setData("text/plain", h.payload()); if (e.dataTransfer) e.dataTransfer.effectAllowed = "move"; };
+    const start = (e: DragEvent): void => { const h = at(e); if (!h) return; e.dataTransfer?.setData("text/plain", h.payload()); if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyMove"; };
     const click = (e: MouseEvent): void => { at(e)?.onMods({ meta: e.metaKey || e.ctrlKey, shift: e.shiftKey }); };
     const over = (e: DragEvent): void => { const h = at(e); if (h?.folder) { e.preventDefault(); h.onOver(); } };
     const leave = (e: DragEvent): void => { const h = at(e); if (h?.folder) h.onLeave(); };

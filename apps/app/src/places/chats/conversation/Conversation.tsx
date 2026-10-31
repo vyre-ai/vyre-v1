@@ -15,6 +15,7 @@ import { Feed, SkeletonMessage } from "../../../../../../ui/src/stream/index.ts"
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
+import { droppedOf, sharedLine, shareWithAgents, undoShare } from "./dropshare.ts";
 import { ConversationDataProvider, useConversationData, useOnline, useOptionalConversationData, useScreenQuery } from "./data.tsx";
 import type { ConversationData, ConversationNav } from "./data.tsx";
 import * as act from "./actions.ts";
@@ -103,6 +104,8 @@ function ConversationView(): ReactElement {
   const [cursor, setCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [line, setLine] = useState("");
+  /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
+  const [undo, setUndo] = useState<(() => void) | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
   const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({ value: data.fill?.take() ?? "", n: 0 }));
   const [typed, setTyped] = useState(seed.value);
@@ -143,7 +146,7 @@ function ConversationView(): ReactElement {
     setSeed((x) => ({ value, n: x.n + 1 }));
   }), [data.fill]);
 
-  const say = useCallback((text: string) => { setLine(text); }, []);
+  const say = useCallback((text: string) => { setLine(text); setUndo(null); }, []);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
   const fail = (what: string) => (): void => say(`${what} Try again.`);
 
@@ -334,6 +337,7 @@ function ConversationView(): ReactElement {
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
+    ...(data.mountSheet ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } } : {}),
     ...(memoryEntries ? { memoryEntries } : {}),
     fork: (id) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")),
     makeTask: (id) => {
@@ -377,8 +381,21 @@ function ConversationView(): ReactElement {
   const title = titleOf(thread, nameOf);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "");
 
+  // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
+  const dropShare = (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }): void => {
+    const items = droppedOf(e.dataTransfer?.getData?.("text/plain") ?? "");
+    if (items.length === 0) return;
+    e.preventDefault();
+    const agents = thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) }));
+    if (agents.length === 0) { say("Add an agent to this chat first. A chat shares with its agents."); return; }
+    void shareWithAgents(data, items, agents, data.newKey()).then(
+      (done) => { setLine(sharedLine(done)); setUndo(() => () => { void undoShare(data, done.grants).then(() => say("Taken back."), fail("Could not take it back.")); }); },
+      fail("Could not share that."),
+    );
+  };
+  const dropProps = Platform.OS === "web" ? ({ onDragOver: (e: { preventDefault: () => void; dataTransfer?: { types?: ArrayLike<string> } }) => { if (Array.from(e.dataTransfer?.types ?? []).includes("text/plain")) e.preventDefault(); }, onDrop: dropShare } as object) : {};
   return (
-    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
+    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root} {...dropProps}>
       {compact ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         {mobileBack ? <IconButton icon="back" label="Back" size={32} testID="conversation-back" onPress={() => mobileBack()} /> : null}
@@ -456,7 +473,7 @@ function ConversationView(): ReactElement {
 
       {data.waitingLine ?? null}
       {q ? <Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text> : null}
-      {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text></View> : null}
+      {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
           <Face name={nameOf(personMention.id)} seedId={personMention.id} kind="person" size={18} />
@@ -568,7 +585,7 @@ const st = StyleSheet.create({
   toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   queue: { paddingHorizontal: 24, paddingVertical: 4, fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
-  lineBox: { paddingHorizontal: 24, paddingVertical: 4, alignItems: "center" },
+  lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   offer: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", maxWidth: 760, paddingHorizontal: 24, paddingVertical: 4 },
   offerText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-2)" as string },

@@ -128,6 +128,9 @@ function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number
     </View>
   );
   const drop = {
+    // a folder is dragged out as "folder:<id>": onto another folder it moves, onto a chat it is shared with the chat's agents
+    draggable: true,
+    onDragStart: (e: { dataTransfer?: { setData?: (t: string, v: string) => void; effectAllowed?: string } }) => { e.dataTransfer?.setData?.("text/plain", `folder:${fid}`); if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyMove"; },
     onDragOver: (e: { preventDefault: () => void }) => { e.preventDefault(); c.setOver(fid); },
     onDragLeave: () => c.setOver((o) => (o === fid ? null : o)),
     onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => { e.preventDefault(); c.setOver(null); const item = e.dataTransfer?.getData?.("text/plain") ?? ""; if (item.length > 0) c.onDrop(item, fid, f.scope); },
@@ -251,6 +254,12 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
               />
             ) : null}
             <Kids parent={null} depth={0} c={c} query={q} />
+            {data.nav.openLive && q.length === 0 ? (
+              <SlotRow
+                id="folder-live" title="Live folders" selected={data.liveView === true} leadWidth={18 + 7 + 16 + 6}
+                lead={<View style={styles.subLead}><View style={styles.chev} /><Glyph name="link" size={16} /></View>} onPress={() => data.nav.openLive?.()}
+              />
+            ) : null}
             {data.nav.connectFolder && q.length === 0 ? (
               <SlotRow
                 id="folder-connect" title="Connect a folder…" leadWidth={18 + 7 + 16 + 6}

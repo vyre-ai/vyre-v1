@@ -1,0 +1,4 @@
+- A turn that waits for your approval is answered in the chat: a card says what the agent wants to do with an excerpt, Allow or Deny (Deny takes an optional reason that goes back to the agent), and collapses to one line afterwards. It covers Ask mode and anything that would leave Vyre.
+- Drag a mounted folder or file from Files onto a chat to share it with that chat's agents, with Undo.
+- An agent that needs a folder it cannot see can offer a Mount card: pick Google Drive, OneDrive, SharePoint or GitHub, mount it in the sheet, and it is shared with the chat's agents and the agent carries on.
+- Files has a Live folders view: every mount with its logo, live or last synced, lag, conflicts, who can see it, and Reconnect, Sync now, Pause and Resume.

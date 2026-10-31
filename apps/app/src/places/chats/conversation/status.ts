@@ -14,12 +14,13 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
 };
 
 /** How a turn_status block reads: a failed turn is the inline error row with a plain sentence and one action; a stopped or parked turn is a quiet line. */
-export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"; id: string; text: string };
+export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"; id: string; text: string } | { kind: "approval"; id: string; taskId: string };
 
 export function statusView(b: MessageBlock): StatusView {
   const d = dataOf(b);
   const state = str(d.state);
   if (state === "cancelled") return { kind: "note", id: b.id, text: "Stopped." };
+  if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
   const w = STATUS_WORDS[str(d.code)] ?? { message: "That reply did not finish.", retryable: true };
   return { kind: "error", block: { ...b, type: "error", data: { code: str(d.code), message: w.message, ...(w.cause ? { cause: w.cause } : {}), next: w.next ?? [], retryable: w.retryable, turnId: str(d.turnId) } } };
