@@ -3,7 +3,7 @@
 // Accept and Reject are the changeset capabilities, so the same press works from the diff tab. A person who may not accept sees "Suggest to <owner>" instead.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { Block } from "../../../../../../ui/src/kit/types.ts";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
@@ -154,16 +154,19 @@ export const planFileLine = (n: number): string => `Plan · ${n} open comment${n
 export function PlanFileCard({ block, onOpen }: { block: { id: string; data: unknown }; onOpen: (fileId: string) => void }): ReactElement {
   const d = planFileData(block);
   const [over, setOver] = useState(false);
+  // a phone has no "beside": the line is the count alone, and the card never runs past the screen
+  const w = useWindowDimensions().width;
+  const line = w > 0 && w < 560 ? planFileLine(d.openComments).replace(" · click to open beside the chat", "") : planFileLine(d.openComments);
   return (
     <Pressable
       testID={`plancard-${block.id}`} accessibilityRole="button" accessibilityLabel={`Open ${d.name} beside the chat`} onPress={() => onOpen(d.fileId)}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[st.plan, over && { backgroundColor: "var(--hover)" as string }]}
+      style={[st.plan, w > 0 && w < 520 && { maxWidth: w - 32 }, over && { backgroundColor: "var(--hover)" as string }]}
     >
       <View style={st.planIcon}><Glyph name="plan" size={16} color="var(--accent)" /></View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text numberOfLines={1} style={st.planName}>{d.name}</Text>
-        <Text numberOfLines={1} style={st.planSub}>{planFileLine(d.openComments)}</Text>
+        <Text numberOfLines={1} style={st.planSub}>{line}</Text>
       </View>
     </Pressable>
   );

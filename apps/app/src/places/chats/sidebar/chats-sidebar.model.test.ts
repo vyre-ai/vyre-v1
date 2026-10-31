@@ -124,3 +124,15 @@ test("a local row is first in Today, marked local, with its own idempotency key"
   assert.equal(g.find((x) => x.key === "today")!.rows[0]!.threadId, a.threadId);
   assert.equal(splitChannels([channel("p", { recordId: "r" })]).projects.length, 1);
 });
+
+test("on a phone Needs you lists at most three rows, then Show all N; a desktop lists every one it has and no such row", () => {
+  const seven = ["n1", "n2", "n3", "n4", "n5", "n6", "n7"].map((id) => need(id, "approve"));
+  const phone = buildEntries({ ...base, needs: seven, needsTotal: 7, needsLimit: 3 });
+  assert.deepEqual(phone.filter((x) => x.type === "need").map((x) => x.key), ["n:n1", "n:n2", "n:n3"]);
+  const more = phone.find((x) => x.key === "m:needs");
+  assert.ok(more && more.type === "more" && more.label === "Show all 7" && more.to === "needs");
+  const desk = buildEntries({ ...base, needs: seven, needsTotal: 7 });
+  assert.equal(desk.filter((x) => x.type === "need").length, 7);
+  assert.ok(!desk.some((x) => x.key === "m:needs"));
+  assert.ok(!buildEntries({ ...base, needs: seven.slice(0, 2), needsTotal: 2, needsLimit: 3 }).some((x) => x.key === "m:needs"), "nothing hidden, no row");
+});
