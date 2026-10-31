@@ -148,10 +148,10 @@ export type Audience = "space" | "added" | "me";
 export type Exporters = "admins" | "viewers" | "chosen";
 export type RowFlag = "export" | "reshare";
 
-export const AUDIENCES: readonly { id: Audience; label: string; hint: string }[] = [
-  { id: "space", label: "Everyone in the Space", hint: "Everyone in the Space can see it, as their role allows. People added below get more." },
-  { id: "added", label: "Only people added", hint: "Only the people added below, and admins." },
-  { id: "me", label: "Only me", hint: "Nobody else, until you add them." },
+export const AUDIENCES: readonly { id: Audience; label: string; short: string; hint: string }[] = [
+  { id: "space", label: "Everyone in the Space", short: "Everyone", hint: "Everyone in the Space can see it, as their role allows. People added below get more." },
+  { id: "added", label: "Only people added", short: "People added", hint: "Only the people added below, and admins." },
+  { id: "me", label: "Only me", short: "Only me", hint: "Nobody else, until you add them." },
 ];
 export const EXPORTERS: readonly { id: Exporters; label: string }[] = [
   { id: "admins", label: "Admins only" },
@@ -295,7 +295,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
         key={`${row.subjectKind}:${row.subjectId}:${inheritedRow ? "i" : "d"}`}
         id={`share-${row.subjectId}`}
         title={row.name}
-        note={rec && row.via === "folder" ? `From ${props.folderName ?? "its type"}` : rowSub(row, props.folderName)}
+        note={rec ? rowSub({ ...row, via: "grant" }) : rowSub(row, props.folderName)}
         leadWidth={32}
         lead={<Tile name={row.name} seedId={row.subjectId} kind={row.subjectKind} />}
         trail={trail}
@@ -364,7 +364,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
             ) : (
               <Segmented
                 label="Who can see this" testID="share-audience-pick" value={rec.audience}
-                options={AUDIENCES.map((a) => (a.id === "space" && rec.follows !== undefined ? { id: a.id, label: `Follows ${rec.follows}`, hint: `Back to the same people as ${rec.follows}` } : { id: a.id, label: a.label, hint: a.hint }))}
+                options={AUDIENCES.map((a) => (a.id === "space" && rec.follows !== undefined ? { id: a.id, label: `Follows ${rec.follows}`, hint: `Back to the same people as ${rec.follows}` } : { id: a.id, label: compact ? a.short : a.label, hint: a.hint }))}
                 onChange={(next) => { if (rec.canChange) rec.onAudience(next); }}
               />
             )}
@@ -441,7 +441,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
               accessibilityRole="button" accessibilityLabel="More" testID="share-more"
               onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => menu.show(
                 [{ head: "Who can export" }, ...EXPORTERS.map((x): MenuEntry => ({ label: x.label, checked: x.id === rec.exporters, ...(rec.canChange ? { onSelect: () => rec.onExporters?.(x.id) } : {}) }))],
-                e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0, "context", { label: "Who can export" })}
+                e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0, "other", { label: "Who can export" })}
               style={({ hovered }: { hovered?: boolean }) => [styles.more, hovered === true && styles.addHover]}
             >
               <MenuIcon icon="more" size={15} color="var(--ink-2)" />
