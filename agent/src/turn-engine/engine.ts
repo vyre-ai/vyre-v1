@@ -55,6 +55,8 @@ export interface EngineOptions {
   onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string; routine: boolean }) => Promise<void> | void;
   /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
   onTurnEnd?: (turn: Readonly<TurnRow>, account: ResolvedAccount | null) => Promise<void> | void;
+  /** The engine of a turn reported a limit window of the paying account (percent used and reset time). Keep the latest per account; it must never fail the turn. */
+  onLimits?: (account: ResolvedAccount, limits: { window: "session" | "week"; pct: number; resetsAt?: number }) => Promise<void> | void;
   queue?: QueueStore;
   leases?: LeaseStore;
   messages?: MessageStore;
@@ -376,6 +378,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "usage":
             turn.tokensIn += ev.inputTokens;
             turn.tokensOut += ev.outputTokens;
+            break;
+          case "limits":
+            if (paying && opts.onLimits) { try { void Promise.resolve(opts.onLimits(paying, { window: ev.window, pct: ev.pct, ...(ev.resetsAt !== undefined ? { resetsAt: ev.resetsAt } : {}) })).catch(() => undefined); } catch { /* a limit reading is a convenience, never a reason to fail a turn */ } }
             break;
           case "done":
             mentions = ev.mentions ?? [];

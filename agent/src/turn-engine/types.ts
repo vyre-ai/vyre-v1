@@ -121,6 +121,8 @@ export type DriverEvent =
   | { type: "tool_call"; id: string; name: string; input: unknown }
   | { type: "block"; kind: string; payload?: unknown }
   | { type: "usage"; inputTokens: number; outputTokens: number }
+  /** A subscription limit window as the engine reported it (percent used 0 to 100, reset time in epoch ms). Kept per account; shown only when reported. */
+  | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   | { type: "done"; mentions?: readonly RouteMention[] }
   | { type: "error"; code: string; message: string };
 

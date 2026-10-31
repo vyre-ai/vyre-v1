@@ -176,6 +176,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
               : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok } };
             break;
           case "usage": yield { type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens }; break;
+          case "limits": yield { type: "limits", window: item.window, pct: item.pct, ...(item.resetsAt !== undefined ? { resetsAt: item.resetsAt } : {}) }; break;
           case "end":
             outstanding -= 1;
             if (item.error) {

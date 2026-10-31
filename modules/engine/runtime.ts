@@ -15,6 +15,7 @@ import { withChatSettings } from "./chat-settings.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
+import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
@@ -228,6 +229,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
       },
       onTurnEnd: (turn, account) => meter(h, turn, account),
+      onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       ...(apiTools ? { callTool: apiTools.runner } : {}),
     });
     live = engine;

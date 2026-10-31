@@ -64,6 +64,7 @@ function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: numbe
   return {
     id: str(p, "id"), providerKey: str(p, "providerKey"), name: c?.name ?? str(p, "providerKey"), ...(c?.logo ? { logo: c.logo } : {}),
     connection: str(p, "connection"), via: viaOf(str(p, "connection"), str(p, "scope")), scope: str(p, "scope"), itemId: str(p, "itemId"),
+    ...(item && str(item, "name") ? { itemName: str(item, "name") } : {}),
     ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}), agentsUsing: [],
     usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
     spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"),

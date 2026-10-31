@@ -27,7 +27,7 @@ const modelInfo = t.obj({
   allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected')),
 });
 const accountRow = t.obj({
-  ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), mine: t.bool(), ownerId: t.opt(id.user),
+  ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), name: t.opt(t.str({ description: 'The name the person gave this account in the Vault; title is the provider', examples: ['Dana Claude Max'] })), mine: t.bool(), ownerId: t.opt(id.user),
   status: t.enm('ok', 'expired', 'failed', 'untested'), lastProbeAt: t.opt(t.ts()),
   base: t.opt(t.str({ description: 'The address of a local or custom OpenAI-compatible endpoint' })), keyless: t.opt(t.bool()),
 });
@@ -185,6 +185,17 @@ export default defineManifest({
     // ---- accounts and models
     read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status', {
       out: { accounts: t.arr(accountRow) }, tool: 'meta',
+    }),
+    read('engine.usage.get', 'What the composer model panel shows for a chat and an account: the context used against the model window (from the chat\'s latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null and the meter is hidden; nothing is estimated', {
+      in: { ...threadT, agentId: id.agent, accountRef: t.opt(accountRef) },
+      out: {
+        account: t.nullable(t.obj({ ref: accountRef, name: t.str({ description: 'The name the person gave the account in the Vault', examples: ['Dana Claude Max'] }), provider: t.str({ examples: ['anthropic'] }), plan: t.opt(t.str()) })),
+        context: t.nullable(t.obj({ used: t.int({ minimum: 0 }), window: t.int({ minimum: 1 }) })),
+        session: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
+        week: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
+        source: t.enm('provider', 'estimate', 'none'),
+      },
+      on: ['thread', '/threadId'], tool: 'meta', errors: ['validation.not_found'],
     }),
     read('engine.probe_account', 'Test an account: reachable, signed in, models it can use', {
       in: { accountRef }, out: { ok: t.bool(), models: t.opt(t.int()), error: t.opt(errShape) }, tool: 'meta', errors: ['provider.auth_failed', 'provider.unavailable', 'provider.network'],

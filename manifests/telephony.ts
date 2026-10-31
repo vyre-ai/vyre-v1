@@ -166,7 +166,7 @@ export default defineManifest({
     // ---- texts
     outward('telephony.send_sms', 'Send a text through the single send API: suppression, SMS consent, send window, caps, Gate for agents and automations', {
       in: {
-        numberId: id.number, to: phone, body: t.str(), mediaFileIds: t.opt(t.arr(id.file)), contactId: t.opt(id.record), replyToId: t.opt(smsId), campaignId: t.opt(id.campaign), sendAt: t.opt(t.ts()),
+        numberId: id.number, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For a text it is the number id and must equal numberId', examples: ['num_a1b2c3'] })), to: phone, body: t.str(), mediaFileIds: t.opt(t.arr(id.file)), contactId: t.opt(id.record), replyToId: t.opt(smsId), campaignId: t.opt(id.campaign), sendAt: t.opt(t.ts()),
       },
       out: { smsId: t.opt(smsId), status: t.enm('queued', 'sent', 'held', 'suppressed'), taskId: t.opt(id.task) },
       on: ['number', '/numberId'], level: 'use', gate: 'send', emits: ['message.sent', 'message.suppressed', 'message.failed'], tool: 'inbox', offline: 'queue', cli: 'vyre sms send',

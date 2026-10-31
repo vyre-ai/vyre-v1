@@ -80,6 +80,8 @@ export type CliEvent =
   | { type: "tool"; phase: "call"; id: string; name: string }
   | { type: "tool"; phase: "result"; id: string; ok: boolean }
   | { type: "usage"; inputTokens: number; outputTokens: number }
+  /** What the engine reported about a subscription limit window: how much of it is used (0 to 100) and when it resets (epoch ms), as the engine said it. Never estimated. */
+  | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   | { type: "end"; error?: { code?: string; message: string } };
 
 export interface CliDecoder {
