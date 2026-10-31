@@ -437,7 +437,7 @@ function ConversationView(): ReactElement {
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking)} working={isWorking}
-            {...(lead ? { whoExtra: <ModelChip label={modelLabel(lead.model ?? "")} onPress={modelMenu} />, barExtra: <IconButton icon="monitor" label={`${nameOf(lead.agentId)}'s computer`} size={26} testID="computer-button" onPress={() => data.nav.openBeside("computer", lead.agentId)} /> } : {})}
+            {...(lead ? { whoExtra: <ModelChip label={modelLabel(lead.model ?? "")} onPress={modelMenu} />, ...(data.personal ? {} : { barExtra: <IconButton icon="monitor" label={`${nameOf(lead.agentId)}'s computer`} size={26} testID="computer-button" onPress={() => data.nav.openBeside("computer", lead.agentId)} /> }) } : {})}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={lists} agentChat={thread.kind !== "channel"} onChange={(t) => { typedRef.current = t; setTyped(t); }} onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
