@@ -56,7 +56,7 @@ function Spans({ text, style, links }: { text: string; style?: TextStyle; links?
     const p = pieces[i] as Piece;
     if (p.kind === "code") parts.push(<Text key={i} style={s.code}>{p.text}</Text>);
     else if (p.kind === "bold") parts.push(<Text key={i} style={s.bold}>{p.text}</Text>);
-    else if (links) parts.push(...withFileLinks(splitRefs(p.text), links).map((el, j) => <Text key={`${i}-${j}`}>{el}</Text>));
+    else if (links) parts.push(<Text key={i}>{withFileLinks(splitRefs(p.text), links)}</Text>);
     else parts.push(p.text);
   }
   return <Text style={[s.p, style]}>{parts}</Text>;
