@@ -3,7 +3,7 @@
 // menu offers Show Only This. The dialer sits at the foot.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -59,6 +59,9 @@ export function SidebarLoading(): ReactElement {
 
 function Sidebar(): ReactElement {
   const data = useInboxData();
+  // the dialer shortcut is a keyboard hint: not drawn on a phone (0 is "not measured yet": drawn)
+  const width = useWindowDimensions().width;
+  const keys = !(width > 0 && width < 560);
   const { state, dispatch } = useInboxState();
   const menu = useMenu();
   const [focus, setFocus] = useState(false);
@@ -183,7 +186,7 @@ function Sidebar(): ReactElement {
           <Glyph name="call" size={14} />
           <Text style={styles.dialerText}>Dialer</Text>
           <View style={styles.grow} />
-          <Text style={styles.keys}>{"⌘⇧K"}</Text>
+          {keys ? <Text style={styles.keys}>{"⌘⇧K"}</Text> : null}
         </Pressable>
       </View>
       {menu.element}

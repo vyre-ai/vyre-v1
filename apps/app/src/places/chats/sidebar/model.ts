@@ -139,7 +139,7 @@ export type Entry =
   | { key: string; type: "head"; section: SectionKey; label: string; count?: number; open: boolean }
   | { key: string; type: "need"; item: NeedsItem }
   | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean }
-  | { key: string; type: "more"; label: string; to: "agents" | "unread" }
+  | { key: string; type: "more"; label: string; to: "agents" | "unread" | "needs" }
   | { key: string; type: "group"; label: string }
   | { key: string; type: "chat"; row: ChatRow }
   | { key: string; type: "channel"; channel: Channel; project: boolean }
@@ -172,6 +172,8 @@ export interface SidebarInput {
   closed: ReadonlySet<SectionKey>;
   /** Agents beyond the faces shown: a row under them opens All agents. */
   facesMore?: number;
+  /** A phone shows this many Needs you rows, then a "Show all" row (the desktop lists them all). */
+  needsLimit?: number;
   /** Sections whose read failed: the row under the head says so (and the section never says "empty"). */
   errors?: Partial<Record<SectionKey, SectionError>>;
 }
@@ -196,7 +198,13 @@ export function buildEntries(i: SidebarInput): Entry[] {
   const err = (s: SectionKey): Entry[] => { const e = i.errors?.[s]; return e ? [{ key: `x:${s}`, type: "error", section: s, text: e.text, cause: e.cause, ...(e.code ? { code: e.code } : {}), ...(e.traceId ? { traceId: e.traceId } : {}) }] : []; };
   if (i.needs.length || i.errors?.needs) {
     out.push({ key: "h:needs", type: "head", section: "needs", label: "Needs you", count: Math.max(i.needsTotal, i.needs.length), open: open("needs") });
-    if (open("needs")) { out.push(...err("needs")); for (const n of i.needs) out.push({ key: `n:${n.task.id}`, type: "need", item: n }); }
+    if (open("needs")) {
+      out.push(...err("needs"));
+      const shown = i.needsLimit !== undefined ? i.needs.slice(0, i.needsLimit) : i.needs;
+      for (const n of shown) out.push({ key: `n:${n.task.id}`, type: "need", item: n });
+      const all = Math.max(i.needsTotal, i.needs.length);
+      if (i.needsLimit !== undefined && shown.length < all) out.push({ key: "m:needs", type: "more", label: `Show all ${all}`, to: "needs" });
+    }
   }
   out.push({ key: "h:faces", type: "head", section: "faces", label: "Agents", open: open("faces") });
   if (open("faces")) {

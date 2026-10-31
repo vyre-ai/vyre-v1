@@ -115,7 +115,7 @@ import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
-import { createPrincipalRegistrar, missingAgentPrincipalEvents } from "../gateway/principals.ts";
+import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
@@ -422,6 +422,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let accessPending: { seq: number; type: string; payload: unknown }[] = [];
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
   let accessStale = false, kicking = false, noAccessModule = false;
+  /** Agents born Guest (their maker was not yet active in the snapshot) become Member agents once the maker may edit the Space (see lowAgentUpgradeEvents). Runs after each access sync and at boot. */
+  let healing = false;
+  let healAgents: () => Promise<void> = async () => {};
+  const startHealing = (appendResult: (e: Parameters<LogClient["appendResult"]>[0]) => ReturnType<LogClient["appendResult"]>, spaceId: string): void => {
+    healAgents = async () => {
+      if (healing) return;
+      healing = true;
+      try {
+        const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
+          const may = (level: "edit" | "view"): boolean => authorize(access.snap, { principal: person, action: { perm: null, level }, resource: { type: "space", id: scope } }).effect === "allow";
+          return may("edit") ? "edit" : may("view") ? "view" : "none";
+        };
+        const agents = [...access.snap.allPrincipals()].filter((p) => p.kind === "agent" && p.owner).map((p) => ({ id: p.id, owner: p.owner as string, roleNames: access.snap.info(p.id)?.roleNames ?? "" }));
+        let changed = false;
+        for (const e of lowAgentUpgradeEvents({ space: spaceId, agents, levelOf })) {
+          const r = await appendResult({ id: `evt_agent_grown_${e.type.replace(".", "_")}_${e.id}`, type: e.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: e.entity, entity_id: e.id, payload: e.payload });
+          if (r.ok && !r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); changed = true; sink.log({ space: spaceId, level: 20, msg: "access.agent_grown", place: "boot", entity: "agent", entity_id: e.id }); }
+        }
+        if (changed) await syncAccess(true);
+      } finally { healing = false; }
+    };
+  };
   /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
   const staleFor = (principal: string): boolean => {
     if (!accessStale || principal === (access.owner() ?? cfg.owner)) return false;
@@ -520,6 +542,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             sink.log({ space, level: 20, msg: "access.agent_principal_reconciled", place: "boot", entity: "agent", entity_id: repairedEvent.id });
           }
         }
+        startHealing((event) => log.appendResult(event), space);
+        await healAgents();
       }
       headSeq = (await log.currentHead()).seq;
 
@@ -685,7 +709,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
         sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),
-        recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale,refresh:()=>syncAccess(true)}),
+        recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale,refresh:()=>syncAccess(true),warn:(info)=>sink.log({ space: spaceId, level: 40, msg: "records.read_mismatch", place: "read", attrs: { ...info } })}),
         preview: { read: (token, cap, input, trace) => {
           if (!previews) throw fail("permission.no_grant", trace);
           return previews.read(token, cap, input, trace);
@@ -747,7 +771,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const out = stored.map((s, i) => fromStored(s, b.events[i]!));
           for (const s of stored) { access.fold(s); if (isAccessEvent(s.type)) accessPending.push(toAccessEvent(s)); }
           headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
-          if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
+          if (stored.some((s) => touchesAccess(s.type))) { await syncAccess(true); void healAgents().catch(() => undefined); }
           if (b.audit) recordAudit(b.audit);
           return out;
         }),

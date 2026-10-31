@@ -13,6 +13,9 @@ export function tabOf(place: PlaceId): TabId {
   return (TAB_PLACES as readonly string[]).includes(place) ? (place as TabId) : "you";
 }
 
+/** The screens that are a conversation: its header carries the Back chevron, so the shell draws no Back bar above it. */
+export const headerBack = (e: Entry): boolean => e.tab === "chats" && /^(chat|thread|channel):/.test(e.screen);
+
 /** The phone screen for a place and hash. Null for a place the phone does not have (Console). */
 export function entryFor(place: PlaceId, hash: string): Entry | null {
   if (place === "console") return null;

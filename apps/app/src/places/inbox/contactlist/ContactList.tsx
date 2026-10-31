@@ -233,7 +233,8 @@ function List(): ReactElement {
         const dbl = sel.current.key === e.key && now - sel.current.at < DOUBLE_MS;
         sel.current = { key: e.key, at: now };
         dispatch({ type: "select", key: e.key });
-        if (dbl) openEntry(e);
+        // a narrow window (a phone) has no double tap: one tap opens
+        if (dbl || slim) openEntry(e);
       }}
     />
   );

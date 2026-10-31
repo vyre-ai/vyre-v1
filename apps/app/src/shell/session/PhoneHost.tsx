@@ -12,7 +12,8 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import type { PlaceHash } from "../hash/context.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
-import { entryFor, placeOf } from "./mobile-map.ts";
+import { entryFor, headerBack, placeOf } from "./mobile-map.ts";
+import { othersNeedingYou } from "../spaces/model.ts";
 import type { RealSession } from "./session.ts";
 
 const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" }) };
@@ -75,6 +76,8 @@ export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, 
     };
     return <PlaceHost place={where.place} runtime={session?.runtime ?? null} hash={where.hash} opened={opened} />;
   };
+  // another Space needing you is a dot on the You tab, where the Space switcher is
+  const youDot = session ? othersNeedingYou(session.runtime.knownSpaces ?? [], session.def.spaceId).length > 0 : false;
   const initialEntry = location?.hash ? entryFor(location.place, location.hash) : null;
-  return <MobileShell {...(initialEntry ? { initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} />;
+  return <MobileShell {...(initialEntry ? { initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} headerBack={headerBack} youDot={youDot} />;
 }

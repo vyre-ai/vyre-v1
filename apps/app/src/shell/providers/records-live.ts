@@ -6,7 +6,9 @@ import type { ShellRuntime } from "./runtime.tsx";
 
 type CapQuery = <T>(cap: string, input?: Record<string, unknown>) => LiveQuery<T>;
 
-const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: (): QueryState<never> => ({ status: "loading" }) };
+// one snapshot object for good: a store that answers a new object on every read makes React loop ("getSnapshot should be cached")
+const LOADING: QueryState<never> = { status: "loading" };
+const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: (): QueryState<never> => LOADING };
 
 /** A live query of a capability over the Space. Inputs are compared by value inside the hooks, so asking again for the same input gives the same query. */
 export function capLive<T>(rt: ShellRuntime, cap: string, input: Record<string, unknown> = {}): LiveQuery<T> {
