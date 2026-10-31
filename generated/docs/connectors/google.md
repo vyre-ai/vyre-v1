@@ -80,6 +80,8 @@ Key google, module google. Mode dwd, owned by a space. Auth service_account_dwd.
 - google.docs.get_document
 - google.docs.create_document
 - google.docs.batch_update
+- google.docs.replace_text
+- google.docs.insert_text
 - google.meet.list_conference_records
 - google.meet.list_recordings
 - google.meet.list_transcripts

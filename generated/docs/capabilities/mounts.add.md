@@ -1,6 +1,6 @@
 # mounts.add
 
-Mount a Google or SharePoint folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run
+Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run
 
 | | |
 |---|---|
@@ -27,7 +27,7 @@ Mount a Google or SharePoint folder, a folder on your computer or a GitHub repos
 type In = {
   into: string;
   source: {
-    kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
     connectionId?: string;
     ref?: string;
     path?: string;

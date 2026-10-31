@@ -8,6 +8,8 @@ HTTP 422. Retryable: no.
 
 - automations.http_read
 - automations.http_send
+- dropbox.files.download
+- dropbox.files.upload
 - files.create
 - files.read
 - files.upload_url

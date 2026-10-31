@@ -1,5 +1,5 @@
 // Test helper: mount a Console page, press its "New ..." button and read what the create sheet drew.
-import { createRoot } from "test-renderer";
+// The test passes its renderer in (as ui/src/testing/dom.ts mount does), so this non-test file imports no dev dependency.
 import type { ReactElement } from "react";
 import type { Node } from "../../../../../ui/src/testing/dom.ts";
 import { find, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
@@ -20,7 +20,7 @@ export function dataWith(rows: Record<string, unknown>, extra: Partial<ConsoleDa
 }
 
 /** Mounts the page, presses the button with this testID and returns the text of the page and a finder for nodes. */
-export async function openSheet(page: ReactElement, rows: Record<string, unknown>, openId: string, extra: Partial<ConsoleData> = {}) {
+export async function openSheet(createRoot: Parameters<typeof mount>[0], page: ReactElement, rows: Record<string, unknown>, openId: string, extra: Partial<ConsoleData> = {}) {
   const restore = installDom();
   try {
     const root = await mount(createRoot, <ConsoleDataProvider value={dataWith(rows, extra)}>{page}</ConsoleDataProvider>);

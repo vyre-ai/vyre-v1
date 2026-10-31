@@ -1,4 +1,4 @@
-// Agent computers are a Team Space module. A Personal Space never asks for them, draws no computer button, and answers a stray door with one plain line and a way to Add a Space.
+// Agent computers run on a capable host. A Personal Space without one never asks for them, draws no computer button and says nothing about them; a stray door does nothing.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -6,11 +6,12 @@ import type { LiveQuery, ScreenHooks } from "../../../../../client/src/index.ts"
 import { createSample } from "../../places/chats/conversation/sample.ts";
 import { createSampleSidebar } from "../../places/chats/sidebar/sample.ts";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
-import { COMPUTER_UNREACHED, NEEDS_TEAM_LINE, computerLine, createGo } from "../../places/chats/mounts/data.ts";
+import { COMPUTER_UNREACHED, computerLine, createGo } from "../../places/chats/mounts/data.ts";
 import type { LineAction } from "../../places/chats/mounts/data.ts";
 import type { Act } from "../../places/chats/mounts/route.ts";
 import { Composer } from "../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../ui/src/Composer/Deferred.tsx";
+import { resetComputersAvailable, setComputersAvailable } from "../computers-available.ts";
 import ChatsPlace from "./chats.tsx";
 import { ShellRuntimeProvider } from "./runtime.tsx";
 import type { ShellRuntime, ShellTarget } from "./runtime.tsx";
@@ -66,23 +67,17 @@ function goFor(kind: "personal" | "team", fail?: unknown, computers: { agentId: 
   return { go, said, calls, opened, acts };
 }
 
-test("a computer door in a Personal Space answers with one line and Add a Space, and asks nothing", () => {
+test("a computer door in a Personal Space with no capable host does nothing and asks nothing; with one it opens the agent's computer", async () => {
+  resetComputersAvailable();
   const { go, said, calls, opened } = goFor("personal");
   go.computerOfAgent("agt_intake");
-  assert.deepEqual(calls, []);
-  assert.equal(said.length, 1);
-  assert.equal(said[0]!.text, "Agent computers need a Team Space");
-  assert.equal(said[0]!.action?.label, "Add a Space");
-  said[0]!.action!.run();
-  assert.deepEqual(opened, [{ screen: "spaces.switcher", args: { create: "team" } }]);
-});
-
-test("a needs_team refusal from the server gets the same line and action", async () => {
-  const { go, said } = goFor("team", { code: "permission.needs_team", message: "Needs a Team Space" });
-  go.computerOfAgent("agt_intake");
+  assert.deepEqual([calls, said, opened], [[], [], []]);
+  setComputersAvailable("s1", true);
+  const found = goFor("personal", undefined, [{ agentId: "agt_intake", computerId: "cmp_1" }]);
+  found.go.computerOfAgent("agt_intake");
   await new Promise((r) => setTimeout(r, 0));
-  assert.equal(said[0]?.text, NEEDS_TEAM_LINE);
-  assert.equal(said[0]?.action?.label, "Add a Space");
+  assert.deepEqual(found.acts, [{ t: "layer", layer: { kind: "computer", computerId: "cmp_1", chat: false } }]);
+  resetComputersAvailable();
 });
 
 test("no computer for the agent says so; a network failure says could not reach; a found one opens", async () => {
@@ -100,8 +95,7 @@ test("no computer for the agent says so; a network failure says could not reach;
   assert.deepEqual(found.acts, [{ t: "layer", layer: { kind: "computer", computerId: "cmp_1", chat: false } }]);
 });
 
-test("computerLine maps the three failures", () => {
-  assert.equal(computerLine({ code: "permission.needs_team" }, "Intake"), NEEDS_TEAM_LINE);
+test("computerLine maps the failures", () => {
   assert.equal(computerLine(null, "Intake"), "Intake has no computer yet.");
   assert.equal(computerLine(new Error("x"), "Intake"), COMPUTER_UNREACHED);
 });

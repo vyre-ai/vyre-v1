@@ -38,9 +38,10 @@ function code(): string {
 const token = (): string => hex(globalThis.crypto.getRandomValues(new Uint8Array(24)).buffer);
 
 /** A join code for a computer of the whole Space (an admin) or for the asker's own computer (any member). Single use, ten minutes, shown once. */
-export function makeJoinCode(ctx: NetworkCtx, scope: "space" | "personal"): { code: string; expiresAt: number } {
+export function makeJoinCode(ctx: NetworkCtx, scope: "space" | "personal", nickname?: string): { code: string; expiresAt: number } {
   const c = code(), expiresAt = ctx.now() + JOIN_CODE_MS;
-  ctx.db.run("INSERT INTO network_join (code, by_principal, expires_at, scope) VALUES (?, ?, ?, ?)", c, ctx.actingFor ?? ctx.principal.id, expiresAt, scope);
+  const nick = typeof nickname === "string" && nickname.trim().length > 0 ? nickname.trim().slice(0, 40) : null;
+  ctx.db.run("INSERT INTO network_join (code, by_principal, expires_at, scope, nickname) VALUES (?, ?, ?, ?, ?)", c, ctx.actingFor ?? ctx.principal.id, expiresAt, scope, nick);
   return { code: c, expiresAt };
 }
 
@@ -48,9 +49,10 @@ const NOT_YOURS = "That code is wrong, already used or expired. Make a new one."
 
 /** The computer arrives with a code and its public key. It is recorded as waiting, never as admitted. */
 export async function enroll(ctx: NetworkCtx, input: In): Promise<{ serverId: string; fingerprint: string; state: "pending" }> {
-  const codeText = str(input["code"], 40), publicKey = str(input["publicKey"], 200), name = str(input["name"], 80);
+  const codeText = str(input["code"], 40), publicKey = str(input["publicKey"], 200), hostName = str(input["name"], 80);
+  const name = hostName;
   if (!codeText || !publicKey || !name) return failWith(ctx.trace.traceId, "validation.bad_input", "A join code, a public key and a name are needed.");
-  const row = ctx.db.all("SELECT code, by_principal, expires_at, scope, used_at FROM network_join WHERE code = ?", codeText.toUpperCase())[0] as Record<string, unknown> | undefined;
+  const row = ctx.db.all("SELECT code, by_principal, expires_at, scope, used_at, nickname FROM network_join WHERE code = ?", codeText.toUpperCase())[0] as Record<string, unknown> | undefined;
   if (!row || row["used_at"] !== null && row["used_at"] !== undefined || Number(row["expires_at"]) <= ctx.now()) return failWith(ctx.trace.traceId, "auth.invalid_code", NOT_YOURS);
   if (!(await verifyKey(publicKey))) return failWith(ctx.trace.traceId, "validation.bad_input", "The public key is not an Ed25519 key.", { field: "publicKey" });
   // consume the code in one step that only one enroll can win: two at once with the same code cannot both pass the check above across the key verification
@@ -61,9 +63,11 @@ export async function enroll(ctx: NetworkCtx, input: In): Promise<{ serverId: st
   const fingerprint = await fingerprintOf(publicKey);
   const serverId = `srv_${token().slice(0, 16)}`;
   const personal = row["scope"] === "personal";
+  // the nickname the person gave the code wins over the machine's own host name
+  const shown = typeof row["nickname"] === "string" && row["nickname"] !== "" ? String(row["nickname"]) : name!;
   ctx.db.run("INSERT INTO network_server (server_id, name, role, state, heartbeat_at, enrollment, public_key, fingerprint, facts_json, owner, requested_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    serverId, name, "compute", "down", null, "pending", publicKey, fingerprint, JSON.stringify(facts), personal ? String(row["by_principal"]) : null, ctx.now());
-  ctx.emit("network.server_requested", `server/${serverId}`, { serverId, name, fingerprint });
+    serverId, shown, "compute", "down", null, "pending", publicKey, fingerprint, JSON.stringify(facts), personal ? String(row["by_principal"]) : null, ctx.now());
+  ctx.emit("network.server_requested", `server/${serverId}`, { serverId, name: shown, fingerprint });
   return { serverId, fingerprint, state: "pending" };
 }
 
@@ -119,6 +123,12 @@ function mineOrFail(ctx: NetworkCtx, serverId: string): void {
 }
 export async function approveMine(ctx: NetworkCtx, input: { serverId: string }) { mineOrFail(ctx, input.serverId); return approve(ctx, input); }
 export async function declineMine(ctx: NetworkCtx, input: { serverId: string }) { mineOrFail(ctx, input.serverId); return decline(ctx, input); }
+
+/** Your own computers and servers: the ones whose join code you made, waiting ones included. */
+export function mine(ctx: NetworkCtx, all: readonly import("./status.ts").ServerRow[]): import("./status.ts").ServerRow[] {
+  const me = ctx.actingFor ?? ctx.principal.id;
+  return all.filter((s) => s.role === "compute" && s.owner === me);
+}
 
 /** Take a computer out: its credential stops working at once and the row leaves the list. */
 export function revoke(ctx: NetworkCtx, serverId: string): void {

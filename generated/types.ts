@@ -8417,6 +8417,230 @@ export type DocusignStatusIn = {
 export type DocusignStatusOut = {
   status: string;
 };
+export type DropboxAccountListIn = Record<string, unknown>;
+export type DropboxAccountListOut = {
+  connections: Array<{
+      connectionId: string;
+      ownerKind: "person" | "space";
+      accountId: string;
+      email?: string;
+      name?: string;
+    }>;
+};
+export type DropboxAccountRemoveIn = {
+  connectionId: string;
+};
+export type DropboxAccountRemoveOut = {
+  removed: boolean;
+};
+export type DropboxAppSetIn = {
+  vaultItem: string;
+};
+export type DropboxAppSetOut = {
+  configured: boolean;
+  appKey: string;
+  webhooks: boolean;
+};
+export type DropboxAppStatusIn = Record<string, unknown>;
+export type DropboxAppStatusOut = {
+  configured: boolean;
+  appKey?: string;
+  vaultItem?: string;
+  redirectUri?: string;
+  webhooks?: boolean;
+  webhookUri?: string;
+};
+export type DropboxConnectCompleteIn = {
+  state: string;
+  code?: string;
+  error?: string;
+};
+export type DropboxConnectCompleteOut = {
+  connectionId: string;
+  accountId: string;
+  email?: string;
+  name?: string;
+};
+export type DropboxConnectStartIn = {
+  ownerKind?: "person" | "space";
+};
+export type DropboxConnectStartOut = {
+  authUrl: string;
+  state: string;
+};
+export type DropboxFilesCreateFolderIn = {
+  connectionId: string;
+  path: string;
+};
+export type DropboxFilesCreateFolderOut = {
+  entry: {
+    id: string;
+    name: string;
+    path: string;
+    pathLower: string;
+    isFolder: boolean;
+    deleted?: boolean;
+    size?: number;
+    rev?: string;
+    modified?: string;
+    contentHash?: string;
+    webUrl: string;
+  };
+};
+export type DropboxFilesDeleteIn = {
+  connectionId: string;
+  path: string;
+  rev?: string;
+};
+export type DropboxFilesDeleteOut = {
+  deleted: boolean;
+};
+export type DropboxFilesDownloadIn = {
+  connectionId: string;
+  path: string;
+  rev?: string;
+};
+export type DropboxFilesDownloadOut = {
+  blobId: string;
+  size: number;
+  mime: string;
+};
+export type DropboxFilesGetMetadataIn = {
+  connectionId: string;
+  path: string;
+};
+export type DropboxFilesGetMetadataOut = {
+  entry: {
+    id: string;
+    name: string;
+    path: string;
+    pathLower: string;
+    isFolder: boolean;
+    deleted?: boolean;
+    size?: number;
+    rev?: string;
+    modified?: string;
+    contentHash?: string;
+    webUrl: string;
+  };
+};
+export type DropboxFilesLatestCursorIn = {
+  connectionId: string;
+  path?: string;
+  recursive?: boolean;
+};
+export type DropboxFilesLatestCursorOut = {
+  cursor: string;
+};
+export type DropboxFilesListFolderIn = {
+  connectionId: string;
+  path?: string;
+  recursive?: boolean;
+  limit?: number;
+  cursor?: string;
+};
+export type DropboxFilesListFolderOut = {
+  entries: Array<{
+      id: string;
+      name: string;
+      path: string;
+      pathLower: string;
+      isFolder: boolean;
+      deleted?: boolean;
+      size?: number;
+      rev?: string;
+      modified?: string;
+      contentHash?: string;
+      webUrl: string;
+    }>;
+  cursor: string;
+  hasMore: boolean;
+};
+export type DropboxFilesListRevisionsIn = {
+  connectionId: string;
+  path: string;
+  limit?: number;
+};
+export type DropboxFilesListRevisionsOut = {
+  revisions: Array<{
+      id: string;
+      name: string;
+      path: string;
+      pathLower: string;
+      isFolder: boolean;
+      deleted?: boolean;
+      size?: number;
+      rev?: string;
+      modified?: string;
+      contentHash?: string;
+      webUrl: string;
+    }>;
+  deleted: boolean;
+};
+export type DropboxFilesLongpollIn = {
+  connectionId: string;
+  cursor: string;
+  timeoutSeconds?: number;
+};
+export type DropboxFilesLongpollOut = {
+  changes: boolean;
+  backoffSeconds?: number;
+};
+export type DropboxFilesRestoreIn = {
+  connectionId: string;
+  path: string;
+  rev: string;
+};
+export type DropboxFilesRestoreOut = {
+  entry: {
+    id: string;
+    name: string;
+    path: string;
+    pathLower: string;
+    isFolder: boolean;
+    deleted?: boolean;
+    size?: number;
+    rev?: string;
+    modified?: string;
+    contentHash?: string;
+    webUrl: string;
+  };
+};
+export type DropboxFilesUploadIn = {
+  connectionId: string;
+  fileId: string;
+  path: string;
+  rev?: string;
+};
+export type DropboxFilesUploadOut = {
+  entry: {
+    id: string;
+    name: string;
+    path: string;
+    pathLower: string;
+    isFolder: boolean;
+    deleted?: boolean;
+    size?: number;
+    rev?: string;
+    modified?: string;
+    contentHash?: string;
+    webUrl: string;
+  };
+};
+export type DropboxHealthIn = Record<string, unknown>;
+export type DropboxHealthOut = {
+  state: "healthy" | "degraded" | "down";
+  detail?: string;
+  latencyMs?: number;
+};
+export type DropboxReceiveWebhookIn = {
+  eventId: string;
+  accounts: Array<string>;
+  at: number;
+};
+export type DropboxReceiveWebhookOut = {
+  accepted: boolean;
+};
 export type DropboxSignCancelIn = {
   remoteId: string;
 };
@@ -12366,6 +12590,32 @@ export type GoogleDocsGetDocumentIn = {
 export type GoogleDocsGetDocumentOut = {
   title: string;
   body: Record<string, unknown>;
+};
+export type GoogleDocsInsertTextIn = {
+  connectionId: string;
+  as?: string;
+  documentId: string;
+  text: string;
+  where?: "after" | "before" | "start" | "end";
+  anchor?: string;
+  matchCase?: boolean;
+  idempotencyKey: string;
+};
+export type GoogleDocsInsertTextOut = {
+  inserted: boolean;
+  index: number;
+};
+export type GoogleDocsReplaceTextIn = {
+  connectionId: string;
+  as?: string;
+  documentId: string;
+  find: string;
+  replace: string;
+  matchCase?: boolean;
+  idempotencyKey: string;
+};
+export type GoogleDocsReplaceTextOut = {
+  replaced: number;
 };
 export type GoogleDriveChangesStartTokenIn = {
   connectionId: string;
@@ -18707,7 +18957,7 @@ export type MemoryVersionsOut = {
 export type MountsAddIn = {
   into: string;
   source: {
-    kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
     connectionId?: string;
     ref?: string;
     path?: string;
@@ -18726,7 +18976,7 @@ export type MountsAddOut = {
   runId: string;
 };
 export type MountsBrowseIn = {
-  kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+  kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
   connectionId?: string;
   parent?: string;
   q?: string;
@@ -18744,6 +18994,27 @@ export type MountsBrowseOut = {
   next?: string;
   total?: number;
 };
+export type MountsDocInsertTextIn = {
+  fileId: string;
+  text: string;
+  where?: "after" | "before" | "start" | "end";
+  anchor?: string;
+  matchCase?: boolean;
+  idempotencyKey: string;
+};
+export type MountsDocInsertTextOut = {
+  inserted: boolean;
+};
+export type MountsDocReplaceTextIn = {
+  fileId: string;
+  find: string;
+  replace: string;
+  matchCase?: boolean;
+  idempotencyKey: string;
+};
+export type MountsDocReplaceTextOut = {
+  replaced: number;
+};
 export type MountsEditorsIn = {
   fileIds: Array<string>;
 };
@@ -18756,6 +19027,20 @@ export type MountsEditorsOut = {
       at?: number;
     }>;
 };
+export type MountsFileLinkIn = {
+  fileId: string;
+};
+export type MountsFileLinkOut = {
+  link?: {
+    mountId: string;
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
+    type: "google_doc" | "google_sheet" | "google_slides" | "google_file" | "word" | "excel" | "powerpoint" | "sharepoint_file" | "onedrive_file" | "dropbox_file";
+    openIn: string;
+    webUrl: string;
+    edit: Array<"replace_text" | "insert_text" | "read_cells" | "write_cells" | "append_rows">;
+  };
+  reason?: string;
+};
 export type MountsGetIn = {
   mountId: string;
 };
@@ -18763,7 +19048,7 @@ export type MountsGetOut = {
   mount: {
     mountId: string;
     folderId: string;
-    kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
     provider: string;
     ref?: string;
     name: string;
@@ -18805,7 +19090,7 @@ export type MountsLagOut = {
   failing: Array<string>;
 };
 export type MountsListIn = {
-  kind?: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+  kind?: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
   cursor?: string;
   limit?: number;
 };
@@ -18813,7 +19098,7 @@ export type MountsListOut = {
   mounts: Array<{
       mountId: string;
       folderId: string;
-      kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+      kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
       provider: string;
       ref?: string;
       name: string;
@@ -18849,7 +19134,7 @@ export type MountsLocalReportOut = {
   conflicts: number;
 };
 export type MountsNudgeIn = {
-  source: "google" | "microsoft" | "client";
+  source: "google" | "microsoft" | "dropbox" | "client";
   channelId?: string;
   subscriptionId?: string;
   replacedBy?: string;
@@ -18908,6 +19193,33 @@ export type MountsResumeIn = {
 export type MountsResumeOut = {
   ok: boolean;
 };
+export type MountsSheetAppendIn = {
+  fileId: string;
+  sheet?: string;
+  values: Array<Array<unknown>>;
+  idempotencyKey: string;
+};
+export type MountsSheetAppendOut = {
+  updatedRows: number;
+};
+export type MountsSheetReadIn = {
+  fileId: string;
+  sheet?: string;
+  range: string;
+};
+export type MountsSheetReadOut = {
+  values: Array<Array<unknown>>;
+};
+export type MountsSheetWriteIn = {
+  fileId: string;
+  sheet?: string;
+  range: string;
+  values: Array<Array<unknown>>;
+  idempotencyKey: string;
+};
+export type MountsSheetWriteOut = {
+  updatedCells: number;
+};
 export type MountsSyncNowIn = {
   mountId: string;
   idempotencyKey: string;
@@ -18926,7 +19238,7 @@ export type MountsUpdateOut = {
   mount: {
     mountId: string;
     folderId: string;
-    kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
     provider: string;
     ref?: string;
     name: string;
@@ -19752,6 +20064,45 @@ export type MsTeamsRecordingsSubscribeIn = {
 export type MsTeamsRecordingsSubscribeOut = {
   subscriptionId: string;
   expiresAt: number;
+};
+export type MsWorkbookAppendRowsIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  sheet: string;
+  values: Array<Array<unknown>>;
+  idempotencyKey: string;
+};
+export type MsWorkbookAppendRowsOut = {
+  address: string;
+  updatedRows: number;
+};
+export type MsWorkbookGetRangeIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  sheet: string;
+  range: string;
+};
+export type MsWorkbookGetRangeOut = {
+  address: string;
+  values: Array<Array<unknown>>;
+};
+export type MsWorkbookUpdateRangeIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  sheet: string;
+  range: string;
+  values: Array<Array<unknown>>;
+  idempotencyKey: string;
+};
+export type MsWorkbookUpdateRangeOut = {
+  address: string;
+  updatedCells: number;
 };
 export type NetworkCertificateRenewIn = {
   host: string;
@@ -30740,6 +31091,24 @@ export interface CapMap {
   "docusign.fetch_signed": { in: DocusignFetchSignedIn; out: DocusignFetchSignedOut };
   "docusign.health": { in: DocusignHealthIn; out: DocusignHealthOut };
   "docusign.status": { in: DocusignStatusIn; out: DocusignStatusOut };
+  "dropbox.account.list": { in: DropboxAccountListIn; out: DropboxAccountListOut };
+  "dropbox.account.remove": { in: DropboxAccountRemoveIn; out: DropboxAccountRemoveOut };
+  "dropbox.app.set": { in: DropboxAppSetIn; out: DropboxAppSetOut };
+  "dropbox.app.status": { in: DropboxAppStatusIn; out: DropboxAppStatusOut };
+  "dropbox.connect.complete": { in: DropboxConnectCompleteIn; out: DropboxConnectCompleteOut };
+  "dropbox.connect.start": { in: DropboxConnectStartIn; out: DropboxConnectStartOut };
+  "dropbox.files.create_folder": { in: DropboxFilesCreateFolderIn; out: DropboxFilesCreateFolderOut };
+  "dropbox.files.delete": { in: DropboxFilesDeleteIn; out: DropboxFilesDeleteOut };
+  "dropbox.files.download": { in: DropboxFilesDownloadIn; out: DropboxFilesDownloadOut };
+  "dropbox.files.get_metadata": { in: DropboxFilesGetMetadataIn; out: DropboxFilesGetMetadataOut };
+  "dropbox.files.latest_cursor": { in: DropboxFilesLatestCursorIn; out: DropboxFilesLatestCursorOut };
+  "dropbox.files.list_folder": { in: DropboxFilesListFolderIn; out: DropboxFilesListFolderOut };
+  "dropbox.files.list_revisions": { in: DropboxFilesListRevisionsIn; out: DropboxFilesListRevisionsOut };
+  "dropbox.files.longpoll": { in: DropboxFilesLongpollIn; out: DropboxFilesLongpollOut };
+  "dropbox.files.restore": { in: DropboxFilesRestoreIn; out: DropboxFilesRestoreOut };
+  "dropbox.files.upload": { in: DropboxFilesUploadIn; out: DropboxFilesUploadOut };
+  "dropbox.health": { in: DropboxHealthIn; out: DropboxHealthOut };
+  "dropbox.receive_webhook": { in: DropboxReceiveWebhookIn; out: DropboxReceiveWebhookOut };
   "dropbox_sign.cancel": { in: DropboxSignCancelIn; out: DropboxSignCancelOut };
   "dropbox_sign.create": { in: DropboxSignCreateIn; out: DropboxSignCreateOut };
   "dropbox_sign.fetch_signed": { in: DropboxSignFetchSignedIn; out: DropboxSignFetchSignedOut };
@@ -30982,6 +31351,8 @@ export interface CapMap {
   "google.docs.batch_update": { in: GoogleDocsBatchUpdateIn; out: GoogleDocsBatchUpdateOut };
   "google.docs.create_document": { in: GoogleDocsCreateDocumentIn; out: GoogleDocsCreateDocumentOut };
   "google.docs.get_document": { in: GoogleDocsGetDocumentIn; out: GoogleDocsGetDocumentOut };
+  "google.docs.insert_text": { in: GoogleDocsInsertTextIn; out: GoogleDocsInsertTextOut };
+  "google.docs.replace_text": { in: GoogleDocsReplaceTextIn; out: GoogleDocsReplaceTextOut };
   "google.drive.changes_start_token": { in: GoogleDriveChangesStartTokenIn; out: GoogleDriveChangesStartTokenOut };
   "google.drive.copy_file": { in: GoogleDriveCopyFileIn; out: GoogleDriveCopyFileOut };
   "google.drive.create_folder": { in: GoogleDriveCreateFolderIn; out: GoogleDriveCreateFolderOut };
@@ -31334,7 +31705,10 @@ export interface CapMap {
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };
   "mounts.add": { in: MountsAddIn; out: MountsAddOut };
   "mounts.browse": { in: MountsBrowseIn; out: MountsBrowseOut };
+  "mounts.doc_insert_text": { in: MountsDocInsertTextIn; out: MountsDocInsertTextOut };
+  "mounts.doc_replace_text": { in: MountsDocReplaceTextIn; out: MountsDocReplaceTextOut };
   "mounts.editors": { in: MountsEditorsIn; out: MountsEditorsOut };
+  "mounts.file_link": { in: MountsFileLinkIn; out: MountsFileLinkOut };
   "mounts.get": { in: MountsGetIn; out: MountsGetOut };
   "mounts.history": { in: MountsHistoryIn; out: MountsHistoryOut };
   "mounts.lag": { in: MountsLagIn; out: MountsLagOut };
@@ -31346,6 +31720,9 @@ export interface CapMap {
   "mounts.remove": { in: MountsRemoveIn; out: MountsRemoveOut };
   "mounts.restore": { in: MountsRestoreIn; out: MountsRestoreOut };
   "mounts.resume": { in: MountsResumeIn; out: MountsResumeOut };
+  "mounts.sheet_append": { in: MountsSheetAppendIn; out: MountsSheetAppendOut };
+  "mounts.sheet_read": { in: MountsSheetReadIn; out: MountsSheetReadOut };
+  "mounts.sheet_write": { in: MountsSheetWriteIn; out: MountsSheetWriteOut };
   "mounts.sync_now": { in: MountsSyncNowIn; out: MountsSyncNowOut };
   "mounts.update": { in: MountsUpdateIn; out: MountsUpdateOut };
   "ms.calendar.create_event": { in: MsCalendarCreateEventIn; out: MsCalendarCreateEventOut };
@@ -31405,6 +31782,9 @@ export interface CapMap {
   "ms.teams.recordings.list_recordings": { in: MsTeamsRecordingsListRecordingsIn; out: MsTeamsRecordingsListRecordingsOut };
   "ms.teams.recordings.list_transcripts": { in: MsTeamsRecordingsListTranscriptsIn; out: MsTeamsRecordingsListTranscriptsOut };
   "ms.teams.recordings.subscribe": { in: MsTeamsRecordingsSubscribeIn; out: MsTeamsRecordingsSubscribeOut };
+  "ms.workbook.append_rows": { in: MsWorkbookAppendRowsIn; out: MsWorkbookAppendRowsOut };
+  "ms.workbook.get_range": { in: MsWorkbookGetRangeIn; out: MsWorkbookGetRangeOut };
+  "ms.workbook.update_range": { in: MsWorkbookUpdateRangeIn; out: MsWorkbookUpdateRangeOut };
   "network.certificate_renew": { in: NetworkCertificateRenewIn; out: NetworkCertificateRenewOut };
   "network.domain_set": { in: NetworkDomainSetIn; out: NetworkDomainSetOut };
   "network.endpoints": { in: NetworkEndpointsIn; out: NetworkEndpointsOut };
@@ -32832,6 +33212,16 @@ export type DocusignWebhookReceivedPayload = {
   envelopeId: string;
   status: string;
 };
+export type DropboxChangesReceivedPayload = {
+  eventId: string;
+  accounts: Array<string>;
+};
+export type DropboxConnectedPayload = {
+  connectionId: string;
+  accountId: string;
+  ownerKind: "person" | "space";
+  email?: string;
+};
 export type DropboxSignWebhookReceivedPayload = {
   providerEventId: string;
   envelopeId: string;
@@ -32974,7 +33364,7 @@ export type FolderDeletedPayload = {
 export type FolderMountedPayload = {
   mountId: string;
   folderId: string;
-  kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+  kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
   by: string;
 };
 export type FolderMovedPayload = {
@@ -35662,6 +36052,8 @@ export interface EventMap {
   "document.filled": DocumentFilledPayload;
   "document.template_marked": DocumentTemplateMarkedPayload;
   "docusign.webhook_received": DocusignWebhookReceivedPayload;
+  "dropbox.changes_received": DropboxChangesReceivedPayload;
+  "dropbox.connected": DropboxConnectedPayload;
   "dropbox_sign.webhook_received": DropboxSignWebhookReceivedPayload;
   "email.created": EmailCreatedPayload;
   "email_block.saved": EmailBlockSavedPayload;

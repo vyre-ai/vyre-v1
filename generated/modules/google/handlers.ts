@@ -20,6 +20,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.docs.batch_update": Handler<"google.docs.batch_update", X>;
   "google.docs.create_document": Handler<"google.docs.create_document", X>;
   "google.docs.get_document": Handler<"google.docs.get_document", X>;
+  "google.docs.insert_text": Handler<"google.docs.insert_text", X>;
+  "google.docs.replace_text": Handler<"google.docs.replace_text", X>;
   "google.drive.changes_start_token": Handler<"google.drive.changes_start_token", X>;
   "google.drive.copy_file": Handler<"google.drive.copy_file", X>;
   "google.drive.create_folder": Handler<"google.drive.create_folder", X>;

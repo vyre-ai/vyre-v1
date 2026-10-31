@@ -62,4 +62,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "ms.teams.recordings.list_recordings": async (ctx) => { throw new VyreErr(notImplemented("ms.teams.recordings.list_recordings", ctx.trace)); },
   "ms.teams.recordings.list_transcripts": async (ctx) => { throw new VyreErr(notImplemented("ms.teams.recordings.list_transcripts", ctx.trace)); },
   "ms.teams.recordings.subscribe": async (ctx) => { throw new VyreErr(notImplemented("ms.teams.recordings.subscribe", ctx.trace)); },
+  "ms.workbook.append_rows": async (ctx) => { throw new VyreErr(notImplemented("ms.workbook.append_rows", ctx.trace)); },
+  "ms.workbook.get_range": async (ctx) => { throw new VyreErr(notImplemented("ms.workbook.get_range", ctx.trace)); },
+  "ms.workbook.update_range": async (ctx) => { throw new VyreErr(notImplemented("ms.workbook.update_range", ctx.trace)); },
 };

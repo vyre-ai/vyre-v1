@@ -63,7 +63,7 @@ test("search finds rows by words in any order, ranks a title that starts with th
 
 test("the page list has ten pages in two groups, the first named after the open Space", () => {
   const out = html(createSampleSettings(northwind));
-  assert.deepEqual(PAGES.map((p) => p.title), ["Profile", "Notifications", "Models and usage", "Connections", "Memory and privacy", "Sign-in and devices", "Appearance", "Keyboard", "This computer", "Spaces"]);
+  assert.deepEqual(PAGES.map((p) => p.title), ["Profile", "Notifications", "Models and usage", "Connections", "Memory and privacy", "Sign-in and devices", "Appearance", "Keyboard", "Computers", "Spaces"]);
   assert.equal(PAGES.filter((p) => p.group === "space").length, 5);
   for (const p of PAGES) assert.ok(has(out, `data-testid="row-page-${p.key}"`), p.key);
   const at = (t: string): number => { const i = out.indexOf(`>${t}<`); assert.ok(i >= 0, t); return i; };

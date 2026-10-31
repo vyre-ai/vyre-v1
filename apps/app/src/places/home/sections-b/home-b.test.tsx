@@ -211,9 +211,9 @@ test("Personal Space shows Needs a Team Space where a starred thing needs one, a
     terminals: [{ terminalId: "trm_1", state: "running", exitCode: null }],
   }));
   assert.ok(has(out, 'data-testid="needs-team-space"'));
-  assert.ok(has(out, "Needs a Team Space") && has(out, "Agent computers and campaigns"));
+  assert.ok(has(out, "Needs a Team Space") && has(out, "campaigns") && !has(out, "Agent computers"));
   assert.ok(has(out, "Create or join a Team Space"));
-  assert.ok(!has(out, "Intake computer") && !has(out, "Spring mailer"));
+  assert.ok(has(out, "Intake computer") && !has(out, "Spring mailer"));
   assert.ok(has(out, "Local shell") && has(out, "Running"));
 });
 

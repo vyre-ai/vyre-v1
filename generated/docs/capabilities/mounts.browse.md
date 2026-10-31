@@ -1,6 +1,6 @@
 # mounts.browse
 
-Browse a drive, library or repository search to pick what to mount
+Browse a drive, library, Dropbox folder or repository search to pick what to mount
 
 | | |
 |---|---|
@@ -25,7 +25,7 @@ Browse a drive, library or repository search to pick what to mount
 
 ```ts
 type In = {
-  kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+  kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
   connectionId?: string;
   parent?: string;
   q?: string;

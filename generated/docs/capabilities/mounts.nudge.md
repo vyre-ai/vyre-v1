@@ -1,6 +1,6 @@
 # mounts.nudge
 
-A provider push notice (Drive channel, Graph subscription) or an app showing a mount asks for a sync pass (system)
+A provider push notice (Drive channel, Graph subscription, Dropbox account) or an app showing a mount asks for a sync pass (system)
 
 | | |
 |---|---|
@@ -25,7 +25,7 @@ A provider push notice (Drive channel, Graph subscription) or an app showing a m
 
 ```ts
 type In = {
-  source: "google" | "microsoft" | "client";
+  source: "google" | "microsoft" | "dropbox" | "client";
   channelId?: string;
   subscriptionId?: string;
   replacedBy?: string;

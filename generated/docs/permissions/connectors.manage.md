@@ -34,6 +34,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - documenso.create
 - docusign.cancel
 - docusign.create
+- dropbox.app.set
 - dropbox_sign.cancel
 - dropbox_sign.create
 - esign.provider_set

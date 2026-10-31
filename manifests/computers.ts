@@ -33,7 +33,7 @@ const intent = t.enm('make_skill', 'learn_routine', 'work_out_backend_calls', 'l
 
 /** Local tool capability on the agent computer: bound to the computer resource, Team Space only, never queued offline. */
 const local = (extra: Partial<CapOpts> = {}): CapOpts => ({
-  on: ['computer', '/computerId'], perm: 'computers.use', team: true, tool: 'computer', offline: 'online', errors: ['provider.unavailable', 'timeout.deadline'], ...extra,
+  on: ['computer', '/computerId'], perm: 'computers.use', tool: 'computer', offline: 'online', errors: ['provider.unavailable', 'timeout.deadline'], ...extra,
 });
 
 export default defineManifest({
@@ -43,82 +43,86 @@ export default defineManifest({
   capabilities: [
     // ---- lifecycle and control
     read('computers.list', 'List agent computers with state, tabs, disk and last activity', {
-      in: { state: t.opt(t.arr(cmpState)), ...pageIn }, out: { computers: t.arr(computerRow), ...pageOut }, perm: 'computers.watch', team: true, tool: 'computer', label: 'filter',
+      in: { state: t.opt(t.arr(cmpState)), ...pageIn }, out: { computers: t.arr(computerRow), ...pageOut }, perm: 'computers.watch', tool: 'computer', label: 'filter',
+    }),
+    read('computers.hosts', 'The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them', {
+      in: {}, out: { available: t.bool(), hosts: t.arr(t.obj({ hostId: t.str(), kind: t.enm('this', 'space', 'server'), name: t.str(), online: t.bool(), canRun: t.bool(), runs: t.int({ minimum: 0 }), reason: t.opt(t.str()) })) },
+      perm: null, level: 'view', tool: 'computer', label: 'check',
     }),
     read('computers.get', 'Read one agent computer: state, caption, tabs, disk and who took over', {
-      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.watch', team: true, tool: 'computer', errors: ['validation.not_found'],
+      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer', errors: ['validation.not_found'],
     }),
     create('computers.provision', 'Give an agent a computer (none unless the agent needs one)', {
-      in: { agentId: id.agent, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), nodeId: t.opt(t.str({ description: 'Run it on a computer that joined the Space instead of the Space server' })) }, out: { computer: computerRow }, perm: 'computers.use', level: 'manage', team: true,
+      in: { agentId: id.agent, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), nodeId: t.opt(t.str({ description: 'Run it on a computer that joined the Space instead of the Space server' })) }, out: { computer: computerRow }, perm: 'computers.use', level: 'manage',
       emits: ['computer.provisioned'], tool: 'computer', audit: 'sensitive', errors: ['provider.unavailable', 'validation.duplicate'],
     }),
     write('computers.configure', 'Change the tab limit or idle sleep of a computer', {
       in: { ...comp, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), idleSleepMinutes: t.opt(t.int({ minimum: 1, maximum: 1440 })) }, out: { computer: computerRow },
-      on: ['computer', '/computerId'], perm: 'computers.use', level: 'manage', team: true, emits: ['computer.configured'], tool: 'computer',
+      on: ['computer', '/computerId'], perm: 'computers.use', level: 'manage', emits: ['computer.configured'], tool: 'computer',
     }),
     write('computers.remove', 'Remove an agent computer and its profile disk', {
-      in: comp, out: { removed: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.use', level: 'manage', team: true, emits: ['computer.removed'],
+      in: comp, out: { removed: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.use', level: 'manage', emits: ['computer.removed'],
       gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'computer', audit: 'always', risk: 'high',
     }),
     write('computers.wake', 'Wake an asleep computer (it sleeps when idle and never mid-task)', {
-      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.use', team: true, emits: ['computer.started'], tool: 'computer', idem: 'natural', offline: 'online',
+      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.use', emits: ['computer.started'], tool: 'computer', idem: 'natural', offline: 'online',
     }),
     write('computers.sleep', 'Put a computer to sleep; refused while a task is running', {
-      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.use', team: true, emits: ['computer.slept'], tool: 'computer', idem: 'natural', offline: 'online',
+      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.use', emits: ['computer.slept'], tool: 'computer', idem: 'natural', offline: 'online',
       errors: ['validation.precondition_failed'],
     }),
     write('computers.take_over', 'Take over the computer ("You\'re in control"); your actions become one "You took over" step', {
-      in: comp, out: { computer: computerRow, ticket: t.str() }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', team: true, emits: ['computer.takeover', 'computer.started'],
+      in: comp, out: { computer: computerRow, ticket: t.str() }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', emits: ['computer.takeover', 'computer.started'],
       tool: 'computer', audit: 'sensitive', idem: 'natural', offline: 'online', errors: ['validation.precondition_failed'],
     }),
     write('computers.give_back', 'Give the computer back to the agent', {
-      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', team: true, emits: ['computer.given_back', 'computer.recording_saved'], tool: 'computer', idem: 'natural', offline: 'online',
+      in: comp, out: { computer: computerRow }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', emits: ['computer.given_back', 'computer.recording_saved'], tool: 'computer', idem: 'natural', offline: 'online',
     }),
     write('computers.record_start', 'Record while you take over: every click and key with the element, each page, network traffic with secrets masked, and video', {
-      in: comp, out: { recordingId: t.id('rcd') }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', team: true, emits: ['computer.recording_started'],
+      in: comp, out: { recordingId: t.id('rcd') }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', emits: ['computer.recording_started'],
       tool: 'computer', audit: 'sensitive', offline: 'online', errors: ['validation.precondition_failed'],
     }),
     write('computers.record_stop', 'Stop recording; the recording is saved in work/recordings/ and one sheet asks what the agent should do with it', {
-      in: comp, out: { recording: recordingRow }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', team: true, emits: ['computer.recording_saved'],
+      in: comp, out: { recording: recordingRow }, on: ['computer', '/computerId'], perm: 'computers.take_over', level: 'use', emits: ['computer.recording_saved'],
       tool: 'computer', offline: 'online', idem: 'natural',
     }),
     read('computers.screenshot', 'One screenshot of the computer, stored in the agent folder', {
-      in: comp, out: { fileId: id.file, width: t.int(), height: t.int(), at: t.ts() }, on: ['computer', '/computerId'], perm: 'computers.watch', team: true, tool: 'computer', label: 'check',
+      in: comp, out: { fileId: id.file, width: t.int(), height: t.int(), at: t.ts() }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer', label: 'check',
     }),
     read('computers.stream', 'Live view source: WebRTC through the host, or MJPEG over the WebSocket as fallback; frames are live-only, never stored', {
-      in: comp, out: { transport: t.enm('webrtc', 'mjpeg'), url: t.str(), ticket: t.str(), expiresAt: t.ts() }, on: ['computer', '/computerId'], perm: 'computers.watch', team: true, tool: 'computer',
+      in: comp, out: { transport: t.enm('webrtc', 'mjpeg'), url: t.str(), ticket: t.str(), expiresAt: t.ts() }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer',
     }),
     read('computers.timeline', 'Session timeline: a frame per step with caption (Show This Step, Copy Caption, Make a Skill from Here)', {
-      in: { ...comp, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, on: ['computer', '/computerId'], perm: 'computers.watch', team: true, tool: 'computer',
+      in: { ...comp, runId: t.opt(id.run), threadId: t.opt(id.thread), ...pageIn }, out: { steps: t.arr(stepRow), ...pageOut }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer',
     }),
     read('computers.timeline_step', 'One timeline step with its frame', {
-      in: { ...comp, stepId: t.id('stp') }, out: { step: stepRow }, on: ['computer', '/computerId'], perm: 'computers.watch', team: true, tool: 'computer',
+      in: { ...comp, stepId: t.id('stp') }, out: { step: stepRow }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer',
     }),
     write('computers.skill_from_step', 'Make a skill from this point in a session: starts a turn that writes the skill into the agent folder', {
-      in: { ...comp, stepId: t.id('stp'), name: t.opt(t.str()) }, out: { taskId: id.task, runId: t.opt(id.run) }, on: ['computer', '/computerId'], perm: 'computers.use', team: true,
+      in: { ...comp, stepId: t.id('stp'), name: t.opt(t.str()) }, out: { taskId: id.task, runId: t.opt(id.run) }, on: ['computer', '/computerId'], perm: 'computers.use',
       emits: ['computer.skill_requested'], tool: 'computer', idem: 'key',
     }),
     read('computers.recordings.list', 'Recordings stored in the agent folder', {
-      in: { ...comp, ...pageIn }, out: { recordings: t.arr(recordingRow), ...pageOut }, on: ['computer', '/computerId'], perm: 'computers.watch', team: true, tool: 'computer', label: 'filter',
+      in: { ...comp, ...pageIn }, out: { recordings: t.arr(recordingRow), ...pageOut }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer', label: 'filter',
     }),
     read('computers.recording.get', 'Read one recording: events, network log and video paths (follows the folder access)', {
-      in: { recordingId: t.id('rcd') }, out: { recording: recordingRow, eventsPath: t.str(), harPath: t.str(), videoPath: t.str() }, perm: 'computers.watch', team: true, tool: 'computer', label: 'check',
+      in: { recordingId: t.id('rcd') }, out: { recording: recordingRow, eventsPath: t.str(), harPath: t.str(), videoPath: t.str() }, perm: 'computers.watch', tool: 'computer', label: 'check',
     }),
     write('computers.recording.process', 'Say what the agent should do with a recording: make a skill, learn a routine, work out the app backend calls (site recipe note), learn this workflow', {
-      in: { recordingId: t.id('rcd'), intents: t.arr(intent, { minItems: 1 }) }, out: { taskId: id.task, runId: t.opt(id.run) }, perm: 'computers.use', team: true,
+      in: { recordingId: t.id('rcd'), intents: t.arr(intent, { minItems: 1 }) }, out: { taskId: id.task, runId: t.opt(id.run) }, perm: 'computers.use',
       emits: ['computer.recording_processed'], tool: 'computer', idem: 'key',
     }),
     write('computers.recording.delete', 'Delete a recording', {
-      in: { recordingId: t.id('rcd') }, out: { deleted: t.bool() }, perm: 'computers.use', team: true, tool: 'computer', audit: 'sensitive',
+      in: { recordingId: t.id('rcd') }, out: { deleted: t.bool() }, perm: 'computers.use', tool: 'computer', audit: 'sensitive',
     }),
     read('computers.sessions.list', 'Signed-in browser sessions on the profile disk (listed under Sessions and devices)', {
-      in: comp, out: { sessions: t.arr(sessionRow) }, on: ['computer', '/computerId'], perm: 'computers.watch', team: true, tool: 'computer',
+      in: comp, out: { sessions: t.arr(sessionRow) }, on: ['computer', '/computerId'], perm: 'computers.watch', tool: 'computer',
     }),
     write('computers.session.sign_out', 'Sign out of a site on the profile disk', {
-      in: { ...comp, site: t.str() }, out: { ok: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.take_over', team: true, emits: ['computer.session_signed_out', 'computer.started'], tool: 'computer', audit: 'sensitive',
+      in: { ...comp, site: t.str() }, out: { ok: t.bool() }, on: ['computer', '/computerId'], perm: 'computers.take_over', emits: ['computer.session_signed_out', 'computer.started'], tool: 'computer', audit: 'sensitive',
     }),
     read('computers.health', 'Health of the container runtime and agentd on the host', {
-      out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), runtime: t.opt(t.enm('ready', 'missing')), latencyMs: t.opt(t.int()), awake: t.int(), asleep: t.int() }, team: true,
+      out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), runtime: t.opt(t.enm('ready', 'missing')), latencyMs: t.opt(t.int()), awake: t.int(), asleep: t.int() },
     }),
 
     // ---- Chrome tools (Vyre for Chrome signed in as the agent)

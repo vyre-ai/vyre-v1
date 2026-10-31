@@ -16,7 +16,7 @@ test('manifests/index.ts lists exactly the manifest files on disk', async () => 
   assert.deepEqual(loaded.map((l) => l.manifest.id).sort(), all.map((m) => m.id).sort());
 });
 
-test('the 72 modules each have one manifest and one owner lane', async () => {
+test('the 73 modules each have one manifest and one owner lane', async () => {
   const loaded = await loadManifests(root);
   const modules = loaded.filter((l) => l.dir === '');
   assert.equal(modules.length, lanes.frozenCount);

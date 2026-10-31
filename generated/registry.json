@@ -4230,6 +4230,17 @@
       ],
       "type": "object"
     },
+    "s_2e977f2711": {
+      "properties": {
+        "mount": {
+          "$ref": "#/$defs/s_a6bb4b0645"
+        }
+      },
+      "required": [
+        "mount"
+      ],
+      "type": "object"
+    },
     "s_2edf0a52c6": {
       "properties": {
         "cursor": {
@@ -7993,17 +8004,6 @@
       },
       "required": [
         "comment"
-      ],
-      "type": "object"
-    },
-    "s_5ec96de3af": {
-      "properties": {
-        "mount": {
-          "$ref": "#/$defs/s_91eb2bd6df"
-        }
-      },
-      "required": [
-        "mount"
       ],
       "type": "object"
     },
@@ -12112,118 +12112,6 @@
       ],
       "type": "object"
     },
-    "s_91eb2bd6df": {
-      "properties": {
-        "conflicts": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "error": {
-          "type": "string"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "fromDevice": {
-          "examples": [
-            "Irfad's MacBook"
-          ],
-          "type": "string"
-        },
-        "kind": {
-          "enum": [
-            "google_drive",
-            "sharepoint",
-            "onedrive",
-            "local",
-            "github"
-          ],
-          "type": "string"
-        },
-        "lagSeconds": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastSyncAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "live": {
-          "type": "boolean"
-        },
-        "liveVia": {
-          "enum": [
-            "push",
-            "poll"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "server_copy",
-            "live_only"
-          ],
-          "type": "string"
-        },
-        "mountId": {
-          "examples": [
-            "mnt_a1b2c3"
-          ],
-          "pattern": "^mnt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "pendingChanges": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "provider": {
-          "examples": [
-            "Google Drive"
-          ],
-          "type": "string"
-        },
-        "ref": {
-          "type": "string"
-        },
-        "reviewChanges": {
-          "type": "boolean"
-        },
-        "state": {
-          "enum": [
-            "idle",
-            "syncing",
-            "paused",
-            "failing",
-            "device_offline"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "mountId",
-        "folderId",
-        "kind",
-        "provider",
-        "name",
-        "state",
-        "mode",
-        "reviewChanges",
-        "pendingChanges",
-        "conflicts"
-      ],
-      "type": "object"
-    },
     "s_9206859ebe": {
       "properties": {
         "mailbox": {
@@ -12810,6 +12698,59 @@
       ],
       "type": "object"
     },
+    "s_9b30b1af72": {
+      "properties": {
+        "contentHash": {
+          "type": "string"
+        },
+        "deleted": {
+          "type": "boolean"
+        },
+        "id": {
+          "examples": [
+            "id:a4ayc_80_OEAAAAAAAAAXw"
+          ],
+          "type": "string"
+        },
+        "isFolder": {
+          "type": "boolean"
+        },
+        "modified": {
+          "description": "When Dropbox last saved the content, ISO 8601",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "description": "Path as Dropbox shows it",
+          "type": "string"
+        },
+        "pathLower": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "string"
+        },
+        "size": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "webUrl": {
+          "description": "Opens the item in the Dropbox website",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "path",
+        "pathLower",
+        "isFolder",
+        "webUrl"
+      ],
+      "type": "object"
+    },
     "s_9c2f9520b4": {
       "properties": {
         "id": {
@@ -13279,6 +13220,12 @@
       ],
       "type": "object"
     },
+    "s_a12a98d618": {
+      "items": {
+        "$ref": "#/$defs/s_9b30b1af72"
+      },
+      "type": "array"
+    },
     "s_a2d37875a7": {
       "properties": {
         "schedule": {
@@ -13604,6 +13551,119 @@
         "class",
         "traceId",
         "seq"
+      ],
+      "type": "object"
+    },
+    "s_a6bb4b0645": {
+      "properties": {
+        "conflicts": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error": {
+          "type": "string"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "fromDevice": {
+          "examples": [
+            "Irfad's MacBook"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "google_drive",
+            "sharepoint",
+            "onedrive",
+            "dropbox",
+            "local",
+            "github"
+          ],
+          "type": "string"
+        },
+        "lagSeconds": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastSyncAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "liveVia": {
+          "enum": [
+            "push",
+            "poll"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "server_copy",
+            "live_only"
+          ],
+          "type": "string"
+        },
+        "mountId": {
+          "examples": [
+            "mnt_a1b2c3"
+          ],
+          "pattern": "^mnt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pendingChanges": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "examples": [
+            "Google Drive"
+          ],
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "reviewChanges": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "idle",
+            "syncing",
+            "paused",
+            "failing",
+            "device_offline"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "mountId",
+        "folderId",
+        "kind",
+        "provider",
+        "name",
+        "state",
+        "mode",
+        "reviewChanges",
+        "pendingChanges",
+        "conflicts"
       ],
       "type": "object"
     },
@@ -16276,6 +16336,17 @@
       ],
       "type": "object"
     },
+    "s_c2f8d6cce1": {
+      "properties": {
+        "entry": {
+          "$ref": "#/$defs/s_9b30b1af72"
+        }
+      },
+      "required": [
+        "entry"
+      ],
+      "type": "object"
+    },
     "s_c58b786561": {
       "properties": {
         "rowId": {
@@ -16764,6 +16835,25 @@
       "required": [
         "emailId",
         "version"
+      ],
+      "type": "object"
+    },
+    "s_cc4e1cf783": {
+      "properties": {
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "path"
       ],
       "type": "object"
     },
@@ -18517,6 +18607,28 @@
         "ifMissed",
         "active",
         "createdAt"
+      ],
+      "type": "object"
+    },
+    "s_e71a4b75c4": {
+      "properties": {
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "rev": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "path"
       ],
       "type": "object"
     },
@@ -66485,6 +66597,1402 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "connections": [
+              {
+                "accountId": "example",
+                "connectionId": "con_a1b2c3",
+                "email": "example",
+                "name": "example",
+                "ownerKind": "person"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "dropbox",
+      "name": "dropbox.account.list",
+      "output": {
+        "properties": {
+          "connections": {
+            "items": {
+              "properties": {
+                "accountId": {
+                  "type": "string"
+                },
+                "connectionId": {
+                  "examples": [
+                    "con_a1b2c3"
+                  ],
+                  "pattern": "^con_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "ownerKind": {
+                  "enum": [
+                    "person",
+                    "space"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "connectionId",
+                "ownerKind",
+                "accountId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "connections"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Dropbox accounts you can use: your own and the Space's",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "delete"
+      },
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "dropbox",
+      "name": "dropbox.account.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Disconnect a Dropbox account: revoke it at Dropbox and remove its token",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.auth_failed",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "vaultItem": "#Dana_Lawmatics"
+          },
+          "name": "example",
+          "output": {
+            "appKey": "example",
+            "configured": true,
+            "webhooks": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "vaultItem": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vaultItem"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "dropbox",
+      "name": "dropbox.app.set",
+      "output": {
+        "properties": {
+          "appKey": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "webhooks": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured",
+          "appKey",
+          "webhooks"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Name the Vault item that holds the Dropbox app key (and secret, for change notices)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "appKey": "example",
+            "configured": true,
+            "redirectUri": "example",
+            "vaultItem": "example",
+            "webhookUri": "example",
+            "webhooks": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "dropbox",
+      "name": "dropbox.app.status",
+      "output": {
+        "properties": {
+          "appKey": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "redirectUri": {
+            "type": "string"
+          },
+          "vaultItem": {
+            "type": "string"
+          },
+          "webhookUri": {
+            "type": "string"
+          },
+          "webhooks": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Whether the Dropbox app is set up on this server, its key, the address Dropbox sends people back to, and whether change notices can be verified (the address to give Dropbox for them)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "dropbox.connected"
+      ],
+      "errors": [
+        "auth.invalid_code",
+        "auth.unauthenticated",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.bad_response",
+        "provider.network",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "error": "example",
+            "state": "example"
+          },
+          "name": "example",
+          "output": {
+            "accountId": "example",
+            "connectionId": "con_a1b2c3",
+            "email": "example",
+            "name": "example"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "dropbox",
+      "name": "dropbox.connect.complete",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Finish signing in from the callback: the state and the code, or the error Dropbox sent when the person declined. Only who started it can finish it",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "ownerKind": "person"
+          },
+          "name": "example",
+          "output": {
+            "authUrl": "example",
+            "state": "example"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "ownerKind": {
+            "enum": [
+              "person",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "dropbox",
+      "name": "dropbox.connect.start",
+      "output": {
+        "properties": {
+          "authUrl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authUrl",
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Start signing in to Dropbox: the address to approve at (your own Dropbox, or the Space's with admin rights)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.version_conflict"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "path": "example"
+          },
+          "name": "example",
+          "output": {
+            "entry": {
+              "contentHash": "example",
+              "deleted": true,
+              "id": "id:a4ayc_80_OEAAAAAAAAAXw",
+              "isFolder": true,
+              "modified": "example",
+              "name": "example",
+              "path": "example",
+              "pathLower": "example",
+              "rev": "example",
+              "size": 1,
+              "webUrl": "example"
+            }
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_cc4e1cf783"
+      },
+      "level": "use",
+      "module": "dropbox",
+      "name": "dropbox.files.create_folder",
+      "output": {
+        "$ref": "#/$defs/s_c2f8d6cce1"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Create a Dropbox folder",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.version_conflict"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "path": "example",
+            "rev": "example"
+          },
+          "name": "example",
+          "output": {
+            "deleted": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "delete"
+      },
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_e71a4b75c4"
+      },
+      "level": "use",
+      "module": "dropbox",
+      "name": "dropbox.files.delete",
+      "output": {
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Delete a Dropbox file or folder (Dropbox keeps it in its deleted files for a while)",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.too_large"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "path": "example",
+            "rev": "example"
+          },
+          "name": "example",
+          "output": {
+            "blobId": "blb_a1b2c3",
+            "mime": "example",
+            "size": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_e71a4b75c4"
+      },
+      "level": "view",
+      "module": "dropbox",
+      "name": "dropbox.files.download",
+      "output": {
+        "properties": {
+          "blobId": {
+            "examples": [
+              "blb_a1b2c3"
+            ],
+            "pattern": "^blb_[a-z0-9]+$",
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "blobId",
+          "size",
+          "mime"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Download a Dropbox file, or one of its revisions, into a blob",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "path": "example"
+          },
+          "name": "example",
+          "output": {
+            "entry": {
+              "contentHash": "example",
+              "deleted": true,
+              "id": "id:a4ayc_80_OEAAAAAAAAAXw",
+              "isFolder": true,
+              "modified": "example",
+              "name": "example",
+              "path": "example",
+              "pathLower": "example",
+              "rev": "example",
+              "size": 1,
+              "webUrl": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_cc4e1cf783"
+      },
+      "level": "view",
+      "module": "dropbox",
+      "name": "dropbox.files.get_metadata",
+      "output": {
+        "$ref": "#/$defs/s_c2f8d6cce1"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read one Dropbox file or folder",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "path": "example",
+            "recursive": true
+          },
+          "name": "example",
+          "output": {
+            "cursor": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "recursive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "dropbox",
+      "name": "dropbox.files.latest_cursor",
+      "output": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cursor"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The change feed's start point for a folder, so a mount reads only what happens after it",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.rate_limited",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "cursor": "example",
+            "limit": 1,
+            "path": "example",
+            "recursive": true
+          },
+          "name": "example",
+          "output": {
+            "cursor": "example",
+            "entries": [
+              {
+                "contentHash": "example",
+                "deleted": true,
+                "id": "id:a4ayc_80_OEAAAAAAAAAXw",
+                "isFolder": true,
+                "modified": "example",
+                "name": "example",
+                "path": "example",
+                "pathLower": "example",
+                "rev": "example",
+                "size": 1,
+                "webUrl": "example"
+              }
+            ],
+            "hasMore": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 2000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "description": "Empty for the root, /Folder, or an id such as id:abc",
+            "type": "string"
+          },
+          "recursive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "dropbox",
+      "name": "dropbox.files.list_folder",
+      "output": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "entries": {
+            "$ref": "#/$defs/s_a12a98d618"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entries",
+          "cursor",
+          "hasMore"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List a Dropbox folder, or continue a listing with its cursor; a cursor kept from before reads only what changed since",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "limit": 1,
+            "path": "example"
+          },
+          "name": "example",
+          "output": {
+            "deleted": true,
+            "revisions": [
+              {
+                "contentHash": "example",
+                "deleted": true,
+                "id": "id:a4ayc_80_OEAAAAAAAAAXw",
+                "isFolder": true,
+                "modified": "example",
+                "name": "example",
+                "path": "example",
+                "pathLower": "example",
+                "rev": "example",
+                "size": 1,
+                "webUrl": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "dropbox",
+      "name": "dropbox.files.list_revisions",
+      "output": {
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          },
+          "revisions": {
+            "$ref": "#/$defs/s_a12a98d618"
+          }
+        },
+        "required": [
+          "revisions",
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "List the saved revisions of a Dropbox file, newest first",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "cursor": "example",
+            "timeoutSeconds": 30
+          },
+          "name": "example",
+          "output": {
+            "backoffSeconds": 1,
+            "changes": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "maximum": 480,
+            "minimum": 30,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "connectionId",
+          "cursor"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "dropbox",
+      "name": "dropbox.files.longpoll",
+      "output": {
+        "properties": {
+          "backoffSeconds": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "changes": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Wait for the next change after a cursor (30 to 480 seconds); answers whether there is one and how long to wait before asking again",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "path": "example",
+            "rev": "example"
+          },
+          "name": "example",
+          "output": {
+            "entry": {
+              "contentHash": "example",
+              "deleted": true,
+              "id": "id:a4ayc_80_OEAAAAAAAAAXw",
+              "isFolder": true,
+              "modified": "example",
+              "name": "example",
+              "path": "example",
+              "pathLower": "example",
+              "rev": "example",
+              "size": 1,
+              "webUrl": "example"
+            }
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path",
+          "rev"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "dropbox",
+      "name": "dropbox.files.restore",
+      "output": {
+        "$ref": "#/$defs/s_c2f8d6cce1"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Restore a Dropbox file to one of its revisions",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.too_large",
+        "validation.version_conflict"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "con_a1b2c3",
+            "fileId": "fil_a1b2c3",
+            "path": "example",
+            "rev": "example"
+          },
+          "name": "example",
+          "output": {
+            "entry": {
+              "contentHash": "example",
+              "deleted": true,
+              "id": "id:a4ayc_80_OEAAAAAAAAAXw",
+              "isFolder": true,
+              "modified": "example",
+              "name": "example",
+              "path": "example",
+              "pathLower": "example",
+              "rev": "example",
+              "size": 1,
+              "webUrl": "example"
+            }
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "description": "Where it goes, such as /Sales/Report.docx",
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "dropbox",
+      "name": "dropbox.files.upload",
+      "output": {
+        "$ref": "#/$defs/s_c2f8d6cce1"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Upload a Space file to Dropbox; with rev it only replaces that revision",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "detail": "example",
+            "latencyMs": 1,
+            "state": "healthy"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "dropbox",
+      "name": "dropbox.health",
+      "output": {
+        "$ref": "#/$defs/s_0a70adf1b7"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Health probe: the first connected account answers get_current_account",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "dropbox.changes_received"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accounts": [
+              "example"
+            ],
+            "at": 1760000000000,
+            "eventId": "example"
+          },
+          "name": "example",
+          "output": {
+            "accepted": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "at": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "eventId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId",
+          "accounts",
+          "at"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "dropbox",
+      "name": "dropbox.receive_webhook",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accepted"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Record a verified Dropbox change notice once; it names the accounts that changed",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [],
       "errors": [
@@ -78257,7 +79765,8 @@
         "permission.no_grant",
         "validation.bad_input",
         "validation.not_found",
-        "validation.too_large"
+        "validation.too_large",
+        "validation.unsupported"
       ],
       "examples": [
         {
@@ -78362,7 +79871,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Read the content of a file or one of its versions as text, base64 or a short-lived download address",
+      "summary": "Read the content of a file or one of its versions as text, base64 or a short-lived download address; as text, a PDF, Word, Excel or PowerPoint file comes back as its extracted text",
       "surfaces": {
         "cli": "vyre files cat",
         "http": "auto",
@@ -89476,6 +90985,247 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Read a Google Doc as structured content",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.version_conflict"
+      ],
+      "examples": [
+        {
+          "input": {
+            "anchor": "example",
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "documentId": "example",
+            "idempotencyKey": "idem_1",
+            "matchCase": true,
+            "text": "example",
+            "where": "after"
+          },
+          "name": "example",
+          "output": {
+            "index": 1,
+            "inserted": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "anchor": {
+            "description": "The text to put it after or before",
+            "minLength": 1,
+            "type": "string"
+          },
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "where": {
+            "enum": [
+              "after",
+              "before",
+              "start",
+              "end"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "documentId",
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "google",
+      "name": "google.docs.insert_text",
+      "output": {
+        "properties": {
+          "index": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "inserted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "inserted",
+          "index"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "documentId": "example",
+            "find": "example",
+            "idempotencyKey": "idem_1",
+            "matchCase": true,
+            "replace": "example"
+          },
+          "name": "example",
+          "output": {
+            "replaced": 1
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          },
+          "find": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "replace": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "documentId",
+          "find",
+          "replace",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "google",
+      "name": "google.docs.replace_text",
+      "output": {
+        "properties": {
+          "replaced": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "replaced"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Replace every occurrence of some text in a Google Doc",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -125240,6 +126990,7 @@
                   "google_drive",
                   "sharepoint",
                   "onedrive",
+                  "dropbox",
                   "local",
                   "github"
                 ],
@@ -125253,7 +127004,7 @@
                 "type": "string"
               },
               "ref": {
-                "description": "Drive or folder id, library path, or owner/repo",
+                "description": "Drive or folder id, library path, Dropbox folder id or / for all of Dropbox, or owner/repo",
                 "type": "string"
               }
             },
@@ -125316,7 +127067,7 @@
         "stoppable": true
       },
       "since": "1.0.0",
-      "summary": "Mount a Google or SharePoint folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
+      "summary": "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
       "surfaces": {
         "cli": "vyre mounts add",
         "http": "auto",
@@ -125381,6 +127132,7 @@
               "google_drive",
               "sharepoint",
               "onedrive",
+              "dropbox",
               "local",
               "github"
             ],
@@ -125455,10 +127207,224 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Browse a drive, library or repository search to pick what to mount",
+      "summary": "Browse a drive, library, Dropbox folder or repository search to pick what to mount",
       "surfaces": {
         "http": "auto",
         "mcp": {
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed",
+        "validation.unsupported",
+        "validation.version_conflict"
+      ],
+      "examples": [
+        {
+          "input": {
+            "anchor": "example",
+            "fileId": "fil_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "matchCase": true,
+            "text": "example",
+            "where": "after"
+          },
+          "name": "example",
+          "output": {
+            "inserted": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "anchor": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "where": {
+            "enum": [
+              "after",
+              "before",
+              "start",
+              "end"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "mounts",
+      "name": "mounts.doc_insert_text",
+      "output": {
+        "properties": {
+          "inserted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "inserted"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Insert text into a mounted Google Doc after or before some existing text, or at its start or end; refuses if the Doc changed meanwhile",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed",
+        "validation.unsupported"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3",
+            "find": "example",
+            "idempotencyKey": "idem_1",
+            "matchCase": true,
+            "replace": "example"
+          },
+          "name": "example",
+          "output": {
+            "replaced": 1
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "find": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "replace": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "find",
+          "replace",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "mounts",
+      "name": "mounts.doc_replace_text",
+      "output": {
+        "properties": {
+          "replaced": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "replaced"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Replace text in a mounted Google Doc, in the Doc itself; the change shows in its Google version history",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
           "toolset": "files"
         }
       },
@@ -125584,6 +127550,149 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "link": {
+              "edit": [
+                "replace_text"
+              ],
+              "kind": "google_drive",
+              "mountId": "mnt_a1b2c3",
+              "openIn": "Google Docs",
+              "type": "google_doc",
+              "webUrl": "example"
+            },
+            "reason": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "mounts",
+      "name": "mounts.file_link",
+      "output": {
+        "properties": {
+          "link": {
+            "properties": {
+              "edit": {
+                "items": {
+                  "enum": [
+                    "replace_text",
+                    "insert_text",
+                    "read_cells",
+                    "write_cells",
+                    "append_rows"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "google_drive",
+                  "sharepoint",
+                  "onedrive",
+                  "dropbox",
+                  "local",
+                  "github"
+                ],
+                "type": "string"
+              },
+              "mountId": {
+                "examples": [
+                  "mnt_a1b2c3"
+                ],
+                "pattern": "^mnt_[a-z0-9]+$",
+                "type": "string"
+              },
+              "openIn": {
+                "examples": [
+                  "Google Docs"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "google_doc",
+                  "google_sheet",
+                  "google_slides",
+                  "google_file",
+                  "word",
+                  "excel",
+                  "powerpoint",
+                  "sharepoint_file",
+                  "onedrive_file",
+                  "dropbox_file"
+                ],
+                "type": "string"
+              },
+              "webUrl": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mountId",
+              "kind",
+              "type",
+              "openIn",
+              "webUrl",
+              "edit"
+            ],
+            "type": "object"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Where a mounted file opens at its provider (Google Docs, Sheets, Slides, Word, Excel, PowerPoint, Dropbox) and what an agent can do to it in place",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input"
       ],
       "examples": [
@@ -125636,7 +127745,7 @@
       "module": "mounts",
       "name": "mounts.get",
       "output": {
-        "$ref": "#/$defs/s_5ec96de3af"
+        "$ref": "#/$defs/s_2e977f2711"
       },
       "permission": null,
       "resource": {
@@ -125913,6 +128022,7 @@
               "google_drive",
               "sharepoint",
               "onedrive",
+              "dropbox",
               "local",
               "github"
             ],
@@ -125934,7 +128044,7 @@
         "properties": {
           "mounts": {
             "items": {
-              "$ref": "#/$defs/s_91eb2bd6df"
+              "$ref": "#/$defs/s_a6bb4b0645"
             },
             "type": "array"
           },
@@ -126157,6 +128267,7 @@
             "enum": [
               "google",
               "microsoft",
+              "dropbox",
               "client"
             ],
             "type": "string"
@@ -126197,7 +128308,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "A provider push notice (Drive channel, Graph subscription) or an app showing a mount asks for a sync pass (system)",
+      "summary": "A provider push notice (Drive channel, Graph subscription, Dropbox account) or an app showing a mount asks for a sync pass (system)",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -126665,6 +128776,322 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed",
+        "validation.unsupported"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "sheet": "example",
+            "values": [
+              [
+                {}
+              ]
+            ]
+          },
+          "name": "example",
+          "output": {
+            "updatedRows": 1
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fileId",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "mounts",
+      "name": "mounts.sheet_append",
+      "output": {
+        "properties": {
+          "updatedRows": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updatedRows"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Add rows under the last used row of a mounted Google Sheet or Excel worksheet",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed",
+        "validation.unsupported"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3",
+            "range": "A1:D20",
+            "sheet": "example"
+          },
+          "name": "example",
+          "output": {
+            "values": [
+              [
+                {}
+              ]
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "A1:D20"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "description": "Worksheet name; needed for Excel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "range"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "mounts",
+      "name": "mounts.sheet_read",
+      "output": {
+        "properties": {
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed",
+        "validation.unsupported"
+      ],
+      "examples": [
+        {
+          "input": {
+            "fileId": "fil_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "range": "B2",
+            "sheet": "example",
+            "values": [
+              [
+                {}
+              ]
+            ]
+          },
+          "name": "example",
+          "output": {
+            "updatedCells": 1
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "B2"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fileId",
+          "range",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "mounts",
+      "name": "mounts.sheet_write",
+      "output": {
+        "properties": {
+          "updatedCells": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updatedCells"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/fileId",
+        "type": "file"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Write cells of a mounted Google Sheet or Excel workbook in the provider file itself",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "mount.synced",
@@ -126834,7 +129261,7 @@
       "module": "mounts",
       "name": "mounts.update",
       "output": {
-        "$ref": "#/$defs/s_5ec96de3af"
+        "$ref": "#/$defs/s_2e977f2711"
       },
       "permission": "files.write",
       "resource": {
@@ -131986,6 +134413,384 @@
       "summary": "Subscribe to recording and transcript ready notices",
       "surfaces": {
         "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example",
+            "idempotencyKey": "idem_1",
+            "itemId": "example",
+            "sheet": "example",
+            "values": [
+              [
+                {}
+              ]
+            ]
+          },
+          "name": "example",
+          "output": {
+            "address": "example",
+            "updatedRows": 1
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "sheet",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "microsoft",
+      "name": "ms.workbook.append_rows",
+      "output": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "updatedRows": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "address",
+          "updatedRows"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Add rows under the last used row of a worksheet in an Excel workbook",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example",
+            "itemId": "example",
+            "range": "A1:C10",
+            "sheet": "Sheet1"
+          },
+          "name": "example",
+          "output": {
+            "address": "example",
+            "values": [
+              [
+                {}
+              ]
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "A1:C10"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "examples": [
+              "Sheet1"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "sheet",
+          "range"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "microsoft",
+      "name": "ms.workbook.get_range",
+      "output": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "address",
+          "values"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read a range of cells from an Excel workbook in OneDrive or SharePoint",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.network",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "as": "maya@example.com",
+            "connectionId": "con_a1b2c3",
+            "driveId": "example",
+            "idempotencyKey": "idem_1",
+            "itemId": "example",
+            "range": "B2",
+            "sheet": "example",
+            "values": [
+              [
+                {}
+              ]
+            ]
+          },
+          "name": "example",
+          "output": {
+            "address": "example",
+            "updatedCells": 1
+          }
+        }
+      ],
+      "gate": {
+        "act": "post"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "B2"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "sheet",
+          "range",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "microsoft",
+      "name": "ms.workbook.update_range",
+      "output": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "updatedCells": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "address",
+          "updatedCells"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/connectionId",
+        "type": "connection"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Write a block of cells in an Excel workbook; a single start cell grows to the size of the values",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "deferred": true,
+          "toolset": "files"
+        }
       },
       "v": 1
     },
@@ -189145,6 +191950,8 @@
         "google.docs.get_document",
         "google.docs.create_document",
         "google.docs.batch_update",
+        "google.docs.replace_text",
+        "google.docs.insert_text",
         "google.meet.list_conference_records",
         "google.meet.list_recordings",
         "google.meet.list_transcripts",
@@ -189426,6 +192233,9 @@
         "ms.drive.create_folder",
         "ms.drive.share_item",
         "ms.drive.delete_item",
+        "ms.workbook.get_range",
+        "ms.workbook.update_range",
+        "ms.workbook.append_rows",
         "ms.teams.recordings.list_recordings",
         "ms.teams.recordings.get_recording",
         "ms.teams.recordings.list_transcripts",
@@ -197821,6 +200631,78 @@
       "vis": "space"
     },
     {
+      "module": "dropbox",
+      "name": "dropbox.changes_received",
+      "payload": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "eventId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId",
+          "accounts"
+        ],
+        "type": "object"
+      },
+      "replay": "stub",
+      "subject": {
+        "id": "/eventId",
+        "type": "entity"
+      },
+      "summary": "Dropbox said files changed in these accounts",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "dropbox",
+      "name": "dropbox.connected",
+      "payload": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "ownerKind": {
+            "enum": [
+              "person",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "accountId",
+          "ownerKind"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/connectionId",
+        "type": "entity"
+      },
+      "summary": "A Dropbox account was connected",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "module": "dropbox-sign",
       "name": "dropbox_sign.webhook_received",
       "payload": {
@@ -198806,6 +201688,7 @@
               "google_drive",
               "sharepoint",
               "onedrive",
+              "dropbox",
               "local",
               "github"
             ],
@@ -217516,6 +220399,22 @@
       "title": "DocuSign reachable"
     },
     {
+      "cap": "dropbox.health",
+      "intervalSec": 60,
+      "key": "dropbox.account",
+      "module": "dropbox",
+      "next": "Connect Dropbox again from the folder's sync line.",
+      "pauses": [
+        "sync"
+      ],
+      "states": {
+        "degradedWhen": "latencyMs > 2000",
+        "downWhen": "state == 'down'"
+      },
+      "timeoutMs": 5000,
+      "title": "Dropbox"
+    },
+    {
       "cap": "dropbox_sign.health",
       "intervalSec": 60,
       "key": "dropbox_sign.api",
@@ -218556,6 +221455,14 @@
       "owner": "L8",
       "requires": [],
       "title": "DocuSign",
+      "version": "0.1.0"
+    },
+    {
+      "id": "dropbox",
+      "kind": "module",
+      "owner": "L4",
+      "requires": [],
+      "title": "Dropbox",
       "version": "0.1.0"
     },
     {
