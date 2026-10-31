@@ -542,8 +542,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             sink.log({ space, level: 20, msg: "access.agent_principal_reconciled", place: "boot", entity: "agent", entity_id: repairedEvent.id });
           }
         }
-        startHealing((event) => log.appendResult(event), space);
-        await healAgents();
+
       }
       headSeq = (await log.currentHead()).seq;
 
@@ -771,7 +770,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const out = stored.map((s, i) => fromStored(s, b.events[i]!));
           for (const s of stored) { access.fold(s); if (isAccessEvent(s.type)) accessPending.push(toAccessEvent(s)); }
           headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
-          if (stored.some((s) => touchesAccess(s.type))) { await syncAccess(true); void healAgents().catch(() => undefined); }
+          if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
           if (b.audit) recordAudit(b.audit);
           return out;
         }),
@@ -852,8 +851,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }
         accessStale = false;
       };
-      syncAccess = (force) => { const run = syncChain.then(() => runSync(force), () => runSync(force)); syncChain = run.then(() => undefined, () => undefined); return run; };
+      const syncOnce = (force?: boolean): Promise<void> => { const run = syncChain.then(() => runSync(force), () => runSync(force)); syncChain = run.then(() => undefined, () => undefined); return run; };
+      // after every sync an agent born while its person was not yet active in the snapshot is brought up to a Member agent (it heals itself and, on a changed Space, syncs once more)
+      if (log) startHealing((event) => log!.appendResult(event), spaceId);
+      syncAccess = async (force) => { await syncOnce(force); void healAgents().catch(() => undefined); };
       await syncAccess();
+      await healAgents();
       // the owner of a Space this host made has not claimed it until identity holds an account for them: a fresh one-time link at every start until they do
       claimIssue = async () => {
         const owner = access.owner();
