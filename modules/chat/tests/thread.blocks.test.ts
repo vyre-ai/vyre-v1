@@ -158,3 +158,16 @@ test("the answer card's shape { keys, text } is stored as a key, a list of keys 
   assert.deepEqual(canonicalAnswer("multi", ["a"]), ["a"], "the older shapes pass through");
   assert.equal(canonicalAnswer("single", "a"), "a");
 });
+
+test("an answer is sent to the agent as the person's own message, naming each pick and its key, once", async () => {
+  const posts: Record<string, unknown>[] = [];
+  const hn = harness({ calls: { "chat.post": (i) => { posts.push(i); return {}; } } });
+  const t = await chat(hn);
+  const q = hn.seedQuestion(t, { mode: "multi", options: OPTS, allowOther: true });
+  await answer(hn.ctx, t, q.blockId, { keys: ["a", "c"], text: "and D" });
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0]!["body"], "Answered: A (a), C (c), and D");
+  assert.equal(posts[0]!["threadId"], t);
+  await answer(hn.ctx, t, q.blockId, { keys: ["a", "c"], text: "and D" });
+  assert.equal(posts.length, 1, "the same answer again sends nothing new");
+});

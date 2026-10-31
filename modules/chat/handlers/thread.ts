@@ -288,6 +288,15 @@ export async function answerBlock(ctx: ChatCtx, input: { threadId: string; block
   patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), answer: given, answeredBy: by } }));
   // The engine reads block.answered and queues a wake, so the parked turn continues in the same thread.
   ctx.emit("block.answered", t.id, { threadId: t.id, blockId: block.id, by });
+  // The agent hears the answer as the person's own message, which wakes the lead agent the way any message does (a CLI engine has no parked call to resume). The words name each pick and its key.
+  if (ctx.call) {
+    const data = block.data as { options?: Array<{ key?: unknown; label?: unknown }> };
+    const label = (k: unknown): string => { const o = (data.options ?? []).find((x) => String(x.key) === String(k)); return o && typeof o.label === "string" ? `${o.label} (${String(k)})` : String(k); };
+    const picks = (Array.isArray(given) ? given : [given]).map((a) => (a !== null && typeof a === "object" ? String((a as { other?: unknown }).other ?? "") : label(a))).filter((x) => x !== "");
+    if (picks.length > 0) {
+      try { await ctx.call("chat.post", { threadId: t.id, body: `Answered: ${picks.join(", ")}`, idempotencyKey: `answer_${block.id}` }); } catch (e) { ctx.log.warn("the answer could not be sent to the agent", { error: e instanceof Error ? e.message : String(e) }); }
+    }
+  }
   return { ok: true };
 }
 

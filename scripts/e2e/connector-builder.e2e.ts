@@ -166,6 +166,10 @@ async function main(): Promise<void> {
       }
       const live = ((await ok("connectors.list", { state: "live" })).connectors as { key: string; builtin: boolean }[]).filter((c) => !c.builtin);
       if (live.length > 0) published = true;
+      if (process.env["E2E_DEBUG"] && Date.now() % 20_000 < 1800) {
+        const t = (await ok("threads.get", { threadId: thread })).thread;
+        say("debug", `thread ${JSON.stringify({ mode: t.mode, running: t.running, state: t.state, waiting: t.waiting }).slice(0, 200)}; messages ${msgs.map((m) => `${m.author?.kind}:${(m.blocks ?? []).map((b) => `${b.type}${b.state ? `/${b.state}` : ""}`).join("+") || "text"}`).join(" ")}`);
+      }
       if (!published && Date.now() - lastNew > 150_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 150 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
       await sleep(1500);
     }
