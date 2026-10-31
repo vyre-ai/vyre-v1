@@ -16,6 +16,8 @@ import {
 import type { Call, FieldDef, FieldTypeInfo } from "./model.ts";
 import { OVERVIEW, addGroup, deleteGroup, groupOf, groupsIn, moveField, renameGroup } from "./groups.ts";
 import type { LayoutSection } from "./groups.ts";
+import { addStage, moveStage, removeStage, renameStage, setStagesOps, showAt, stageFieldOf, stageOfField, stagesOf, stagesOffOps, stagesOn, stagesOnOps, toggleGate } from "./stages.ts";
+import type { StageEntry } from "./stages.ts";
 import { useSchemaChange } from "./useChange.ts";
 
 export interface PanelType {
@@ -29,7 +31,7 @@ export interface PanelType {
   fields: readonly FieldDef[];
 }
 type TrashItem = CapMap["schema.trash.list"]["out"]["items"][number];
-export type FieldMode = "rename" | "type" | "delete" | "group";
+export type FieldMode = "rename" | "type" | "delete" | "group" | "show";
 
 export interface FieldsPanelProps {
   call: Call;
@@ -63,6 +65,9 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
   const [groupBusy, setGroupBusy] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [newGroup, setNewGroup] = useState<string | null>(null);
+  const [openStage, setOpenStage] = useState<string | null>(null);
+  const [stageName, setStageName] = useState<string | null>(null);
+  const [stageText, setStageText] = useState("");
   const [renaming, setRenaming] = useState<{ key: string; text: string } | null>(null);
   const readTrash = (): void => { void call("schema.trash.list", {}).then((out) => setTrash((out as CapMap["schema.trash.list"]["out"]).items), () => undefined); };
   const change = useSchemaChange(call, () => { readTrash(); });
@@ -92,6 +97,12 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
     setGroupBusy(true); setGroupError(null);
     call("schema.layout.set", { type: type.key, sections: next }).then(() => { setLayout(next); done?.(); }, (e: unknown) => setGroupError(e instanceof Error && e.message ? e.message : "Could not save the groups.")).finally(() => setGroupBusy(false));
   };
+  // stages: on when the status field says so; a Journey's stages are edited in its designer
+  const stageField = stageFieldOf(type);
+  const stagesAreOn = stagesOn(type);
+  const journeyManaged = (stageField as { writeOnlyBy?: string[] } | undefined)?.writeOnlyBy?.some((w) => w.startsWith("journeys.")) === true;
+  const stageList = stagesAreOn ? stagesOf(stageField) : [];
+  const saveStages = (next: StageEntry[], done?: () => void): void => { if (stageField) doRun(setStagesOps(type.key, stageField, next), done); };
   const lost = trash.filter((t) => t.type === type.key && t.field !== undefined);
 
   const rows: ReactElement[] = [];
@@ -102,7 +113,7 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
     rows.push(
       <View key={f.key} testID={`panel-field-${f.key}`}>
         <Row
-          id={`panel-field-${f.key}`} title={f.title} note={`${fieldMark(f.type).name}${f.required ? " · Required" : ""}${groupOf(layout, fieldKeys, f.key) ? ` · ${groupOf(layout, fieldKeys, f.key)!.title}` : ""}`} selected={expanded}
+          id={`panel-field-${f.key}`} title={f.title} note={`${fieldMark(f.type).name}${f.required ? " · Required" : ""}${groupOf(layout, fieldKeys, f.key) ? ` · ${groupOf(layout, fieldKeys, f.key)!.title}` : ""}${stageOfField(stageList, f.key) ? ` · at ${stageOfField(stageList, f.key)!.title}` : ""}`} selected={expanded}
           leading={<FieldMark type={f.type} />}
           trailing={!viewToggles ? undefined : (
             <Pressable
@@ -114,7 +125,7 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
           )}
           onPress={() => pick(f)}
         />
-        {expanded ? <FieldEdit f={f} type={type} order={order} mode={mode} setMode={(m) => { change.cancel(); setMode(m); }} name={name} setName={setName} choices={choices} change={change} run={doRun} groups={groups} inGroup={groupOf(layout, fieldKeys, f.key)?.key ?? null} groupBusy={groupBusy} onGroup={(to) => saveLayout(moveField(layout, fieldKeys, f.key, to), () => setMode(null))} /> : null}
+        {expanded ? <FieldEdit f={f} type={type} order={order} mode={mode} setMode={(m) => { change.cancel(); setMode(m); }} name={name} setName={setName} choices={choices} change={change} run={doRun} groups={groups} inGroup={groupOf(layout, fieldKeys, f.key)?.key ?? null} groupBusy={groupBusy} onGroup={(to) => saveLayout(moveField(layout, fieldKeys, f.key, to), () => setMode(null))} stages={stagesAreOn && !journeyManaged ? stageList : null} onShow={(at) => saveStages(showAt(stageList, f.key, at), () => setMode(null))} /> : null}
       </View>,
     );
   }
@@ -168,6 +179,58 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
         ) : (
           <View style={s.addLink}><TextButton label="Add field" testID="panel-add" onPress={() => { change.cancel(); setOpen(null); setMode(null); setAdding(true); }} /></View>
         )}
+        <View style={s.trash} testID="panel-stages">
+          <Text style={s.head}>Stages</Text>
+          {journeyManaged ? <Text style={s.hint} testID="panel-stages-journey">This is a Journey. Its stages are edited in the Journey designer.</Text> : (
+            <>
+              <View style={s.inline}>
+                <TextButton label="Off" selected={!stagesAreOn} testID="panel-stages-off" off={stagesAreOn && change.busy ? true : undefined} onPress={() => { if (stagesAreOn) doRun(stagesOffOps(type)); }} />
+                <TextButton label="On" selected={stagesAreOn} testID="panel-stages-on" off={change.busy ? true : undefined} onPress={() => { if (!stagesAreOn) doRun(stagesOnOps(type)); }} />
+                <Text style={s.hint}>{stagesAreOn ? "Records move through the stages below." : "Turn on to give records stages."}</Text>
+              </View>
+              {stagesAreOn ? (
+                <>
+                  {stageList.map((g, i) => (
+                    <View key={g.key} testID={`panel-stage-${g.key}`}>
+                      <Row id={`panel-stage-row-${g.key}`} title={g.title} note={`Stage ${i + 1}${g.fields?.length ? ` · ${g.fields.length} ${g.fields.length === 1 ? "field" : "fields"}` : ""}`} selected={openStage === g.key} onPress={() => { setOpenStage(openStage === g.key ? null : g.key); setStageText(g.title); }} />
+                      {openStage === g.key ? (
+                        <View style={s.edit}>
+                          <View style={s.inline}>
+                            <View style={s.grow}><TextField value={stageText} onChangeText={setStageText} accessibilityLabel={`Rename ${g.title}`} testID={`panel-stage-input-${g.key}`} /></View>
+                            <TextButton label="Rename" primary testID={`panel-stage-rename-${g.key}`} off={stageText.trim() === "" || change.busy ? true : undefined} onPress={() => saveStages(renameStage(stageList, g.key, stageText))} />
+                          </View>
+                          <View style={s.actions}>
+                            <TextButton label="Move up" testID={`panel-stage-up-${g.key}`} off={i === 0 ? "Already first" : change.busy ? true : undefined} onPress={() => saveStages(moveStage(stageList, g.key, -1))} />
+                            <TextButton label="Move down" testID={`panel-stage-down-${g.key}`} off={i === stageList.length - 1 ? "Already last" : change.busy ? true : undefined} onPress={() => saveStages(moveStage(stageList, g.key, 1))} />
+                            <TextButton label="Remove" danger testID={`panel-stage-remove-${g.key}`} off={stageList.length < 2 ? "A type with stages keeps one" : change.busy ? true : undefined} onPress={() => saveStages(removeStage(stageList, g.key))} />
+                          </View>
+                          {(["needToEnter", "needToLeave"] as const).map((list) => (
+                            <View key={list}>
+                              <Text style={s.head}>{list === "needToEnter" ? "Must be filled to move here" : "Must be filled to move on"}</Text>
+                              <View style={s.chips}>
+                                {type.fields.filter((f) => f.key !== type.titleField && f.key !== stageField?.key).map((f) => (
+                                  <TextButton key={f.key} label={f.title} selected={(g[list] ?? []).includes(f.key)} testID={`panel-gate-${list}-${g.key}-${f.key}`} off={change.busy ? true : undefined} onPress={() => saveStages(toggleGate(stageList, g.key, list, f.key))} />
+                                ))}
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  ))}
+                  {stageName !== null ? (
+                    <View style={s.inline}>
+                      <View style={s.grow}><TextField value={stageName} onChangeText={setStageName} placeholder="Stage name" accessibilityLabel="Stage name" testID="panel-stage-name" autoFocus onSubmitEditing={() => { if (stageName.trim()) saveStages(addStage(stageList, stageName), () => setStageName(null)); }} /></View>
+                      <TextButton label="Cancel" testID="panel-stage-cancel" onPress={() => setStageName(null)} />
+                      <TextButton label="Add stage" primary testID="panel-stage-save" off={stageName.trim() === "" || change.busy ? true : undefined} onPress={() => saveStages(addStage(stageList, stageName), () => setStageName(null))} />
+                    </View>
+                  ) : <View style={s.addLink}><TextButton label="Add stage" testID="panel-stage-add" onPress={() => setStageName("")} /></View>}
+                </>
+              ) : null}
+              {change.error && open === null ? <Text style={s.error} accessibilityRole="alert" testID="panel-stages-error">{change.error}</Text> : null}
+            </>
+          )}
+        </View>
         <View style={s.trash} testID="panel-groups">
           <Text style={s.head}>Groups</Text>
           {groupRows}
@@ -196,10 +259,12 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
   );
 }
 
-function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, change, run, groups, inGroup, groupBusy, onGroup }: {
+function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, change, run, groups, inGroup, groupBusy, onGroup, stages, onShow }: {
   f: FieldDef; type: PanelType; order: readonly string[]; mode: FieldMode | null; setMode(m: FieldMode | null): void; name: string; setName(n: string): void;
   choices: readonly FieldTypeInfo[]; change: ReturnType<typeof useSchemaChange>; run(ops: Parameters<ReturnType<typeof useSchemaChange>["run"]>[0], done?: () => void): void;
   groups: readonly LayoutSection[]; inGroup: string | null; groupBusy: boolean; onGroup(to: string | null): void;
+  /** The type's stages when it has them (and they are not a Journey's), for Show: Always or at a stage. */
+  stages: readonly StageEntry[] | null; onShow(at: string | null): void;
 }): ReactElement {
   const retypeOff = retypeBlocked(type, f, type.titleField, f.key);
   const deleteOff = fieldDeleteBlocked(type, f);
@@ -215,6 +280,7 @@ function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, chan
           <TextButton label={f.required ? "Make optional" : "Make required"} testID={`panel-required-${f.key}`} off={type.system ? "Built in fields keep this setting" : change.busy ? true : undefined} onPress={() => run(requiredOps(type.key, f.key, f.required !== true))} />
           <TextButton label="Move up" testID={`panel-up-${f.key}`} off={up === null || at <= 0 ? "Already first" : change.busy ? true : undefined} onPress={() => { if (up) run(up); }} />
           <TextButton label="Move down" testID={`panel-down-${f.key}`} off={down === null ? "Already last" : change.busy ? true : undefined} onPress={() => { if (down) run(down); }} />
+          {stages ? <TextButton label="Show" testID={`panel-show-at-${f.key}`} off={f.key === type.titleField || f.key === type.statusField ? "This field always shows" : undefined} onPress={() => setMode("show")} /> : null}
           <TextButton label="Move to group" testID={`panel-group-move-${f.key}`} off={f.key === type.titleField ? "The title stays at the top" : undefined} onPress={() => setMode("group")} />
           <TextButton label="Delete" danger testID={`panel-delete-${f.key}`} off={deleteOff ?? undefined} onPress={() => { setMode("delete"); run(dropFieldOps(type.key, f.key)); }} />
         </View>
@@ -235,6 +301,15 @@ function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, chan
             })}
           </View>
           <View style={s.addRow}><View style={s.grow} /><TextButton label="Cancel" onPress={() => setMode(null)} testID="panel-retype-cancel" /></View>
+        </View>
+      ) : null}
+      {mode === "show" && stages ? (
+        <View>
+          <View style={s.chips} accessibilityRole="radiogroup">
+            <TextButton label="Always" selected={stageOfField(stages, f.key) === undefined} testID={`panel-show-always-${f.key}`} off={change.busy ? true : undefined} onPress={() => onShow(null)} />
+            {stages.map((g) => <TextButton key={g.key} label={`At ${g.title}`} selected={stageOfField(stages, f.key)?.key === g.key} testID={`panel-show-stage-${g.key}`} off={change.busy ? true : undefined} onPress={() => onShow(g.key)} />)}
+          </View>
+          <View style={s.addRow}><View style={s.grow} /><TextButton label="Back" onPress={() => setMode(null)} testID="panel-show-back" /></View>
         </View>
       ) : null}
       {mode === "group" ? (

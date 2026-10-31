@@ -13,6 +13,7 @@ import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { JourneyStepper } from "../journey/JourneyStepper.tsx";
 import { isJourneyDef, stageFieldOf } from "../journey/model.ts";
 import { useJourneyStages } from "../journey/useStages.ts";
+import { stageFieldOf as typeStageField, stagesOf, stagesOn } from "../typeedit/stages.ts";
 import { Glyph as Icon } from "../schemamap/icons.tsx";
 import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
 import { tabsOf, visibleSections, withStages } from "./groups.ts";
@@ -283,7 +284,8 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const plain = sectionsOf(def, lq.status === "ready" ? lq.data : undefined, pq.status === "ready" ? pq.data : undefined);
   // a Journey record leads with the group of the stage it is in; the groups of later stages stay locked until their stage opens
   const stageNow = (() => { const sf = stageFieldOf(def); const v = sf ? row.fields[sf.key] : undefined; return typeof v === "string" ? v : ""; })();
-  const sections = journey ? withStages(def, plain, journey.stages, stageNow, prefs.folded) : plain;
+  const ownStages = stagesOn(def) ? stagesOf(typeStageField(def)).map((g, i) => ({ key: g.key, title: g.title, order: i, ...(g.fields ? { fields: g.fields } : {}) })) : [];
+  const sections = journey ? withStages(def, plain, journey.stages, stageNow, prefs.folded) : ownStages.length ? withStages(def, plain, ownStages, stageNow, prefs.folded) : plain;
   const tabs = tabsOf(sections);
   const shown = visibleSections(sections, tabs, group);
   const ring = cq.status === "ready" && asksForFields(def, cq.data) ? ringOf(cq.data) : null;
@@ -366,7 +368,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
       ) : null}
       <View style={wide ? p.split : p.stack}>
         <ScrollView style={p.sheet} contentContainerStyle={p.sheetIn} testID="record-sheet">
-          {isJourneyDef(def) ? <JourneyStepper type={type} row={row} def={def} /> : null}
+          {isJourneyDef(def) || stagesOn(def) ? <JourneyStepper type={type} row={row} def={def} /> : null}
           <Pressable accessibilityRole="button" accessibilityLabel="Edit title" testID="title" onPress={() => fieldProps.onEdit(def.fields.find((f) => f.key === def.titleField)!)}>
             {editing?.key === def.titleField
               ? <TextInput autoFocus value={editing.text} onChangeText={fieldProps.onText} accessibilityLabel="Title" testID={`edit-${def.titleField}`} onBlur={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onSubmitEditing={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setEditing(null); }} style={p.titleInput} />

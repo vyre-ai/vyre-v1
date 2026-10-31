@@ -7,3 +7,4 @@ export type { FieldMode, FieldsPanelProps, PanelType } from "./FieldsPanel.tsx";
 export { ConfirmLine, TextButton } from "./parts.tsx";
 export { useSchemaChange } from "./useChange.ts";
 export * from "./model.ts";
+export * from "./stages.ts";

@@ -80,6 +80,16 @@ export async function moveInJourney(call: Call, journeyId: string, row: RecordRo
   return true;
 }
 
+/** A type with stages that is not a Journey moves a record by writing its stage field; the records module holds the gates. */
+export async function movePlain(call: Call, type: string, row: RecordRow, field: string, stage: string): Promise<boolean> {
+  if (row.fields[field] === stage) return false;
+  try { await call("records.update", { type, recordId: row.id, patch: { [field]: stage }, baseVersion: row.version }); } catch (e) { throw gateOf(e) ?? new Error(moveWords(e)); }
+  return true;
+}
+
+/** Whether a type's stage field belongs to a Journey (only the Journeys module writes it). */
+export const isJourneyManaged = (f: Pick<FieldDef, "writeOnlyBy"> | undefined): boolean => f?.writeOnlyBy?.some((w) => w.startsWith("journeys.")) === true;
+
 export async function startInJourney(call: Call, journeyId: string, subjectRecordId: string, stage: string): Promise<void> {
   try { await call("journeys.start", { journeyId, subjectRecordId, startStage: stage, idempotencyKey: `board-start-${journeyId}-${subjectRecordId}` }); } catch (e) { throw new Error(moveWords(e)); }
 }
@@ -113,7 +123,7 @@ function answerOf(f: FieldDef, got: string | boolean | undefined): { ok: true; v
  * Write the answers to the record, then ask for the move again: one step for the person. Nothing is written when any answer is missing or wrong. If the stage wants more than was asked
  * (a field filled by someone since, or a second gate), the new list comes back for the sheet to show.
  */
-export async function fillAndMove(call: Call, o: { journeyId: string; type: string; row: RecordRow; def: Pick<TypeDef, "fields">; missing: readonly MissingField[]; entered: Entered; toStage: string }): Promise<FillResult> {
+export async function fillAndMove(call: Call, o: { journeyId?: string; plainField?: string; type: string; row: RecordRow; def: Pick<TypeDef, "fields">; missing: readonly MissingField[]; entered: Entered; toStage: string }): Promise<FillResult> {
   const patch: Record<string, unknown> = {};
   for (const m of o.missing) {
     const f = o.def.fields.find((x) => x.key === m.key);
@@ -122,11 +132,19 @@ export async function fillAndMove(call: Call, o: { journeyId: string; type: stri
     if (!a.ok) return { ok: false, message: a.message };
     patch[m.key] = a.value;
   }
+  if (o.plainField) {
+    // a type with stages, no Journey: one update fills the fields and changes the stage, and the records module checks both together
+    try { await call("records.update", { type: o.type, recordId: o.row.id, patch: { ...patch, [o.plainField]: o.toStage }, baseVersion: o.row.version }); } catch (e) {
+      const gate = gateOf(e);
+      return gate ? { ok: false, message: gate.message, missing: gate.missing } : { ok: false, message: moveWords(e) };
+    }
+    return { ok: true };
+  }
   try {
     await call("records.update", { type: o.type, recordId: o.row.id, patch, baseVersion: o.row.version });
   } catch (e) { return { ok: false, message: e instanceof Error && e.message ? e.message : "Could not save those fields." }; }
   try {
-    await call("journeys.move_stage", { journeyId: o.journeyId, recordId: o.row.id, toStage: o.toStage, reason: "Moved after filling the required fields" });
+    await call("journeys.move_stage", { journeyId: o.journeyId!, recordId: o.row.id, toStage: o.toStage, reason: "Moved after filling the required fields" });
   } catch (e) {
     const gate = gateOf(e);
     return gate ? { ok: false, message: gate.message, missing: gate.missing } : { ok: false, message: moveWords(e) };

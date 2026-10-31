@@ -7,7 +7,8 @@ import type { FieldDef, RecordRow, TypeDef } from "../table/model.ts";
 import { optionsOf } from "../table/model.ts";
 import { hueOf } from "../table/model.ts";
 import { GateSheet } from "./GateSheet.tsx";
-import { GateError, journeyOfType, moveInJourney, stageFieldOf } from "./model.ts";
+import { stagesOn } from "../typeedit/stages.ts";
+import { GateError, isJourneyManaged, journeyOfType, moveInJourney, movePlain, stageFieldOf } from "./model.ts";
 import type { MissingField } from "./model.ts";
 
 /** The type the Journey's subject field points at. The schema writes it as `target`; older types wrote `to`. */
@@ -49,14 +50,16 @@ export function JourneyStepper({ type, row, def }: { type: string; row: RecordRo
   }, [data, type]);
   const field = stageFieldOf(def);
   if (!field) return null;
+  // a type with stages that is not a Journey moves the record by writing its stage field
+  const plain = stagesOn(def) && !isJourneyManaged(field);
   const stages = optionsOf(field);
   const now = typeof row.fields[field.key] === "string" ? (row.fields[field.key] as string) : "";
   const at = stages.findIndex((s) => s.key === now);
   const subject = def.fields.find((f) => f.key === "subject" && f.type === "relation");
   const go = (stage: string): void => {
-    if (!journey || busy || stage === now) return;
+    if ((!journey && !plain) || busy || stage === now) return;
     setBusy(true); setError(null);
-    moveInJourney(data.call, journey.id, row, stage).catch((e: unknown) => { if (e instanceof GateError) setGate({ stage: e.toStage || stage, missing: e.missing }); else setError(e instanceof Error ? e.message : "Could not move it. Try again."); }).finally(() => setBusy(false));
+    (plain ? movePlain(data.call, type, row, field.key, stage) : moveInJourney(data.call, journey!.id, row, stage)).catch((e: unknown) => { if (e instanceof GateError) setGate({ stage: e.toStage || stage, missing: e.missing }); else setError(e instanceof Error ? e.message : "Could not move it. Try again."); }).finally(() => setBusy(false));
   };
   const steps: ReactElement[] = [];
   for (let i = 0; i < stages.length; i++) {
@@ -64,7 +67,7 @@ export function JourneyStepper({ type, row, def }: { type: string; row: RecordRo
     const here = i === at, past = at >= 0 && i < at;
     steps.push(
       <Pressable
-        key={g.key} accessibilityRole="button" accessibilityLabel={`${g.title}${here ? ", current stage" : ""}`} accessibilityState={{ selected: here, disabled: !journey }} testID={`step-${g.key}`}
+        key={g.key} accessibilityRole="button" accessibilityLabel={`${g.title}${here ? ", current stage" : ""}`} accessibilityState={{ selected: here, disabled: !journey && !plain }} testID={`step-${g.key}`}
         onPress={() => go(g.key)} style={({ hovered }: { hovered?: boolean }) => [c.step, here && c.stepOn, hovered === true && !here && c.stepOver]}
       >
         <View style={[c.dot, { backgroundColor: here || past ? (`hsl(${hueOf(g.key)}, 55%, 52%)` as string) : "var(--line-2)" }]} />
@@ -76,9 +79,9 @@ export function JourneyStepper({ type, row, def }: { type: string; row: RecordRo
     <View style={c.wrap} testID="journey-stepper" accessibilityLabel={`${def.title} stages`}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={c.steps}>{steps}</ScrollView>
       {subject ? <Subject field={subject} row={row} /> : null}
-      {gate && journey ? (
+      {gate && (journey || plain) ? (
         <GateSheet
-          call={data.call} journeyId={journey.id} type={type} def={def} row={row} toStage={gate.stage} missing={gate.missing}
+          call={data.call} {...(plain ? { plainField: field.key } : { journeyId: journey!.id })} type={type} def={def} row={row} toStage={gate.stage} missing={gate.missing}
           stageTitle={stages.find((g) => g.key === gate.stage)?.title ?? gate.stage} onDone={() => setGate(null)} onClose={() => setGate(null)}
         />
       ) : null}

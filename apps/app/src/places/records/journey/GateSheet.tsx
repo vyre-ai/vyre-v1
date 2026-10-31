@@ -13,7 +13,10 @@ import type { Call, Entered, MissingField } from "./model.ts";
 
 export interface GateSheetProps {
   call: Call;
-  journeyId: string;
+  /** A Journey's id, or nothing for a type with stages that is not a Journey. */
+  journeyId?: string;
+  /** The stage field to write when the type is not a Journey. */
+  plainField?: string;
   type: string;
   def: Pick<TypeDef, "fields">;
   row: RecordRow;
@@ -25,7 +28,7 @@ export interface GateSheetProps {
   onClose(): void;
 }
 
-export function GateSheet({ call, journeyId, type, def, row, toStage, stageTitle, missing: first, onDone, onClose }: GateSheetProps): ReactElement {
+export function GateSheet({ call, journeyId, plainField, type, def, row, toStage, stageTitle, missing: first, onDone, onClose }: GateSheetProps): ReactElement {
   const [missing, setMissing] = useState(first);
   const [entered, setEntered] = useState<Entered>({});
   const [busy, setBusy] = useState(false);
@@ -34,7 +37,7 @@ export function GateSheet({ call, journeyId, type, def, row, toStage, stageTitle
   const save = (): void => {
     if (busy) return;
     setBusy(true); setError(null);
-    fillAndMove(call, { journeyId, type, row, def, missing, entered, toStage }).then((r) => {
+    fillAndMove(call, { ...(journeyId ? { journeyId } : {}), ...(plainField ? { plainField } : {}), type, row, def, missing, entered, toStage }).then((r) => {
       if (r.ok) { onDone(); return; }
       setError(r.message);
       if (r.missing) setMissing(r.missing);
