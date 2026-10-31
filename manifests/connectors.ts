@@ -59,7 +59,7 @@ const bindingIn = {
 const specPointer = t.str({ description: 'A JSON pointer: /id, /properties/email. / is the whole answer.', examples: ['/id'] });
 const specField = t.obj({
   path: specPointer, label: t.str(), type: t.enm('text', 'number', 'money', 'date', 'bool', 'choice', 'multi', 'email', 'phone', 'url', 'relation', 'json'),
-  choices: t.opt(t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }))), relationTo: t.opt(t.str({ description: 'The remote object a relation points at' })), readOnly: t.opt(t.bool()),
+  choices: t.opt(t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }), { examples: [[{ value: 'lead', label: 'Lead' }]] })), relationTo: t.opt(t.str({ description: 'The remote object a relation points at' })), readOnly: t.opt(t.bool()),
 });
 const specCursor = t.obj({ kind: t.enm('none', 'page', 'cursor', 'offset', 'link'), param: t.opt(t.str()), next: t.opt(specPointer), size: t.opt(t.int({ minimum: 1 })), sizeParam: t.opt(t.str()), start: t.opt(t.int({ minimum: 0 })) });
 const specWrite = t.obj({ path: t.str({ examples: ['/contacts/{id}'] }), method: t.opt(t.enm('POST', 'PUT', 'PATCH', 'DELETE')), evidence: t.str({ description: 'The docs page or quote that shows this call. A write without it is refused.' }), bodyAt: t.opt(t.str({ description: 'Pointer in the body where the properties go; empty for the body itself' })), idAt: t.opt(specPointer) });
