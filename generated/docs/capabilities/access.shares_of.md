@@ -1,6 +1,6 @@
 # access.shares_of
 
-Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry
+Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export
 
 | | |
 |---|---|
@@ -57,6 +57,8 @@ type Out = {
             to: number;
           };
           expiresAt?: number;
+          export?: boolean;
+          reshare?: boolean;
         };
         by: string;
         source?: string;
@@ -64,6 +66,14 @@ type Out = {
       };
       through: "direct" | "group" | "role" | "folder" | "owner";
     }>;
+  audience?: "space" | "added" | "me";
+  exporters?: "admins" | "viewers" | "chosen";
+  inherits?: string;
+  can?: {
+    manage: boolean;
+    share: boolean;
+    export: boolean;
+  };
 };
 ```
 
@@ -86,16 +96,26 @@ type Out = {
     }
   },
   "output": {
+    "audience": "space",
+    "can": {
+      "export": true,
+      "manage": true,
+      "share": true
+    },
+    "exporters": "admins",
+    "inherits": "example",
     "shares": [
       {
         "grant": {
           "by": "example",
           "conditions": {
             "expiresAt": 1760000000000,
+            "export": true,
             "hiddenFields": [
               "example"
             ],
             "labelCeiling": "public",
+            "reshare": true,
             "rowFilter": {},
             "window": {
               "from": 1760000000000,
