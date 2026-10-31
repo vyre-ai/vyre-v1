@@ -98,6 +98,10 @@ test("Anyone who can view may export when the type says so; Admins only takes it
   await audienceSet(r.ctx, { resource: deal, exporters: "admins" });
   assert.ok(!r.can("usr_cal", deal, "view", "records.export") && !r.can("usr_bea", deal, "view", "records.export"));
   assert.equal((await sharesOf(r.ctx, { resource: deal })).exporters, "admins");
+  // Chosen people holds as a choice before anyone is chosen, and a flag given later keeps it there
+  assert.equal((await audienceSet(r.ctx, { resource: deal, exporters: "chosen" })).exporters, "chosen");
+  assert.equal((await sharesOf(r.ctx, { resource: deal })).exporters, "chosen");
+  assert.ok(!r.can("usr_cal", deal, "view", "records.export"), "nobody chosen yet");
   assert.equal(await code(audienceSet(r.as("usr_cal"), { resource: deal, exporters: "viewers" })), "permission.no_grant");
 });
 

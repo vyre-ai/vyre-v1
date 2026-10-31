@@ -616,6 +616,7 @@ function audienceOf(res: ResourceRec): Audience {
 
 function exportersOf(store: AccessStore, res: ResourceRec): Exporters {
   if (res.row?.["exportViewers"] === true) return "viewers";
+  if (res.row?.["exportChosen"] === true) return "chosen";
   for (const g of store.grants.values()) if (g.resource.id === res.id && g.conditions.export === true) return "chosen";
   return "admins";
 }
@@ -649,7 +650,9 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
     if (input.audience === "me" && res.ownerId !== ctx.principal.id) addGrant(ctx, store, res, { kind: "person", id: ctx.principal.id }, "manage");
   }
   if (input.exporters !== undefined) {
+    // chosen people is a choice of its own, so it holds before anyone is chosen
     if (input.exporters === "viewers") row["exportViewers"] = true; else delete row["exportViewers"];
+    if (input.exporters === "chosen") row["exportChosen"] = true; else delete row["exportChosen"];
     if (input.exporters === "admins") {
       for (const g of store.grants.values()) if (g.resource.id === res.id && g.conditions.export) {
         delete g.conditions.export;
