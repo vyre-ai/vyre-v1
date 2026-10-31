@@ -2208,7 +2208,9 @@ export function stubs(ctx: CallCtx) {
       open_server: call("terminal.open_server"),
       read: call("terminal.read"),
       rename: call("terminal.rename"),
+      request: call("terminal.request"),
       resize: call("terminal.resize"),
+      risk: call("terminal.risk"),
       rules: {
         get: call("terminal.rules.get"),
         set: call("terminal.rules.set"),

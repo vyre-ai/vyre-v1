@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (16)
+## Capabilities (18)
 
 - [terminal.attach](../capabilities/terminal.attach.md): Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands
 - [terminal.close](../capabilities/terminal.close.md): Close a session and kill its tmux session
@@ -17,7 +17,9 @@ Requires: nothing.
 - [terminal.open_server](../capabilities/terminal.open_server.md): Open a shell on the Space server (needs server.services; locked state with Ask for access otherwise)
 - [terminal.read](../capabilities/terminal.read.md): Read the scrollback of a session (secrets already scrubbed)
 - [terminal.rename](../capabilities/terminal.rename.md): Name a session so it can be found and starred (leftover scripts become named sessions)
+- [terminal.request](../capabilities/terminal.request.md): Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you
 - [terminal.resize](../capabilities/terminal.resize.md): Resize the terminal window
+- [terminal.risk](../capabilities/terminal.risk.md): What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks
 - [terminal.rules.get](../capabilities/terminal.rules.get.md): Your allow, ask and deny rules and the folders the terminal is locked to
 - [terminal.rules.set](../capabilities/terminal.rules.set.md): Change your allow, ask and deny rules and the extra folders (a Personal Space terminal is locked to its own folder plus these)
 - [terminal.run](../capabilities/terminal.run.md): Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns
