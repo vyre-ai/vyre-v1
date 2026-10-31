@@ -6,4 +6,4 @@ Agents and people read PDF, Word, Excel and PowerPoint files from a mounted fold
 
 A file from a connected folder opens in the app it lives in: the row menu and the viewer show Open in Google Docs, Google Sheets, Google Slides, Word, Excel, PowerPoint or Dropbox, and the press asks the provider for the file's current address, so a person who cannot open the file there gets no link. A Dropbox mount is live like the other cloud mounts: the tree and each file's revision arrive first, content is fetched when the file is opened or an agent reads it, Dropbox's history is the file's history, and a Dropbox change notice wakes the mounts on that account.
 
-A Dropbox mount keeps syncing when nobody is signed in: the Dropbox sign-in token is a Space-only Shared Vault item, like the Google and Microsoft credentials, not a Mine item that opens only for its owner's session.
+A Dropbox mount keeps syncing when nobody is signed in: the Dropbox sign-in token is sealed in the Dropbox module's own table, not in the Vault, so no member, admin or agent can list, reveal, copy or fill it, and a scheduled pass can still use it.

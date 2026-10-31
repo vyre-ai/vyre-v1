@@ -55,7 +55,7 @@ export function harness(o: Options = {}) {
   const requests: Seen[] = [];
   const scripted = new Map<string, Reply[]>();
   const scripts = new Map<string, Script>();
-  const tokenAsks: { refreshHandle: string; asker?: string; fresh?: boolean }[] = [];
+  const tokenAsks: { cacheKey: string; refreshToken: string; fresh?: boolean }[] = [];
   const uploads: { token: string; arg: Record<string, unknown>; fileId: string }[] = [];
   const downloads: { token: string; arg: Record<string, unknown>; mime?: string }[] = [];
   const transfer: { upload: { status: number; json: Record<string, unknown> }[]; download: { status: number; json: Record<string, unknown>; size?: number }[] } = { upload: [], download: [] };
@@ -76,7 +76,7 @@ export function harness(o: Options = {}) {
       return { refreshToken: REFRESH, accessToken: ACCESS, expiresAt: clock + 14_400_000, accountId: RECORDED.account.account_id };
     },
     async token(_ctx, a) {
-      tokenAsks.push({ refreshHandle: a.refreshHandle, ...(a.asker ? { asker: a.asker } : {}), ...(a.fresh ? { fresh: true } : {}) });
+      tokenAsks.push({ cacheKey: a.cacheKey, refreshToken: a.refreshToken, ...(a.fresh ? { fresh: true } : {}) });
       return { token: `tok-${++tokenSeq}`, expiresAt: clock + 14_400_000 };
     },
     async upload(_ctx, a) {
@@ -117,6 +117,11 @@ export function harness(o: Options = {}) {
     trace: { traceId: TRACE },
     now: () => clock,
     db: memoryDb(),
+    // a stand-in for the Space seal: not readable as text, and bound to its scope
+    seal: {
+      seal: (v, scope) => ({ keyId: "k1", nonce: scope, bytes: Buffer.from(Uint8Array.from(v, (b) => b ^ 0x5a)).toString("base64") }),
+      unseal: (x) => Uint8Array.from(Buffer.from(x.bytes, "base64"), (b) => b ^ 0x5a),
+    },
     authorize: () => ({ effect: o.allow === false ? "deny" : "allow", reason: "test", decisionId: "dec_1" }),
     emit(name, subject, payload) {
       const e = frozen().events?.find((x) => x.name === name);
@@ -177,8 +182,8 @@ export function harness(o: Options = {}) {
       const connectionId = over.connectionId ?? "con_dbx0001";
       const ownerKind = over.ownerKind ?? "person";
       ctx.db.run(
-        `INSERT INTO dropbox_account ("connectionId", "ownerKind", "ownerId", "accountId", "email", "name", "refreshHandle", "refreshItem", "created_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        connectionId, ownerKind, over.ownerId ?? (ownerKind === "space" ? "space" : MAYA), RECORDED.account.account_id, RECORDED.account.email, "Maya Rivera", "#Dropbox_tok0", "vit_dbx0", NOW,
+        `INSERT INTO dropbox_account ("connectionId", "ownerKind", "ownerId", "accountId", "email", "name", "refreshSealed", "created_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        connectionId, ownerKind, over.ownerId ?? (ownerKind === "space" ? "space" : MAYA), RECORDED.account.account_id, RECORDED.account.email, "Maya Rivera", JSON.stringify(ctx.seal.seal(new TextEncoder().encode(REFRESH), "dropbox.refresh")), NOW,
       );
       return connectionId;
     },

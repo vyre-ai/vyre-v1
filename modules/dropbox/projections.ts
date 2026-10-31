@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../host/src/routes/errors.ts";
 import { isTrustedService } from "../../lib/trust.ts";
+import type { Sealed } from "../../packages/contracts/src/ctx.ts";
 
 export interface DropboxDb {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -17,6 +18,7 @@ export interface DropboxCtx {
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string;
   trace: { traceId: string };
+  seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
   authorize(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
   now(): number;
   db: DropboxDb;
@@ -40,8 +42,8 @@ export interface DropboxHost {
   publicUrl(ctx: DropboxCtx): Promise<string>;
   /** Trade the sign-in code for tokens (PKCE: the verifier proves it is the same server). */
   exchange(ctx: DropboxCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number; accountId?: string }>;
-  /** An access token made from the refresh token under a Vault handle (a Shared item, so a pass with nobody signed in can read it). Cached by the host until a minute before it ends. */
-  token(ctx: DropboxCtx, a: { appHandle: string; refreshHandle: string; asker?: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
+  /** An access token made from the account's refresh token. Cached by the host under `cacheKey` (the connection id, never the token) until a minute before it ends. */
+  token(ctx: DropboxCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
   /** POST a file's bytes: the Space file goes to content.dropboxapi.com/2/files/upload with the arguments in Dropbox-API-Arg. Answers the status and the JSON. */
   upload(ctx: DropboxCtx, a: { token: string; arg: Json; fileId: string }): Promise<{ status: number; json: Json }>;
   /** Download a file's bytes (content.dropboxapi.com/2/files/download) into a blob. A non-2xx answer comes back as status and json, with no blob. */
@@ -64,8 +66,6 @@ export const API = "https://api.dropboxapi.com/2";
 export const NOTIFY = "https://notify.dropboxapi.com/2";
 export const AUTHORIZE = "https://www.dropbox.com/oauth2/authorize";
 export const SCOPES = ["account_info.read", "files.metadata.read", "files.metadata.write", "files.content.read", "files.content.write"] as const;
-/** The Vault folder both kinds of connection keep their refresh token in. */
-export const FOLDER_NAME = "Connections";
 
 // ---- readers
 
@@ -145,11 +145,11 @@ export function needConfig(ctx: DropboxCtx): { vaultItem: string; appKey: string
 
 // ---- accounts
 
-export interface Account { connectionId: string; ownerKind: "person" | "space"; ownerId: string; accountId: string; email: string | null; name: string | null; refreshHandle: string; refreshItem: string }
+export interface Account { connectionId: string; ownerKind: "person" | "space"; ownerId: string; accountId: string; email: string | null; name: string | null; refreshSealed: string }
 
 const accountOfRow = (r: Row): Account => ({
   connectionId: str(r, "connectionId"), ownerKind: str(r, "ownerKind") === "space" ? "space" : "person", ownerId: str(r, "ownerId"), accountId: str(r, "accountId"),
-  email: strOrNull(r, "email"), name: strOrNull(r, "name"), refreshHandle: str(r, "refreshHandle"), refreshItem: str(r, "refreshItem"),
+  email: strOrNull(r, "email"), name: strOrNull(r, "name"), refreshSealed: str(r, "refreshSealed"),
 });
 
 /** Whether the caller may use the connection: a person's own is theirs alone (and the host's own services act for them), a Space's is open to every member. */
@@ -176,7 +176,9 @@ export function accountOf(ctx: DropboxCtx, connectionId: string): Account {
 /** An access token for the connection. */
 export async function tokenFor(ctx: DropboxCtx, a: Account, fresh = false): Promise<string> {
   const { vaultItem } = needConfig(ctx);
-  const t = await needHost(ctx).token(ctx, { appHandle: vaultItem, refreshHandle: a.refreshHandle, ...(fresh ? { fresh: true } : {}) });
+  // The refresh token is sealed in this module's own table. It is opened here for one call and handed to the host to make an access token; no capability answers with it and it is in no Vault item.
+  const refreshToken = new TextDecoder().decode(ctx.seal.unseal(JSON.parse(a.refreshSealed) as Sealed));
+  const t = await needHost(ctx).token(ctx, { appHandle: vaultItem, refreshToken, cacheKey: a.connectionId, ...(fresh ? { fresh: true } : {}) });
   return t.token;
 }
 

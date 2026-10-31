@@ -71,35 +71,34 @@ test("dropbox: exchange refuses a refused code, an answer with no refresh token,
   await assert.rejects(createDropboxHost(w.deps).exchange(w.ctx, { appHandle: "#Dropbox_App", code: "c", verifier: "v", redirectUri: "https://x/cb" }), code("provider.bad_response"));
 });
 
-test("dropbox: token refreshes from the Vault item (as the asker), is kept until the last minute, and fresh asks again", async () => {
+test("dropbox: token makes an access token from the refresh token it is handed, keeps it by connection until the last minute, and fresh asks again", async () => {
   const w = world({ replies: [
     { status: 200, body: '{"access_token":"acc-1","expires_in":14400}' }, { status: 200, body: '{"access_token":"acc-2","expires_in":14400}' }, { status: 200, body: '{"access_token":"acc-3","expires_in":14400}' },
     { status: 200, body: '{"access_token":"acc-4","expires_in":14400}' },
   ] });
   const h = createDropboxHost(w.deps);
-  const a = { appHandle: "#Dropbox_App", refreshHandle: "#Token_Maya", asker: "usr_maya0001" };
+  const a = { appHandle: "#Dropbox_App", refreshToken: "refresh-1", cacheKey: "con_maya" };
   assert.deepEqual(await h.token(w.ctx, a), { token: "acc-1", expiresAt: NOW + 14_400_000 });
   const f = form(w.sent[0]!.body);
   assert.deepEqual([f.get("grant_type"), f.get("refresh_token"), f.get("client_id")], ["refresh_token", "refresh-1", "key-1"]);
-  assert.ok(w.asked.some((x) => x.handle === "#Token_Maya" && x.asker === "usr_maya0001"), "a person's own item is read as that person");
+  assert.ok(w.asked.every((x) => !x.handle.startsWith("#Token")) && w.asked.every((x) => x.asker === undefined), "the Vault is asked only for the app's key and secret, and never as a person");
   assert.equal((await h.token(w.ctx, a)).token, "acc-1");
   assert.equal(w.sent.length, 1, "cached");
   assert.equal((await h.token(w.ctx, { ...a, fresh: true })).token, "acc-2");
   w.advance(14_400_000 - 30_000);
   assert.equal((await h.token(w.ctx, a)).token, "acc-3", "asked again inside the last minute");
-  assert.equal((await h.token(w.ctx, { ...a, asker: "usr_other" })).token, "acc-4", "another asker has its own entry");
+  assert.equal((await h.token(w.ctx, { ...a, cacheKey: "con_other" })).token, "acc-4", "another connection has its own entry");
 });
 
-test("dropbox: a lost sign-in, a bad handle and a refused refresh all ask the person to connect again", async () => {
-  const gone = world({ items: { "#Dropbox_App.app_key": "k" } });
-  await assert.rejects(createDropboxHost(gone.deps).token(gone.ctx, { appHandle: "#Dropbox_App", refreshHandle: "#Token_Maya" }), code("provider.auth_failed"));
+test("dropbox: a lost sign-in and a refused refresh both ask the person to connect again", async () => {
+  const h0 = world({ items: { "#Dropbox_App.app_key": "k" } });
+  await assert.rejects(createDropboxHost(h0.deps).token(h0.ctx, { appHandle: "#Dropbox_App", refreshToken: "", cacheKey: "c" }), code("provider.auth_failed"));
   const w = world({ replies: [{ status: 400, body: '{"error":"invalid_grant"}' }, { status: 503 }, { status: 429 }] });
   const h = createDropboxHost(w.deps);
-  const a = { appHandle: "#Dropbox_App", refreshHandle: "#Token_Maya" };
+  const a = { appHandle: "#Dropbox_App", refreshToken: "r", cacheKey: "c" };
   await assert.rejects(h.token(w.ctx, a), code("provider.auth_failed"));
   await assert.rejects(h.token(w.ctx, a), code("provider.unavailable"));
   await assert.rejects(h.token(w.ctx, a), code("provider.rate_limited"));
-  await assert.rejects(h.token(w.ctx, { ...a, refreshHandle: "Token_Maya" }), code("validation.bad_input"));
 });
 
 test("dropbox: upload sends the Space file's bytes with the arguments in Dropbox-API-Arg, written as ASCII", async () => {
