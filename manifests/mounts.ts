@@ -22,7 +22,8 @@ const mountRow = t.obj({
   state: t.enm('idle', 'syncing', 'paused', 'failing', 'device_offline'), mode, reviewChanges: t.bool(),
   lagSeconds: t.opt(t.int({ minimum: 0 })), lastSyncAt: t.opt(t.ts()), pendingChanges: t.int({ minimum: 0 }), conflicts: t.int({ minimum: 0 }),
   fromDevice: t.opt(t.str({ examples: ["Irfad's MacBook"] })), error: t.opt(t.str()),
-  live: t.opt(t.bool({ description: 'Changes arrive on their own (a push channel, or an app polling every 30 s); false reads as Synced <lastSyncAt>' })), liveVia: t.opt(t.enm('push', 'poll')),
+  // live: changes arrive on their own (a push channel, or an app polling every 30 s); false reads as Synced <lastSyncAt>
+  live: t.opt(t.bool()), liveVia: t.opt(t.enm('push', 'poll')),
 });
 
 const fileSource = t.obj({

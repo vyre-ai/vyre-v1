@@ -19,5 +19,5 @@ test("a card with no rows or a key in a row is refused", async () => {
   const h = harness({ calls: { "chat.post": () => ({ message: { messageId: "x" } }) } });
   const ctx = h.ctxFor("automations.connector_card", alice);
   await assert.rejects(connectorCard(ctx, { threadId: "thr_1", title: "t", items: [] }));
-  await assert.rejects(connectorCard(ctx, { threadId: "thr_1", title: "t", items: [{ text: "Authorization: Bearer sk_live_abcdefghijklmnop123456", done: true }] }));
+  await assert.rejects(connectorCard(ctx, { threadId: "thr_1", title: "t", items: [{ text: "Authorization: Bearer sk_live_abcdefghijklmnop123456", done: true }] }));   // secret-scan: fake
 });
