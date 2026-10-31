@@ -111,7 +111,7 @@ export function Banner({ summary, right, testID }: { summary: Summary; right?: R
   return (
     <View style={s.banner} testID={testID ?? "suite-status"} accessibilityRole="summary">
       <Dot tone={summary.tone} size={9} label={summary.tone === "ok" ? "Healthy" : "Needs attention"} />
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ flex: 1, minWidth: 160 }}>
         <Text style={s.bannerTitle}>{summary.title}</Text>
         <Text style={s.bannerLine}>{summary.line}</Text>
       </View>
@@ -208,7 +208,7 @@ export function Directory({ people, picked, links, busy, onLoad, onToggle, onInv
 export function StepsCard({ children }: { children: ReactNode }): ReactElement { return <View style={s.steps}>{children}</View>; }
 
 const s = StyleSheet.create({
-  banner: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, marginBottom: 22 },
+  banner: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, marginBottom: 22 },
   bannerTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   bannerLine: { fontSize: 12.5, color: "var(--ink-3)" as string, marginTop: 2 },
   state: { fontSize: 12.5 },

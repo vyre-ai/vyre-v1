@@ -6,7 +6,7 @@ import {ObjectPage,ObjectSection,withBaseTabs} from "../../../../../ui/src/Objec
 import {Row} from "../../../../../ui/src/Row/index.tsx";
 import {ObjectList} from "../objects/ObjectList.tsx";
 import {useConsoleData} from "../shell/data.tsx";
-import {Group} from "../shell/ui.tsx";
+import { Empty,Group} from "../shell/ui.tsx";
 import {SecuritySheet} from "../../places/settings/SecuritySheet.tsx";
 import { Help, Actions,Button,Field,Note,ReadState,Select,useAction,useRead} from "./shared.tsx";
 import {SsoSections} from "./SsoSections.tsx";
@@ -73,5 +73,5 @@ function PublicLinks({editing=false,onSaved}:{editing?:boolean;onSaved?:()=>void
 }
 function PolicyActivity({id}:{id:string}):ReactElement{
  const data=useConsoleData();const query=useRead<AuditListOut>("audit.list",{target:{kind:"policy",id},limit:50});const[more,setMore]=useState<AuditListOut|null>(null);const[busy,setBusy]=useState(false);const[error,setError]=useState("");if(!query.data)return <ReadState error={query.error} retry={query.refresh}/>;const rows=[...query.data.rows,...(more?.rows??[])];const next=more?more.next:query.data.next;
- return <ObjectSection title="Activity"><Group>{rows.map(row=><Row key={row.id} title={row.action.replace(/[._]/g," ")} note={`${data.name(row.actor.id)===row.actor.id?"Policy manager":data.name(row.actor.id)} · ${new Date(row.at).toLocaleString()}`}/>)}</Group>{!rows.length?<Note>No recorded changes to this policy.</Note>:null}{next?<Button label="Load earlier activity" disabled={busy} onPress={()=>{setBusy(true);void data.call("audit.list",{target:{kind:"policy",id},cursor:next,limit:50}).then(value=>{const out=value as AuditListOut;setMore({...out,rows:[...(more?.rows??[]),...out.rows]});},()=>setError("Couldn’t load earlier activity.")).finally(()=>setBusy(false));}}/>:null}{error?<Note>{error}</Note>:null}</ObjectSection>;
+ return <ObjectSection title="Activity"><Group>{rows.map(row=><Row key={row.id} title={row.action.replace(/[._]/g," ")} note={`${data.name(row.actor.id)===row.actor.id?"Policy manager":data.name(row.actor.id)} · ${new Date(row.at).toLocaleString()}`}/>)}</Group>{!rows.length?<Empty icon="doc">No recorded changes to this policy</Empty>:null}{next?<Button label="Load earlier activity" disabled={busy} onPress={()=>{setBusy(true);void data.call("audit.list",{target:{kind:"policy",id},cursor:next,limit:50}).then(value=>{const out=value as AuditListOut;setMore({...out,rows:[...(more?.rows??[]),...out.rows]});},()=>setError("Couldn’t load earlier activity.")).finally(()=>setBusy(false));}}/>:null}{error?<Note>{error}</Note>:null}</ObjectSection>;
 }

@@ -4,7 +4,7 @@ import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/ObjectPage/index.tsx";
-import { Group, Section } from "../shell/ui.tsx";
+import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
@@ -156,7 +156,7 @@ function PersonObject({ person, roles, groups, onBack, refresh }: { person: Pers
         </View>
         {effective.data.grants.map((grant) => <Row key={grant.id} id={`person-grant-${grant.id}`} title={names.resource(grant.resource)} note={`${grant.level} · direct grant`} />)}
         {effective.data.owns.map((own) => <Row key={`${own.type}:${own.id}`} id={`person-owns-${own.id}`} title={names.resource(own)} note="Owns" />)}
-        {effective.data.grants.length + effective.data.owns.length === 0 ? <Note>No direct grants and nothing owned. Access comes from roles and groups.</Note> : null}
+        {effective.data.grants.length + effective.data.owns.length === 0 ? <Empty icon="doc">No direct grants and nothing owned</Empty> : null}
       </> : <ReadState error={effective.error} retry={effective.refresh} />}
     </ObjectSection>;
   } else if (tab === "groups") {
@@ -171,12 +171,12 @@ function PersonObject({ person, roles, groups, onBack, refresh }: { person: Pers
     body = <ObjectSection title="Devices" count={live.length} testID="person-devices">
       {devices.data ? <>
         {live.map((device) => <Row key={device.id} id={`person-device-${device.id}`} title={device.name} note={`${device.class}${device.lastSeenAt ? ` · last seen ${new Date(device.lastSeenAt).toLocaleString()}` : ""}${device.location ? ` · ${device.location}` : ""}`} trailing={revoking === device.id ? <Actions><Button label="Cancel" onPress={() => setRevoking(null)} /><Button label="Confirm revoke" testID={`person-device-revoke-confirm-${device.id}`} danger disabled={action.busy} onPress={() => void action.run("devices.revoke", { deviceId: device.id }, "Device revoked").then(() => setRevoking(null))} /></Actions> : <Button label="Revoke…" onPress={() => setRevoking(device.id)} />} />)}
-        {live.length === 0 ? <Note>No signed-in devices.</Note> : <Help>Revoking ends the device’s sessions and purges its local copy on next contact.</Help>}
+        {live.length === 0 ? <Empty icon="doc">No signed-in devices</Empty> : <Help>Revoking ends the device’s sessions and purges its local copy on next contact.</Help>}
       </> : <ReadState error={devices.error} retry={devices.refresh} />}
       {action.note ? <Note>{action.note}</Note> : null}
     </ObjectSection>;
   } else if (tab === "activity") {
-    body = <ObjectSection title="Activity" count={activity.data?.rows.length ?? 0}>{activity.data ? (activity.data.rows.length ? activity.data.rows.map((row) => <Row key={row.id} id={`person-activity-${row.id}`} title={row.action} note={`${row.class} · ${new Date(row.at).toLocaleString()}`} />) : <Note>No recorded activity for this person.</Note>) : <ReadState error={activity.error} retry={activity.refresh} />}</ObjectSection>;
+    body = <ObjectSection title="Activity" count={activity.data?.rows.length ?? 0}>{activity.data ? (activity.data.rows.length ? activity.data.rows.map((row) => <Row key={row.id} id={`person-activity-${row.id}`} title={row.action} note={`${row.class} · ${new Date(row.at).toLocaleString()}`} />) : <Empty icon="doc">No recorded activity for this person</Empty>) : <ReadState error={activity.error} retry={activity.refresh} />}</ObjectSection>;
   } else {
     body = <View testID="person-overview"><Section title="Roles"><PersonRoles personId={person.id} /></Section><PersonLifecycle personId={person.id} refresh={refresh} /></View>;
   }

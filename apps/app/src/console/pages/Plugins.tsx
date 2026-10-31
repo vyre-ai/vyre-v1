@@ -6,8 +6,8 @@ import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
-import { Group, Section } from "../shell/ui.tsx";
-import { Help,  Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Empty, Group, Section } from "../shell/ui.tsx";
+import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { Tick } from "./ai-controls.tsx";
 
 type Markets = CapMap["plugins.marketplaces.list"]["out"];
@@ -30,6 +30,7 @@ export function PluginsPage(): ReactElement {
   const [q, setQ] = useState("");
   const browse = useRead<Browse>("plugins.browse", { ...(marketId ? { marketplaceId: marketId } : {}), ...(q.trim() ? { q: q.trim() } : {}) });
   const [source, setSource] = useState("");
+  const [addingMarket, setAddingMarket] = useState(false);
   const [target, setTarget] = useState("space");
   const [openPlugin, setOpenPlugin] = useState<string | null>(null);
   const [config, setConfig] = useState<Record<string, string>>({});
@@ -46,22 +47,22 @@ export function PluginsPage(): ReactElement {
   return <View testID="console-plugins">
     {action.note ? <Note>{action.note}</Note> : null}
     <Help>Skills, commands and tools for agents. They run in the agent's sandbox.</Help>
-    <Section title="Marketplaces" count={markets.data.marketplaces.length}><Group>
-      {markets.data.marketplaces.length === 0 ? <Row id="mk-none" title="No marketplace yet" note="Add a git address (https) or a folder on this server that holds .claude-plugin/marketplace.json." /> : markets.data.marketplaces.map((m) =>
+    <Section title="Marketplaces" count={markets.data.marketplaces.length} right={<Button label="Add marketplace" testID="mk-new" onPress={() => setAddingMarket(true)} />}><Group>
+      {markets.data.marketplaces.length === 0 ? <Empty icon="plug" action={{ label: "Add marketplace", onPress: () => setAddingMarket(true) }}>No marketplace yet</Empty> : markets.data.marketplaces.map((m) =>
         <Row key={m.marketplaceId} id={`mk-${m.name}`} title={m.name} note={`${n(m.plugins, "plugin")} · ${m.owner} · ${m.allowed ? "Allowed" : "Not allowed"}${m.warnings.length ? ` · ${n(m.warnings.length, "warning")}` : ""}`}
           onPress={() => setMarketId(marketId === m.marketplaceId ? null : m.marketplaceId)}
           trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{m.allowed ? "Allowed" : "Not allowed"}</Text><Tick label={`Allow ${m.name}`} checked={m.allowed} disabled={action.busy} onChange={(on) => void action.run("plugins.allow.set", { kind: "marketplace", marketplace: m.name, allowed: on, idempotencyKey: attempt() }, on ? "Marketplace allowed" : "Marketplace no longer allowed")} /></View>} />)}
     </Group>
       {market ? <Actions><Button label="Fetch again" disabled={action.busy} onPress={() => void action.run("plugins.marketplace.refresh", { marketplaceId: market.marketplaceId, idempotencyKey: attempt() }, "Marketplace updated")} /><Button label="Remove marketplace" danger disabled={action.busy} onPress={() => void action.run("plugins.marketplace.remove", { marketplaceId: market.marketplaceId, idempotencyKey: attempt() }, "Marketplace removed").then(() => setMarketId(null))} /></Actions> : null}
-      <Group>
+      {addingMarket ? <FormSheet title="Add a marketplace" testID="market-sheet" submit="Add marketplace" onClose={() => setAddingMarket(false)} disabled={action.busy || source.trim() === ""} why={source.trim() === "" ? "Add a source first" : undefined} note="A git address (https) or a folder on this server that holds .claude-plugin/marketplace.json"
+        onSubmit={() => void action.run("plugins.marketplace.add", { source: source.trim(), idempotencyKey: attempt() }, (out: { marketplace: { name: string } }) => `${out.marketplace.name} added and allowed`).then((out) => { if (out) { setSource(""); setAddingMarket(false); } })}>
         <Field label="Git address or folder" testID="mk-source" value={source} onChange={setSource} />
-        <Actions><Button label="Add marketplace" testID="mk-add" disabled={action.busy || source.trim() === ""} why={source.trim()===""?"Add a source first":undefined} onPress={() => void action.run("plugins.marketplace.add", { source: source.trim(), idempotencyKey: attempt() }, (out: { marketplace: { name: string } }) => `${out.marketplace.name} added and allowed`).then((out) => { if (out) setSource(""); })} /></Actions>
-      </Group>
+      </FormSheet> : null}
     </Section>
     <Section title="Plugins to install" count={browse.data?.total ?? ""}><Group>
       <Field label="Search" value={q} onChange={setQ} />
       <Select label="Install into" value={target} options={agentOptions} onChange={setTarget} />
-      {!browse.data ? <ReadState error={browse.error} retry={browse.refresh} /> : browse.data.plugins.length === 0 ? <Row id="pl-none" title="Nothing to install" note="Add a marketplace first." /> : browse.data.plugins.map((p) => {
+      {!browse.data ? <ReadState error={browse.error} retry={browse.refresh} /> : browse.data.plugins.length === 0 ? <Empty icon="plug">Nothing to install yet</Empty> : browse.data.plugins.map((p) => {
         const here = p.installed.some((i) => (target === "space" ? i.scope === "space" : i.agentId === target));
         return <Row key={`${p.marketplaceId}:${p.name}`} id={`browse-${p.name}`} title={p.name} note={`${p.description ?? "No description"} · ${p.marketplace}${p.allowed ? "" : " · Not allowed"}`}
           trailing={here ? <Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Installed</Text> : <Button label="Install" testID={`install-${p.name}`} disabled={action.busy || !p.allowed} why={!p.allowed?"Blocked by policy":undefined} onPress={() => install(p.marketplaceId, p.name)} />} />;

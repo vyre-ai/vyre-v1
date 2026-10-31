@@ -79,3 +79,39 @@ test("on a phone the page title is the way to another page, and the Space name i
   const desk = shell(1280);
   assert.ok(desk.includes('data-testid="console-nav"') && !desk.includes('data-testid="console-pages"') && desk.includes(">Console<"));
 });
+
+test("Stepper nudges a whole number and keeps it inside its bounds", async () => {
+  const { createRoot } = await import("test-renderer");
+  const dom = await import("../../../../../ui/src/testing/dom.ts");
+  const { Stepper } = await import("../pages/shared.tsx");
+  const restore = dom.installDom();
+  try {
+    let value = 8;
+    const root = await dom.mount(createRoot, <ConsoleDataProvider value={createSampleConsole().data}><Stepper label="Tab limit" help="How many tabs" value={value} onChange={(n) => { value = n; }} max={9} /></ConsoleDataProvider>);
+    await dom.press(dom.find(root, "step-up"));
+    assert.equal(value, 9);
+    assert.ok(hasTip(root, "How many tabs"), "the tooltip explains it");
+  } finally { restore(); }
+});
+
+test("Provision computer: agents are rows you tap, not a Select button each, and the primary says why it is off", async () => {
+  const rows = {
+    "computers.list": { computers: [] },
+    "agents.list": { agents: [{ agentId: "agt_docs", name: "Docs", status: "active", hasComputer: false, ownerId: "usr_irfad", folderId: "f" }, { agentId: "agt_intake", name: "Intake", status: "active", hasComputer: true, ownerId: "usr_irfad", folderId: "f" }] },
+    "computers.health": { state: "healthy", runtime: "docker", awake: 0, asleep: 0 },
+  };
+  const { AgentComputers } = await import("../pages/Agents.tsx");
+  const out = await openSheet(<AgentComputers />, rows, "computer-new");
+  assert.ok(out.find("row-provision-agent-agt_docs"), "an agent is a row");
+  assert.ok(!out.text.includes("Select"), "no Select button");
+  assert.ok(hasTip(out.root, "Pick an agent"), "Provision says why it is off");
+  const { pickRow } = await import("../pages/shared.tsx");
+  let tapped = 0;
+  const props = pickRow({ id: "r", title: "Docs", picked: false, onPress: () => { tapped++; } });
+  props.onPress();
+  assert.equal(tapped, 1, "a tap picks");
+  pickRow({ id: "r", title: "Docs", picked: false, disabled: true, onPress: () => { tapped++; } }).onPress();
+  assert.equal(tapped, 1, "a disabled row ignores the tap");
+  assert.ok(pickRow({ id: "r", title: "Docs", picked: true, onPress: () => undefined }).trailing, "a picked row shows its check");
+  assert.equal(pickRow({ id: "r", title: "Docs", picked: false, onPress: () => undefined }).trailing, null);
+});

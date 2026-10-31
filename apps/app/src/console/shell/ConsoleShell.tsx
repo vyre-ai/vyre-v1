@@ -21,7 +21,8 @@ import type { ConsoleData } from "./data.tsx";
 import { Dot, Glyph } from "./glyphs.tsx";
 import { DEFAULT_PAGE, GROUPS, PAGES, pageById, visiblePages } from "./nav.ts";
 import type { PageDef } from "./nav.ts";
-import { Lead, pointer } from "./ui.tsx";
+import { Lead, PageHelpContext, pointer } from "./ui.tsx";
+import { Info } from "../../../../../ui/src/Tip/index.tsx";
 import { openOnboarding } from "../../onboarding/store.ts";
 
 export const TOP_BAR_HEIGHT = 44;
@@ -87,6 +88,8 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const searchBtn = useRef<unknown>(null);
   const skinBtn = useRef<unknown>(null);
   const pagesBtn = useRef<unknown>(null);
+  const [pageHelps, setPageHelps] = useState<readonly string[]>([]);
+  const registerHelp = useCallback((text: string) => { setPageHelps((h) => [...h, text]); return () => setPageHelps((h) => h.filter((x) => x !== text)); }, []);
   const pages = visiblePages(data.can, data.allowedScreens);
   const def = pageById(page) ?? PAGES[0]!;
 
@@ -202,10 +205,11 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
                 <Text accessibilityRole="header" aria-level={1} style={s.title}>{def.title}</Text><Glyph name="chevD" size={12} color="var(--ink-3)" />
               </Pressable>
             ) : <Text accessibilityRole="header" aria-level={1} style={s.title}>{def.title}</Text>}
+            {pageHelps.length ? <Info help={pageHelps.join(" ")} testID="page-help" /> : null}
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}>
             <View style={def.id === "audit" ? s.wide : s.column}>
-              <ShellDataGate value={shellData}>{body}</ShellDataGate>
+              <PageHelpContext.Provider value={registerHelp}><ShellDataGate value={shellData}>{body}</ShellDataGate></PageHelpContext.Provider>
             </View>
           </ScrollView>
         </View>
@@ -245,7 +249,7 @@ const s = StyleSheet.create({
   groupTitle: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string },
   main: { flex: 1, minWidth: 0 },
   pages: { flexDirection: "row", alignItems: "center", gap: 6, height: 32 },
-  head: { height: 48, justifyContent: "center", paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  head: { height: 48, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
   content: { padding: 24, alignItems: "center", flexGrow: 1 },
   column: { width: "100%", maxWidth: 960 },
