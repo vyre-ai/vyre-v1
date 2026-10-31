@@ -39,6 +39,30 @@ const PAGE_PROBE: &str = r#"(function () {
   }, 2000);
 })();"#;
 
+/// Run in the page after every load: a link that leaves the app (window.open, or an anchor to another site) opens in the default browser through open_link.
+/// The webview opens no windows of its own, so without this a button like "Open the sign-in" does nothing.
+const EXTERNAL_LINKS: &str = r#"(function () {
+  var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+  if (!inv || window.__vyreLinks) return;
+  window.__vyreLinks = true;
+  function outside(raw) {
+    try { var u = new URL(String(raw), location.href); return (u.protocol === "https:" || u.protocol === "http:") && u.origin !== location.origin ? u.href : null; } catch (e) { return null; }
+  }
+  var own = window.open;
+  window.open = function (url) {
+    var href = outside(url);
+    if (href) { inv("open_link", { url: href }).catch(function (e) { inv("page_report", { kind: "link", text: String(e) }); }); return null; }
+    return own ? own.apply(window, arguments) : null;
+  };
+  document.addEventListener("click", function (e) {
+    var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+    var href = a ? outside(a.getAttribute("href")) : null;
+    if (!href || e.defaultPrevented) return;
+    e.preventDefault();
+    inv("open_link", { url: href });
+  }, true);
+})();"#;
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -136,6 +160,7 @@ pub fn run() {
         .on_page_load(|webview, payload| {
             if let tauri::webview::PageLoadEvent::Finished = payload.event() {
                 let _ = webview.eval(PAGE_PROBE);
+                let _ = webview.eval(EXTERNAL_LINKS);
                 if std::env::var("VYRE_SHELL_BANNER").is_ok() {
                     let _ = webview.eval(BANNER);
                 }
@@ -160,6 +185,7 @@ pub fn run() {
             commands::ensure_mac_server,
             commands::take_pending_link,
             commands::page_report,
+            commands::open_link,
             updater::check_desktop_update,
             updater::install_desktop_update,
             native::notify,
