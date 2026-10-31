@@ -18,7 +18,7 @@ import type { SandboxPlan } from "./sandbox.ts";
 /** One MCP server as `plugins.mcp.servers` describes it. */
 export interface ServerSpec {
   key: string; name: string; from: "plugin" | "connection"; pluginId?: string; transport: "stdio" | "http" | "sse" | "ws";
-  command?: string; args: string[]; env: Record<string, string>; url?: string; headers: Record<string, string>; files?: string; needs: string[];
+  command?: string; args: string[]; env: Record<string, string>; url?: string; headers: Record<string, string>; files?: string; needs: string[]; hub?: string; oauth?: boolean; connectionId?: string;
 }
 /** One hook as `plugins.hooks.list` describes it. */
 export interface HookSpec { pluginId: string; plugin: string; event: string; matcher: string; command: string; args: string[]; timeoutSec?: number }
@@ -35,6 +35,8 @@ export interface PluginRuntimeDeps {
   reportMiss?: VaultRunDeps["reportMiss"];
   /** The fetch for remote servers: the network guard's, so a private address is refused. */
   fetch?: FetchPort;
+  /** Signs a remote server in with OAuth when its connection says so (modules/engine/mcp-oauth.ts). */
+  oauth?: { token(connectionId: string, fresh?: boolean): Promise<string | undefined> };
   /** Replaces the process launcher (tests). */
   launch?: (argv: readonly string[], start: { env: Record<string, string>; cwd: string }) => Promise<CliProcess>;
   now?: () => number;
@@ -49,6 +51,8 @@ export class PluginError extends Error {
 
 interface Live { client: McpClient; secrets: Secret[]; last: number; spec: string }
 const HOOK_OUT = 64_000;
+/** The server answered 401: its token ended or was withdrawn. */
+const refused = (e: unknown): boolean => e instanceof Error && /answered 401/.test(e.message);
 const hash = (s: string): string => {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
@@ -103,7 +107,7 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
     return createLocalLauncher({ wrap: sandboxWrap(plan) }).spawn({ argv, env, cwd });
   }
 
-  async function open(spec: ServerSpec, who: Who): Promise<Live> {
+  async function open(spec: ServerSpec, who: Who, fresh = false): Promise<Live> {
     const sig = hash(JSON.stringify([spec.transport, spec.command, spec.args, spec.env, spec.url, spec.headers, spec.files]));
     if (spec.needs.length > 0) throw new PluginError("validation.precondition_failed", `${spec.name} needs ${spec.needs.join(", ")} set first.`);
     if (spec.transport === "stdio") {
@@ -128,6 +132,12 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
       if (!d.fetch) throw new PluginError("provider.unavailable", "This server cannot reach remote MCP servers.");
       const { values, secrets } = await fill([spec.url, ...Object.values(spec.headers)], who);
       const headers = Object.fromEntries(Object.entries(spec.headers).map(([k, v]) => [k, sub(v, values)]));
+      if (spec.oauth) {
+        // the token is held sealed by the engine and made fresh on the way; nobody who lists or calls the tools sees it
+        const token = spec.connectionId && d.oauth ? await d.oauth.token(spec.connectionId, fresh) : undefined;
+        if (!token) throw new PluginError("permission.no_grant", `${spec.name} needs to be signed in first.`);
+        headers["authorization"] = `Bearer ${token}`;
+      }
       try {
         const client = await McpClient.connect(httpTransport({ url: sub(spec.url, values), fetch: d.fetch, headers: () => headers }), { timeoutMs: 20_000 });
         return { client, secrets, last: now(), spec: sig };
@@ -136,15 +146,15 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
     throw new PluginError("validation.precondition_failed", `${spec.name} uses ${spec.transport}, which is not supported yet. Use a command or an https URL.`);
   }
 
-  async function connection(spec: ServerSpec, who: Who): Promise<Live> {
+  async function connection(spec: ServerSpec, who: Who, fresh = false): Promise<Live> {
     const key = `${who.asker}|${who.agentId}|${spec.key}`;
     const sig = hash(JSON.stringify([spec.transport, spec.command, spec.args, spec.env, spec.url, spec.headers, spec.files]));
     const cur = live.get(key);
-    if (cur && !cur.client.isClosed && cur.spec === sig) { cur.last = now(); return cur; }
+    if (cur && !fresh && !cur.client.isClosed && cur.spec === sig) { cur.last = now(); return cur; }
     if (cur) { void cur.client.close(); live.delete(key); }
     const pending = connecting.get(key);
     if (pending) return pending;
-    const p = open(spec, who).then((l) => { live.set(key, l); return l; }).finally(() => connecting.delete(key));
+    const p = open(spec, who, fresh).then((l) => { live.set(key, l); return l; }).finally(() => connecting.delete(key));
     connecting.set(key, p);
     return p;
   }
@@ -159,17 +169,25 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
     async tools(spec: ServerSpec, who: Who): Promise<McpTool[]> {
       const l = await connection(spec, who);
       try { return await l.client.listTools(); }
-      catch (e) { live.delete(`${who.asker}|${who.agentId}|${spec.key}`); throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer."); }
+      catch (e) {
+        live.delete(`${who.asker}|${who.agentId}|${spec.key}`);
+        // a signed-in server that refuses the token gets one fresh token and one more try
+        if (spec.oauth && refused(e)) { const again = await connection(spec, who, true); try { return await again.client.listTools(); } catch { live.delete(`${who.asker}|${who.agentId}|${spec.key}`); } }
+        throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer.");
+      }
     },
     /** Calls one tool. The text has any filled secret removed; a leftover fragment withholds it whole. */
     async callTool(spec: ServerSpec, who: Who, tool: string, args: unknown): Promise<{ isError: boolean; text: string; structured?: unknown }> {
-      const l = await connection(spec, who);
+      let l = await connection(spec, who);
       let r;
       try { r = await l.client.callTool(tool, args); }
       catch (e) {
         live.delete(`${who.asker}|${who.agentId}|${spec.key}`);
         if (e instanceof McpError && e.code === "mcp.server_error") return { isError: true, text: e.message };
-        throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer.");
+        if (spec.oauth && refused(e)) {
+          l = await connection(spec, who, true);
+          try { r = await l.client.callTool(tool, args); } catch (e2) { live.delete(`${who.asker}|${who.agentId}|${spec.key}`); if (e2 instanceof McpError && e2.code === "mcp.server_error") return { isError: true, text: e2.message }; throw new PluginError("provider.unavailable", e2 instanceof Error ? e2.message : "The server did not answer."); }
+        } else throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer.");
       }
       let text = resultText(r);
       if (l.secrets.length > 0) {

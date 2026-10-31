@@ -4,9 +4,21 @@ import { engineHost, sandboxPlan } from "./runtime.ts";
 import { createPluginRuntime } from "./plugin-runtime.ts";
 import type { PluginRuntime } from "./plugin-runtime.ts";
 import type { FetchPort } from "../../agent/src/mcp-client/index.ts";
+import { createMcpOauth } from "./mcp-oauth.ts";
+import type { McpOauth } from "./mcp-oauth.ts";
 
 let runtime: PluginRuntime | null = null;
 let builtFor: unknown = null;
+let oauthFor: McpOauth | null = null;
+
+/** The OAuth half of outside tools (sign-in start and finish, the sealed tokens), on the same network guard as the runtime. Null where there is no fetch to reach a server with. */
+export function mcpOauth(): McpOauth | null {
+  const h = engineHost();
+  if (!h || !h.mcpFetch) return null;
+  if (oauthFor && builtFor === h) return oauthFor;
+  pluginRuntime();
+  return oauthFor;
+}
 
 export function pluginRuntime(): PluginRuntime | null {
   const h = engineHost();
@@ -16,9 +28,10 @@ export function pluginRuntime(): PluginRuntime | null {
   if (!dataDir) return null;
   void runtime?.closeAll();
   const session = h.session;
+  oauthFor = h.mcpFetch ? createMcpOauth({ fetch: h.mcpFetch as FetchPort }) : null;
   runtime = createPluginRuntime({
     call: h.call, plan: sandboxPlan, dataDir, ...(session ? { source: session.source, reportMiss: session.reportMiss } : {}),
-    ...(h.mcpFetch ? { fetch: h.mcpFetch as FetchPort } : {}), ...(h.pluginLaunch ? { launch: h.pluginLaunch as NonNullable<Parameters<typeof createPluginRuntime>[0]["launch"]> } : {}),
+    ...(h.mcpFetch ? { fetch: h.mcpFetch as FetchPort } : {}), ...(oauthFor ? { oauth: oauthFor } : {}), ...(h.pluginLaunch ? { launch: h.pluginLaunch as NonNullable<Parameters<typeof createPluginRuntime>[0]["launch"]> } : {}),
   });
   builtFor = h;
   return runtime;

@@ -24,6 +24,7 @@ import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded } from "./handlers/task-baton.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
+import { bindOauthStore } from "./mcp-oauth.ts";
 import { createPluginTools } from "./plugin-tools.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -210,6 +211,7 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
  * (a daemon without the engine seam, or a unit test), in which case the control handlers keep raising internal.unavailable.
  */
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
+  bindOauthStore(ctx as never);   // the sealed MCP sign-in tokens are read through the module's own ctx (db, seal, clock)
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;

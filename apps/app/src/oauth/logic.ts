@@ -38,8 +38,8 @@ export function describeFailure(e: unknown): Outcome {
   return failed("Couldn’t reach the Space", "The connection to the Space dropped, so it is not known whether the sign-in finished.", "Try again; if it says the link was already used, check Connections.", { retryable: true });
 }
 
-/** Dropbox keeps its own sign-in (the state starts dbs_): the Dropbox app, then the person, finish it in the dropbox module, everything else in the connectors module. */
-const finishing = (state: string): string => (state.startsWith("dbs_") ? "dropbox.connect.complete" : "connections.complete_auth");
+/** Dropbox keeps its own sign-in (the state starts dbs_) and a remote outside-tool server keeps its own (mcs_, finished in the engine); everything else is the connectors module. */
+const finishing = (state: string): string => (state.startsWith("dbs_") ? "dropbox.connect.complete" : state.startsWith("mcs_") ? "engine.mcp.oauth_complete" : "connections.complete_auth");
 
 /** Finish the sign-in with what the address carried. */
 export async function completeCallback(call: CapCall, p: CallbackParams): Promise<Outcome> {
