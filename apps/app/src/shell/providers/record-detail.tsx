@@ -10,6 +10,7 @@ import { ProjectPage } from "../../places/records/projectpage/ProjectPage.tsx";
 import { listProjectImports, ProjectPageDataProvider } from "../../places/records/projectpage/data.tsx";
 import type { ImportedSessionTranscript, ProjectPageData } from "../../places/records/projectpage/data.tsx";
 import { capLive, nameLookup } from "./records-live.ts";
+import { AgentRecord } from "./agent-record.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export async function resolveRecordType(call: ShellRuntime["call"], recordId: string, hint?: string): Promise<string> {
@@ -79,6 +80,7 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
   if (actionError) return <States kind="error" message={actionError} retryable onRetry={() => setActionError("")} />;
   if (resolved.error) return <States kind="error" message={resolved.error} />;
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;
+  if (!fields && resolved.type === "agent") return <AgentRecord key={recordId} rt={rt} recordId={resolved.recordId ?? recordId} />;
   return !fields && resolved.projectId !== undefined
     ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} tab={tab} onTabChange={(next) => rt.open({ subject: { type: "project", id: resolved.projectId! }, args: { tab: next } })} /></ProjectPageDataProvider>
     : <RecordPageDataProvider value={data}><RecordPage key={`${resolved.type}:${recordId}`} type={resolved.type} recordId={resolved.recordId ?? recordId} /></RecordPageDataProvider>;

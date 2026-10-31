@@ -5,9 +5,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
+import { asksForFields } from "../recordpage/model.ts";
 import { Peek, RecordPage, RecordPageDataProvider, askText, activityLine, ago, editKind, historyVersions, inputText, mapLayout, parseInput, patchFor, peekFields, relationIds, resolveLink, ringOf, saveField, savePrefs, saveValue, sectionsOf, shownFields, sourceOf, sourceText, splitLinks, toggleFold, undoSave, valueText } from "../recordpage/index.ts";
 import type { RecordPageStart, RelNode } from "../recordpage/index.ts";
-import { CLIENT, PROJECT, SAMPLE_NOW, createSamplePage, harbor } from "../recordpage/sample.ts";
+import { CLIENT, PROJECT, SAMPLE_NOW, createSamplePage, harbor, northwind } from "../recordpage/sample.ts";
 import type { SamplePage } from "../recordpage/sample.ts";
 import type { RecordRow } from "../recordpage/model.ts";
 
@@ -280,4 +281,22 @@ test("navigate smoke: a warm server render of the whole page stays far under a s
   console.log(`INFO server render of records.page: median ${ms.toFixed(1)} ms, worst ${times[6]!.toFixed(1)} ms (informative only)`);
   assert.ok(has(out, 'data-testid="record-page"'));
   assert.ok(ms < 400, `the page took ${ms.toFixed(1)} ms to render on the server`);
+});
+
+test("Ask for these: only a type where a person supplies the facts asks; agent, task, report, envelope and project never do", () => {
+  assert.equal(asksForFields({ key: "clients" }), true);
+  for (const key of ["agent", "task", "report", "envelope", "project"]) assert.equal(asksForFields({ key }), false, key);
+  assert.equal(asksForFields({ key: "mine", system: true }), false, "a type flagged system");
+  assert.equal(asksForFields({ key: "jobs", template: "project" }), false, "a type made from the project template");
+  assert.equal(asksForFields({ key: "clients" }, { total: 0 }), false, "no field marked to be asked means no ring");
+  assert.equal(asksForFields({ key: "clients" }, { total: 3 }), true);
+});
+
+test("screen: a project record page has no completeness ring and no Ask for these; a client's still does", () => {
+  const asProject = { ...PROJECT, template: "project" as const };
+  const space = { ...northwind, types: [CLIENT, asProject] };
+  const out = page(createSamplePage(space), undefined, "projects", "pj_0");
+  assert.ok(has(out, 'data-testid="record-page"'), "the page opens");
+  assert.ok(!has(out, 'data-testid="completeness"') && !has(out, "Ask for these") && !has(out, 'data-testid="ring"'), "no ring on a project");
+  assert.ok(has(page(createSamplePage()), 'data-testid="completeness"'), "a client keeps its ring");
 });
