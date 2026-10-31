@@ -1,7 +1,7 @@
 // @ts-check
 // The phone's service worker for <name>.vyre.run. It answers every same-origin request except the shell's own /__vyre/ files by asking the box over an end-to-end encrypted relay channel.
 // Entry point of the bundle the deploy workflow builds (esbuild, iife) into shell-dist/__vyre/sw.js.
-import { connect } from "../../client/client.js";
+import { connect } from "../client.js";
 import { createBridge } from "./bridge.js";
 import { pins } from "./pins.js";
 

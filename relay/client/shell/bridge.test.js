@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createBridge, toBoxRequest, toResponse } from "./bridge.js";
-import { makeResponse, Pipe } from "../../client/response.js";
+import { makeResponse, Pipe } from "../response.js";
 
 /** @param {number} status @param {Record<string,string>} headers @param {string[]} chunks */
 function boxAnswer(status, headers, chunks) {

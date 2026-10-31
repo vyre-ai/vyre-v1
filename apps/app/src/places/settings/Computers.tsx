@@ -10,6 +10,7 @@ import { useSettingsData } from "./data.tsx";
 import { emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
 import type { HostInfo, ServerInfo, Sheet } from "./computers-model.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Tip, pointer } from "./ui.tsx";
+import { PhoneAccessSection } from "./PhoneAccess.tsx";
 
 const WHERE = "Any Linux machine or Mac that stays on. A small cloud server from Hetzner or DigitalOcean works.";
 const POLL_MS = 2000;
@@ -174,6 +175,7 @@ export function ComputersSection(): ReactElement {
   return (
     <>
       <ComputersBody hosts={hosts} servers={servers} removing={removing} onAdd={() => { setError(""); setSheet(emptySheet()); }} onAskRemove={setRemoving} onRemove={(id) => void remove(id)} />
+      <PhoneAccessSection />
       {sheet ? (
         <AddServerSheet
           sheet={sheet} servers={servers} busy={busy} error={error} now={now}

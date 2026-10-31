@@ -1,5 +1,5 @@
 // Phone access end to end, minus a browser: a computer's host claims <name>.vyre.run through its relay link against the real relay Worker (relay/worker, on the fake Workers runtime), the gateway answers
-// the name with the shell, and the service worker's own bridge (relay/worker/shell/bridge.js) over the relay client reaches the host's loopback gateway through the sealed channel, the way a phone does.
+// the name with the shell, and the service worker's own bridge (relay/client/shell/bridge.js) over the relay client reaches the host's loopback gateway through the sealed channel, the way a phone does.
 // The test lives in test/ because host may not import relay/ and relay/ may not import host (boundaries.json).
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -11,7 +11,7 @@ import worker, * as W from "../relay/worker/index.js";
 import { createRuntime } from "../relay/worker/fake-cf.js";
 import { connect } from "../relay/client/client.js";
 import { memoryKeyStore, webCrypto } from "../relay/client/webcrypto.js";
-import { createBridge } from "../relay/worker/shell/bridge.js";
+import { createBridge } from "../relay/client/shell/bridge.js";
 import { openDb } from "../host/src/daemon/sqlite.ts";
 import { HOST_TABLES } from "../host/src/daemon/hosttables.ts";
 import { pollCommands, defaultNetworkPort } from "../host/src/daemon/commands.ts";

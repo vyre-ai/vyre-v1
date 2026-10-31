@@ -1,6 +1,6 @@
 // @ts-check
 // Phone access (DESIGN-computers, "Phone access through vyre.run"): a person claims <name>.vyre.run once; their box keeps its outbound link to this relay; the relay answers
-// https://<name>.vyre.run with a small static shell (relay/worker/shell) that the phone's browser runs. The shell dials /v1/device itself and speaks Noise IK to the box key
+// https://<name>.vyre.run with a small static shell (relay/client/shell) that the phone's browser runs. The shell dials /v1/device itself and speaks Noise IK to the box key
 // the person's own link carried in its fragment, so this Worker routes bytes and never opens a frame. It holds a name, a route id and a nickname, nothing else.
 //
 // Pieces here:
