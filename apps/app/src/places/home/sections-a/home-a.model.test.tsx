@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DIGEST_MAX_ITEMS, GROUPS, clockTime, dateLine, digestLimit, dueCount, dueLabel, givenSub, greeting, groupOf, monthDay, needsRow, orderMyWork, plural, recordTypeLabel,
-  riskRow, riskWhy, routineRows, routineSub, seatLabel, statusIcon, summaryBits, topNeeds, whenLabel, workGroups,
+  riskRow, riskWhy, routineRows, routineSub, seatLabel, splitTurn, statusIcon, summaryBits, topNeeds, turnWord, whenLabel, workGroups,
 } from "./model.ts";
 import type { Digest, NeedsItem, RiskProject, Routine, Task } from "./model.ts";
 import { nextKey } from "./data.tsx";
@@ -183,3 +183,20 @@ test("arrow keys cross sections and stop at the ends", () => {
 });
 
 // rerun for evidence on the final commit (lead request)
+
+test("the work whose baton is with me is its own group, oldest hand-over first, and the rest keep their dated groups", () => {
+  const me = "usr_me", other = { kind: "agent", id: "agt_x" } as const;
+  const chain = { reviewer: { kind: "person", id: "usr_me" }, approver: { kind: "person", id: "usr_boss" } } as const;
+  const mine = task("mine", { assigned: me === "usr_me" ? { kind: "person", id: me } : other, reviewer: { kind: "agent", id: "agt_c" }, state: "doing", updatedAt: 9 });
+  const review = task("review", { assigned: other, ...chain, state: "in_review", updatedAt: 3 });
+  const waiting = task("waiting", { assigned: other, reviewer: { kind: "person", id: "usr_boss" }, state: "in_review", updatedAt: 1 });
+  const plain = task("plain", { due: day(10, 24) });
+  const blocked = task("blocked", { assigned: { kind: "person", id: me }, reviewer: { kind: "agent", id: "agt_c" }, blocked: true });
+  const done = task("done", { state: "done", assigned: { kind: "person", id: me }, reviewer: { kind: "agent", id: "agt_c" } });
+  const { turn, rest } = splitTurn([mine, review, waiting, plain, blocked, done], me);
+  assert.deepEqual(turn.map((t) => t.id), ["review", "mine"], "oldest hand-over first; not waiting on someone else, not blocked, not done, not a plain task");
+  assert.deepEqual(rest.map((t) => t.id), ["waiting", "plain", "blocked", "done"]);
+  assert.deepEqual([turnWord(mine, me), turnWord(review, me), turnWord(waiting, me)], ["Do", "Review", null]);
+  assert.equal(turnWord(task("ap", { assigned: other, approver: { kind: "person", id: me }, state: "awaiting_approval" }), me), "Approve");
+  assert.equal(turnWord(task("brief", { workingNotes: { brief: "b" } }), me), "Do", "a brief makes it a baton task even with no seats");
+});
