@@ -6,12 +6,15 @@ import path from "node:path";
 import { LaunchError } from "../../agent/src/drivers/cli/launcher.ts";
 import type { CliProcess, LaunchSpec } from "../../agent/src/drivers/cli/types.ts";
 import { SandboxError } from "../../sandbox/src/index.ts";
-import { enginePath } from "./sandbox-default.ts";
+import { findProgram } from "./cli-programs.ts";
+import type { NodeCliProbe } from "./cli-programs.ts";
 import { defaultPlan } from "./runtime.ts";
 import { spawnCli } from "./session.ts";
 
 /** The engines a server is expected to run. Grok is the person's own on their computer; a server image does not ship it. */
 export const NODE_ENGINES = ["claude", "codex"] as const;
+export { findProgram };
+export type { NodeCliEnv, NodeCliProbe } from "./cli-programs.ts";
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"];
 
 export interface NodeCliReport {
@@ -20,20 +23,6 @@ export interface NodeCliReport {
   sandbox: { ok: boolean; kind: string; reason?: string };
   /** One plain sentence per thing that is missing; empty when a pinned chat can run here. */
   missing: string[];
-}
-
-export interface NodeCliEnv { PATH?: string | undefined; HOME?: string | undefined }
-export interface NodeCliProbe { platform?: NodeJS.Platform; env?: NodeCliEnv; exists?: (p: string) => boolean; bwrapPaths?: readonly string[] }
-
-/** Find a program on the PATH an engine is started with. */
-export function findProgram(name: string, o: NodeCliProbe = {}): string | null {
-  const exists = o.exists ?? ((p: string): boolean => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } });
-  const env = o.env ?? process.env;
-  for (const dir of enginePath(env, env.HOME ?? "/", o.platform ?? process.platform, o.exists ?? fs.existsSync).split(path.delimiter)) {
-    const p = path.join(dir, name);
-    if (dir !== "" && exists(p)) return p;
-  }
-  return null;
 }
 
 export function nodeCliReport(o: NodeCliProbe = {}): NodeCliReport {

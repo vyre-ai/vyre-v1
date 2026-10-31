@@ -6,6 +6,8 @@ import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/la
 import { SandboxError } from "../../sandbox/src/index.ts";
 import { openMcpBridge } from "./mcp-bridge.ts";
 import { enginePath } from "./sandbox-default.ts";
+import { CLI_NAME, findProgram } from "./cli-programs.ts";
+import type { NodeCliProbe } from "./cli-programs.ts";
 import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
 import { placeCredentialFiles, takeCredentialFiles } from "./credential-files.ts";
 import type { Placed } from "./credential-files.ts";
@@ -47,6 +49,8 @@ export interface OpenerHost {
   defaultSandbox?: () => Promise<SandboxPlan>;
   /** Replace a CLI engine's program (argv[0], e.g. "claude") with a command, for a fake CLI in the booted test. Default: the real CLI. */
   cliCommand?: Readonly<Record<string, readonly string[]>>;
+  /** Where programs are looked for (a test's folders). Default: this computer's PATH. */
+  cliProbe?: NodeCliProbe;
   /** Tools for API-key chats (modules/engine/api-tools.ts). Without them an API chat answers in words only. */
   apiTools?: ApiTools;
   own?: (person: string) => boolean;
@@ -138,6 +142,11 @@ export function buildNodeOpener(h: OpenerHost, launcher: Launcher): SessionOpene
   });
 }
 
+/** An engine that is not installed says so by name; the sandbox's own "execvp failed" says nothing a person can act on. Throws before anything is filled or started. */
+export function refuseMissingProgram(program: string, probe?: NodeCliProbe): void {
+  if (program in CLI_NAME && findProgram(program, probe) === null) throw new LaunchError("engine.cli_missing", `${program} is not installed on this computer.`);
+}
+
 /** Builds the opener; the runtime keeps it for the life of the daemon and calls close() on shutdown. */
 export function buildOpener(h: OpenerHost): SessionOpener {
   const system = roleBlocks(h.call);
@@ -157,6 +166,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     launcher: {
       spawn: async (spec) => {
         const swap = spec.argv[0] !== undefined ? h.cliCommand?.[spec.argv[0]] : undefined;
+        if (swap === undefined) refuseMissingProgram(spec.argv[0] ?? "", h.cliProbe);
         return spawnCli(await plan(), spec, swap ? [...swap, ...spec.argv.slice(1)] : spec.argv);
       },
     },
