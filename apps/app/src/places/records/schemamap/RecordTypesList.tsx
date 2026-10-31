@@ -98,6 +98,7 @@ export function RecordTypesList(): ReactElement {
           </View>
           <View style={s.cards} accessibilityRole="list" testID="record-types-list">
             {skeleton}
+            {/* ui-rows-lint: not a list (section wrappers; the record types inside are Rows) */}
             {sections.map((g) => (
               <View key={g.key}>
                 {rows.filter((r) => r.key === `h-${g.key}`)}

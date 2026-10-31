@@ -21,6 +21,7 @@ export function ConnectChannel({ onPick }: { onPick?: (tile: ConnectTile) => voi
       <Glyph name="inbox" size={28} color="var(--ink-3)" />
       <Text accessibilityRole="header" aria-level={2} style={s.title}>Connect a channel</Text>
       <View style={s.grid}>
+        {/* ui-rows-lint: not a list (channel tiles laid out in a wrapping grid) */}
         {CONNECT_TILES.map((tile) => (
           <Pressable
             key={tile.kind} accessibilityRole="button" accessibilityLabel={`${tile.label}, ${tile.hint}`} testID={`connect-${tile.kind}`}
