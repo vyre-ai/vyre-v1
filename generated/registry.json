@@ -49174,7 +49174,8 @@
       "emits": [
         "agent.handoff",
         "thread.started",
-        "message.received"
+        "message.received",
+        "thread.unarchived"
       ],
       "errors": [
         "internal.unexpected",
@@ -49308,7 +49309,8 @@
       "emits": [
         "helper.started",
         "thread.started",
-        "message.received"
+        "message.received",
+        "thread.unarchived"
       ],
       "errors": [
         "internal.unexpected",
@@ -50120,7 +50122,8 @@
       "effects": "write",
       "emits": [
         "tab.opened",
-        "message.received"
+        "message.received",
+        "thread.unarchived"
       ],
       "errors": [
         "internal.unexpected",
@@ -50392,7 +50395,8 @@
       "emits": [
         "plan.proposed",
         "message.received",
-        "block.waiting"
+        "block.waiting",
+        "thread.unarchived"
       ],
       "errors": [
         "internal.unexpected",
@@ -50945,7 +50949,8 @@
       "effects": "write",
       "emits": [
         "message.received",
-        "block.waiting"
+        "block.waiting",
+        "thread.unarchived"
       ],
       "errors": [
         "internal.unexpected",
@@ -51694,7 +51699,8 @@
         "thread.started",
         "agent.engaged",
         "message.received",
-        "message.direct"
+        "message.direct",
+        "thread.unarchived"
       ],
       "errors": [
         "internal.unexpected",
