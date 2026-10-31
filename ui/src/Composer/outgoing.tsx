@@ -48,7 +48,7 @@ export const CONNECT_LABEL: Record<OutChannel, { title: string; note: string }> 
 
 export interface OutgoingProps {
   channel: OutChannel;
-  /** Channels this contact can be reached on; one alone hides the switch. */
+  /** Channels this contact can be reached on; the other one shows switched off. */
   channels: readonly OutChannel[];
   onChannel(c: OutChannel): void;
   /** The To field: ui/Recipients for email, the number for a text. */
@@ -76,10 +76,10 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
       <View style={o.line}>
         <Text style={o.k}>To</Text>
         <View style={o.v}>{p.to}</View>
-        {p.channels.length > 1 ? (
+        {p.channels.length > 0 ? (
           <View style={o.seg} accessibilityRole="tablist" testID="out-channel">
-            {(["email", "text"] as const).filter((c) => p.channels.includes(c)).map((c) => (
-              <Pressable key={c} accessibilityRole="tab" accessibilityState={{ selected: c === p.channel }} aria-selected={c === p.channel} accessibilityLabel={c === "email" ? "Email" : "Text"} testID={`out-chan-${c}`} onPress={() => p.onChannel(c)} style={[o.segBtn, c === p.channel && o.segOn]}>
+            {(["email", "text"] as const).map((c) => (
+              <Pressable key={c} accessibilityRole="tab" accessibilityState={{ selected: c === p.channel, disabled: !p.channels.includes(c) }} aria-selected={c === p.channel} disabled={!p.channels.includes(c)} accessibilityLabel={c === "email" ? "Email" : "Text"} testID={`chan-${c}`} onPress={() => p.onChannel(c)} style={[o.segBtn, c === p.channel && o.segOn, !p.channels.includes(c) && o.dim]}>
                 <Text style={[o.segText, c === p.channel && o.segTextOn]}>{c === "email" ? "Email" : "Text"}</Text>
               </Pressable>
             ))}
@@ -146,6 +146,7 @@ const o = StyleSheet.create({
   segBtn: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 7 },
   segOn: { backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" } as object,
   segText: { fontSize: 12, color: "var(--ink-3)" as string },
+  dim: { opacity: 0.4 },
   segTextOn: { color: "var(--ink)" as string, fontWeight: "500" },
   from: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3, paddingLeft: 4, paddingRight: 8, borderRadius: 9, minWidth: 0, flexShrink: 1 },
   hover: { backgroundColor: "var(--hover)" as string },
@@ -153,7 +154,7 @@ const o = StyleSheet.create({
   fromAddr: { fontSize: 13, color: "var(--ink-3)" as string, flexShrink: 1 },
   subject: { flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string, padding: 0 },
   sep: { height: 1, backgroundColor: "var(--line)" as string, marginTop: 2 },
-  pop: { top: 64, left: 40, width: 340, maxWidth: "100%" } as object,
+  pop: { bottom: "100%", marginBottom: 12, left: 40, width: 340, maxWidth: "100%" } as object,
   scr: { padding: 6, maxHeight: 360, overflow: "scroll" } as object,
   lead: { marginRight: 10 },
 });

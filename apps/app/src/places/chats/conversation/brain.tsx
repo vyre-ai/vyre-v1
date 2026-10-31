@@ -195,9 +195,10 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
 
   useEffect(() => {
     let live = true;
-    void Promise.resolve(data.call("engine.defaults.get", {})).then((out) => { if (live) setFallback(((out as { fallback?: unknown[] } | undefined)?.fallback ?? []).length > 0); }, () => undefined);
+    // the agent's own "switch to the next usable account when this one runs out" (on unless false)
+    void Promise.resolve(data.call("agents.get", { agentId: p.agent.id })).then((out) => { if (live) setFallback((out as { agent?: { switchOnLimit?: boolean } } | undefined)?.agent?.switchOnLimit !== false); }, () => undefined);
     return () => { live = false; };
-  }, [data]);
+  }, [data, p.agent.id]);
 
   // each account's session, for the mini bars in the account list and the running-low suggestion
   const refs = (accounts ?? []).map((a) => a.ref).join(",");
@@ -213,9 +214,9 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
   const withSession = useMemo(() => accounts === null ? null : accounts.map((a) => ({ ...a, session: perAccount[a.ref] ?? null })), [accounts, perAccount]);
   const providerOf = (ref: string | null): string | undefined => (accounts ?? []).find((a) => a.ref === ref)?.provider;
   const busy = useRef(0);
-  const write = (choice: AgentChoice, done: string): void => {
+  const write = (choice: AgentChoice, done: string, only?: PanelScope): void => {
     const n = ++busy.current;
-    void configureAgent(data, p.agent.id, choice, scope).then(() => { if (n === busy.current) p.say(done); }, () => p.say("Could not change that. Try again."));
+    void configureAgent(data, p.agent.id, choice, only ?? scope).then(() => { if (n === busy.current) p.say(done); }, () => p.say("Could not change that. Try again."));
   };
   const where = scope === "chat" ? "in this chat" : "by default";
 
@@ -244,7 +245,9 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
         write({ model: id, ...(provider ? { provider } : {}), ...(shownRef ? { accountRef: shownRef } : {}) }, `${p.agent.name} now answers with ${title} ${where}`);
       }}
       effort={effort}
-      onEffort={(e) => { setEffort(e); write({ effort: e, ...(model ? { model } : {}) }, `${p.agent.name} thinks with ${e} effort ${where}`); }}
+      // an agent has no default effort: effort is always this chat's
+      onEffort={(e) => { setEffort(e); write({ effort: e }, `${p.agent.name} thinks with ${e} effort in this chat`, "chat"); }}
+      {...(scope === "agent" ? { effortNote: "This chat only" } : {})}
       usage={usage}
       mode={p.mode}
       onMode={p.onMode}
@@ -252,8 +255,7 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
         fallback,
         onFallback: (on: boolean) => {
           setFallback(on);
-          const rest = (accounts ?? []).filter((a) => a.ref !== shownRef).map((a) => ({ provider: a.provider, model: "", accountRef: a.ref }));
-          void Promise.resolve(data.call("engine.defaults.set", { fallback: on ? rest : [] })).then(
+          void Promise.resolve(data.call("agents.update", { agentId: p.agent.id, patch: { switchOnLimit: on } })).then(
             () => p.say(on ? "When limits run out, the next account takes over" : "Stays on this account when limits run out"),
             () => { setFallback(!on); p.say("Could not change that. Try again."); },
           );

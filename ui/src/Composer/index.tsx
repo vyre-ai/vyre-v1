@@ -548,7 +548,7 @@ const MIN_FIELD = 24;
 const MAX_FIELD = 220;
 const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "transparent" } as unknown as TextStyle;
 const BOX_SHADOW = { boxShadow: "var(--sh-2)" } as unknown as ViewStyle;
-const FOCUS_SHADOW = { boxShadow: "0 0 0 4px var(--accent-wash), var(--sh-2)", borderColor: "color-mix(in srgb, var(--accent) 45%, var(--line-2))" } as unknown as ViewStyle;
+const FOCUS_SHADOW = { boxShadow: "0 0 0 4px var(--accent-wash), var(--sh-2)" } as unknown as ViewStyle;
 const HOVER = { backgroundColor: "var(--hover)" };
 const web = Platform.OS === "web";
 
@@ -702,7 +702,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 520;
   // a composer opened with words in it (Ask about this file, New message) is ready to type after them
-  useEffect(() => { if ((props.value ?? "") !== "") input.current?.focus(); }, []);
+  useEffect(() => { if ((props.value ?? "") !== "") input.current?.focus?.(); }, []);
 
   useEffect(() => {
     if (props.value !== undefined && props.value !== stateRef.current.text) setState((s) => ({ ...s, text: props.value ?? "", cursor: (props.value ?? "").length }));
@@ -785,7 +785,7 @@ export function Composer(props: ComposerProps): ReactElement {
       setState(next);
       setAttachMode(false);
       props.onChange?.(next.text);
-      input.current?.focus();
+      input.current?.focus?.();
       return;
     }
     const done = applyPick(cur, t, entry);
@@ -794,7 +794,7 @@ export function Composer(props: ComposerProps): ReactElement {
     if (done.effect.kind === "folder") props.onFolder?.(done.effect.folder);
     if (done.effect.kind === "command") props.onCommand?.(done.effect.name);
     props.onChange?.(done.next.text);
-    input.current?.focus();
+    input.current?.focus?.();
   }, [props.onFolder, props.onCommand, props.onChange, symbols.join(","), attachMode]);
 
   const addFiles = useCallback((files: ComposerAttachment[]) => {
@@ -818,7 +818,7 @@ export function Composer(props: ComposerProps): ReactElement {
     setState(next);
     setFocused(true);
     if (blur.current !== null) clearTimeout(blur.current);
-    input.current?.focus();
+    input.current?.focus?.();
   };
   const fromFiles = (): void => {
     setPlusOpen(false);
@@ -1071,7 +1071,7 @@ export function Composer(props: ComposerProps): ReactElement {
           setDrop(false);
           addFiles(Array.from(e.dataTransfer?.files ?? [], attachmentOf));
         },
-        dataSet: { composer: "true" },
+        dataSet: { composer: "true", ...(focused ? { cmpFocus: "1" } : {}) },
       })}
     >
       {working ? <WorkingLight /> : null}
@@ -1208,8 +1208,8 @@ const styles = StyleSheet.create({
   sendOff: { opacity: 0.25 },
   split: { flexDirection: "row", alignItems: "center", height: 34, borderRadius: 12, backgroundColor: "var(--ink)" as string, overflow: "hidden", marginLeft: 2 },
   splitBtn: { height: 34, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 5 },
-  splitHover: { backgroundColor: "color-mix(in srgb, var(--win) 12%, transparent)" as string },
-  splitSep: { width: 1, height: 34, backgroundColor: "color-mix(in srgb, var(--win) 25%, transparent)" as string },
+  splitHover: { opacity: 0.85 },
+  splitSep: { width: 1, height: 20, backgroundColor: "var(--win)" as string, opacity: 0.25 },
   splitText: { fontSize: 12.5, fontWeight: "600", color: "var(--win)" as string },
   splitKbd: { fontSize: 11, color: "var(--win)" as string, opacity: 0.6 },
   lead: { marginRight: 10 },

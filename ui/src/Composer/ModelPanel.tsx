@@ -7,7 +7,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar, avatarOf } from "../Avatar/index.tsx";
 import { EFFORTS, MODES, effortForKey, kTokens, modeInfo } from "./brain.ts";
 import type { ChatMode, ComposerAgent, Effort } from "./brain.ts";
-import { BrandMark, I, webOnly } from "./parts.tsx";
+import { BrandMark, I, ensureComposerCss, webOnly } from "./parts.tsx";
 import { Glyph } from "./shared.tsx";
 
 export interface PanelAccount {
@@ -46,6 +46,8 @@ export interface ModelPanelProps {
   onModel(id: string): void;
   effort: Effort | undefined;
   onEffort(e: Effort): void;
+  /** A quiet word beside Effort ("This chat only" when the choice is the agent's default but effort is not). */
+  effortNote?: string;
   /** Usage for the selected account and model; null when the engine reports none, "loading" while it is asked. */
   usage: PanelUsage | null | "loading";
   mode?: ChatMode;
@@ -140,6 +142,7 @@ function AccountRow({ a, on, onPress, testID, chevron }: { a: PanelAccount; on: 
 }
 
 export function ModelPanel(p: ModelPanelProps): ReactElement {
+  ensureComposerCss();
   const [fly, setFly] = useState(false);
   const node = useRef<{ focus?: () => void } | null>(null);
   useEffect(() => { node.current?.focus?.(); }, []);
@@ -220,7 +223,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
       </View>
 
       <View style={st.sec}>
-        <View style={st.h5}><Text style={st.h5Text}>Effort</Text><Text style={st.h5Note}>1 to 4</Text></View>
+        <View style={st.h5}><Text style={st.h5Text}>Effort</Text><Text style={st.h5Note} testID="model-effort-note">{p.effortNote ?? "1 to 4"}</Text></View>
         <Seg items={EFFORTS} on={p.effort ?? "medium"} pick={(e) => p.onEffort(e)} testID="model-effort" />
       </View>
 
@@ -234,7 +237,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
           {week ? <Meter testID="meter-week" label="Week" frac={week.pct} value={pct(week.pct)} {...(resetLabel(week.resetsAt, p.now) ? { sub: `resets ${resetLabel(week.resetsAt, p.now)}` } : {})} /> : null}
         </View>
         {better && account ? (
-          <View style={st.low} testID="model-low">
+          <View style={st.low} testID="model-low" {...webOnly({ dataSet: { cmpLow: "1" } })}>
             <Text style={st.lowText}>{`Running low on ${account.name}.`}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel={`Use ${better.name}`} testID="model-low-switch" onPress={() => p.onAccount(better.ref)}>
               <Text style={st.lowBtn}>{`Use ${better.name}${typeof better.session === "number" ? ` · ${pct(better.session)}` : ""}`}</Text>
@@ -246,7 +249,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
       {p.onMode && p.mode ? (
         <View style={st.sec}>
           <View style={st.h5}><Text style={st.h5Text}>Mode</Text></View>
-          <Seg items={MODES} on={p.mode} pick={(m) => p.onMode?.(m)} testID="model-mode" />
+          <Seg items={MODES.map((m) => ({ id: m.id, label: m.label }))} on={p.mode} pick={(m) => p.onMode?.(m)} testID="model-mode" />
           <Text style={st.modeNote} testID="model-mode-note">{modeInfo(p.mode).note}</Text>
         </View>
       ) : null}
@@ -317,7 +320,7 @@ const st = StyleSheet.create({
   meterOf: { fontWeight: "400", color: "var(--ink-3)" as string },
   meterBar: { height: 4, borderRadius: 3, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
   meterFill: { height: "100%", borderRadius: 3, backgroundColor: "var(--accent)" as string },
-  low: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: "color-mix(in srgb, var(--warn) 12%, transparent)" as string },
+  low: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
   lowText: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
   lowBtn: { fontSize: 12, fontWeight: "600", color: "var(--ink)" as string },
   modeNote: { fontSize: 11.5, color: "var(--ink-3)" as string, marginTop: 6 },

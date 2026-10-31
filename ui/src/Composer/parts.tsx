@@ -30,6 +30,8 @@ export function ensureComposerCss(): void {
     "[data-cmp-card]:hover [data-cmp-rm]{opacity:1}",
     "@media (hover:none){[data-cmp-card] [data-cmp-rm]{opacity:1}}",
     "[data-cmp-field] textarea::placeholder{color:var(--ink-4)}",
+    "[data-cmp-focus]{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-2)) !important}",
+    "[data-cmp-low]{background-color:color-mix(in srgb,var(--warn) 14%,transparent)}",
   ].join("\n"));
   cssDone = true;
 }
@@ -152,7 +154,8 @@ export function GroupHead({ label }: { label: string }): ReactElement {
 
 /** A small square tile with a line icon, for menu rows (Upload files, a command, a record). */
 export function IconTile({ icon, tint, size = 26 }: { icon: string; tint?: string; size?: number }): ReactElement {
-  const bg = tint ? (web ? `color-mix(in srgb, ${tint} 14%, transparent)` : "var(--sunk)") : "var(--sunk)";
+  // a hex tint gets a soft wash of itself (#rrggbb + alpha); anything else sits on the sunk ground
+  const bg = tint && /^#[0-9a-f]{6}$/i.test(tint) ? `${tint}24` : "var(--sunk)";
   return (
     <View style={[s.iconTile, { width: size, height: size, backgroundColor: bg as string }]}>
       {web ? createElement("span", { style: { display: "inline-flex", color: tint ?? "var(--ink-2)" }, dangerouslySetInnerHTML: { __html: icon.replace("<svg", `<svg width="${Math.round(size * 0.58)}" height="${Math.round(size * 0.58)}"`) } }) : <Text style={s.tileLetter}>{"•"}</Text>}
