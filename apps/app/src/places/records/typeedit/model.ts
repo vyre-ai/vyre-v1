@@ -19,6 +19,15 @@ export const TRASH_DAYS = 30;
 
 // ---------------------------------------------------------------- names
 
+/** What a person reads when a record call is refused: the server's words for an unknown type are for logs, so they become what to do. Anything else passes through. */
+export function plainError(message: string | undefined, what = "record"): string {
+  const m = (message ?? "").trim();
+  if (m === "") return `Could not create the ${what}. Try again.`;
+  if (/^no type\b|unknown_type|unknown type/i.test(m)) return "This record type is not ready on this device yet. Close and reopen Records, then try again.";
+  if (/^no (field|site table)\b/i.test(m)) return "This record type changed. Close and reopen Records, then try again.";
+  return m;
+}
+
 /** A type or field key from a name: lowercase letters, digits and single underscores, starting with a letter. */
 export function slugOf(name: string, prefix = "t"): string {
   const base = name.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -33,28 +42,123 @@ export function freeKey(slug: string, taken: readonly string[]): string {
   for (let n = 2; ; n++) if (!taken.includes(`${slug}_${n}`)) return `${slug}_${n}`;
 }
 
-/** The plural of a singular name, in the plain cases; the person can edit it. */
+const IRREGULAR: ReadonlyArray<readonly [string, string]> = [["person", "people"], ["man", "men"], ["woman", "women"], ["child", "children"], ["foot", "feet"], ["tooth", "teeth"], ["mouse", "mice"], ["life", "lives"], ["knife", "knives"], ["wife", "wives"], ["leaf", "leaves"], ["half", "halves"], ["shelf", "shelves"], ["datum", "data"]];
+/** Words that read the same in both numbers. */
+const SAME = new Set(["staff", "equipment", "information", "series", "species", "news", "sheep", "fish", "data", "feedback", "software", "hardware", "research", "inventory"]);
+/** Singular words that end in s: they are not plurals. */
+const SINGULAR_S = new Set(["status", "bus", "gas", "business", "address", "class", "process", "access", "campus", "bonus", "virus", "census", "canvas", "atlas", "alias", "analysis", "basis", "crisis", "thesis", "diagnosis", "lens", "chaos", "focus"]);
+
+/** Words whose singular ends in ie, so their plural is not -ies from -y. */
+const IE_WORDS = new Set(["movie", "cookie", "pie", "tie", "zombie", "rookie", "prairie", "calorie", "genie", "selfie", "hoodie", "goalie", "birdie", "brownie", "smoothie", "newbie"]);
+const lastWord = (w: string): { head: string; word: string } => { const i = w.search(/\S+$/); return { head: w.slice(0, i), word: w.slice(i) }; };
+/** Keep the capitals of the typed word on the word made from it ("Person" gives "People", "COMPANY" gives "COMPANIES"). */
+const withCase = (typed: string, made: string): string => (typed === typed.toUpperCase() && typed.length > 1 ? made.toUpperCase() : /^[A-Z]/.test(typed) ? made.charAt(0).toUpperCase() + made.slice(1) : made);
+
+/** Is this name already a plural (Deals, Companies, People)? Judged by its last word. */
+export function isPlural(name: string): boolean {
+  const w = lastWord(name.trim()).word.toLowerCase();
+  if (w === "") return false;
+  if (SAME.has(w) || SINGULAR_S.has(w)) return false;
+  if (IRREGULAR.some(([, p]) => p === w)) return true;
+  if (/(ss|us|is)$/.test(w) || !w.endsWith("s")) return false;
+  return true;
+}
+
+/** The plural of a name: a name that is already plural stays as it is, then the common English rules. The person can edit it. */
 export function pluralOf(name: string): string {
-  const w = name.trim();
-  if (w === "") return "";
-  const lower = w.toLowerCase();
-  if (/(s|x|z|ch|sh)$/.test(lower)) return `${w}es`;
-  if (/[^aeiou]y$/.test(lower)) return `${w.slice(0, -1)}ies`;
-  return `${w}s`;
+  const full = name.trim();
+  if (full === "") return "";
+  if (isPlural(full)) return full;
+  const { head, word } = lastWord(full);
+  const lower = word.toLowerCase();
+  if (SAME.has(lower)) return full;
+  const irregular = IRREGULAR.find(([s]) => s === lower);
+  if (irregular) return head + withCase(word, irregular[1]);
+  if (/(s|x|z|ch|sh)$/.test(lower)) return `${full}es`;
+  if (/[^aeiou]y$/.test(lower)) return `${head}${word.slice(0, -1)}ies`;
+  return `${full}s`;
+}
+
+/** The singular of a plural name: Deals gives Deal, Companies gives Company, People gives Person, Statuses gives Status. A name that is not plural comes back as it is. */
+export function singularOf(name: string): string {
+  const full = name.trim();
+  if (full === "" || !isPlural(full)) return full;
+  const { head, word } = lastWord(full);
+  const lower = word.toLowerCase();
+  const irregular = IRREGULAR.find(([, p]) => p === lower);
+  if (irregular) return head + withCase(word, irregular[0]);
+  let one = word;
+  if (IE_WORDS.has(lower.slice(0, -1))) one = word.slice(0, -1);
+  else if (/[^aeiou]ies$/.test(lower)) one = `${word.slice(0, -3)}y`;
+  else if (/(ss|x|z|ch|sh)es$/.test(lower)) one = word.slice(0, -2);
+  else if (/uses$/.test(lower) && lower !== "uses" && !/(cause|house|mouse|clause|pause|excuse|abuse|refuse|fuse|muse)s$/.test(lower)) one = word.slice(0, -2);
+  else if (/s$/.test(lower)) one = word.slice(0, -1);
+  return head + one;
+}
+
+/** What a name makes: the singular title and the plural, whichever of the two the person typed. */
+export function namesOf(name: string, pluralTyped?: string): { title: string; plural: string } {
+  const typed = name.trim();
+  const title = singularOf(typed);
+  const plural = (pluralTyped ?? "").trim() || (isPlural(typed) ? typed : pluralOf(typed));
+  return { title, plural };
 }
 
 export const TYPE_ICONS: readonly string[] = ["table", "people", "building", "folder", "project", "calendar", "globe", "invoice", "task", "message"];
 
 // ---------------------------------------------------------------- ops
 
-/** The one-tap fields of the New record type sheet: a name, the field type it makes. */
+/** The one-tap fields of the New record type sheet: a key, the name it gets, the field type it makes. */
 export const STARTER_FIELDS: readonly { key: string; title: string; type: string }[] = [
-  { key: "status", title: "Status", type: "status" },
-  { key: "owner", title: "Owner", type: "person" },
+  { key: "email", title: "Email", type: "email" },
+  { key: "phone", title: "Phone", type: "phone" },
+  { key: "date", title: "Date", type: "datetime" },
   { key: "due_date", title: "Due date", type: "datetime" },
+  { key: "close_date", title: "Close date", type: "datetime" },
   { key: "amount", title: "Amount", type: "money" },
+  { key: "number", title: "Number", type: "number" },
+  { key: "stage", title: "Stage", type: "status" },
+  { key: "status", title: "Status", type: "status" },
+  { key: "choice", title: "Choice", type: "choice" },
+  { key: "multichoice", title: "Multi choice", type: "multichoice" },
+  { key: "checkbox", title: "Checkbox", type: "checkbox" },
+  { key: "owner", title: "Owner", type: "person" },
+  { key: "files", title: "Files", type: "files" },
+  { key: "url", title: "URL", type: "url" },
   { key: "notes", title: "Notes", type: "longtext" },
+  { key: "rating", title: "Rating", type: "rating" },
 ];
+
+/** The chips shown at once; the rest are one More away, found by typing. */
+export const STARTER_SHOWN: readonly string[] = ["email", "phone", "date", "amount", "stage", "owner", "notes"];
+
+/** What a record type is for, read from its name, so the fields it usually needs are picked before the person asks: Deals get Amount, Stage, Owner, Close date and a link to Contacts. */
+const PURPOSES: ReadonlyArray<{ match: RegExp; starters: readonly string[]; connect?: readonly string[] }> = [
+  { match: /\b(deal|opportunit|sale|pipeline|prospect)/i, starters: ["amount", "stage", "owner", "close_date"], connect: ["contact"] },
+  { match: /\b(compan|organi[sz]ation|firm|business|account|vendor|supplier)/i, starters: ["email", "phone", "url", "owner"] },
+  { match: /\b(person|people|contact|lead|client|customer|candidate|member|patient)/i, starters: ["email", "phone", "owner"] },
+  { match: /\b(task|to-?do|ticket|issue|bug|request)/i, starters: ["status", "owner", "due_date"] },
+  { match: /\b(project|matter|case|engagement)/i, starters: ["stage", "owner", "due_date"], connect: ["contact"] },
+  { match: /\b(invoice|payment|expense|quote|order|bill)/i, starters: ["amount", "due_date", "status"] },
+  { match: /\b(event|meeting|appointment|booking|interview|call)/i, starters: ["date", "owner"] },
+  { match: /\b(document|contract|file|report)/i, starters: ["files", "status", "owner"] },
+];
+
+export function suggestStarters(name: string): { starters: string[]; connect: string[] } {
+  const hit = PURPOSES.find((p) => p.match.test(name.trim()));
+  return hit ? { starters: [...hit.starters], connect: [...(hit.connect ?? [])] } : { starters: [], connect: [] };
+}
+
+/** The chips to draw: the ones always shown, then any picked that are not (a purpose can pick Close date), in the order of the list. */
+export function shownStarters(picked: readonly string[]): typeof STARTER_FIELDS {
+  return STARTER_FIELDS.filter((f) => STARTER_SHOWN.includes(f.key) || picked.includes(f.key));
+}
+
+/** The chips behind More, narrowed by what was typed (title or type). */
+export function moreStarters(picked: readonly string[], query: string): typeof STARTER_FIELDS {
+  const q = query.trim().toLowerCase();
+  return shownStarters(picked).length === STARTER_FIELDS.length ? [] : STARTER_FIELDS.filter((f) => !shownStarters(picked).includes(f) && (q === "" || f.title.toLowerCase().includes(q) || f.type.includes(q)));
+}
 
 /** A type the new one can be connected to: shown as "Contacts". */
 export interface ConnectType { key: string; title: string; plural: string }
@@ -68,9 +172,9 @@ export function connectChoices<T extends ConnectType & { system?: boolean; scope
 }
 
 export function createTypeOps(o: { name: string; plural: string; icon: string; takenKeys: readonly string[]; starters?: readonly string[]; connect?: readonly ConnectType[] }): { key: string; ops: SchemaOp[] } {
-  const name = o.name.trim();
+  const typed = o.name.trim();
+  const { title: name, plural } = namesOf(typed, o.plural);
   const key = freeKey(slugOf(name), o.takenKeys);
-  const plural = o.plural.trim() || pluralOf(name);
   const ops: SchemaOp[] = [{ op: "type.create", type: key, def: { title: name, plural, icon: o.icon, label: "internal", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }];
   const used = ["name"];
   for (const k of o.starters ?? []) {
@@ -90,7 +194,8 @@ export function createTypeOps(o: { name: string; plural: string; icon: string; t
 }
 
 export function renameTypeOps(type: string, name: string, plural: string): SchemaOp[] {
-  return [{ op: "type.update", type, def: { title: name.trim(), plural: plural.trim() || pluralOf(name) } }];
+  const n = namesOf(name, plural);
+  return [{ op: "type.update", type, def: { title: n.title, plural: n.plural } }];
 }
 
 export const dropTypeOps = (type: string): SchemaOp[] => [{ op: "type.drop", type }];
@@ -107,6 +212,14 @@ export function addFieldOps(o: { type: string; name: string; fieldType: string; 
   const key = freeKey(slugOf(title, "f"), o.takenKeys);
   const options = startOptions(o.fieldType);
   return { key, ops: [{ op: "field.add", type: o.type, field: key, def: { title, type: o.fieldType, required: o.required, ...(options ? { options } : {}) } }] };
+}
+
+/** A link from this type to another: a pair of fields (one here, one on the other type) that relation.add makes together. `farKeys` are the field keys the other type already has. */
+export function linkFieldOps(o: { type: string; plural: string; name: string; to: ConnectType; takenKeys: readonly string[]; farKeys: readonly string[] }): { key: string; ops: SchemaOp[] } {
+  const title = o.name.trim() || o.to.title;
+  const key = freeKey(slugOf(title, "f"), o.takenKeys);
+  const back = freeKey(slugOf(o.plural, "f") || `${o.type}_links`, [...o.farKeys, ...(o.to.key === o.type ? [...o.takenKeys, key] : [])]);
+  return { key, ops: [{ op: "relation.add", type: o.type, field: key, def: { to: o.to.key, inverse: back, title, inverseTitle: o.plural } }] };
 }
 
 /** Rename shows a new name; the key stays, so nothing that reads the field breaks. */
@@ -181,7 +294,7 @@ export interface Staged {
   rows: number;
 }
 
-const msg = (e: unknown): string => (e instanceof Error && e.message ? e.message : "The change did not go through");
+const msg = (e: unknown): string => plainError(e instanceof Error && e.message ? e.message : undefined, "change");
 
 /** Step one: ask what the change would do. Refused when the backend lists problems. */
 export async function stageChange(call: Call, ops: readonly SchemaOp[]): Promise<{ ok: true; staged: Staged } | { ok: false; error: string }> {

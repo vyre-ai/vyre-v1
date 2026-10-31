@@ -10720,7 +10720,7 @@
       "blocks": [],
       "cap": "chat.recent",
       "deferred": false,
-      "description": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "description": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -53231,6 +53231,32 @@
     },
     {
       "blocks": [],
+      "cap": "threads.archive",
+      "deferred": false,
+      "description": "Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "threads_archive",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "threads.close",
       "deferred": false,
       "description": "Close a thread (idle with nothing waiting, or done)",
@@ -53645,6 +53671,32 @@
         "type": "object"
       },
       "name": "threads_set_plan_mode",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "threads.unarchive",
+      "deferred": false,
+      "description": "Put an archived chat back in my list",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "threads_unarchive",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1

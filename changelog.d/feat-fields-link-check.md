@@ -1,0 +1,1 @@
+The Fields panel can now link a record type to another: Add field, then Link to…, pick the type (for example Contacts). Both ends are made, so the Contact page lists its Deals. The panel also says that three or more groups show as tabs.

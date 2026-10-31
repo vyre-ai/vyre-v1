@@ -19,7 +19,7 @@ Hand work to another agent: opens that agent thread linked from this one, counte
 | HTTP | POST /v1/chat/handoff |
 | MCP tool | handoff (chats) |
 | CLI | none |
-| Emits | agent.handoff, thread.started, message.received |
+| Emits | agent.handoff, thread.started, message.received, thread.unarchived |
 
 ## Input
 
