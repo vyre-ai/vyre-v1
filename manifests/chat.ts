@@ -244,7 +244,10 @@ export default defineManifest({
       emits: ['block.answered'], tool: 'chats', offline: 'queue', errors: ['validation.precondition_failed'],
     }),
     write('chat.question.ask', 'Ask the person a structured question (single, multi or free text); the turn parks until it is answered', {
-      in: { ...threadT, prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(option)), allowOther: t.opt(t.bool()) },
+      in: {
+        ...threadT, prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(option)), allowOther: t.opt(t.bool()),
+        card: t.opt(t.obj({ kind: t.enm('terminal'), command: t.str(), host: t.opt(t.enm('agent_computer', 'space_server', 'device')), risk: t.opt(t.enm('read', 'change', 'danger')) })),
+      },
       out: { blockId: id.block, messageId: id.message }, on: ['thread', '/threadId'], level: 'use', emits: ['message.received', 'block.waiting'],
       tool: 'chats', mcpName: 'ask_question', agent: { planMode: 'allowed', blocks: ['question'] },
     }),
