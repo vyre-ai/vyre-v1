@@ -16,12 +16,19 @@ export function PairPhoneCard({ call, address, onPaired, onTeamSpace }: { call: 
   return <PairPhoneLive call={call} address={address} onPaired={onPaired} />;
 }
 
-// This Space lives on this computer only (no relay name, no network address), so a phone has nothing to open: say so instead of showing a code that cannot work.
+// This Space lives on this computer only: no relay name and no network address, so a phone has nothing to open. What is offered is what works today: a server that holds the Space.
+// Not offered, on purpose: a Wi-Fi link (a phone browser gives WebCrypto, which the key bundle needs, only on https, and a bare LAN address is plain http) and a relay name (the relay
+// carries the box protocol, and no name-to-HTTP gateway or name claim exists in this repo yet). Both are in team/BACKLOG.md.
 function PhoneUnreachable({ onTeamSpace }: { onTeamSpace: (() => void) | undefined }): ReactElement {
   return (
     <View testID="pair-phone-local" style={s.col}>
-      <Text style={s.dim}>This Space runs on this computer only, so a phone cannot reach it yet. To use Vyre on your phone, make a Team Space: it gets an address your phone can open from anywhere.</Text>
-      {onTeamSpace ? <View style={s.row}><Pressable testID="pair-team" accessibilityRole="button" onPress={onTeamSpace} style={s.primary}><Text style={s.primaryText}>Make a Team Space</Text></Pressable></View> : null}
+      <Text style={s.dim}>This Space runs on this computer only, so a phone cannot reach it yet.</Text>
+      {onTeamSpace ? (
+        <Pressable testID="pair-team" accessibilityRole="button" onPress={onTeamSpace} style={s.choice}>
+          <Text style={s.choiceTitle}>Connect a server</Text>
+          <Text style={s.dim}>The Space lives on a server that is always on. Your phone opens it from anywhere.</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -62,5 +69,7 @@ const s = StyleSheet.create({
   primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
   ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
   ghostText: { fontSize: 13.5, color: "var(--ink)" as string },
+  choice: { gap: 4, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
+  choiceTitle: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   off: { opacity: 0.45 },
 });
