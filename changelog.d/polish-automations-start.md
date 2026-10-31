@@ -1,0 +1,3 @@
+- Automations opens on a centred start page: "Automate something" with three choices (Start from a template, Blank automation, Ask Vyre to build it) and up to six popular templates from the Templates catalogue, each of which makes a draft and opens it. When you already have automations the heading is "Pick an automation" and the three choices are smaller.
+- Ask Vyre to build it opens the assistant in a pane of the Automations tab, told it is in Automations, instead of going to Chats.
+- A menu opened by a button that has no pointer position (the plus beside Personal, the more button on a card, the plus under a step) now opens under that button instead of in the window's top-left corner. The shared Menu remembers the control that was pressed.
