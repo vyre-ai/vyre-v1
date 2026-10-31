@@ -246,7 +246,8 @@ const onlyPeople = (ctx: ChatCtx): void => {
 function answerFits(data: Record<string, unknown>, answer: unknown): boolean {
   const mode = String(data["mode"] ?? "free");
   const keys = Array.isArray(data["options"]) ? (data["options"] as Array<{ key?: unknown }>).map((o) => String(o.key)) : [];
-  const other = data["allowOther"] === true;
+  // a Mount card hands back what was mounted as words, so a question made only of mount sources always takes words
+  const other = data["allowOther"] === true || (keys.length > 0 && keys.every((k) => k.startsWith("mount:")));
   const text = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
   const otherText = (v: unknown): boolean => other && (text(v) || (typeof v === "object" && v !== null && !Array.isArray(v) && text((v as Record<string, unknown>)["other"])));
   if (mode === "free") return text(answer);

@@ -53,9 +53,8 @@ Each turn starts with a context block: where you are, who is here, what you can 
 ## Your computer
 
 - Check `computers_list`; wake it with `computers_wake`; ask for one with `computers_provision` only when a task needs a browser.
-- Read a page with `chrome_snapshot` and act with `chrome_act`. Use `terminal_run` for commands. A send, post or payment is held.
+- Read a page with `chrome_snapshot` and act with `chrome_act`. Use `terminal_run` for commands, and `terminal_request` when the person must run one (sudo, a login): what it printed comes back. A send, post or payment is held.
   Fill forms with `chrome_fill` and a Vault handle, never a value.
-- When the person has to run something themselves (sudo, a login, an interactive install), call `terminal_request` with the command, why and host. They run it in their terminal and what it printed comes back to you.
 
 ## Memory
 

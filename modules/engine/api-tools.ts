@@ -45,7 +45,11 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   const facts = new Map<string, Omit<ThreadFacts, "threadId">>();
   const levels = new Map<string, Level | null>();
   const levelKey = (asker: string, scope: { type: string; id: string }): string => `${asker}|${scope.type}|${scope.id}`;
-  const session = createToolSession({ invoke: d.invoke, catalog, defaults, levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null, canEngineer: () => false, ...(d.plugins ? { dynamic: d.plugins.dynamic, hooks: d.plugins.hooks } : {}) });
+  const session = createToolSession({ invoke: d.invoke, catalog, defaults, levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null, canEngineer: () => false,
+    // A local tool (terminal, Chrome, screen, files on the agent computer) of our own agent runs through the capability pipeline: the Gate holds an Ask mode change, a red command and anything that leaves Vyre,
+    // and the terminal checks the person's own rules. Without this every local tool was refused ("no local policy"), so an agent could not run a command at all.
+    localPolicy: () => ({ action: "run", reason: "the Gate and the person's own rules decide" }),
+    ...(d.plugins ? { dynamic: d.plugins.dynamic, hooks: d.plugins.hooks } : {}) });
   const primed = new Set<string>();
   const prepare = async (t: { threadId: string; agentId: string; asker: string; turnId: string }): Promise<void> => {
     if (!d.call || primed.has(t.turnId)) return;
