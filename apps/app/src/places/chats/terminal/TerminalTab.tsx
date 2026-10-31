@@ -15,7 +15,7 @@ import { errorWords, isRefusal, useLive, useOnline } from "../mounts/live.ts";
 import { TextButton } from "../rightpane/parts.tsx";
 import { STARS_SCREEN, TAB_SCREEN } from "./data.ts";
 import type { TerminalData } from "./data.ts";
-import { chipLabel, uiHost, uiState } from "./model.ts";
+import { chipLabel, lineAfter, uiHost, uiState } from "./model.ts";
 import type { TerminalRow } from "./model.ts";
 import { askServerAccess, attach, closeSession, createSender, openSession, toggleStar } from "./session.ts";
 import { openHostCall } from "./hosts.ts";
@@ -58,6 +58,9 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
   const [att, setAtt] = useState<Attach>({ status: "loading" });
   const [again, setAgain] = useState(0);
   const [note, setNote] = useState<string | undefined>(undefined);
+  // the line being typed and what it would do (terminal.risk, a moment after the last key): a dot in the bar
+  const [typed, setTyped] = useState("");
+  const [risk, setRisk] = useState<"read" | "change" | "danger" | null>(null);
   const [asked, setAsked] = useState(false);
   const [serverLocked, setServerLocked] = useState(false);
   const sender = useMemo(() => createSender(deps, terminalId, setNote), [deps, terminalId]);
@@ -71,6 +74,15 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
     );
     return () => { live = false; };
   }, [deps, terminalId, again]);
+
+  useEffect(() => {
+    if (typed.trim() === "") { setRisk(null); return undefined; }
+    let live = true;
+    const t = setTimeout(() => {
+      void (data.call("terminal.risk", { command: typed.trim() }) as Promise<{ risk: "read" | "change" | "danger" }>).then((r) => { if (live) setRisk(r.risk); }, () => { if (live) setRisk(null); });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [typed, data]);
 
   useEffect(() => {
     if (note === undefined) return undefined;
@@ -151,7 +163,7 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
       <Terminal
         key={`${row.terminalId}:${again}`}
         {...sessionProps(row, { replay: att.replay, source: att.source, starred, ...(online ? (note !== undefined ? { note } : {}) : { note: "Offline" }) })}
-        onInput={(d) => void sender.input(d)} onResize={(c, r) => void sender.resize(c, r)} onInterrupt={() => void sender.interrupt()}
+        onInput={(d) => { setTyped((l) => lineAfter(l, d)); void sender.input(d); }} risk={risk} onResize={(c, r) => void sender.resize(c, r)} onInterrupt={() => void sender.interrupt()}
         onStar={star} onGap={onGap} onHost={openOn}
         {...(hosts.length > 0 ? { hosts, hostKey: hostKeyOf(row), onPickHost: pickHost } : {})}
       />

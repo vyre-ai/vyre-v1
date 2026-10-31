@@ -51,3 +51,12 @@ test("the answer says it ran and what it printed, the tail when long", () => {
   assert.match(answerOf({ state: "timeout", output: "" }, "ls").other, /still running/);
   assert.match(answerOf({ state: "done", output: "x".repeat(5000) }, "ls").other, /…x{4000}$/);
 });
+
+test("the line being typed follows the keys: letters add, Backspace removes, Enter and Ctrl-C clear", async () => {
+  const { lineAfter } = await import("./model.ts");
+  assert.equal(lineAfter("", "sudo"), "sudo");
+  assert.equal(lineAfter("sudo ls", "\x7f\x7f"), "sudo ");
+  assert.equal(lineAfter("rm -rf x", "\r"), "");
+  assert.equal(lineAfter("rm -rf x", "\x03"), "");
+  assert.equal(lineAfter("ls", "\x1b[A"), "ls", "an arrow key is not text");
+});
