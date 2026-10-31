@@ -68,6 +68,7 @@ export function onFileCreated(tx: ProjTx, e: ProjEvent): void {
     "INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, remote_version, synced_version, local_version, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     mountId, `itm_${mintUuid(e.at).replaceAll("-", "")}`, null, parent["item_key"], fileId, null, str(p["name"]), 0, 0, null, 0, 1, 1, 0, 0,
   );
+  tx.run("UPDATE mounts_item SET dirty_by = ? WHERE mount_id = ? AND file_id = ?", e.actor, mountId, fileId);
   startClock(tx, mountId, e.at);
 }
 
@@ -93,7 +94,7 @@ export function onVersionAdded(tx: ProjTx, e: ProjEvent): void {
   if (!row || row["native"] === 1) return;
   const synced = typeof row["synced_version"] === "number" ? row["synced_version"] : 0;
   if (n <= synced) return;
-  tx.run("UPDATE mounts_item SET local_version = ?, dirty = ? WHERE mount_id = ? AND item_key = ?", n, 1, row["mount_id"], row["item_key"]);
+  tx.run("UPDATE mounts_item SET local_version = ?, dirty = ?, dirty_by = ? WHERE mount_id = ? AND item_key = ?", n, 1, e.actor, row["mount_id"], row["item_key"]);
   startClock(tx, str(row["mount_id"]), e.at);
 }
 
