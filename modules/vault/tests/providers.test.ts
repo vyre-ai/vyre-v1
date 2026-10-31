@@ -156,14 +156,16 @@ test("the provider list shows this month's tokens on the account, from the turns
 function fakeSignin(script: Array<{ state: "waiting" } | { state: "done"; fields: { key: string; value: string; secret: boolean }[] } | { state: "failed"; message: string }>, failStart?: string): { port: u.SigninPort; seen: { codes: (string | undefined)[]; people: string[] } } {
   const seen = { codes: [] as (string | undefined)[], people: [] as string[] };
   const live = new Set<string>();
+  const finished = new Map<string, { state: "done"; fields: { key: string; value: string; secret: boolean }[] }>();
   return {
     seen,
     port: {
       has: (k) => k === "claude-code" || k === "codex",
       active: (id) => live.has(id),
       async start({ id, provider, person }) { if (failStart && provider === "codex") throw new Error(failStart); live.add(id); seen.people.push(person); return provider === "codex" ? { url: "https://auth.openai.com/codex/device", userCode: "ABCD-1234", needsCode: false, expiresInSec: 900 } : { url: "https://claude.ai/oauth/authorize?state=s", needsCode: true, expiresInSec: 900 }; },
-      async step({ id, code }) { seen.codes.push(code); const next = script.shift() ?? { state: "waiting" as const }; if (next.state !== "waiting") live.delete(id); return next; },
-      cancel: (id) => void live.delete(id),
+      // like the host: a finished flow keeps its answer until the module saves it and lets go (cancel); a failed one is gone
+      async step({ id, code }) { const held = finished.get(id); if (held) return held; seen.codes.push(code); const next = script.shift() ?? { state: "waiting" as const }; if (next.state === "failed") live.delete(id); if (next.state === "done") finished.set(id, next); return next; },
+      cancel: (id) => { live.delete(id); finished.delete(id); },
     },
   };
 }
@@ -191,6 +193,47 @@ test("sign in with Claude: start answers the link and says a code comes back, co
     assert.equal(h.everything().includes(TOKEN), false, "the token is sealed in the item and in no answer, event or row");
     assert.equal(JSON.stringify([started, waiting, done]).includes(TOKEN), false);
     assert.equal(out(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })).provider).id, row.id, "Done twice is one account");
+  } finally { u.configureVault(null); h.cleanup(); }
+});
+
+test("a locked vault key is asked for before the pasted code goes to the provider, so the code still works once the person unlocks", async () => {
+  const h = harness();
+  const TOKEN = "sk-ant-oat01-locked-then-open-TOKEN-0123456789"; // secret-scan: fake
+  const { port, seen } = fakeSignin([{ state: "done", fields: [{ key: "setup_token", value: TOKEN, secret: true }] }]);
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    h.lock(MAYA);
+    const locked = await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId), code: "CODE#STATE" }).catch((e: unknown) => e as { error?: { code?: string; details?: { reason?: string } } });
+    assert.deepEqual([locked.error?.code, locked.error?.details?.reason], ["auth.unauthenticated", "vault_locked"]);
+    assert.deepEqual(seen.codes, [], "the code was not spent while the key was locked");
+    assert.equal(port.active(String(started.flowId)), true, "the sign-in is still open");
+    h.unlock(MAYA);
+    const done = out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId), code: "CODE#STATE" }));
+    assert.deepEqual([out(done.provider).providerKey, out(done.provider).scope], ["claude-code", "mine"]);
+    assert.deepEqual(seen.codes, ["CODE#STATE"], "the provider was asked once");
+    assert.equal(port.active(String(started.flowId)), false, "saved, so the host let go of it");
+  } finally { u.configureVault(null); h.cleanup(); }
+});
+
+test("a sign-in that finished but could not be saved is saved on the next Finish without asking the provider again", async () => {
+  const h = harness();
+  const TOKEN = "sk-ant-oat01-save-retry-TOKEN-0123456789"; // secret-scan: fake
+  const { port, seen } = fakeSignin([{ state: "done", fields: [{ key: "setup_token", value: TOKEN, secret: true }] }]);
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    // the provider finishes, then the save fails (the key locks between the check and the save)
+    const step = port.step.bind(port);
+    port.step = async (a) => { const r = await step(a); h.lock(MAYA); return r; };
+    assert.equal(await refusedWith(p.subscriptionComplete(h.ctx, { flowId: String(started.flowId), code: "CODE#STATE" })), "auth.unauthenticated");
+    port.step = step;
+    h.unlock(MAYA);
+    assert.equal(port.active(String(started.flowId)), true, "the finished sign-in is held for the retry");
+    const done = out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId), code: "CODE#STATE" }));
+    assert.equal(out(done.provider).providerKey, "claude-code");
+    assert.deepEqual(seen.codes, ["CODE#STATE"], "the code went to the provider once");
+    assert.equal(h.everything().includes(TOKEN), false);
   } finally { u.configureVault(null); h.cleanup(); }
 });
 
