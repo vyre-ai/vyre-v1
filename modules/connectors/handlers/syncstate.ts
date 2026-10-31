@@ -16,7 +16,7 @@ export interface RecordFieldState { key: string; dir: "pull" | "push" | "both" |
 export interface RecordState {
   synced: boolean; app?: { key: string; title: string; domain?: string }; remoteId?: string; openUrl?: string; state: FieldState; lastSyncAt?: number; fields: RecordFieldState[];
 }
-export interface HistoryEntry { historyId: string; value: unknown; at?: number; replacedBy: "app" | "you"; actor: string }
+export interface HistoryEntry { historyId: string; value: unknown; at?: number; replacedBy: "app" | "you" | "push"; /** The person a push was sent for (a push entry only). */ by?: string; actor: string }
 export interface TypeStatus {
   type: string; account?: string; accounts?: { account: string; state: string; records: number; estimate?: number; pending: number }[]; app: { key: string; title: string; domain?: string }; state: "initial" | "syncing" | "paused" | "needs_review" | "error"; paused: boolean; deletes: "off" | "soft" | "travel"; conflict: string;
   polling: PollingRow; records: number; estimate?: number; filter?: string; canBackfill: boolean; lastRun?: { at: number; summary: string };
@@ -65,7 +65,7 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
   const keptHistory = (type: string, id: string, field?: string): { hid: number; value: string | null; hlc: string; actor: string }[] =>
     has("records_field_history")
       ? tx.all<{ hid: number; value: string | null; hlc: string; actor: string }>(
-        `SELECT rowid AS hid, value, hlc, actor FROM records_field_history WHERE type = ? AND id = ?${field !== undefined ? " AND field = ?" : ""} AND (actor LIKE 'sync:%' OR actor LIKE 'source:%') ORDER BY rowid DESC`,
+        `SELECT rowid AS hid, value, hlc, actor FROM records_field_history WHERE type = ? AND id = ?${field !== undefined ? " AND field = ?" : ""} AND (actor LIKE 'sync:%' OR actor LIKE 'source:%' OR actor LIKE 'push:%') ORDER BY rowid DESC`,
         ...[type, id, ...(field !== undefined ? [field] : [])],
       )
       : [];
@@ -123,14 +123,15 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
         let value: unknown = null;
         try { value = h.value === null ? null : (JSON.parse(h.value) as unknown); } catch { value = h.value; }
         const ms = parseHlc(h.hlc)?.ms;
-        return { historyId: String(h.hid), value, replacedBy: h.actor.startsWith("sync:") ? "app" : "you", actor: h.actor, ...(ms ? { at: ms } : {}) };
+        const push = h.actor.startsWith("push:");
+        return { historyId: String(h.hid), value, replacedBy: push ? "push" : h.actor.startsWith("sync:") ? "app" : "you", actor: h.actor, ...(push && h.actor.length > 5 ? { by: h.actor.slice(5) } : {}), ...(ms ? { at: ms } : {}) };
       });
       return { entries };
     },
 
     "sync_types.restore_field": async (ctx, input) => {
       const b = need(ctx, input.type);
-      const row = has("records_field_history") ? tx.get<{ value: string | null }>("SELECT value FROM records_field_history WHERE rowid = ? AND type = ? AND id = ? AND field = ? AND (actor LIKE 'sync:%' OR actor LIKE 'source:%')", Number(input.historyId), input.type, input.recordId, input.field) : undefined;
+      const row = has("records_field_history") ? tx.get<{ value: string | null }>("SELECT value FROM records_field_history WHERE rowid = ? AND type = ? AND id = ? AND field = ? AND (actor LIKE 'sync:%' OR actor LIKE 'source:%' OR actor LIKE 'push:%')", Number(input.historyId), input.type, input.recordId, input.field) : undefined;
       if (!row) return refuse(ctx, "validation.not_found", "That earlier value is no longer in the history.");
       if (!parse<FieldMapRow[]>(b.fields).some((f) => f.key === input.field)) return refuse(ctx, "validation.bad_input", `${input.field} is not a synced field.`);
       const value: unknown = row.value === null ? null : JSON.parse(row.value);

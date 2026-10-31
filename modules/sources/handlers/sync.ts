@@ -35,7 +35,7 @@ export interface SyncDeps {
   emit?: (name: string, subject: string, payload: Record<string, unknown>) => unknown;
   maxAttempts?: number;
 }
-export interface SyncOptions { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string }
+export interface SyncOptions { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; /** Who asked for the pass (a person pressing Sync or editing a record): pushes it queues carry the name, and the field history says "sent by". */ by?: string }
 export interface SyncReport {
   runId: string; dryRun: boolean;
   local: { created: number; updated: number }; remote: { created: number; updated: number; removed: number };
@@ -51,7 +51,7 @@ const OUTBOX_KEEP_MS = 30 * 86_400_000;
 interface LinkDb { sync_type: string; local_id: string; remote_id: string; base: string; removed_at: number | null }
 interface Link { localId: string; remoteId: string; base: Record<string, unknown>; removedAt: number | null; fresh?: boolean }
 interface OutboxDb {
-  outbox_id: string; sync_type: string; local_id: string; remote_id: string | null; op: "create" | "update" | "remove"; fields: string; values_json: string; replaced: string | null;
+  outbox_id: string; sync_type: string; local_id: string; remote_id: string | null; by_actor?: string | null; op: "create" | "update" | "remove"; fields: string; values_json: string; replaced: string | null;
   idem_key: string; status: string; attempts: number; error: string | null; trace_id: string | null; created_at: number; done_at: number | null; undone_at: number | null;
 }
 interface ConflictDb { conflict_id: string; sync_type: string; local_id: string; field: string; ours: string | null; theirs: string | null; base: string | null; rule: string; status: string; created_at: number }
@@ -113,11 +113,11 @@ async function relinkFar(d: SyncDeps, b: SyncBinding, localId: string, fields: S
 
 const HISTORY_SQL = "CREATE TABLE IF NOT EXISTS records_field_history (type TEXT NOT NULL, id TEXT NOT NULL, field TEXT NOT NULL, value TEXT, hlc TEXT NOT NULL, actor TEXT NOT NULL, seq INTEGER NOT NULL, reason TEXT NOT NULL)";
 /** The value that lost a newest-wins settlement, kept in the field's history so a person can see it and restore it. */
-function keepLoser(d: SyncDeps, type: string, id: string, field: string, value: unknown, actor: string): void {
+function keepLoser(d: SyncDeps, type: string, id: string, field: string, value: unknown, actor: string, reason = "lww_loser"): void {
   d.tx.exec(HISTORY_SQL);
   const at = now(d);
   const seq = (d.tx.get<{ n: number }>("SELECT count(*) AS n FROM records_field_history WHERE type = ? AND id = ? AND field = ?", type, id, field)?.n ?? 0) + 1;
-  d.tx.run("INSERT INTO records_field_history (type, id, field, value, hlc, actor, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, 'lww_loser')", type, id, field, JSON.stringify(value ?? null), formatHlc({ ms: at, counter: 0, deviceId: "sync" }), actor, seq);
+  d.tx.run("INSERT INTO records_field_history (type, id, field, value, hlc, actor, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", type, id, field, JSON.stringify(value ?? null), formatHlc({ ms: at, counter: 0, deviceId: "sync" }), actor, seq, reason);
 }
 
 const loadLinks = (tx: Tx, syncTypeId: string): Link[] =>
@@ -340,8 +340,8 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     if (open) return;
     const nth = d.tx.get<{ n: number }>("SELECT count(*) AS n FROM sy_outbox WHERE sync_type = ? AND (idem_key = ? OR idem_key LIKE ?)", b.syncTypeId, idem, `${idem}#%`)?.n ?? 0;
     d.tx.run(
-      "INSERT INTO sy_outbox (outbox_id, sync_type, local_id, remote_id, op, fields, values_json, idem_key, trace_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      mintShort("obx", now(d)), b.syncTypeId, localId, remoteId, op, JSON.stringify(fieldList), JSON.stringify(values), nth ? `${idem}#${nth}` : idem, o.traceId ?? null, now(d),
+      "INSERT INTO sy_outbox (outbox_id, sync_type, local_id, remote_id, op, fields, values_json, idem_key, trace_id, created_at, by_actor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      mintShort("obx", now(d)), b.syncTypeId, localId, remoteId, op, JSON.stringify(fieldList), JSON.stringify(values), nth ? `${idem}#${nth}` : idem, o.traceId ?? null, now(d), o.by ?? null,
     );
     rep.queued++;
   };
@@ -414,6 +414,7 @@ export async function flushOutbox(d: SyncDeps, b: SyncBinding): Promise<number> 
         for (const k of Object.keys(values)) { const lf = fieldsByLocal.get(k); if (lf) base[lf] = local?.data[lf] ?? values[k] ?? null; }
         saveLink(d.tx, b.syncTypeId, { localId: row.local_id, remoteId: remoteId!, base, removedAt: null });
       }
+      if (row.op === "update") for (const k of Object.keys(values)) { const lf = fieldsByLocal.get(k); if (lf) keepLoser(d, b.type, row.local_id, lf, values[k], `push:${row.by_actor ?? ""}`, "pushed"); }
       d.emit?.("sync.pushed", `record/${row.local_id}`, { syncTypeId: b.syncTypeId, recordId: row.local_id, outboxId: row.outbox_id });
     } catch (e) {
       const attempts = row.attempts + 1;

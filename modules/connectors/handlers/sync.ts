@@ -39,7 +39,7 @@ export interface DiscoveredObject { remote: string; title: string; fields: { rem
 /** What the sync engine (modules/sources) offers the handlers. The host wires it; every method gets the binding it works on. */
 export interface RunReport { summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean }
 export interface SyncEngine {
-  run(ctx: ConnectorsCtx, b: SyncBindingRow, o: { mode: SyncMode; runAutomations?: boolean }): Promise<RunReport>;
+  run(ctx: ConnectorsCtx, b: SyncBindingRow, o: { mode: SyncMode; runAutomations?: boolean; by?: string }): Promise<RunReport>;
   preview(ctx: ConnectorsCtx, b: SyncBindingRow, o: { direction?: "pull" | "push" | "both" }): Promise<PreviewRow>;
   confirmDeletes(ctx: ConnectorsCtx, b: SyncBindingRow, decision: "mark_removed" | "keep"): Promise<number>;
   resolveConflict(ctx: ConnectorsCtx, b: SyncBindingRow, conflictId: string, resolution: "ours" | "theirs" | "value", value?: unknown): Promise<{ recordId: string }>;
@@ -584,7 +584,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
         const r = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE sync_type_id = ?", id);
         if (!r) continue;
         try {
-          const out = await engine.run(ctx, rowOf(r), { mode: req.mode, runAutomations: req.runAutomations });
+          const out = await engine.run(ctx, rowOf(r), { mode: req.mode, runAutomations: req.runAutomations, ...(req.by ? { by: req.by } : {}) });
           parts.push(`${r.type}: ${out.summary}`);
           if (!out.dryRun) await planPoll(ctx, r);
         } catch (e) {
@@ -635,8 +635,8 @@ export function noteSchemaChanges(deps: ConnectorsDeps, ctx: Pick<ConnectorsCtx,
 }
 
 /** For the Run executor: what a sync_now asked for. */
-export function syncRequest(deps: Pick<ConnectorsDeps, "tx">, runId: string): { syncTypeIds: string[]; mode: SyncMode; runAutomations: boolean } | undefined {
+export function syncRequest(deps: Pick<ConnectorsDeps, "tx">, runId: string): { syncTypeIds: string[]; mode: SyncMode; runAutomations: boolean; by?: string } | undefined {
   ensureSyncTables(deps.tx);
-  const r = deps.tx.get<{ sync_types: string; mode: SyncMode; run_automations: number }>("SELECT sync_types, mode, run_automations FROM cn_sync_requests WHERE run_id = ?", runId);
-  return r ? { syncTypeIds: parse<string[]>(r.sync_types), mode: r.mode, runAutomations: r.run_automations === 1 } : undefined;
+  const r = deps.tx.get<{ sync_types: string; mode: SyncMode; run_automations: number; requested_by: string | null }>("SELECT sync_types, mode, run_automations, requested_by FROM cn_sync_requests WHERE run_id = ?", runId);
+  return r ? { syncTypeIds: parse<string[]>(r.sync_types), mode: r.mode, runAutomations: r.run_automations === 1, ...(r.requested_by && r.requested_by !== "system" ? { by: r.requested_by } : {}) } : undefined;
 }

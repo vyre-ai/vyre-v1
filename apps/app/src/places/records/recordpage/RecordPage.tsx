@@ -344,7 +344,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
       void data.call("sync_types.field_history", { type, recordId: row.id, field: f.key }).then((out) => {
         const entries = (out as { entries: HistoryEntry[] }).entries;
         menu.show(historyMenu({
-          title: f.title, app: rs.sync!.app!.title, now: data.now(), entries, show: (v) => valueText(f, v, data.nameOf),
+          title: f.title, app: rs.sync!.app!.title, now: data.now(), entries, nameOf: data.nameOf, show: (v) => valueText(f, v, data.nameOf),
           onRestore: (e) => { void data.call("sync_types.restore_field", { type, recordId: row.id, field: f.key, historyId: e.historyId }).then(() => { setFlash({ text: `Put back ${f.title.toLowerCase()}.` }); rs.touch(); }, (err: unknown) => setFlash({ text: errorText(err, "Could not put it back"), bad: true })); },
         }), x, y);
       }, () => menu.show([{ head: "No earlier values" }], x, y));

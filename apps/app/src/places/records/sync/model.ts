@@ -10,7 +10,7 @@ export interface App { key?: string; title: string; domain?: string }
 export interface SyncedRow { type: string; connector: string; state: "initial" | "syncing" | "paused" | "needs_review" | "error"; pending: number; conflicts: number; schemaChanges: number; lastSyncAt?: number; app?: { title: string; domain?: string } }
 export interface RecordFieldState { key: string; dir: Dir; state: FieldState; at?: number; error?: string; outboxId?: string; history: number }
 export interface RecordSync { synced: boolean; app?: App; remoteId?: string; openUrl?: string; state: FieldState; lastSyncAt?: number; fields: RecordFieldState[] }
-export interface HistoryEntry { historyId: string; value: unknown; at?: number; replacedBy: "app" | "you"; actor: string }
+export interface HistoryEntry { historyId: string; value: unknown; at?: number; replacedBy: "app" | "you" | "push"; by?: string; actor: string }
 
 export type DotState = "live" | "syncing" | "needs" | "paused";
 /** The sidebar's dot: needs you when something waits on a person, syncing until the first pass has finished or while pushes are on their way, paused when it was paused, live otherwise. */
@@ -71,8 +71,9 @@ export function markOf(f: Pick<RecordFieldState, "dir" | "state" | "at" | "error
 }
 
 /** The line under a history entry: who replaced it and when. */
-export function replacedLine(e: HistoryEntry, app: string, now: number): string {
+export function replacedLine(e: HistoryEntry, app: string, now: number, name?: (id: string) => string): string {
   const when = e.at ? ` ${agoShort(e.at, now)} ago` : "";
+  if (e.replacedBy === "push") return `Sent to ${app}${e.by && name ? ` by ${name(e.by)} via Vyre` : " via Vyre"}${when}`;
   return e.replacedBy === "app" ? `Replaced by ${app}${when}` : `Your newer change replaced it${when}`;
 }
 

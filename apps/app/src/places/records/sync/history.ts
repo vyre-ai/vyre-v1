@@ -6,12 +6,13 @@ import type { HistoryEntry } from "./model.ts";
 
 const cut = (s: string, n = 48): string => (s.length > n ? `${s.slice(0, n - 1)}...` : s);
 
-export function historyMenu(o: { title: string; app: string; now: number; entries: readonly HistoryEntry[]; show: (v: unknown) => string; onRestore: (e: HistoryEntry) => void }): MenuEntry[] {
+export function historyMenu(o: { title: string; app: string; now: number; entries: readonly HistoryEntry[]; show: (v: unknown) => string; onRestore: (e: HistoryEntry) => void; nameOf?: (id: string) => string }): MenuEntry[] {
   if (o.entries.length === 0) return [{ head: `No earlier values of ${o.title.toLowerCase()}` }];
   const out: MenuEntry[] = [{ head: `Earlier values of ${o.title.toLowerCase()}` }];
   for (const e of o.entries) {
     const text = o.show(e.value);
-    out.push({ head: replacedLine(e, o.app, o.now) }, { label: text === "" ? "Restore (empty)" : `Restore ${cut(text)}`, onSelect: () => o.onRestore(e) });
+    if (e.replacedBy === "push") { out.push({ head: replacedLine(e, o.app, o.now, o.nameOf) }, { label: text === "" ? "Sent (empty)" : `Sent ${cut(text)}`, disabled: true, reason: "This is what was sent. It is the current value." }); continue; }
+    out.push({ head: replacedLine(e, o.app, o.now, o.nameOf) }, { label: text === "" ? "Restore (empty)" : `Restore ${cut(text)}`, onSelect: () => o.onRestore(e) });
   }
   return out;
 }

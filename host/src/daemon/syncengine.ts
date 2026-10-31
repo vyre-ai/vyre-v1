@@ -27,7 +27,7 @@ export interface EngineCtx { trace: { traceId: string }; call(cap: string, input
 export interface PreviewOut { creates: number; updates: number; removes: number; skips: number; summary: string; matches?: { sure: number; unsure: number; none: number }; samples: { recordId?: string; remoteId?: string; op: string; changes: Record<string, unknown> }[] }
 export interface SyncEngineLike {
   /** One pass over a synced type: pull, push what people changed, report. Mode backfill and reconcile are the same pass as incremental; the list the connector asks for is what differs. */
-  run(ctx: EngineCtx, b: BindingRow, o: { mode: "incremental" | "reconcile" | "backfill" | "dry_run"; runAutomations?: boolean }): Promise<RunOut>;
+  run(ctx: EngineCtx, b: BindingRow, o: { mode: "incremental" | "reconcile" | "backfill" | "dry_run"; runAutomations?: boolean; by?: string }): Promise<RunOut>;
   preview(ctx: EngineCtx, b: BindingRow, o: { direction?: "pull" | "push" | "both" }): Promise<PreviewOut>;
   confirmDeletes(ctx: EngineCtx, b: BindingRow, decision: "mark_removed" | "keep"): Promise<number>;
   resolveConflict(ctx: EngineCtx, b: BindingRow, conflictId: string, resolution: "ours" | "theirs" | "value", value?: unknown): Promise<{ recordId: string }>;
@@ -48,7 +48,7 @@ export interface SyncReportLike {
   matched: number; ambiguous: number; conflicts: number; askedConflicts: number; removedAtSource: number; pausedDeletes: boolean; skipped?: number; summary: string;
 }
 export interface SyncCore {
-  runSync(d: SyncDepsLike, b: SyncBindingLike, o?: { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string }): Promise<SyncReportLike>;
+  runSync(d: SyncDepsLike, b: SyncBindingLike, o?: { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; by?: string }): Promise<SyncReportLike>;
   flushOutbox(d: SyncDepsLike, b: SyncBindingLike): Promise<number>;
   retryPush(d: SyncDepsLike, outboxId: string): boolean;
   undoPush(d: SyncDepsLike, b: SyncBindingLike, outboxId: string): Promise<{ undone: boolean; reason?: string }>;
@@ -237,7 +237,7 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
     async run(ctx, b, opts) {
       const { deps, binding } = await depsOf(ctx, b);
       const dry = opts.mode === "dry_run";
-      const r = await o.core.runSync(deps, binding, { mode: "both", dryRun: dry, ...(opts.runAutomations ? { runAutomations: true } : {}), traceId: ctx.trace.traceId });
+      const r = await o.core.runSync(deps, binding, { mode: "both", dryRun: dry, ...(opts.runAutomations ? { runAutomations: true } : {}), ...(opts.by ? { by: opts.by } : {}), traceId: ctx.trace.traceId });
       return { summary: r.summary, pulled: r.local.created + r.local.updated, pushed: r.remote.created + r.remote.updated + r.remote.removed, skipped: r.skipped ?? 0, conflicts: r.conflicts, dryRun: dry };
     },
     async preview(ctx, b, opts) {

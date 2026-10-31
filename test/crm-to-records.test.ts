@@ -146,6 +146,10 @@ test("a person edit pushes, a conflict resolves newest-wins with the old value i
     const outbox = await w.hs["connectors.outbox.list"](w.ctx, { type: "person" });
     assert.deepEqual(outbox.items.map((o) => [o.op, o.state, o.fields]), [["update", "sent", ["phone"]]]);
 
+    // the push is in the field's history as sent by the person who asked for the pass
+    const sent = await w.hs["sync_types.field_history"](w.ctx, { type: "person", recordId: ada.id, field: "phone" });
+    assert.deepEqual(sent.entries.map((e) => [e.replacedBy, e.by, e.value]), [["push", "usr_dana", "+1 555 9999"]]);
+
     // 2. both sides changed Ben's name; the app's change is the newer one, so it wins here and our value is kept
     const ben = await w.byName("person", "Ben Ford");
     await w.schema.store.update("person", ben.id, { name: "Ben (typed here)" }, ben.version);
@@ -154,7 +158,7 @@ test("a person edit pushes, a conflict resolves newest-wins with the old value i
     theirBen.modified = "2099-01-01T00:00:00Z";
     await w.pass("person");
     assert.equal((await w.schema.store.get("person", ben.id))!.data["name"], "Ben (typed there)");
-    const lost = w.schema.tx.all<{ field: string; value: string; actor: string }>("SELECT field, value, actor FROM records_field_history WHERE type = 'person' AND id = ?", ben.id);
+    const lost = w.schema.tx.all<{ field: string; value: string; actor: string }>("SELECT field, value, actor FROM records_field_history WHERE type = 'person' AND reason = 'lww_loser' AND id = ?", ben.id);
     assert.deepEqual(lost.map((h) => [h.field, JSON.parse(h.value), h.actor]), [["name", "Ben (typed here)", "sync:crm_ledger"]]);
 
     // 3. both changed Ed's note; ours is the newer, so it is pushed and the app's old value is kept
@@ -165,7 +169,7 @@ test("a person edit pushes, a conflict resolves newest-wins with the old value i
     theirEd.modified = "2026-01-02T00:00:00Z";
     await w.pass("person");
     assert.equal(theirEd.attributes.note, "called today");
-    const kept = w.schema.tx.all<{ value: string; actor: string }>("SELECT value, actor FROM records_field_history WHERE type = 'person' AND id = ?", ed.id);
+    const kept = w.schema.tx.all<{ value: string; actor: string }>("SELECT value, actor FROM records_field_history WHERE type = 'person' AND reason = 'lww_loser' AND id = ?", ed.id);
     assert.deepEqual(kept.map((h) => [JSON.parse(h.value), h.actor]), [["old note in the app", "source:crm_ledger"]]);
 
     // 4. a delete here never reaches the app

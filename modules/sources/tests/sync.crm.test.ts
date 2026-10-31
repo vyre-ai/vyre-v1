@@ -88,7 +88,7 @@ test("newest wins keeps the value that lost in the field's history, whichever si
   const rep = await k.run(PERSON_B);
   assert.equal(rep.conflicts, 1);
   assert.equal((await k.l.store.get("person", id))!.data["name"], "Ben (crm)");
-  const lost = k.l.host.tx.all<{ field: string; value: string; actor: string; reason: string }>("SELECT field, value, actor, reason FROM records_field_history WHERE type = 'person' AND id = ?", id);
+  const lost = k.l.host.tx.all<{ field: string; value: string; actor: string; reason: string }>("SELECT field, value, actor, reason FROM records_field_history WHERE type = 'person' AND reason = 'lww_loser' AND id = ?", id);
   assert.deepEqual(lost.map((h) => [h.field, JSON.parse(h.value), h.actor, h.reason]), [["name", "Ben (mine)", "sync:App", "lww_loser"]]);
 
   // now mine is newer: the app's value is what is kept, and it is pushed
@@ -101,7 +101,7 @@ test("newest wins keeps the value that lost in the field's history, whichever si
   k.clock.t = 5000;
   await k.run(PERSON_B);
   assert.equal((await k.r.store.get("r_person", rid))!.data["/name"], "Ben (mine 2)");
-  const all = k.l.host.tx.all<{ value: string; actor: string }>("SELECT value, actor FROM records_field_history WHERE type = 'person' AND id = ? ORDER BY rowid", id);
+  const all = k.l.host.tx.all<{ value: string; actor: string }>("SELECT value, actor FROM records_field_history WHERE type = 'person' AND reason = 'lww_loser' AND id = ? ORDER BY rowid", id);
   assert.deepEqual(all.map((h) => [JSON.parse(h.value), h.actor]), [["Ben (mine)", "sync:App"], ["Ben (crm 2)", "source:App"]]);
 });
 

@@ -323,7 +323,7 @@ export default defineManifest({
     }),
     read('sync_types.field_history', 'The earlier values of one field that a newest-wins settlement replaced: yours when the app was newer, the app\'s when you were', {
       in: { type: id.recordType, recordId: id.record, field: fieldKey },
-      out: { entries: t.arr(t.obj({ historyId: t.str(), value: t.json(), at: t.opt(t.ts()), replacedBy: t.enm('app', 'you'), actor: t.str() })) },
+      out: { entries: t.arr(t.obj({ historyId: t.str(), value: t.json(), at: t.opt(t.ts()), replacedBy: t.enm('app', 'you', 'push'), by: t.opt(t.str()), actor: t.str() })) },
       on: ['record', '/recordId'], tool: 'records', label: 'check',
     }),
     write('sync_types.restore_field', 'Put an earlier value of a field back (an ordinary edit, newer than the app\'s value, so it is sent on the next pass) and start that pass', {

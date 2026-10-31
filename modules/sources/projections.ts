@@ -50,6 +50,8 @@ const ready = new WeakSet<object>();
 export function ensureTables(tx: Tx): void {
   if (ready.has(tx)) return;
   tx.exec(readFileSync(new URL("./migrations/0001_sources.sql", import.meta.url), "utf8"));
+  // an outbox made before pushes named who asked for them gains the column
+  if (!tx.all<{ name: string }>("PRAGMA table_info(sy_outbox)").some((c) => c.name === "by_actor")) tx.exec("ALTER TABLE sy_outbox ADD COLUMN by_actor TEXT");
   ready.add(tx);
 }
 

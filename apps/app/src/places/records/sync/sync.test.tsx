@@ -155,5 +155,7 @@ test("the earlier values of a field are a menu: who replaced each, and Restore f
   assert.deepEqual(menu.map((m) => ("head" in m ? m.head : "label" in m ? m.label : "-")), ["Earlier values of name", "Replaced by Ledger 1 h ago", "Restore Ben (typed here)", "Your newer change replaced it", "Restore (empty)"]);
   for (const m of menu) if ("onSelect" in m && m.onSelect) m.onSelect();
   assert.deepEqual(restored, ["1", "2"]);
+  const pushed = historyMenu({ title: "Phone", app: "Ledger", now: NOW, entries: [{ historyId: "3", value: "+1 555", replacedBy: "push", by: "usr_dana", actor: "push:usr_dana", at: NOW - 2000 }], show: String, onRestore: () => restored.push("push"), nameOf: () => "Dana" });
+  assert.deepEqual(pushed.map((m) => ("head" in m ? m.head : "label" in m ? m.label : "-")), ["Earlier values of phone", "Sent to Ledger by Dana via Vyre 2 s ago", "Sent +1 555"]);
   assert.deepEqual(historyMenu({ title: "Name", app: "Ledger", now: NOW, entries: [], show: String, onRestore: () => undefined }), [{ head: "No earlier values of name" }]);
 });
