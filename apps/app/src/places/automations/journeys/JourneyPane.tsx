@@ -16,6 +16,7 @@ import { Glyph } from "../config/glyphs.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Group, Hint, Lab, PickButton, SRow, Switch } from "../config/parts.tsx";
 import { useDesign, useJourney } from "./data.ts";
+import { StageFields } from "./StageFields.tsx";
 import type { Selection } from "./JourneyDesigner.tsx";
 import { DUE_CHOICES, automationsByStage, initials, agentNames as seatNames, EXIT_RULES, LIMIT_CHOICES, SLOTS, agentSeats, clearTaskField, countOf, doneByWords, dueWords, exitRuleId, exitWords, findTask, limitWords, plural, renameStage, setSeat, tasksWords, updateTask } from "./model.ts";
 import type { Journey, Ref, Slot, Stage, StageCounts, Task } from "./model.ts";
@@ -134,6 +135,7 @@ function StagePane({ journey: j, stage: g, counts, canDesign }: { journey: Journ
             {g.automations.map((id) => <Row key={id} id={`stage-auto-${id}`} title={data.name(id)} note="On entering" leading={<View style={p.lead}><Glyph name="bolt" size={14} color="var(--accent)" /></View>} />)}
           </Group>
         ) : <Text style={p.dim}>No automations on this stage.</Text>}
+        <StageFields journey={j} stage={g} design={d} canDesign={canDesign} />
         {d.saved.note ? <Text testID="saved-note" accessibilityLiveRegion="polite" style={[p.note, d.saved.note.failed && { color: "var(--danger)" as string }]}>{d.saved.note.text}</Text> : null}
       </ScrollView>
       {element}

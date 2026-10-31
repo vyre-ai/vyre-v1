@@ -14,6 +14,8 @@ import {
   addFieldOps, addableTypes, confirmLine, dropFieldOps, fieldDeleteBlocked, moveFieldOps, renameFieldOps, requiredOps, retypeBlocked, retypeFieldOps, retypeTarget, slugOf,
 } from "./model.ts";
 import type { Call, FieldDef, FieldTypeInfo } from "./model.ts";
+import { OVERVIEW, addGroup, deleteGroup, groupOf, groupsIn, moveField, renameGroup } from "./groups.ts";
+import type { LayoutSection } from "./groups.ts";
 import { useSchemaChange } from "./useChange.ts";
 
 export interface PanelType {
@@ -27,7 +29,7 @@ export interface PanelType {
   fields: readonly FieldDef[];
 }
 type TrashItem = CapMap["schema.trash.list"]["out"]["items"][number];
-export type FieldMode = "rename" | "type" | "delete";
+export type FieldMode = "rename" | "type" | "delete" | "group";
 
 export interface FieldsPanelProps {
   call: Call;
@@ -43,9 +45,11 @@ export interface FieldsPanelProps {
   trash?: readonly TrashItem[];
   /** Draw the show or hide checks (a table has a view to hide in; the Record types page has none). */
   viewToggles?: boolean;
+  /** The type's record page layout (its field groups), read once the panel opens; tests hand it in. */
+  layout?: readonly LayoutSection[];
 }
 
-export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initial, fieldTypes: given, trash: givenTrash, viewToggles = true }: FieldsPanelProps): ReactElement {
+export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initial, fieldTypes: given, trash: givenTrash, viewToggles = true, layout: givenLayout }: FieldsPanelProps): ReactElement {
   const [fieldTypes, setFieldTypes] = useState<readonly FieldTypeInfo[]>(given ?? []);
   const [trash, setTrash] = useState<readonly TrashItem[]>(givenTrash ?? []);
   const [open, setOpen] = useState<string | null>(initial?.field ?? null);
@@ -55,11 +59,17 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("text");
   const [newRequired, setNewRequired] = useState(false);
+  const [layout, setLayout] = useState<readonly LayoutSection[]>(givenLayout ?? []);
+  const [groupBusy, setGroupBusy] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [newGroup, setNewGroup] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ key: string; text: string } | null>(null);
   const readTrash = (): void => { void call("schema.trash.list", {}).then((out) => setTrash((out as CapMap["schema.trash.list"]["out"]).items), () => undefined); };
   const change = useSchemaChange(call, () => { readTrash(); });
   useEffect(() => {
     let live = true;
     if (given === undefined) void call("schema.field_types", {}).then((out) => { if (live) setFieldTypes((out as CapMap["schema.field_types"]["out"]).fieldTypes); }, () => undefined);
+    if (givenLayout === undefined) void call("schema.layout.get", { type: type.key }).then((out) => { if (live) setLayout((out as CapMap["schema.layout.get"]["out"]).sections); }, () => undefined);
     if (givenTrash === undefined) void call("schema.trash.list", {}).then((out) => { if (live) setTrash((out as CapMap["schema.trash.list"]["out"]).items); }, () => undefined);
     return () => { live = false; };
   }, [call]);
@@ -75,6 +85,13 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
     setOpen(f.key); setMode(null); setName(f.title);
   };
   const doRun = (ops: Parameters<typeof change.run>[0], done?: () => void): void => { void change.run(ops).then((ok) => { if (ok) { setMode(null); done?.(); } }); };
+  const fieldKeys = order;
+  const groups = groupsIn(layout, fieldKeys);
+  // one layout write per change; the page redraws from the saved layout
+  const saveLayout = (next: LayoutSection[], done?: () => void): void => {
+    setGroupBusy(true); setGroupError(null);
+    call("schema.layout.set", { type: type.key, sections: next }).then(() => { setLayout(next); done?.(); }, (e: unknown) => setGroupError(e instanceof Error && e.message ? e.message : "Could not save the groups.")).finally(() => setGroupBusy(false));
+  };
   const lost = trash.filter((t) => t.type === type.key && t.field !== undefined);
 
   const rows: ReactElement[] = [];
@@ -85,7 +102,7 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
     rows.push(
       <View key={f.key} testID={`panel-field-${f.key}`}>
         <Row
-          id={`panel-field-${f.key}`} title={f.title} note={`${fieldMark(f.type).name}${f.required ? " · Required" : ""}`} selected={expanded}
+          id={`panel-field-${f.key}`} title={f.title} note={`${fieldMark(f.type).name}${f.required ? " · Required" : ""}${groupOf(layout, fieldKeys, f.key) ? ` · ${groupOf(layout, fieldKeys, f.key)!.title}` : ""}`} selected={expanded}
           leading={<FieldMark type={f.type} />}
           trailing={!viewToggles ? undefined : (
             <Pressable
@@ -97,7 +114,7 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
           )}
           onPress={() => pick(f)}
         />
-        {expanded ? <FieldEdit f={f} type={type} order={order} mode={mode} setMode={(m) => { change.cancel(); setMode(m); }} name={name} setName={setName} choices={choices} change={change} run={doRun} /> : null}
+        {expanded ? <FieldEdit f={f} type={type} order={order} mode={mode} setMode={(m) => { change.cancel(); setMode(m); }} name={name} setName={setName} choices={choices} change={change} run={doRun} groups={groups} inGroup={groupOf(layout, fieldKeys, f.key)?.key ?? null} groupBusy={groupBusy} onGroup={(to) => saveLayout(moveField(layout, fieldKeys, f.key, to), () => setMode(null))} /> : null}
       </View>,
     );
   }
@@ -107,6 +124,27 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
     const made = addFieldOps({ type: type.key, name: newName, fieldType: newType, required: newRequired, takenKeys: keys });
     doRun(made.ops, () => { setAdding(false); setNewName(""); setNewType("text"); setNewRequired(false); });
   };
+  const groupRows: ReactElement[] = groups.map((g) => (
+    <View key={g.key} testID={`panel-group-${g.key}`}>
+      {renaming?.key === g.key ? (
+        <View style={s.inline}>
+          <View style={s.grow}><TextField value={renaming.text} onChangeText={(t) => setRenaming({ key: g.key, text: t })} accessibilityLabel={`Rename ${g.title}`} testID={`panel-group-input-${g.key}`} autoFocus onSubmitEditing={() => { if (renaming.text.trim()) saveLayout(renameGroup(layout, fieldKeys, g.key, renaming.text), () => setRenaming(null)); }} /></View>
+          <TextButton label="Cancel" testID={`panel-group-rename-cancel-${g.key}`} onPress={() => setRenaming(null)} />
+          <TextButton label="Save" primary testID={`panel-group-rename-save-${g.key}`} off={renaming.text.trim() === "" || groupBusy ? true : undefined} onPress={() => saveLayout(renameGroup(layout, fieldKeys, g.key, renaming.text), () => setRenaming(null))} />
+        </View>
+      ) : (
+        <Row
+          id={`panel-group-row-${g.key}`} title={g.title} note={`${g.fields.length} ${g.fields.length === 1 ? "field" : "fields"}`}
+          trailing={<View style={s.inline}>
+            <TextButton label="Rename" testID={`panel-group-rename-${g.key}`} onPress={() => setRenaming({ key: g.key, text: g.title })} />
+            <TextButton label="Delete" danger testID={`panel-group-delete-${g.key}`} off={groupBusy ? true : undefined} onPress={() => saveLayout(deleteGroup(layout, fieldKeys, g.key))} />
+          </View>}
+        />
+      )}
+    </View>
+  ));
+  const groupReady = newGroup !== null && newGroup.trim() !== "";
+  const submitGroup = (): void => { if (groupReady) saveLayout(addGroup(layout, fieldKeys, newGroup!).sections, () => setNewGroup(null)); };
   return (
     <Dialog title="Fields" onClose={onClose} width={520} testID="fields-panel" actions={[{ label: "Done", primary: true, onPress: onClose, testID: "fields-panel-done" }]}>
       <ScrollView style={s.scroll} contentContainerStyle={s.list} testID="fields-panel-list">
@@ -130,6 +168,18 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
         ) : (
           <View style={s.addLink}><TextButton label="Add field" testID="panel-add" onPress={() => { change.cancel(); setOpen(null); setMode(null); setAdding(true); }} /></View>
         )}
+        <View style={s.trash} testID="panel-groups">
+          <Text style={s.head}>Groups</Text>
+          {groupRows}
+          {newGroup !== null ? (
+            <View style={s.inline}>
+              <View style={s.grow}><TextField value={newGroup} onChangeText={setNewGroup} placeholder="Group name" accessibilityLabel="Group name" testID="panel-group-name" autoFocus onSubmitEditing={submitGroup} /></View>
+              <TextButton label="Cancel" testID="panel-group-cancel" onPress={() => setNewGroup(null)} />
+              <TextButton label="Add group" primary testID="panel-group-save" off={!groupReady || groupBusy ? true : undefined} onPress={submitGroup} />
+            </View>
+          ) : <View style={s.addLink}><TextButton label="New group" testID="panel-group-new" onPress={() => { setGroupError(null); setNewGroup(""); }} /></View>}
+          {groupError ? <Text style={s.error} accessibilityRole="alert" testID="panel-group-error">{groupError}</Text> : null}
+        </View>
         {lost.length > 0 ? (
           <View style={s.trash} testID="panel-trash">
             <Text style={s.head}>Recently deleted</Text>
@@ -146,9 +196,10 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
   );
 }
 
-function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, change, run }: {
+function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, change, run, groups, inGroup, groupBusy, onGroup }: {
   f: FieldDef; type: PanelType; order: readonly string[]; mode: FieldMode | null; setMode(m: FieldMode | null): void; name: string; setName(n: string): void;
   choices: readonly FieldTypeInfo[]; change: ReturnType<typeof useSchemaChange>; run(ops: Parameters<ReturnType<typeof useSchemaChange>["run"]>[0], done?: () => void): void;
+  groups: readonly LayoutSection[]; inGroup: string | null; groupBusy: boolean; onGroup(to: string | null): void;
 }): ReactElement {
   const retypeOff = retypeBlocked(type, f, type.titleField, f.key);
   const deleteOff = fieldDeleteBlocked(type, f);
@@ -164,6 +215,7 @@ function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, chan
           <TextButton label={f.required ? "Make optional" : "Make required"} testID={`panel-required-${f.key}`} off={type.system ? "Built in fields keep this setting" : change.busy ? true : undefined} onPress={() => run(requiredOps(type.key, f.key, f.required !== true))} />
           <TextButton label="Move up" testID={`panel-up-${f.key}`} off={up === null || at <= 0 ? "Already first" : change.busy ? true : undefined} onPress={() => { if (up) run(up); }} />
           <TextButton label="Move down" testID={`panel-down-${f.key}`} off={down === null ? "Already last" : change.busy ? true : undefined} onPress={() => { if (down) run(down); }} />
+          <TextButton label="Move to group" testID={`panel-group-move-${f.key}`} off={f.key === type.titleField ? "The title stays at the top" : undefined} onPress={() => setMode("group")} />
           <TextButton label="Delete" danger testID={`panel-delete-${f.key}`} off={deleteOff ?? undefined} onPress={() => { setMode("delete"); run(dropFieldOps(type.key, f.key)); }} />
         </View>
       ) : null}
@@ -183,6 +235,17 @@ function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, chan
             })}
           </View>
           <View style={s.addRow}><View style={s.grow} /><TextButton label="Cancel" onPress={() => setMode(null)} testID="panel-retype-cancel" /></View>
+        </View>
+      ) : null}
+      {mode === "group" ? (
+        <View>
+          {groups.length === 0 ? <Text style={s.hint} testID="panel-group-none">Make a group first, under Groups below.</Text> : (
+            <View style={s.chips} accessibilityRole="radiogroup">
+              <TextButton label="Ungrouped" selected={inGroup === null} testID={`panel-to-group-${OVERVIEW}`} off={groupBusy ? true : undefined} onPress={() => onGroup(null)} />
+              {groups.map((g) => <TextButton key={g.key} label={g.title} selected={inGroup === g.key} testID={`panel-to-group-${g.key}`} off={groupBusy ? true : undefined} onPress={() => onGroup(g.key)} />)}
+            </View>
+          )}
+          <View style={s.addRow}><View style={s.grow} /><TextButton label="Back" onPress={() => setMode(null)} testID="panel-group-back" /></View>
         </View>
       ) : null}
       {mode === "delete" && staged === null && !change.busy ? <View style={s.addRow}><View style={s.grow} /><TextButton label="Back" onPress={() => { change.cancel(); setMode(null); }} testID="panel-delete-back" /></View> : null}
@@ -214,5 +277,6 @@ const s = StyleSheet.create({
   addLink: { marginTop: 6, alignItems: "flex-start" },
   trash: { marginTop: 14, gap: 2 },
   head: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingBottom: 4 },
+  hint: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingVertical: 4 },
   error: { fontSize: 12.5, color: "var(--danger)" as string },
 });

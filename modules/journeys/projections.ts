@@ -11,6 +11,8 @@ export interface TaskTemplate {
 export interface TimeLimit { hours: number; escalateTo?: { kind: string; id: string } }
 export interface Stage {
   key: string; title: string; order: number; exit: { requireTasks: boolean; manualOnly?: boolean }; timeLimit?: TimeLimit; tasks: TaskTemplate[]; automations: string[]; final?: boolean; makesProject?: boolean; onLeaving?: string[];
+  /** Field keys of the Journey's record type that belong to this stage (they form a group named after it), the ones that must be filled to enter it, and the ones that must be filled to leave it. */
+  fields?: string[]; needToEnter?: string[]; needToLeave?: string[];
 }
 export interface StartRule { event: string; filter?: unknown; enabled: boolean }
 export interface Journey {

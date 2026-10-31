@@ -27,6 +27,9 @@ function checkStages(ctx: JourneysCtx, stages: readonly Stage[]): void {
     if (keys.has(s.key)) raise(ctx, "validation.precondition_failed", `Two stages share the key ${s.key}.`, { reason: "duplicate_stage", stage: s.key });
     if (orders.has(s.order)) raise(ctx, "validation.precondition_failed", `Two stages share the position ${s.order}.`, { reason: "duplicate_order", order: s.order });
     keys.add(s.key); orders.add(s.order);
+    for (const list of [s.fields, s.needToEnter, s.needToLeave]) {
+      if (list !== undefined && (!Array.isArray(list) || list.some((k) => typeof k !== "string" || !k))) raise(ctx, "validation.precondition_failed", `The fields of the stage ${s.key} must be field keys.`, { reason: "bad_stage_fields", stage: s.key });
+    }
     const tk = new Set<string>();
     for (const t of s.tasks) {
       if (tk.has(t.key)) raise(ctx, "validation.precondition_failed", `The stage ${s.key} has two tasks with the key ${t.key}.`, { reason: "duplicate_task", stage: s.key, task: t.key });
@@ -298,9 +301,41 @@ async function onLeave(ctx: JourneysCtx, j: Journey, rec: JRecord, stage: Stage 
   }
 }
 
+// ---- gates: fields that must be filled to enter or to leave a stage ----
+
+export interface MissingField { key: string; title: string; stage: string; when: "enter" | "leave" }
+const blank = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
+
+/** The fields the move is waiting on: those the stage being left wants filled to leave, and those the stage being entered wants filled to enter. Empty when the move may go ahead. */
+export async function missingForMove(ctx: JourneysCtx, j: Journey, rec: JRecord, from: Stage | undefined, to: Stage): Promise<MissingField[]> {
+  const wants: { key: string; stage: string; when: "enter" | "leave" }[] = [
+    ...(from?.needToLeave ?? []).map((key) => ({ key, stage: from!.key, when: "leave" as const })),
+    ...(to.needToEnter ?? []).map((key) => ({ key, stage: to.key, when: "enter" as const })),
+  ];
+  if (wants.length === 0 || !ctx.call) return [];
+  const got = (await ctx.call("records.get", { type: j.recordType, recordId: rec.recordId })) as { record?: { fields?: Record<string, unknown> } };
+  const values = got?.record?.fields ?? {};
+  const open = wants.filter((w, i) => blank(values[w.key]) && wants.findIndex((x) => x.key === w.key) === i);
+  if (open.length === 0) return [];
+  const titles = new Map<string, string>();
+  try {
+    const d = (await ctx.call("schema.describe", { type: j.recordType })) as { types?: { fields?: { key: string; title?: string }[] }[] };
+    for (const f of d?.types?.[0]?.fields ?? []) if (f.title) titles.set(f.key, f.title);
+  } catch { /* the keys name them when the titles cannot be read */ }
+  return open.map((w) => ({ key: w.key, title: titles.get(w.key) ?? w.key, stage: w.stage, when: w.when }));
+}
+
+/** Refuse a move while required fields are empty. The refusal lists them, so a person, an Automation or an agent can fill them and ask again. */
+async function requireFields(ctx: JourneysCtx, j: Journey, rec: JRecord, from: Stage | undefined, to: Stage): Promise<void> {
+  const missing = await missingForMove(ctx, j, rec, from, to);
+  if (missing.length === 0) return;
+  raise(ctx, "validation.precondition_failed", `Fill these first: ${missing.map((m) => m.title).join(", ")}.`, { reason: "fields_required", fields: missing, toStage: to.key });
+}
+
 /** Move a record from its stage to another: leave, write the record, enter, run the stage's tasks and Automations. */
-export async function moveTo(ctx: JourneysCtx, j: Journey, rec: JRecord, to: Stage, o: { manual: boolean; reason?: string; stages: readonly Stage[] }): Promise<Moved> {
+export async function moveTo(ctx: JourneysCtx, j: Journey, rec: JRecord, to: Stage, o: { manual: boolean; reason?: string; stages: readonly Stage[]; ungated?: boolean }): Promise<Moved> {
   const from = rec.stage;
+  if (!o.ungated) await requireFields(ctx, j, rec, o.stages.find((s) => s.key === from), to);
   const now = ctx.now();
   const next: JRecord = { ...rec, stage: to.key, enteredAt: now };
   if (to.final) next.completedAt = now; else delete next.completedAt;
@@ -394,6 +429,8 @@ export async function advance(ctx: JourneysCtx, input: In): Promise<unknown> {
   if (here.exit.requireTasks && !(await tasksDone(ctx, rec))) return { advanced: false, stage: rec.stage };
   const to = stages.find((s) => s.order > here.order);
   if (!to) return { advanced: false, stage: rec.stage };
+  // a stage that is waiting on fields keeps the record where it is until they are filled
+  if ((await missingForMove(ctx, j, rec, here, to)).length > 0) return { advanced: false, stage: rec.stage };
   const moved = await moveTo(ctx, j, rec, to, { manual: false, stages });
   if (moved.completed) emitJ(ctx, "journey.completed", `record/${rec.recordId}`, { journeyId: j.id, recordId: rec.recordId, stage: to.key });
   return { advanced: true, stage: to.key };

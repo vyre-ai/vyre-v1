@@ -6,7 +6,9 @@ import { useLive, usePageData } from "../recordpage/data.tsx";
 import type { FieldDef, RecordRow, TypeDef } from "../table/model.ts";
 import { optionsOf } from "../table/model.ts";
 import { hueOf } from "../table/model.ts";
-import { journeyOfType, moveInJourney, stageFieldOf } from "./model.ts";
+import { GateSheet } from "./GateSheet.tsx";
+import { GateError, journeyOfType, moveInJourney, stageFieldOf } from "./model.ts";
+import type { MissingField } from "./model.ts";
 
 /** The type the Journey's subject field points at. The schema writes it as `target`; older types wrote `to`. */
 export function subjectTarget(f: FieldDef | undefined): string | null {
@@ -39,6 +41,7 @@ export function JourneyStepper({ type, row, def }: { type: string; row: RecordRo
   const [journey, setJourney] = useState<{ id: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [gate, setGate] = useState<{ stage: string; missing: readonly MissingField[] } | null>(null);
   useEffect(() => {
     let live = true;
     journeyOfType(data.call, type).then((j) => { if (live) setJourney(j); }).catch(() => { if (live) setJourney(null); });
@@ -53,7 +56,7 @@ export function JourneyStepper({ type, row, def }: { type: string; row: RecordRo
   const go = (stage: string): void => {
     if (!journey || busy || stage === now) return;
     setBusy(true); setError(null);
-    moveInJourney(data.call, journey.id, row, stage).catch((e: unknown) => setError(e instanceof Error ? e.message : "Could not move it. Try again.")).finally(() => setBusy(false));
+    moveInJourney(data.call, journey.id, row, stage).catch((e: unknown) => { if (e instanceof GateError) setGate({ stage: e.toStage || stage, missing: e.missing }); else setError(e instanceof Error ? e.message : "Could not move it. Try again."); }).finally(() => setBusy(false));
   };
   const steps: ReactElement[] = [];
   for (let i = 0; i < stages.length; i++) {
@@ -73,6 +76,12 @@ export function JourneyStepper({ type, row, def }: { type: string; row: RecordRo
     <View style={c.wrap} testID="journey-stepper" accessibilityLabel={`${def.title} stages`}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={c.steps}>{steps}</ScrollView>
       {subject ? <Subject field={subject} row={row} /> : null}
+      {gate && journey ? (
+        <GateSheet
+          call={data.call} journeyId={journey.id} type={type} def={def} row={row} toStage={gate.stage} missing={gate.missing}
+          stageTitle={stages.find((g) => g.key === gate.stage)?.title ?? gate.stage} onDone={() => setGate(null)} onClose={() => setGate(null)}
+        />
+      ) : null}
       {error ? <Text style={c.err} accessibilityRole="alert" testID="journey-stepper-error">{error}</Text> : null}
     </View>
   );

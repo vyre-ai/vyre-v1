@@ -11,8 +11,11 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { JourneyStepper } from "../journey/JourneyStepper.tsx";
-import { isJourneyDef } from "../journey/model.ts";
+import { isJourneyDef, stageFieldOf } from "../journey/model.ts";
+import { useJourneyStages } from "../journey/useStages.ts";
+import { Glyph as Icon } from "../schemamap/icons.tsx";
 import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
+import { tabsOf, visibleSections, withStages } from "./groups.ts";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
 import {
@@ -271,11 +274,18 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const menu = useMenu();
   const def = dq.status === "ready" ? dq.data.types.find((t) => t.key === type) : undefined;
   const row = rq.status === "ready" ? (rq.data.record as RecordRow | undefined) : undefined;
+  const [group, setGroup] = useState("overview");
+  const journey = useJourneyStages(data.call, type, def !== undefined && isJourneyDef(def));
   if (!def || !row) {
     return <View style={p.main} testID="record-page-loading" accessibilityLabel="Loading"><View style={p.head}><Text accessibilityRole="header" style={p.h1}>Record</Text></View></View>;
   }
   const prefs = pq.status === "ready" ? pq.data : { folded: [], keepVisible: [] };
-  const sections = sectionsOf(def, lq.status === "ready" ? lq.data : undefined, pq.status === "ready" ? pq.data : undefined);
+  const plain = sectionsOf(def, lq.status === "ready" ? lq.data : undefined, pq.status === "ready" ? pq.data : undefined);
+  // a Journey record leads with the group of the stage it is in; the groups of later stages stay locked until their stage opens
+  const stageNow = (() => { const sf = stageFieldOf(def); const v = sf ? row.fields[sf.key] : undefined; return typeof v === "string" ? v : ""; })();
+  const sections = journey ? withStages(def, plain, journey.stages, stageNow, prefs.folded) : plain;
+  const tabs = tabsOf(sections);
+  const shown = visibleSections(sections, tabs, group);
   const ring = cq.status === "ready" && asksForFields(def, cq.data) ? ringOf(cq.data) : null;
   const nodes = mq.status === "ready" ? mq.data.nodes : [];
   const title = String(row.fields[def.titleField] ?? "") || "Untitled";
@@ -307,25 +317,26 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const showSource = (f: FieldDef, x: number, y: number): void => {
     sourceOf(data, type, row.id, f.key).then((s) => menu.show([{ head: sourceText(s as Parameters<typeof sourceText>[0]) }], x, y)).catch(() => menu.show([{ head: "No source recorded for this value." }], x, y));
   };
-  const fold = (s: Section): void => { void savePrefs(data, type, { folded: toggleFold(each(sections.filter((x) => x.folded), (x) => x.key), s.key) }); };
+  const fold = (s: Section): void => { void savePrefs(data, type, { folded: toggleFold(each(sections.filter((x) => x.folded && x.stage?.state !== "locked"), (x) => x.key), s.key) }); };
 
   const fieldProps = { row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
 
   const body: ReactElement[] = [];
   // the first frame draws what the screen shows (about the first eight fields); the sections below it join after the first paint, with the right pane (navigate budget, 50 ms)
   let drawn = 0;
-  for (const s of sections) {
+  for (const s of shown) {
     if (!late && drawn >= FIRST_FRAME_FIELDS) break;
     const sh = shownFields(s, row, prefs.keepVisible, all);
     if (!s.folded) drawn += sh.fields.length;
     const fields: ReactElement[] = [];
     for (const f of sh.fields) fields.push(<View key={f.key} style={wide ? p.half : p.full}><FieldRow field={f} {...fieldProps} /></View>);
+    const locked = s.stage?.state === "locked", now = s.stage?.state === "current";
     body.push(
-      <View key={s.key} testID={`section-${s.key}`}>
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: !s.folded }} aria-expanded={!s.folded} accessibilityLabel={s.title} testID={`fold-${s.key}`} onPress={() => fold(s)} style={({ hovered }: { hovered?: boolean }) => [p.sh, hovered === true && p.cardOver]}>
-          <View style={s.folded ? p.shut : undefined}><Glyph name="chevd" size={10} /></View>
-          <Text style={p.st}>{s.title}</Text>
-          <Text style={p.sn}>{s.fields.length}</Text>
+      <View key={s.key} testID={`section-${s.key}`} style={now ? p.nowBox : undefined}>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: !s.folded, disabled: locked }} aria-expanded={!s.folded} accessibilityLabel={locked ? `${s.title}, opens at ${s.stage!.opensAt}` : s.title} testID={`fold-${s.key}`} disabled={locked} onPress={() => fold(s)} style={({ hovered }: { hovered?: boolean }) => [p.sh, hovered === true && !locked && p.cardOver]}>
+          {locked ? <Icon name="lock" size={12} /> : <View style={s.folded ? p.shut : undefined}><Glyph name="chevd" size={10} /></View>}
+          <Text style={[p.st, now && p.stNow]}>{s.title}</Text>
+          {locked ? <Text style={p.sn} testID={`opens-${s.key}`}>{`Opens at ${s.stage!.opensAt}`}</Text> : now ? <Text style={p.sn}>This stage</Text> : <Text style={p.sn}>{s.fields.length}</Text>}
         </Pressable>
         {s.folded ? null : <View style={p.fields}>{fields}</View>}
         {!s.folded && sh.hidden > 0 && !all ? <Pressable accessibilityRole="button" testID={`more-${s.key}`} onPress={() => setAll(true)}><Text style={p.more}>{`Show ${sh.hidden} empty ${sh.hidden === 1 ? "field" : "fields"}`}</Text></Pressable> : null}
@@ -372,6 +383,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
             </View>
           ) : null}
           {map ? <View style={p.mapBox} testID="relation-map-box">{nodes.length > 1 ? <RelationMap nodes={nodes} edges={mapEdges} onOpen={(n) => data.nav.openRecord(n.type, n.recordId)} /> : <Text style={p.paneEmpty}>Nothing is linked to this record yet.</Text>}</View> : null}
+          {tabs ? <TabStrip tabs={each(tabs, (t) => ({ key: t.key, title: t.title }))} active={tabs.some((t) => t.key === group) ? group : tabs[0]!.key} onSelect={setGroup} /> : null}
           {body}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
         </ScrollView>
@@ -413,6 +425,8 @@ const p = StyleSheet.create({
   sh: { height: 32, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, paddingHorizontal: 4, borderRadius: 6 },
   shut: { transform: [{ rotate: "-90deg" }] },
   st: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
+  stNow: { color: "var(--accent)" as string },
+  nowBox: { borderRadius: 10, backgroundColor: "var(--accent-wash)" as string, paddingHorizontal: 10, paddingBottom: 6, marginTop: 6 },
   sn: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   fields: { flexDirection: "row", flexWrap: "wrap" },
   half: { width: "50%", paddingRight: 16 },
