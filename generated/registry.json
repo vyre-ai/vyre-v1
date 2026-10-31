@@ -20449,7 +20449,7 @@
         "$ref": "#/$defs/s_4e30f81d76"
       },
       "planMode": "allowed",
-      "summary": "Ask the person a structured question (single, multi or free text) instead of guessing; the turn parks until answered"
+      "summary": "Ask the person a structured question (single, multi or free text) instead of guessing; the turn parks until answered. To ask them to connect a folder you cannot see, use options keyed mount:google_drive, mount:onedrive, mount:sharepoint or mount:github"
     },
     {
       "cap": "chat.handoff",
