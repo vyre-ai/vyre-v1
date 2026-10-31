@@ -13,12 +13,17 @@ test("the Space entry listens for Escape in the capture phase and goes back when
   doc.removeEventListener = () => undefined;
   let backs = 0;
   try {
-    await mount(createRoot, <SpaceEntry startAt="join" onTarget={async () => undefined} onBack={() => { backs++; }} />);
-    await flush();
-    const keys = added.filter((a) => a.type === "keydown");
-    assert.ok(keys.length > 0, "a key listener is on the document");
-    assert.ok(keys.every((k) => k.capture === true), "in the capture phase, so a focused field cannot swallow Escape");
-    keys[keys.length - 1]!.fn({ key: "Escape", preventDefault() {} });
-    assert.equal(backs, 1, "Escape goes back to the doors");
+    // the Join step and the Create (team) step both have a field with the cursor in it
+    for (const startAt of ["join", "team"] as const) {
+      added.length = 0;
+      backs = 0;
+      await mount(createRoot, <SpaceEntry startAt={startAt} onTarget={async () => undefined} onBack={() => { backs++; }} />);
+      await flush();
+      const keys = added.filter((a) => a.type === "keydown");
+      assert.ok(keys.length > 0, `${startAt}: a key listener is on the document`);
+      assert.ok(keys.every((k) => k.capture === true), `${startAt}: in the capture phase, so a focused field cannot swallow Escape`);
+      keys[keys.length - 1]!.fn({ key: "Escape", preventDefault() {} });
+      assert.equal(backs, 1, `${startAt}: Escape goes back to the doors`);
+    }
   } finally { restore(); }
 });
