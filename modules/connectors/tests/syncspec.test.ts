@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { KEY_A, KEY_B, ledgerSpec, orbitSpec } from "../fixtures/crm.ts";
 import { KEYS, world } from "../fixtures/crm-world.ts";
 import { executeAction } from "../handlers/runtime.ts";
-import { compileSpec, nextLink, parseSpec } from "../syncspec.ts";
+import { compileSpec, nextLink, parseSpec, readPage } from "../syncspec.ts";
 import type { SyncSpec } from "../syncspec.ts";
 import type { ConnectionDb, ConnectorDef } from "../projections.ts";
 
@@ -223,4 +223,12 @@ test("preview shows the types, three real records and writes nothing", async () 
   assert.equal(w.calls.length, 1, "only schema.describe was called");
   assert.equal(w.k.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = 'crm_ledger'"), undefined);
   assert.ok(w.c.state.requests.every((r) => r.method === "GET"));
+});
+
+test("a next-page address inside the answer works like a Link header (cursor kind link with next)", () => {
+  const body = { contacts: [{ id: "a" }, { id: "b" }], meta: { total: 9, nextPageUrl: "https://crm-c.test/contacts?after=b" } };
+  const o = { itemsAt: "/contacts", id: "/id" };
+  assert.equal(readPage(body, undefined, o, { kind: "link", next: "/meta/nextPageUrl" }, undefined)!.next, "https://crm-c.test/contacts?after=b");
+  assert.equal(readPage({ ...body, meta: { nextPageUrl: null } }, undefined, o, { kind: "link", next: "/meta/nextPageUrl" }, undefined)!.next, undefined, "the last page has none");
+  assert.equal(readPage(body, '<https://crm-c.test/h?p=2>; rel="next"', o, { kind: "link" }, undefined)!.next, "https://crm-c.test/h?p=2", "without a pointer it is the header");
 });

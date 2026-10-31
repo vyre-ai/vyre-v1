@@ -350,7 +350,11 @@ export function readPage(body: unknown, link: string | undefined, o: Pick<SpecOb
     if (typeof v === "string" && v !== "") next = v; else if (typeof v === "number") next = String(v);
   } else if (cursor.kind === "page" && items.length > 0 && !sized) next = String((after !== undefined ? Number(after) : (cursor.start ?? 1)) + 1);
   else if (cursor.kind === "offset" && items.length > 0 && !sized) next = String((after !== undefined ? Number(after) : (cursor.start ?? 0)) + items.length);
-  else if (cursor.kind === "link" && link) next = nextLink(link);
+  else if (cursor.kind === "link") {
+    // the next address is in the answer when the spec says where (cursor.next), otherwise in the Link header
+    const v = cursor.next !== undefined ? pointerGet(body, cursor.next) : link ? nextLink(link) : undefined;
+    if (typeof v === "string" && v !== "") next = v;
+  }
   if (next !== undefined && next === after) next = undefined;
   return { items, ...(next !== undefined ? { next } : {}) };
 }

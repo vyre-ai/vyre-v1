@@ -73,7 +73,8 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
     let body: unknown = o.itemsAt === "/" || o.itemsAt === "" ? [item] : unflatten({ [o.itemsAt]: [item] });
     let link: string | undefined;
     if (cursor.kind === "cursor" && cursor.next) body = { ...(body as Record<string, unknown>), ...unflatten({ [cursor.next]: "tok2" }) };
-    if (cursor.kind === "link") link = `<https://${spec.app.domain}${o.list.path}?page=2>; rel="next"`;
+    if (cursor.kind === "link" && cursor.next) body = { ...(body as Record<string, unknown>), ...unflatten({ [cursor.next]: `https://${spec.app.domain}${o.list.path}?page=2` }) };
+    else if (cursor.kind === "link") link = `<https://${spec.app.domain}${o.list.path}?page=2>; rel="next"`;
     const first = shapeList(body, link, action.shape!, undefined);
     tests.push({
       name: `${t.remote}: first page`, action: action.name, responses: [{ method: "GET", url: `https://${spec.app.domain}${o.list.path}`, status: 200, body, ...(link ? { link } : {}) }],
