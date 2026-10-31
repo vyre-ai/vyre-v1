@@ -71,6 +71,7 @@ type Out = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 ```
@@ -125,6 +126,7 @@ type Out = {
         "traceId": "0123456789abcdef0123456789abcdef"
       },
       "model": "example",
+      "nodeId": "example",
       "runId": "run_a1b2c3",
       "startedAt": 1760000000000,
       "state": "queued",

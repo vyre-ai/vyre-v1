@@ -6143,6 +6143,7 @@
             "type": "string"
           },
           "vaultItemId": {
+            "description": "The Vault handle with its field (#Name.api_key) or an item id. The key is released to the person asking, never returned.",
             "type": "string"
           }
         },
