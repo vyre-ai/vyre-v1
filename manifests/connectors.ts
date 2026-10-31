@@ -86,7 +86,7 @@ const syncSpec = t.obj({
   auth: t.obj({ vaultHandle: id.handle, style: t.enm('bearer', 'header', 'basic', 'query', 'oauth'), header: t.opt(t.str()), prefix: t.opt(t.str()), headers: t.opt(t.rec(t.str())) }),
   objects: t.arr(specObject, { minItems: 1 }),
   mapping: t.arr(specMapping, { minItems: 1 }),
-  plan: t.obj({ firstPull: t.obj({ words: t.str({ description: 'Plain words: what the first pull brings in' }) }), backfill: t.enm('later', 'now'), conflicts: t.lit('newest') }),
+  plan: t.obj({ firstPull: t.obj({ words: t.str({ description: 'Plain words: what the first pull brings in' }) }), backfill: t.enm('later', 'now'), conflicts: t.lit('newest'), audience: t.opt(t.enm('space', 'added', 'me')) }),
 });
 const discoverAuth = t.obj({ vaultHandle: id.handle, style: t.enm('bearer', 'header', 'basic'), header: t.opt(t.str()), prefix: t.opt(t.str()), headers: t.opt(t.rec(t.str())) });
 const specProblem = t.obj({ level: t.enm('error', 'warn'), at: t.str(), message: t.str() });

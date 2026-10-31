@@ -320,6 +320,10 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     if (makes.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:type.create`, ops: makeOps, reason: `Bring in ${spec.app.name}` });
     if (adds.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:field.add`, ops: adds, reason: `Fields from ${spec.app.name}` });
     if (rels.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:relation.add`, ops: rels, reason: `Links from ${spec.app.name}` });
+    // who the new types are open to: the Records sharing capability decides (types that already existed keep their audience)
+    if (spec.plan.audience !== undefined && spec.plan.audience !== "space") {
+      for (const m of makes) await ctx.call("access.audience_set", { idempotencyKey: `${idem}:audience:${m.recordType}`, resource: { type: "record_type", id: m.recordType }, audience: spec.plan.audience });
+    }
 
     // 4. bindings: bind a new type, update one that is already synced
     const out: ApplyOut["types"] = [];

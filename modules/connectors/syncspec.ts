@@ -29,7 +29,7 @@ export interface SyncSpec {
   auth: { vaultHandle: string; style: (typeof AUTH_STYLES)[number]; header?: string; prefix?: string; headers?: Record<string, string> };
   objects: SpecObject[];
   mapping: SpecMapping[];
-  plan: { firstPull: { words: string }; backfill: "later" | "now"; conflicts: "newest" };
+  plan: { firstPull: { words: string }; backfill: "later" | "now"; conflicts: "newest"; /** Who the new record types are open to: the whole Space (default), only people added, or only the person applying. */ audience?: "space" | "added" | "me" };
 }
 
 export interface Problem { level: "error" | "warn"; at: string; message: string }
@@ -62,6 +62,7 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
   if (!Array.isArray(mapping) || !mapping.length) bad("mapping", "Map at least one object to a record type.");
   if (!isObj(plan) || !isObj(plan["firstPull"]) || !str(plan["firstPull"]["words"])) bad("plan.firstPull.words", "Say in plain words what the first pull brings in.");
   if (isObj(plan) && plan["backfill"] !== "later" && plan["backfill"] !== "now") bad("plan.backfill", "plan.backfill is later or now.");
+  if (isObj(plan) && plan["audience"] !== undefined && plan["audience"] !== "space" && plan["audience"] !== "added" && plan["audience"] !== "me") bad("plan.audience", "plan.audience is space, added or me.");
   if (isObj(plan) && plan["conflicts"] !== "newest") bad("plan.conflicts", "plan.conflicts is newest.");
   if (problems.length) return { problems };
 
