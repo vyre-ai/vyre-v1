@@ -17,6 +17,7 @@ import { InboxDataProvider } from "../../places/inbox/sidebar/data.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { InboxSidebar, SidebarLoading } from "../../places/inbox/sidebar/InboxSidebar.tsx";
 import { InboxStateProvider, useInboxState } from "../../places/inbox/sidebar/state.tsx";
+import { MobileBackContext } from "../../mobile/shell/back.ts";
 import { InboxPhoneDock } from "../../places/inbox/softphone/phone.tsx";
 import { CallTitlePill } from "../../places/inbox/softphone/pill.tsx";
 import { inboxData } from "./inbox-data.ts";
@@ -103,8 +104,9 @@ function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | 
     <View testID="inbox-place" style={st.row}>
       {inMain ? (
         <View style={st.main}>
-          <Pressable accessibilityRole="button" testID="phone-back-to-inboxes" onPress={() => { setEntered(false); close(); }} style={st.backChip}><Text style={st.backText}>{"\u2039 Inbox"}</Text></Pressable>
-          <Main rt={rt} openId={openId} close={close} />
+          {/* an open conversation carries the Back in its own contact header (one header); the list behind a view keeps the chip */}
+          {openId ? null : <Pressable accessibilityRole="button" testID="phone-back-to-inboxes" onPress={() => { setEntered(false); close(); }} style={st.backChip}><Text style={st.backText}>{"\u2039 Inbox"}</Text></Pressable>}
+          <MobileBackContext.Provider value={openId ? () => { setEntered(false); close(); } : null}><Main rt={rt} openId={openId} close={close} /></MobileBackContext.Provider>
         </View>
       ) : <View style={st.main}><InboxSidebar /></View>}
     </View>

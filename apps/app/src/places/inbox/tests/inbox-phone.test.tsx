@@ -4,6 +4,9 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { Dimensions } from "react-native";
 import { installDom, mount, press, find, textOf } from "../../../onboarding/test-dom.ts";
+import { ContactTab } from "../contacttab/ContactTab.tsx";
+import { createContactTabSample } from "../contacttab/sample.ts";
+import { MobileBackContext } from "../../../mobile/shell/back.ts";
 import { ContactList } from "../contactlist/index.ts";
 import { createSampleInbox } from "../contactlist/sample.ts";
 import { InboxDataProvider, InboxSidebar, InboxStateProvider } from "../sidebar/index.ts";
@@ -30,4 +33,18 @@ test("the dialer row shows its keyboard shortcut on a wide window and not on a p
     const root = await mount(createRoot, <InboxDataProvider value={createSampleInbox().data}><InboxStateProvider><InboxSidebar /></InboxStateProvider></InboxDataProvider>);
     assert.equal(textOf(find(root, "inbox-dialer")).includes("⌘⇧K"), shows, `${width} wide`);
   }
+});
+
+test("a contact header carries the Back when the phone shell hands it one, and none otherwise", async () => {
+  installDom();
+  widen(390);
+  let backs = 0;
+  const tab = (): ReturnType<typeof createContactTabSample> => createContactTabSample();
+  const bare = await mount(createRoot, <InboxDataProvider value={tab().data}><InboxStateProvider><ContactTab conversationId="elena" /></InboxStateProvider></InboxDataProvider>);
+  assert.ok(find(bare, "contact-head"), "the contact header is drawn");
+  assert.equal(find(bare, "contact-back"), null, "no Back without the phone shell");
+  const root = await mount(createRoot, <MobileBackContext.Provider value={() => { backs++; }}><InboxDataProvider value={tab().data}><InboxStateProvider><ContactTab conversationId="elena" /></InboxStateProvider></InboxDataProvider></MobileBackContext.Provider>);
+  await press(find(root, "contact-back"));
+  assert.equal(backs, 1);
+  widen(1280);
 });
