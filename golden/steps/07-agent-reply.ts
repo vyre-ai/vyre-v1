@@ -74,6 +74,33 @@ export async function runAgentReply(live: readonly string[], opts: Parameters<ty
       const turns = expectStatus(await s.call("engine.turns.list", admin, { threadId: thread! }), 200, "engine.turns.list").turns as { state: string; tokensIn: number; tokensOut: number }[];
       assert.ok(turns.some((t) => t.state === "completed" && t.tokensIn > 0 && t.tokensOut > 0), `turns ${short(turns)}`);
     }, ["the agent's streamed reply lands in the thread"]);
+    // The same for her own private assistant: every person has one, made when their account came to exist, before any AI account. It has to hold what an agent holds to read her key and to speak.
+    const assistant = await trail.step("she has a private assistant", async () => {
+      const me = expectStatus(await s.call("identity.whoami", admin, {}), 200, "identity.whoami").principal.id as string;
+      const end = Date.now() + 20_000;
+      for (;;) {
+        await s.d.hooks?.pump?.();
+        const l = expectStatus(await s.call("agents.list", admin, { section: "personal", limit: 100 }), 200, "agents.list").agents as { agentId: string; ownerId: string; role?: string }[];
+        const mine = l.find((a) => a.ownerId === me && a.role === "assistant");
+        if (mine) return mine.agentId;
+        if (Date.now() > end) throw new Error(`no private assistant for ${me} after 20 s: ${short(l)}`);
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    }, ["the agent's streamed reply lands in the thread"]);
+    const aThread = await trail.step("she starts a chat with her assistant", async () =>
+      expectStatus(await s.call("chat.start", admin, { idempotencyKey: "golden-7-assistant-chat", kind: "chat", agentIds: [assistant!] }), 200, "chat.start (assistant)").thread.threadId as string,
+    ["she has a private assistant"]);
+    await trail.step("her assistant's streamed reply lands in the thread", async () => {
+      expectStatus(await s.call("chat.post", admin, { idempotencyKey: "golden-7-assistant-hello", threadId: aThread!, body: "hello", mentions: [{ kind: "agent", id: assistant! }] }), 200, "chat.post (assistant)");
+      const end = Date.now() + 40_000;
+      for (;;) {
+        await s.d.hooks?.pump?.();
+        const msgs = expectStatus(await s.call("chat.messages.list", admin, { threadId: aThread! }), 200, "chat.messages.list (assistant)").messages as { author?: { kind?: string }; body?: string }[];
+        if (msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine."))) return;
+        if (Date.now() > end) throw new Error(`no reply from the assistant after 40 s: ${short(msgs)}`);
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }, ["she starts a chat with her assistant"]);
     return { events: await s.events(), trail };
   } finally { await s.stop(); }
 }

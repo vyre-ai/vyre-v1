@@ -103,7 +103,7 @@ test("chat live: a person's message to an agent on a booted daemon gets a stream
     const started = await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "chat-live-start" });
     assert.equal(started.status, 200, JSON.stringify(started.data));
     const threadId = started.data.thread.threadId as string;
-    // the first engine call builds and binds the runtime, so the bridge consumer has an engine to hand the message to
+    // a harmless engine call (the bridge consumer builds the runtime itself when the first message arrives, as bridge.boot.test.ts proves)
     const pool = await call(d, "engine.pool.status", {});
     assert.equal(pool.status, 200, JSON.stringify(pool.data));
     // the person's own live socket, open before the message: the words of the reply must arrive on it as they are written

@@ -30,9 +30,17 @@ export const periodic = {
 };
 
 /** A task reached Done: if it was the Unblock for a turn with no account, wake that agent in that thread. */
+/**
+ * A consumer that hands work to the engine builds the runtime first. The runtime is built by the first engine call and by a periodic job every few seconds, so a message that arrives
+ * before either (the first message after a server restart) would find no engine, be skipped and never get a turn. Building here is the same ensureRuntime the first call makes: once, idempotent.
+ */
+const withRuntime = <C extends Record<string, { run: (ctx: EngineCtx, event: never) => Promise<unknown> }>>(consumers: C): C => Object.fromEntries(
+  Object.entries(consumers).map(([name, c]) => [name, { ...c, run: async (ctx: EngineCtx, event: never): Promise<unknown> => { await ensureRuntime(ctx); return c.run(ctx, event); } }]),
+) as C;
+
 export const consumers = {
-  ...bridgeConsumers,
-  ...gateResumeConsumers,
+  ...withRuntime(bridgeConsumers),
+  ...withRuntime(gateResumeConsumers),
   ...captureConsumers,
   "engine.unblock": {
     on: ["task.completed"],
