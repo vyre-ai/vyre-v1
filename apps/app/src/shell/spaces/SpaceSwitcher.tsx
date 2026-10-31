@@ -19,6 +19,8 @@ export interface SpaceMenuInput {
   away: boolean;
   onSwitch: (spaceId: string) => void;
   onAction: (action: SpaceAction) => void;
+  /** In a Team Space: where new chats run by default, this computer or the Space. Absent where there is no choice. */
+  runsOn?: { value: "device" | "space"; set(value: "device" | "space"): void };
 }
 
 /** The menu's entries. Pure, so the content is tested without a window. Every item has an icon (icons are all or none, D51). */
@@ -40,6 +42,13 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
   out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
   out.push({ label: "Space Settings", icon: iconMarkup("settings"), onSelect: () => input.onAction("settings") });
   if (open !== undefined && open.terminal) out.push({ label: "Open Terminal", icon: iconMarkup("terminal"), onSelect: () => input.onAction("terminal") });
+  if (input.runsOn !== undefined && open?.kind === "team") {
+    const on = input.runsOn;
+    out.push({ separator: true });
+    out.push({ head: "Chats run on" });
+    out.push({ label: "This computer", icon: iconMarkup("monitor"), checked: on.value === "device", onSelect: () => on.set("device") });
+    out.push({ label: "The Space", icon: iconMarkup("cloud"), checked: on.value === "space", onSelect: () => on.set("space") });
+  }
   out.push({ separator: true });
   out.push({ label: input.away ? "I'm Back" : "Set Yourself Away", icon: iconMarkup(input.away ? "check" : "moon"), onSelect: () => input.onAction("away") });
   out.push({ label: "Your Profile", icon: iconMarkup("user"), onSelect: () => input.onAction("profile") });

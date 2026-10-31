@@ -58,7 +58,7 @@ export function ComputersBody({ hosts, servers, removing, onAdd, onAskRemove, on
       />,
     );
   });
-  rows.push(<SettingsRow key="add" id="computer.add" label="Add a server" lead={<Glyph name="plus" />} onPress={onAdd} control={<SmallButton label="Add" primary testID="computer-add" onPress={onAdd} />} help={WHERE} />);
+  rows.push(<SettingsRow key="add" id="computer.add" label="Add a server" lead={<Glyph name="plus" />} control={<SmallButton label="Add" testID="computer-add" onPress={onAdd} />} help={WHERE} />);
   return <Section title="Computers" testID="computers-list">{rows}</Section>;
 }
 

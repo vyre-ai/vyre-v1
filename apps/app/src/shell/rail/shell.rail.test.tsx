@@ -97,3 +97,19 @@ test("the rail tells the shell which place is pointed at or focused, so it can r
   assert.deepEqual(seen, [], "nothing is prefetched until a person points at a place");
   assert.ok(renderToStaticMarkup(<Rail groups={{ top: [], bottom: [] }} active="home" onSelect={() => undefined} />).includes("shell-rail"));
 });
+
+test("a Team Space's menu has a Chats run on switch: This computer or The Space, ticked for the current default; a Personal Space has none", () => {
+  const chosen: string[] = [];
+  const entries = (openId: string, value: "device" | "space") => spaceMenuEntries({
+    spaces: SEED_DEFS, openId, away: false, onSwitch: () => undefined, onAction: () => undefined, runsOn: { value, set: (v) => chosen.push(v) },
+  }) as Array<{ label?: string; head?: string; checked?: boolean; onSelect?: () => void }>;
+  const team = entries("nw", "device");
+  const at = team.findIndex((e) => e.head === "Chats run on");
+  assert.ok(at > 0);
+  assert.deepEqual(team.slice(at + 1, at + 3).map((e) => [e.label, e.checked]), [["This computer", true], ["The Space", false]]);
+  team[at + 2]!.onSelect!();
+  assert.deepEqual(chosen, ["space"]);
+  assert.deepEqual(entries("nw", "space").slice(at + 1, at + 3).map((e) => e.checked), [false, true]);
+  const personal = SEED_DEFS.find((s) => s.kind === "personal")!;
+  assert.ok(!entries(personal.spaceId, "device").some((e) => e.head === "Chats run on"), "this Space is this computer: nothing to choose");
+});
