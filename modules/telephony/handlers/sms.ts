@@ -115,13 +115,18 @@ function capCheck(ctx: TelCtx, numberId: string, caps: Caps, now: number): void 
 }
 
 interface SendIn {
-  numberId: string; to: string; body: string; mediaFileIds?: string[]; contactId?: string; replyToId?: string; campaignId?: string; sendAt?: number; idempotencyKey: string;
+  numberId: string; senderId?: string; to: string; body: string; mediaFileIds?: string[]; contactId?: string; replyToId?: string; campaignId?: string; sendAt?: number; idempotencyKey: string;
 }
 interface SendOut { smsId?: string; status: "queued" | "sent" | "held" | "suppressed"; taskId?: string }
 
 function check(ctx: TelCtx, input: SendIn): void {
   keyOf(ctx, input);
   if (!isId("num", input.numberId)) bad(ctx, "Number id is not valid.");
+  // senderId is an id from comms.senders.list; for a text it is the number id. The number is the one the access rules were checked on, so the two must be the same.
+  if (input.senderId !== undefined) {
+    if (!isId("num", input.senderId)) bad(ctx, "That sender is not a number. Pick one from the list of senders for text.");
+    if (input.senderId !== input.numberId) bad(ctx, "The sender and the number name different senders. Pass the same id for both.");
+  }
   phone(ctx, input.to, "The number to text");
   if (typeof input.body !== "string" || input.body === "" || input.body.length > MAX_BODY) bad(ctx, `A text is 1 to ${MAX_BODY} characters.`);
   if (input.mediaFileIds !== undefined && (!Array.isArray(input.mediaFileIds) || input.mediaFileIds.some((f) => !isId("fil", f)))) bad(ctx, "Picture ids are not valid.");

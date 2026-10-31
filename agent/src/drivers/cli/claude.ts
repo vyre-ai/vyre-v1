@@ -7,6 +7,7 @@
 //   assistant         a whole message: content blocks text, thinking, tool_use, and usage
 //   user              tool_result blocks (the CLI ran the tool, through MCP or one of its own)
 //   result            subtype success | error_*, is_error, result, session_id, usage
+//   rate_limit_event  rate_limit_info {status allowed | allowed_warning | rejected, resetsAt (epoch seconds), rateLimitType five_hour | seven_day | ..., utilization (a fraction, when the engine says it)}
 // With partial messages on, the text of a message arrives twice: as deltas and again in its `assistant` line. The deltas are the ones passed on; the whole message only fills in when no delta
 // was seen for it (an older CLI, or partial messages off).
 import { arr, num, obj, parseLine, str } from "./json.ts";
@@ -31,6 +32,24 @@ function base(url: string, stdio?: { command: string; args: readonly string[] })
   // Through a sandbox's socket the CLI starts the shim as a stdio server; the token reaches it by name from the environment, as with the URL form.
   if (stdio) return JSON.stringify({ mcpServers: { vyre: { type: "stdio", command: stdio.command, args: [...stdio.args], env: { [TOKEN_ENV]: "${" + TOKEN_ENV + "}" } } } });
   return JSON.stringify({ mcpServers: { vyre: { type: "http", url, headers: { Authorization: "Bearer ${" + TOKEN_ENV + "}" } } } });
+}
+
+/**
+ * A subscription limit window as the engine reported it. five_hour is the session, seven_day the week (the per-model weekly windows are not the week and are left out).
+ * The share used is what the engine says (utilization, a fraction of 1) or 100 when it says the window is rejected; a line that says neither gives nothing, never a guess.
+ */
+export function limitsOf(info: Json | null): CliEvent[] {
+  if (!info) return [];
+  const type = str(info["rateLimitType"]);
+  const window = type === "five_hour" ? "session" : type === "seven_day" ? "week" : null;
+  if (!window) return [];
+  const u = info["utilization"];
+  let pct: number | null = null;
+  if (typeof u === "number" && Number.isFinite(u) && u >= 0) pct = u <= 1 ? u * 100 : u;
+  else if (str(info["status"]) === "rejected") pct = 100;
+  if (pct === null) return [];
+  const at = info["resetsAt"];
+  return [{ type: "limits", window, pct: Math.min(100, Math.round(pct * 10) / 10), ...(typeof at === "number" && Number.isFinite(at) && at > 0 ? { resetsAt: Math.round(at * 1000) } : {}) }];
 }
 
 export function createClaudeDecoder(): CliDecoder {
@@ -137,6 +156,7 @@ export function createClaudeDecoder(): CliDecoder {
         case "assistant": return onAssistant(j);
         case "user": return onUser(j);
         case "result": return onResult(j);
+        case "rate_limit_event": return limitsOf(obj(j["rate_limit_info"]));
         default: return [];
       }
     },

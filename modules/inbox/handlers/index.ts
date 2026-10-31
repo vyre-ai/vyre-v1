@@ -2,3 +2,4 @@
 export { counts, following, listByContact, listByThread, needsMatch, recipientsSearch, sendOptions, thread, unmatched } from "./views.ts";
 export { candidatesFor, followSet, linkMessage, markRead, match, matchNew, matchSuggestions, refresh, unmatch } from "./match.ts";
 export { itemErase } from "./purge.ts";
+export { sendersList, sendersSetDefault } from "./senders.ts";

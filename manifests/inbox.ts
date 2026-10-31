@@ -6,7 +6,7 @@
 // the reasons a contact reaches your Inbox (owner, project, follow, campaign, shared inbox).
 // DECISION: inbox.thread takes a conversationId or a contactId (the record Conversation tab); the handler requires one of them.
 // An unmatched conversation has no contact: its ACL falls back to the mailbox it arrived in (acl.fallback).
-import { bindInputs, defineManifest, entity, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
+import { bindInputs, defineManifest, entity, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
 const cnvId = t.id('cnv');
@@ -27,6 +27,13 @@ const timelineItem = t.obj({
   title: t.opt(t.str()), preview: t.opt(t.str()), campaignId: t.opt(id.campaign), recordId: t.opt(id.record), ref: t.opt(t.json()),
 });
 const suggestion = t.obj({ recordId: id.record, type: contactOrCompany, name: t.str(), score: t.num({ minimum: 0, maximum: 1 }), why: t.str() });
+const senderChannel = t.enm('email', 'text');
+const senderRow = t.obj({
+  id: t.str({ description: 'The mailbox id or the number id: what mail.send (mailboxId, senderId) and telephony.send_sms (numberId, senderId) take', examples: ['mbx_a1b2c3'] }),
+  channel: senderChannel, name: t.str({ examples: ['Intake line'] }), address: t.str({ description: 'The email address or the number', examples: ['intake@example.com'] }),
+  via: t.str({ description: 'The provider as a person names it', examples: ['Gmail'] }), provider: t.str({ description: 'The provider key', examples: ['google'] }),
+  scope: t.enm('mine', 'space'), default: t.bool(), usable: t.bool(), why: t.opt(t.str({ description: 'Plain words for a sender that cannot send right now' })),
+});
 const listFilter = {
   mailboxId: t.opt(id.mailbox), numberId: t.opt(id.number), channel: t.opt(channel), needsMatch: t.opt(t.bool()), query: t.opt(t.str()),
 };
@@ -132,10 +139,21 @@ const manifest = defineManifest({
       },
       tool: 'inbox', label: 'check',
     }),
+    read('comms.senders.list', 'Every address the caller can send from, for the composer From picker: mailboxes (Gmail, Outlook, IMAP, shared, agent and service), the Space sending domain provider (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now are listed with usable false and why', {
+      in: { channel: t.opt(senderChannel) }, out: { senders: t.arr(senderRow) }, tool: 'inbox', label: 'check',
+    }),
+    write('comms.senders.set_default', 'Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list', {
+      in: { channel: senderChannel, senderId: t.str({ examples: ['mbx_a1b2c3'] }) }, out: { channel: senderChannel, senderId: t.str() }, level: 'view', tool: 'inbox', offline: 'queue',
+      idem: 'natural', errors: ['validation.bad_input', 'validation.precondition_failed'],
+    }),
     read('inbox.recipients_search', 'Ranked recipient search across contacts, members, inboxes and groups (the shared Recipients field)', {
       in: { q: t.str(), kinds: t.opt(t.arr(t.enm('contact', 'member', 'inbox', 'group'))), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
       out: { results: t.arr(t.obj({ kind: t.enm('contact', 'member', 'inbox', 'group'), id: t.str(), label: t.str(), address: t.opt(t.str()), score: t.num() })) }, tool: 'inbox', label: 'filter',
     }),
+  ],
+  settings: [
+    setting('comms.default_sender_email', 'person', 'comms', 'Default email sender', t.nullable(t.str()), null),
+    setting('comms.default_sender_text', 'person', 'comms', 'Default text sender', t.nullable(t.str()), null),
   ],
   screens: [
     screen('inbox.sidebar', 'inbox', 'ui:InboxSidebar', {

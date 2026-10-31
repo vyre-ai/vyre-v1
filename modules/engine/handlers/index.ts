@@ -6,6 +6,7 @@ import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolv
 import { extraHandlers } from "./extra/index.ts";
 import { mcpCall, mcpTools } from "./mcp.ts";
 import { stepTurn } from "../step-turn.ts";
+import { usageGet } from "./usage.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
 
 export const handlers = {
@@ -32,6 +33,7 @@ export const handlers = {
   "engine.spend.resume_all": resumeAll,
   "engine.spend.raise": raiseLimit,
   "engine.usage.query": usageQuery,
+  "engine.usage.get": usageGet as never,
   "engine.turn.record_usage": recordUsage,
   "engine.mcp.tools": mcpTools,
   "engine.mcp.read": mcpCall,
