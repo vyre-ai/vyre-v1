@@ -1,265 +1,171 @@
-// A person's own Gmail and Outlook on a booted daemon with the real Vault, Space seal, mail, google and microsoft modules and host seams. Google and Microsoft themselves are stand-ins (token
-// endpoint, Gmail and Graph). It proves what the sign-in promises:
-//   - the Space has its OAuth client in a Vault item; a person signs in, and the Vault still holds only that item (no token in it, nothing to reveal or copy);
-//   - the refresh token is on disk only sealed, and no answer or event carries it;
-//   - the mailbox it makes is pulled (first the recent mail, then only what changed since) and a poll with the vault locked and nobody asking still gets an access token;
-//   - mail.send_as sends through the person's own Gmail or Graph, and disconnecting the mailbox removes the account and the token.
+// A person's own Gmail and Outlook on a booted daemon with the real Vault, Space seal, mail, google and microsoft modules and host seams. Google and Microsoft themselves are stand-ins
+// (test/support/fake-mail-providers.ts). Run on Node 24 (the identity module needs Argon2id). It proves what the sign-in promises, as the people who live it:
+//   - Team: an admin files the OAuth app in the Vault; two members each sign in to their own mailbox; each mailbox is private to its owner (the admin, the other member and the other member's
+//     agent cannot read it); the refresh tokens are in no Vault item, no answer and no file; a poll with the vault locked still works; send goes out as the person; disconnect removes the token.
+//   - A lost sign-in (revoked at the provider): the mailbox says Needs attention, the owner gets one Needs you item, nobody else does, and signing in again clears it.
+//   - Personal: one person, mail files like any other, and quitting and reopening catches up on what arrived while it was closed.
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { bootCore } from "../fixtures/seed/core/index.ts";
-import { fakePlatform } from "../host/src/platform/index.ts";
-import type { FetchFn } from "../host/src/platform/probes.ts";
-import { loadConfig } from "../host/src/daemon/config.ts";
-import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
-import type { Daemon } from "../host/src/daemon/daemon.ts";
+import { bootMailWorld, connectClaude, ask, everything, lockVault, setSignInApp, signInAs, unlockVault, until } from "./support/mail-world.ts";
+import type { MailWorld, Person } from "./support/mail-world.ts";
+import { standIn } from "./memory-live-kit.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
-const here = path.dirname(new URL(import.meta.url).pathname);
-const fixture = (rel: string): unknown => JSON.parse(fs.readFileSync(path.join(here, "..", "modules", rel), "utf8")) as unknown;
-const GOOGLE_REFRESH = "1//LIVE-SECRET-google-refresh-0001";
-const MS_REFRESH = "M.R3_LIVE-SECRET-microsoft-refresh-0002";
+const CLIENT = { id: "live-client.apps.googleusercontent.com", secret: "live-client-secret-GOCSPX" };
+const MS_CLIENT = { id: "11111111-2222-3333-4444-555555555555", secret: "live-ms-secret~Q8" };
 
-interface Seen { method: string; url: string; auth?: string; form?: URLSearchParams; body?: string }
-const reply = (status: number, body: unknown) => ({ status, headers: { get: () => null }, text: async () => (typeof body === "string" ? body : JSON.stringify(body)) });
+const boxes = async (who: Person, scope = "all"): Promise<{ id: string; address: string; state: string; provider: string; privacy: string }[]> => (await who.ok("mail.mailbox.list", { scope })).mailboxes;
+const count = async (who: Person, mailboxId: string): Promise<number> => ((await who.call("mail.message.list", { mailboxId })).data.messages ?? []).length;
+const waitCount = (who: Person, mailboxId: string, n: number): Promise<number> => until(async () => ((await count(who, mailboxId)) >= n ? n : null), `${n} messages in ${mailboxId}`);
+const needs = async (who: Person): Promise<{ id: string; title: string; kind: string; blocks: { type: string }[] }[]> => (await who.ok("tasks.needs_you", {})).items.map((i: { task: unknown }) => i.task);
 
-/** The token endpoint both providers share in this test: the code grant and the refresh grant. */
-function tokenSeam(seen: Seen[], refreshToken: string) {
-  let n = 0;
-  return async (url: string, init: { method?: string; body?: string | Uint8Array } = {}) => {
-    const u = new URL(url);
-    const form = new URLSearchParams(typeof init.body === "string" ? init.body : "");
-    seen.push({ method: init.method ?? "GET", url: `${u.hostname}${u.pathname}`, form });
-    if (!/\/token$/.test(u.pathname)) return { status: 404, text: async () => "{}", arrayBuffer: async () => new ArrayBuffer(0) };
-    const body = form.get("grant_type") === "authorization_code"
-      ? { access_token: `at-${++n}`, refresh_token: refreshToken, expires_in: 3600, token_type: "Bearer" }
-      : { access_token: `at-${++n}`, expires_in: 3600, token_type: "Bearer" };
-    return { status: 200, text: async () => JSON.stringify(body), arrayBuffer: async () => new ArrayBuffer(0) };
-  };
-}
-
-async function boot(extra: Record<string, unknown>): Promise<{ d: Daemon; dir: string }> {
-  const core = bootCore();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-pmail-live-"));
-  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
-  fs.copyFileSync(core.file, path.join(dir, "events.db"));
-  core.close();
-  const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-    codeRoot: CODE_ROOT,
-    platform: fakePlatform({
-      os: "linux", hostname: "pmail-live", free: 80e9,
-      commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } },
-    }),
-    fetch: caddyFetch,
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    ...extra,
-  });
-  return { d, dir };
-}
-
-async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(input) });
-  const body = (await r.json()) as { data?: unknown; error?: unknown };
-  return { status: r.status, data: body.data ?? body };
-}
-let keys = 0;
-const ok = async (d: Daemon, cap: string, input: Record<string, unknown> = {}): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await call(d, cap, { idempotencyKey: `pmail-live-${++keys}`, ...input });
-  assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data)}`);
-  return r.data;
-};
-
-async function until<T>(f: () => Promise<T | null>, why: string): Promise<T> {
-  const end = Date.now() + 30_000;
-  for (;;) {
-    const v = await f();
-    if (v !== null) return v;
-    if (Date.now() > end) throw new Error(`never happened: ${why}`);
-    await new Promise<void>((r) => setTimeout(r, 150));
+async function assertNoSecret(w: MailWorld, secrets: string[], vaultNames: string[]): Promise<void> {
+  const items = (await w.owner.ok("vault.items.list", {})).items as { id: string; name: string }[];
+  assert.deepEqual(items.map((i) => i.name).sort(), vaultNames.sort(), "the Vault holds the apps and nothing else");
+  const shown = JSON.stringify(await Promise.all(items.map((i) => w.owner.ok("vault.item.reveal", { itemId: i.id }))));
+  w.d.sink.flush();
+  for (const s of secrets) {
+    assert.ok(!shown.includes(s), "no Vault item holds a token");
+    for (const bytes of everything(w.dir)) assert.equal(bytes.includes(Buffer.from(s)), false, "the plaintext token is in no file");
   }
 }
 
-function everything(dir: string): Buffer[] {
-  const out: Buffer[] = [];
-  const walk = (p: string): void => {
-    for (const e of fs.readdirSync(p, { withFileTypes: true })) {
-      const f = path.join(p, e.name);
-      if (e.isDirectory()) walk(f); else if (e.isFile() && fs.statSync(f).size < 200 * 1024 * 1024) out.push(fs.readFileSync(f));
-    }
-  };
-  walk(dir);
-  return out;
-}
-
-const unlock = async (d: Daemon): Promise<void> => {
-  const r = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
-  assert.equal(r.status, 204);
-};
-const lock = async (d: Daemon): Promise<void> => {
-  const r = await fetch(`${d.url}/local/vault/key/lock`, { method: "POST", headers: { authorization: `Bearer ${d.token}` } });
-  assert.ok(r.status === 204 || r.status === 200, `lock: ${r.status}`);
-};
-const count = async (d: Daemon, mailboxId: string): Promise<number> => ((await ok(d, "mail.message.list", { mailboxId })).messages as unknown[]).length;
-
-async function vaultApp(d: Daemon, name: string, fields: Array<{ key: string; value: string; secret: boolean }>): Promise<void> {
-  const folder = (await ok(d, "vault.folders.create", { name: "Apps", scope: "shared" })).folder.id as string;
-  await ok(d, "vault.item.put", { folderId: folder, name, kind: "other", fields });
-}
-
-/** What no answer, listing, Vault item or file of the data directory may hold. */
-async function assertSealed(d: Daemon, dir: string, secret: string, expectItems: string[]): Promise<void> {
-  const items = (await ok(d, "vault.items.list", {})).items as { id: string; name: string }[];
-  assert.deepEqual(items.map((i) => i.name), expectItems, "the Vault holds the app and nothing else");
-  for (const i of items) assert.ok(!JSON.stringify((await ok(d, "vault.item.reveal", { itemId: i.id })).fields ?? {}).includes(secret), `${i.name} holds no token`);
-  d.sink.flush();
-  for (const bytes of everything(dir)) assert.equal(bytes.includes(Buffer.from(secret)), false, "the plaintext token is in no file");
-}
-
-test("personal mail live: a person's Gmail signs in with the Space's OAuth client, syncs incrementally with the vault locked, sends as them, and disconnecting removes the token", async () => {
-  const seen: Seen[] = [];
-  const ME = "olivia@gmail.test";
-  const sent: unknown[] = [];
-  let polled = false;
-  const http = async (url: string, init: { method?: string; headers?: Record<string, string>; body?: string } = {}) => {
-    const u = new URL(url);
-    const method = init.method ?? "GET";
-    seen.push({ method, url: `${u.hostname}${u.pathname}`, ...(init.headers?.["authorization"] ? { auth: init.headers["authorization"] } : {}) });
-    const p = u.pathname.replace("/gmail/v1/users/me", "");
-    if (u.hostname === "oauth2.googleapis.com" && u.pathname === "/revoke") return reply(200, {});
-    if (p === "/profile") return reply(200, { emailAddress: ME, messagesTotal: 3, threadsTotal: 3, historyId: polled ? "1010" : "1000" });
-    if (p === "/messages" && method === "GET") return reply(200, fixture("google/fixtures/gmail/list-messages.json"));
-    if (p === "/history") return reply(200, { history: [{ id: "1005", messages: [{ id: "m3", threadId: "t1" }], messagesAdded: [{ message: { id: "m3", threadId: "t1", labelIds: ["SENT"] } }] }], historyId: "1010" });
-    if (p === "/messages/send") { sent.push(JSON.parse(init.body ?? "{}")); return reply(200, { id: "sent-1", threadId: "t9", labelIds: ["SENT"] }); }
-    const one = /^\/messages\/(m\d)$/.exec(p);
-    if (one) return reply(200, fixture(`google/fixtures/gmail/message-${one[1]}.json`));
-    return reply(404, { error: { code: 404, errors: [{ reason: "notFound" }] } });
-  };
-  const { d, dir } = await boot({ http, seams: { fetch: tokenSeam(seen, GOOGLE_REFRESH) } });
+test("Team: two members sign in to their own Gmail; each mailbox is private to its owner; sealed tokens; locked-vault poll; send; disconnect", async () => {
+  const w = await bootMailWorld({ kind: "team", engineOpenSession: standIn });
   try {
-    await unlock(d);
-    await vaultApp(d, "Google_Sign_In", [{ key: "client_id", value: "live-client.apps.googleusercontent.com", secret: false }, { key: "client_secret", value: "live-client-secret", secret: true }]);
-    const status0 = await ok(d, "google.user.app_status", {});
-    assert.equal(status0.configured, false);
-    assert.deepEqual(await ok(d, "google.user.app_set", { vaultItem: "#Google_Sign_In" }), { configured: true, clientId: "live-client.apps.googleusercontent.com" });
+    await unlockVault(w);
+    await connectClaude(w);
+    w.fake.open("google", "ana@gmail.test", [{ from: "pat@acme.test", subject: "For Ana", text: "Ana's private note" }, { from: "kim@acme.test", subject: "Also Ana", text: "Second" }]);
+    w.fake.open("google", "bo@gmail.test", [{ from: "lee@acme.test", subject: "For Bo", text: "Bo's private note" }]);
 
-    const start = await ok(d, "google.user.start", { loginHint: ME });
-    const auth = new URL(start.authUrl as string);
-    assert.equal(auth.hostname, "accounts.google.com");
-    assert.equal(auth.searchParams.get("client_id"), "live-client.apps.googleusercontent.com");
-    assert.equal(auth.searchParams.get("code_challenge_method"), "S256");
-    assert.match(String(start.state), /^gos_/);
-    const done = await ok(d, "google.user.complete", { state: start.state, code: "the-code" });
-    assert.equal(done.email, ME);
-    assert.match(String(done.accountId), /^gua_/);
-    assert.ok(!JSON.stringify(done).includes(GOOGLE_REFRESH), "the answer never carries the token");
-    const exchange = seen.find((s) => s.form?.get("grant_type") === "authorization_code")!;
-    assert.deepEqual([exchange.form!.get("client_id"), exchange.form!.get("client_secret"), exchange.form!.get("code")], ["live-client.apps.googleusercontent.com", "live-client-secret", "the-code"]);
-    assert.ok(exchange.form!.get("code_verifier"), "PKCE: the verifier goes with the code");
+    // the admin files the app once; members see only that it is set
+    assert.equal((await w.owner.ok("google.user.app_status", {})).configured, false);
+    await setSignInApp(w, "google", CLIENT);
+    const ana = await w.join("ana");
+    const bo = await w.join("bo");
+    const status = await ana.ok("google.user.app_status", {});
+    assert.equal(status.configured, true);
+    assert.ok(!JSON.stringify(status).includes(CLIENT.secret));
 
-    // the mailbox is there, theirs, and the first pull lands the recent mail
-    const boxes = (await ok(d, "mail.mailbox.list", { scope: "mine" })).mailboxes as { id: string; address: string; provider: string }[];
-    const box = boxes.find((b) => b.address === ME)!;
-    assert.equal(box.provider, "google");
-    assert.equal(done.mailboxId, box.id);
-    await until(async () => ((await count(d, box.id)) >= 2 ? true : null), "the first pull");
-    assert.equal(await count(d, box.id), 2);
+    const anaIn = await signInAs(w, ana, "google", "ana@gmail.test");
+    const boIn = await signInAs(w, bo, "google", "bo@gmail.test");
+    assert.match(anaIn.accountId, /^gua_/);
+    assert.ok(anaIn.mailboxId && boIn.mailboxId);
 
-    await assertSealed(d, dir, GOOGLE_REFRESH, ["Google_Sign_In"]);
+    // each mailbox is private to its owner
+    assert.deepEqual((await boxes(ana)).map((b) => [b.address, b.privacy, b.provider]), [["ana@gmail.test", "private", "google"]]);
+    assert.deepEqual((await boxes(bo)).map((b) => b.address), ["bo@gmail.test"]);
+    assert.deepEqual((await boxes(w.owner)).map((b) => b.address), [], "the admin does not see a member's own mailbox");
+    await waitCount(ana, anaIn.mailboxId!, 2);
+    await waitCount(bo, boIn.mailboxId!, 1);
+    assert.notEqual((await bo.call("mail.message.list", { mailboxId: anaIn.mailboxId })).status, 200, "Bo cannot read Ana's mail");
+    assert.notEqual((await w.owner.call("mail.message.list", { mailboxId: anaIn.mailboxId })).status, 200, "the admin cannot read it either");
+    assert.equal((await bo.call("mail.message.search", { q: "Ana" })).data.messages?.length ?? 0, 0, "search shows Bo nothing of Ana's");
+    assert.deepEqual((await ana.ok("google.user.list", {})).accounts.map((a: { email: string }) => a.email), ["ana@gmail.test"]);
+    assert.notEqual((await bo.call("google.user.remove", { accountId: anaIn.accountId })).status, 200, "Bo cannot remove Ana's sign-in");
+    assert.notEqual((await bo.call("mail.send_as", { mailboxId: anaIn.mailboxId, to: [{ address: "x@y.test" }], subject: "s", text: "t", idempotencyKey: "bo-as-ana" })).status, 200, "Bo cannot send as Ana");
 
-    // nobody has their vault open: the next pull still runs on the sealed token and fetches only what changed since
-    await lock(d);
-    polled = true;
-    await ok(d, "mail.sync_now", { mailboxId: box.id });
-    await until(async () => ((await count(d, box.id)) >= 3 ? true : null), "the incremental pull");
-    const history = seen.find((s) => s.url === "gmail.googleapis.com/gmail/v1/users/me/history")!;
-    assert.ok(history, "the second pull asked for history since the cursor, not the whole mailbox");
-    assert.equal(seen.filter((s) => s.url.endsWith("/users/me/messages") && s.method === "GET").length, 1, "the recent mail was listed once");
-    const refresh = seen.find((s) => s.form?.get("grant_type") === "refresh_token");
-    assert.ok(refresh, "an access token was made from the sealed refresh token");
-    assert.equal(refresh!.form!.get("refresh_token"), GOOGLE_REFRESH);
-    assert.match(String(history.auth), /^Bearer at-\d+$/);
+    // an agent acts for whoever asked: Ana's agent in Ana's chat cannot reach Bo's mailbox
+    const agent = (await ana.ok("agents.create", { name: "Ana helper", role: "You help Ana with her mail." })).agent.agentId as string;
+    const reply = await ask(w, ana, agent, `TOOL mail_message_list ${JSON.stringify({ mailboxId: boIn.mailboxId })}`);
+    assert.match(reply, /TOOL RESULT failed/, "Bo's mailbox is closed to Ana's agent");
+    assert.ok(!reply.includes("Bo's private note") && !reply.includes("For Bo"));
 
-    // send as the person
-    await unlock(d);
-    const out = await ok(d, "mail.send_as", { mailboxId: box.id, to: [{ address: "pat@acme.test" }], subject: "Hello from me", text: "Hi Pat" });
-    assert.ok(out.messageId);
-    assert.equal(sent.length, 1);
-    const raw = Buffer.from(String((sent[0] as { raw: string }).raw), "base64url").toString("utf8");
-    assert.match(raw, /^From: .*olivia@gmail\.test/m);
-    assert.match(raw, /^Subject: Hello from me/m);
+    // tokens: sealed, in no Vault item, no file
+    await assertNoSecret(w, [w.fake.refreshOf("ana@gmail.test"), w.fake.refreshOf("bo@gmail.test")], ["Google_Sign_In", "Olivia_Claude"]);
 
-    // disconnect: the account and the token are gone, Google was told
-    await ok(d, "mail.mailbox.disconnect", { mailboxId: box.id });
-    assert.deepEqual((await ok(d, "google.user.list", {})).accounts, []);
-    assert.ok(seen.some((s) => s.url === "oauth2.googleapis.com/revoke"), "Google was asked to revoke");
-  } finally { await d.stop(); }
+    // nobody has the vault open: new mail still arrives on the sealed token, only what changed is fetched
+    await lockVault(w);
+    w.fake.deliver("ana@gmail.test", { from: "sam@acme.test", subject: "Third", text: "Newest for Ana" });
+    await ana.ok("mail.sync_now", { mailboxId: anaIn.mailboxId });
+    await waitCount(ana, anaIn.mailboxId!, 3);
+    assert.equal(await count(bo, boIn.mailboxId!), 1, "Bo's mailbox did not move");
+    assert.equal(w.fake.calls("gmail.googleapis.com", "/gmail/v1/users/me/messages").filter((c) => c.method === "GET" && c.account === "ana@gmail.test" && c.path.endsWith("/messages")).length, 1, "the recent mail was listed once, then history");
+    await unlockVault(w);
+
+    // send goes out as the person
+    await ana.ok("mail.send_as", { mailboxId: anaIn.mailboxId, to: [{ address: "pat@acme.test" }], subject: "Re: For Ana", text: "Thanks Pat" });
+    assert.deepEqual(w.fake.sent.map((m) => [m.email, m.to, m.subject]), [["ana@gmail.test", ["pat@acme.test"], "Re: For Ana"]]);
+
+    // disconnect: the account and token go, Google is told, Bo is untouched
+    await ana.ok("mail.mailbox.disconnect", { mailboxId: anaIn.mailboxId });
+    assert.deepEqual((await ana.ok("google.user.list", {})).accounts, []);
+    assert.deepEqual((await bo.ok("google.user.list", {})).accounts.map((a: { email: string }) => a.email), ["bo@gmail.test"]);
+    assert.ok(w.fake.calls("oauth2.googleapis.com", "/revoke").length >= 1, "Google was asked to revoke");
+    assert.equal(w.fake.refreshOf("ana@gmail.test") !== "", true);
+    w.d.sink.flush();
+    for (const bytes of everything(w.dir)) assert.equal(bytes.includes(Buffer.from(w.fake.refreshOf("ana@gmail.test"))), false, "Ana's token is gone from disk");
+  } finally { await w.stop(); }
 });
 
-test("personal mail live: a person's Outlook signs in, reads through /me with delta ids, sends with Graph sendMail, and disconnecting removes the account", async () => {
-  const seen: Seen[] = [];
-  const ME = "olivia@outlook.test";
-  const sent: unknown[] = [];
-  let second = false;
-  const http = async (url: string, init: { method?: string; headers?: Record<string, string>; body?: string } = {}) => {
-    const u = new URL(url);
-    const method = init.method ?? "GET";
-    seen.push({ method, url: `${u.hostname}${u.pathname}${u.search.includes("deltatoken") ? "?delta" : ""}`, ...(init.headers?.["authorization"] ? { auth: init.headers["authorization"] } : {}) });
-    const p = u.pathname.replace("/v1.0", "");
-    if (p === "/me") return reply(200, { mail: ME, userPrincipalName: ME });
-    if (p === "/me/sendMail") { sent.push(JSON.parse(init.body ?? "{}")); return reply(202, ""); }
-    const delta = /^\/me\/mailFolders\/(inbox|sentitems)\/messages\/delta$/.exec(p);
-    if (delta) {
-      if (u.search.includes("skiptoken=S2")) return reply(200, fixture("microsoft/fixtures/graph/delta-inbox-2.json"));
-      return reply(200, delta[1] === "inbox" ? fixture("microsoft/fixtures/graph/delta-inbox-1.json") : fixture("microsoft/fixtures/graph/delta-sent.json"));
-    }
-    if (u.search.includes("deltatoken")) {
-      return reply(200, second && /inbox/.test(u.pathname + u.search)
-        ? { value: [{ id: "g3", isDraft: false }], "@odata.deltaLink": "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=D3" }
-        : { value: [], "@odata.deltaLink": "https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages/delta?$deltatoken=SD3" });
-    }
-    if (/\/attachments$/.test(p)) return reply(200, { value: [] });
-    const one = /^\/me\/messages\/(g\d)$/.exec(p);
-    if (one) return reply(200, fixture(`microsoft/fixtures/graph/message-${one[1]}.json`));
-    return reply(404, { error: { code: "ResourceNotFound" } });
-  };
-  const { d, dir } = await boot({ http, seams: { fetch: tokenSeam(seen, MS_REFRESH) } });
+test("a revoked sign-in: the mailbox needs attention, the owner gets one Needs you item and nobody else does, and signing in again clears it", async () => {
+  const w = await bootMailWorld({ kind: "team" });
   try {
-    await unlock(d);
-    await vaultApp(d, "Microsoft_Sign_In", [{ key: "client_id", value: "11111111-2222-3333-4444-555555555555", secret: false }, { key: "client_secret", value: "live-ms-secret", secret: true }]);
-    assert.deepEqual(await ok(d, "ms.user.app_set", { vaultItem: "#Microsoft_Sign_In" }), { configured: true, clientId: "11111111-2222-3333-4444-555555555555" });
-    const start = await ok(d, "ms.user.start", {});
-    const auth = new URL(start.authUrl as string);
-    assert.equal(auth.hostname, "login.microsoftonline.com");
-    assert.match(auth.searchParams.get("scope") ?? "", /offline_access/);
-    const done = await ok(d, "ms.user.complete", { state: start.state, code: "ms-code" });
-    assert.equal(done.email, ME);
-    assert.match(String(done.accountId), /^mua_/);
-    assert.ok(!JSON.stringify(done).includes(MS_REFRESH));
+    await unlockVault(w);
+    w.fake.open("google", "ana@gmail.test", [{ from: "pat@acme.test", subject: "Hi", text: "Hello" }]);
+    w.fake.open("google", "bo@gmail.test", [{ from: "lee@acme.test", subject: "Hi Bo", text: "Hello" }]);
+    await setSignInApp(w, "google", CLIENT);
+    const ana = await w.join("ana");
+    const bo = await w.join("bo");
+    const anaIn = await signInAs(w, ana, "google", "ana@gmail.test");
+    const boIn = await signInAs(w, bo, "google", "bo@gmail.test");
+    await waitCount(ana, anaIn.mailboxId!, 1);
 
-    const box = ((await ok(d, "mail.mailbox.list", { scope: "mine" })).mailboxes as { id: string; address: string; provider: string }[]).find((b) => b.address === ME)!;
-    assert.equal(box.provider, "microsoft");
-    await until(async () => ((await count(d, box.id)) >= 4 ? true : null), "the first delta walk");
-    assert.ok(seen.every((s) => !s.url.includes("/users/")), "every Graph call the module built is /me");
-    await assertSealed(d, dir, MS_REFRESH, ["Microsoft_Sign_In"]);
+    w.fake.revoke("ana@gmail.test");   // Ana removes the app's access in her Google account
+    w.clock.t += 2 * 3_600_000;        // the access token made at sign-in has ended
+    await ana.ok("mail.sync_now", { mailboxId: anaIn.mailboxId });
+    const fix = await until(async () => { const n = (await needs(ana)).filter((t) => /Sign in to ana@gmail.test again/.test(t.title)); return n.length ? n : null; }, "Ana's Needs you item");
+    assert.equal(fix.length, 1);
+    assert.equal(fix[0]!.kind, "unblock");
+    assert.equal(fix[0]!.blocks[0]!.type, "mail_signin");
+    assert.equal((await boxes(ana)).find((b) => b.address === "ana@gmail.test")!.state, "error");
+    assert.deepEqual((await needs(bo)).filter((t) => /Sign in to/.test(t.title)), [], "Bo has nothing to fix");
+    assert.deepEqual((await needs(w.owner)).filter((t) => /Sign in to/.test(t.title)), [], "nor does the admin");
 
-    // the next pull, vault locked, follows the stored delta links
-    await lock(d);
-    second = true;
-    await ok(d, "mail.sync_now", { mailboxId: box.id });
-    await until(async () => (seen.some((s) => s.url.endsWith("?delta")) ? true : null), "the delta pull");
-    const refresh = seen.find((s) => s.form?.get("grant_type") === "refresh_token");
-    assert.equal(refresh?.form?.get("refresh_token"), MS_REFRESH);
+    await ana.ok("mail.sync_now", { mailboxId: anaIn.mailboxId });
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal((await needs(ana)).filter((t) => /Sign in to ana@gmail.test again/.test(t.title)).length, 1, "one item however many pulls fail");
+    assert.equal((await boxes(bo)).find((b) => b.address === "bo@gmail.test")!.state !== "error", true);
 
-    await unlock(d);
-    await ok(d, "mail.send_as", { mailboxId: box.id, to: [{ address: "pat@acme.test" }], subject: "From Outlook", text: "Hi Pat" });
-    assert.equal(sent.length, 1);
-    assert.equal(((sent[0] as { message: { subject: string } }).message).subject, "From Outlook");
-    assert.ok(seen.some((s) => s.url === "graph.microsoft.com/v1.0/me/sendMail"));
+    w.fake.restore("ana@gmail.test");
+    const again = await signInAs(w, ana, "google", "ana@gmail.test");
+    assert.equal(again.accountId, anaIn.accountId, "the same account and mailbox");
+    await until(async () => ((await needs(ana)).filter((t) => /Sign in to ana@gmail.test again/.test(t.title)).length === 0 ? true : null), "the item is cleared");
+    assert.notEqual((await boxes(ana)).find((b) => b.address === "ana@gmail.test")!.state, "error");
+    void boIn;
+  } finally { await w.stop(); }
+});
 
-    await ok(d, "mail.mailbox.disconnect", { mailboxId: box.id });
-    assert.deepEqual((await ok(d, "ms.user.list", {})).accounts, []);
-  } finally { await d.stop(); }
+test("Personal: Gmail and Outlook for one person, mail files like any other, and quitting and reopening catches up", async () => {
+  const w = await bootMailWorld({ kind: "personal" });
+  try {
+    await unlockVault(w);
+    w.fake.open("google", "olivia@gmail.test", [{ from: "pat@acme.test", subject: "First", text: "Hello" }]);
+    w.fake.open("microsoft", "olivia@outlook.test", [{ from: "kim@acme.test", subject: "From Outlook", text: "Hi" }]);
+    await setSignInApp(w, "google", CLIENT);
+    await setSignInApp(w, "microsoft", MS_CLIENT);
+    const g = await signInAs(w, w.owner, "google", "olivia@gmail.test");
+    const m = await signInAs(w, w.owner, "microsoft", "olivia@outlook.test");
+    const mine = await boxes(w.owner, "mine");
+    assert.deepEqual(mine.map((b) => [b.address, b.privacy]).sort(), [["olivia@gmail.test", "space"], ["olivia@outlook.test", "space"]], "one person: nothing to keep private from");
+    await waitCount(w.owner, g.mailboxId!, 1);
+    await waitCount(w.owner, m.mailboxId!, 1);
+    assert.ok(w.fake.calls("graph.microsoft.com", "/v1.0/me").length > 0);
+    assert.equal(w.fake.calls("graph.microsoft.com", "/v1.0/users").length, 0, "Outlook is read through /me");
+
+    // quit; mail arrives while nothing runs; open again hours later
+    const before = w.fake.seen.length;
+    await w.restart();
+    w.fake.deliver("olivia@gmail.test", { from: "sam@acme.test", subject: "While closed", text: "Waiting for you" });
+    w.fake.deliver("olivia@outlook.test", { from: "lee@acme.test", subject: "Outlook while closed", text: "Waiting too" });
+    assert.equal(w.fake.seen.length, before, "nothing talked to Google or Microsoft in between");
+    w.clock.t += 3 * 3_600_000;
+    await unlockVault(w);
+    await waitCount(w.owner, g.mailboxId!, 2);
+    await waitCount(w.owner, m.mailboxId!, 2);
+    assert.equal(await count(w.owner, g.mailboxId!), 2, "no mail doubled");
+
+    // reply from the person's own address
+    await w.owner.ok("mail.send_as", { mailboxId: m.mailboxId, to: [{ address: "kim@acme.test" }], subject: "Re: From Outlook", text: "Thanks Kim" });
+    assert.deepEqual(w.fake.sent.map((x) => x.email), ["olivia@outlook.test"]);
+  } finally { await w.stop(); }
 });
