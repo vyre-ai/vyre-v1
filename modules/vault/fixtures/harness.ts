@@ -89,6 +89,7 @@ export function harness() {
     grant(principal: string, resourceId: string, level: Level) { levels.set(`${principal}|${resourceId}`, level); },
     allow(principal: string, perm: string) { perms.add(`${principal}|${perm}`); },
     lock(personId: string) { locked.add(personId); },
+    unlock(personId: string) { locked.delete(personId); },
     setUsage(by: "agent" | "person", itemId: string, rows: Array<{ key: string; turns: number; tokensIn: number; tokensOut: number }>) { usageRows.set(`${by}:${itemId}`, rows); },
     actAs(kind: "person" | "agent" | "service", id: string) { ctx.principal = { kind, id }; },
     advance(ms: number) { clock += ms; },

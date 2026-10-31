@@ -26,7 +26,8 @@ export interface ProviderSigninPort {
   /** True while this server holds the flow (a restart loses it). */
   active(id: string): boolean;
   start(p: { id: string; provider: SigninProvider; person: string }): Promise<SigninStarted>;
-  /** One look at a flow. A pasted code is passed with it. Never answers a value to anyone but the module that saves it. */
+  /** One look at a flow. A pasted code is passed with it. Never answers a value to anyone but the module that saves it.
+   * A finished flow keeps its answer until cancel (the module saved it) or the 15 minutes run out, so a save that failed can be tried again without spending the code twice. */
   step(p: { id: string; person: string; code?: string }): Promise<SigninStep>;
   cancel(id: string): void;
 }
@@ -65,6 +66,8 @@ const onHost = (provider: SigninProvider, raw: string): boolean => {
 
 interface Flow {
   id: string; provider: SigninProvider; person: string; at: number; done: boolean;
+  /** The finished answer, held until the module has saved it. */
+  result?: Extract<SigninStep, { state: "done" }>;
   // claude
   verifier?: string; state?: string;
   // codex
@@ -132,7 +135,7 @@ export function createProviderSignin(deps: SigninDeps): ProviderSigninPort {
   const random = deps.random ?? ((n) => globalThis.crypto.getRandomValues(new Uint8Array(n)));
   const flows = new Map<string, Flow>();
   const sweep = (): void => {
-    for (const [id, f] of flows) if (f.done || now() - f.at > TTL_MS) { f.proc?.kill(); if (f.proc && !f.done) fs.rmSync(f.proc.home, { recursive: true, force: true }); flows.delete(id); }
+    for (const [id, f] of flows) if (now() - f.at > TTL_MS) { f.proc?.kill(); if (f.proc && !f.done) fs.rmSync(f.proc.home, { recursive: true, force: true }); flows.delete(id); }
   };
 
   async function startClaude(f: Flow): Promise<SigninStarted> {
@@ -227,13 +230,15 @@ export function createProviderSignin(deps: SigninDeps): ProviderSigninPort {
       sweep();
       const f = flows.get(id);
       if (!f || f.person !== person) return { state: "failed", message: "That sign-in is over. Start again." };
+      if (f.result) return f.result;
       let out: SigninStep;
       try {
         out = f.provider === "claude-code" ? await finishClaude(f, code) : f.provider === "codex" ? await finishCodex(f) : await finishGrok(f);
       } catch (e) {
         out = { state: "failed", message: e instanceof Error && /ENOTFOUND|ECONN|fetch failed/i.test(e.message) ? "The provider could not be reached. Try again." : "The sign-in did not finish. Start again." };
       }
-      if (out.state !== "waiting") { f.done = true; flows.delete(id); }
+      if (out.state === "done") { f.done = true; f.result = out; }
+      else if (out.state === "failed") { f.done = true; flows.delete(id); }
       return out;
     },
     cancel(id) { const f = flows.get(id); if (f) { f.proc?.kill(); if (f.proc) fs.rmSync(f.proc.home, { recursive: true, force: true }); flows.delete(id); } },
