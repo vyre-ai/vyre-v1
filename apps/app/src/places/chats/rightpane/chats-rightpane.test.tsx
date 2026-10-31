@@ -464,3 +464,11 @@ test("a thread it worked in says how many replies and when the last came", () =>
   assert.equal(workedNote({ ...th, replyCount: undefined, lastMessageAt: undefined } as never, c), "Started 32 min ago");
   assert.ok(has(html(s, "threads"), "5 replies · last 9:34"));
 });
+
+test("with a terminal in the shell the pane has a sixth tab after Files, and without one it has five", () => {
+  const s = createSample();
+  const withTerminal = { ...s.data, terminal: { screens: s.data.screens, call: async () => ({ terminals: [] }), connection: s.data.connection, space: { id: "spc_1", name: "Northwind" }, newKey: () => "k", clock: s.data.clock, nav: { openTerminal() {}, closeTab() {}, openList() {}, openRules() {}, openAgent() {} } } } as never;
+  const out = clean(renderToStaticMarkup(<ChatRightPane data={withTerminal} open={true} onToggle={() => undefined} tab="computer" window={ALL} paneWidth={760} />));
+  inOrder(out, [">Computer<", ">Threads<", ">Files<", ">Terminal<", ">Knows<", ">Routines<"]);
+  assert.ok(!has(html(s, "computer", 760), ">Terminal<"));
+});

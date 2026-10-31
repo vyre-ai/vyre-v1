@@ -80,7 +80,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const [attempt, setAttempt] = useState(0);
   const [searchOpen, setSearchOpen] = useState(initialSearchOpen);
   const recent = useRef<readonly Hit[]>([]);
-  const flags = useRef({ away: false, offline: false });
+  const flags = useRef<{ away: boolean; offline: boolean; terminal?: boolean }>({ away: false, offline: false });
 
   useEffect(() => { onHub(hub); return () => onHub(null); }, [hub, onHub]);
   useEffect(() => {
@@ -122,7 +122,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     void loadRecent(session.runtime).then((hits) => { if (!off) recent.current = hits; });
     return () => { off = true; };
   }, [session]);
-  const search = useMemo(() => (session ? createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current }) : null), [session, hub]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current })) : null), [session, hub]);
 
   const [phone, setPhone] = useState<Phone | undefined>(undefined);
   const connections = useMemo(() => (session ? session.hooks.capQuery<{ connections: { connector: string; state: string }[] }>("connections.list", {}) : null), [session]);

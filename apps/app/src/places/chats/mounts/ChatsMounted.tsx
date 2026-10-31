@@ -148,7 +148,8 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     call: rt.call, me: { id: rt.me.id, name: rt.me.name }, nameOf, kindOf: (id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person"), clock: rt.clock,
     query: route.view === "search" ? route.q : "", openMessage: go.message, openThread: go.chat, close: go.closeSearch, copy,
   }), [rt, nameOf, byId, route, go]);
-  const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent, fill)), [rt, go, threadId, leadAgent, fill]);
+  const terminal = useMemo(() => terminalData(rt, go, { agent: leadAgent, nameOf, newKey }), [rt, go, leadAgent, nameOf]);
+  const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent, fill, terminal)), [rt, go, threadId, leadAgent, fill, terminal]);
 
   /* ---------- the other pages ---------- */
   const needs = useMemo(() => needsData(rt, go, nameOf), [rt, go, nameOf]);
@@ -163,7 +164,6 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     () => agentPageData(rt, go, { agent: { agentId, name: agentRow?.name ?? nameOf(agentId), ...(agentComputer ? { computerId: agentComputer } : {}) }, canEdit: agentRow !== null && agentRow.ownerId === rt.me.id, nameOf, fill }),
     [rt, go, agentId, agentRow, agentComputer, nameOf, fill],
   );
-  const terminal = useMemo(() => terminalData(rt, go, { agent: leadAgent, newKey }), [rt, go, leadAgent]);
 
   /* ---------- the middle ---------- */
   let main: ReactElement;

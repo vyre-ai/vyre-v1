@@ -281,7 +281,7 @@ const MAX_STEP = 2_000;
 
 export async function questionAsk(
   ctx: ChatCtx,
-  input: { threadId: string; prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; idempotencyKey?: string },
+  input: { threadId: string; prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; card?: { kind: "terminal"; command: string; host?: string; risk?: string }; idempotencyKey?: string },
 ) {
   ensure(ctx.db);
   const t = open(ctx, input.threadId);
@@ -299,7 +299,7 @@ export async function questionAsk(
     }
   }
   const blockId = mintId("blk", ctx.now());
-  const data = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false };
+  const data = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false, ...(input.card ? { card: input.card } : {}) };
   const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: authorKind(ctx), body: "", blocks: [{ type: "question", v: 1, id: blockId, data, state: "waiting", traceId: ctx.trace.traceId }] });
   insertBlock(ctx, { id: blockId, thread: t.id, message: m.id, type: "question", data });
   deliver(ctx, t, m, [], author(ctx), { notify: false });
