@@ -329,8 +329,9 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       };
       try {
         await openConsole("console.backups");
+        await page.getByTestId("backup-edit").click();
         await page.getByTestId("backup-path").fill(backupDir);
-        await page.getByTestId("backup-config-save").click();
+        await page.getByTestId("backup-sheet").getByRole("button", { name: "Save", exact: true }).click();
         await page.getByText("Backup target saved", { exact: true }).waitFor();
         page.on("response", async (response) => { if (new URL(response.url()).pathname === "/v1/backup/run" && response.status() >= 400) console.log(`backup refusal: ${await response.text()}`); });
         await page.getByTestId("backup-run").click();
@@ -362,7 +363,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         const member = roles.roles.find((role) => /member/i.test(role.name))!;
         await page.getByTestId("console-invite-open").click();await page.getByTestId("invite-sheet").waitFor();
         await page.getByRole("button",{name:"Role",exact:true}).click();await page.getByRole("menuitem",{name:member.name,exact:true}).click();
-        await page.getByTestId("invite-sheet").getByRole("button",{name:"Create invite",exact:true}).click();
+        await page.getByTestId("invite-sheet").getByRole("button", { name: "Create invite", exact: true }).click();
         await page.getByTestId("console-invite-link").waitFor();
         assert.equal(new URL(await page.getByTestId("console-invite-link").innerText()).host,new URL(space.url).host);
         const lifecycleCode=decodeURIComponent(new URL(await page.getByTestId("console-invite-link").innerText()).pathname.split("/").pop()??"");
