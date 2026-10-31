@@ -20,7 +20,7 @@ export interface GateSearchDeps {
   runtime: ShellRuntime;
   nav: GateNav;
   /** Whether the person set themself away / offline; the actions read and flip them. */
-  state: { away: boolean; offline: boolean };
+  state: { away: boolean; offline: boolean; terminal?: boolean };
   /** The recent hits read ahead of the sheet (search.recent.list). */
   recent: () => readonly Hit[];
 }
@@ -58,13 +58,14 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
   return out;
 }
 
-export function gateActions(state: { away: boolean; offline: boolean }, team = true): readonly CmdAction[] {
+export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean }, team = true): readonly CmdAction[] {
   return [
     { key: "task.new", title: "New task", icon: "plus" },
     ...(team ? [{ key: "channel.new", title: "New channel", icon: "plus" }] : []),
     { key: "appearance.skin", title: "Switch skin", icon: "eye" },
     { key: "presence.away", title: state.away ? "Back from away" : "Set yourself away", icon: "clock" },
     { key: "network.offline", title: state.offline ? "Go online" : "Go offline", icon: "x" },
+    ...(state.terminal === true ? [{ key: "terminal.open", title: "Open terminal", icon: "terminal" }] : []),
   ];
 }
 
@@ -105,7 +106,8 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
         state.offline = !state.offline;
         nav.setOnline(!state.offline && rt.connection.get() === "online", 0);
         nav.flash(state.offline ? "Working offline" : "Back online");
-      } else if (a.key === "task.new") nav.go("home");
+      } else if (a.key === "terminal.open") nav.go("chats", "terminal");
+      else if (a.key === "task.new") nav.go("home");
       else if (a.key === "channel.new") { nav.go("chats"); requestChannelSheet("new"); }
       else if (a.key === SKIN) nav.go("settings", "page=appearance");
     },

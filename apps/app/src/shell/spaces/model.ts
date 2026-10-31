@@ -44,7 +44,7 @@ export const HARBOR: SpaceDef = {
 
 export const PERSONAL: SpaceDef = {
   spaceId: "me", name: "Personal", kind: "personal", address: "Only on this computer", role: "Owner", tint: ["#C2762B", "#E0A040"],
-  kit: "personal", skinDefault: "system", starred: false, needsYou: false, console: false, terminal: false,
+  kit: "personal", skinDefault: "system", starred: false, needsYou: false, console: false, terminal: true,
   counts: {}, dots: {},
 };
 

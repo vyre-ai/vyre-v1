@@ -3733,6 +3733,40 @@
           "allowOther": {
             "type": "boolean"
           },
+          "card": {
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "host": {
+                "enum": [
+                  "agent_computer",
+                  "space_server",
+                  "device"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "terminal"
+                ],
+                "type": "string"
+              },
+              "risk": {
+                "enum": [
+                  "read",
+                  "change",
+                  "danger"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "command"
+            ],
+            "type": "object"
+          },
           "mode": {
             "enum": [
               "single",
@@ -50916,6 +50950,50 @@
       "v": 1
     },
     {
+      "blocks": [
+        "question"
+      ],
+      "cap": "terminal.request",
+      "deferred": false,
+      "description": "Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "host": {
+            "enum": [
+              "agent_computer",
+              "space_server",
+              "device"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "command",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_request",
+      "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
       "blocks": [],
       "cap": "terminal.resize",
       "deferred": false,
@@ -50950,6 +51028,28 @@
       },
       "name": "terminal_resize",
       "planMode": "blocked",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "terminal.risk",
+      "deferred": false,
+      "description": "What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "command": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_risk",
+      "planMode": "allowed",
       "toolset": "terminal",
       "v": 1
     },

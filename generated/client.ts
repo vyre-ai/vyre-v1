@@ -2208,7 +2208,9 @@ export function createClient(transport: Transport) {
       open_server: call("terminal.open_server", 1),
       read: call("terminal.read", 1),
       rename: call("terminal.rename", 1),
+      request: call("terminal.request", 1),
       resize: call("terminal.resize", 1),
+      risk: call("terminal.risk", 1),
       rules: {
         get: call("terminal.rules.get", 1),
         set: call("terminal.rules.set", 1),

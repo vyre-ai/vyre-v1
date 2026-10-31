@@ -20,8 +20,9 @@ import { FilesTab } from "./FilesTab.tsx";
 import { MemoryTab } from "./MemoryTab.tsx";
 import { KnowsTab } from "../memory/KnowsTab.tsx";
 import { RoutinesTab } from "./RoutinesTab.tsx";
+import { TerminalPaneTab } from "./TerminalPaneTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN } from "./ThreadsTab.tsx";
-import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS } from "./model.ts";
+import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS, tabsOf } from "./model.ts";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.tsx";
 import type { TabKey } from "./model.ts";
 import { Face, Notice, Tool } from "./parts.tsx";
@@ -107,7 +108,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const agent = agentQ.status === "ready" ? agentQ.data.agent : null;
   const summaryQ = useScreenQuery<CapMap["agents.summary"]["out"]>(AGENT_PAGE_SCREEN, "summary", { agentId: data.agent.agentId });
   const facts = summaryQ.status === "ready" ? summaryQ.data.memoryFacts : 0;
-  const tabs = useMemo(() => TABS.filter((t) => !(personal && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, personal]);
+  const tabs = useMemo(() => tabsOf(data.terminal !== undefined).filter((t) => !(personal && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, personal, data.terminal]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
@@ -144,6 +145,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
           {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
+          {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}
           {tab === "memory" ? (data.memory ? <KnowsTab deps={deps} memory={data.memory} spaceName={data.space.name} {...(window ? { window } : {})} /> : <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} />) : null}
           {tab === "routines" ? <RoutinesTab deps={deps} {...(window ? { window } : {})} {...(openRoutine ? { initial: { routineId: openRoutine } } : {})} /> : null}
         </View>

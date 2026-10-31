@@ -80,8 +80,18 @@ export default defineManifest({
       },
       out: { terminalId: id.terminal, exitCode: t.nullable(t.int()), output: t.str(), truncated: t.bool(), durationMs: t.int() },
       on: ['terminal', '/terminalId'], level: 'use', perm: 'terminal.use', emits: ['terminal.opened', 'terminal.command_finished'], tool: 'terminal', mcpName: 'terminal_run',
+      gate: { act: 'approve', when: 'terminal.is_danger(input.command)' },
       agent: { planMode: 'blocked', blocks: ['terminal'] }, idem: 'key', audit: 'sensitive', risk: 'high', offline: 'online',
       errors: ['permission.needs_approval', 'timeout.deadline', 'provider.unavailable'],
+    }),
+    write('terminal.request', 'Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you', {
+      in: { threadId: id.thread, command: t.str(), why: t.str(), host: t.opt(host) },
+      out: { blockId: id.block, messageId: id.message, risk: t.enm('read', 'change', 'danger') },
+      on: ['thread', '/threadId'], level: 'use', tool: 'terminal', mcpName: 'terminal_request', agent: { planMode: 'allowed', blocks: ['question'] },
+      errors: ['permission.role_lacks_permission', 'validation.bad_input'],
+    }),
+    read('terminal.risk', 'What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks', {
+      in: { command: t.str() }, out: { risk: t.enm('read', 'change', 'danger'), verdict: t.enm('deny', 'ask', 'allow', 'none'), why: t.str(), entry: t.opt(t.str()) }, tool: 'terminal',
     }),
     read('terminal.rules.get', 'Your allow, ask and deny rules and the folders the terminal is locked to', {
       out: { rules }, tool: 'terminal',
