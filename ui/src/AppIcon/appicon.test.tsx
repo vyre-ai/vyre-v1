@@ -106,3 +106,7 @@ test("an app that ships only as a file in public/tools is found by name, and an 
   assert.equal(brandForName("Box"), "box", "but the whole name is the app");
   assert.match(renderToStaticMarkup(<AppIcon brand="clio" name="Clio" />), /\/tools\/clio\.png/);
 });
+
+test("the app hubs have a mark, so a hub row never shows a bare letter", () => {
+  for (const k of ["composio", "pipedream"]) assert.ok(BRANDS[k]?.svg, `${k} draws something`);
+});

@@ -9,3 +9,5 @@ Needs you reads right for requests Vyre makes itself. A hub key that stopped wor
 In Needs you, the participants button hides when no person is on a request, the footer lists only the keys that work for the open request (Enter to open when there is nothing to approve), and a request Vyre made shows the app's mark or the Vyre mark instead of a person's face.
 
 On a phone, a dialog with several actions now wraps them inside the card instead of running past its left edge.
+
+Composio and Pipedream have a mark in the app icon set, so a hub row and a request from a hub show a mark instead of a letter.
