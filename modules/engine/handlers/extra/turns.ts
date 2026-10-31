@@ -233,11 +233,16 @@ export async function turnRecord(
   const now = ctx.now();
   let row = rows(ctx, "SELECT * FROM engine_turns WHERE turn_id = ?", input.turnId)[0];
   if (!row) {
+    // The in-process engine counts its turns from 1 on every boot, so its number can already be taken by an earlier run's row: the number is chosen inside the one INSERT (the next free one when taken),
+    // never read first and written later, so two turns starting together cannot both take it.
     const engine = input.engine ?? "chat", model = input.model ?? "";
     ctx.db.run(
       `INSERT INTO engine_turns (turn_id, thread_id, agent_id, asker, account_ref, engine, model, placement, state, trace_id, run_id, qseq, started_at, ended_at, tokens_in, tokens_out, cost_micros, error, retry_of)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'host', 'running', ?, NULL, ?, ?, NULL, 0, 0, 0, NULL, NULL)`,
-      input.turnId, input.threadId, input.agentId, input.asker ?? actorOf(ctx), input.accountRef ?? null, engine, model, ctx.trace.traceId, input.qseq, now,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'host', 'running', ?, NULL,
+         CASE WHEN EXISTS (SELECT 1 FROM engine_turns WHERE thread_id = ? AND qseq = ?) THEN (SELECT MAX(qseq) + 1 FROM engine_turns WHERE thread_id = ?) ELSE ? END,
+         ?, NULL, 0, 0, 0, NULL, NULL)`,
+      input.turnId, input.threadId, input.agentId, input.asker ?? actorOf(ctx), input.accountRef ?? null, engine, model, ctx.trace.traceId,
+      input.threadId, input.qseq, input.threadId, input.qseq, now,
     );
     ctx.emit("turn.started", input.threadId, {
       turnId: input.turnId, threadId: input.threadId, agentId: input.agentId, placement: "host", engine, model, ...(input.accountRef === undefined ? {} : { accountRef: input.accountRef }),

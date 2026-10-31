@@ -25,6 +25,8 @@ export interface ConversationNav {
   openConnectOutsideAgent?(channelId: string): void;
   /** "Connect your AI" on a reply that could not start: the sign-in and key page. Left out where the shell has none. */
   openAiSetup?(): void;
+  /** "Unlock" on a reply that stopped because the Vault is locked: asks for the password in place. True once the key is open. Left out where the shell has no Vault key to open. */
+  unlockVault?(): Promise<boolean>;
 }
 
 /** A slash command a plugin adds. It runs `run` when it has one, else its `prompt` is sent as the message ($ARGUMENTS is replaced by what follows the name). */

@@ -44,7 +44,7 @@ export interface MessageActions {
   answer(blockId: string, answer: unknown): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
-  errorNext(key: string): void;
+  errorNext(key: string, turnId?: string): void;
   /** True once the person has a working AI account (read after "Connect your AI"). Left out where the chat cannot tell. */
   accountReady?(): Promise<boolean>;
   retrySend(messageId: string): void;
@@ -384,7 +384,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
       <View style={st.errTop}><Glyph name="alert" size={15} color="var(--warn)" /><Text style={st.errMsg}>{e.message}</Text></View>
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>
-        {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key); }} />)}
+        {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key, e.turnId); }} />)}
         {e.retryable && e.turnId ? <TextButton link label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
         <TextButton link label="Details" testID="err-what" onPress={() => setOpen((o) => !o)} />
         <TextButton link label="Copy id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />

@@ -157,6 +157,29 @@ test("an error is one inline row: what, why, next, Details, Copy id; Retry carri
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
 });
 
+test("the buttons on a failed reply: Install copies the exact command; Unlock asks for the password and then sends the stopped reply again, once", async () => {
+  const s = createSample("errors");
+  const said: string[] = [];
+  await act.errorAction(s.data, "install:codex", "turn_9", (t) => said.push(t));
+  assert.deepEqual(s.copied.slice(-1), ["npm install -g @openai/codex"]);
+  assert.match(said[0] ?? "", /^Copied: npm install -g @openai\/codex/);
+
+  // no way to open the key here: a sentence, and nothing is retried
+  await act.errorAction(s.data, "unlock_vault", "turn_9", (t) => said.push(t));
+  assert.equal(s.calls.filter((c) => c.cap === "engine.turn.retry").length, 0);
+
+  let asked = 0, open = false;
+  const withKey = { ...s.data, nav: { ...s.data.nav, unlockVault: async () => { asked++; return open; } } };
+  await act.errorAction(withKey, "unlock_vault", "turn_9", (t) => said.push(t));
+  assert.equal(asked, 1);
+  assert.equal(s.calls.filter((c) => c.cap === "engine.turn.retry").length, 0, "Cancel leaves the reply as it was");
+  open = true;
+  await act.errorAction(withKey, "unlock_vault", "turn_9", (t) => said.push(t));
+  const retries = s.calls.filter((c) => c.cap === "engine.turn.retry");
+  assert.equal(retries.length, 1, "the key opened, so the turn that stopped runs again");
+  assert.deepEqual(retries[0]?.input, { turnId: "turn_9" });
+});
+
 test("cards: a plan waits for approval and a question waits for an answer; both write", async () => {
   const s = createSample("plan");
   const out = html(s);

@@ -103,7 +103,13 @@ export function createBridge(o: BridgeOptions): Bridge {
   type Ended = Extract<EngineEvent, { type: "turn.failed" | "turn.cancelled" }> | Extract<EngineEvent, { type: "turn.waiting"; reason: "approval" }>;
   const status = (e: Ended): PostBlock => {
     if (e.type === "turn.waiting") return { type: "turn_status", v: 1, data: { state: "waiting", turnId: e.turnId, taskId: e.taskId } };
-    if (e.type === "turn.failed") return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code } };
+    if (e.type === "turn.failed") {
+      // An engine that is not installed names its program (a fixed few, never free text), so the chat can offer the exact install command.
+      const program = e.code === "engine.cli_missing" ? /^(claude|codex|grok) is not installed/.exec(e.message ?? "")?.[1] : undefined;
+      // A Vault that could not be read gives the code it answered with (a fixed word shape, never the text that came with it).
+      const reason = e.code === "engine.vault_unreadable" ? /^The Vault could not be read \(([a-z_]+(?:\.[a-z_]+)*)\)\.$/.exec(e.message ?? "")?.[1] : undefined;
+      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(program ? { program } : {}), ...(reason ? { reason } : {}) } };
+    }
     return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId } };
   };
 

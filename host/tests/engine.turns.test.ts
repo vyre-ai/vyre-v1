@@ -78,6 +78,24 @@ test("a failure of the Vault itself is an error that names the code and never th
   await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => e instanceof Error && e.message === "The Vault could not be read (provider.unavailable)." && !e.message.includes(SECRET));
 });
 
+test("a failure of the Vault carries a code of its own, so the chat can tell a locked Vault from a broken one", async () => {
+  const w = world(() => Object.assign(new Error("boom"), { code: "provider.unavailable" }));
+  await assert.rejects(w.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable");
+  const noCode = world(() => new Error("boom"));
+  await assert.rejects(noCode.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_unreadable" && (e as Error).message === "The Vault could not be read.");
+});
+
+test("a locked Vault key is engine.vault_locked, whether the Vault module or the key port says it, and no text from either reaches the message", async () => {
+  // the vault module refuses with a reason (auth.unauthenticated, vault_locked)
+  const byReason = world(() => Object.assign(new Error(`locked for ${SECRET}`), { error: { code: "auth.unauthenticated", message: `locked for ${SECRET}`, details: { reason: "vault_locked" } } }));
+  await assert.rejects(byReason.host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && !(e as Error).message.includes(SECRET));
+  // the key port throws a plain error in its own words when the person's key is not open on this computer
+  const invoke: Invoke = async () => ({ status: "ok", output: { handle: "#X", itemId: "vit_1", fields: [] }, traceId: TRACE });
+  const vault: VaultPort = { secret: async () => { throw new Error("Your vault key is locked on this computer."); }, signRs256: async () => "" };
+  const host = createEngineSessionHost({ invoke, vault, space: SPACE });
+  await assert.rejects(host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && (e as Error).message === "Your Vault is locked on this computer.");
+});
+
 test("a Vault port that fails after access was granted does not leak what it said", async () => {
   const invoke: Invoke = async () => ({ status: "ok", output: { handle: "#X", itemId: "vit_1", fields: [] }, traceId: TRACE });
   const vault: VaultPort = { secret: async () => { throw new Error(`could not open ${SECRET}`); }, signRs256: async () => "" };
