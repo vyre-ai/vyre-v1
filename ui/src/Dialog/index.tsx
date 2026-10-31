@@ -6,6 +6,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Overlay } from "../Overlay/index.tsx";
 import { injectCss } from "../theme/css.ts";
+import { Tip } from "../Tip/index.tsx";
 
 export interface DialogAction {
   label: string;
@@ -15,6 +16,8 @@ export interface DialogAction {
   /** An action that destroys something: filled with the danger colour in place of the accent. */
   danger?: boolean;
   disabled?: boolean;
+  /** Why the action is off, shown as its tooltip while it is. */
+  why?: string;
   testID?: string;
 }
 
@@ -41,12 +44,14 @@ function ensureCss(): void {
 function ActionButton({ a }: { a: DialogAction }): ReactElement {
   const fill = a.primary || a.danger;
   return (
+    <Tip help={a.disabled === true ? a.why : undefined}>
     <Pressable
       testID={a.testID} accessibilityRole="button" accessibilityLabel={a.label} accessibilityState={{ disabled: a.disabled === true }} disabled={a.disabled === true} onPress={a.onPress}
       style={({ hovered }: { hovered?: boolean }) => [s.btn, fill ? { backgroundColor: a.danger ? "var(--danger)" : "var(--accent)" } : s.btnQuiet, hovered === true ? (fill ? { opacity: 0.9 } : { backgroundColor: "var(--hover)" }) : null, a.disabled === true ? { opacity: 0.45 } : null]}
     >
       <Text style={[s.btnText, fill ? { color: a.danger ? "#FFFFFF" : "var(--accent-ink, #fff)", fontWeight: "600" } : null]}>{a.label}</Text>
     </Pressable>
+    </Tip>
   );
 }
 

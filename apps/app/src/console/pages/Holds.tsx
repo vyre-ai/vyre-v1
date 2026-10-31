@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
+import { View } from "react-native";
+import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
@@ -34,6 +36,7 @@ export function namedPeopleForHold(people: readonly { id: string; name: string }
 
 export function Holds(): ReactElement {
   const data = useConsoleData();
+  const [placing, setPlacing] = useState(false);
   const [kind, setKind] = useState<"all" | Target["kind"]>("all");
   const list = useRead<HoldsOut>("governance.holds.list", { ...(kind === "all" ? {} : { kind }), limit: 100 });
   const [more, setMore] = useState<Hold[]>([]);
@@ -75,15 +78,15 @@ export function Holds(): ReactElement {
     return "Hold placed";
   };
   return <>
-    <Section title="Holds" count={rows.length} right={<Choice label="Target kind" value={kind} options={[{ key: "all", title: "All targets" }, { key: "person", title: "People" }, { key: "file", title: "Files" }, { key: "folder", title: "Folders" }, { key: "channel", title: "Channels" }, { key: "thread", title: "Threads" }]} onChange={(value) => { setKind(value as typeof kind); setMore([]); setPage({ loaded: false, busy: false }); }} />}>
+    <Section title="Holds" count={rows.length} right={<View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}><Button label="Place a hold" testID="hold-new" onPress={() => setPlacing(true)} /><Choice label="Target kind" value={kind} options={[{ key: "all", title: "All targets" }, { key: "person", title: "People" }, { key: "file", title: "Files" }, { key: "folder", title: "Folders" }, { key: "channel", title: "Channels" }, { key: "thread", title: "Threads" }]} onChange={(value) => { setKind(value as typeof kind); setMore([]); setPage({ loaded: false, busy: false }); }} /></View>}>
       <ObjectList rows={rows} selectedId={null} onOpen={(row) => row.value && setReleasePreview(row.value)} pagination={{ ...(next ? { next } : {}), busy: page.busy, onMore: () => { if (!next || page.busy) return; setPage((current) => ({ ...current, busy: true })); void data.call("governance.holds.list", { ...(kind === "all" ? {} : { kind }), cursor: next, limit: 100 }).then((out) => { const nextPage = out as HoldsOut; setMore((current) => mergeHolds(current, nextPage.holds)); setPage({ loaded: true, ...(nextPage.next ? { next: nextPage.next } : {}), busy: false }); }, () => setPage((current) => ({ ...current, busy: false }))); } }} empty="Nothing is on hold." />
     </Section>
-    <Section title="Place a hold">
+    {placing ? <Dialog title="Place a hold" width={480} onClose={() => setPlacing(false)} actions={[{ label: "Close", onPress: () => setPlacing(false), testID: "sheet-cancel" }]}>
       <Field label="Find a person, file, folder, channel or thread" value={query} onChange={(value) => { setQuery(value); setTarget(null); setPlacePreview(null); }} /><Button label={searching ? "Searching…" : "Search"} disabled={searching || !query.trim()} onPress={search} />
       {results.length ? <Choice label="Target" value={target ? `${target.kind}:${target.id}` : ""} options={results.map((item) => ({ key: `${item.kind}:${item.id}`, title: `${item.title} · ${item.kind}` }))} onChange={(value) => { setTarget(results.find((item) => `${item.kind}:${item.id}` === value) ?? null); setPlacePreview(null); }} /> : null}
       <Field label="Reason" value={reason} onChange={(value) => { setReason(value); setPlacePreview(null); }} multiline />
       {placePreview ? <><Note>{placePreview.title} will stop expiring and cannot be erased until this hold is released.</Note><Actions><Button label="Back" onPress={() => setPlacePreview(null)} /><Button label="Place hold" danger disabled={action.busy} onPress={() => void action.run("governance.holds.place", { target: placePreview.target, reason: placePreview.reason }, () => verifyPlaced(placePreview)).then((out) => { if (out) { setPlacePreview(null); setTarget(null); setReason(""); } })} /></Actions></> : <Button label="Review hold" disabled={!target || !reason.trim()} why={!target?"Pick what to hold":!reason.trim()?"Give a reason":undefined} onPress={() => { if (target && reason.trim()) setPlacePreview({ target: { kind: target.kind, id: target.id }, title: target.title, reason: reason.trim() }); }} />}
-    </Section>
+    </Dialog> : null}
     {releasePreview ? <Section title="Release hold"><Note>{releasePreview.title} can expire or be erased under the active policies after release.</Note><Actions><Button label="Cancel" onPress={() => setReleasePreview(null)} /><Button label="Release hold" danger disabled={action.busy} onPress={() => void action.run("governance.holds.release", { target: releasePreview.target }, "Hold released").then((out) => { if (out) { const key = `${releasePreview.target.kind}:${releasePreview.target.id}`; setReleased((current) => new Set([...current, key])); setMore((current) => current.filter((hold) => `${hold.target.kind}:${hold.target.id}` !== key)); setReleasePreview(null); } })} /></Actions></Section> : null}
     {action.note ? <Note>{action.note}</Note> : null}
   </>;

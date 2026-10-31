@@ -83,7 +83,7 @@ function Body({ itemId, item: got, onClose, onSaved, addField }: { itemId: strin
       footer={<>
         <Text style={s.diff} testID="edit-diff" accessibilityLiveRegion="polite">{renamed && diffIsEmpty(diff) ? `Rename to ${name.trim()}` : diffWords(diff)}</Text>
         <Btn label="Cancel" onPress={onClose} testID="edit-cancel" />
-        <Btn label={saving ? "Saving" : "Save"} primary disabled={nothing || saving} onPress={() => { void save(); }} testID="edit-save" />
+        <Btn label={saving ? "Saving" : "Save"} primary disabled={nothing || saving} why="Nothing changed" onPress={() => { void save(); }} testID="edit-save" />
       </>}
     >
       <View style={s.field}>

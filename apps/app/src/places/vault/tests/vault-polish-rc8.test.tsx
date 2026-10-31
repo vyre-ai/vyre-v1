@@ -88,3 +88,10 @@ test("a .env line holds no button inside a button", () => {
   assert.ok(line.length > 0 && !/role="button"/.test(line), "the line is a group; Reveal and Copy are its buttons");
   assert.ok(has(out, 'aria-label="Reveal GHL_PIT"') && has(out, 'aria-label="Copy GHL_PIT"'));
 });
+
+test("help is a tooltip, not a sentence: the policy rows, the provider's privacy mark and a disabled Save say it on hover", () => {
+  const policy = clean(renderToStaticMarkup(<Vault data={createSampleVault().data} route={{ surface: "policy" }} />));
+  assert.ok(!policy.includes(">A link made for an export can last up to this long<"), "no help sentence on the page");
+  const page = clean(renderToStaticMarkup(<VaultDataProvider value={sample().data}><ProviderPage provider={providers(sample()).find((x) => x.id === "prv_claude")!} handle="#Northwind_Claude" onNote={() => undefined} /></VaultDataProvider>));
+  assert.ok(has(page, 'title="Only you can use it"') && !has(page, ">Only you can use it<"), "Only you can use it is on hover");
+});
