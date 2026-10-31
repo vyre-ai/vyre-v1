@@ -34,6 +34,12 @@ const TYPE_NAME: Readonly<Record<string, string>> = {
 /** The little mark before a field: a symbol for the computed and text kinds, a named icon for the rest. */
 const SYMBOL: Readonly<Record<string, string>> = { text: "Aa", longtext: "¶", money: "$", autonumber: "#", rollup: "Σ", formula: "ƒx" };
 
+/** The mark before a field of this type (a symbol or a named icon) and its name, for the pickers that edit fields. */
+export function fieldMark(type: string): { symbol?: string; icon: string; name: string } {
+  const sym = SYMBOL[type];
+  return { icon: iconOf(type), name: TYPE_NAME[type] ?? humanize(type), ...(sym !== undefined ? { symbol: sym } : {}) };
+}
+
 export interface FieldRow {
   key: string;
   title: string;
@@ -277,7 +283,6 @@ export function typeTag(t: Pick<TypeRow, "syncedFrom" | "system" | "group">): Ty
 
 export const recordsWord = (n: number): string => `${n} ${n === 1 ? "record" : "records"}`;
 export const fieldsWord = (n: number): string => `${n} ${n === 1 ? "field" : "fields"}`;
-export const MANAGED = "Record types are managed in the console";
 
 /** A hue for a type from its key, so a type keeps its colour on every screen. */
 export function hueOf(key: string): number {

@@ -10,7 +10,9 @@ import type { AskBundle } from "../ask/bundle.ts";
 import { installFocusRing } from "../a11y.ts";
 import { accountFixedLine, BUILDER_MODES, VAL_LABEL } from "../chrome.ts";
 import type { BuilderMode } from "../chrome.ts";
-import { accountDefaultInput, accountMenu, applyAccount } from "../connect/accounts.ts";
+import { accountDefaultInput, accountMenu, accountNeed, applyAccount, connectedOption, menuIsEmpty } from "../connect/accounts.ts";
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectEntries } from "../../../shell/connect/model.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import { fieldsFromSchema, asFixture } from "../builder/fields.ts";
 import { MessageComposer } from "../builder/MessageComposer.tsx";
@@ -75,6 +77,7 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
   runLog?: unknown;
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
+  const openConnect = useOpenConnect();
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const ordered = layout ? frameFor(layout).ordered : false;
   useEffect(() => { installFocusRing(); }, []);
@@ -266,13 +269,17 @@ export function Inspector({ def, node, trigger, triggerIndex, issues, keys, onCh
             onOpen={(x, y) => {
               const entries: MenuEntry[] = [];
               for (const item of accountPick.items) {
+                // the "No accounts yet" row is not an account: with a way to connect it gives way to Connect
+                if (!item.account && openConnect) continue;
                 const onSelect = (): void => {
                   if (!item.account) return;
                   onChange(updateStep(def, node.id, { input: applyAccount(node.input ?? {}, accountPick.field, item.account) }));
                 };
                 entries.push(item.checked ? { label: item.label, checked: true, onSelect } : { label: item.label, onSelect });
               }
-              openMenu(entries, x, y, "other");
+              const need = accountNeed(accountPick.field, node.input ?? {});
+              const empty = menuIsEmpty(accountPick);
+              openMenu(need ? connectEntries(entries, need, openConnect, (made) => onChange(updateStep(def, node.id, { input: applyAccount(node.input ?? {}, accountPick.field, connectedOption(made)) })), empty) : entries, x, y, "other");
             }}
           />
         ) : null}
@@ -379,11 +386,14 @@ void ps;
 
 function paneStyle(embedded: boolean, layout?: StudioLayout) {
   const frame = layout ? frameFor(layout) : null;
-  return [i.pane, (embedded || frame?.compact) ? i.embedded : null, frame ? { width: frame.inspectorWidth } : null];
+  // Embedded in the resizable side pane the pane owns the width: the inspector fills it and never keeps its own pixel width.
+  const fill = embedded || frame?.compact === true;
+  const own = frame !== null && !(embedded && !frame.compact) ? { width: frame.inspectorWidth } : null;
+  return [i.pane, fill ? i.embedded : null, own];
 }
 
 const i = StyleSheet.create({
-  pane: { width: 300, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  pane: { width: 300, maxWidth: "100%", minWidth: 0, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
   embedded: { width: "100%" as unknown as number, flex: 1, borderLeftWidth: 0 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, height: 52, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string },

@@ -4,6 +4,7 @@ import { createContext, useContext, useMemo, useSyncExternalStore } from "react"
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import type { AskAbout } from "../askpane/model.ts";
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
@@ -31,6 +32,10 @@ export interface RecordsData {
   /** The name of a person, agent or group by id, for the person fields. */
   nameOf(id: string): string;
   nav: RecordsNav;
+  /** May this person change record types and fields (the Console's schema.manage; the owner of a Personal Space)? Left out, the editing controls are not drawn. */
+  canEditSchema?: boolean;
+  /** Ask Vyre: opens the assistant as a pane in this tab, told where the person is. It never navigates. Left out where the shell has no assistant: no Ask button is drawn. */
+  askVyre?(about: AskAbout): void;
 }
 
 const DataCtx = createContext<RecordsData | null>(null);

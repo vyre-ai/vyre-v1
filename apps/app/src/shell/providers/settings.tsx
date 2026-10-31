@@ -47,7 +47,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
       openVault: () => rt.open({ screen: "vault.layout" }),
       openConsole: () => rt.open({ screen: "console.overview" }),
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
-      connect: (kind) => rt.open({ screen: "mail.connections", args: { kind } }),
+      connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "mail.connections", args: { kind } }),
       choosePhoto: () => chooseProfilePhoto(rt),
       ...(manageSecurity ? { manageSecurity } : {}),
     },

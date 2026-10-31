@@ -17,7 +17,7 @@ const DAY = 86_400_000;
 
 export type Variant = "northwind" | "harbor";
 
-interface FolderSeed { id: string; name: string; parent: string | null; section: "personal" | "shared" | "space"; shared?: boolean; knowledge?: boolean; git?: boolean; rootKey?: string; subject?: { kind: "agent" | "project"; id?: string } }
+interface FolderSeed { id: string; name: string; parent: string | null; section: "personal" | "shared" | "space"; shared?: boolean; knowledge?: boolean; git?: boolean; rootKey?: string; source?: { mountId: string; provider: string }; subject?: { kind: "agent" | "project"; id?: string } }
 interface FileSeed { id: string; name: string; folder: string; kind: FileKind; size: number; ago: number; by: string; source?: string; shared?: boolean; knowledge?: boolean; starred?: boolean; conflict?: boolean; mime?: string }
 
 interface ChangesetSeed { id: string; folder: string; by: string; files: number }
@@ -161,7 +161,7 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
   const folderRow = (x: FolderSeed): FolderRow => {
     const kids = allFolders().filter((k) => k.parent === x.id).length;
     const n = allFiles().filter((fl) => live(fl) && fl.folderId === x.id).length;
-    return { folderId: x.id, ...(x.parent ? { parentId: x.parent } : {}), name: x.name, path: x.name, fileCount: n, folderCount: kids, scope: x.section === "space" ? "space" : "personal", label: 1, git: x.git === true, reviewChanges: false, ...(x.subject ? { subject: x.subject } : {}) };
+    return { folderId: x.id, ...(x.parent ? { parentId: x.parent } : {}), name: x.name, path: x.name, fileCount: n, folderCount: kids, scope: x.section === "space" ? "space" : "personal", label: 1, git: x.git === true, reviewChanges: false, ...(x.source ? { source: x.source } : {}), ...(x.subject ? { subject: x.subject } : {}) };
   };
   const strip = (x: Seeded): FileRow => { const { shared: _s, knowledge: _k, ...rest } = x as Seeded & Record<string, unknown>; void _s; void _k; return rest as unknown as FileRow; };
 

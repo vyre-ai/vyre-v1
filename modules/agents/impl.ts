@@ -15,8 +15,8 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 /** The boot check: right after start, then every 15 seconds, each agent's AGENT.md and agent.toml are in its folder; a missing one is put back from the agent record (P-L5_30). */
 export const periodic = {
   "agents.agent_files": { everyMs: 15_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => restoreAgentFiles(ctx) },
-  /** Once at boot (the interval is a week, so it does not repeat in practice): an assistant still called "<First> Assistant" becomes "<First>’s Assistant"; one the person renamed is left alone. */
-  "agents.assistant_names": { everyMs: 7 * 24 * 3_600_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => renameOldAssistants(ctx) },
+  /** Once at boot (it repeats every 15 minutes in case the people list was not ready at boot; once renamed nothing matches): an assistant still called "<First> Assistant" becomes "<First>’s Assistant"; one the person renamed is left alone. */
+  "agents.assistant_names": { everyMs: 15 * 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => renameOldAssistants(ctx) },
 };
 
 export { restoreAgentFiles };

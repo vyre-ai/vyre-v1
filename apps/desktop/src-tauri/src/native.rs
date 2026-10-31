@@ -148,6 +148,8 @@ pub struct SessionSource {
     #[serde(skip_serializing)]
     pub transcript_path: String,
     pub cwd: Option<String>,
+    /// A summary line or the first thing the person asked, read from the transcript head (about 80 characters).
+    pub title: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
     pub git_branch: Option<String>,
@@ -276,11 +278,13 @@ fn codex_sources_with_repos(configured: Option<&str>, repos: &mut RepoProbeCache
         let transcript = transcript_path(&root, &rollout);
         if !contained_file(&root, &transcript) { continue; }
         let safe_remote = safe_git_remote(git_origin_url);
+        let (title, head_cwd, _) = session_facts(&transcript);
+        let cwd = cwd.filter(|value| !value.is_empty()).or(head_cwd);
         let repo = cwd.as_deref().and_then(|value| repos.resolve(value));
         let normalized_cwd = repo.as_ref().map(|value| value.0.clone()).or(cwd);
         let normalized_remote = repo.and_then(|value| value.1.or(safe_remote));
         let project_key = normalized_cwd.as_deref().map(|value| format!("codex:{value}")).unwrap_or_else(|| "codex:unknown".to_string());
-        out.push(SessionSource { provider: "codex".to_string(), session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd: normalized_cwd, created_at, updated_at, git_branch, git_origin_url: normalized_remote, repository_metadata_authoritative: false });
+        out.push(SessionSource { provider: "codex".to_string(), session_key: format!("codex:{id}"), session_id: id, project_key, transcript_path: transcript.to_string_lossy().into_owned(), cwd: normalized_cwd, title, created_at, updated_at, git_branch, git_origin_url: normalized_remote, repository_metadata_authoritative: false });
     }
     Ok(out)
 }
@@ -302,17 +306,78 @@ fn claude_sources_with_repos(configured: Option<&str>, configured_desktop: Optio
             let Some(id) = claude_session_id(file.file_name().and_then(|name| name.to_str())) else { continue; };
             let project = file.strip_prefix(&base).ok().and_then(|relative| relative.components().next()).and_then(|part| part.as_os_str().to_str()).unwrap_or("unknown");
             let extra = metadata.get(&id);
-            let repo = extra.and_then(|value| value.0.as_deref()).and_then(|cwd| repos.resolve(cwd));
+            // Claude Code on the command line has no desktop metadata: the folder, name and date come from the transcript itself.
+            let (title, head_cwd, modified) = session_facts(&file);
+            let known_cwd = extra.and_then(|value| value.0.clone()).or(head_cwd);
+            let repo = known_cwd.as_deref().and_then(|cwd| repos.resolve(cwd));
             out.push(SessionSource {
                 provider: "claude".to_string(), session_key: format!("claude:{id}"), session_id: id,
                 project_key: format!("claude:{project}"), transcript_path: file.to_string_lossy().into_owned(),
-                cwd: repo.as_ref().map(|value| value.0.clone()).or_else(|| extra.and_then(|value| value.0.clone())), created_at: None, updated_at: extra.and_then(|value| value.1.clone()), git_branch: None, git_origin_url: repo.and_then(|value| value.1), repository_metadata_authoritative: false,
+                cwd: repo.as_ref().map(|value| value.0.clone()).or(known_cwd), title, created_at: None, updated_at: extra.and_then(|value| value.1.clone()).or(modified), git_branch: None, git_origin_url: repo.and_then(|value| value.1), repository_metadata_authoritative: false,
             });
         }
     }
     out.sort_by(|a, b| a.session_key.cmp(&b.session_key));
     out.dedup_by(|a, b| a.session_key == b.session_key);
     out
+}
+
+/// Name, working folder and last-modified time (epoch milliseconds, as text) of a session, read from the first 128 KB of its transcript and its file time.
+fn session_facts(path: &Path) -> (Option<String>, Option<String>, Option<String>) {
+    let modified = fs::metadata(path).and_then(|m| m.modified()).ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_millis().to_string());
+    let mut head = Vec::new();
+    if let Ok(file) = fs::File::open(path) { let _ = file.take(128 * 1024).read_to_end(&mut head); }
+    let (title, cwd) = facts_from_jsonl(&String::from_utf8_lossy(&head));
+    (title, cwd, modified)
+}
+
+fn clip_title(raw: &str) -> Option<String> {
+    let flat = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    if flat.is_empty() { return None; }
+    Some(flat.chars().take(80).collect::<String>())
+}
+
+/// Text of a message content: a plain string, or the text blocks of a list.
+fn content_text(content: &serde_json::Value) -> String {
+    match content {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Array(blocks) => blocks.iter().filter_map(|b| b.get("text").and_then(|t| t.as_str())).collect::<Vec<_>>().join(" "),
+        _ => String::new(),
+    }
+}
+
+/// A typed prompt is a candidate title; injected context (tags, caveats, instruction files) is not.
+fn is_prompt(text: &str) -> bool {
+    let t = text.trim_start();
+    !t.is_empty() && !t.starts_with('<') && !t.starts_with("Caveat:") && !t.starts_with("# AGENTS.md")
+}
+
+/// Claude Code and Codex transcripts are JSONL. Title: a "summary" line, else the first typed user message. Folder: the first "cwd" seen.
+fn facts_from_jsonl(text: &str) -> (Option<String>, Option<String>) {
+    let (mut summary, mut first, mut cwd) = (None, None, None);
+    for line in text.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else { continue; };
+        let payload = v.get("payload").unwrap_or(&serde_json::Value::Null);
+        if cwd.is_none() {
+            cwd = v.get("cwd").or_else(|| payload.get("cwd")).and_then(|c| c.as_str()).filter(|c| !c.is_empty()).map(ToOwned::to_owned);
+        }
+        if v.get("type").and_then(|t| t.as_str()) == Some("summary") && summary.is_none() {
+            summary = v.get("summary").and_then(|t| t.as_str()).and_then(clip_title);
+        }
+        if first.is_none() && v.get("isMeta").and_then(|m| m.as_bool()) != Some(true) {
+            let candidate = if v.get("type").and_then(|t| t.as_str()) == Some("user") {
+                v.get("message").map(|m| content_text(m.get("content").unwrap_or(&serde_json::Value::Null)))
+            } else if payload.get("type").and_then(|t| t.as_str()) == Some("user_message") {
+                payload.get("message").and_then(|m| m.as_str()).map(ToOwned::to_owned)
+            } else if payload.get("type").and_then(|t| t.as_str()) == Some("message") && payload.get("role").and_then(|r| r.as_str()) == Some("user") {
+                Some(content_text(payload.get("content").unwrap_or(&serde_json::Value::Null)))
+            } else { None };
+            first = candidate.filter(|c| is_prompt(c)).and_then(|c| clip_title(&c));
+        }
+        if summary.is_some() && cwd.is_some() { break; }
+    }
+    (summary.or(first), cwd)
 }
 
 struct RepoProbeCache {
@@ -532,6 +597,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_claude_transcript_gives_its_summary_else_its_first_typed_prompt_and_its_folder() {
+        let plain = "{\"type\":\"user\",\"isMeta\":true,\"message\":{\"content\":\"meta\"}}\n{\"type\":\"user\",\"cwd\":\"/Users/a/proj\",\"message\":{\"content\":\"<command-name>x</command-name>\"}}\n{\"type\":\"user\",\"cwd\":\"/Users/a/proj\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Fix the   login\\nbug\"}]}}\n";
+        assert_eq!(facts_from_jsonl(plain), (Some("Fix the login bug".to_string()), Some("/Users/a/proj".to_string())));
+        let with_summary = format!("{{\"type\":\"summary\",\"summary\":\"Login fix\"}}\n{plain}");
+        assert_eq!(facts_from_jsonl(&with_summary).0, Some("Login fix".to_string()));
+        let long = format!("{{\"type\":\"user\",\"message\":{{\"content\":\"{}\"}}}}", "a".repeat(200));
+        assert_eq!(facts_from_jsonl(&long).0.map(|t| t.chars().count()), Some(80));
+    }
+
+    #[test]
+    fn a_codex_rollout_gives_its_folder_and_first_user_message_skipping_injected_context() {
+        let text = "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"/work/app\"}}\n{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<environment_context>x</environment_context>\"}]}}\n{\"type\":\"event_msg\",\"payload\":{\"type\":\"user_message\",\"message\":\"Add dark mode\"}}\n";
+        assert_eq!(facts_from_jsonl(text), (Some("Add dark mode".to_string()), Some("/work/app".to_string())));
+        assert_eq!(facts_from_jsonl("not json\n"), (None, None));
+    }
+
+    #[test]
     fn a_banner_is_fresh_for_the_click_window_only() {
         let t0 = Instant::now();
         assert!(fresh(t0, t0, CLICK_WINDOW));
@@ -573,7 +655,7 @@ mod tests {
         let mut zipped = flate2::write::GzEncoder::new(fs::File::create(&file).unwrap(), flate2::Compression::default());
         zipped.write_all(b"{\"visible\":true}\n").unwrap();
         zipped.finish().unwrap();
-        let source = SessionSource { provider: "claude".into(), session_id: "fixture".into(), session_key: "claude:fixture".into(), project_key: "unknown".into(), transcript_path: file.to_string_lossy().into(), cwd: None, created_at: None, updated_at: None, git_branch: None, git_origin_url: None, repository_metadata_authoritative: false };
+        let source = SessionSource { provider: "claude".into(), session_id: "fixture".into(), session_key: "claude:fixture".into(), project_key: "unknown".into(), transcript_path: file.to_string_lossy().into(), cwd: None, title: None, created_at: None, updated_at: None, git_branch: None, git_origin_url: None, repository_metadata_authoritative: false };
         let value = read_discovered_source(&source, &root).unwrap();
         assert_eq!(value["documents"][0]["text"], "{\"visible\":true}\n");
         assert_eq!(value["source"]["repositoryMetadataAuthoritative"], true);
@@ -644,8 +726,11 @@ mod tests {
         let sources = claude_sources(Some(claude.to_str().unwrap()), None);
         assert_eq!(sources.len(), 1, "subagents belong to their parent and are not selectable sessions");
         assert_eq!(sources[0].session_id, parent);
-        assert_eq!(sources[0].git_origin_url, None, "discovery does not read transcript metadata");
-        assert_eq!(sources[0].cwd, None, "CLI-only Claude Code has no Desktop metadata");
+        // The picker shows each session's name, date and folder: discovery reads the transcript head on this computer only.
+        assert_eq!(sources[0].title.as_deref(), Some("Parent"));
+        assert!(sources[0].updated_at.is_some(), "the file time dates a CLI-only session");
+        assert_eq!(PathBuf::from(sources[0].cwd.as_deref().unwrap()).canonicalize().unwrap(), canonical_repo, "the transcript folder resolves to its checkout");
+        assert_eq!(sources[0].git_origin_url.as_deref(), Some("https://example.com/acme/vyre.git"), "the remote never carries its credentials");
         let root = claude.canonicalize().unwrap();
         let read = read_discovered_source(&sources[0], &root).unwrap();
         assert_eq!(read["documents"].as_array().map(Vec::len), Some(2));

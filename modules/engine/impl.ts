@@ -12,7 +12,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
 import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
-import { ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
+import { closeNoAccountTasks, ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import type { EngineCtx } from "./projections.ts";
 
 // Every engine capability first makes sure the runtime exists on a daemon that wired the engine seam (the first call builds it; a daemon without the seam leaves it unbound).
@@ -42,6 +42,10 @@ export const consumers = {
   ...withRuntime(bridgeConsumers),
   ...withRuntime(gateResumeConsumers),
   ...captureConsumers,
+  "engine.no_account_sweep": {
+    on: ["provider.added"],
+    run: async (ctx: EngineCtx): Promise<string[]> => closeNoAccountTasks(ctx.db),
+  },
   "engine.unblock": {
     on: ["task.completed"],
     run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),

@@ -12,8 +12,10 @@ import { Calendar } from "../../places/inbox/calendar/Calendar.tsx";
 import { ContactList, ListLoading } from "../../places/inbox/contactlist/ContactList.tsx";
 import { CallConversation } from "../../places/inbox/callpane/index.ts";
 import type { OpenTask } from "../../places/inbox/callpane/index.ts";
+import { getAsk } from "../../places/inbox/contacttab/ask.ts";
 import { InboxUnmatched } from "../../places/inbox/unmatched/index.ts";
-import { InboxDataProvider } from "../../places/inbox/sidebar/data.tsx";
+import { ConnectChannel } from "../../places/inbox/connect/index.ts";
+import { InboxDataProvider, useCanSend } from "../../places/inbox/sidebar/data.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { InboxSidebar, SidebarLoading } from "../../places/inbox/sidebar/InboxSidebar.tsx";
 import { InboxStateProvider, useInboxState } from "../../places/inbox/sidebar/state.tsx";
@@ -22,6 +24,7 @@ import { InboxPhoneDock } from "../../places/inbox/softphone/phone.tsx";
 import { CallTitlePill } from "../../places/inbox/softphone/pill.tsx";
 import { inboxData } from "./inbox-data.ts";
 import { capLive } from "./records-live.ts";
+import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -67,6 +70,10 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   // Choosing another inbox, view, filter or the Calendar in the sidebar leaves the open conversation and shows the list again.
   const first = useRef(true);
   useEffect(() => { if (first.current) { first.current = false; return; } close(); if (target.screen === "inbox.unmatched") opened({}); }, [state.scope, state.view, state.main, state.channels, state.inboxes, state.needsMatch]); // eslint-disable-line react-hooks/exhaustive-deps -- close and the hash are read when the sidebar changes, not the other way round
+  // the connect choice is for an Inbox with nothing connected: once a channel can send (the person came back from the connect flow) the list takes over
+  const canSend = useCanSend();
+  useEffect(() => { if (state.main === "connect" && canSend === true) dispatch({ type: "scope", scope: { kind: "all" } }); }, [state.main, canSend]); // eslint-disable-line react-hooks/exhaustive-deps -- dispatch is stable
+  if (state.main === "connect") return <ConnectChannel />;
   if (state.main === "calendar") return <Calendar me={rt.me.id} team={team} />;
   // Match to a record (the list's menu and its row) opens the Unmatched screen: every sender or caller with no record, and the Match menu on each
   if (target.screen === "inbox.unmatched" && !openId) {
@@ -77,6 +84,9 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
       />
     );
   }
+  // "Ask for these" from a record: the person's conversation opens by contact (it may not exist yet) with the message drafted
+  const askContact = !openId ? target.args["contactId"] : undefined;
+  if (askContact) return <CallConversation key={`ask:${target.args["ask"] ?? askContact}`} conversationId="" contactId={askContact} {...(getAsk(target.args["ask"]) ? { ask: getAsk(target.args["ask"])! } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
   if (openId && missing) return <NotFound what="conversation" />;
   // the conversation with the call bar and, after a call, the ended strip when the phone is on this contact
   if (openId) return <CallConversation key={openId} conversationId={openId} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
@@ -88,18 +98,19 @@ function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | 
   const winW = useWindowDimensions().width;
   const phone = winW > 0 && winW < 720;
   const { state } = useInboxState();
+  const { target } = usePlaceHash();
   const [entered, setEntered] = useState(false);
   const first = useRef(true);
   useEffect(() => { if (first.current) { first.current = false; return; } setEntered(true); }, [state.scope, state.view, state.main]);
   if (!phone) {
     return (
       <View testID="inbox-place" style={st.row}>
-        <View style={st.side}><InboxSidebar /></View>
+        <ResizableColumn paneKey="inbox-sidebar" defaultWidth={SIDEBAR_W} grow="right" min={200} maxFraction={0.5} style={st.sideCol} testID="inbox-sidebar-col"><InboxSidebar /></ResizableColumn>
         <View style={st.main}><Main rt={rt} openId={openId} close={close} /></View>
       </View>
     );
   }
-  const inMain = entered || (openId !== null && openId !== "");
+  const inMain = entered || (openId !== null && openId !== "") || !!target.args["contactId"];
   return (
     <View testID="inbox-place" style={st.row}>
       {inMain ? (
@@ -136,6 +147,7 @@ export default function InboxPlace(): ReactElement {
 const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   side: { width: SIDEBAR_W, minHeight: 0 },
+  sideCol: { minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   backChip: { alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 10 },
   backText: { fontSize: 14, color: "var(--accent)" as string },

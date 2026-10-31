@@ -1,9 +1,9 @@
 // Settings pages that belong to the open Space: Profile (with Copy from another Space), Notifications, Models and usage, Connections, Memory and privacy.
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
-import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
+import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistant } from "../../../../../ui/src/Avatar/index.tsx";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
@@ -75,6 +75,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
           rowFor(title, 3, <Field value={str(title)} label="Title" placeholder="Add a title" testID="ctl-profile.title" onCommit={(v) => void change(title!, v)} />, "Title"),
         ]}
       </Section>
+      {assistantId() ? <AssistantLook /> : null}
       {before}
       {contact ? (
         <Section title="Contact">
@@ -85,6 +86,27 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
       {after}
       {copy ? <CopyFromSpace onClose={() => setCopy(false)} /> : null}
     </>
+  );
+}
+
+// ---------------------------------------------------------------- Your Assistant's look
+
+/** The looks on offer: the Vyre mark (the default), then faces drawn from the agent library. */
+export const ASSISTANT_LOOKS: readonly string[] = ["", "look-ember", "look-tide", "look-moss", "look-dusk", "look-sand"];
+
+function AssistantLook(): ReactElement {
+  const look = useSyncExternalStore(subscribeAssistant, assistantLook, assistantLook);
+  const at = Math.max(0, ASSISTANT_LOOKS.indexOf(look));
+  return (
+    <Section title="You and your Assistant">
+      <SettingsRow id="assistant.look" label="Its look" first sub={look === "" ? "The Vyre mark" : "A face you picked"} control={
+        <>
+          <View accessibilityLabel="Assistant look" testID="assistant-look"><Avatar name="Assistant" seedId={assistantId()} kind="assistant" size={28} /></View>
+          <SmallButton label="Change its look" testID="assistant-look-change" onPress={() => setAssistantLook(ASSISTANT_LOOKS[(at + 1) % ASSISTANT_LOOKS.length] ?? "")} />
+          {look !== "" ? <SmallButton label="Use the Vyre mark" testID="assistant-look-reset" onPress={() => setAssistantLook(null)} /> : null}
+        </>
+      } />
+    </Section>
   );
 }
 
@@ -235,6 +257,7 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
         {list}
         <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("mailbox")} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
+        <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("twilio")} control={<Glyph name="chevR" size={13} />} />
       </Section>
       <RegistrySections page="connections" rows={rows} found={found} />
     </>

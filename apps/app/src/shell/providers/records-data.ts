@@ -3,8 +3,9 @@ import type { RecordsData } from "../../places/records/sidebar/index.ts";
 import { capLive, nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
-export function recordsData(rt: ShellRuntime, screen?: string): RecordsData {
+export function recordsData(rt: ShellRuntime, screen?: string, canEditSchema = false): RecordsData {
   return {
+    ...(canEditSchema ? { canEditSchema: true } : {}),
     ...(screen ? { screen } : {}),
     screens: rt.screens,
     live: (cap, input) => capLive(rt, cap, input as Record<string, unknown>),

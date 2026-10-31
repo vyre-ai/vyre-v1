@@ -149,14 +149,14 @@ test("with an AI account the person's own Ask thread replaces the scripted words
   assert.equal(await findAssistant(rt as never, "usr_zzz"), null);
 });
 
-test("the bottom bar is Skip, Continue (disabled until the step is done, Finish on the last step) and a quiet Finish later", () => {
+test("the bottom bar is Skip, Continue (disabled until the step is done, Done on the last step) and a quiet Finish later", () => {
   const out = html({ stepKey: "ai", onClose: noop });
   assert.ok(out.includes(">Skip<") && out.includes('data-testid="step-next"') && out.includes(">Continue<") && out.includes("Finish later"));
   assert.ok(/aria-disabled="true"|disabled=""/.test(out), "not done: Continue is disabled");
   assert.ok(!/aria-disabled="true"|disabled=""/.test(html({ stepKey: "ai", progress: { ai: "done" }, onClose: noop })), "done: nothing is disabled");
   const done = html({ stepKey: "ai", progress: { ai: "done" }, onClose: noop });
-  assert.ok(!done.includes(">Skip<"), "a done step has no Skip");
-  assert.ok(html({ stepKey: "team", onClose: noop }).includes(">Finish<"), "the last step says Finish");
+  assert.ok(done.includes(">Skip<"), "every step keeps the same bar, a done step too");
+  assert.ok(html({ stepKey: "team", onClose: noop }).includes(">Done<"), "the last step says Done");
 });
 
 test("the preview pane shows chips, or Not yet with its hint", async () => {

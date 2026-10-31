@@ -17,6 +17,8 @@ export type Route =
   | { view: "needs"; taskId: string | null }
   | { view: "agent"; agentId: string; tab: TabKey | null }
   | { view: "helper"; threadId: string }
+  /** An imported coding session: its saved transcript, read-only, with Continue here. */
+  | { view: "imported"; conversationId: string }
   /** An Ask about an object with an agent: resolved to the person's Ask thread on it (the newest one, else a new one), which then opens as a chat. With no object it is the person's chat with that agent. */
   | { view: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom: string | null; draft?: string };
 
@@ -45,6 +47,7 @@ export type Act =
   | { t: "search"; q?: string }
   | { t: "search-close" }
   | { t: "helper"; threadId: string }
+  | { t: "imported"; conversationId: string }
   | { t: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom?: string; draft?: string }
   | { t: "needs"; taskId?: string }
   | { t: "agent"; agentId: string; tab?: TabKey }
@@ -62,6 +65,7 @@ export function step(s: Shown, a: Act): Shown {
     case "search": return { ...s, route: { view: "search", q: a.q ?? "", from: s.route.view === "chat" ? s.route.threadId : s.route.view === "search" ? s.route.from : null }, layer: null };
     case "search-close": return { ...s, route: { view: "chat", threadId: s.route.view === "search" ? s.route.from : null }, layer: null };
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
+    case "imported": return { ...s, route: { view: "imported", conversationId: a.conversationId }, layer: null };
     case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null, ...(a.draft ? { draft: a.draft } : {}) }, layer: null };
     case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };

@@ -7,6 +7,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { baseName, mountLocalFolder, pickFolders, shellInvoke } from "../../../shell/providers/local-folder-mount.ts";
+import type { Invoke } from "../../../shell/providers/local-folder-mount.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -16,7 +18,7 @@ import { useMountsData } from "./data.tsx";
 import { Glyph, Mark } from "./icons.tsx";
 import type { MarkKind } from "./icons.tsx";
 import {
-  SOURCES, back, canMount, canNext, chooseSource, crumbs, defaultName, emptyDraft, isMounted, metaOf, next, pathKey as pathKeyOf, pick, setQuery, sourceOf, togglePerson, walkInto, walkTo, whoLabel,
+  SOURCES, back, canMount, mountError, canNext, chooseSource, crumbs, defaultName, emptyDraft, isMounted, metaOf, next, pathKey as pathKeyOf, pick, setQuery, sourceOf, togglePerson, walkInto, walkTo, whoLabel,
 } from "./model.ts";
 import type { BrowseItem, Draft, MountKind, MountRow, SourceId } from "./model.ts";
 import type { DialogAction } from "../../../../../../ui/src/Dialog/index.tsx";
@@ -33,6 +35,8 @@ export interface MountSheetProps {
   initial?: Partial<Draft>;
   /** A listing already in hand (tests and the first paint of a restored sheet); the first fetch is skipped. */
   preload?: { listing: Listing; mounted?: MountRow[] };
+  /** The shell's command door (pick_paths). Defaults to the desktop shell's; absent on the web and the phone, where "This computer" only says where local folders are added. */
+  invoke?: Invoke | undefined;
 }
 
 const DOUBLE_MS = 450;
@@ -41,7 +45,7 @@ const markKind = (k: MountKind | SourceId): MarkKind => (k === "sharepoint" || k
 
 type ListState = { status: "loading" } | { status: "ready"; items: BrowseItem[]; next?: string } | { status: "error" };
 
-export function MountSheet({ onClose, onMounted, into, initial, preload }: MountSheetProps): ReactElement {
+export function MountSheet({ onClose, onMounted, into, initial, preload, invoke = shellInvoke() }: MountSheetProps): ReactElement {
   const data = useMountsData();
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -110,7 +114,28 @@ export function MountSheet({ onClose, onMounted, into, initial, preload }: Mount
     });
   };
 
+  // This computer: the system folder dialog, then the pick is mounted at once (live only), the same call onboarding makes. No dialog on the web or the phone, so the sheet says where to add one.
+  const chooseLocal = async (): Promise<void> => {
+    if (!invoke) { setError("Local folders are added from the Mac or PC app."); return; }
+    if (busy) return;
+    setError(null);
+    let picked: string[];
+    try { picked = await pickFolders(invoke); } catch { setError("Could not open the folder dialog."); return; }
+    const path = picked[0];
+    const deviceId = dataRef.current.accounts.local.deviceId;
+    if (path === undefined) return;
+    const target = d.into || dataRef.current.folders[0]?.id || "";
+    if (!deviceId || !target) { setError("This computer is not ready to share folders yet. Try again in a moment."); return; }
+    setBusy(true);
+    try {
+      const out = await mountLocalFolder(dataRef.current.call, path, { into: target, deviceId });
+      setBusy(false);
+      onMounted({ mountId: out.mountId, folderId: out.folderId, runId: "", name: baseName(path) });
+    } catch (e) { setBusy(false); setError(mountError(e, "This computer")); }
+  };
+
   const choose = (id: SourceId): void => {
+    if (id === "local") { void chooseLocal(); return; }
     if (!data.accounts[id].connected) { data.connect(id); return; }
     setList({ status: "loading" });
     setD((x) => chooseSource(x, id));

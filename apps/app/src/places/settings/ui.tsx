@@ -1,5 +1,8 @@
 // The pieces every Settings page is made of: the grouped card, the one row anatomy (lead mark, label, a sub line only when it adds information, control on the right), the switch, the
 // choice, the field and the small button. Sizes follow the prototype's Settings (vyre-settings.html); colours are skin tokens, so a skin switch repaints with no re-render.
+import { useOpenConnect } from "../../shell/connect/context.ts";
+import { connectEntries } from "../../shell/connect/model.ts";
+import type { Connected, ConnectNeed } from "../../shell/connect/model.ts";
 import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -66,6 +69,8 @@ export interface SettingsRowProps {
   id: string;
   label: string;
   sub?: string;
+  /** The sub line is an error the person must hear about: it is announced as an alert. */
+  subAlert?: boolean;
   lead?: ReactNode;
   control?: ReactNode;
   first?: boolean;
@@ -78,14 +83,14 @@ export interface SettingsRowProps {
 }
 
 /** One row anatomy: lead mark, label, a sub line only when it adds information, control on the right. Hover paints the whole row when it can be pressed. */
-export function SettingsRow({ id, label, sub, lead, control, first = false, onPress, indent = false, found = false, danger = false }: SettingsRowProps): ReactElement {
+export function SettingsRow({ id, label, sub, subAlert = false, lead, control, first = false, onPress, indent = false, found = false, danger = false }: SettingsRowProps): ReactElement {
   const [over, setOver] = useState(false);
   const body = (
     <>
       {lead ? <View style={s.lead}>{lead}</View> : null}
       <View style={s.text}>
         <Text numberOfLines={1} style={[s.label, indent && { color: "var(--ink-2)" as string }, danger && { color: "var(--danger)" as string }]}>{label}</Text>
-        {sub ? <Text numberOfLines={2} style={s.sub}>{sub}</Text> : null}
+        {sub ? <Text numberOfLines={2} style={s.sub} {...(subAlert ? { accessibilityRole: "alert" as const } : {})}>{sub}</Text> : null}
       </View>
       {control ? <View style={s.control}>{control}</View> : null}
     </>
@@ -119,8 +124,13 @@ export function Switch({ on, onChange, label, disabled = false, testID }: { on: 
 }
 
 /** A quiet button that opens a menu of choices; the label is the current choice and a chevron. */
-export function Choice({ value, options, onChange, label, testID, mono = false }: { value: string; options: readonly { value: string; label: string }[]; onChange(v: string): void; label: string; testID?: string; mono?: boolean }): ReactElement {
+export function Choice({ value, options, onChange, label, testID, mono = false, connect }: {
+  value: string; options: readonly { value: string; label: string }[]; onChange(v: string): void; label: string; testID?: string; mono?: boolean;
+  /** Ends the menu with Connect: what to connect, what to do with the account that comes back, and whether the options hold no real account yet. */
+  connect?: { need: ConnectNeed; onConnected(account: Connected): void; empty: boolean };
+}): ReactElement {
   const { element, show } = useMenu();
+  const openConnect = useOpenConnect();
   const [over, setOver] = useState(false);
   const current = options.find((o) => o.value === value)?.label ?? value;
   const open = (e: unknown): void => {
@@ -128,7 +138,8 @@ export function Choice({ value, options, onChange, label, testID, mono = false }
     const r = ev.currentTarget?.getBoundingClientRect?.();
     const entries: MenuEntry[] = [];
     for (const o of options) entries.push({ label: o.label, checked: o.value === value, onSelect: () => onChange(o.value) });
-    show(entries, Math.max(8, (r?.right ?? ev.nativeEvent?.pageX ?? 300) - 200), (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4, "other");
+    const shown = connect ? connectEntries(entries, connect.need, openConnect, connect.onConnected, connect.empty) : entries;
+    show(shown, Math.max(8, (r?.right ?? ev.nativeEvent?.pageX ?? 300) - 200), (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4, "other");
   };
   return (
     <>

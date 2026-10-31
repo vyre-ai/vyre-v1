@@ -23,6 +23,8 @@ import {
   movePicker,
   offersChoice,
   pickerEntries,
+  placePicker,
+  withRealAssistant,
   placeKey,
   pushRecent,
   readRecents,
@@ -304,4 +306,62 @@ test("an empty search says so instead of showing a blank panel", () => {
     <AskPicker entries={[]} query="zzz" onQuery={() => undefined} active={-1} onActive={() => undefined} onChoose={() => undefined} onClose={() => undefined} anchor={{ x: 0, y: 0, w: 10, h: 10 }} renderFace={() => null} />,
   );
   assert.match(html, /No agent matches\./);
+});
+
+const VIEW = { w: 1280, h: 800 };
+const OPTS = { width: 280, maxHeight: 420 };
+
+test("placePicker sizes the panel to its content up to the cap, below the button when it fits", () => {
+  const anchor = { x: 1100, y: 20, w: 90, h: 30 };
+  const small = placePicker(anchor, 200, VIEW, OPTS);
+  assert.equal(small.height, 200);
+  assert.equal(small.top, 54);
+  assert.equal(small.flipped, false);
+  assert.equal(placePicker(anchor, 900, VIEW, OPTS).height, 420, "capped, the list scrolls inside");
+  assert.equal(small.left, VIEW.w - 280 - 8, "kept inside the right edge");
+});
+
+test("placePicker flips above the button near the bottom edge and never leaves the screen", () => {
+  const anchor = { x: 100, y: 740, w: 90, h: 30 };
+  const p = placePicker(anchor, 300, VIEW, OPTS);
+  assert.equal(p.flipped, true);
+  assert.equal(p.top + p.height, anchor.y - 4, "the panel ends just above the button");
+  assert.ok(p.top >= 8);
+  const tight = placePicker({ x: 0, y: 100, w: 90, h: 30 }, 420, { w: 1280, h: 200 }, OPTS);
+  assert.ok(tight.top >= 8 && tight.top + tight.height <= 200, "short window: stays inside it");
+});
+
+test("the Assistant row reads the assistant's real name when the agent list has it", () => {
+  const stand: AskAgent = { id: "assistant", name: "Assistant", assistant: true };
+  const real: AskAgent = { id: "agt_9", name: "Irfad\u2019s Assistant" };
+  const out = withRealAssistant([stand, real, BILLING]);
+  assert.deepEqual(out.map((a) => a.name), ["Irfad\u2019s Assistant", "Billing"]);
+  assert.equal(out[0]?.assistant, true);
+  const entries = pickerEntries({ agents: out, current: null, suggested: null, recents: [] });
+  assert.deepEqual(names(entries), ["# Assistant", "Irfad\u2019s Assistant", "# Agents", "Billing"]);
+  assert.equal(withRealAssistant(AGENTS), AGENTS, "nothing to fix: the same list");
+  const two = [stand, real, { id: "x", name: "Ann's Assistant" }];
+  assert.equal(withRealAssistant(two), two, "ambiguous: left alone");
+});
+
+test("the open control draws the real assistant name in the picker", () => {
+  const html = renderToStaticMarkup(
+    <AskButton place="vault" context={CTX} agents={[{ id: "assistant", name: "Assistant", assistant: true }, { id: "agt_9", name: "Irfad\u2019s Assistant" }, BILLING]} onAsk={() => undefined} startOpen storage={memoryStorage()} />,
+  );
+  assert.doesNotMatch(html, /data-testid="row-ask-agent-assistant"/);
+  assert.match(html, /row-ask-agent-agt_9/);
+});
+
+test("the picker is drawn through the shared overlay layer, not where the button sits", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.match(src, /import \{ MenuPortal \} from "\.\.\/Menu\/portal\.tsx"/);
+  const body = src.slice(src.indexOf("export function AskPicker"), src.indexOf("/* ---------- the control"));
+  assert.match(body, /<MenuPortal>[\s\S]*testID="ask-layer"[\s\S]*<\/MenuPortal>/);
+  const entries = pickerEntries({ agents: AGENTS, current: BILLING, suggested: null, recents: [] });
+  const html = renderToStaticMarkup(
+    <AskPicker entries={entries} query="" onQuery={() => undefined} active={0} onActive={() => undefined} onChoose={() => undefined} onClose={() => undefined} anchor={{ x: 10, y: 10, w: 90, h: 30 }} renderFace={() => null} />,
+  );
+  assert.match(html, /data-testid="ask-layer"/);
+  assert.match(html, /data-testid="ask-picker"/);
 });

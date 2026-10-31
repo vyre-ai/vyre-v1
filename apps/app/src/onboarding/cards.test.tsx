@@ -8,11 +8,13 @@ import { ConnectAiCard } from "./ConnectAiCard.tsx";
 
 const call = (async () => ({})) as never;
 
-test("How you work opens on a blank field with the three-dot progress, a hint to start typing, and Next disabled until something is picked", () => {
+test("How you work opens on a blank field with the three-dot progress, a hint to start typing, the common picks to tap, and Next disabled until something is picked", () => {
   const out = renderToStaticMarkup(<InterviewCard call={call} onSaved={() => undefined} />);
   assert.ok(out.includes('data-testid="interview-card"') && out.includes('data-testid="interview-work"') && out.includes("What do you do most?"));
   assert.ok(out.includes("Start typing, like accountant or designer"));
-  assert.ok(!out.includes('data-testid="interview-suggestions"'), "no suggestions until something is typed");
+  assert.ok(out.includes('data-testid="interview-suggestions"'), "the common kinds of work show before anything is typed");
+  for (const n of ["Founder", "Consultant", "Accountant", "Designer"]) assert.ok(out.includes(`>${n}<`), n);
+  assert.ok(!out.includes("interview-add-free"), "nothing typed, so no free-text row");
   assert.ok(/aria-disabled="true"|disabled=""/.test(out), "Next waits for a pick");
 });
 

@@ -68,16 +68,27 @@ export function createZoomHost(d: CommsDeps): ZoomHostSeam {
   };
 }
 
+/** The Vault's Twilio template saves one item, "Twilio", with the fields its .env names. A Space that added Twilio that way is read the same as one with the two named items. */
+export const TWILIO_TEMPLATE_FIELDS: Readonly<Record<string, string>> = { "#Twilio_Account": "#Twilio.TWILIO_ACCOUNT_SID", "#Twilio_Auth": "#Twilio.TWILIO_AUTH_TOKEN" };
+
 export function createTwilioHost(d: CommsDeps): TwilioHostSeam {
+  // the named item first; when it is missing, the template's field of the same meaning
+  const twilioSecret = async (ctx: SeamCtx, handle: string): Promise<string> => {
+    try { return await secretOf(d, ctx, handle, TWILIO_HANDLES, "Twilio"); } catch (e) {
+      const alt = TWILIO_TEMPLATE_FIELDS[handle];
+      if (!alt) throw e;
+      return secretOf(d, ctx, alt, [alt], "Twilio").catch(() => { throw e; });
+    }
+  };
   const basic = async (ctx: SeamCtx): Promise<string> => {
-    const account = await secretOf(d, ctx, "#Twilio_Account", TWILIO_HANDLES, "Twilio");
-    const auth = await secretOf(d, ctx, "#Twilio_Auth", TWILIO_HANDLES, "Twilio");
+    const account = await twilioSecret(ctx, "#Twilio_Account");
+    const auth = await twilioSecret(ctx, "#Twilio_Auth");
     return `Basic ${Buffer.from(`${account}:${auth}`).toString("base64")}`;
   };
   return {
-    secret: (ctx, handle) => secretOf(d, ctx, handle, TWILIO_HANDLES, "Twilio"),
+    secret: (ctx, handle) => twilioSecret(ctx, handle),
     async optionalSecret(ctx, handle) {
-      try { return await secretOf(d, ctx, handle, TWILIO_HANDLES, "Twilio"); } catch (e) {
+      try { return await twilioSecret(ctx, handle); } catch (e) {
         // a handle the host does not allow is a refusal; only an item the Vault does not have is "absent"
         if (!TWILIO_HANDLES.includes(handle as never)) throw e;
         return null;

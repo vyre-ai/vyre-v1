@@ -8,6 +8,7 @@ import { itemDelete, itemPut, openFields } from "./items.ts";
 import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
+import { currentKeyPort } from "./crypto.ts";
 import type { SigninPort } from "./use.ts";
 import { readFileSync } from "node:fs";
 import { addressProblem, builtinDefs } from "./provider-defs.ts";
@@ -228,6 +229,8 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
   // no code, and the sign-in is already saved in Mine by the person's client: the flow is not needed, link what they saved
   if (port?.active(input.flowId) && !pasted && saved()) port.cancel(input.flowId);
   if (port?.active(input.flowId)) {
+    // the credential is sealed with the person's own key: a locked key is asked for before the provider is, so a pasted code is not spent on a save that cannot happen
+    if (!(await currentKeyPort()?.personKey(me(ctx)))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Unlock it to save the sign-in.", details: { reason: "vault_locked" } });
     const step = await port.step({ id: input.flowId, person: me(ctx), ...(pasted ? { code: input.code as string } : {}) });
     if (step.state === "waiting") return { waiting: true };
     if (step.state === "failed") throw fail("provider.auth_failed", ctx.trace.traceId, { message: step.message });
@@ -235,6 +238,8 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
     const c = entry(ctx, str(f, "providerKey"))!;
     const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
     await itemPut(ctx, { folderId: await mineFolder(ctx), name: n === 0 ? c.name : `${c.name} ${n + 1}`, kind: "ai_subscription", fields: step.fields, idempotencyKey: `${input.flowId}:item` } as Parameters<typeof itemPut>[1]);
+    // saved: the host may let go of it (until now a retry is answered from the finished flow, never by asking the provider again)
+    port.cancel(input.flowId);
   }
   const item = saved();
   if (!item) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "The sign-in has not finished yet. Finish it, then press Done again." });
