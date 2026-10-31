@@ -98,18 +98,30 @@ export function createDescribeHandlers(deps: SchemaDeps): DescribeHandlers {
     return d!;
   };
 
+  /**
+   * A type someone was not given (Only people added, DESIGN-records-sharing) is not in their list at all: not its name, not its count. A type the access projection does not know yet
+   * (reason not_found: nothing registered it) stays visible, as it was before types had access.
+   */
+  const seen = (ctx: SchemaCtx, key: string): boolean => {
+    if (!ctx.authorize) return true;
+    const d = ctx.authorize({ perm: null, level: "view" }, { type: "record_type", id: key });
+    return d.effect === "allow" || d.reason === "not_found";
+  };
+  const visible = (ctx: SchemaCtx, defs: Map<string, TypeDefT>): TypeDefT[] => [...defs.values()].filter((d) => seen(ctx, d.key));
+  const mustSee = (ctx: SchemaCtx, key: string): void => { if (!seen(ctx, key)) refuse(ctx, "permission.no_grant", `You do not have access to ${key}.`); };
+
   return {
     "schema.describe": async (ctx, input) => {
       const defs = await ready();
-      if (input.type !== undefined) return { types: [detailOf(need(ctx, defs, input.type))] };
-      return { types: [...defs.values()].map(detailOf) };
+      if (input.type !== undefined) { const d = need(ctx, defs, input.type); mustSee(ctx, d.key); return { types: [detailOf(d)] }; }
+      return { types: visible(ctx, defs).map(detailOf) };
     },
 
-    "schema.types.list": async (_ctx, input) => {
+    "schema.types.list": async (ctx, input) => {
       const defs = await ready();
       const section = input.section ?? "space";
       // Every type is a Space type today: personal and shared sections are empty until a type can be made personal. Types are not filed in folders either.
-      let rows = section === "space" && input.folder === undefined ? [...defs.values()] : [];
+      let rows = section === "space" && input.folder === undefined ? visible(ctx, defs) : [];
       if (input.group !== undefined) rows = rows.filter((d) => d.group === input.group);
       const { start, limit } = pageOf(input);
       const slice = rows.slice(start, start + limit);
@@ -121,11 +133,12 @@ export function createDescribeHandlers(deps: SchemaDeps): DescribeHandlers {
       return { types, ...(start + limit < rows.length ? { next: String(start + limit) } : {}), total: rows.length };
     },
 
-    "schema.types.get": async (ctx, input) => ({ type: detailOf(need(ctx, await ready(), input.type)) }),
+    "schema.types.get": async (ctx, input) => { const d = need(ctx, await ready(), input.type); mustSee(ctx, d.key); return { type: detailOf(d) }; },
 
     "schema.map": async (ctx, input) => {
-      const defs = await ready();
-      if (input.type !== undefined) need(ctx, defs, input.type);
+      const all = await ready();
+      if (input.type !== undefined) { need(ctx, all, input.type); mustSee(ctx, input.type); }
+      const defs = new Map(visible(ctx, all).map((d) => [d.key, d]));
       const edges: { from: string; to: string; field: string; inverse?: string }[] = [];
       const seen = new Set<string>();
       for (const d of defs.values()) {

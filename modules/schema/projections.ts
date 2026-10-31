@@ -92,6 +92,8 @@ export interface SchemaCtx {
   emit(name: string, subject: string, payload: Record<string, unknown>): unknown;
   /** Who is acting (usr_, agt_ ...). */
   actor?: string;
+  /** The host's access check for the caller (and the person they act for). Absent where a handler runs without a caller. */
+  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string }): { effect: string; reason: string };
 }
 
 export type ErrCode = Parameters<typeof fail>[0];
