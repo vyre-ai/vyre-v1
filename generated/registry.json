@@ -176469,6 +176469,7 @@
             "effort": 1,
             "summary": "example",
             "taskId": "tsk_a1b2c3",
+            "threadId": "thr_a1b2c3",
             "title": "example",
             "why": "example"
           },
@@ -176578,6 +176579,13 @@
             "pattern": "^tsk_[a-z0-9]+$",
             "type": "string"
           },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
@@ -176604,7 +176612,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)",
+      "summary": "Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)",
       "surfaces": {
         "http": "auto",
         "mcp": {

@@ -50575,7 +50575,7 @@
       "blocks": [],
       "cap": "tasks.update",
       "deferred": false,
-      "description": "Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)",
+      "description": "Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -50637,6 +50637,13 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
           },
           "title": {

@@ -27769,6 +27769,7 @@ export type TasksUpdateIn = {
       v?: number;
       data: unknown;
     }>;
+  threadId?: string;
 };
 export type TasksUpdateOut = {
   task: {

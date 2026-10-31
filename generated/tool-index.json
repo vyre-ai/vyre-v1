@@ -7575,7 +7575,7 @@
     {
       "deferred": false,
       "name": "tasks_update",
-      "summary": "Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)",
+      "summary": "Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)",
       "toolset": "tasks"
     },
     {
