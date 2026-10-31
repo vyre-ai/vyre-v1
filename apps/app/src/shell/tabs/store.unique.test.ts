@@ -1,7 +1,7 @@
 // A place opens once in the tab bar: a place is one tab, an item is one tab by its subject, and a saved list with duplicates (rc.6) loads without them.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EMPTY_TABS, createTabsController, openTab, placeTab, readTabs, tabKey, writeTabs } from "./store.ts";
+import { EMPTY_TABS, createTabsController, openTab, placeTab, readTabs, tabKey, tabsStorageKey, writeTabs } from "./store.ts";
 import type { TabsStorage } from "./store.ts";
 
 const mem = (): TabsStorage & { data: Map<string, string> } => {
@@ -79,4 +79,15 @@ test("a Personal Space never has an Apps tab, new or saved", () => {
   const team = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage: null, start: "home" });
   team.openPlace("apps");
   assert.equal(team.state().active, "apps", "a team Space still has Apps");
+});
+
+test("a saved Join tab is dropped on load and Join never opens as a tab", () => {
+  const storage = mem();
+  const opts = { deviceId: "d", personId: "p", spaceId: "s", storage, start: "home" as const, hidden: ["join" as const] };
+  storage.data.set(tabsStorageKey("d", "p", "s"), writeTabs({ tabs: [placeTab("home"), placeTab("join"), placeTab("chats")], active: "join" }));
+  const c = createTabsController(opts);
+  assert.deepEqual(c.state().tabs.map((t) => t.place), ["home", "chats"]);
+  assert.notEqual(c.state().active, "join");
+  c.openPlace("join");
+  assert.deepEqual(c.state().tabs.map((t) => t.place), ["home", "chats"]);
 });

@@ -24,7 +24,7 @@ export function DesktopUpdateBody({ found, busy, failure, installing, onCheck, o
   return (
     <View {...hover(SIGNATURE)}>
       <SettingsRow
-        id="update.vyre" first label={found ? `Vyre ${found.current}` : "Vyre"} {...(sub ? { sub } : {})}
+        id="update.vyre" first label={found ? `Vyre ${found.current}` : "Vyre"} {...(sub ? { sub } : {})} subAlert={!installing && failure !== ""}
         control={
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             {status ? <Value text={status} testID="update-line" /> : null}
