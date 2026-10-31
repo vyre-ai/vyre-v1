@@ -11,11 +11,13 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
+import { MenuPortal } from "../Menu/portal.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
 import {
   agentIndices,
-  clampPanel,
+  placePicker,
+  withRealAssistant,
   hasDefault,
   isAskShortcut,
   layeredStorage,
@@ -163,7 +165,8 @@ function listen(): void {
 /* ---------- the picker ---------- */
 
 const PANEL_W = 280;
-const PANEL_H = 340;
+const PANEL_MAX_H = 420;
+const PANEL_CHROME = 44; // the Find field, its gap and the panel padding
 
 export interface PickerProps {
   entries: ReturnType<typeof pickerEntries>;
@@ -180,7 +183,10 @@ export interface PickerProps {
 export function AskPicker(props: PickerProps): ReactElement {
   const { entries, query, onQuery, active, onActive, onChoose, onClose, anchor, renderFace } = props;
   const window = useWindowDimensions();
-  const { left, top } = clampPanel(anchor.x, anchor.y + anchor.h + 4, PANEL_W, PANEL_H, window.width, window.height);
+  // the list's natural height is measured, so the panel is as tall as its rows up to the cap, and flips above the button when the room below is short
+  const [listH, setListH] = useState(200);
+  const placed = placePicker(anchor, listH + PANEL_CHROME, { w: window.width, h: window.height }, { width: PANEL_W, maxHeight: PANEL_MAX_H });
+  const { left, top } = placed;
 
   const onKeyDown = (event: KeyEventLike): void => {
     const { key } = event;
@@ -233,6 +239,7 @@ export function AskPicker(props: PickerProps): ReactElement {
   });
 
   return (
+    <MenuPortal>
     <View style={styles.layer} testID="ask-layer" pointerEvents="box-none">
       <Pressable
         accessibilityLabel="Close"
@@ -241,7 +248,7 @@ export function AskPicker(props: PickerProps): ReactElement {
         {...menuTrigger(() => onClose())}
         {...webProps({ tabIndex: -1 })}
       />
-      <View role="dialog" aria-label="Choose the agent" testID="ask-picker" style={[styles.panel, { left, top, width: PANEL_W }]} {...webProps({ onKeyDown })}>
+      <View role="dialog" aria-label="Choose the agent" testID="ask-picker" style={[styles.panel, { left, top, width: PANEL_W, maxHeight: placed.height }]} {...webProps({ onKeyDown })}>
         <TextInput
           autoFocus
           accessibilityLabel="Find an agent"
@@ -252,18 +259,20 @@ export function AskPicker(props: PickerProps): ReactElement {
           testID="ask-find"
           style={styles.find}
         />
-        <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+        <ScrollView style={[styles.list, { maxHeight: Math.max(40, placed.height - PANEL_CHROME) }]} onContentSizeChange={(_w, h) => setListH(h)} keyboardShouldPersistTaps="handled">
           {rows.length > 0 ? rows : <Text style={styles.none}>No agent matches.</Text>}
         </ScrollView>
       </View>
     </View>
+    </MenuPortal>
   );
 }
 
 /* ---------- the control ---------- */
 
 export function AskButton(props: AskButtonProps): ReactElement | null {
-  const { place, context, agents, suggested, onAsk, onPick, onOpenAgent, renderFace, compact = false, startOpen = false, testID = "ask" } = props;
+  const { place, context, suggested, onAsk, onPick, onOpenAgent, renderFace, compact = false, startOpen = false, testID = "ask" } = props;
+  const agents = useMemo(() => withRealAssistant(props.agents), [props.agents]);
   const storage = useMemo<AskStorage>(() => props.storage ?? layeredStorage(webStorage()), [props.storage]);
   const [version, setVersion] = useState(0);
   const [picker, setPicker] = useState<{ anchor: Rect } | null>(null);
@@ -446,7 +455,7 @@ const styles = StyleSheet.create({
   assistantTile: { backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   layer: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, zIndex: 2147482000 },
   backdrop: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "transparent" },
-  panel: { position: FIXED, padding: 5, borderRadius: 10, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string, maxHeight: PANEL_H },
+  panel: { position: FIXED, padding: 5, borderRadius: 10, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string, maxHeight: PANEL_MAX_H },
   find: { height: 28, marginBottom: 4, paddingHorizontal: 9, borderRadius: 6, backgroundColor: "var(--hover)" as string, color: "var(--ink)" as string, fontSize: 13, borderWidth: 0, outlineWidth: 0 },
   list: { flexGrow: 0 },
   head: { paddingTop: 6, paddingBottom: 4, paddingHorizontal: 9, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
