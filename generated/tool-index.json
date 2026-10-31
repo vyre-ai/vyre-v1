@@ -1431,7 +1431,7 @@
     {
       "deferred": false,
       "name": "chat_recent",
-      "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)",
       "toolset": "chats"
     },
     {
@@ -7958,6 +7958,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_archive",
+      "summary": "Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_close",
       "summary": "Close a thread (idle with nothing waiting, or done)",
       "toolset": "chats"
@@ -8026,6 +8032,12 @@
       "deferred": false,
       "name": "threads_set_plan_mode",
       "summary": "Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_unarchive",
+      "summary": "Put an archived chat back in my list",
       "toolset": "chats"
     },
     {

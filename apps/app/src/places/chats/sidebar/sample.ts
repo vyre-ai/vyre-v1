@@ -18,7 +18,7 @@ const DAY = 86_400_000;
 /** You, in every sample Space. */
 export const ME = "usr_irfad";
 
-export interface SampleThread { threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string }
+export interface SampleThread { threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string; /** in my Archived section */ archived?: boolean; /** deleted, waiting for Undo */ deleted?: boolean; /** left */ left?: boolean }
 export interface SampleSpace {
   id: "northwind" | "harbor" | "personal";
   name: string;
@@ -167,12 +167,13 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     // the order the Space lists its chats in (the prototype shows them as seeded), not re-sorted
     const all = threads();
     const today = dayOf(SAMPLE_NOW);
-    const out: RecentOut = { starred: [], today: [], yesterday: [], earlier: [], nextUnread: null };
+    const out: RecentOut = { starred: [], today: [], yesterday: [], earlier: [], archived: [], nextUnread: null };
     for (const x of all) {
+      if (x.deleted || x.left) continue;
       const d = today - dayOf(x.lastAt);
-      (x.starred ? out.starred : d <= 0 ? out.today : d === 1 ? out.yesterday : out.earlier).push(item(x));
+      (x.archived ? out.archived : x.starred ? out.starred : d <= 0 ? out.today : d === 1 ? out.yesterday : out.earlier).push(item(x));
     }
-    out.nextUnread = all.filter((x) => x.unread > 0).sort((a, b) => a.lastAt - b.lastAt)[0]?.threadId ?? null;
+    out.nextUnread = all.filter((x) => x.unread > 0 && !x.archived && !x.deleted && !x.left).sort((a, b) => a.lastAt - b.lastAt)[0]?.threadId ?? null;
     return out;
   });
   replica.resolve("channels.list", (_t, input) => { refuse("channels.list", input); return {
@@ -222,6 +223,12 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       if (ch) replica.put("channels", [{ id: ch.channelId, ...ch, unread: 0 }]);
       return { unread: 0 };
     },
+    // my list only: archive and unarchive mark the chat for me, delete hides it until Undo (restore), leave takes me out of a chat with people
+    "threads.archive": (i: { threadId: string }) => { patch(i.threadId, { archived: true }); return { archived: true }; },
+    "threads.unarchive": (i: { threadId: string }) => { patch(i.threadId, { archived: false }); return { archived: false }; },
+    "threads.delete": (i: { threadId: string }) => { patch(i.threadId, { deleted: true }); return { deleted: true }; },
+    "threads.restore": (i: { threadId: string }) => { patch(i.threadId, { deleted: false }); return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
+    "threads.leave": (i: { threadId: string }) => { patch(i.threadId, { left: true }); return { ok: true }; },
     "tasks.act": (i: { taskId: string }) => { replica.remove("needs", [i.taskId]); return { task: {} }; },
     "access.principals.list": () => ({
       principals: (space.people ?? []).map((p) => ({ id: p.id, kind: "person", name: p.name, status: "active", roles: [], groups: [], createdAt: at(10, 1, 9), ...(p.title ? { title: p.title } : {}) })),

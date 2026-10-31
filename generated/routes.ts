@@ -29907,6 +29907,25 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/threads/archive",
+    "cap": "threads.archive",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/threads/close",
     "cap": "threads.close",
     "v": 1,
@@ -29921,6 +29940,25 @@ const routes5: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/threads/delete",
+    "cap": "threads.delete",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -29958,6 +29996,25 @@ const routes5: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/threads/leave",
+    "cap": "threads.leave",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -30096,6 +30153,25 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/threads/restore",
+    "cap": "threads.restore",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/threads/set_folder",
     "cap": "threads.set_folder",
     "v": 1,
@@ -30147,6 +30223,25 @@ const routes5: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/threads/unarchive",
+    "cap": "threads.unarchive",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": "queue",
     "teamOnly": false,
     "gate": null

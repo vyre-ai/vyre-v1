@@ -9,6 +9,7 @@ import {
   agentsOf, askerOf, channelBy, encOf, ensure, insertMessage, lastMessage, membersOf, messageBy, messageOf, messageOut, mintId, raise, threadBy,
 } from "../projections.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
+import { archivedIds } from "./archive-state.ts";
 import { canSpeak, deliver } from "./post.ts";
 
 type Row = Record<string, unknown>;
@@ -156,7 +157,8 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
     `SELECT * FROM chat_thread WHERE deleted_at IS NULL AND listed = 1 AND closedAt IS NULL AND kind IN ('chat', 'ask', 'channel')
        AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC`, asker,
   ) as Row[];
-  const rows: Array<{ lastAt: number; row: Record<string, unknown> }> = [];
+  const rows: Array<{ lastAt: number; row: Record<string, unknown>; archived: boolean }> = [];
+  const mine = archivedIds(ctx, asker);
   for (const r of threads) {
     const t = threadBy(ctx.db, String(r["id"]));
     if (!t) continue;
@@ -173,12 +175,13 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
     const row: Record<string, unknown> = { threadId: t.id, kind: t.kind, title, agents, unread: 0, working: false, starred: false, lastAt };
     // A sealed thread holds ciphertext: no preview of it.
     if (last && last.body.trim() !== "" && encOf(ctx.db, t) === 0) row["preview"] = last.body.trim().slice(0, PREVIEW);
-    rows.push({ lastAt, row });
+    rows.push({ lastAt, row, archived: mine.has(t.id) });
   }
   rows.sort((a, b) => b.lastAt - a.lastAt);
   const today = Math.floor(ctx.now() / DAY) * DAY;
-  const out = { starred: [] as Row[], today: [] as Row[], yesterday: [] as Row[], earlier: [] as Row[] };
-  for (const { lastAt, row } of rows.slice(0, RECENT_MAX)) (lastAt >= today ? out.today : lastAt >= today - DAY ? out.yesterday : out.earlier).push(row);
+  const out = { starred: [] as Row[], today: [] as Row[], yesterday: [] as Row[], earlier: [] as Row[], archived: [] as Row[] };
+  // the chats I archived leave the day groups and wait in one section at the foot; the others in a group chat still see theirs where it was
+  for (const { lastAt, row, archived } of rows.slice(0, RECENT_MAX)) (archived ? out.archived : lastAt >= today ? out.today : lastAt >= today - DAY ? out.yesterday : out.earlier).push(row);
   return { ...out, nextUnread: null };
 }
 
