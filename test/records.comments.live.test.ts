@@ -51,7 +51,7 @@ test("mention an agent and its reply lands under the comment; mention a person a
     assert.equal(pinged.status, 200, JSON.stringify(pinged.data));
     const tasks = (await call(d, "tasks.list", { scope: "all", kinds: ["answer"], recordId })).data.tasks as Array<{ kind: string; assigned: { id: string }; recordId?: string; source?: { id: string } }>;
     const request = tasks.find((t) => t.assigned.id === person);
-    assert.ok(request, JSON.stringify(tasks));
+    assert.ok(request, JSON.stringify(tasks) + hostLog(d).slice(-1200));
     assert.equal(request!.recordId, recordId);
     assert.equal(request!.source?.id, (pinged.data.comment as Comment).commentId, "the request points at the comment");
 

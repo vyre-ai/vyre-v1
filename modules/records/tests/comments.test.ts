@@ -24,7 +24,7 @@ async function setup() {
     call: (async (cap: string, input: Record<string, unknown>) => {
       calls.push({ cap, input });
       if (cap === "records.get") return rec.handlers["records.get"]({ trace: { traceId: "x" } } as never, input as never);
-      if (cap === "chat.start") { if (failChat) throw new Error("no such agent"); return { thread: { threadId: `thr_${calls.length}` } }; }
+      if (cap === "chat.start") { if (failChat) throw new Error("no such agent"); return { thread: { threadId: `thr_${input["idempotencyKey"]}` } }; }
       return {};
     }) as never,
     now: () => t, ...extra,
@@ -103,14 +103,24 @@ test("mentioning an agent starts it headless as a private Ask pane on the record
   assert.deepEqual(start.agentIds, ["agt_intake"]);
   assert.equal(start.scopeType, "record");
   assert.equal(start.scopeId, s.id);
-  assert.match(start.first, /Summarise the history/);
-  assert.match(start.first, new RegExp(`parentId "${c.commentId}"`), "the agent is told where to answer");
+  assert.equal(start.title, "Comment replies", "the pane says what it is for");
+  assert.equal(s.calls.find((x) => x.cap === "threads.set_mode")!.input["mode"], "auto", "headless: nobody is there to say yes to each step");
+  const post = s.calls.find((x) => x.cap === "chat.post")!.input as Record<string, any>;
+  assert.deepEqual(post.mentions, [{ kind: "agent", id: "agt_intake" }]);
+  assert.match(post.body, /Summarise the history/);
+  assert.match(post.body, new RegExp(`parentId "${c.commentId}"`), "the agent is told where to answer");
+  // a second mention in the same thread reuses the same pane
+  const again = (await s.h["records.comments.add"](s.ben, { type: "item", recordId: s.id, text: "and the dates?", parentId: c.commentId, mentions: [{ kind: "agent", id: "agt_intake" }] })).comment;
+  assert.ok(again.replying.includes("agt_intake"));
+  const starts = s.calls.filter((x) => x.cap === "chat.start").map((x) => x.input["idempotencyKey"]);
+  assert.equal(new Set(starts).size, 1, "the same pane key for the whole thread");
+  assert.equal(s.calls.filter((x) => x.cap === "chat.post").length, 2, "each mention is a message in that pane");
   assert.deepEqual(c.replying, ["agt_intake"]);
   assert.deepEqual((await s.h["records.comments.list"](s.ana, { type: "item", recordId: s.id })).comments[0]!.replying, ["agt_intake"]);
   const reply = (await s.h["records.comments.add"](s.bot, { type: "item", recordId: s.id, text: "Three edits since Monday.", parentId: c.commentId })).comment;
   assert.equal(reply.by, "agt_intake");
   const after = (await s.h["records.comments.list"](s.ana, { type: "item", recordId: s.id })).comments;
-  assert.deepEqual(after.map((x) => x.replying), [[], []], "its answer clears the replying state");
+  assert.deepEqual(after.map((x) => x.replying), [[], [], []], "its answer clears the replying state");
 });
 
 test("a turn that ends without an answer stops the replying state; an agent that cannot start fails quietly; an agent's mention starts no agent", async () => {

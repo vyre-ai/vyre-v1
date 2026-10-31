@@ -1,7 +1,7 @@
 // Comments on a record (the right pane's Comments tab): threads a person leaves, replies to, edits, resolves and reopens. A comment is not a chat: it is a short note on the record that everyone who can
 // see the record can read.
 //   @ a person   they get an Answer request in Needs you that names the record and the comment.
-//   @ an agent   the agent answers under the comment, headless. It is started as a private Ask pane on the record (never listed in Recent, so no chat shows up) with the thread as its first message, and
+//   @ an agent   the agent answers under the comment, headless. It is started as a private Ask pane on the record (never listed in Recent, so no chat shows up) with the thread as its message, and
 //                it replies by calling records.comments.add as itself, so its tools, limits and holds are the Space's. While it works the comment says who is replying; the turn ending clears that.
 // An agent's comment never starts another agent (two agents cannot keep each other going); it can still ask a person.
 import { mintId } from "../../../lib/ids.ts";
@@ -111,7 +111,7 @@ export function createCommentsHandlers(deps: CommentsDeps): CommentsHandlers {
     try {
       await ctx.call("tasks.create" as never, {
         kind: "answer", title: `Mentioned on ${title}`, summary: c.text.length > 240 ? `${c.text.slice(0, 237)}...` : c.text,
-        assigned: { kind: "person", id: who }, recordId: c.record_id, source: { kind: "manual", id: c.id }, why: "comment",
+        assigned: { kind: "person", id: who }, recordId: c.record_id, source: { kind: "manual", id: c.id }, why: "comment", idempotencyKey: `rcm-ask:${c.id}:${who}`,
       });
     } catch (e) { ctx.log?.warn("a comment mention could not raise a request", { commentId: c.id, who, error: String((e as Error)?.message ?? e) }); }
   }
@@ -133,12 +133,16 @@ export function createCommentsHandlers(deps: CommentsDeps): CommentsHandlers {
     tx.run("INSERT OR REPLACE INTO records_comment_agent (comment_id, agent_id, thread_id, state) VALUES (?, ?, NULL, 'pending')", c.id, agentId);
     try {
       const names = new Map<string, string>();
+      // one pane per thread and agent: a second mention in the same thread goes to the same pane, so the agent keeps what it read
       const res = (await ctx.call("chat.start" as never, {
-        kind: "ask", agentIds: [agentId], scopeType: "record", scopeId: c.record_id, recordId: c.record_id, title: `Comment on ${title}`,
-        first: promptFor(c, root, title, names), idempotencyKey: `rcm:${c.id}:${agentId}`,
+        kind: "ask", agentIds: [agentId], scopeType: "record", scopeId: c.record_id, recordId: c.record_id, title: "Comment replies", idempotencyKey: `rcm:${root.id}:${agentId}`,
       })) as { thread?: { threadId?: string } } | undefined;
       const threadId = res?.thread?.threadId;
-      tx.run("UPDATE records_comment_agent SET thread_id = ? WHERE comment_id = ? AND agent_id = ?", threadId ?? null, c.id, agentId);
+      if (!threadId) throw new Error("no pane");
+      tx.run("UPDATE records_comment_agent SET thread_id = ? WHERE comment_id = ? AND agent_id = ?", threadId, c.id, agentId);
+      // headless means no one is there to say yes to each step: the pane runs on Auto. Anything that leaves Vyre is held for a yes in every mode.
+      await ctx.call("threads.set_mode" as never, { threadId, mode: "auto" });
+      await ctx.call("chat.post" as never, { threadId, body: promptFor(c, root, title, names), mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `rcm-post:${c.id}:${agentId}` });
     } catch (e) {
       tx.run("UPDATE records_comment_agent SET state = 'failed' WHERE comment_id = ? AND agent_id = ?", c.id, agentId);
       ctx.log?.warn("a mentioned agent could not be started", { commentId: c.id, agentId, error: String((e as Error)?.message ?? e) });
