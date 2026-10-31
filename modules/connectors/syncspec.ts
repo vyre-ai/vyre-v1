@@ -118,7 +118,7 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
 const ISO = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/;
 
 /** One remote value as the record field takes it. `ok: false` means it does not fit and the field is left empty (the validator warns about it). */
-export function coerceValue(v: unknown, type: SpecFieldType, choices?: readonly string[]): { ok: true; value: unknown } | { ok: false } {
+export function coerceValue(v: unknown, type: SpecFieldType | "list", choices?: readonly string[]): { ok: true; value: unknown } | { ok: false } {
   if (v === null || v === undefined || v === "") return { ok: true, value: null };
   const text = (): { ok: true; value: unknown } | { ok: false } => (typeof v === "string" ? { ok: true, value: v } : typeof v === "number" || typeof v === "boolean" ? { ok: true, value: String(v) } : { ok: false });
   switch (type) {
@@ -150,6 +150,8 @@ export function coerceValue(v: unknown, type: SpecFieldType, choices?: readonly 
       const s = typeof v === "string" ? v : typeof v === "number" ? String(v) : undefined;
       return s !== undefined && (!choices || choices.includes(s)) ? { ok: true, value: s } : { ok: false };
     }
+    // a list with no declared choices is a text field here: its values are joined (the compiler asks for this type, a spec never does)
+    case "list": return Array.isArray(v) ? { ok: true, value: v.filter((x) => typeof x === "string" || typeof x === "number").join(", ") } : typeof v === "string" ? { ok: true, value: v } : { ok: false };
     case "multi": {
       const list = Array.isArray(v) ? v : typeof v === "string" ? [v] : undefined;
       if (!list || !list.every((x) => typeof x === "string" || typeof x === "number")) return { ok: false };
@@ -250,7 +252,8 @@ export function compileSpec(spec: SyncSpec): Compiled {
     for (const p of shapeFields) {
       const sf = o.fields.find((x) => x.path === p);
       if (!sf) continue;
-      types_[p] = sf.type;
+      // a pick-list or a multi-pick with no choices listed becomes plain text locally; the sync reads it the same way
+      types_[p] = sf.type === "multi" && !sf.choices?.length ? "list" : sf.type;
       if (sf.choices?.length) choices[p] = sf.choices.map((c) => c.value);
     }
     const listShape = {

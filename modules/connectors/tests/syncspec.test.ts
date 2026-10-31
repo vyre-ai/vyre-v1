@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { KEY_A, KEY_B, ledgerSpec, orbitSpec } from "../fixtures/crm.ts";
 import { KEYS, world } from "../fixtures/crm-world.ts";
 import { executeAction } from "../handlers/runtime.ts";
-import { compileSpec, nextLink, parseSpec, readPage } from "../syncspec.ts";
+import { coerceValue, compileSpec, nextLink, parseSpec, readPage } from "../syncspec.ts";
 import type { SyncSpec } from "../syncspec.ts";
 import type { ConnectionDb, ConnectorDef } from "../projections.ts";
 
@@ -241,4 +241,24 @@ test("apply checks the record types first: what the schema refuses stops everyth
   assert.equal(w.k.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = 'crm_ledger'"), undefined);
   assert.equal(w.k.tx.get("SELECT 1 AS x FROM cn_connections"), undefined);
   assert.equal(w.calls.filter((c) => c.cap === "schema.apply").length, 0);
+});
+
+test("a multi-pick with no choices listed is plain text here, joined, so a record type never refuses it", () => {
+  const spec = parseSpec(mutate(ledgerSpec(), (s) => {
+    s["objects"][1]["fields"].push({ path: "/attributes/tags", label: "Tags", type: "multi" });
+    s["mapping"][1]["fields"].push({ path: "/attributes/tags", field: "tags", direction: "pull" });
+  })).spec!;
+  const compiled = compileSpec(spec);
+  assert.equal(compiled.types.find((t) => t.remote === "people")!.defs.find((d) => d.key === "tags")!.type, "text");
+  assert.equal(compiled.connector.actions.find((a) => a.name === "list_people")!.shape!.types!["/attributes/tags"], "list");
+  assert.deepEqual(coerceValue(["a", "b", 3], "list"), { ok: true, value: "a, b, 3" });
+  assert.deepEqual(coerceValue("solo", "list"), { ok: true, value: "solo" });
+  assert.deepEqual(coerceValue({ x: 1 }, "list"), { ok: false });
+  // with choices it is a real multi-pick
+  const withChoices = compileSpec(parseSpec(mutate(ledgerSpec(), (s) => {
+    s["objects"][1]["fields"].push({ path: "/attributes/tags", label: "Tags", type: "multi", choices: [{ value: "a" }, { value: "b" }] });
+    s["mapping"][1]["fields"].push({ path: "/attributes/tags", field: "tags", direction: "pull" });
+  })).spec!);
+  assert.equal(withChoices.types.find((t) => t.remote === "people")!.defs.find((d) => d.key === "tags")!.type, "multichoice");
+  assert.deepEqual(coerceValue(["a", "z"], "multi", ["a", "b"]), { ok: false }, "a value outside the choices does not fit");
 });
