@@ -42,6 +42,17 @@ test("mounts live: a chat agent lists a mounted folder and reads its file throug
     assert.match(read.reply, /TOOL RESULT ok/, read.reply);
     assert.match(read.reply, /NDA v1/, "the agent reads the mounted file's content");
 
+    // Ask mode (the default): the agent stops before the step and the person it works for is asked to allow it; nothing is written and the turn waits on the approval
+    const askThread = (await ok(d, "chat.start", { kind: "chat", agentIds: [agent.id] })).thread.threadId as string;
+    await ok(d, "chat.post", { threadId: askThread, body: `TOOL files_write ${JSON.stringify({ fileId: nda!.fileId, content: { text: "NDA changed in Ask mode" }, reason: "Agent edit", idempotencyKey: "ma-agent-write-ask" })}`, mentions: [{ kind: "agent", id: agent.id }] });
+    const hold = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const holds = (await call(d, "gate.holds.list", { state: "held" })).data.holds as Array<{ act: string; capName: string }> | undefined;
+      return holds?.find((h) => h.capName === "files.write") ?? null;
+    });
+    assert.equal(hold.act, "approve", "the step waits for the person to allow it");
+    assert.equal((await ok(d, "files.read", { fileId: nda!.fileId, as: "text" })).text, "NDA v1", "Ask mode wrote nothing");
+
     // Auto mode: the agent may act without asking first, so what holds the write back is the mount's own Review changes
     const started = await ok(d, "chat.start", { kind: "chat", agentIds: [agent.id] });
     const threadId = started.thread.threadId as string;
