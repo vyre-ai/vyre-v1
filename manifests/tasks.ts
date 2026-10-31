@@ -93,8 +93,8 @@ export default defineManifest({
       in: { section: t.opt(t.enm('open', 'assigned_by_me', 'done', 'all')), ...pageIn },
       out: { tasks: t.arr(taskRow), counts: t.obj({ open: t.int(), assignedByMe: t.int(), done: t.int() }), ...pageOut }, tool: 'tasks', label: 'filter',
     }),
-    write('tasks.update', 'Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)', {
-      in: { ...target, title: t.opt(t.str()), summary: t.opt(t.str()), why: t.opt(t.str()), due: t.opt(t.nullable(t.ts())), effort: t.opt(t.nullable(t.int())), blocks: t.opt(t.arr(blockIn)) },
+    write('tasks.update', 'Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)', {
+      in: { ...target, title: t.opt(t.str()), summary: t.opt(t.str()), why: t.opt(t.str()), due: t.opt(t.nullable(t.ts())), effort: t.opt(t.nullable(t.int())), blocks: t.opt(t.arr(blockIn)), threadId: t.opt(id.thread) },
       out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.updated'], tool: 'tasks', offline: 'patch',
     }),
     write('tasks.transition', 'Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules', {

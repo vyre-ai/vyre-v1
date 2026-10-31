@@ -69,3 +69,15 @@ test("a new Reviewer or agent holder is brought into the thread", async () => {
   const agents = h.threadCalls.filter((c) => c.cap === "threads.add_agent").map((c) => c.input as { agentId: string; mode: string });
   assert.deepEqual(agents, [{ threadId: agents[0]!.threadId, agentId: bot2.id, mode: "listen" }]);
 });
+
+test("tasks.update links a thread only to a task that has none", async () => {
+  const h = harness();
+  const id = (await h.call("tasks.create", newTask(), me)).task.id as string;
+  assert.equal((await h.call("tasks.get", { taskId: id }, me)).task.threadId, undefined);
+  const a = await h.call("tasks.update", { taskId: id, threadId: "thr_late" }, me);
+  assert.equal(a.task.threadId, "thr_late");
+  assert.deepEqual(h.events.map((e) => e.name), ["task.updated"]);
+  assert.deepEqual(h.events[0]!.payload.fields, ["threadId"]);
+  const b = await h.call("tasks.update", { taskId: id, threadId: "thr_other" }, me);
+  assert.equal(b.task.threadId, "thr_late", "a linked thread is never replaced");
+});
