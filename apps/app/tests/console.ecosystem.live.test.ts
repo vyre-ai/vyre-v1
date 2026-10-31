@@ -64,8 +64,9 @@ test("production Console: Skills and Plugins add, install, configure and connect
     // ---- Skills
     await open("console.skills", '[data-testid="console-skills"]');
     await page.getByText("working-in-vyre", { exact: true }).first().waitFor();
+    await page.getByTestId("skill-new").click();
     await page.getByTestId("skill-text").fill(SKILL);
-    await page.getByTestId("skill-add").click();
+    await page.getByTestId("skill-sheet").getByRole("button", { name: "Add skill", exact: true }).click();
     await page.getByText("matter-intake added", { exact: true }).waitFor();
     const list = (await api("skills.list", { includeOff: true }) as { skills: Array<{ name: string; tier: string; source: string }> }).skills;
     assert.deepEqual(list.filter((s) => s.name === "matter-intake").map((s) => [s.tier, s.source]), [["space", "upload"]]);
@@ -77,8 +78,9 @@ test("production Console: Skills and Plugins add, install, configure and connect
 
     // ---- Plugins
     await open("console.plugins", '[data-testid="console-plugins"]');
+    await page.getByTestId("mk-new").click();
     await page.getByTestId("mk-source").fill(MARKET);
-    await page.getByTestId("mk-add").click();
+    await page.getByTestId("market-sheet").getByRole("button", { name: "Add marketplace", exact: true }).click();
     await page.getByText("vyre-test-market added and allowed", { exact: true }).waitFor();
     await page.getByTestId("install-greeter").click();
     await page.getByText("greeter installed", { exact: true }).waitFor();
