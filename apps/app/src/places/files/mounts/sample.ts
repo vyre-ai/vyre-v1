@@ -100,7 +100,7 @@ export interface SampleMounts {
 }
 type SourceIdLog = string[];
 
-export function createSampleMounts(o: { accounts?: Accounts; everyone?: boolean; mounts?: MountRow[] } = {}): SampleMounts {
+export function createSampleMounts(o: { connectAs?: Partial<Accounts>; accounts?: Accounts; everyone?: boolean; mounts?: MountRow[] } = {}): SampleMounts {
   const mounts = (o.mounts ?? northwindMounts).map((m) => ({ ...m }));
   const calls: { cap: string; input: unknown }[] = [];
   const failing = new Map<string, string>();
@@ -120,6 +120,7 @@ export function createSampleMounts(o: { accounts?: Accounts; everyone?: boolean;
 
   const writes: Record<string, (i: any) => unknown> = {
     "mounts.browse": browse,
+    "github.branches.list": () => ({ branches: [{ name: "main", sha: "a1", protected: true }, { name: "develop", sha: "b2", protected: false }, { name: "release", sha: "c3", protected: false }] }),
     "mounts.list": () => ({ mounts: mounts.map((m) => ({ ...m })) }),
     "mounts.add": (i: { into: string; source: { kind: MountKind; ref?: string; localPath?: string; branch?: string }; name?: string; mode?: "server_copy" | "live_only"; reviewChanges?: boolean }) => {
       const ref = i.source.ref ?? i.source.localPath ?? "";
@@ -150,7 +151,7 @@ export function createSampleMounts(o: { accounts?: Accounts; everyone?: boolean;
     accounts: o.accounts ?? northwindAccounts,
     folders: northwindFolders,
     people: northwindPeople,
-    connect: (s) => void connected.push(s),
+    connect: async (s) => { connected.push(s); return o.connectAs?.[s === "google_drive" ? "google_drive" : s === "github" ? "github" : s === "local" ? "local" : "microsoft"] ?? null; },
   };
   return { data, calls, mounts: () => mounts.map((m) => ({ ...m })), failNext: (cap, code) => void failing.set(cap, code), connected };
 }

@@ -30,6 +30,44 @@ export function openQuery(text: string): { ch: "#" | "[["; q: string } | null {
 
 export const DEBOUNCE_MS = 150;
 
+type MountRow = CapMap["mounts.list"]["out"]["mounts"][number];
+
+/** The AppIcon brand of a mount's source; a folder on a computer has none and keeps the folder icon. */
+export const BRAND_OF_MOUNT: Record<MountRow["kind"], string | undefined> = { google_drive: "gdrive", onedrive: "onedrive", sharepoint: "sharepoint", github: "github", local: undefined };
+
+/** The quiet line of a mounted folder: where it comes from and how it is doing. */
+export function mountNote(m: MountRow, now: number): string {
+  const state = m.state === "failing" ? "Needs attention" : m.state === "paused" ? "Paused" : m.state === "device_offline" ? "Computer offline" : m.lastSyncAt !== undefined ? `Synced ${agoWords(now - m.lastSyncAt)}` : "Not synced yet";
+  return `${m.provider} \u00b7 ${state}`;
+}
+
+function agoWords(ms: number): string {
+  const min = Math.max(0, Math.round(ms / 60_000));
+  return min < 1 ? "just now" : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.floor(min / 60)} h ago` : `${Math.floor(min / 1440)} d ago`;
+}
+
+/** Mounted folders first in the Folders group, each with its provider logo, and a file under a mount named for where it comes from. A failed read leaves the plain lists. */
+export function withMounts(out: Suggested, hits: readonly Hit[], mounts: readonly MountRow[], q: string, now: number): Suggested {
+  if (mounts.length === 0) return out;
+  const want = q.toLowerCase();
+  const mine = mounts.filter((m) => want === "" || m.name.toLowerCase().includes(want) || m.provider.toLowerCase().includes(want));
+  const rows: ListItem[] = mine.map((m) => {
+    const brand = BRAND_OF_MOUNT[m.kind];
+    return { t: m.name, s: mountNote(m, now), kind: "Folder", ref: m.folderId, data: { mount: m.mountId, ...(brand ? { brand } : {}) } };
+  });
+  const seen = new Set(rows.map((r) => (typeof r === "string" ? r : r.ref)));
+  const folders = [...rows, ...(out.folders ?? []).filter((f) => typeof f === "string" || f.ref === undefined || !seen.has(f.ref))];
+  const files = out.files.map((f) => {
+    if (typeof f === "string") return f;
+    const hit = hits.find((h) => h.id === f.ref);
+    const segs = (hit?.path ?? "").split("/");
+    const m = mounts.find((x) => segs.includes(x.name));
+    const brand = m ? BRAND_OF_MOUNT[m.kind] : undefined;
+    return m ? { ...f, s: `${m.provider} \u00b7 ${m.name}`, data: { ...(f.data ?? {}), mount: m.mountId, ...(brand ? { brand } : {}) } } : f;
+  });
+  return { ...out, folders, files };
+}
+
 export async function fetchSuggestions(data: Pick<ConversationData, "call">, ch: "#" | "[[", q: string): Promise<Suggested> {
   const types = ch === "[[" ? ["record"] : ["record", "file", "channel", "chat", "automation"];
   const out: Suggested = ch === "[[" ? { records: [], files: [], folders: [], channels: [] } : { records: [], files: [], folders: [], channels: [], chats: [], automations: [], projects: [] };
@@ -48,6 +86,10 @@ export async function fetchSuggestions(data: Pick<ConversationData, "call">, ch:
       const f = (await data.call("files.folder.search", { q, limit: 6 })) as CapMap["files.folder.search"]["out"];
       out.folders = f.folders.map((x) => ({ t: x.name, s: x.path, kind: "Folder", ref: x.folderId }));
     } catch { /* folders are an extra; the rest still shows */ }
+    try {
+      const m = (await data.call("mounts.list", {})) as CapMap["mounts.list"]["out"];
+      return withMounts(out, hits, m.mounts, q, Date.now());
+    } catch { /* mounts are an extra; the plain lists still show */ }
   }
   return out;
 }
@@ -101,7 +143,15 @@ export async function previewOf(data: Pick<ConversationData, "call" | "nameOf">,
   }
   if (item.kind === "File") {
     const out = (await data.call("files.get", { fileId: item.ref })) as CapMap["files.get"]["out"];
-    return { sub: item.note ?? "", fields: [["Size", sizeOf(out.file.size)], ["Edited", dateOf(out.file.updatedAt)], ["By", data.nameOf(out.file.updatedBy)]] };
+    const from: [string, string][] = out.file.source ? [["From", out.file.source.provider]] : [];
+    return { sub: item.note ?? "", fields: [...from, ["Size", sizeOf(out.file.size)], ["Edited", dateOf(out.file.updatedAt)], ["By", data.nameOf(out.file.updatedBy)]] };
+  }
+  if (item.kind === "Folder" && item.data?.["mount"]) {
+    const out = (await data.call("mounts.list", {})) as CapMap["mounts.list"]["out"];
+    const m = out.mounts.find((x) => x.mountId === item.data?.["mount"]);
+    if (!m) return null;
+    const state = m.state === "failing" ? "Needs attention" : m.state === "paused" ? "Paused" : m.state === "device_offline" ? "Computer offline" : m.state === "syncing" ? "Syncing" : "Up to date";
+    return { sub: m.provider, fields: [["State", state], ...(m.lastSyncAt !== undefined ? [["Synced", dateOf(m.lastSyncAt)] as [string, string]] : []), ...(m.pendingChanges > 0 ? [["Waiting", `${m.pendingChanges} to review`] as [string, string]] : [])] };
   }
   if (item.kind === "Project") {
     return { fields: [["Status", item.data?.["status"] ?? ""], ...(item.data?.["due"] ? [["Due", dateOf(Number(item.data["due"]))] as [string, string]] : [])].filter(([, v]) => v !== "") as [string, string][] };

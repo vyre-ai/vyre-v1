@@ -4,7 +4,7 @@
 //   3 options: Name, Who can see it, Copy (this computer only: Synced copy or Live only), Branch (GitHub), Into. Mount makes the folder and starts its first sync; Review changes is on for cloud folders
 //     and repositories and is changed later in the folder's sync line.
 // Reads come from mounts.browse and mounts.list; the one write is mounts.add, then access.share for the people chosen. Rows are ui/Row with leading and trailing slots (ruling 36).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { baseName, mountLocalFolder, pickFolders, shellInvoke } from "../../../shell/providers/local-folder-mount.ts";
@@ -18,9 +18,9 @@ import { useMountsData } from "./data.tsx";
 import { Glyph, Mark } from "./icons.tsx";
 import type { MarkKind } from "./icons.tsx";
 import {
-  SOURCES, back, canMount, mountError, canNext, chooseSource, crumbs, defaultName, emptyDraft, isMounted, metaOf, next, pathKey as pathKeyOf, pick, setQuery, sourceOf, togglePerson, walkInto, walkTo, whoLabel,
+  SOURCES, accountKey, back, canMount, mountError, canNext, chooseSource, crumbs, defaultName, emptyDraft, isMounted, metaOf, next, pathKey as pathKeyOf, pick, setQuery, sourceOf, togglePerson, walkInto, walkTo, whoLabel,
 } from "./model.ts";
-import type { BrowseItem, Draft, MountKind, MountRow, SourceId } from "./model.ts";
+import type { Accounts, BrowseItem, Draft, MountKind, MountRow, SourceId } from "./model.ts";
 import type { DialogAction } from "../../../../../../ui/src/Dialog/index.tsx";
 import { ErrorLine, Field, IconButton, MenuButton, Segmented, Sheet, TextField, anchorOf } from "./parts.tsx";
 
@@ -41,7 +41,7 @@ export interface MountSheetProps {
 
 const DOUBLE_MS = 450;
 
-const markKind = (k: MountKind | SourceId): MarkKind => (k === "sharepoint" || k === "onedrive" ? "microsoft" : (k as MarkKind));
+const markKind = (k: MountKind | SourceId): MarkKind => (k === "microsoft" ? "microsoft" : (k as MarkKind));
 
 type ListState = { status: "loading" } | { status: "ready"; items: BrowseItem[]; next?: string } | { status: "error" };
 
@@ -58,6 +58,25 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
   const skipFirst = useRef(preload !== undefined);
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [attempt, setAttempt] = useState(0);
+  // An account connected from inside the sheet (connect in place) is used at once, before the Space's list is read again.
+  const [fresh, setFresh] = useState<Partial<Accounts>>({});
+  const accounts = useMemo<Accounts>(() => ({ ...data.accounts, ...fresh }), [data.accounts, fresh]);
+  const accountsRef = useRef(accounts);
+  accountsRef.current = accounts;
+  const [connecting, setConnecting] = useState<SourceId | null>(null);
+  // A repository's branches, read when its options open, so the branch is picked and not typed. Null while reading or when the read failed (the field then takes typing).
+  const [branches, setBranches] = useState<string[] | null>(null);
+  const repo = d.step === 3 && d.source === "github" ? d.picked?.ref ?? null : null;
+  useEffect(() => {
+    setBranches(null);
+    if (repo === null) return undefined;
+    let live = true;
+    void (dataRef.current.call("github.branches.list", { repo, limit: 100 }) as Promise<{ branches: Array<{ name: string }> }>).then(
+      (o) => { if (!live) return; const names = o.branches.map((b) => b.name); setBranches(names.length ? names : null); if (names.length && !names.includes(d.branch)) setD((x) => ({ ...x, branch: names.includes("main") ? "main" : names.includes("master") ? "master" : (names[0] as string) })); },
+      () => undefined,
+    );
+    return () => { live = false; };
+  }, [repo]);
 
   useEffect(() => {
     let live = true;
@@ -73,8 +92,14 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
     setList({ status: "loading" });
     const t = setTimeout(() => {
       const cur = dataRef.current;
-      void browse(cur.call, d, cur.accounts).then(
-        (l) => { if (live) setList({ status: "ready", items: l.items, ...(l.next !== undefined ? { next: l.next } : {}) }); },
+      void browse(cur.call, d, accountsRef.current).then(
+        (l) => {
+          if (!live) return;
+          // OneDrive has one drive at its root: open it, so the person lands on their folders and not on a one-row list
+          const only = l.items[0];
+          if (d.source === "onedrive" && d.path.length === 0 && !d.q && l.items.length === 1 && only?.isFolder) { setD((x) => (x.path.length === 0 ? walkInto(x, only) : x)); return; }
+          setList({ status: "ready", items: l.items, ...(l.next !== undefined ? { next: l.next } : {}) });
+        },
         () => { if (live) setList({ status: "error" }); },
       );
     }, d.q ? 180 : 0);
@@ -88,7 +113,7 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
     if (list.status !== "ready" || list.next === undefined) return;
     const cursor = list.next;
     const keep = list.items;
-    void browse(data.call, d, data.accounts, cursor).then(
+    void browse(data.call, d, accounts, cursor).then(
       (l) => setList({ status: "ready", items: [...keep, ...l.items], ...(l.next !== undefined ? { next: l.next } : {}) }),
       () => setList({ status: "error" }),
     );
@@ -107,7 +132,7 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
     if (busy || !canMount(d)) return;
     setBusy(true);
     setError(null);
-    void submitMount(data.call, d, data.accounts, data.space.everyoneGroupId).then((r) => {
+    void submitMount(data.call, d, accounts, data.space.everyoneGroupId).then((r) => {
       setBusy(false);
       if (r.ok) onMounted({ mountId: r.mountId, folderId: r.folderId, runId: r.runId, name: r.name, ...(r.warning !== undefined ? { warning: r.warning } : {}) });
       else setError(r.error);
@@ -136,13 +161,26 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
 
   const choose = (id: SourceId): void => {
     if (id === "local") { void chooseLocal(); return; }
-    if (!data.accounts[id].connected) { data.connect(id); return; }
-    setList({ status: "loading" });
-    setD((x) => chooseSource(x, id));
+    if (connecting !== null) return;
+    const open = (): void => { setList({ status: "loading" }); setD((x) => chooseSource(x, id)); };
+    if (accounts[accountKey(id)].connected) { open(); return; }
+    // Not connected: sign in right here, then go on to the folders without leaving the sheet.
+    setError(null);
+    setConnecting(id);
+    void data.connect(id).then(
+      (got) => {
+        setConnecting(null);
+        if (!got) return;
+        accountsRef.current = { ...accountsRef.current, [accountKey(id)]: got };
+        setFresh((f) => ({ ...f, [accountKey(id)]: got }));
+        open();
+      },
+      () => { setConnecting(null); setError(`Could not connect ${sourceOf(id).name}. Try again.`); },
+    );
   };
 
   const onKey = (e: { key: string; target?: { tagName?: string } }): boolean => {
-    if (d.step === 1 && /^[1-4]$/.test(e.key)) { const s = SOURCES[Number(e.key) - 1]; if (s) choose(s.id); return true; }
+    if (d.step === 1 && /^[1-5]$/.test(e.key)) { const s = SOURCES[Number(e.key) - 1]; if (s) choose(s.id); return true; }
     return false;
   };
 
@@ -153,6 +191,10 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
     if (data.people.length) items.push({ separator: true });
     for (const p of data.people) items.push({ label: p.name, checked: d.who.mode === "people" && d.who.ids.includes(p.id), onSelect: () => upd({ who: togglePerson(d.who, p.id) }) });
     menu.show(items, x, y, "other");
+  };
+  const branchMenu = (e: unknown): void => {
+    const { x, y } = anchorOf(e);
+    menu.show((branches ?? []).map((b): MenuEntry => ({ label: b, checked: b === d.branch, onSelect: () => upd({ branch: b }) })), x, y, "other");
   };
   const intoMenu = (e: unknown): void => {
     const { x, y } = anchorOf(e);
@@ -172,7 +214,7 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
       : [{ label: "Cancel", onPress: onClose, testID: "mount-cancel" }];
   return (
     <Sheet label={title} onClose={onClose} onKey={onKey} actions={actions} testID="mount-sheet">
-      {d.step === 1 ? <SourceStep onChoose={choose} /> : null}
+      {d.step === 1 ? <SourceStep onChoose={choose} accounts={accounts} connecting={connecting} /> : null}
       {d.step === 2 && source ? (
         <PickStep
           d={d}
@@ -181,7 +223,7 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
           onQuery={(q) => setD((x) => setQuery(x, q))}
           onPress={press}
           onInto={(it) => setD((x) => walkInto(x, it))}
-          onCrumb={(i) => setD((x) => walkTo(x, i))}
+          onCrumb={(i) => setD((x) => walkTo(x, x.source === "onedrive" && i > 0 ? i + 1 : i))}
           onMore={more}
           onRetry={() => setAttempt((n) => n + 1)}
         />
@@ -201,7 +243,11 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
           ) : null}
           {source.id === "github" ? (
             <Field label="Branch">
-              <View style={st.branch}><Glyph name="branch" size={14} /><TextField value={d.branch} onChange={(v) => upd({ branch: v })} label="Branch" onSubmit={mount} testID="mount-branch" width={150} /></View>
+              {branches ? (
+                <MenuButton value={d.branch} label="Branch" leading={<Glyph name="branch" size={14} />} onPress={branchMenu} testID="mount-branch-menu" />
+              ) : (
+                <View style={st.branch}><Glyph name="branch" size={14} /><TextField value={d.branch} onChange={(v) => upd({ branch: v })} label="Branch" onSubmit={mount} testID="mount-branch" width={150} /></View>
+              )}
             </Field>
           ) : null}
           <Field label="Into">
@@ -217,11 +263,10 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
 
 // ---------------------------------------------------------------- step 1
 
-function SourceStep({ onChoose }: { onChoose: (id: SourceId) => void }): ReactElement {
-  const data = useMountsData();
+function SourceStep({ onChoose, accounts, connecting }: { onChoose: (id: SourceId) => void; accounts: Accounts; connecting: SourceId | null }): ReactElement {
   const rows: ReactElement[] = [];
   for (const s of SOURCES) {
-    const acc = data.accounts[s.id];
+    const acc = accounts[accountKey(s.id)];
     rows.push(
       <Row
         key={s.id}
@@ -229,7 +274,7 @@ function SourceStep({ onChoose }: { onChoose: (id: SourceId) => void }): ReactEl
         title={s.name}
         note={acc.connected ? acc.label : "Not connected"}
         leading={<View style={st.markSlot}><Mark kind={markKind(s.id)} size={24} /></View>}
-        trailing={acc.connected ? <Glyph name="chev" size={12} /> : <Text style={st.connect}>Connect</Text>}
+        trailing={connecting === s.id ? <Text style={st.meta}>Connecting</Text> : acc.connected ? <Glyph name="chev" size={12} /> : <Text style={st.connect}>Connect</Text>}
         onPress={() => onChoose(s.id)}
       />,
     );

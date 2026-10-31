@@ -111,6 +111,7 @@ Example: `send`.
 | site_promote | Promote a site to production | high | yes | deploy |
 | spend_raise | Raise a spend cap | medium | no | table |
 | signin_change | Change how people sign in to the Space | high | no | record_card |
+| approve | Allow this step | medium | no | doc_excerpt |
 | transfer | Hand over ownership | high | no | record_card |
 
 ## Task kinds

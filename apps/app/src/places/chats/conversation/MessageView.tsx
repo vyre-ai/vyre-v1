@@ -20,7 +20,7 @@ import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
 import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
-import { AttachmentChips, LinkedText, refsOf } from "./attachments.tsx";
+import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.tsx";
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
@@ -213,6 +213,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
           {actions.files && refsOf(m).length > 0 ? <LinkedText body={m.body} refs={refsOf(m)} data={actions.files} textStyle={st.bubbleText} /> : <SubjectText text={m.body} style={st.bubbleText} />}
         </View>
       )}
+      {!editing && actions.files && refsOf(m).length > 0 ? <View style={st.mineFiles}><MountRefs refs={refsOf(m)} data={actions.files} /></View> : null}
       {!editing && actions.files && m.attachments.length > 0 ? (
         <View style={st.mineFiles}><AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /></View>
       ) : null}
@@ -272,6 +273,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       ) : null}
       {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink ? { renderLink: subjects.renderLink } : {})} /></View> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} />}
+      {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
       {collect(cards, (b) => {
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
