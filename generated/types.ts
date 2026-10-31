@@ -21281,6 +21281,14 @@ export type ProjectsFileChatIn = {
 export type ProjectsFileChatOut = {
   ok: boolean;
 };
+export type ProjectsFilesFolderIn = {
+  type?: string;
+  recordId: string;
+  create?: boolean;
+};
+export type ProjectsFilesFolderOut = {
+  folderId: string | null;
+};
 export type ProjectsFromChannelIn = {
   channelId: string;
   type?: string;
@@ -32386,6 +32394,7 @@ export interface CapMap {
   "projects.cascade": { in: ProjectsCascadeIn; out: ProjectsCascadeOut };
   "projects.create": { in: ProjectsCreateIn; out: ProjectsCreateOut };
   "projects.file_chat": { in: ProjectsFileChatIn; out: ProjectsFileChatOut };
+  "projects.files_folder": { in: ProjectsFilesFolderIn; out: ProjectsFilesFolderOut };
   "projects.from_channel": { in: ProjectsFromChannelIn; out: ProjectsFromChannelOut };
   "projects.get": { in: ProjectsGetIn; out: ProjectsGetOut };
   "projects.link_tasks": { in: ProjectsLinkTasksIn; out: ProjectsLinkTasksOut };

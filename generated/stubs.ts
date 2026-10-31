@@ -1730,6 +1730,7 @@ export function stubs(ctx: CallCtx) {
       cascade: call("projects.cascade"),
       create: call("projects.create"),
       file_chat: call("projects.file_chat"),
+      files_folder: call("projects.files_folder"),
       from_channel: call("projects.from_channel"),
       get: call("projects.get"),
       link_tasks: call("projects.link_tasks"),

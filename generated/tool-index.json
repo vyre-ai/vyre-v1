@@ -5876,6 +5876,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_files_folder",
+      "summary": "The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_from_channel",
       "summary": "Make this channel a project: create the record and attach the channel, a folder and an empty plan",
       "toolset": "records"
