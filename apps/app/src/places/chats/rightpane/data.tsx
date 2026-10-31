@@ -45,8 +45,8 @@ export interface ChatRightPaneData {
   /** The open chat or channel's thread, and the agent the pane follows. */
   threadId: string;
   agent: PaneAgent;
-  /** The Space the chat is in. A Personal Space has no agent computers: the Computer tab says so. */
-  space: { name: string; personal: boolean };
+  /** The Space the chat is in. `computers` says an agent computer can run here (a capable host exists); a Personal Space without one shows no Computer tab. Absent: a Team Space can, a Personal one cannot. */
+  space: { name: string; personal: boolean; computers?: boolean };
   nav: RightPaneNav;
   clock(): Clock;
   /** The Space's people, for "Delegate" on a routine (the shared people picker draws them). Absent while the directory has not loaded: the picker then says so. */
@@ -84,3 +84,6 @@ export function useOnline(): boolean {
   const online = (): boolean => connection.get() === "online";
   return useSyncExternalStore(connection.subscribe, online, online);
 }
+
+/** Can an agent computer run in this Space? Nothing about computers is drawn when it cannot. */
+export const hasComputers = (s: { personal: boolean; computers?: boolean }): boolean => s.computers ?? !s.personal;

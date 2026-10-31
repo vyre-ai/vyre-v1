@@ -34,7 +34,7 @@ export interface AgentPageData {
   nameOf(id: string): string;
   /** Whether this person may change the agent (agents.manage or an editor of it). Without it the role line is read-only with a lock. */
   canEdit: boolean;
-  space: { name: string; personal: boolean };
+  space: { name: string; personal: boolean; computers?: boolean };
   nav: AgentPageNav;
   clock(): Clock;
 }

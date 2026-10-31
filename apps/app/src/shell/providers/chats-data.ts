@@ -1,5 +1,6 @@
 // The data contexts the Chats place hands its three parts, built from the Space's runtime. Each part reads the same ScreenHooks and `call`; what differs is the nav: a click
 // says what to open and this place decides (the open chat is local state of the place, the pane is a toggle). Nothing here touches the network.
+import { computersAvailableNow } from "../computers-available.ts";
 import type { ComposerLists, ListItem } from "../../../../../ui/src/Composer/index.tsx";
 import type { ChatsNav, ChatsSidebarData } from "../../places/chats/sidebar/data.tsx";
 import type { ComposerFill, ConversationData, ConversationNav, PluginCommand } from "../../places/chats/conversation/data.tsx";
@@ -182,7 +183,7 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId,
     agent: { agentId: agent.agentId, name: agent.name },
-    space: { name: rt.space.name, personal: rt.space.kind === "personal" },
+    space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
     nav, clock: rt.clock,
     memory: chatMemory(rt, a),
   };

@@ -96,7 +96,9 @@ export interface HostRow { hostId: string; kind: "this" | "space" | "server"; na
 export async function hosts(ctx: CompCtx, _input: Record<string, never>) {
   ensure(ctx.db);
   const placed = rowsOf(ctx.db, "SELECT node_id FROM computers_computers").map((r) => (r["node_id"] === null || r["node_id"] === undefined ? null : String(r["node_id"])));
-  const team = isTeam(ctx.space);
+  // the Space says what it is; a harness that binds the answer stands in for it
+  let team = isTeam(ctx.space);
+  try { const k = ((await ctx.call("spaces.matrix", {})) as { kind?: string }).kind; if (k === "personal") team = false; else if (k === "team") team = true; } catch { /* the bound answer stands */ }
   const out: HostRow[] = [];
   const bound = boundHost();
   let ready = false;

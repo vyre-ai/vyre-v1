@@ -312,13 +312,13 @@ test("sessions: listed from the running computer, from the last list while it sl
 });
 
 test("a Personal Space runs agent computers on a capable host: this computer with Docker, or a server it added; with neither, nothing is offered and provision says so", async () => {
-  const h = harness({ personalSpace: true });
+  const h = harness({ personalSpace: true, respond: { "spaces.matrix": () => ({ kind: "personal" }) } });
   const made = await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k" });
   assert.equal(made.computer.state, "asleep", "a Personal Space provisions like a team one");
   assert.deepEqual((await list(h.ctx, {})).computers.map((c) => c.agentId), [INTAKE]);
   assert.equal((await health(h.ctx, {})).runtime, "ready");
   assert.deepEqual(await hosts(h.ctx, {}), { available: true, hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: true, runs: 1 }] });
-  const bare = harness({ personalSpace: true });
+  const bare = harness({ personalSpace: true, respond: { "spaces.matrix": () => ({ kind: "personal" }) } });
   bindHost(null);
   assert.deepEqual(await hosts(bare.ctx, {}), { available: false, hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: false, runs: 0, reason: "No Docker" }] });
   await assert.rejects(() => provision(bare.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable");
@@ -329,7 +329,7 @@ test("a Personal Space runs agent computers on a capable host: this computer wit
 test("servers you added are hosts once approved: offline or without Docker they are listed but cannot run one; the Space server is the Space in a Team Space", async () => {
   const h = harness({
     personalSpace: true,
-    respond: { "network.my_computers": () => ({ computers: [
+    respond: { "spaces.matrix": () => ({ kind: "personal" }), "network.my_computers": () => ({ computers: [
       { serverId: "srv_home", name: "home-box", state: "healthy", enrollment: "approved", facts: { docker: true } },
       { serverId: "srv_off", name: "old-mac", state: "down", enrollment: "approved", facts: { docker: true } },
       { serverId: "srv_nodocker", name: "pi", state: "healthy", enrollment: "approved", facts: { docker: false } },
@@ -340,6 +340,6 @@ test("servers you added are hosts once approved: offline or without Docker they 
   const out = await hosts(h.ctx, {});
   assert.equal(out.available, true, "one server can run them");
   assert.deepEqual(out.hosts.map((x) => [x.hostId, x.canRun, x.reason ?? null]), [["this", false, "No Docker"], ["srv_home", true, null], ["srv_off", false, "Offline"], ["srv_nodocker", false, "No Docker"]], "a waiting server is not a host yet");
-  const team = harness();
+  const team = harness({ respond: { "spaces.matrix": () => ({ kind: "team" }) } });
   assert.deepEqual((await hosts(team.ctx, {})).hosts.map((x) => [x.hostId, x.kind, x.name]), [["space", "space", "The Space"]]);
 });

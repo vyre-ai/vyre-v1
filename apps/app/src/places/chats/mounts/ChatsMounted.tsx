@@ -3,6 +3,7 @@
 // rules) sit over it. Every door is one `Go` function over the pure `step`: a face's "Open Intake's Page", the helper icon, the channel menu's "Connect an Outside Agent", the Computer
 // chip, a face in the sidebar, a request in Needs you all end in the same place. The data comes from the runtime the shell built for the open Space (live queries over the kept copy
 // and `call`), never from sample data. A link from another place arrives as `hash` and becomes the first thing shown.
+import { useComputersAvailable } from "../../../shell/computers-available.ts";
 import { ImportedSession } from "../imported/ImportedSession.tsx";
 import type { ImportedData } from "../imported/ImportedSession.tsx";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -36,7 +37,7 @@ import type { SearchData } from "../search/SearchPage.tsx";
 import { TextButton } from "../conversation/parts.tsx";
 import { copy, agentPageData, askWith, chatOpening, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
-import { errorCode, useLive } from "./live.ts";
+import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, newestThread, step, workOf } from "./route.ts";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
@@ -129,12 +130,9 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   if (thread.status === "ready" && threadId !== null) noteThreadKind(threadId, thread.data.thread.kind);
   const lead = thread.status === "ready" && threadId !== null ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
   const leadId = lead?.agentId ?? rt.assistant.id;
-  // agent computers are a Team Space module: a Personal Space never asks for them, and a "needs a Team Space" answer is final for the session
-  const personal = rt.space.kind === "personal";
-  const [teamOnlyAnswered, setTeamOnlyAnswered] = useState(false);
-  const computers = useLive<ComputersOut>(rt.screens, "console.agent-computers", "computers", personal || teamOnlyAnswered ? null : {});
-  const computersRefused = computers.status === "loading" && errorCode(computers.error) === "permission.needs_team";
-  useEffect(() => { if (computersRefused) setTeamOnlyAnswered(true); }, [computersRefused]);
+  // agent computers run on a capable host: a Personal Space with none never asks for them and draws nothing about them
+  const canRunComputers = useComputersAvailable(rt);
+  const computers = useLive<ComputersOut>(rt.screens, "console.agent-computers", "computers", canRunComputers ? {} : null);
   const computerOf = (agentId: string): string | undefined => (computers.status === "ready" ? computers.data.computers.find((c) => c.agentId === agentId)?.computerId : undefined);
   const leadComputer = computerOf(leadId);
   const leadAgent = useMemo(() => ({ agentId: leadId, name: nameOf(leadId), ...(leadComputer ? { computerId: leadComputer } : {}) }), [leadId, nameOf, leadComputer]);

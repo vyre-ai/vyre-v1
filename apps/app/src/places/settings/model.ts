@@ -17,7 +17,7 @@ export const PAGES: readonly PageDef[] = [
   { key: "signin", title: "Sign-in and devices", group: "everywhere", icon: "key", pages: ["Sign-in and devices"] },
   { key: "appearance", title: "Appearance", group: "everywhere", icon: "palette", pages: ["appearance", "kit"] },
   { key: "keyboard", title: "Keyboard", group: "everywhere", icon: "keyboard", pages: ["keyboard", "Chats"] },
-  { key: "computer", title: "This computer", group: "everywhere", icon: "laptop", pages: ["This computer"] },
+  { key: "computer", title: "Computers", group: "everywhere", icon: "laptop", pages: ["This computer"] },
   { key: "spaces", title: "Spaces", group: "everywhere", icon: "grid", pages: ["spaces"] },
 ];
 

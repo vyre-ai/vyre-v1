@@ -2,6 +2,7 @@
 // computer popup) reads one context of the same shape: the runtime's screen hooks and `call`, the connection, who is looking, and a nav that says what a click opens. Here the
 // nav is `Go`: the place's own doors, so a click on a face or a helper or the Computer chip changes what the place shows instead of asking the shell to open somewhere else.
 // Nothing here touches the network.
+import { computersAvailableNow } from "../../../shell/computers-available.ts";
 import { createElement } from "react";
 import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -12,7 +13,6 @@ import type { Principal } from "../../home/sections-a/data.tsx";
 import type { ChatsSidebarData } from "../sidebar/data.tsx";
 import type { ComposerFill, ConversationData } from "../conversation/data.tsx";
 import type { ChatRightPaneData } from "../rightpane/data.tsx";
-import { errorCode } from "./live.ts";
 import { LOCAL_PREFIX } from "../sidebar/model.ts";
 import { openSession } from "../terminal/session.ts";
 import { anchorOfFocus } from "./route.ts";
@@ -37,14 +37,11 @@ type ComputersOut = CapMap["computers.list"]["out"];
 /** The button beside a line the place shows. */
 export interface LineAction { label: string; run(): void }
 
-export const NEEDS_TEAM_LINE = "Agent computers need a Team Space";
-
 export const COMPUTER_UNREACHED = "Could not reach the computer. Try again.";
 
-/** What to say when an agent's computer cannot be opened: no failure means the list has no computer for it; a refusal for a Personal Space; anything else is the connection. */
+/** What to say when an agent's computer cannot be opened: no failure means the list has no computer for it; anything else is the connection. */
 export function computerLine(failure: unknown, name: string): string {
-  if (failure === null) return `${name} has no computer yet.`;
-  return errorCode(failure) === "permission.needs_team" ? NEEDS_TEAM_LINE : COMPUTER_UNREACHED;
+  return failure === null ? `${name} has no computer yet.` : COMPUTER_UNREACHED;
 }
 
 let keySeq = 0;
@@ -108,7 +105,7 @@ export function titleFrom(rt: ShellRuntime, kind: string, id: string): string | 
 export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; canEdit: boolean; nameOf: (id: string) => string; fill?: ComposerFill }): AgentPageData {
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, agent: o.agent, me: { id: rt.me.id, name: rt.me.name }, nameOf: o.nameOf, canEdit: o.canEdit,
-    space: { name: rt.space.name, personal: rt.space.kind === "personal" },
+    space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
     nav: {
       openThread: (id) => go.thread(id),
       openHelper: (id) => go.thread(id),
@@ -283,19 +280,15 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
     },
     computer: (computerId, chat = false) => act({ t: "layer", layer: { kind: "computer", computerId, chat } }),
     computerOfAgent: (agentId) => {
-      const needsTeam = (): void => say(NEEDS_TEAM_LINE, { label: "Add a Space", run: () => rt.open({ screen: "spaces.switcher", args: { create: "team" } }) });
-      // a Personal Space has no agent computers: answer without asking the server
-      if (rt.space.kind === "personal") { needsTeam(); return; }
+      // no capable host: the door is not drawn, and a stray one does nothing and asks nothing
+      if (!computersAvailableNow(rt.space)) return;
       void rt.call("computers.list", {}).then(
         (out) => {
           const c = (out as ComputersOut).computers.find((x) => x.agentId === agentId);
           if (c) act({ t: "layer", layer: { kind: "computer", computerId: c.computerId, chat: false } });
           else say(computerLine(null, nameOf(agentId)));
         },
-        (e: unknown) => {
-          if (errorCode(e) === "permission.needs_team") needsTeam();
-          else say(computerLine(e, nameOf(agentId)));
-        },
+        (e: unknown) => say(computerLine(e, nameOf(agentId))),
       );
     },
     terminal: (terminalId) => act({ t: "terminal", terminalId }),
