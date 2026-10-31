@@ -210,3 +210,24 @@ export function healthProbe(ctx: NetworkCtx): { state: State; detail?: string; d
 export function queue(ctx: NetworkCtx, kind: string, target: string): void {
   ctx.db.run("INSERT INTO network_command (kind, target, by_principal, at, done_at) VALUES (?, ?, ?, ?, ?)", kind, target, ctx.principal.id, ctx.now(), null);
 }
+
+/** The phone address this computer holds at the relay (phone_claim / phone_release leave their outcome in network_phone). */
+export type PhoneState = "none" | "claiming" | "claimed" | "releasing" | "failed";
+export interface PhoneRow { state: PhoneState; name?: string; nickname?: string; url?: string; link?: string; online: boolean; detail?: string }
+const PHONE_STATES = new Set(["none", "claiming", "claimed", "releasing", "failed"]);
+
+export function phoneOf(ctx: NetworkCtx): PhoneRow {
+  const r = asRow(ctx.db.all("SELECT name, nickname, state, detail, box_key FROM network_phone WHERE id = 1")[0]);
+  const state = (r && typeof r["state"] === "string" && PHONE_STATES.has(r["state"]) ? r["state"] : "none") as PhoneState;
+  const name = r ? str(r["name"]) : undefined;
+  const key = r ? str(r["box_key"]) : undefined;
+  const url = name && (state === "claimed" || state === "releasing") ? `https://${name}.vyre.run` : undefined;
+  const out: PhoneRow = { state, online: state === "claimed" && endpoints(ctx).some((e) => e.kind === "relay" && e.health === "healthy") };
+  if (name && state !== "none") out.name = name;
+  const nickname = r ? str(r["nickname"]) : undefined;
+  if (nickname) out.nickname = nickname;
+  if (url) { out.url = url; if (key && state === "claimed") out.link = `${url}/#box=${key}`; }
+  const detail = r ? str(r["detail"]) : undefined;
+  if (detail && state === "failed") out.detail = detail;
+  return out;
+}

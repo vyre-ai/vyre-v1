@@ -1,6 +1,6 @@
 // The two queues the Console writes for the daemon (rows in the module tables, because a module only has ctx.db):
 //   health_restart   a person asked to restart a service      -> the supervisor restarts it, the row gets done_at
-//   network_command  set_domain, set_mode, renew, reconnect, remove -> the NetworkPort does it, the result lands in network_dns / network_cert / network_server / network_config
+//   network_command  set_domain, set_mode, renew, reconnect, remove, phone_claim, phone_release -> the NetworkPort does it, the result lands in network_dns / network_cert / network_server / network_config
 // `pollCommands` runs every second from the scheduler. A command that fails is logged and closed (done_at set) so it never loops; the Console reads the state tables, not the queue.
 import dns from "node:dns/promises";
 import type { Logger } from "../../../packages/contracts/src/ctx.ts";
@@ -23,6 +23,21 @@ export interface NetworkPort {
   /** Observe a managed local HTTPS certificate without requesting another change. */
   certificate?(host: string): Promise<{ expiresAt: number | null; reason?: string }>;
 }
+
+/** The phone address (<name>.vyre.run) over the relay link. `claim` brings the link up when it is not (a computer with no relay configured dials the public one for this). */
+export interface PhonePort {
+  claim(name: string, nickname: string): Promise<{ status: string; boxKey?: string }>;
+  release(): Promise<{ status: string }>;
+}
+/** What a person is told for each answer the relay gives to a claim. */
+const PHONE_SAY: Record<string, string> = {
+  taken: "That name is taken. Try another.",
+  reserved: "That name is reserved. Try another.",
+  invalid: "That name cannot be used. Use letters, digits and dashes.",
+  has_name: "This computer already has a phone address. Release it first.",
+  limited: "Too many tries today. Try again tomorrow.",
+  unavailable: "Could not reach the relay. Check the connection and try again.",
+};
 
 export interface Resolver {
   cname(domain: string): Promise<string[]>;
@@ -59,6 +74,8 @@ export interface CommandDeps {
   db: HostDb;
   supervisor: Supervisor;
   network: NetworkPort;
+  /** Phone access; absent where the daemon has no relay to dial (tests, a build without one) */
+  phone?: PhonePort | undefined;
   now: () => number;
   log?: Logger | undefined;
   observed?(event: { id: string; type: 'network.domain_changed' | 'network.server_removed' | 'network.certificate_renewed'; actor: string; target: string; payload: Record<string, unknown> }): Promise<void>;
@@ -164,6 +181,27 @@ async function runNetwork(d: CommandDeps, kind: string, target: string): Promise
       await d.network.disconnect(target);
       d.db.run("DELETE FROM network_server WHERE server_id = ?", target);
       return;
+    case "phone_claim": {
+      let ask: { name?: unknown; nickname?: unknown } = {};
+      try { ask = JSON.parse(target) as typeof ask; } catch { /* closed below */ }
+      const name = text(ask.name), nickname = text(ask.nickname);
+      const set = (state: string, detail: string | null, key?: string): void => {
+        d.db.run("UPDATE network_phone SET state = ?, detail = ?, box_key = COALESCE(?, box_key), reported_at = ? WHERE id = 1", state, detail, key ?? null, t);
+      };
+      if (!name) { set("failed", PHONE_SAY["invalid"] ?? null); return; }
+      if (!d.phone) { set("failed", "Phone access is not available on this computer."); return; }
+      const r = await d.phone.claim(name, nickname);
+      if (r.status === "claimed") set("claimed", null, r.boxKey);
+      else set("failed", PHONE_SAY[r.status] ?? PHONE_SAY["unavailable"] ?? null);
+      return;
+    }
+    case "phone_release": {
+      if (!d.phone) { d.db.run("UPDATE network_phone SET state = 'none', name = NULL, detail = NULL, reported_at = ? WHERE id = 1", t); return; }
+      const r = await d.phone.release();
+      if (r.status === "released" || r.status === "none") d.db.run("UPDATE network_phone SET state = 'none', name = NULL, detail = NULL, reported_at = ? WHERE id = 1", t);
+      else d.db.run("UPDATE network_phone SET state = 'claimed', detail = ?, reported_at = ? WHERE id = 1", PHONE_SAY["unavailable"] ?? null, t);
+      return;
+    }
     default:
       throw new Error(`unknown network command ${kind}`);
   }

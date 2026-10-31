@@ -83,6 +83,7 @@ import { createProviderSignin } from "../seams/provider-signin.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
 import { startRelayBox } from "../seams/relay.ts";
+import type { RelayBox } from "../seams/relay.ts";
 import { createSyncLiveBridge, createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
@@ -128,7 +129,8 @@ import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
 import { managedNetworkPort } from "./network-driver.ts";
 import { pollCommands } from "./commands.ts";
-import type { NetworkPort } from "./commands.ts";
+import { createPhonePort } from "./phone.ts";
+import type { NetworkPort, PhonePort } from "./commands.ts";
 import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, writeInfo } from "./config.ts";
 import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
 import { migrate } from "./hosttables.ts";
@@ -226,6 +228,8 @@ export interface DaemonOptions {
     push?: PushTransportDeps;
     /** the domains a signed webhook may reach; omitted: none */
     webhookAllow?: () => readonly string[];
+    /** Tests: the WebSocket class the relay links use (default: the platform's). */
+    relayWebSocket?: typeof WebSocket;
     postFetch?: PostFetch;
     /** where a vault value may be filled, by kind (git_credential, container_env, env...): each receives the value for one call and must not keep or log it */
     vaultSinks?: Record<string, (f: { value: string; ref: string; handle: string; field: string; itemId: string }) => Promise<void> | void>;
@@ -1388,9 +1392,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       try { return new URL(url).host === address; } catch { return false; }
     }),
   });
+  // The relay link (--relay, or the public relay once a phone address is claimed) and the phone address on it. Both are set where the daemon starts it, after boot.
+  let relayBox: RelayBox | null = null;
+  let startPhoneRelay: (() => RelayBox) | null = null;
+  const phone: PhonePort = createPhonePort({ current: () => relayBox, start: () => startPhoneRelay?.() ?? null, dropped: () => { relayBox = null; }, configured: Boolean(cfg.relayUrl) });
   const runCommands = (): Promise<number> => {
     if (!db) return Promise.resolve(0);
-    const run = () => pollCommands({ db: db!, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
+    const run = () => pollCommands({ db: db!, supervisor, network, phone, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
     if (!log) throw new Error('The event log is unavailable.');
     const stored = await log.append({ id: event.id, type: event.type, sv: 1, trace_id: ZERO_TRACE, actor: event.actor, entity: 'entity', entity_id: event.target, vis: 'space', payload: event.payload });
     headSeq = Math.max(headSeq, stored.seq);
@@ -1510,23 +1518,31 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (hasSpace) { await hooks?.pump(); await projections?.pump(); }
     // A relay is configured (--relay or VYRE_RELAY_URL): keep one outbound connection to it so a phone or another computer reaches this Space without a public address. The relay row in
     // network_endpoint follows the link, so network.endpoints lists it after the direct ones and reads it down when the link drops (P-L7b_16).
-    if (hasSpace && db && cfg.relayUrl) {
+    if (hasSpace && db) {
       const relayDb = db;
-      const box = startRelayBox({
-        relayUrl: cfg.relayUrl, dataDir: paths.root, localPort: () => boundPort,
-        log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
-        onState: (st) => {
-          void box.ready.then((r) => {
-            try {
-              relayDb.run(
-                "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('relay', ?, ?, ?, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, rtt_ms = excluded.rtt_ms, heartbeat_at = excluded.heartbeat_at",
-                r.deviceUrl, st.state, st.rttMs ?? null, st.at,
-              );
-            } catch { /* the database closed while the daemon was stopping */ }
-          }, () => {});
-        },
-      });
-      closers.push(() => box.stop());
+      const relayAt = (url: string): RelayBox => {
+        const box = startRelayBox({
+          relayUrl: url, dataDir: paths.root, localPort: () => boundPort,
+          log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
+          ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
+          onState: (st) => {
+            void box.ready.then((r) => {
+              try {
+                relayDb.run(
+                  "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('relay', ?, ?, ?, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, rtt_ms = excluded.rtt_ms, heartbeat_at = excluded.heartbeat_at",
+                  r.deviceUrl, st.state, st.rttMs ?? null, st.at,
+                );
+              } catch { /* the database closed while the daemon was stopping */ }
+            }, () => {});
+          },
+        });
+        closers.push(() => box.stop());
+        return box;
+      };
+      if (cfg.relayUrl) relayBox = relayAt(cfg.relayUrl);
+      // A computer that claimed a phone address keeps the link up across restarts, to the public relay unless a relay is configured.
+      else if ((relayDb.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed") relayBox = relayAt(cfg.phoneRelayUrl);
+      startPhoneRelay = () => (relayBox ??= relayAt(cfg.phoneRelayUrl));
     }
     if (hasSpace) {
       const issued = await claimIssue();
