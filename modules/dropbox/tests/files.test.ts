@@ -34,7 +34,7 @@ test("list_folder maps entries, passes the recursive flag, and the token goes as
   assert.deepEqual(req.body, { path: "/Sales", recursive: true, include_deleted: false, include_non_downloadable_files: true, limit: 500 });
   assert.equal(req.headers["authorization"], "Bearer tok-1");
   assert.equal(req.headers["content-type"], "application/json");
-  assert.deepEqual(h.tokenAsks[0], { refreshHandle: "#Dropbox_tok0", asker: "usr_maya0001" });
+  assert.deepEqual(h.tokenAsks[0], { refreshHandle: "#Dropbox_tok0" });
 });
 
 test("a cursor continues the listing and ignores everything else in the input", async () => {

@@ -13,6 +13,7 @@ useContract(manifest);
 
 type Json = Record<string, unknown>;
 const out = (x: unknown): Json => x as Json;
+const out_ = out;
 const ME = "POST api.dropboxapi.com/2/users/get_current_account";
 
 async function setUp(h: Harness): Promise<void> {
@@ -73,7 +74,7 @@ async function signIn(h: Harness, ownerKind: "person" | "space" = "person"): Pro
   return { state, verifier: String(row["verifier"]) };
 }
 
-test("connect.complete trades the code, keeps the refresh token in the person's own Vault, drops the access token and records the account", async () => {
+test("connect.complete trades the code, keeps the refresh token in a Space-only Shared Vault item (so a pass with nobody signed in can read it), drops the access token and records the account", async () => {
   const h = harness();
   await setUp(h);
   const { state, verifier } = await signIn(h);
@@ -85,11 +86,12 @@ test("connect.complete trades the code, keeps the refresh token in the person's 
   // the host got the verifier, the call to Dropbox used the access token it was handed
   assert.deepEqual(h.requests.find((r) => r.method === "EXCHANGE")?.body, { verifier, redirectUri: "https://space.vyre.test/oauth/callback" });
   assert.equal(h.api()[0]?.headers["authorization"], `Bearer ${ACCESS}`);
-  // the Vault: a Connections folder in Mine, one item holding the refresh token as a secret field
-  assert.deepEqual(h.calls("vault.folders.list").map((c) => c.input), [{ scope: "mine" }]);
-  assert.equal(h.calls("vault.folders.create")[0]?.input["scope"], "mine");
+  // the Vault: a Connections folder in Shared, one Space-only item holding the refresh token as a secret field. A Mine item opens only for its owner while signed in, so a scheduled pass could not read it.
+  assert.deepEqual(h.calls("vault.folders.list").map((c) => c.input), [{ scope: "shared" }]);
+  assert.equal(h.calls("vault.folders.create")[0]?.input["scope"], "shared");
   const put = h.calls("vault.item.put")[0]!.input;
   assert.deepEqual(put["fields"], [{ key: "token", value: REFRESH, secret: true }]);
+  assert.equal(put["spaceOnly"], true);
   // nothing the module keeps holds a token
   const kept = JSON.stringify([h.rows(`SELECT * FROM dropbox_account`), h.rows(`SELECT * FROM dropbox_oauth`)]);
   assert.ok(!kept.includes(REFRESH) && !kept.includes(ACCESS), "no token in the module's tables");
@@ -100,13 +102,12 @@ test("connect.complete trades the code, keeps the refresh token in the person's 
   assert.deepEqual(mine["connections"], [{ connectionId: done["connectionId"], ownerKind: "person", accountId: "dbid:AAH4f99T0taONIb", email: "maya@firm.example", name: "Maya Rivera" }]);
 });
 
-test("a Space connection keeps its token in the Shared folder and is listed for every member", async () => {
+test("a Space connection is listed for every member", async () => {
   const h = harness();
   await setUp(h);
   const { state } = await signIn(h, "space");
   h.on(ME, { status: 200, body: RECORDED.account });
   await d.connectComplete(h.ctx, { state, code: "c" });
-  assert.equal(h.calls("vault.folders.list")[0]?.input["scope"], "shared");
   assert.equal(h.rows(`SELECT * FROM dropbox_account`)[0]?.["ownerKind"], "space");
   const other = harness({ principal: { kind: "person", id: OTHER } });
   other.connect({ ownerKind: "space" });
@@ -126,7 +127,7 @@ test("a person's connection is theirs alone; the host's own services act for it"
   service.connect();
   service.on("POST api.dropboxapi.com/2/files/get_metadata", { status: 200, body: RECORDED.file });
   assert.ok(await d.getMetadata(service.ctx, { connectionId: "con_dbx0001", path: "/Sales/Report.docx" }), "the engine syncs a mount for its owner");
-  assert.deepEqual(service.tokenAsks[0], { refreshHandle: "#Dropbox_tok0", asker: MAYA }, "and the token is read as the owner");
+  assert.deepEqual(service.tokenAsks[0], { refreshHandle: "#Dropbox_tok0" }, "and the token is read with no person's key: a scheduled pass has nobody signed in");
 });
 
 test("signing in again to the same Dropbox keeps the connection and replaces the token", async () => {
@@ -209,4 +210,19 @@ test("health: not set up and not connected are not unhealthy; a refused token is
   assert.equal(out(await d.health(h.ctx))["state"], "degraded");
   h.on(ME, { throws: true });
   assert.equal(out(await d.health(h.ctx))["state"], "down");
+});
+
+test("a mount pass run by the scheduler, with no person signed in, gets a valid access token for a person's connection", async () => {
+  // the scheduler runs as the host's own service; the refresh token is a Shared item, so no asker and no key are involved
+  const h = harness({ principal: { kind: "service", id: "svc_host" } });
+  h.connect();
+  h.on("POST api.dropboxapi.com/2/files/list_folder", { status: 200, body: { entries: [], cursor: "c1", has_more: false } });
+  const out = out_(await d.listFolder(h.ctx, { connectionId: "con_dbx0001", path: "" }));
+  assert.equal(out["cursor"], "c1");
+  assert.deepEqual(h.tokenAsks, [{ refreshHandle: "#Dropbox_tok0" }], "no asker");
+  assert.equal(h.api()[0]?.headers["authorization"], "Bearer tok-1");
+  // and a tenant-made service principal (an Automation, a form) is not the host's own service: it does not get someone's Dropbox
+  const tenant = harness({ principal: { kind: "service", id: `svc_${"a".repeat(32)}` } });
+  tenant.connect();
+  assert.equal(await refusedWith(d.listFolder(tenant.ctx, { connectionId: "con_dbx0001", path: "" })), "validation.not_found");
 });

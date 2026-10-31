@@ -40,7 +40,7 @@ export interface DropboxHost {
   publicUrl(ctx: DropboxCtx): Promise<string>;
   /** Trade the sign-in code for tokens (PKCE: the verifier proves it is the same server). */
   exchange(ctx: DropboxCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number; accountId?: string }>;
-  /** An access token made from the refresh token under a Vault handle (read as `asker` for a person's own item). Cached by the host until a minute before it ends. */
+  /** An access token made from the refresh token under a Vault handle (a Shared item, so a pass with nobody signed in can read it). Cached by the host until a minute before it ends. */
   token(ctx: DropboxCtx, a: { appHandle: string; refreshHandle: string; asker?: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
   /** POST a file's bytes: the Space file goes to content.dropboxapi.com/2/files/upload with the arguments in Dropbox-API-Arg. Answers the status and the JSON. */
   upload(ctx: DropboxCtx, a: { token: string; arg: Json; fileId: string }): Promise<{ status: number; json: Json }>;
@@ -176,7 +176,7 @@ export function accountOf(ctx: DropboxCtx, connectionId: string): Account {
 /** An access token for the connection. */
 export async function tokenFor(ctx: DropboxCtx, a: Account, fresh = false): Promise<string> {
   const { vaultItem } = needConfig(ctx);
-  const t = await needHost(ctx).token(ctx, { appHandle: vaultItem, refreshHandle: a.refreshHandle, ...(a.ownerKind === "person" ? { asker: a.ownerId } : {}), ...(fresh ? { fresh: true } : {}) });
+  const t = await needHost(ctx).token(ctx, { appHandle: vaultItem, refreshHandle: a.refreshHandle, ...(fresh ? { fresh: true } : {}) });
   return t.token;
 }
 

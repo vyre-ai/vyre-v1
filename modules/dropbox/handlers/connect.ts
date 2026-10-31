@@ -4,6 +4,8 @@
 //   connect.complete  the callback page hands back the state and code; only the person who started it can finish it. The tokens are exchanged by the host, the refresh token goes into a Vault item
 //                     (Mine for a person's own Dropbox, Shared for the Space's), and the access token is dropped: it is made again from the refresh token for every stretch of work.
 // DECISION: a person's connection is theirs alone (the host's own services act for it, as Google and Microsoft do), a Space connection is open to every member and takes the connectors.manage grant.
+// DECISION: the refresh token is always a Shared, Space-only Vault item, for a person's connection too. A Mine item opens only with its owner's key while they are signed in on this node, so a scheduled mount
+// pass with nobody signed in could not read it; Google and Microsoft keep their credentials in Shared items for the same reason. Who may use the token is this module's check (dropbox_account.ownerId), and Space-only keeps the value from people.
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   accountOf, accountsFor, actorOf, APP_HANDLE, AUTHORIZE, bad, codeOf, config, CONFIG_ID, ensure, first, FOLDER_NAME, intOrUndef, needConfig, needHost, obj, parseBody, rowsOf, SCOPES, sendJson,
@@ -80,12 +82,11 @@ export async function connectStart(ctx: DropboxCtx, input: unknown) {
 
 interface Folders { folders: { id: string; name: string }[] }
 
-/** The Vault folder the refresh token goes in: Connections, in Mine for a person and Shared for the Space. */
-async function folderFor(ctx: DropboxCtx, ownerKind: "person" | "space", ownerId: string): Promise<string> {
-  const scope = ownerKind === "person" ? "mine" : "shared";
-  const have = (obj(await ctx.call("vault.folders.list", { scope })) as unknown as Folders).folders.find((f) => f.name === FOLDER_NAME);
+/** The Vault folder the refresh token goes in: Connections, in Shared. */
+async function folderFor(ctx: DropboxCtx): Promise<string> {
+  const have = (obj(await ctx.call("vault.folders.list", { scope: "shared" })) as unknown as Folders).folders.find((f) => f.name === FOLDER_NAME);
   if (have) return have.id;
-  return text(obj(obj(await ctx.call("vault.folders.create", { name: FOLDER_NAME, scope, idempotencyKey: `connections-folder:${scope}:${ownerId}` }))["folder"])["id"]);
+  return text(obj(obj(await ctx.call("vault.folders.create", { name: FOLDER_NAME, scope: "shared", idempotencyKey: "connections-folder:shared" }))["folder"])["id"]);
 }
 
 export async function connectComplete(ctx: DropboxCtx, input: unknown) {
@@ -128,9 +129,9 @@ export async function connectComplete(ctx: DropboxCtx, input: unknown) {
     ctx.db.run(`UPDATE dropbox_account SET "email" = ?, "name" = ? WHERE "connectionId" = ?`, email ?? null, name ?? null, connectionId);
   } else {
     connectionId = `con_${hex(12)}`;
-    const folderId = await folderFor(ctx, ownerKind, ownerId);
+    const folderId = await folderFor(ctx);
     const made = obj(obj(await ctx.call("vault.item.put", {
-      folderId, name: `Dropbox ${email ?? accountId.slice(-8)} ${connectionId.slice(-6)}`, kind: "other", fields: [{ key: "token", value: tokens.refreshToken, secret: true }], idempotencyKey: `dropbox-token:${connectionId}`,
+      folderId, name: `Dropbox ${email ?? accountId.slice(-8)} ${connectionId.slice(-6)}`, kind: "other", fields: [{ key: "token", value: tokens.refreshToken, secret: true }], spaceOnly: true, idempotencyKey: `dropbox-token:${connectionId}`,
     }))["item"]);
     const itemId = text(made["id"]), handle = text(made["handle"]);
     if (itemId === "" || handle === "") throw fail("provider.bad_response", ctx.trace.traceId, { message: "The Vault did not keep the Dropbox sign-in." });
