@@ -13,7 +13,7 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const L4 = ["documents", "files", "git", "mounts", "previews", "runbooks"];
+const L4 = ["documents", "dropbox", "files", "git", "mounts", "previews", "runbooks"];
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
