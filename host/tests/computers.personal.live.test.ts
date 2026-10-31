@@ -102,9 +102,9 @@ test("a Personal Space with an approved server provisions an agent computer on i
     assert.deepEqual([server.kind, server.name, server.online, server.canRun], ["server", "home-box", true, true]);
     assert.equal(hosts.hosts.some((h: { kind: string }) => h.kind === "space"), false, "a Personal Space has no Space server of its own");
 
-    const agent = await post(d, "/v1/agents/create", { name: "Scout", role: "Use Scout.", idempotencyKey: "ag-scout" }, owner);
+    const agent = await post(d, "/v1/agents/create", { name: "Rover", role: "Use Rover.", idempotencyKey: "ag-rover" }, owner);
     assert.equal(agent.status, 200, JSON.stringify(agent.json));
-    const agentId = (d.db!.all("SELECT id FROM agents_agent WHERE name = ?", "Scout")[0] as { id: string }).id;
+    const agentId = (d.db!.all("SELECT id FROM agents_agent WHERE name = ?", "Rover")[0] as { id: string }).id;
     const prov = await post(d, "/v1/computers/provision", { agentId, nodeId: waiting!.serverId, idempotencyKey: "pv-1" }, owner);
     assert.equal(prov.status, 200, JSON.stringify(prov.json));
     assert.equal(prov.json.data.computer.nodeId, waiting!.serverId, "the computer record lives on the server");
