@@ -12,6 +12,7 @@ import type { Assignee, Task, TasksCtx } from "../projections.ts";
 import { KIND_ACTIONS, afterReview, checkMove, commitMove, submitTarget } from "./state.ts";
 import type { Policy } from "../projections.ts";
 import { syncThread } from "./thread.ts";
+import { markResumed } from "./resume.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -129,7 +130,7 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   if (t.source?.kind === "run" && ctx.call && to !== "canceled" && (key === "approve" || key === "answer" || key === "resolved")) {
     const wr = t.workingNotes.wait_reason;
     const reason = wr === "approval" || wr === "background" || wr === "key" ? wr : t.kind === "unblock" ? "background" : "approval";
-    try { await ctx.call("runs.resume", { runId: t.source.id, reason }); result.resumed = true; }
+    try { await ctx.call("runs.resume", { runId: t.source.id, reason }); result.resumed = true; markResumed(ctx, t.id); }
     catch (e) { result.resumed = false; result.resumeError = (e as { error?: { code?: string } }).error?.code ?? "internal.unexpected"; }
   }
   return { task: out(ctx, t), result };
