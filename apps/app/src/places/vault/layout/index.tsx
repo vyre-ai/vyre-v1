@@ -17,6 +17,7 @@ import type { Expiry } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
+import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { PolicyView } from "./PolicyView.tsx";
 import { ChromeSheet } from "./ChromeSheet.tsx";
@@ -215,8 +216,8 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
     </View>
   );
 
-  const listPane = (
-    <View style={[s.listPane, twoPane ? s.listPaneTwo : { flex: 1 }]} testID="vault-list-pane">
+  const listBody = (
+    <>
       {header}
       <View style={s.searchWrap}>
         <View style={s.search}>
@@ -238,8 +239,11 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       )}
       <View style={s.lineSlot}>{note ? <QuietLine text={note.text} onUndo={note.undo ? undoNote : undefined} testID="vault-line" /> : null}</View>
       {!online ? <Text style={s.offline} testID="vault-offline">Offline, showing your saved copy</Text> : null}
-    </View>
+    </>
   );
+  const listPane = twoPane
+    ? <ResizableColumn paneKey="vault-list" defaultWidth={380} grow="right" min={260} maxFraction={0.6} style={[s.listPane, s.listPaneTwo] as never} testID="vault-list-pane">{listBody}</ResizableColumn>
+    : <View style={[s.listPane, { flex: 1 }]} testID="vault-list-pane">{listBody}</View>;
 
   const providerHere = effectiveId ? providerOf.get(effectiveId) : undefined;
   const detail = effectiveId ? (

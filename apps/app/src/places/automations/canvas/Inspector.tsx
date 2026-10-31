@@ -379,11 +379,14 @@ void ps;
 
 function paneStyle(embedded: boolean, layout?: StudioLayout) {
   const frame = layout ? frameFor(layout) : null;
-  return [i.pane, (embedded || frame?.compact) ? i.embedded : null, frame ? { width: frame.inspectorWidth } : null];
+  // Embedded in the resizable side pane the pane owns the width: the inspector fills it and never keeps its own pixel width.
+  const fill = embedded || frame?.compact === true;
+  const own = frame !== null && !(embedded && !frame.compact) ? { width: frame.inspectorWidth } : null;
+  return [i.pane, fill ? i.embedded : null, own];
 }
 
 const i = StyleSheet.create({
-  pane: { width: 300, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  pane: { width: 300, maxWidth: "100%", minWidth: 0, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
   embedded: { width: "100%" as unknown as number, flex: 1, borderLeftWidth: 0 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, height: 52, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string },

@@ -12,6 +12,7 @@ import { iconMarkup } from "../rail/icons.tsx";
 import { collapseKey, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
 import type { PhoneView, SidebarStorage } from "./model.ts";
 import { portalInto } from "./portal.ts";
+import { ResizeHandle, useResizable } from "../../../../../ui/src/SidePane/resize.tsx";
 
 export interface SidebarEntry { title: string; searchPlaceholder: string }
 
@@ -106,13 +107,14 @@ export function SidebarContent(props: { title: string; searchPlaceholder?: strin
 export function SidebarSlot(): ReactElement | null {
   const slot = useSidebarSlot();
   const o = useContext(OutletContext);
+  const resize = useResizable({ paneKey: "place-sidebar", defaultWidth: 248, grow: "right", min: 200, maxFraction: 0.5 });
   if (o === null || o.entry === null) return null;
   if (slot.collapsed && !slot.compact) return null;
   const full = slot.compact;
   // On the phone an opened body replaces the list. The slot stays mounted (display none) because the place's sidebar content is portalled into its outlet.
   const away = slot.compact && slot.view === "body";
   return (
-    <View style={[s.slot, full ? s.full : s.side, away && s.away]} testID="place-sidebar" accessibilityLabel={`${o.entry.title} sidebar`} aria-hidden={away}>
+    <View style={[s.slot, full ? s.full : s.side, full ? null : { width: resize.width, minWidth: 0 }, away && s.away]} testID="place-sidebar" accessibilityLabel={`${o.entry.title} sidebar`} aria-hidden={away}>
       <View style={s.head}>
         <Text style={s.title} accessibilityRole="header" numberOfLines={1}>{o.entry.title}</Text>
         <View style={s.actions} testID="sidebar-actions" ref={(n) => { if (n !== null) o.setActionsOutlet(n); }} />
@@ -128,6 +130,7 @@ export function SidebarSlot(): ReactElement | null {
         <TextInput accessibilityLabel={o.entry.searchPlaceholder} testID="sidebar-search-input" value={o.query} onChangeText={o.setQuery} placeholder={o.entry.searchPlaceholder} placeholderTextColor="var(--ink-4)" style={s.input} />
       </View>
       <View style={s.outlet} testID="sidebar-outlet" ref={(n) => { if (n !== null) o.setOutlet(n); }} />
+      {full ? null : <ResizeHandle r={resize} at="right" label="Resize the sidebar" testID="sidebar-resize" />}
     </View>
   );
 }

@@ -24,7 +24,7 @@ import { createComposerFill } from "../conversation/data.tsx";
 import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
-import { AGENT_PANE_W, AgentPane } from "../AgentPane.tsx";
+import { AgentPane } from "../AgentPane.tsx";
 import { ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
 import { TerminalList } from "../terminal/TerminalList.tsx";
 import { TerminalRules } from "../terminal/TerminalRules.tsx";
@@ -277,9 +277,10 @@ function RecordingLayer({ rt, go, nameOf, list, counter, recordingId }: {
 const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
-  pane: { width: AGENT_PANE_W, minHeight: 0 },
+  // No pixel width on the wrappers: the SidePane inside owns its width (dragged, remembered), so the wrapper must follow it.
+  pane: { minHeight: 0 },
   fill: { flex: 1, minHeight: 0 },
-  terminal: { width: TERMINAL_W, minHeight: 0 },
+  terminal: { minHeight: 0 },
   terminalFull: { flex: 1, minWidth: 0, minHeight: 0 },
   toast: { position: "absolute", left: 16, bottom: 16, maxWidth: 420, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string },
   toastText: { fontSize: 12.5, color: "var(--ink)" as string },
