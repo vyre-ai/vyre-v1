@@ -20,9 +20,9 @@ interface Wake { agent: string; role: "assigned" | "reviewer" | "approver" | "no
 type Move = { tool: string; input: Record<string, unknown> } | null;
 
 /** A model that does what its task section tells it: it reads the seat, and `decide` says which baton call that seat makes this time. */
-function model(decide: (w: Wake) => Move): { open: OpenSession; wakes: Wake[]; tools: Array<{ agent: string; tool: string; ok: boolean }> } {
+function model(decide: (w: Wake) => Move): { open: OpenSession; wakes: Wake[]; tools: Array<{ agent: string; tool: string; ok: boolean; why?: string }> } {
   const wakes: Wake[] = [];
-  const tools: Array<{ agent: string; tool: string; ok: boolean }> = [];
+  const tools: Array<{ agent: string; tool: string; ok: boolean; why?: string }> = [];
   const counts = new Map<string, number>();
   const open: OpenSession = async () => {
     const waiting = new Map<string, (r: { ok: boolean; content: unknown }) => void>();
@@ -44,7 +44,7 @@ function model(decide: (w: Wake) => Move): { open: OpenSession; wakes: Wake[]; t
         const result = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(id, resolve));
         yield { type: "tool_call", id, name: move.tool, input: { taskId, ...move.input } };
         const r = await result;
-        tools.push({ agent: input.agent.id, tool: move.tool, ok: r.ok });
+        tools.push({ agent: input.agent.id, tool: move.tool, ok: r.ok, ...(r.ok ? {} : { why: JSON.stringify(r.content).slice(0, 300) }) });
         yield { type: "text", text: `${move.tool}: ${r.ok ? "done" : JSON.stringify(r.content)}` };
         yield { type: "done" };
       },

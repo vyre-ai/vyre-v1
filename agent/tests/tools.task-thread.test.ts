@@ -23,3 +23,11 @@ test("an agent that may not use a baton tool does not get it even in a task thre
   assert.ok(!names.has("task_decide"));
   assert.ok(names.has("task_submit"));
 });
+
+test("a baton tool can be called in a task thread without a search, and not in a chat", async () => {
+  const { session } = makeSession();
+  const inTask = await session.call(ctx({ thread: thread({ scope: { type: "task", id: "tsk_1" } }) }), "task_submit", { taskId: "tsk_1", summary: "Done" });
+  assert.notEqual(inTask.kind === "error" && inTask.error.details?.["reason"], "not_loaded");
+  const chat = await session.call(ctx({ thread: thread({}) }), "task_submit", { taskId: "tsk_1", summary: "Done" });
+  assert.equal(chat.kind === "error" && chat.error.details?.["reason"], "not_loaded");
+});

@@ -3,7 +3,7 @@
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
-import { askLevel, refusalFor, searchTools, toolsFor } from "./access.ts";
+import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
@@ -98,7 +98,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (why !== null) return refused(why, ctx, t, traceId);
 
     const isDynamic = !deps.catalog.byName(name);
-    if (!isDynamic && !deps.defaults.has(t.name) && !loadedSet(ctx.thread.threadId).has(t.name)) {
+    if (!isDynamic && !deps.defaults.has(t.name) && !(ctx.thread.scope?.type === "task" && TASK_BATON_TOOLS.has(t.name)) && !loadedSet(ctx.thread.threadId).has(t.name)) {
       return fail("validation.precondition_failed", traceId, { message: "Find this tool with tool_search first.", details: { tool: t.name, reason: "not_loaded" } });
     }
 
