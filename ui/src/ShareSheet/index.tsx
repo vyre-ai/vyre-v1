@@ -170,6 +170,9 @@ export interface RecordsMode {
   /** The type's export setting; left out for a single record. */
   exporters?: Exporters;
   onExporters?(next: Exporters): void;
+  /** A type: links to people outside the Space are allowed (off unless turned on). */
+  outside?: boolean;
+  onOutside?(on: boolean): void;
   onFlag(row: ShareRow, flag: RowFlag, on: boolean): void;
   /** May the viewer change the audience and the switches. False draws them as they are. */
   canChange: boolean;
@@ -440,7 +443,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
             <Pressable
               accessibilityRole="button" accessibilityLabel="More" testID="share-more"
               onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => menu.show(
-                [{ head: "Who can export" }, ...EXPORTERS.map((x): MenuEntry => ({ label: x.label, checked: x.id === rec.exporters, ...(rec.canChange ? { onSelect: () => rec.onExporters?.(x.id) } : {}) }))],
+                [{ head: "Who can export" }, ...EXPORTERS.map((x): MenuEntry => ({ label: x.label, checked: x.id === rec.exporters, ...(rec.canChange ? { onSelect: () => rec.onExporters?.(x.id) } : {}) })), ...(rec.onOutside ? [{ separator: true } as MenuEntry, { label: "Allow sharing outside the Space", checked: rec.outside === true, ...(rec.canChange ? { onSelect: () => rec.onOutside?.(rec.outside !== true) } : {}) } as MenuEntry] : [])],
                 e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0, "other", { label: "Who can export" })}
               style={({ hovered }: { hovered?: boolean }) => [styles.more, hovered === true && styles.addHover]}
             >

@@ -47,7 +47,7 @@ async function code(p: Promise<unknown>): Promise<string> {
 test("Only people added cuts a type off from the Space: the others lose it, admins and the people added keep it", async () => {
   const r = rig();
   assert.ok(r.can("usr_dee", deal) && r.can("usr_dee", one), "a member sees it through the Space");
-  assert.deepEqual(await audienceSet(r.ctx, { resource: deal, audience: "added" }), { audience: "added", exporters: "admins" });
+  assert.deepEqual(await audienceSet(r.ctx, { resource: deal, audience: "added" }), { audience: "added", exporters: "admins", outside: false });
   assert.ok(!r.can("usr_dee", deal) && !r.can("usr_dee", one), "Dee was not added");
   assert.ok(r.can("usr_ada", deal) && r.can("usr_ada", one, "manage"));
   await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "edit" });
@@ -92,7 +92,7 @@ test("Anyone who can view may export when the type says so; Admins only takes it
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view" });
   await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "view", export: true });
   assert.equal((await sharesOf(r.ctx, { resource: deal })).exporters, "chosen");
-  assert.deepEqual(await audienceSet(r.ctx, { resource: deal, exporters: "viewers" }), { audience: "added", exporters: "viewers" });
+  assert.deepEqual(await audienceSet(r.ctx, { resource: deal, exporters: "viewers" }), { audience: "added", exporters: "viewers", outside: false });
   assert.ok(r.can("usr_cal", deal, "view", "records.export"), "Cal can view, so he exports");
   assert.ok(!r.can("usr_dee", deal, "view", "records.export"), "Dee cannot view, so she does not");
   await audienceSet(r.ctx, { resource: deal, exporters: "admins" });
@@ -190,4 +190,13 @@ test("an agent acts with the asker's access, never more: Dee's agent cannot read
   assert.ok(!asks("usr_dee", deal) && !asks("usr_dee", one), "Dee was not added, so the agent added to the sheet still reads nothing for her");
   assert.ok(asks("usr_bea", deal) && asks("usr_bea", one), "Bea was");
   assert.ok(!authorize(r.store.snapshot(), { principal: "agt_helper", actingFor: "usr_bea", action: { perm: "records.export", level: "view" }, resource: deal, now: NOW }).effect.startsWith("allow"), "and her agent has no export either");
+});
+
+test("links outside the Space are off for a type until its sheet turns them on", async () => {
+  const r = rig();
+  assert.equal((await sharesOf(r.ctx, { resource: deal })).outside, false);
+  assert.equal((await audienceSet(r.ctx, { resource: deal, outside: true })).outside, true);
+  assert.equal((await sharesOf(r.ctx, { resource: deal })).outside, true);
+  assert.equal((await audienceSet(r.ctx, { resource: deal, outside: false })).outside, false);
+  assert.equal(await code(audienceSet(r.ctx, { resource: one, outside: true })), "validation.bad_input", "a type setting, not a record's");
 });

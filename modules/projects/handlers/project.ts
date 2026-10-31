@@ -403,6 +403,9 @@ const shareToken = (): string => Array.from(globalThis.crypto.getRandomValues(ne
 export async function shareOut(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "manage");
+  // links to people outside the Space are off for a type until its Share sheet turns them on
+  const outside = (await call<{ outside?: boolean }>(ctx, "access.shares_of", { resource: { type: "record_type", id: p.type } }).catch(() => null));
+  if (outside !== null && outside.outside === false) raise(ctx, "validation.precondition_failed", "Links outside the Space are off for this type. Turn them on in its Share sheet.");
   if (input.expiresAt !== undefined && input.expiresInDays !== undefined) raise(ctx, "validation.bad_input", "Say when the link expires once: a time or a number of days.");
   if (input.expiresAt !== undefined && input.expiresAt <= ctx.now()) raise(ctx, "validation.bad_input", "The link must expire in the future.");
   const expiresAt: number = input.expiresAt ?? ctx.now() + (input.expiresInDays ?? SHARE_DAYS) * DAY;   // every link expires: a forgotten one stops working by itself

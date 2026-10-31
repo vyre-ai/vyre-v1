@@ -19,6 +19,7 @@ export interface SheetModel {
   owner: { id: string; name: string } | null;
   audience: Audience;
   exporters: Exporters;
+  outside: boolean;
   /** The type this record follows, when it does. */
   follows: string | null;
   can: Rights;
@@ -44,7 +45,7 @@ export function sheetModel(out: SharesOut, name: (id: string) => string): SheetM
       ...(g.conditions.export === true ? { canExport: true } : {}), ...(g.conditions.reshare === true ? { canShare: true } : {}),
     });
   }
-  return { rows, owner, audience: out.audience ?? "space", exporters: out.exporters ?? "admins", follows: out.inherits ?? null, can: out.can ?? NO_RIGHTS };
+  return { rows, owner, audience: out.audience ?? "space", exporters: out.exporters ?? "admins", outside: out.outside === true, follows: out.inherits ?? null, can: out.can ?? NO_RIGHTS };
 }
 
 export const resourceOf = (t: { type: "record_type" | "record"; id: string }): { type: string; id: string } => ({ type: t.type, id: t.id });
@@ -60,6 +61,7 @@ export function flagCall(t: { type: "record_type" | "record"; id: string }, row:
 }
 
 export const audienceCall = (t: { type: "record_type" | "record"; id: string }, audience: Audience): CapMap["access.audience_set"]["in"] => ({ resource: resourceOf(t), audience }) as CapMap["access.audience_set"]["in"];
+export const outsideCall = (t: { type: "record_type" | "record"; id: string }, outside: boolean): CapMap["access.audience_set"]["in"] => ({ resource: resourceOf(t), outside }) as CapMap["access.audience_set"]["in"];
 export const exportersCall = (t: { type: "record_type" | "record"; id: string }, exporters: Exporters): CapMap["access.audience_set"]["in"] => ({ resource: resourceOf(t), exporters }) as CapMap["access.audience_set"]["in"];
 
 /** The line under the sheet's title. */

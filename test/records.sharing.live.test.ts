@@ -165,6 +165,17 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     assert.equal((await B("records.export", { type: "rt_deal", format: "csv" })).status, 403);
     assert.equal((await C("records.export", { type: "rt_deal", format: "csv" })).status, 403, "the flag Ada gave Cal went with Admins only");
 
+    // links to people outside the Space are off until the type's sheet turns them on
+    assert.equal((await A("access.shares_of", { resource: deal })).data.outside, false);
+    const view = await A("views.save", { type: "rt_deal", kind: "table", title: "All deals" });
+    assert.equal(view.status, 200, JSON.stringify(view.data));
+    const viewId = (view.data.view.viewId ?? view.data.view.id) as string;
+    assert.equal((await A("views.share_external", { viewId })).status, 422, "off by default, even for an admin");
+    assert.equal((await A("access.audience_set", { resource: deal, outside: true })).data.outside, true);
+    assert.equal((await A("views.share_external", { viewId })).status, 200);
+    assert.equal((await B("access.audience_set", { resource: deal, outside: false })).status, 403, "Bea cannot change it");
+    assert.equal((await A("access.audience_set", { resource: deal, outside: false })).data.outside, false);
+
     // Ada puts Deals back to everyone: Dee sees it again
     assert.equal((await A("access.audience_set", { resource: deal, audience: "space" })).status, 200);
     assert.equal((await D("records.query", { type: "rt_deal" })).status, 200);

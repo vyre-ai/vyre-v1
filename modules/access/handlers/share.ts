@@ -588,7 +588,8 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
   }
   if (!RECORDS.has(res.type)) return { shares };
   const audience = audienceOf(res);
-  const out: { shares: typeof shares; audience: Audience; exporters: Exporters; inherits?: string; can: Rights } = { shares, audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
+  const out: { shares: typeof shares; audience: Audience; exporters: Exporters; inherits?: string; outside?: boolean; can: Rights } = { shares, audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
+  if (res.type === "record_type") out.outside = res.row?.["outside"] === true;
   // a record follows its type until it is cut off from it
   if (res.type === "record" && audience === "space" && res.parentId !== null && store.resources.get(res.parentId)?.type === "record_type") out.inherits = res.parentId;
   return out;
@@ -632,14 +633,14 @@ function addGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, subject: 
   ctx.emit("grant.created", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, level: g.level, source: AUDIENCE_SOURCE });
 }
 
-export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters }) {
+export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean }) {
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
   const res = resourceOf(ctx, store, input.resource);
   if (!RECORDS.has(res.type)) raise(trace, "validation.bad_input", "who it is open to is set on a record type or a record");
   must(ctx, store, res, "manage", "changing who it is open to");
-  if (input.exporters !== undefined && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export is set on the record type");
+  if ((input.exporters !== undefined || input.outside !== undefined) && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export and links outside the Space are set on the record type");
   const wasFresh = isFresh(ctx, store, ss);
   const row: Record<string, unknown> = { ...(res.row ?? {}) };
   if (input.audience !== undefined) {
@@ -659,10 +660,11 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
       }
     }
   }
+  if (input.outside !== undefined) { if (input.outside) row["outside"] = true; else delete row["outside"]; }
   if (Object.keys(row).length > 0) res.row = row; else delete res.row;
   changed(ctx, store, "assignment");
   commit(ctx, store, ss, wasFresh, [res.id], false);
-  return { audience: audienceOf(res), exporters: exportersOf(store, res) };
+  return { audience: audienceOf(res), exporters: exportersOf(store, res), outside: res.row?.["outside"] === true };
 }
 
 /** What differs from its type among the rows of one type, and whether the caller was given the type or a row by name (not just the role they hold). */

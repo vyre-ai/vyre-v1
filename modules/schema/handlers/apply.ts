@@ -916,6 +916,11 @@ export function createApplyHandlers(deps: SchemaDeps): ApplyHandlers {
 
     "views.share_external": async (ctx, input) => {
       const v = viewRow(ctx, input.viewId);
+      // links to people outside the Space are off for a type until its Share sheet turns them on
+      if (ctx.call) {
+        const of = (await ctx.call("access.shares_of", { resource: { type: "record_type", id: v.type } }).catch(() => null)) as { outside?: boolean } | null;
+        if (of && of.outside === false) refuse(ctx, "validation.precondition_failed", "Links outside the Space are off for this type. Turn them on in its Share sheet.");
+      }
       const now = nowOf(deps);
       if (input.expiresAt !== undefined && input.expiresAt <= now) refuse(ctx, "validation.bad_input", "The link would already have expired.");
       const bytes = globalThis.crypto.getRandomValues(new Uint8Array(24));

@@ -9,7 +9,7 @@ import type { Audience, Exporters, RowFlag, ShareDirectory, ShareInput, ShareRow
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useRecordsData } from "../sidebar/data.tsx";
 import type { ShareTarget } from "../sidebar/data.tsx";
-import { RECORD_LEVELS, audienceCall, exportersCall, flagCall, sheetModel, shareCall, subtitleOf } from "./model.ts";
+import { RECORD_LEVELS, audienceCall, exportersCall, outsideCall, flagCall, sheetModel, shareCall, subtitleOf } from "./model.ts";
 import type { SharesOut } from "./model.ts";
 
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["position"];
@@ -42,7 +42,7 @@ export function RecordShareSheet({ target, directory, onClose }: { target: Share
     audience: m.audience as Audience,
     onAudience: (next: Audience) => run(data.call("access.audience_set", audienceCall(res, next))),
     ...(target.type === "record" && target.typeName ? { follows: target.typeName } : {}),
-    ...(target.type === "record_type" ? { exporters: m.exporters as Exporters, onExporters: (next: Exporters) => run(data.call("access.audience_set", exportersCall(res, next))) } : {}),
+    ...(target.type === "record_type" ? { exporters: m.exporters as Exporters, onExporters: (next: Exporters) => run(data.call("access.audience_set", exportersCall(res, next))), outside: m.outside, onOutside: (on: boolean) => run(data.call("access.audience_set", outsideCall(res, on))) } : {}),
     onFlag: (row: ShareRow, flag: RowFlag, on: boolean) => run(data.call("access.share", flagCall(res, row, flag, on))),
     canChange: m.can.share || m.can.manage,
     subtitle: subtitleOf(target),
