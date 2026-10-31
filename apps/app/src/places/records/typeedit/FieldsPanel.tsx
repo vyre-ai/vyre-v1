@@ -41,9 +41,11 @@ export interface FieldsPanelProps {
   /** Types and trash are read once the panel opens; tests hand them in. */
   fieldTypes?: readonly FieldTypeInfo[];
   trash?: readonly TrashItem[];
+  /** Draw the show or hide checks (a table has a view to hide in; the Record types page has none). */
+  viewToggles?: boolean;
 }
 
-export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initial, fieldTypes: given, trash: givenTrash }: FieldsPanelProps): ReactElement {
+export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initial, fieldTypes: given, trash: givenTrash, viewToggles = true }: FieldsPanelProps): ReactElement {
   const [fieldTypes, setFieldTypes] = useState<readonly FieldTypeInfo[]>(given ?? []);
   const [trash, setTrash] = useState<readonly TrashItem[]>(givenTrash ?? []);
   const [open, setOpen] = useState<string | null>(initial?.field ?? null);
@@ -85,7 +87,7 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
         <Row
           id={`panel-field-${f.key}`} title={f.title} note={`${fieldMark(f.type).name}${f.required ? " · Required" : ""}`} selected={expanded}
           leading={<FieldMark type={f.type} />}
-          trailing={(
+          trailing={!viewToggles ? undefined : (
             <Pressable
               accessibilityRole="checkbox" accessibilityLabel={isTitle ? `${f.title} always shows` : `${shown ? "Hide" : "Show"} ${f.title} in this view`} accessibilityState={{ checked: shown, disabled: isTitle }} disabled={isTitle} testID={`panel-show-${f.key}`}
               onPress={() => onToggleHidden(f.key)} style={({ hovered }: { hovered?: boolean }) => [s.eye, hovered === true && !isTitle && s.eyeOver, isTitle && s.eyeOff]}

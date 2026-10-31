@@ -1,6 +1,7 @@
 // Editing record types and fields in place (Records): the pure part. A person types a name; the key is made from it. Every change is one or more schema ops, previewed with schema.diff and
 // then applied with schema.apply on exactly that preview, the same two steps the Console's schema builder takes. No React here; the hook and the sheets are in the files beside this one.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { worthShowing } from "../sidebar/model.ts";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 
 export type SchemaOp = CapMap["schema.diff"]["in"]["ops"][number];
@@ -175,10 +176,11 @@ export function confirmLine(kind: "field.drop" | "field.retype" | "type.drop", n
 // ---------------------------------------------------------------- menus
 
 /** The "..." menu of a row in Record types. A type that cannot be deleted shows the item off, with the reason on hover. */
-export function typeRowMenu(t: { system: boolean; syncedFrom?: string | undefined }, on: { rename(): void; remove(): void }): MenuEntry[] {
+export function typeRowMenu(t: { system: boolean; syncedFrom?: string | undefined }, on: { rename(): void; fields(): void; remove(): void }): MenuEntry[] {
   const why = typeDeleteBlocked(t);
   return [
     { label: "Rename", onSelect: on.rename },
+    { label: "Edit fields", onSelect: on.fields },
     { label: "Delete record type", danger: true, ...(why ? { disabled: true, reason: why } : { onSelect: on.remove }) },
   ];
 }
@@ -194,4 +196,44 @@ export function fieldMenuEntries(canEdit: boolean, type: Pick<TypeDetail, "syste
     { label: "Change type", ...(ret ? { disabled: true, reason: ret } : { onSelect: () => open("type") }) },
     { label: "Delete field", danger: true, ...(del ? { disabled: true, reason: del } : { onSelect: () => open("delete") }) },
   ];
+}
+
+// ---------------------------------------------------------------- the Record types page: grouping
+
+export interface ListedType { key: string; title: string; plural: string; icon: string; system: boolean; rowCount: number; fieldCount: number; syncedFrom?: string | undefined; group?: string | undefined; scope?: string | undefined }
+export interface TypeSection<T extends ListedType = ListedType> { key: string; label: string; items: T[] }
+
+const PEOPLE = new Set(["client", "contact", "company", "person", "lead", "agent"]);
+export const SECTION_ORDER = ["People", "Work", "Journeys", "Sites", "Connected", "Built in"] as const;
+
+/** Which section of the page a type sits in. */
+export function sectionOf(t: ListedType): (typeof SECTION_ORDER)[number] {
+  if (t.syncedFrom) return "Connected";
+  if (t.scope?.startsWith("site") || t.group?.toLowerCase() === "sites") return "Sites";
+  const g = t.group?.toLowerCase();
+  if (g === "journeys" || g === "journey") return "Journeys";
+  if (PEOPLE.has(t.key)) return "People";
+  if (t.system && (t.group === undefined || t.group === "")) return "Built in";
+  return "Work";
+}
+
+/** The page's sections in order, internal types left out until they hold records. Empty sections are not drawn. */
+export function typeSections<T extends ListedType>(types: readonly T[]): TypeSection<T>[] {
+  const by = new Map<string, T[]>();
+  for (const t of types) {
+    if (!worthShowing(t)) continue;
+    const k = sectionOf(t);
+    by.set(k, [...(by.get(k) ?? []), t]);
+  }
+  return SECTION_ORDER.flatMap((k) => { const items = by.get(k); return items ? [{ key: k, label: k === "Connected" ? connectedLabel(items) : k, items: items.slice().sort((a, b) => a.plural.localeCompare(b.plural)) }] : []; });
+}
+
+function connectedLabel(items: readonly ListedType[]): string {
+  const apps = [...new Set(items.map((i) => i.syncedFrom).filter((x): x is string => !!x))];
+  return apps.length === 1 ? `Connected (${apps[0] === "github" ? "GitHub" : apps[0]![0]!.toUpperCase() + apps[0]!.slice(1)})` : "Connected";
+}
+
+/** The first few field names of a type, the title field left out: "Email, Phone, Company". */
+export function fieldLine(fields: readonly { key: string; title: string }[], titleField: string, n = 3): string {
+  return fields.filter((f) => f.key !== titleField).slice(0, n).map((f) => f.title).join(", ");
 }

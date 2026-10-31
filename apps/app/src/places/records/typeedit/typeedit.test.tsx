@@ -4,8 +4,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
-import { FieldsPanel, TypeSheet, addFieldOps, addableTypes, commitChange, confirmLine, createTypeOps, dropFieldOps, dropTypeOps, fieldMenuEntries, freeKey, moveFieldOps, pluralOf, renameFieldOps, retypeBlocked, retypeFieldOps, retypeTarget, slugOf, stageChange, typeDeleteBlocked, typeRowMenu } from "./index.ts";
+import { FieldsPanel, TypeSheet, addFieldOps, addableTypes, commitChange, confirmLine, createTypeOps, dropFieldOps, dropTypeOps, fieldMenuEntries, freeKey, moveFieldOps, pluralOf, renameFieldOps, retypeBlocked, retypeFieldOps, retypeTarget, slugOf, stageChange, fieldLine, sectionOf, typeSections, typeDeleteBlocked, typeRowMenu } from "./index.ts";
 import type { DiffOut, FieldTypeInfo, PanelType, SchemaOp } from "./index.ts";
+import { typeGroups, worthShowing } from "../sidebar/model.ts";
+import type { TypeRow } from "../sidebar/model.ts";
 import { RecordTypesList, SchemaDataProvider } from "../schemamap/index.ts";
 import { createSampleSchema, northwind } from "../schemamap/sample.ts";
 import type { SampleSchema } from "../schemamap/sample.ts";
@@ -136,12 +138,12 @@ test("a system type cannot be deleted: the menu item is off and says why; a cust
   assert.ok(typeDeleteBlocked({ system: false, syncedFrom: "hubspot" }));
   assert.equal(typeDeleteBlocked({ system: false }), null);
   let renamed = 0, removed = 0;
-  const sys = typeRowMenu({ system: true }, { rename: () => renamed++, remove: () => removed++ });
+  const sys = typeRowMenu({ system: true }, { rename: () => renamed++, fields: () => undefined, remove: () => removed++ });
   const del = sys.find((e) => "label" in e && e.label === "Delete record type");
   assert.ok(del && "disabled" in del && del.disabled === true);
   assert.equal(del && "reason" in del ? del.reason : "", "Built in record types cannot be deleted");
   assert.equal(del && "onSelect" in del ? del.onSelect : undefined, undefined, "an off item has nothing to run");
-  const own = typeRowMenu({ system: false }, { rename: () => renamed++, remove: () => removed++ });
+  const own = typeRowMenu({ system: false }, { rename: () => renamed++, fields: () => undefined, remove: () => removed++ });
   const del2 = own.find((e) => "label" in e && e.label === "Delete record type");
   assert.ok(del2 && "onSelect" in del2 && del2.onSelect);
   if (del2 && "onSelect" in del2) del2.onSelect?.();
@@ -258,4 +260,55 @@ test("Fields panel lists deleted fields of this type with Restore", () => {
   const out = clean(renderToStaticMarkup(<FieldsPanel call={async () => ({})} type={person} hidden={[]} onToggleHidden={() => undefined} onClose={() => undefined} fieldTypes={fieldTypes}
     trash={[{ type: "client", field: "notes", droppedAt: 1, expiresAt: 2_000_000_000_000, rows: 4 }, { type: "project", field: "other", droppedAt: 1, expiresAt: 2_000_000_000_000, rows: 1 }]} />));
   assert.ok(has(out, 'data-testid="panel-restore-notes"') && !has(out, 'data-testid="panel-restore-other"'));
+});
+
+const ty = (key: string, o: Partial<TypeRow> = {}): TypeRow => ({ key, title: key, plural: `${key}s`, icon: "table", label: "internal", system: false, rowCount: 0, fieldCount: 3, ...o }) as TypeRow;
+
+test("internal types are hidden until they hold a record; Issues and Pull requests show once GitHub is connected", () => {
+  assert.equal(worthShowing(ty("envelope")), false);
+  assert.equal(worthShowing(ty("report", { system: true })), false);
+  assert.equal(worthShowing(ty("envelope", { rowCount: 2 })), true);
+  assert.equal(worthShowing(ty("issue")), false);
+  assert.equal(worthShowing(ty("issue", { syncedFrom: "github" })), true);
+  assert.equal(worthShowing(ty("pull_request", { rowCount: 1 })), true);
+  assert.equal(worthShowing(ty("agent")), true, "Agents stays");
+  assert.equal(worthShowing(ty("contact")), true);
+  const keys = (t: TypeRow[]): string[] => typeSections(t).flatMap((g) => g.items.map((i) => i.key));
+  const all = [ty("contact"), ty("envelope"), ty("report"), ty("issue"), ty("agent", { system: true, rowCount: 1 })];
+  assert.deepEqual(keys(all).sort(), ["agent", "contact"]);
+  const flat = typeGroups(all).flatMap((g) => g.items.map((i) => i.key));
+  assert.deepEqual(flat, ["contact"], "the sidebar hides the same ones (Agents is a Manage row)");
+});
+
+test("the page groups types: People, Work, Journeys, Sites, Connected, Built in, in that order, empty groups left out", () => {
+  const types = [
+    ty("task", { system: true }), ty("matter"), ty("contact", { system: true }), ty("onboarding", { group: "Journeys" }), ty("issue", { syncedFrom: "github", rowCount: 4 }),
+    ty("page", { group: "Sites", scope: "site:northwind" }), ty("deal", { syncedFrom: "hubspot" }),
+  ];
+  const sections = typeSections(types);
+  assert.deepEqual(sections.map((g) => g.key), ["People", "Work", "Journeys", "Sites", "Connected", "Built in"]);
+  assert.deepEqual(sections.find((g) => g.key === "People")!.items.map((i) => i.key), ["contact"]);
+  assert.deepEqual(sections.find((g) => g.key === "Work")!.items.map((i) => i.key), ["matter"]);
+  assert.deepEqual(sections.find((g) => g.key === "Built in")!.items.map((i) => i.key), ["task"]);
+  assert.equal(sections.find((g) => g.key === "Connected")!.items.length, 2);
+  assert.equal(sectionOf(ty("x")), "Work");
+  assert.deepEqual(typeSections([ty("matter")]).map((g) => g.key), ["Work"]);
+  assert.equal(typeSections([ty("issue", { syncedFrom: "github", rowCount: 1 })])[0]!.label, "Connected (GitHub)");
+});
+
+test("the first few field names read as a line, the title field left out", () => {
+  const f = [{ key: "name", title: "Name" }, { key: "email", title: "Email" }, { key: "phone", title: "Phone" }, { key: "co", title: "Company" }, { key: "x", title: "More" }];
+  assert.equal(fieldLine(f, "name"), "Email, Phone, Company");
+  assert.equal(fieldLine([{ key: "name", title: "Name" }], "name"), "");
+});
+
+test("the page draws sections, a primary New record type, an Edit fields menu item, and no internal empty types", () => {
+  const s = createSampleSchema(northwind, { withSynced: true });
+  const out = withTypes(s, true, <RecordTypesList />);
+  assert.ok(has(out, 'data-testid="types-section-People"') || has(out, 'data-testid="types-section-Work"') || has(out, 'data-testid="types-section-Built in"'));
+  assert.ok(has(out, 'data-testid="types-section-Connected'));
+  assert.ok(has(out, 'data-testid="record-types-new"'));
+  assert.ok(!has(out, 'data-testid="row-type:envelope"') && !has(out, 'data-testid="row-type:report"'));
+  const menu = typeRowMenu({ system: false }, { rename: () => undefined, fields: () => undefined, remove: () => undefined });
+  assert.deepEqual(menu.flatMap((e) => ("label" in e ? [e.label] : [])), ["Rename", "Edit fields", "Delete record type"]);
 });

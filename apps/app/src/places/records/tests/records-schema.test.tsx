@@ -182,7 +182,7 @@ test("Record types: a Row per type with its records and fields, where it comes f
   for (const t of northwindTypes) assert.ok(has(out, `data-testid="row-type:${t.key}"`), t.key);
   assert.ok(has(out, "38 records · 10 fields") && has(out, "2 records · 4 fields"));
   assert.ok(has(out, 'data-testid="row-type:clients-leading"') && has(out, 'data-testid="row-type:clients-trailing"'), "ui/Row with its slots");
-  assert.equal(textOf(out, "type-tag-clients"), "Built in");
+  assert.equal(textOf(out, "type-tag-clients"), null, "Built in is a section, not a tag");
   assert.equal(textOf(out, "type-tag-hires"), "Synced from HubSpot");
   assert.ok(!has(out, "New record type") && !has(out, "New table") && !has(out, "Add a type"));
   assert.ok(!has(out, "managed in the console") && !has(out, 'data-testid="record-types-console"'), "the line is gone");
