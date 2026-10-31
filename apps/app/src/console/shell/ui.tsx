@@ -29,6 +29,8 @@ export const InGroup = createContext(false);
 export function Group({ children, testID }: { children: ReactNode; testID?: string }): ReactElement {
   return <View style={s.group} testID={testID}><InGroup.Provider value>{children}</InGroup.Provider></View>;
 }
+/** The page header collects the help of Helps that sit on no card: one info mark next to the title instead of a stray icon. */
+export const PageHelpContext = createContext<((text: string) => () => void) | null>(null);
 export const useInGroup = (): boolean => useContext(InGroup);
 
 export function LinkButton({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }): ReactElement {
@@ -66,7 +68,7 @@ const s = StyleSheet.create({
   status: { flexDirection: "row", alignItems: "center", gap: 6 },
   statusText: { fontSize: 12, color: "var(--ink-3)" as string },
   section: { marginBottom: 22 },
-  head: { flexDirection: "row", alignItems: "center", gap: 8, height: 28, marginBottom: 6, paddingHorizontal: 2 },
+  head: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, minHeight: 28, marginBottom: 6, paddingHorizontal: 2 },
   title: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-3)" as string },
   count: { fontSize: 12, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
   group: { padding: 4, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
