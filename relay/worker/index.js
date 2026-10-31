@@ -187,6 +187,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const gateway = gatewayOf(url, env);
+    if (env.STAGE_HOST && url.searchParams.has("why")) return json(200, { path: url.pathname, host: url.hostname, gateway, stage: [env.STAGE_HOST, env.STAGE_NAME], assets: Boolean(env.ASSETS) });
     if (gateway) return "name" in gateway ? onHost(request, env, gateway.name) : passthrough(request, env);
     if (url.pathname === "/health") return new Response('{"ok":true}', { headers: { "content-type": "application/json" } });
     if (!url.pathname.startsWith("/v1/")) return new Response(null, { status: 404 });
