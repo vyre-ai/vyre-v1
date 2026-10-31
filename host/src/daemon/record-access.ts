@@ -8,6 +8,7 @@ import type {Filter,Sort} from "../../../kernel/src/store/types.ts";
 
 type ReadSeed=CtxSeed&{readCap?:string;readInput?:unknown;labels?:Readonly<Record<string,number>>};
 const READS=new Set(["records.get","records.query","records.search","records.history"]);
+const RETRY_MS=[0,40,120];
 const object=(value:unknown):Record<string,unknown>=>value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
 export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapshot;now():number;fresh():boolean;refresh?():Promise<void>}){
  const cursors=new Map<string,{key:string;cursor:string;expires:number;skip:number}>();
@@ -152,9 +153,15 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
      if(cap==="records.query"){const touched=[...references(value["filter"]),...references(value["sort"]),...(typeof value["group"]==="string"?[value["group"]]:[])].map(field=>field.split(".")[0]!);const complete=fields(seed,row,row.data,trace);if(touched.some(field=>!["id","version","created_at","updated_at"].includes(field)&&Object.hasOwn(row.data,field)&&!Object.hasOwn(complete,field)))throw fail("permission.no_grant",trace);}
      if(cap==="records.search"){const words=String(value["q"]??"").toLocaleLowerCase().match(/[\p{L}\p{N}_]+/gu)??[];const body=Object.values(visible).filter(item=>typeof item==="string").join(" ").toLocaleLowerCase();const actual=body.match(/[\p{L}\p{N}_]+/gu)??[];if(!words.length||!words.every(word=>actual.some(item=>item.startsWith(word))))return[];}
      return[{...original,fields:visible}];});
-    // A row the read returned may belong to a record this Space wrote a moment ago (a run, a hook) whose access entry the snapshot has not folded yet. Fold what is pending and read once more before calling it a change of access: a real change (a grant taken away, a record removed) is still refused after the second read.
+    // A row the read returned may belong to a record this Space wrote a moment ago (a run, a hook) whose access entry is not in the snapshot yet: the record row can be visible a little before its
+    // access event is logged and folded. Fold what is pending, wait a short, bounded moment and read again (reading the stored rows afresh) before calling it a change of access. A real change, such as
+    // a grant taken away or a record removed, stays refused after the last read.
     let rows=read();
-    if(rows.length!==originals.length&&ports.refresh){await ports.refresh();rows=read();}
+    for(let attempt=0;attempt<RETRY_MS.length&&rows.length!==originals.length&&ports.refresh;attempt++){
+     await ports.refresh();await new Promise(done=>setTimeout(done,RETRY_MS[attempt]));
+     const again=await Promise.all(originals.map(row=>typeof row["id"]==="string"?ports.store().get(type,row["id"]):Promise.resolve(null)));again.forEach((row,index)=>{stored[index]=row;});
+     rows=read();
+    }
     if(cap==="records.get"){if(!rows[0])throw fail("permission.no_grant",trace);return{...result,record:rows[0]};}
     if(rows.length!==originals.length)throw fail("validation.precondition_failed",trace,{message:"Access changed while reading. Refresh the list."});
     const{total:_total,...rest}=result;return{...rest,rows};
