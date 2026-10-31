@@ -61,14 +61,14 @@ export default defineManifest({
       in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant'],
     }),
     write('engine.mcp.oauth_start', 'Begin signing a remote outside-tool connection in with OAuth (the MCP authorization flow). Answers the address to send the person to; the token that comes back is sealed and never answered.', {
-      in: { connectionId: t.str(), redirectUri: t.str() }, out: { authUrl: t.str(), state: t.str() }, perm: 'agents.manage', level: 'manage', audit: 'always', tool: 'agents', agent: false,
+      in: { connectionId: t.str(), redirectUri: t.str() }, out: { authUrl: t.str(), state: t.str() }, perm: 'agents.manage', level: 'manage', audit: 'always', agent: false,
       errors: ['validation.not_found', 'validation.precondition_failed', 'provider.unavailable'],
     }),
     write('engine.mcp.oauth_complete', 'Finish an OAuth sign-in with the state and code the server sent back, or the error it sent when the person declined. Only the person who started it can finish it.', {
-      in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { connectionId: t.str() }, perm: null, level: 'view', audit: 'always', tool: 'agents', agent: false,
+      in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { connectionId: t.str() }, perm: null, level: 'view', audit: 'always', agent: false,
       errors: ['auth.invalid_code', 'permission.no_grant', 'validation.bad_input', 'provider.unavailable'],
     }),
-    read('engine.mcp.oauth_status', 'Has this remote connection signed in? A yes or no, never the token.', { in: { connectionId: t.str() }, out: { signedIn: t.bool() }, perm: null, level: 'view', tool: 'agents', agent: false }),
+    read('engine.mcp.oauth_status', 'Has this remote connection signed in? A yes or no, never the token.', { in: { connectionId: t.str() }, out: { signedIn: t.bool() }, perm: null, level: 'view', agent: false }),
     outward('engine.mcp.call', 'Call an outside MCP tool that may change things; an agent\'s call goes through the Gate', {
       in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', risk: 'medium', gate: { act: 'send', when: "actor.kind != 'person'" }, errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant', 'validation.precondition_failed'],
     }),
