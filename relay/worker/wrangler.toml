@@ -11,7 +11,18 @@ compatibility_date = "2026-09-01"
 # The relay's one hostname, as a Worker custom domain (it makes the DNS record and the
 # certificate). Approved by the lead, 28 Sep 2026. No workers.dev address.
 workers_dev = false
-routes = [{ pattern = "relay.vyre.run", custom_domain = true }]
+# Phone access: every other one-label host under vyre.run reaches this Worker (relay/worker/phone.js). More specific routes and custom domains (relay, names, web) win over the wildcard,
+# and a host with no proxied DNS record never gets here. The wildcard DNS record (proxied) is the deploy workflow's second step.
+routes = [
+  { pattern = "relay.vyre.run", custom_domain = true },
+  { pattern = "*.vyre.run/*", zone_name = "vyre.run" },
+]
+
+# The shell phones load (relay/worker/shell, bundled by the deploy workflow into shell-dist). The Worker serves it only under /__vyre/ on a claimed name.
+[assets]
+directory = "./shell-dist"
+binding = "ASSETS"
+run_worker_first = true
 
 [[durable_objects.bindings]]
 name = "ROUTES"
@@ -39,6 +50,11 @@ class_name = "SigninSlot"
 name = "GITHUB"
 class_name = "GithubLinks"
 
+# Phone access names (relay/worker/phone.js): one object per `<name>.vyre.run`, the route that holds it and a tombstone once released.
+[[durable_objects.bindings]]
+name = "HOSTS"
+class_name = "HostSlot"
+
 # The free plan needs SQLite-backed Durable Objects. Cloudflare applies each migration tag once,
 # ever, on a given relay: a relay that already ran v1 (RouteRelay alone, before ADR 0045) never
 # re-runs it, so PairTicket needs its OWN tag, or /v1/pair 404s everything forever, fail-closed
@@ -61,6 +77,9 @@ new_sqlite_classes = ["SigninSlot"]
 [[migrations]]
 tag = "v5"
 new_sqlite_classes = ["GithubLinks"]
+[[migrations]]
+tag = "v6"
+new_sqlite_classes = ["HostSlot"]
 
 # Per-address limiting for /v1/device: the 256-bit route id and the DO's own per-route caps make
 # this safe without one, but it is real protection against cost and flooding, so it is on.

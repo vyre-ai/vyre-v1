@@ -34,6 +34,8 @@
  */
 import { onGithub } from "./github.js";
 export { GithubLinks } from "./github.js";
+export { HostSlot } from "./phone.js";
+import { hostNameOf, onHost, hostControl } from "./phone.js";
 export const BOX_AUTH_TAG = "vyre-relay-box-v1";
 /** What this relay does that a box may rely on, told in `ready` (an older relay says nothing): `registered` answers every ticket registration with 200 or 409. */
 /** Sign in by name: how long a box's watch on a name lasts without renewal, and how often one name may be asked about. */
@@ -184,6 +186,8 @@ export default {
   /** @param {Request} request @param {any} env */
   async fetch(request, env) {
     const url = new URL(request.url);
+    const phoneName = hostNameOf(url, env);
+    if (phoneName) return onHost(request, env, phoneName);
     if (url.pathname === "/health") return new Response('{"ok":true}', { headers: { "content-type": "application/json" } });
     if (!url.pathname.startsWith("/v1/")) return new Response(null, { status: 404 });
     if (url.pathname === "/v1/pair" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
@@ -635,6 +639,7 @@ export class RouteRelay {
     // Typed-code messages come from the Worker over the object binding (never from the internet: the
     // Worker routes no public path here).
     if (url.pathname.startsWith("/code/") && request.method === "POST") return this.onCodeRequest(url.pathname, request);
+    if (url.pathname === "/online" && request.method === "GET") return json(200, { online: Boolean(this.control()) });
     if (url.pathname === "/signin/ask" && request.method === "POST") {
       let body;
       try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
@@ -760,6 +765,11 @@ export class RouteRelay {
         try { await this.env.SIGNIN.get(this.env.SIGNIN.idFromName(`si:${c.loc}`)).fetch("https://signin/watch", { method: "POST", body: JSON.stringify({ route }) }); } catch { /* the box renews in a few minutes */ }
       }
       return;
+    }
+    if (message.includes('"host.')) {
+      let c;
+      try { c = JSON.parse(message); } catch { return; }
+      if (c && typeof c.t === "string" && /^host\.(claim|release|status)$/.test(c.t)) { if (this.ticketRegAllowed()) await hostControl(this, ws, c); return; }
     }
     if (message.includes('"code.')) {
       let c;

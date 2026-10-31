@@ -1,0 +1,1 @@
+Phone access: a person can claim a name like alex.vyre.run once, and their phone opens their computer at that address while the computer is on and online. Everything is sealed between the phone and the computer, so the relay only passes bytes. When the computer is off, the page says it is asleep.
