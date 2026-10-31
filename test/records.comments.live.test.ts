@@ -17,7 +17,9 @@ test("mention an agent and its reply lands under the comment; mention a person a
     if (!parentId || !recordId || !type) { yield { type: "text", text: "not a comment thread" }; return; }
     yield* run("tool_search", { query: "comment on a record" });
     const r = yield* run("records_comments_add", { type, recordId, parentId, text: "Three edits since Monday.", idempotencyKey: `sr-${parentId}` });
-    yield { type: "text", text: r.ok ? "replied" : `FAILED ${JSON.stringify(r.content)}` };
+    // the same pane then tries another write on the record: in Ask first (the person's mode) it waits for their yes
+    const w = yield* run("records_update", { type, recordId, patch: { name: "Renamed by the agent" }, idempotencyKey: `sw-${parentId}` });
+    yield { type: "text", text: r.ok ? (w.ok ? "replied, then wrote" : "replied, write held") : `FAILED ${JSON.stringify(r.content)}` };
   });
   const d = await boot(seededDir(), model);
   try {
@@ -42,6 +44,11 @@ test("mention an agent and its reply lands under the comment; mention a person a
     }, 40_000, () => hostLog(d));
     assert.equal(answered.reply.text, "Three edits since Monday.");
     assert.deepEqual(answered.all.find((x) => x.commentId === root.commentId)!.replying, [], "the quiet state cleared when the answer landed");
+    // Ask first held the agent's other write: the record is unchanged and an approval waits for the person
+    const row = (await call(d, "records.get", { type: "contact", recordId })).data.record.fields as { name: string };
+    assert.equal(row.name, "Rivera Holdings", "the agent's rename did not run");
+    const held = (await call(d, "tasks.list", { scope: "all", kinds: ["approve"] })).data.tasks as Array<{ summary?: string }>;
+    assert.ok(held.some((t) => /records\.update/.test(t.summary ?? "")), "the rename waits for the person's yes: " + JSON.stringify(held));
     const after = (await call(d, "chat.recent", { filter: "all" })).data;
     assert.equal(JSON.stringify(after), JSON.stringify(before), "no chat shows up: the agent worked in an unlisted Ask pane");
 
