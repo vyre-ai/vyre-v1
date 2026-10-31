@@ -50,7 +50,10 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [keysStatus, setKeysStatus] = useState<KeysStatus>("loading");
   const [accounts, setAccounts] = useState<readonly AccountOption[]>([]);
   const [lastPicks, setLastPicks] = useState<Readonly<Record<string, string>> | undefined>(undefined);
-  const openId = picked ?? hashed;
+  // the Automations row in the sidebar leaves the open automation (the hash keeps naming it, so that id is remembered as left)
+  const [left, setLeft] = useState<string | null>(null);
+  const openId = picked ?? (hashed !== null && hashed === left ? null : hashed);
+  const goHome = (): void => { setOpenId(null); setLeft(hashed); setStep(null); setSideRun(null); };
   const missing = useMissing(rt.screens, "automations.canvas", "automation", openId ? { automationId: openId, route: { automationId: openId } } : null);
   useEffect(() => {
     let live = true;
@@ -156,7 +159,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       <RunsDataProvider value={runs}>
         <ConfigExtrasProvider value={extras}>
           <View style={s.page} testID="automations-place">
-            {phone ? null : <AutomationsSidebarSlot selectedId={openId} view={view} onView={setView} />}
+            {phone ? null : <AutomationsSidebarSlot selectedId={openId} view={view} onView={setView} onHome={goHome} />}
             <View style={s.main}>
               {phone && view !== "automations" && !openId ? <Pressable accessibilityRole="button" testID="phone-back-to-list" onPress={() => setView("automations")} style={s.backChip}><Text style={s.backText}>{"‹ Automations"}</Text></Pressable> : null}
               {main}

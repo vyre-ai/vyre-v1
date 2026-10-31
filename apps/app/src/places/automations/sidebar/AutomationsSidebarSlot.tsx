@@ -15,10 +15,11 @@ export type { StudioView };
 
 type ListOut = CapMap["automations.list"]["out"];
 
-export function StudioNav({ view, onView, slot }: { view: StudioView; onView(next: StudioView): void; slot?: SidebarSlotApi }): ReactElement {
+/** `onHome`: the Automations row leaves an open automation and shows the list again; without it the row only switches the studio view. */
+export function StudioNav({ view, onView, onHome, slot }: { view: StudioView; onView(next: StudioView): void; onHome?: () => void; slot?: SidebarSlotApi }): ReactElement {
   const list = useScreenQuery<ListOut>(SIDEBAR, "automations", {});
   const badge = needsBadge(list.status === "ready" ? list.data.automations.filter(needsYou).length : null);
-  const choose = (next: StudioView): void => { onView(next); slot?.openBody(); };
+  const choose = (next: StudioView): void => { if (next === "automations" && onHome) onHome(); onView(next); slot?.openBody(); };
   return (
     <View testID="studio-nav" style={n.nav}>
       {/* ui-rows-lint: not a list (place nav buttons) */}
@@ -32,13 +33,13 @@ export function StudioNav({ view, onView, slot }: { view: StudioView; onView(nex
   );
 }
 
-export function AutomationsSidebarSlot({ selectedId, view, onView }: { selectedId: string | null; view: StudioView; onView(next: StudioView): void }): ReactElement {
+export function AutomationsSidebarSlot({ selectedId, view, onView, onHome }: { selectedId: string | null; view: StudioView; onView(next: StudioView): void; onHome?: () => void }): ReactElement {
   return (
     <SidebarContent title="Automations" searchPlaceholder="Search automations">
       {(query, slot) => (
         <View style={n.fill}>
           <AutomationsSidebar selectedId={selectedId} hosted query={query} onChoose={() => { onView("automations"); slot.openBody(); }} />
-          <StudioNav view={view} onView={onView} slot={slot} />
+          <StudioNav view={view} onView={onView} {...(onHome ? { onHome } : {})} slot={slot} />
         </View>
       )}
     </SidebarContent>
