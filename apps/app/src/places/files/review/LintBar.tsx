@@ -23,6 +23,8 @@ export interface LintBarProps {
   onView?(view: EditView): void;
   /** Jump to a line of the file. */
   onJump(line: number): void;
+  /** The Inherits VYRE.md chip opens VYRE.md in a tab (the file named on the chip). Left out where files cannot be opened. */
+  onOpenName?(name: string, background: boolean): void;
 }
 
 function Chip({ item, onPress }: { item: LintItem; onPress: (e: unknown) => void }): ReactElement {
@@ -45,12 +47,13 @@ function Chip({ item, onPress }: { item: LintItem; onPress: (e: unknown) => void
   );
 }
 
-export function LintBar({ fileId, name, text, view, onView, onJump }: LintBarProps): ReactElement {
+export function LintBar({ fileId, name, text, view, onView, onJump, onOpenName }: LintBarProps): ReactElement {
   const q = useCap("files.lint", { fileId, text });
   const { element: menu, show } = useMenu();
   if (q.status !== "ready") return <Skeleton height={34} testID="lint-loading" />;
   const items = lintItems(q.data, text);
   const press = (item: LintItem) => (e: unknown): void => {
+    if (item.k === "inherits" && item.sev === "ok" && onOpenName) { const ev = e as { metaKey?: boolean; ctrlKey?: boolean } | undefined; onOpenName("VYRE.md", ev?.metaKey === true || ev?.ctrlKey === true); return; }
     if (item.list.length > 1) {
       const at = anchorOf(e);
       show(item.list.slice(0, 12).map((p) => ({ label: jumpLabel(p), onSelect: () => onJump(p.line) })), at.x, at.y, "other");

@@ -124,7 +124,9 @@ test("markup shows Ask <agent> once something is marked, red numbered boxes with
 
 test("inline **bold** and [[link]] markers become runs and never count in find", () => {
   assert.equal(stripInline("The fee is **$250** and [[Pricing landscape]]"), "The fee is $250 and Pricing landscape");
-  assert.deepEqual(inlineRuns("a **b** [[c]] d"), [{ text: "a " }, { text: "b", bold: true }, { text: " " }, { text: "c", link: true }, { text: " d" }]);
+  assert.deepEqual(inlineRuns("a **b** [[c]] d"), [{ text: "a " }, { text: "b", bold: true }, { text: " " }, { text: "c", link: true, ref: "c", kind: "wiki" }, { text: " d" }]);
+  assert.deepEqual(inlineRuns("see [the plan](docs/plan.md)."), [{ text: "see " }, { text: "the plan", link: true, ref: "docs/plan.md", kind: "md" }, { text: "." }]);
+  assert.equal(stripInline("see [the plan](docs/plan.md)."), "see the plan.");
   assert.equal(inlineRuns("x **y** z").map((r) => r.text).join(""), stripInline("x **y** z"));
   const blocks: DocBlock[] = [{ id: "a", tag: "p", text: "The **fee** is [[fee]] schedule" }];
   assert.equal(findMatches(blocks.map((b) => stripInline(b.text)), "fee").length, 3 - 1, "markers are not matched");

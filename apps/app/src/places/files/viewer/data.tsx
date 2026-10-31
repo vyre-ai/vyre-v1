@@ -19,6 +19,8 @@ export interface FilesViewerData {
   agentFor?(fileId: string): string | undefined;
   /** Another file of the same folder opens in this viewer. */
   openFile?(fileId: string): void;
+  /** A file named in the words opens in a tab of its own; `background` leaves the person where they are (Cmd-click, middle click). */
+  openFileTab?(fileId: string, background: boolean): void;
   /** Files in the same folder, for the strip under an image. */
   siblings?(folderId: string): readonly { id: string; title: string }[];
 }

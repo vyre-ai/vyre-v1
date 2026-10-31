@@ -87,7 +87,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.username ? { username: stored.username } : {}), spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash) => { navRef.current?.go(p,hash);if(phoneGo.current)phoneGo.current(p,hash); },
+    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.username ? { username: stored.username } : {}), spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash, background) => { navRef.current?.go(p,hash,background);if(phoneGo.current&&background!==true)phoneGo.current(p,hash); },
       shell: (screen,args) => {
         const h = navRef.current;
         if (!h) return;

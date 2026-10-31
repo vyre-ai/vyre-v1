@@ -11,6 +11,7 @@ import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewe
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
 import { useFilesViewerData } from "./data.tsx";
+import { useFileLinks } from "../links.ts";
 import { boxesOf, nodeFor, docCommentsOf, kindLabel, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKind } from "./model.ts";
 import type { FileComment, ViewerData } from "./model.ts";
 
@@ -67,6 +68,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const ready = load.status === "ready" ? load : null;
   const kind = ready ? viewerKind(ready.data.file.kind) : "other";
   const text = ready?.data.text ?? "";
+  const fileLinks = useFileLinks(d, ready ? { folderId: ready.data.file.folderId } : null, kind === "document" ? text : "");
   const blocks = useMemo(() => (ready && kind === "document" ? textToBlocks(text, ready.data.file.kind) : []), [ready, kind, text]);
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
@@ -99,7 +101,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         fileId={fileId} title={file.name} kind={kind} pane={pane}
         kindLabel={kindLabel(file.name)} subtitle={subtitleOf(ready.data, now, path)}
         {...(kind === "image" && ready.data.previewUrl ? { src: ready.data.previewUrl } : {})}
-        boxes={boxes} strokes={strokes} blocks={blocks} {...(sheet ? { sheet } : {})}
+        boxes={boxes} strokes={strokes} blocks={blocks} {...(fileLinks ? { fileLinks } : {})} {...(sheet ? { sheet } : {})}
         comments={docCommentsOf(ready.comments, d.name, now)}
         ask={{ place: "files", context: { kind: "file", id: fileId, title: file.name, access: ready.data.canEdit ? "edit" : "view" }, agents: d.agents, testID: "file-ask", onAsk: (agent, mode, about) => d.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title }) }}
         {...(siblings ? { siblings, current: fileId, onSibling: (id: string) => d.openFile?.(id) } : {})}

@@ -22,6 +22,7 @@ export function FileDetail({ rt, fileId }: { rt: ShellRuntime; fileId: string })
     call: rt.call, name: nameLookup(rt), clock: rt.clock,
     agents,
     openFile: (id) => rt.open({ subject: { type: "file", id } }),
+    openFileTab: (id, background) => rt.open({ subject: { type: "file", id }, ...(background ? { background: true } : {}) }),
     ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
   }), [rt, agents]);
   if (error) return <States kind="error" message={error} retryable onRetry={() => setError("")} />;
