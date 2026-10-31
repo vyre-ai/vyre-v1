@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { folderChoices, folderName, modifiedAt, newestFirst, relativeDate, selectState, sessionName } from "./sessions-model.ts";
+import { folderChoices, folderName, importedNote, modifiedAt, rememberImported, rememberedImported, newestFirst, relativeDate, selectState, sessionName } from "./sessions-model.ts";
 
 const NOW = new Date(2026, 9, 31, 15, 0, 0).getTime();
 const at = (y: number, m: number, d: number, h = 12, min = 0): number => new Date(y, m, d, h, min, 0).getTime();
@@ -46,4 +46,11 @@ test("Select all is none, some (indeterminate) or all for the rows in view", () 
   assert.equal(selectState(["a", "b"], new Set()), "none");
   assert.equal(selectState(["a", "b"], new Set(["a"])), "some");
   assert.equal(selectState(["a", "b"], new Set(["a", "b", "z"])), "all");
+});
+
+test("after an import the card says how many and where they are", () => {
+  assert.equal(importedNote(3), "Imported 3. They are in Chats.");
+  assert.equal(importedNote(1), "Imported 1. It is in Chats.");
+  rememberImported(3);
+  assert.equal(rememberedImported(), 3);
 });

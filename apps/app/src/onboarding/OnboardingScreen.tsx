@@ -12,6 +12,7 @@ import { countsOn, detectDevice, nextOn, resumeOn, stateOn, visibleSteps } from 
 import type { Device } from "./device.ts";
 import { LOCK, saidFor } from "./said.ts";
 import { scriptFor } from "./script.ts";
+import { importedNote, rememberedImported } from "./sessions-model.ts";
 import { Glyph, StepTile } from "./StepGlyph.tsx";
 import { stepLook } from "./stepStyle.ts";
 
@@ -39,6 +40,8 @@ export interface OnboardingScreenProps {
   onStep(key: string, state: StepState): void;
   onOpenStep?(key: string): void;
   onClose?(): void;
+  /** The summary links to Chats when sessions were imported. */
+  onOpenChats?(): void;
   /** the real card for a step; the default is a quiet placeholder so the screen renders without any backend */
   renderCard?(card: CardKind, ctx: CardContext): ReactNode;
   /** the right pane for a step; defaults to the scripted description */
@@ -191,7 +194,7 @@ function Preview({ flow, steps, progress, current, device, spaceName, body, pops
 }
 
 /** The summary: every step as a compact row, a Set up on the ones left, and Go to Home always in view. */
-function Finished({ flow, steps, progress, device, onOpen, onHome, two }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; device: Device; onOpen(key: string): void; onHome?: () => void; two: boolean }): ReactElement {
+function Finished({ flow, steps, progress, device, onOpen, onHome, onChats, two }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; device: Device; onOpen(key: string): void; onHome?: () => void; onChats?: () => void; two: boolean }): ReactElement {
   const left = steps.filter((st) => stateOn(progress, st, device) !== "done").length;
   const rows: ReactElement[] = [];
   steps.forEach((st, i) => {
@@ -199,7 +202,8 @@ function Finished({ flow, steps, progress, device, onOpen, onHome, two }: { flow
     rows.push(
       <View key={st.key} testID={`done-row-${st.key}`} style={[s.gr, two && s.grHalf, state === "later" && s.grLater, web ? anim(`vyre-ob-in 480ms ${i * 50}ms cubic-bezier(.2,.8,.2,1) both`) : null]}>
         <StepTile flow={flow} k={st.key} size={36} state={state === "done" ? "done" : state === "later" ? "dim" : "dim"} />
-        <View style={s.stepText}><Text style={s.grTitle} numberOfLines={1}>{st.title}</Text>{state === "later" ? <Text style={s.stepSub}>Skipped</Text> : null}</View>
+        <View style={s.stepText}><Text style={s.grTitle} numberOfLines={1}>{st.title}</Text>{state === "later" ? <Text style={s.stepSub}>Skipped</Text> : null}{st.card === "import_sessions" && state === "done" && rememberedImported() > 0 ? <Text testID="done-imported" style={s.stepSub}>{importedNote(rememberedImported())}</Text> : null}</View>
+        {st.card === "import_sessions" && state === "done" && rememberedImported() > 0 && onChats ? <Pressable testID="done-open-chats" accessibilityRole="link" onPress={onChats} style={s.setUp}><Text style={s.setUpText}>Open Chats</Text></Pressable> : null}
         {state !== "done" ? <Pressable testID={`done-set-${st.key}`} accessibilityRole="button" onPress={() => onOpen(st.key)} style={s.setUp}><Text style={s.setUpText}>Set up</Text></Pressable> : null}
       </View>,
     );
@@ -309,7 +313,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
     return (
       <View testID="onboarding" style={[s.page, (narrow || phone) && s.pageNarrow]}>
         {closeBtn}
-        <View testID="onboarding-chat" style={s.chat}><Finished flow={p.flow} steps={steps} progress={p.progress} device={device} onOpen={open} two={!phone && width >= 640} {...(p.onClose ? { onHome: p.onClose } : {})} /></View>
+        <View testID="onboarding-chat" style={s.chat}><Finished flow={p.flow} steps={steps} progress={p.progress} device={device} onOpen={open} two={!phone && width >= 640} {...(p.onClose ? { onHome: p.onClose } : {})} {...(p.onOpenChats ? { onChats: p.onOpenChats } : {})} /></View>
       </View>
     );
   }

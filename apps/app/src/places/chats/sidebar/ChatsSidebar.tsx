@@ -29,6 +29,9 @@ import { Badge, EmptyLine, Face, GroupLabel, Glyph, LeadGlyph, SectionHead, Tool
 import type { Channel } from "./model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { nameOr } from "../names.ts";
+import { Mark } from "../../../onboarding/ProviderLogo.tsx";
+import { dayLabel, importedRows, importedStartsOpen, providerMark, providerName } from "../imported/model.ts";
+import type { ImportedRow } from "../imported/model.ts";
 
 export const SIDEBAR_SCREEN = "chats.sidebar";
 export const AGENTS_SCREEN = "chats.all-agents";
@@ -88,6 +91,10 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const narrow = width > 0 && width < 560;
   const [filter, setFilter] = useState<Filter>("all");
   const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set());
+  // The imported coding sessions (sessions.list): read on open and again when the chats change, so a continued session shows its chat. A Space that cannot list them shows no group.
+  const [archive, setArchive] = useState<ImportedRow[]>([]);
+  // null: the group follows its default (open unless long); a press on its head decides.
+  const [importedOpen, setImportedOpen] = useState<boolean | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [local, setLocal] = useState<ChatRow[]>([]);
   const onLocal = useCallback((row: ChatRow) => { setLocal((l) => [row, ...l]); setCursor(`c:${row.threadId}`); }, []);
@@ -99,6 +106,12 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const agentsQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", {});
   // The prototype lists every request under Needs you, not only the top three.
   const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", {});
+  useEffect(() => {
+    let off = false;
+    void (Promise.resolve().then(() => data.call("sessions.list", {})) as Promise<{ sessions?: Partial<ImportedRow>[] } | undefined>).then((r) => { if (!off) setArchive(importedRows(r?.sessions)); }, () => { if (!off) setArchive([]); });
+    return () => { off = true; };
+  }, [data.call, recentQ]);
+  const imported = useMemo(() => archive.filter((r) => matchesQuery(query, r.title, providerName(r.provider))), [archive, query]);
   const allNeedsQ = needsQ;
   const waiting = useMemo(() => waitingAgents(allNeedsQ.status === "ready" ? allNeedsQ.data.items : [], data.space.assistant.agentId), [allNeedsQ]);
 
@@ -138,15 +151,19 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed, facesMore, errors, ...(narrow ? { needsLimit: 3 } : {}) }),
-    [needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, narrow],
+    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed: (importedOpen ?? importedStartsOpen(archive.length)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, ...(narrow ? { needsLimit: 3 } : {}) }),
+    [needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, narrow, imported, importedOpen, archive.length],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
 
   // Choosing a thing takes the phone from the list to the page (the slot's openBody); on a computer it does nothing.
   const leave = (): void => slot?.openBody();
-  const toggle = (s: SectionKey): void => setClosed((c) => { const n = new Set(c); if (n.has(s)) n.delete(s); else n.add(s); return n; });
+  const toggle = (s: SectionKey): void => {
+    if (s === "imported") { setImportedOpen(!(importedOpen ?? importedStartsOpen(archive.length))); return; }
+    toggleClosed(s);
+  };
+  const toggleClosed = (s: SectionKey): void => setClosed((c) => { const n = new Set(c); if (n.has(s)) n.delete(s); else n.add(s); return n; });
   const guard = (p: Promise<unknown>): void => void p.catch(() => undefined);
 
   // ----- menus: each entry changes real state or opens the thing
@@ -195,6 +212,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const open = (e: Entry): void => {
     setCursor(e.key);
     if (e.type === "chat") data.nav.openChat(e.row.threadId);
+    else if (e.type === "imported") { if (e.row.continuedThreadId) data.nav.openChat(e.row.continuedThreadId); else data.nav.openImported?.(e.row.conversationId); }
     else if (e.type === "face") data.nav.openAgentChat(e.agent.agentId);
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
     else if (e.type === "need") data.nav.openNeedsYou(e.item.task.id);
@@ -257,7 +275,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         }
         const recentHead = e.section === "recent";
         return (
-          <SectionHead id={e.section} label={e.label} count={e.section === "needs" ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)} keep={recentHead && filter !== "all"}>
+          <SectionHead id={e.section} label={e.label} count={e.section === "needs" || e.section === "imported" ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)} keep={recentHead && filter !== "all"}>
             {recentHead ? <Tool icon="filter" label="Filter chats" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" /> : null}
             {recentHead ? <Tool icon="plus" label="New chat" onPress={() => { void api.newChat(); leave(); }} testID="new-chat-section" /> : null}
             {e.section === "faces" ? <Tool icon="arrow" label="All agents" onPress={() => { data.nav.openAllAgents(); leave(); }} testID="all-agents" /> : null}
@@ -338,6 +356,18 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
               />
             )}
           </Hot>,
+        );
+      }
+      case "imported": {
+        const r = e.row, c = data.clock();
+        return (
+          <View style={{ height: ROW_H }} testID={`imported-row-${r.conversationId}`}>
+            <Row
+              id={e.key} title={r.title} selected={sel} onPress={() => open(e)}
+              leading={<View style={{ marginRight: 6 }} accessibilityLabel={providerName(r.provider)}><Mark k={providerMark(r.provider)} size={16} /></View>}
+              trailing={<Text style={st.time}>{r.continuedThreadId ? "Chat" : dayLabel(r.startedAt || r.importedAt, c.now, c.offsetMin)}</Text>}
+            />
+          </View>
         );
       }
       case "channel": {

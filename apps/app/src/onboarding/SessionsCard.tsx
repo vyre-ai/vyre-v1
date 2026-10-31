@@ -8,17 +8,24 @@ import { desktopSessionImporter } from "../../../../client/src/session-import/de
 import type { SessionSource } from "../../../../client/src/session-import/parse.ts";
 import { confirmedSessionInput } from "../places/settings/session-import-model.ts";
 import { Mark } from "./ProviderLogo.tsx";
-import { folderChoices, folderName, modifiedAt, newestFirst, relativeDate, selectState, sessionName } from "./sessions-model.ts";
+import { folderChoices, folderName, importedNote, modifiedAt, newestFirst, relativeDate, rememberImported, selectState, sessionName } from "./sessions-model.ts";
 
 const label = (src: SessionSource): string => `${src.provider === "codex" ? "Codex" : "Claude Code"}`;
 const hover = (text: string): object => ({ title: text });
 
-export function SessionsCard({ call, onDone }: { call: CapCall; onDone(): void }): ReactElement {
+export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCall; onDone(): void; gate?(save: (() => Promise<boolean>) | null): void; onOpenChats?(): void }): ReactElement {
+  // set once the import is done: the card then says where the sessions are, and Continue (the gate) finishes the step
   const [found, setFound] = useState<SessionSource[] | null>(null);
   const [on, setOn] = useState<ReadonlySet<string>>(new Set());
   const [folder, setFolder] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [imported, setImported] = useState<number | null>(null);
+  useEffect(() => {
+    if (!gate || imported === null) return undefined;
+    gate(async () => true);
+    return () => gate(null);
+  }, [gate, imported]);
   useEffect(() => {
     let off = false;
     const imp = desktopSessionImporter();
@@ -38,13 +45,17 @@ export function SessionsCard({ call, onDone }: { call: CapCall; onDone(): void }
     if (!imp || busy || on.size === 0) return;
     setBusy(true); setError("");
     try {
+      let count = 0;
       for (const src of found ?? []) {
         if (!on.has(src.sessionKey)) continue;
         const at = Date.now();
         const session = await imp.preview(src);
         await call("sessions.import", confirmedSessionInput({ source: src, session, at }, Date.now()));
+        count++;
       }
-      onDone();
+      rememberImported(count);
+      setImported(count);
+      if (!gate) onDone();
     } catch (e) { setError(e instanceof Error ? e.message : "That did not work. Try again."); } finally { setBusy(false); }
   };
   const rows: ReactElement[] = [];
@@ -60,6 +71,14 @@ export function SessionsCard({ call, onDone }: { call: CapCall; onDone(): void }
         </View>
         <View style={s.source}><Mark k={src.provider === "codex" ? "openai" : "claude"} size={14} /><Text style={s.sourceText}>{label(src)}</Text></View>
       </Pressable>,
+    );
+  }
+  if (imported !== null) {
+    return (
+      <View testID="sessions-card" style={s.col}>
+        <Text testID="sessions-imported" accessibilityRole="text" style={s.name}>{importedNote(imported)}</Text>
+        {onOpenChats ? <Pressable testID="sessions-open-chats" accessibilityRole="link" onPress={onOpenChats} style={s.primary}><Text style={s.primaryText}>Open Chats</Text></Pressable> : null}
+      </View>
     );
   }
   return (

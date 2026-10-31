@@ -56,3 +56,13 @@ export function selectState(keys: readonly string[], picked: ReadonlySet<string>
   const n = keys.filter((k) => picked.has(k)).length;
   return n === 0 ? "none" : n === keys.length ? "all" : "some";
 }
+
+/** What the card and the summary say once sessions are imported: they are in Chats. */
+export function importedNote(count: number): string {
+  return count === 1 ? "Imported 1. It is in Chats." : `Imported ${count}. They are in Chats.`;
+}
+
+let lastImported = 0;
+/** The count of the last import in this run of the app, for the summary at the end. */
+export const rememberImported = (count: number): void => { lastImported = count; };
+export const rememberedImported = (): number => lastImported;

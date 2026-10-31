@@ -3,6 +3,8 @@
 // rules) sit over it. Every door is one `Go` function over the pure `step`: a face's "Open Intake's Page", the helper icon, the channel menu's "Connect an Outside Agent", the Computer
 // chip, a face in the sidebar, a request in Needs you all end in the same place. The data comes from the runtime the shell built for the open Space (live queries over the kept copy
 // and `call`), never from sample data. A link from another place arrives as `hash` and becomes the first thing shown.
+import { ImportedSession } from "../imported/ImportedSession.tsx";
+import type { ImportedData } from "../imported/ImportedSession.tsx";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -143,6 +145,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
 
   /* ---------- the other pages ---------- */
   const needs = useMemo(() => needsData(rt, go, nameOf), [rt, go, nameOf]);
+  const importedData = useMemo<ImportedData>(() => ({ call: rt.call, clock: rt.clock, spaceId: rt.space.id, assistantId: rt.assistant.id, openChat: go.chat }), [rt, go]);
   const helperId = route.view === "helper" ? route.threadId : "";
   const helper = useMemo(() => helperData(rt, go, helperId, nameOf), [rt, go, helperId, nameOf]);
   const agentId = route.view === "agent" ? route.agentId : "";
@@ -159,6 +162,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   let main: ReactElement;
   if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
   else if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
+  else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
   else if (conv) {

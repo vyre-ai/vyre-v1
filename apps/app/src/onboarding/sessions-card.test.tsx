@@ -55,3 +55,25 @@ test("the folder filter narrows the rows and Select all then covers only those",
   await press(find(root, "sessions-all"));
   assert.ok(textOf(find(root, "sessions-count")).includes("1 of 3 selected"));
 });
+
+test("when the import is done the card says Imported 3, They are in Chats, links there, and Continue (the gate) finishes the step", async () => {
+  installDom();
+  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string, args?: { source?: { sessionKey?: string } }) => (cmd === "discover_session_sources" ? found() : { sourceKey: "k", title: "t", startedAt: 1, messages: [{ sourceMessageId: "m1", role: "user", text: "hi", at: 1 }], ...(args ? {} : {}) }) } };
+  const calls: string[] = [];
+  const call = (async (cap: string) => { calls.push(cap); return {}; }) as unknown as CapCall;
+  let done = 0, chats = 0;
+  const gates: unknown[] = [];
+  const r = createRoot();
+  await act(async () => { r.render(<SessionsCard call={call} onDone={() => { done++; }} gate={(save) => { gates.push(save); }} onOpenChats={() => { chats++; }} />); });
+  await flush();
+  const root = r.container as never;
+  await press(find(root, "sessions-all"));
+  await press(find(root, "sessions-import"));
+  await flush();
+  assert.equal(calls.filter((c) => c === "sessions.import").length, 3);
+  assert.ok(textOf(find(root, "sessions-imported")).includes("Imported 3. They are in Chats."));
+  assert.equal(done, 0, "the step finishes on Continue, so the words stay on screen");
+  assert.equal(typeof gates.at(-1), "function");
+  await press(find(root, "sessions-open-chats"));
+  assert.equal(chats, 1);
+});
