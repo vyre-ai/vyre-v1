@@ -55,6 +55,8 @@ export interface FilesData {
   nav: FilesNav;
   /** Which Knowledge screen has the body, when it is not the list: the sidebar marks that row. */
   memoryView?: KnowRoute | null;
+  /** A Personal Space: nobody shares with you there, so the sidebar has no Shared with me. */
+  personal?: boolean;
   /** The side pane's state, when the shell has one. */
   pane?: PaneControl;
 }

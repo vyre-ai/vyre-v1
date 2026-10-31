@@ -37,10 +37,13 @@ export async function thisDevice(call: Call): Promise<{ id: string; name: string
   } catch { return null; }
 }
 
-/** The folders a mount can go into: every folder the person may write to, the top of Files first. */
+/** The folders a mount can go into: the person's own top folder first (Personal, from files.tree), then the folders in it. files.list with no folder answers only the children of Personal, which is empty in a new Space. */
 export async function writableFolders(call: Call): Promise<Array<{ id: string; name: string }>> {
-  const out = (await call("files.list", {})) as { folders: Array<{ folderId: string; name: string; parentId?: string | null; mine?: boolean }> };
-  return out.folders.map((f) => ({ id: f.folderId, name: f.name }));
+  const top = await (call("files.tree", {}) as Promise<{ roots?: Array<{ key: string; title: string; kind: string; folderId?: string }> }>).then(
+    (o) => (o.roots ?? []).find((r) => r.key === "personal" && r.kind === "folder" && r.folderId !== undefined), () => undefined);
+  const out = (await call("files.list", {}).catch(() => ({ folders: [] }))) as { folders?: Array<{ folderId: string; name: string }> };
+  const kids = (out.folders ?? []).map((f) => ({ id: f.folderId, name: f.name }));
+  return top?.folderId ? [{ id: top.folderId, name: top.title }, ...kids.filter((k) => k.id !== top.folderId)] : kids;
 }
 
 export function peopleOf(list: readonly { id: string; name: string; kind: string }[], meId: string): Person[] {
