@@ -16,8 +16,9 @@ function Http(p: Props): ReactElement {
 function Ai(p: Props): ReactElement {
   const agents = useAgentPicks();
   const who = useWhoPicks();
-  const me = useOptionalAutomationsData()?.me ?? { id: "", name: "You" };
-  return <AiForm def={p.def} node={p.node} onChange={p.onChange} openMenu={p.openMenu} kind={p.kind} keys={p.keys} agents={agents} who={who} me={me} />;
+  const auto = useOptionalAutomationsData();
+  const me = auto?.me ?? { id: "", name: "You" };
+  return <AiForm def={p.def} node={p.node} onChange={p.onChange} openMenu={p.openMenu} kind={p.kind} keys={p.keys} agents={agents} who={who} me={me} {...(auto ? { lookup: auto.name } : {})} />;
 }
 
 export function LiveStepForm(p: Props): ReactElement | null {

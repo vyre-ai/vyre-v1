@@ -135,7 +135,7 @@ test("the cards say what each live step does", () => {
   const subs = Object.fromEntries(l.cards.filter((c) => c.node).map((c) => [c.id, c.sub]));
   assert.equal(subs["h"], "GET api.example.com/v1/items");
   assert.equal(subs["c"], "Runs 1 line of code, no network");
-  assert.equal(subs["a"], "Summarise the result. your own AI account");
+  assert.equal(subs["a"], "Summarise the result", "no account words when none was chosen");
 });
 
 test("the Data tab of a live step tells where picked data goes, and each shelf row can be picked", () => {
@@ -211,7 +211,8 @@ test("a task step shows the goal, the seats with faces, the deliverable as field
   for (const id of ["field-prompt", "insert-data", "ai-seats", "choose-assigned", "choose-reviewer", "choose-approver", "rows-deliverable", "field-done-means", "ai-more"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.match(tag(out, "field-prompt"), /aria-label="Goal"/);
   assert.equal(value(out, "rows-deliverable-key-0"), "letter");
-  assert.equal(value(out, "rows-deliverable-value-1"), "whole number");
+  assert.match(tag(out, "rows-deliverable-value-1"), /aria-label="Fields type 2: whole number"/, "the type is picked from a menu, not typed");
+  assert.ok(has(out, 'data-testid="ai-shape-advanced"'), "the raw shape is behind Advanced");
   assert.ok(has(out, "Names the client") && has(out, "States the fee"));
   assert.match(tag(out, "choose-reviewer"), /aria-label="Reviewer: /);
   assert.equal(has(out, 'data-testid="field-nudge"'), false, "Nudge after is under More, which starts closed");
@@ -222,15 +223,17 @@ test("a task step shows the goal, the seats with faces, the deliverable as field
 
 test("a deliverable that is more than simple fields keeps its raw shape editor", () => {
   const out = panel({ id: "t", key: "ai", input: { prompt: "p", outputSchema: { type: "object", properties: { a: { type: "object", properties: { b: { type: "string" } } } } } }, ai: { mode: "task", agentId: "agt_x" } });
-  assert.ok(has(out, 'data-testid="field-schema"') && !has(out, 'data-testid="rows-deliverable"'));
+  assert.ok(has(out, 'data-testid="ai-shape-advanced"') && !has(out, 'data-testid="rows-deliverable"'), "no field list for a deeper shape; its editor is under Advanced");
 });
 
-test("the card of a task step says it is an agent's task, not whose account it runs on", () => {
+test("the card of a task step says it is an agent task in one short line, with no braces and no account", () => {
   const def: Definition = { triggers: [{ key: "manual" }], nodes: [
     { id: "t", key: "ai", input: { prompt: "Draft the letter" }, ai: { mode: "task", agentId: "agt_x" }, next: ["u"] },
     { id: "u", key: "ai", input: { prompt: "Draft the letter" }, ai: { mode: "task", agentId: "agt_x", reviewer: { kind: "person", id: "usr_m" } } },
   ] };
   const subs = Object.fromEntries(layout(def, {}).cards.filter((c) => c.node).map((c) => [c.id, c.sub]));
-  assert.equal(subs["t"], "Draft the letter. An agent's task");
-  assert.equal(subs["u"], "Draft the letter. An agent's task, with a check before it goes on");
+  assert.equal(subs["t"], "Draft the letter. Agent task");
+  assert.equal(subs["u"], "Draft the letter. Agent task");
+  assert.equal(layout({ triggers: [{ key: "manual" }], nodes: [{ id: "z", key: "ai", input: { prompt: "Draft for {{ trigger.name }} today." }, ai: { mode: "task", agentId: "a" } }] } as Definition, {}).cards.find((c) => c.id === "z")?.sub, "Draft for \u2026 today. Agent task", "data references are an ellipsis, never braces");
+  assert.equal(layout({ triggers: [{ key: "manual" }], nodes: [{ id: "z", key: "ai", input: { prompt: "Draft for {{ trigger.name }}." }, ai: { mode: "task", agentId: "a" } }] } as Definition, {}).cards.find((c) => c.id === "z")?.sub, "Draft for \u2026 \u00b7 Agent task");
 });
