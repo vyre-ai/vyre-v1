@@ -15,6 +15,8 @@ import { createQueryHandlers, createRecordsHandlers, mapError, RecordsError, toR
 import type { QueryHandlers, RecordRow, WriteCtx, WriteHandlers } from "./handlers/index.ts";
 import { fieldMetaTable, historyText, recordsFieldMeta } from "./projections.ts";
 import { createHistoryHandlers } from "./handlers/history.ts";
+import { createCommentsHandlers, settleTurn } from "./handlers/comments.ts";
+import type { CommentsHandlers } from "./handlers/comments.ts";
 import type { HistoryHandlers } from "./handlers/history.ts";
 import { createMergeHandlers } from "./handlers/merge.ts";
 import type { MergeHandlers } from "./handlers/merge.ts";
@@ -320,11 +322,12 @@ function live(): RecordsHandle {
 // The rest of the live map (P-L3_LIVE): history, versions and holds (handlers/history.ts), merge, bulk upsert and export (handlers/merge.ts), both built once over the live handle.
 // DECISION: reveal has no `unseal` and export no `putFile` until the host hands this module the Vault and the Files port (a host seam); until then they refuse, they do not guess.
 type LiveHistory = Omit<HistoryHandlers, "records.history">;
-let extra: { history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers; purge: PurgeHandlers } | null = null;
+let extra: { comments: CommentsHandlers; history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers; purge: PurgeHandlers } | null = null;
 function more(): NonNullable<typeof extra> {
   if (!extra) {
     const h = live();
     extra = {
+      comments: createCommentsHandlers({ tx: h.host.tx }),
       history: createHistoryHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, readLog: (q) => h.host.store.read(q) }),
       merge: createMergeHandlers({ store: h.store, tx: h.host.tx }),
       sites: createSiteTableHandlers({ store: h.store }),
@@ -336,7 +339,7 @@ function more(): NonNullable<typeof extra> {
   return extra;
 }
 
-export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & MergeHandlers & ReviewHandlers & ViewHandlers & PurgeHandlers;
+export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & CommentsHandlers & MergeHandlers & ReviewHandlers & ViewHandlers & PurgeHandlers;
 
 /** Loader entry. The module stays stub until its manifest flips to live, which is when the host reads this. */
 export const handlers: LiveRecordsHandlers = {
@@ -349,6 +352,12 @@ export const handlers: LiveRecordsHandlers = {
   "records.counts": (ctx, input) => live().handlers["records.counts"](ctx, input),
   "records.get": (ctx, input) => live().handlers["records.get"](ctx, input),
   "records.history": (ctx, input) => live().handlers["records.history"](ctx, input),
+  "records.activity": (ctx, input) => more().history["records.activity"](ctx, input),
+  "records.comments.list": (ctx, input) => more().comments["records.comments.list"](ctx, input),
+  "records.comments.add": (ctx, input) => more().comments["records.comments.add"](ctx, input),
+  "records.comments.edit": (ctx, input) => more().comments["records.comments.edit"](ctx, input),
+  "records.comments.resolve": (ctx, input) => more().comments["records.comments.resolve"](ctx, input),
+  "records.comments.delete": (ctx, input) => more().comments["records.comments.delete"](ctx, input),
   "records.as_of": (ctx, input) => more().history["records.as_of"](ctx, input),
   "records.versions": (ctx, input) => more().history["records.versions"](ctx, input),
   "records.restore_version": (ctx, input) => more().history["records.restore_version"](ctx, input),
@@ -381,6 +390,15 @@ export const consumers = {
       const ev = event.payload as unknown as SiteTableEvent;
       if (event.name === "site.table_created") await more().sites.created(ev);
       else await more().sites.promoted(ev);
+    },
+  },
+  /** A mentioned agent's turn ended: its comment stops saying "is replying" (it answered by calling records.comments.add, which cleared it already, or it did not and the turn is over). */
+  "records.comment_turns": {
+    on: ["turn.completed", "turn.failed", "turn.cancelled"],
+    async run(_ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+      const { threadId, agentId } = event.payload as { threadId?: string; agentId?: string };
+      if (typeof threadId !== "string" || typeof agentId !== "string") return;
+      settleTurn(live().host.tx, threadId, agentId, event.name === "turn.completed" ? "done" : "failed");
     },
   },
   /** An agent or automation proposed a value: it waits for review or counts straight away (per field), and the source is kept for the popover. */

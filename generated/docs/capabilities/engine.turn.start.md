@@ -29,6 +29,7 @@ type In = {
   agentId: string;
   qseq: number;
   placement: "host" | "device";
+  nodeId?: string;
   accountRef?: string;
   engine: string;
   model: string;
@@ -86,6 +87,7 @@ type Out = {
     "agentId": "agt_a1b2c3",
     "engine": "example",
     "model": "example",
+    "nodeId": "example",
     "placement": "host",
     "qseq": 1,
     "threadId": "thr_a1b2c3"

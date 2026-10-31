@@ -15,7 +15,7 @@ Remove an agent computer and its profile disk
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/remove |
 | MCP tool | computers_remove (computer) |
 | CLI | none |
@@ -41,7 +41,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input

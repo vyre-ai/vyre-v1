@@ -4,7 +4,7 @@ Lane L7b. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (19)
+## Capabilities (21)
 
 - [network.certificate_renew](../capabilities/network.certificate_renew.md): Renew a certificate now
 - [network.domain_set](../capabilities/network.domain_set.md): Set the Space address to an own domain (DNS check, then ACME)
@@ -14,8 +14,10 @@ Requires: nothing.
 - [network.health](../capabilities/network.health.md): Network health probe: certificate expiry and relay reachability
 - [network.ingress_check](../capabilities/network.ingress_check.md): Check whether forms and webhooks can reach this Space from outside
 - [network.my_computer_approve](../capabilities/network.my_computer_approve.md): Admit your own waiting computer
-- [network.my_computer_code](../capabilities/network.my_computer_code.md): Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents
+- [network.my_computer_code](../capabilities/network.my_computer_code.md): Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space
 - [network.my_computer_decline](../capabilities/network.my_computer_decline.md): Turn your own waiting computer away
+- [network.my_computer_remove](../capabilities/network.my_computer_remove.md): Remove one of your own computers or servers: its access ends at once
+- [network.my_computers](../capabilities/network.my_computers.md): The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare
 - [network.public_hostnames](../capabilities/network.public_hostnames.md): Public hostnames and /hooks endpoints served by this Space
 - [network.relay_set](../capabilities/network.relay_set.md): Switch the Space to the relay or back, with no re-invite (devices pin the Space key, not the address)
 - [network.server_approve](../capabilities/network.server_approve.md): Admit a waiting computer to the Space: a person looks at its name, what it runs on and its fingerprint and approves once

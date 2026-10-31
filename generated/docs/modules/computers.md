@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat.
 
-## Capabilities (58)
+## Capabilities (59)
 
 - [computers.chrome.act](../capabilities/computers.chrome.act.md): Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id
 - [computers.chrome.api](../capabilities/computers.chrome.api.md): Call a site backend with the session of this browser; non-GET calls pass the Gate
@@ -37,6 +37,7 @@ Requires: chat.
 - [computers.get](../capabilities/computers.get.md): Read one agent computer: state, caption, tabs, disk and who took over
 - [computers.give_back](../capabilities/computers.give_back.md): Give the computer back to the agent
 - [computers.health](../capabilities/computers.health.md): Health of the container runtime and agentd on the host
+- [computers.hosts](../capabilities/computers.hosts.md): The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them
 - [computers.list](../capabilities/computers.list.md): List agent computers with state, tabs, disk and last activity
 - [computers.provision](../capabilities/computers.provision.md): Give an agent a computer (none unless the agent needs one)
 - [computers.record_start](../capabilities/computers.record_start.md): Record while you take over: every click and key with the element, each page, network traffic with secrets masked, and video

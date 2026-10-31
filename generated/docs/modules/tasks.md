@@ -4,12 +4,15 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (25)
+## Capabilities (30)
 
 - [tasks.act](../capabilities/tasks.act.md): Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once
+- [tasks.ask](../capabilities/tasks.ask.md): Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you
 - [tasks.assign](../capabilities/tasks.assign.md): Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)
+- [tasks.block](../capabilities/tasks.block.md): Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits
 - [tasks.count_needs_you](../capabilities/tasks.count_needs_you.md): Count of Ready requests for the rail badge and the Space switcher dot
 - [tasks.create](../capabilities/tasks.create.md): Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys
+- [tasks.decide](../capabilities/tasks.decide.md): Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)
 - [tasks.delegate](../capabilities/tasks.delegate.md): Hand a request to someone else with a note; never widens access, so it walks the delegate chain to the first who can act
 - [tasks.dependencies.add](../capabilities/tasks.dependencies.add.md): Make a task wait on another; Blocked is derived from unmet dependencies and open Unblock children
 - [tasks.dependencies.remove](../capabilities/tasks.dependencies.remove.md): Remove a dependency
@@ -24,7 +27,9 @@ Requires: nothing.
 - [tasks.my_work](../capabilities/tasks.my_work.md): My work: the full list, with sections Open, Assigned by me, Done
 - [tasks.needs_you](../capabilities/tasks.needs_you.md): Needs you: my Ready tasks of kind Approve, Review, Answer or Unblock, plus due today, overdue or blocking others
 - [tasks.release](../capabilities/tasks.release.md): Give a taken task back to its group or role
+- [tasks.review](../capabilities/tasks.review.md): Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)
 - [tasks.snooze](../capabilities/tasks.snooze.md): Snooze a request until a time, or clear the snooze with null
+- [tasks.submit](../capabilities/tasks.submit.md): Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done
 - [tasks.take](../capabilities/tasks.take.md): Take a group or role task; the first Take locks it and others see taken by
 - [tasks.transition](../capabilities/tasks.transition.md): Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules
 - [tasks.update](../capabilities/tasks.update.md): Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)

@@ -15,7 +15,7 @@ Resume after a stop or an Esc press once the person has answered
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/chrome/resume |
 | MCP tool | chrome_resume (computer) |
 | CLI | none |
@@ -41,7 +41,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.unavailable

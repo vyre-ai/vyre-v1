@@ -62,6 +62,7 @@ type In = {
       label: string;
       note?: "required" | "optional";
     }>;
+  notes?: Record<string, string>;
   decisionId?: string;
   payloadHash?: string;
   idempotencyKey: string;
@@ -173,6 +174,7 @@ type Out = {
     ],
     "idempotencyKey": "idem_1",
     "kind": "work",
+    "notes": {},
     "parentTaskId": "tsk_a1b2c3",
     "payloadHash": "example",
     "recordId": "rec_a1b2c3",

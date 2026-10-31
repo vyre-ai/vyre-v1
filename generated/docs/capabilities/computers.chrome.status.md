@@ -15,7 +15,7 @@ Status of Vyre for Chrome in this computer: connected, paused by Esc, held items
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/chrome/status |
 | MCP tool | chrome_status (computer) |
 | CLI | none |
@@ -43,7 +43,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.unavailable

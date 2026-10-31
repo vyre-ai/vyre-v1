@@ -2207,6 +2207,8 @@ export type AutomationsCreateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -2274,6 +2276,8 @@ export type AutomationsCreateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2510,6 +2514,8 @@ export type AutomationsGetOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2715,6 +2721,8 @@ export type AutomationsMakePersonalCopyOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2839,6 +2847,8 @@ export type AutomationsMoveOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2976,6 +2986,8 @@ export type AutomationsPackagesImportOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3122,6 +3134,8 @@ export type AutomationsPromoteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3239,6 +3253,8 @@ export type AutomationsRestoreVersionOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3372,6 +3388,8 @@ export type AutomationsSetEnabledOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3506,6 +3524,8 @@ export type AutomationsTemplatesUseOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3631,6 +3651,8 @@ export type AutomationsUndeleteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3714,6 +3736,8 @@ export type AutomationsUpdateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3779,6 +3803,8 @@ export type AutomationsUpdateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3859,6 +3885,8 @@ export type AutomationsValidateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -6828,6 +6856,19 @@ export type ComputersHealthOut = {
   awake: number;
   asleep: number;
 };
+export type ComputersHostsIn = Record<string, unknown>;
+export type ComputersHostsOut = {
+  available: boolean;
+  hosts: Array<{
+      hostId: string;
+      kind: "this" | "space" | "server";
+      name: string;
+      online: boolean;
+      canRun: boolean;
+      runs: number;
+      reason?: string;
+    }>;
+};
 export type ComputersListIn = {
   state?: Array<"provisioning" | "asleep" | "waking" | "working" | "takeover" | "error">;
   cursor?: string;
@@ -9192,6 +9233,34 @@ export type EnginePlacementDecideOut = {
   placement: "host" | "device" | "wait";
   reason: string;
   wakeLine?: string;
+  nodeId?: string;
+};
+export type EnginePlacementOptionsIn = {
+  threadId: string;
+  agentId?: string;
+};
+export type EnginePlacementOptionsOut = {
+  private: boolean;
+  effective: {
+    target: "device" | "space" | "server";
+    serverId?: string;
+  };
+  options: Array<{
+      target: "device" | "space" | "server";
+      serverId?: string;
+      name: string;
+      online: boolean;
+      reason?: string;
+    }>;
+};
+export type EnginePlacementSetIn = {
+  threadId: string;
+  target: "device" | "space" | "server";
+  serverId?: string;
+};
+export type EnginePlacementSetOut = {
+  target: "device" | "space" | "server";
+  serverId?: string;
 };
 export type EnginePolicyGetIn = Record<string, unknown>;
 export type EnginePolicyGetOut = {
@@ -9686,6 +9755,7 @@ export type EngineTurnStartIn = {
   agentId: string;
   qseq: number;
   placement: "host" | "device";
+  nodeId?: string;
   accountRef?: string;
   engine: string;
   model: string;
@@ -20175,17 +20245,43 @@ export type NetworkMyComputerApproveOut = {
   state: "approved";
 };
 export type NetworkMyComputerCodeIn = {
+  nickname?: string;
   idempotencyKey: string;
 };
 export type NetworkMyComputerCodeOut = {
   code: string;
   expiresAt: number;
+  address?: string;
 };
 export type NetworkMyComputerDeclineIn = {
   serverId: string;
 };
 export type NetworkMyComputerDeclineOut = {
   state: "declined";
+};
+export type NetworkMyComputerRemoveIn = {
+  serverId: string;
+};
+export type NetworkMyComputerRemoveOut = {
+  removed: boolean;
+};
+export type NetworkMyComputersIn = Record<string, unknown>;
+export type NetworkMyComputersOut = {
+  computers: Array<{
+      serverId: string;
+      name: string;
+      state: "healthy" | "degraded" | "down";
+      enrollment: "pending" | "approved";
+      fingerprint?: string;
+      lastSeenAt?: number;
+      requestedAt?: number;
+      facts?: {
+        os: string;
+        arch: string;
+        docker: boolean;
+        version: string;
+      };
+    }>;
 };
 export type NetworkPublicHostnamesIn = Record<string, unknown>;
 export type NetworkPublicHostnamesOut = {
@@ -21778,6 +21874,24 @@ export type ProvidersTestOut = {
   latencyMs: number;
   detail?: string;
 };
+export type RecordsActivityIn = {
+  type: string;
+  recordId: string;
+  limit?: number;
+  before?: number;
+};
+export type RecordsActivityOut = {
+  entries: Array<{
+      id: string;
+      kind: "created" | "edited" | "stage" | "linked" | "unlinked" | "removed" | "restored" | "synced";
+      at: number;
+      actor: string;
+      field?: string;
+      from?: unknown;
+      to?: unknown;
+    }>;
+  next?: number;
+};
 export type RecordsAsOfIn = {
   type: string;
   recordId: string;
@@ -21820,6 +21934,113 @@ export type RecordsChangesOut = {
       op: "upsert" | "patch" | "delete";
     }>;
   next: number;
+};
+export type RecordsCommentsAddIn = {
+  type: string;
+  recordId: string;
+  text: string;
+  parentId?: string;
+  mentions?: Array<{
+      kind: "person" | "agent";
+      id: string;
+    }>;
+  idempotencyKey: string;
+};
+export type RecordsCommentsAddOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
+};
+export type RecordsCommentsDeleteIn = {
+  commentId: string;
+};
+export type RecordsCommentsDeleteOut = {
+  deleted: boolean;
+};
+export type RecordsCommentsEditIn = {
+  commentId: string;
+  text: string;
+};
+export type RecordsCommentsEditOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
+};
+export type RecordsCommentsListIn = {
+  type: string;
+  recordId: string;
+  includeResolved?: boolean;
+};
+export type RecordsCommentsListOut = {
+  comments: Array<{
+      commentId: string;
+      type: string;
+      recordId: string;
+      parentId?: string;
+      text: string;
+      by: string;
+      at: number;
+      editedAt?: number;
+      resolved: boolean;
+      resolvedBy?: string;
+      mentions: Array<{
+          kind: "person" | "agent";
+          id: string;
+        }>;
+      replying: Array<string>;
+    }>;
+  resolvedCount: number;
+};
+export type RecordsCommentsResolveIn = {
+  commentId: string;
+  resolved: boolean;
+};
+export type RecordsCommentsResolveOut = {
+  comment: {
+    commentId: string;
+    type: string;
+    recordId: string;
+    parentId?: string;
+    text: string;
+    by: string;
+    at: number;
+    editedAt?: number;
+    resolved: boolean;
+    resolvedBy?: string;
+    mentions: Array<{
+        kind: "person" | "agent";
+        id: string;
+      }>;
+    replying: Array<string>;
+  };
 };
 export type RecordsCompletenessIn = {
   type: string;
@@ -25089,7 +25310,7 @@ export type SpacesMatrixIn = Record<string, unknown>;
 export type SpacesMatrixOut = {
   kind: "personal" | "team";
   features: Array<{
-      key: "apps_public" | "campaign_sending" | "console" | "agent_computers" | "webhooks" | "always_on_runs" | "sharing" | "members";
+      key: "apps_public" | "campaign_sending" | "console" | "webhooks" | "always_on_runs" | "sharing" | "members";
       available: boolean;
       line?: string;
     }>;
@@ -26139,6 +26360,67 @@ export type TasksActOut = {
   };
   result?: unknown;
 };
+export type TasksAskIn = {
+  taskId: string;
+  question: string;
+  to?: {
+    kind: "person" | "agent" | "group" | "role" | "automation";
+    id: string;
+  };
+};
+export type TasksAskOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  answerTaskId: string;
+};
 export type TasksAssignIn = {
   taskId: string;
   slot: "assigned" | "reviewer" | "approver";
@@ -26199,6 +26481,63 @@ export type TasksAssignOut = {
     updatedAt: number;
   };
 };
+export type TasksBlockIn = {
+  taskId: string;
+  reason: string;
+};
+export type TasksBlockOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  unblockTaskId: string;
+};
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
   count: number;
@@ -26241,6 +26580,7 @@ export type TasksCreateIn = {
       label: string;
       note?: "required" | "optional";
     }>;
+  notes?: Record<string, string>;
   decisionId?: string;
   payloadHash?: string;
   idempotencyKey: string;
@@ -26296,6 +26636,64 @@ export type TasksCreateOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksDecideIn = {
+  taskId: string;
+  verdict: "approve" | "reject";
+  reason?: string;
+};
+export type TasksDecideOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "done" | "fixes";
 };
 export type TasksDelegateIn = {
   taskId: string;
@@ -27073,6 +27471,65 @@ export type TasksReleaseOut = {
     updatedAt: number;
   };
 };
+export type TasksReviewIn = {
+  taskId: string;
+  verdict: "approve" | "send_back";
+  fixes?: Array<string>;
+  note?: string;
+};
+export type TasksReviewOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "approval" | "done" | "fixes" | "person";
+};
 export type TasksSnoozeIn = {
   taskId: string;
   until: number | null;
@@ -27128,6 +27585,64 @@ export type TasksSnoozeOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksSubmitIn = {
+  taskId: string;
+  outputs?: Record<string, unknown>;
+  summary: string;
+};
+export type TasksSubmitOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "review" | "approval" | "done";
 };
 export type TasksTakeIn = {
   taskId: string;
@@ -30965,6 +31480,7 @@ export interface CapMap {
   "computers.get": { in: ComputersGetIn; out: ComputersGetOut };
   "computers.give_back": { in: ComputersGiveBackIn; out: ComputersGiveBackOut };
   "computers.health": { in: ComputersHealthIn; out: ComputersHealthOut };
+  "computers.hosts": { in: ComputersHostsIn; out: ComputersHostsOut };
   "computers.list": { in: ComputersListIn; out: ComputersListOut };
   "computers.provision": { in: ComputersProvisionIn; out: ComputersProvisionOut };
   "computers.record_start": { in: ComputersRecordStartIn; out: ComputersRecordStartOut };
@@ -31152,6 +31668,8 @@ export interface CapMap {
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
+  "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };
+  "engine.placement.set": { in: EnginePlacementSetIn; out: EnginePlacementSetOut };
   "engine.policy.get": { in: EnginePolicyGetIn; out: EnginePolicyGetOut };
   "engine.policy.set": { in: EnginePolicySetIn; out: EnginePolicySetOut };
   "engine.pool.status": { in: EnginePoolStatusIn; out: EnginePoolStatusOut };
@@ -31795,6 +32313,8 @@ export interface CapMap {
   "network.my_computer_approve": { in: NetworkMyComputerApproveIn; out: NetworkMyComputerApproveOut };
   "network.my_computer_code": { in: NetworkMyComputerCodeIn; out: NetworkMyComputerCodeOut };
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
+  "network.my_computer_remove": { in: NetworkMyComputerRemoveIn; out: NetworkMyComputerRemoveOut };
+  "network.my_computers": { in: NetworkMyComputersIn; out: NetworkMyComputersOut };
   "network.public_hostnames": { in: NetworkPublicHostnamesIn; out: NetworkPublicHostnamesOut };
   "network.relay_set": { in: NetworkRelaySetIn; out: NetworkRelaySetOut };
   "network.server_approve": { in: NetworkServerApproveIn; out: NetworkServerApproveOut };
@@ -31899,9 +32419,15 @@ export interface CapMap {
   "providers.subscription_complete": { in: ProvidersSubscriptionCompleteIn; out: ProvidersSubscriptionCompleteOut };
   "providers.subscription_start": { in: ProvidersSubscriptionStartIn; out: ProvidersSubscriptionStartOut };
   "providers.test": { in: ProvidersTestIn; out: ProvidersTestOut };
+  "records.activity": { in: RecordsActivityIn; out: RecordsActivityOut };
   "records.as_of": { in: RecordsAsOfIn; out: RecordsAsOfOut };
   "records.bulk_upsert": { in: RecordsBulkUpsertIn; out: RecordsBulkUpsertOut };
   "records.changes": { in: RecordsChangesIn; out: RecordsChangesOut };
+  "records.comments.add": { in: RecordsCommentsAddIn; out: RecordsCommentsAddOut };
+  "records.comments.delete": { in: RecordsCommentsDeleteIn; out: RecordsCommentsDeleteOut };
+  "records.comments.edit": { in: RecordsCommentsEditIn; out: RecordsCommentsEditOut };
+  "records.comments.list": { in: RecordsCommentsListIn; out: RecordsCommentsListOut };
+  "records.comments.resolve": { in: RecordsCommentsResolveIn; out: RecordsCommentsResolveOut };
   "records.completeness": { in: RecordsCompletenessIn; out: RecordsCompletenessOut };
   "records.counts": { in: RecordsCountsIn; out: RecordsCountsOut };
   "records.create": { in: RecordsCreateIn; out: RecordsCreateOut };
@@ -32169,9 +32695,12 @@ export interface CapMap {
   "sync_types.undo_push": { in: SyncTypesUndoPushIn; out: SyncTypesUndoPushOut };
   "sync_types.update": { in: SyncTypesUpdateIn; out: SyncTypesUpdateOut };
   "tasks.act": { in: TasksActIn; out: TasksActOut };
+  "tasks.ask": { in: TasksAskIn; out: TasksAskOut };
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
+  "tasks.block": { in: TasksBlockIn; out: TasksBlockOut };
   "tasks.count_needs_you": { in: TasksCountNeedsYouIn; out: TasksCountNeedsYouOut };
   "tasks.create": { in: TasksCreateIn; out: TasksCreateOut };
+  "tasks.decide": { in: TasksDecideIn; out: TasksDecideOut };
   "tasks.delegate": { in: TasksDelegateIn; out: TasksDelegateOut };
   "tasks.dependencies.add": { in: TasksDependenciesAddIn; out: TasksDependenciesAddOut };
   "tasks.dependencies.remove": { in: TasksDependenciesRemoveIn; out: TasksDependenciesRemoveOut };
@@ -32186,7 +32715,9 @@ export interface CapMap {
   "tasks.my_work": { in: TasksMyWorkIn; out: TasksMyWorkOut };
   "tasks.needs_you": { in: TasksNeedsYouIn; out: TasksNeedsYouOut };
   "tasks.release": { in: TasksReleaseIn; out: TasksReleaseOut };
+  "tasks.review": { in: TasksReviewIn; out: TasksReviewOut };
   "tasks.snooze": { in: TasksSnoozeIn; out: TasksSnoozeOut };
+  "tasks.submit": { in: TasksSubmitIn; out: TasksSubmitOut };
   "tasks.take": { in: TasksTakeIn; out: TasksTakeOut };
   "tasks.transition": { in: TasksTransitionIn; out: TasksTransitionOut };
   "tasks.update": { in: TasksUpdateIn; out: TasksUpdateOut };
@@ -34611,6 +35142,22 @@ export type PullRequestOpenedPayload = {
   recordId?: string;
   author: string;
 };
+export type RecordCommentAddedPayload = {
+  recordId: string;
+  type: string;
+  commentId: string;
+  parentId?: string;
+  mentions: Array<{
+      kind: "person" | "agent";
+      id: string;
+    }>;
+};
+export type RecordCommentResolvedPayload = {
+  recordId: string;
+  type: string;
+  commentId: string;
+  resolved: boolean;
+};
 export type RecordCreatedPayload = {
   recordId: string;
   type: string;
@@ -35644,6 +36191,7 @@ export type TurnStartedPayload = {
   threadId: string;
   agentId: string;
   placement: string;
+  nodeId?: string;
   engine: string;
   model: string;
   accountRef?: string;
@@ -36310,6 +36858,8 @@ export interface EventMap {
   "pull_request.closed": PullRequestClosedPayload;
   "pull_request.merged": PullRequestMergedPayload;
   "pull_request.opened": PullRequestOpenedPayload;
+  "record.comment_added": RecordCommentAddedPayload;
+  "record.comment_resolved": RecordCommentResolvedPayload;
   "record.created": RecordCreatedPayload;
   "record.deleted": RecordDeletedPayload;
   "record.gaps_found": RecordGapsFoundPayload;

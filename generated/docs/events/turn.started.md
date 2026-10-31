@@ -22,6 +22,7 @@ type Payload = {
   threadId: string;
   agentId: string;
   placement: string;
+  nodeId?: string;
   engine: string;
   model: string;
   accountRef?: string;

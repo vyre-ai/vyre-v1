@@ -15,7 +15,7 @@ Read one recording: events, network log and video paths (follows the folder acce
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/recording/get |
 | MCP tool | computers_recording_get (computer) |
 | CLI | none |
@@ -54,7 +54,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input

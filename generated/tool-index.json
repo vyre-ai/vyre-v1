@@ -1640,6 +1640,12 @@
     },
     {
       "deferred": false,
+      "name": "computers_hosts",
+      "summary": "The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them",
+      "toolset": "computer"
+    },
+    {
+      "deferred": false,
       "name": "computers_list",
       "summary": "List agent computers with state, tabs, disk and last activity",
       "toolset": "computer"
@@ -2417,6 +2423,18 @@
       "name": "engine_models_list",
       "summary": "Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "engine_placement_options",
+      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_placement_set",
+      "summary": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice",
+      "toolset": "chats"
     },
     {
       "deferred": false,
@@ -5445,13 +5463,25 @@
     {
       "deferred": false,
       "name": "network_my_computer_code",
-      "summary": "Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents",
+      "summary": "Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space",
       "toolset": "engineer"
     },
     {
       "deferred": false,
       "name": "network_my_computer_decline",
       "summary": "Turn your own waiting computer away",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_my_computer_remove",
+      "summary": "Remove one of your own computers or servers: its access ends at once",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_my_computers",
+      "summary": "The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare",
       "toolset": "engineer"
     },
     {
@@ -6050,6 +6080,12 @@
     },
     {
       "deferred": false,
+      "name": "records_activity",
+      "summary": "What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "records_as_of",
       "summary": "Read a record as it was at a time",
       "toolset": "records"
@@ -6058,6 +6094,36 @@
       "deferred": false,
       "name": "records_bulk_upsert",
       "summary": "Create or update many records by match key, quietly (no automations unless asked)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_add",
+      "summary": "Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_delete",
+      "summary": "Delete your own comment (or any, with manage on the record)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_edit",
+      "summary": "Edit your own comment",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_list",
+      "summary": "Comments on a record as threads (a root comment and its replies, oldest first); resolved threads only when asked for",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_resolve",
+      "summary": "Resolve a comment thread or reopen it",
       "toolset": "records"
     },
     {
@@ -7355,6 +7421,36 @@
       "name": "sync_types_update",
       "summary": "Change field directions, transforms, match, create-at-source, deletes, conflict rule or polling",
       "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "task_ask",
+      "summary": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_block",
+      "summary": "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_decide",
+      "summary": "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_review",
+      "summary": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_submit",
+      "summary": "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "toolset": "tasks"
     },
     {
       "deferred": false,

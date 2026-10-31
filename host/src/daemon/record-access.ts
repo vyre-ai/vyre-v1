@@ -7,7 +7,7 @@ import {canonical} from "../../../lib/canonical.ts";
 import type {Filter,Sort} from "../../../kernel/src/store/types.ts";
 
 type ReadSeed=CtxSeed&{readCap?:string;readInput?:unknown;labels?:Readonly<Record<string,number>>};
-const READS=new Set(["records.get","records.query","records.search","records.history"]);
+const READS=new Set(["records.get","records.query","records.search","records.history","records.activity"]);
 const RETRY_MS=[0,40,120];
 const object=(value:unknown):Record<string,unknown>=>value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
 export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapshot;now():number;fresh():boolean;refresh?():Promise<void>;warn?(info:{cap:string;type:string;traceId:string;returned:number;allowed:number;missing:string[]}):void}){
@@ -129,7 +129,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
     }
     return req;
    }
-   if(!["records.get","records.history"].includes(cap))return req;
+   if(!["records.get","records.history","records.activity"].includes(cap))return req;
    const value=object(input);if(typeof value["type"]!=="string"||typeof value["recordId"]!=="string")return req;
    const row=await ports.store().get(value["type"],value["recordId"]);if(!row)return req;
    const resource=ports.snapshot().resource(row.id);
@@ -140,10 +140,10 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    seed={...seed,readCap:cap,readInput:input};
    const value=object(input),result=object(output);const type=value["type"];
    if(typeof type!=="string")throw fail("validation.bad_input",trace);
-   if(cap==="records.history"){
+   if(cap==="records.history"||cap==="records.activity"){
     const id=value["recordId"];const row=typeof id==="string"?await ports.store().get(type,id):null;
     if(!row)throw fail("permission.no_grant",trace);
-    return async()=>{seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};const visible=fields(seed,row,row.data,trace);return{...result,entries:(Array.isArray(result["entries"])?result["entries"]:[]).filter(entry=>typeof object(entry)["field"]==="string"&&Object.hasOwn(visible,object(entry)["field"] as string))};};
+    return async()=>{seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};const visible=fields(seed,row,row.data,trace);return{...result,entries:(Array.isArray(result["entries"])?result["entries"]:[]).filter(entry=>typeof object(entry)["field"]==="string"?Object.hasOwn(visible,object(entry)["field"] as string):cap==="records.activity")};};
    }
    const originals=cap==="records.get"?[object(result["record"])]:Array.isArray(result["rows"])?result["rows"].map(object):[];
    const stored=await Promise.all(originals.map(row=>typeof row["id"]==="string"?ports.store().get(type,row["id"]):Promise.resolve(null)));

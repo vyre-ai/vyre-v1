@@ -15,7 +15,7 @@ Send a held send, post or payment: the person approves it first (Gate)
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/chrome/send |
 | MCP tool | chrome_send (computer) |
 | CLI | none |
@@ -44,7 +44,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.network

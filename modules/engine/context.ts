@@ -83,6 +83,48 @@ export function routineLine(r: Obj): string {
   return `- ${kind} "${one(r["title"], 80)}" ${when}${next}${r["enabled"] === false ? ", paused" : ""} (${str(r["routineId"]) ?? "?"})`;
 }
 
+/** The tools each seat finishes with: the one baton call a turn on a task must end with. */
+const BATON_TOOLS: Readonly<Record<string, string>> = {
+  assigned: "task_submit {taskId, outputs, summary} when the work is done; task_ask {taskId, question, to?} when only a person can tell you something; task_block {taskId, reason} when something stops you",
+  reviewer: "task_review {taskId, verdict: approve | send_back, fixes: [one concrete change each]}",
+  approver: "task_decide {taskId, verdict: approve | reject, reason}",
+};
+const SEAT: Readonly<Record<string, string>> = { assigned: "the one who does the work (Assigned)", reviewer: "the Reviewer", approver: "the Approver" };
+
+type Who = { kind?: string; id?: string };
+const whoLabel = (w: Who | undefined, names: Readonly<Record<string, string>>): string => (w?.id ? (names[w.id] ?? (w.kind === "agent" ? "an agent" : w.kind === "person" ? "a teammate" : `a ${w.kind ?? "team"}`)) : "nobody");
+const parseList = (v: unknown): string[] => { try { const p = JSON.parse(String(v)) as unknown; return Array.isArray(p) ? p.map((x) => String(x)) : []; } catch { return []; } };
+
+/** What a task says about the one reading it. Pure: the caller reads the task and the answers. Nothing here is a secret; ids, names, words the task already holds. */
+export function taskSection(t: Obj, agentId: string, names: Readonly<Record<string, string>>, answers: ReadonlyArray<{ question: string; answer: string }> = []): string {
+  const notes = (t["workingNotes"] ?? {}) as Record<string, string>;
+  const state = String(t["state"] ?? "");
+  const slots: Array<[string, Who | undefined]> = [["assigned", t["assigned"] as Who], ["reviewer", t["reviewer"] as Who | undefined], ["approver", t["approver"] as Who | undefined]];
+  const mine = slots.filter(([, w]) => w?.kind === "agent" && w.id === agentId).map(([s]) => s);
+  const turn = state === "todo" || state === "doing" ? "assigned" : state === "in_review" ? "reviewer" : state === "awaiting_approval" ? "approver" : "";
+  const offered = turn === "assigned" && mine.length === 0 && (((t["assigned"] as Who | undefined)?.kind === "group") || ((t["assigned"] as Who | undefined)?.kind === "role"));
+  const out: string[] = [`${one(t["title"], 120)} (taskId ${String(t["id"])}, ${state.replace("_", " ")}).`];
+  const seat = mine.includes(turn) ? turn : undefined;
+  if (seat) out.push(`You are ${SEAT[seat]}, and it is your turn. Finish this turn with exactly one baton call:\n${BATON_TOOLS[seat]}.\nIf that tool is not in your list, find it with tool_search first.`);
+  else if (offered) out.push(`This task is offered to a group you belong to. Take it first with tasks_take {taskId}. If someone else already took it, say so in one line and end your turn. Once it is yours: ${BATON_TOOLS["assigned"]}.`);
+  else if (mine.length > 0) out.push(`You are ${mine.map((m) => SEAT[m]).join(" and ")}, but the task is ${state.replace("_", " ")} and it is with ${whoLabel(slots.find(([s]) => s === turn)?.[1], names)} now. It is not your move: say so in one line and end your turn.`);
+  else out.push("You are not a seat on this task. Say what you can add in one line and end your turn.");
+  const brief = notes["brief"] ?? (typeof t["why"] === "string" ? String(t["why"]) : typeof t["summary"] === "string" ? String(t["summary"]) : "");
+  if (brief) out.push(`Brief:\n${cutTo(brief.trim(), 4_000)}`);
+  const done = parseList(notes["done_means"]);
+  if (done.length > 0) out.push(`Done means:\n${done.slice(0, 20).map((d) => `- ${one(d, 200)}`).join("\n")}`);
+  const summary = notes["summary"], outputs = notes["outputs"];
+  if (summary && (seat === "reviewer" || seat === "approver")) out.push(`Handed in by ${whoLabel(slots[0]![1], names)}: ${one(summary, 400)}${outputs && outputs !== "{}" ? `\nOutputs: ${cutTo(outputs, 2_000)}` : ""}`);
+  const fixes = parseList(notes["fixes"]);
+  if (fixes.length > 0 && seat === "assigned") out.push(`Fixes asked for, do every one:\n${fixes.slice(0, 20).map((f, i) => `${i + 1}. ${one(f, 300)}`).join("\n")}`);
+  const loops = Number(t["reviewLoops"] ?? 0);
+  if (loops > 0) out.push(`It has been sent back ${loops} time${loops === 1 ? "" : "s"}.`);
+  if (answers.length > 0) out.push(`Answers to your questions:\n${answers.slice(0, 5).map((a) => `- ${one(a.question, 160)} -> ${one(a.answer, 300)}`).join("\n")}`);
+  const next = [t["reviewer"] as Who | undefined, t["approver"] as Who | undefined].filter((w) => w?.id);
+  if (next.length > 0) out.push(`Next after the doer: ${[t["reviewer"] ? `${whoLabel(t["reviewer"] as Who, names)} reviews` : "", t["approver"] ? `${whoLabel(t["approver"] as Who, names)} approves` : ""].filter((x) => x !== "").join(", then ")}.`);
+  return out.join("\n\n");
+}
+
 const handoffs = new Map<string, string>();
 /** Remember what the next turn of a thread is told after a model switch. Taken once. */
 export function noteHandoff(threadId: string, text: string): void { handoffs.set(threadId, text); }
@@ -117,6 +159,7 @@ export function createContextBuilder(d: ContextDeps) {
     const out = await kept<Obj>(`names:${asker}`, () => read("access.principals.list", { limit: 500 }, asker));
     const map: Record<string, string> = {};
     for (const p of arr(out?.["principals"])) { const id = str(p["id"]), n = str(p["name"]); if (id && n) map[id] = n; }
+    map["svc_host"] = "Vyre";   // the server's own lines in a thread (a nudge, an escalation) read as Vyre
     return map;
   }
 
@@ -149,6 +192,32 @@ export function createContextBuilder(d: ContextDeps) {
   async function screenOf(input: TurnInput): Promise<ScreenContext | undefined> {
     const out = await read<Obj>("chat.screen.get", { threadId: input.threadId, ...(input.trigger ? { messageId: input.trigger.id } : {}) }, input.asker);
     return parseScreen(out?.["screen"]);
+  }
+
+  /** A task, as the asker when they may see it, else as the server: the agent that holds the baton must see its own task. */
+  async function taskOf(taskId: string, asker: string): Promise<Obj | undefined> {
+    const own = await read<Obj>("tasks.get", { taskId }, asker);
+    let got = own;
+    if (!got) {
+      try { got = (await Promise.race([d.call("tasks.get", { taskId }) as Promise<Obj>, new Promise<undefined>((r) => { const t = setTimeout(() => r(undefined), readMs); t.unref?.(); })])) ?? undefined; } catch { got = undefined; }
+    }
+    return got?.["task"] as Obj | undefined;
+  }
+  /** The answers to the questions this task asked: each question and what the person said. */
+  async function answersOf(t: Obj, asker: string): Promise<Array<{ question: string; answer: string }>> {
+    let asked: Array<{ taskId?: string; question?: string }> = [];
+    try { const p = JSON.parse(String((t["workingNotes"] as Record<string, string> | undefined)?.["asked"] ?? "[]")) as unknown; if (Array.isArray(p)) asked = p; } catch { /* no questions */ }
+    const out: Array<{ question: string; answer: string }> = [];
+    for (const q of asked.slice(-5)) {
+      if (!q.taskId) continue;
+      const c = await taskOf(q.taskId, asker);
+      if (!c || c["state"] !== "done") continue;
+      const raw = (c["workingNotes"] as Record<string, string> | undefined)?.["answer"];
+      let text = "";
+      try { const v = raw ? (JSON.parse(raw) as unknown) : undefined; text = typeof v === "string" ? v : v === undefined ? "" : JSON.stringify(v); } catch { text = String(raw ?? ""); }
+      out.push({ question: q.question ?? "", answer: text !== "" ? text : "(answered without words)" });
+    }
+    return out;
   }
 
   async function build(input: TurnInput): Promise<TurnContext> {
@@ -185,6 +254,7 @@ export function createContextBuilder(d: ContextDeps) {
     const who = (id: string): string => nameMap[id] ?? (id === agentId ? name : id.startsWith("agt_") ? "an agent" : "a teammate");
     const where: string[] = [];
     const spaceRow = space?.["space"] as Obj | undefined;
+    const taskId = str(th?.["scopeType"]) === "task" ? str(th?.["scopeId"]) : undefined;
     if (str(spaceRow?.["name"])) where.push(`Space: ${str(spaceRow?.["name"])}${str(spaceRow?.["kind"]) ? ` (${str(spaceRow?.["kind"])})` : ""}.`);
     const kind = str(th?.["kind"]) ?? "chat";
     const scope = await scopeLine(str(th?.["scopeType"]), str(th?.["scopeId"]), asker);
@@ -207,7 +277,7 @@ export function createContextBuilder(d: ContextDeps) {
     add("where", true, where.join("\n"));
 
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it
-    const focusName = screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
+    const focusName = taskId ? "working-on-tasks" : (screen?.focus ?? (screen ? `focus-${screen.place}` : undefined));
     if (d.skills) {
       const idx = await d.skills.index(agentId, asker).catch(() => []);
       const manual = await d.skills.load("working-in-vyre", agentId, asker).catch(() => null);
@@ -243,6 +313,11 @@ export function createContextBuilder(d: ContextDeps) {
       } else can.push("You have no computer. Ask for one with computers_provision only when a task needs a browser.");
     }
     add("can", true, can.join("\n"));
+
+    if (taskId) {
+      const t = await taskOf(taskId, asker);
+      if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker)));
+    }
 
     const older = str(summary?.["summary"]);
     if (older) add("earlier", false, `${cutTo(older, 8_000)}\nThe full transcript is chats/${input.threadId}/transcript.md; transcript_search finds an exact line.`);
