@@ -86,6 +86,7 @@ const syncSpec = t.obj({
   mapping: t.arr(specMapping, { minItems: 1 }),
   plan: t.obj({ firstPull: t.obj({ words: t.str({ description: 'Plain words: what the first pull brings in' }) }), backfill: t.enm('later', 'now'), conflicts: t.lit('newest') }),
 });
+const discoverAuth = t.obj({ vaultHandle: id.handle, style: t.enm('bearer', 'header', 'basic'), header: t.opt(t.str()), prefix: t.opt(t.str()), headers: t.opt(t.rec(t.str())) });
 const specProblem = t.obj({ level: t.enm('error', 'warn'), at: t.str(), message: t.str() });
 const specChecks = {
   ok: t.bool(), problems: t.arr(specProblem),
@@ -264,6 +265,24 @@ export default defineManifest({
         samples: t.arr(t.obj({ type: id.recordType, remote: t.str(), title: t.str(), fields: t.arr(t.obj({ key: fieldKey, label: t.str(), value: t.json() })) })),
       },
       perm: 'connectors.manage', tool: 'records', errors: ['validation.bad_input', 'internal.unavailable'],
+    }),
+    read('sync_specs.sample', 'Read one page of an app, read-only (GET only), with a Vault handle as the key: where the lists are, what one item holds, how the next page is asked for, a total if there is one. Also reads field-metadata and schema endpoints', {
+      in: { auth: discoverAuth, domain: t.str({ examples: ['api.example.com'] }), path: t.str({ examples: ['/contacts'] }), query: t.opt(t.rec(t.str())), url: t.opt(t.str({ description: 'A full address on the same host, such as a next link' })), items: t.opt(t.int({ minimum: 1, maximum: 10 })) },
+      out: {
+        status: t.int(), ok: t.bool(), reason: t.opt(t.str()), nextLink: t.opt(t.str()), items: t.opt(t.arr(t.json())), preview: t.opt(t.str()),
+        shape: t.opt(t.obj({
+          kind: t.enm('object', 'array', 'empty', 'text'),
+          lists: t.arr(t.obj({ itemsAt: t.str(), count: t.int(), idAt: t.opt(t.str()), updatedAtGuess: t.opt(t.str()), fields: t.arr(t.obj({ path: t.str(), type: t.str(), seen: t.int(), example: t.opt(t.str()) })) })),
+          cursors: t.arr(t.obj({ pointer: t.str(), value: t.str() })), totals: t.arr(t.obj({ pointer: t.str(), value: t.int() })), keys: t.opt(t.arr(t.str())),
+        })),
+        estimate: t.opt(t.obj({ count: t.int(), source: t.str() })),
+      },
+      perm: 'connectors.manage', tool: 'records', cli: 'vyre sync-spec sample', errors: ['validation.bad_input', 'permission.no_grant', 'internal.unavailable'],
+    }),
+    read('sync_specs.survey', 'Read up to 12 paths of an app at once, read-only, and say for each what lists it holds, how many items, a total if given. Use it to see which objects an app has', {
+      in: { auth: discoverAuth, domain: t.str(), paths: t.arr(t.str(), { minItems: 1, maxItems: 12 }) },
+      out: { results: t.arr(t.obj({ path: t.str(), status: t.int(), reason: t.opt(t.str()), lists: t.arr(t.obj({ itemsAt: t.str(), count: t.int(), idAt: t.opt(t.str()), fields: t.int() })), total: t.opt(t.int()), nextLink: t.opt(t.bool()) })) },
+      perm: 'connectors.manage', tool: 'records', errors: ['validation.bad_input', 'permission.no_grant', 'internal.unavailable'],
     }),
     write('sync_specs.apply', 'Apply a validated SyncSpec: a live connector (with its own tests), a connection holding the Vault handle, the record types with fields, choices, relations and stages, the synced-type bindings, and the first pull', {
       in: { spec: syncSpec },

@@ -128,7 +128,7 @@ const NAMES = [
   "sync_types.list", "sync_types.get", "sync_types.discover", "sync_types.create", "sync_types.update", "sync_types.preview", "sync_types.pause", "sync_types.resume", "sync_types.log",
   "sync_types.schema_changes", "sync_types.review_schema", "sync_types.confirm_deletes", "sync_types.make_native", "sync_types.resolve_conflict", "sync_types.replay_conflict", "sync_types.undo_push",
   "connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push",
-  "sync_specs.validate", "sync_specs.preview", "sync_specs.apply", "sync_specs.get", "sync_specs.backfill",
+  "sync_specs.validate", "sync_specs.preview", "sync_specs.apply", "sync_specs.get", "sync_specs.backfill", "sync_specs.sample", "sync_specs.survey",
 ] as const satisfies readonly (keyof ConnectorsHandlers)[];
 
 export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as Record<(typeof NAMES)[number], (ctx: HostCtx, input: never) => Promise<unknown>>;

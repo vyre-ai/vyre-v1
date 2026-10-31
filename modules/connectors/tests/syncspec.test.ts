@@ -1,51 +1,17 @@
 // SyncSpec: parse, validate against real pages, compile, apply. Two made-up CRMs (fixtures/crm.ts) with different shapes; nothing here is specific to either.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { crm, KEY_A, KEY_B, ledgerSpec, orbitSpec } from "../fixtures/crm.ts";
-import { kit } from "../fixtures/kit.ts";
-import type { Kit } from "../fixtures/kit.ts";
+import { KEY_A, KEY_B, ledgerSpec, orbitSpec } from "../fixtures/crm.ts";
+import { KEYS, world } from "../fixtures/crm-world.ts";
 import { executeAction } from "../handlers/runtime.ts";
 import { compileSpec, nextLink, parseSpec } from "../syncspec.ts";
 import type { SyncSpec } from "../syncspec.ts";
-import type { ConnectionDb, ConnectorDef, ConnectorsCtx, Probe } from "../projections.ts";
+import type { ConnectionDb, ConnectorDef } from "../projections.ts";
 
 const code = (c: string) => (e: unknown) => {
   assert.equal((e as { error?: { code?: string } }).error?.code, c, JSON.stringify(e));
   return true;
 };
-const KEYS: Record<string, string> = { "#Ledger_Key": KEY_A, "#Orbit_Key": KEY_B };
-
-function world() {
-  const k = kit();
-  const c = crm();
-  for (const [h, v] of Object.entries(KEYS)) k.vault[h] = v;
-  const probe: Probe = async (_ctx, req) => {
-    const key = KEYS[req.handle] ?? "";
-    const headers: Record<string, string> = req.style === "bearer" ? { authorization: `Bearer ${key}` } : { [(req.header ?? "authorization").toLowerCase()]: `${req.prefix ?? ""}${key}` };
-    const r = c.handle({ method: "GET", url: req.url, headers });
-    return { status: r.status, text: r.body === undefined ? "" : JSON.stringify(r.body), ...(r.headers?.["link"] ? { link: r.headers["link"] } : {}) };
-  };
-  k.deps.probe = probe;
-  const types = new Map<string, Set<string>>();
-  const calls: { cap: string; input: any }[] = [];
-  const ctx: ConnectorsCtx = {
-    ...k.ctx,
-    call: async (cap, input) => {
-      calls.push({ cap, input });
-      if (cap === "runs.start") return { runId: `run_${calls.filter((x) => x.cap === "runs.start").length}` };
-      if (cap === "schema.describe") return { types: [...types].map(([key, f]) => ({ key, fields: [...f].map((x) => ({ key: x })) })) };
-      if (cap === "schema.apply") {
-        for (const op of (input as { ops: any[] }).ops) {
-          if (op.op === "type.create") types.set(op.type, new Set((op.def.fields as { key: string }[]).map((f) => f.key)));
-          if (op.op === "field.add" || op.op === "relation.add") types.set(op.type, new Set([...(types.get(op.type) ?? []), op.field]));
-        }
-        return { applied: 1 };
-      }
-      throw new Error(`no ${cap}`);
-    },
-  };
-  return { k, c, ctx, types, calls };
-}
 type World = ReturnType<typeof world>;
 const validate = (w: World, spec: unknown) => w.k.hs["sync_specs.validate"](w.ctx, { spec });
 const mutate = (spec: Record<string, any>, fn: (s: Record<string, any>) => void): Record<string, any> => { const s = JSON.parse(JSON.stringify(spec)); fn(s); return s; };
