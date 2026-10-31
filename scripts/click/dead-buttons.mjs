@@ -5,6 +5,8 @@
 //        [--max-screens 40] [--places home,chat,...] [--update-baseline] [--no-gate]
 // Exit 1 when a DEAD element is not in scripts/click/dead-baseline.json (empty by decision: there is no allowlist). There is no opt-out attribute: scripts/lint/no-noop-opt-out.ts fails any data-noop-ok. A container with role list, listbox, grid, tree, tablist, menu, radiogroup, toolbar, table or region that only holds focus for arrow keys is not a click target (its items are); everything else focusable is.
 import fs from "node:fs";
+import os from "node:os";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "../shots/lib.mjs";
@@ -396,6 +398,18 @@ export async function main(argv) {
   const browser = await launcher.launch(engine === "chromium" ? { args: ["--no-sandbox"] } : {});
   const all = { csp: [], dead: [], quiet: [], disabled: [], skipped: [], current: [], loadErrors: [], stats: { clicks: 0, units: 0, screens: 0, noop: 0, cspViolations: 0 } };
   const t0 = Date.now();
+  // The daemon is a child of this process. Watch it, so a run that loses it says when, with its memory and the load, instead of showing a wall of failure panels.
+  const childPids = () => spawnSync("pgrep", ["-P", String(process.pid)], { encoding: "utf8" }).stdout.split("\n").filter(Boolean);
+  let kids = new Set(), lastRss = "";
+  const watch = setInterval(() => {
+    const now = new Set(childPids());
+    for (const p of kids) if (!now.has(p)) console.log(`WATCH ${new Date().toISOString()}: child ${p} is gone (last rss kb ${lastRss}; load ${os.loadavg().map((n) => n.toFixed(1)).join(" ")}; free mem ${Math.round(os.freemem() / 1048576)} MB)`);
+    for (const p of now) if (!kids.has(p)) { const c = spawnSync("ps", ["-o", "command=", "-p", p], { encoding: "utf8" }).stdout; if (/daemon\/main/.test(c)) console.log(`WATCH daemon pid ${p} started`); }
+    kids = now;
+    const d = [...now].find((p) => /daemon\/main/.test(spawnSync("ps", ["-o", "command=", "-p", p], { encoding: "utf8" }).stdout));
+    if (d) lastRss = spawnSync("ps", ["-o", "rss=", "-p", d], { encoding: "utf8" }).stdout.trim();
+  }, 3000);
+  watch.unref();
   try {
     for (const kind of kinds) {
       const space = await bootFreshSpace(kind === "team" ? undefined : "personal");
