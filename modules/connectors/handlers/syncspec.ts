@@ -246,6 +246,22 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     const now = nowOf(deps);
     const def: ConnectorDef = { ...compiled.connector, tests: testsOf(spec, compiled) };
 
+    // the record types first, as a check: what schema.diff refuses (a field key, a relation, no right to change record types) stops everything before anything is made
+    const existing = await describeTypes(ctx);
+    const idem = `sync_specs.apply:${idempotencyKey}`;
+    const makes = compiled.types.filter((t) => !existing.has(t.recordType));
+    const makeOps = makes.map((t) => ({
+      op: "type.create", type: t.recordType,
+      def: { title: t.title, plural: `${t.title}s`, icon: "users", label: "internal", titleField: t.titleField, ...(t.statusField ? { statusField: t.statusField } : {}), fields: t.defs.map((d) => ({ key: d.key, type: d.type, title: d.title, ...(d.options ? { options: d.options } : {}) })) },
+    }));
+    const adds = compiled.types.filter((t) => existing.has(t.recordType)).flatMap((t) => t.defs.filter((d) => !existing.get(t.recordType)!.has(d.key)).map((d) => ({ op: "field.add", type: t.recordType, field: d.key, def: { type: d.type, title: d.title, ...(d.options ? { options: d.options } : {}) } })));
+    const rels = compiled.types.flatMap((t) => t.relations.filter((r) => !(existing.get(t.recordType)?.has(r.field))).map((r) => ({ op: "relation.add", type: t.recordType, field: r.field, def: { to: r.to, inverse: r.inverse, title: r.title, inverseTitle: r.inverseTitle } })));
+    const planned = [...makeOps, ...adds, ...rels];
+    if (planned.length) {
+      const diff = (await ctx.call("schema.diff", { ops: planned })) as { problems?: { itemKey: string; message: string }[] };
+      if (diff.problems?.length) return refuse(ctx, "validation.precondition_failed", `The record types cannot be made: ${diff.problems.slice(0, 3).map((p) => p.message).join(" ")}`, { problems: diff.problems });
+    }
+
     // 1. the connector: tests first, then live (a failing test keeps the last good version)
     const test: TestResult = await runCases(deps, ctx, def);
     if (test.failed > 0) return refuse(ctx, "validation.precondition_failed", `The connector made from this spec failed its own tests: ${test.cases.filter((c) => !c.ok).slice(0, 2).map((c) => `${c.name}: ${c.message ?? "failed"}`).join("; ")}`, { cases: test.cases });
@@ -277,21 +293,8 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     const connectionId = conn?.connection_id ?? (await connections["connections.create"](ctx, { connector: key, title: spec.app.name, ownerKind: "space", secrets: { [slot]: spec.auth.vaultHandle } })).connection.connectionId;
 
     // 3. record types: new ones whole, existing ones gain the fields they lack; relations once both ends exist
-    const existing = await describeTypes(ctx);
-    const idem = `sync_specs.apply:${idempotencyKey}`;
-    const makes = compiled.types.filter((t) => !existing.has(t.recordType));
-    if (makes.length) {
-      await ctx.call("schema.apply", {
-        idempotencyKey: `${idem}:type.create`, reason: `Bring in ${spec.app.name}`,
-        ops: makes.map((t) => ({
-          op: "type.create", type: t.recordType,
-          def: { title: t.title, plural: `${t.title}s`, icon: "users", label: "internal", titleField: t.titleField, ...(t.statusField ? { statusField: t.statusField } : {}), fields: t.defs.map((d) => ({ key: d.key, type: d.type, title: d.title, ...(d.options ? { options: d.options } : {}) })) },
-        })),
-      });
-    }
-    const adds = compiled.types.filter((t) => existing.has(t.recordType)).flatMap((t) => t.defs.filter((d) => !existing.get(t.recordType)!.has(d.key)).map((d) => ({ op: "field.add", type: t.recordType, field: d.key, def: { type: d.type, title: d.title, ...(d.options ? { options: d.options } : {}) } })));
+    if (makes.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:type.create`, ops: makeOps, reason: `Bring in ${spec.app.name}` });
     if (adds.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:field.add`, ops: adds, reason: `Fields from ${spec.app.name}` });
-    const rels = compiled.types.flatMap((t) => t.relations.filter((r) => !(existing.get(t.recordType)?.has(r.field))).map((r) => ({ op: "relation.add", type: t.recordType, field: r.field, def: { to: r.to, inverse: r.inverse, title: r.title, inverseTitle: r.inverseTitle } })));
     if (rels.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:relation.add`, ops: rels, reason: `Links from ${spec.app.name}` });
 
     // 4. bindings: bind a new type, update one that is already synced

@@ -232,3 +232,13 @@ test("a next-page address inside the answer works like a Link header (cursor kin
   assert.equal(readPage({ ...body, meta: { nextPageUrl: null } }, undefined, o, { kind: "link", next: "/meta/nextPageUrl" }, undefined)!.next, undefined, "the last page has none");
   assert.equal(readPage(body, '<https://crm-c.test/h?p=2>; rel="next"', o, { kind: "link" }, undefined)!.next, "https://crm-c.test/h?p=2", "without a pointer it is the header");
 });
+
+test("apply checks the record types first: what the schema refuses stops everything before a connector is made", async () => {
+  const w = world();
+  const inner = w.ctx.call;
+  const ctx = { ...w.ctx, call: async (cap: string, input: unknown) => (cap === "schema.diff" ? { previewToken: "t", items: [], problems: [{ itemKey: "type.create:person", message: "You may not change record types." }] } : inner(cap, input)) };
+  await assert.rejects(w.k.hs["sync_specs.apply"](ctx, { spec: ledgerSpec(), idempotencyKey: "k9" }), (e: any) => { assert.equal(e.error.code, "validation.precondition_failed"); assert.match(e.error.message, /You may not change record types\./); return true; });
+  assert.equal(w.k.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = 'crm_ledger'"), undefined);
+  assert.equal(w.k.tx.get("SELECT 1 AS x FROM cn_connections"), undefined);
+  assert.equal(w.calls.filter((c) => c.cap === "schema.apply").length, 0);
+});

@@ -24,6 +24,7 @@ export function world() {
       calls.push({ cap, input });
       if (cap === "runs.start") return { runId: `run_${calls.filter((x) => x.cap === "runs.start").length}` };
       if (cap === "runs.finish") return { run: { id: (input as { runId: string }).runId } };
+      if (cap === "schema.diff") return { previewToken: "tok", items: [], additive: 0, destructive: 0, problems: [] };
       if (cap === "schema.describe") return { types: [...types].map(([key, f]) => ({ key, fields: [...f].map((x) => ({ key: x })) })) };
       if (cap === "schema.apply") {
         for (const op of (input as { ops: any[] }).ops) {
