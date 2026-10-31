@@ -230,7 +230,7 @@ export function togglePick(mode: QuestionMode, picked: readonly string[], key: s
 /** The answer as one line, for a block that has been answered. */
 export function answerLine(options: readonly { key: string; label: string }[], answer: unknown): string {
   const label = (key: unknown): string => options.find((o) => o.key === key)?.label ?? String(key);
-  if (typeof answer === "string") return label(answer);
+  if (typeof answer === "string") return answer;
   // the stored shape: a list of keys, typed text as { other }
   if (Array.isArray(answer)) return answer.map((a) => (typeof a === "object" && a !== null ? String((a as { other?: unknown }).other ?? "") : label(a))).filter((x) => x !== "").join(", ");
   if (typeof answer !== "object" || answer === null) return "";
