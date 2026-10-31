@@ -8,7 +8,7 @@ routes = [{ pattern = "phone-stage.vyre.run", custom_domain = true }]
 
 [vars]
 STAGE_HOST = "phone-stage.vyre.run"
-STAGE_NAME = "stagephone"
+STAGE_NAME = "stagews"
 RELAY_PUBLIC_URL = "wss://phone-stage.vyre.run"
 
 [assets]
