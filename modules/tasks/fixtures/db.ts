@@ -22,6 +22,9 @@ export interface CallLog { cap: string; input: unknown }
 type Authorize = (who: { id: string }, action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => boolean;
 type Callee = (input: any, who: { id: string }) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
+/** The calls that only keep a task's thread (the work baton): they are logged apart in `threadCalls`, so a test about a release or a resume counts only the calls it is about. */
+const THREAD_CAPS: ReadonlySet<string> = new Set(["chat.start", "chat.post", "threads.members.add", "threads.add_agent"]);
+
 export interface HarnessOptions {
   now?: number;
   /** the kernel's answer for group and role access; the default denies */
@@ -44,6 +47,7 @@ export function harness(o: HarnessOptions = {}) {
   let events: Ev[] = [];
   const all: Ev[] = [];
   const calls: CallLog[] = [];
+  const threadCalls: CallLog[] = [];
   const calleeMap: Record<string, Callee> = { ...(o.calls ?? {}) };
   const authorize: Authorize = o.authorize ?? (() => false);
   const emitsOf = (cap: string): Set<string> => new Set(registry.capabilities.find((c) => c.name === cap)?.emits ?? []);
@@ -64,7 +68,7 @@ export function harness(o: HarnessOptions = {}) {
         return { id: ev.id };
       },
       async call(c, input) {
-        calls.push({ cap: c, input });
+        (THREAD_CAPS.has(c) ? threadCalls : calls).push({ cap: c, input });
         const f = calleeMap[c];
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input, who);
@@ -101,7 +105,7 @@ export function harness(o: HarnessOptions = {}) {
   return {
     sqlite, db: raw, call, ctxFor,
     get events(): Ev[] { return events; },
-    allEvents: all, calls,
+    allEvents: all, calls, threadCalls,
     callee(cap: string, f: Callee): void { calleeMap[cap] = f; },
     setNow(n: number): void { clock = n; },
     advance(ms: number): void { clock += ms; },

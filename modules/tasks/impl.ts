@@ -3,6 +3,8 @@ import { handlers } from "./handlers/index.ts";
 
 export { handlers };
 import { countNeedsYou } from "./handlers/state.ts";
+import { resumeRunOf } from "./handlers/resume.ts";
+import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
 export { applyMove, checkMove, commitMove, planMove, submitTarget, afterReview } from "./handlers/state.ts";
 
@@ -11,4 +13,9 @@ export const hostCalls = {
   "tasks.attention": async (ctx: Parameters<typeof countNeedsYou>[0]): Promise<number> => {
     try { return Number(((await countNeedsYou(ctx, {} as never)) as { count?: number }).count ?? 0); } catch { return 0; }
   },
+};
+
+/** A Run waiting on a task goes on when the task is Done or Canceled, whichever way it got there (handlers/resume.ts). */
+export const consumers = {
+  "tasks.run_resume": { on: ["task.transitioned"], run: (ctx: TasksCtx, event: Parameters<typeof resumeRunOf>[1]) => resumeRunOf(ctx, event) },
 };

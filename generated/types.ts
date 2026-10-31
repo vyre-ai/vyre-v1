@@ -2207,6 +2207,8 @@ export type AutomationsCreateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -2274,6 +2276,8 @@ export type AutomationsCreateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2510,6 +2514,8 @@ export type AutomationsGetOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2715,6 +2721,8 @@ export type AutomationsMakePersonalCopyOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2839,6 +2847,8 @@ export type AutomationsMoveOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -2976,6 +2986,8 @@ export type AutomationsPackagesImportOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3122,6 +3134,8 @@ export type AutomationsPromoteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3239,6 +3253,8 @@ export type AutomationsRestoreVersionOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3372,6 +3388,8 @@ export type AutomationsSetEnabledOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3506,6 +3524,8 @@ export type AutomationsTemplatesUseOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3631,6 +3651,8 @@ export type AutomationsUndeleteOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3714,6 +3736,8 @@ export type AutomationsUpdateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3779,6 +3803,8 @@ export type AutomationsUpdateOut = {
               kind: "person" | "agent" | "group" | "role" | "automation";
               id: string;
             };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3859,6 +3885,8 @@ export type AutomationsValidateIn = {
             kind: "person" | "agent" | "group" | "role" | "automation";
             id: string;
           };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -26207,6 +26235,67 @@ export type TasksActOut = {
   };
   result?: unknown;
 };
+export type TasksAskIn = {
+  taskId: string;
+  question: string;
+  to?: {
+    kind: "person" | "agent" | "group" | "role" | "automation";
+    id: string;
+  };
+};
+export type TasksAskOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  answerTaskId: string;
+};
 export type TasksAssignIn = {
   taskId: string;
   slot: "assigned" | "reviewer" | "approver";
@@ -26267,6 +26356,63 @@ export type TasksAssignOut = {
     updatedAt: number;
   };
 };
+export type TasksBlockIn = {
+  taskId: string;
+  reason: string;
+};
+export type TasksBlockOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  unblockTaskId: string;
+};
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
   count: number;
@@ -26309,6 +26455,7 @@ export type TasksCreateIn = {
       label: string;
       note?: "required" | "optional";
     }>;
+  notes?: Record<string, string>;
   decisionId?: string;
   payloadHash?: string;
   idempotencyKey: string;
@@ -26364,6 +26511,64 @@ export type TasksCreateOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksDecideIn = {
+  taskId: string;
+  verdict: "approve" | "reject";
+  reason?: string;
+};
+export type TasksDecideOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "done" | "fixes";
 };
 export type TasksDelegateIn = {
   taskId: string;
@@ -27141,6 +27346,65 @@ export type TasksReleaseOut = {
     updatedAt: number;
   };
 };
+export type TasksReviewIn = {
+  taskId: string;
+  verdict: "approve" | "send_back";
+  fixes?: Array<string>;
+  note?: string;
+};
+export type TasksReviewOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "approval" | "done" | "fixes" | "person";
+};
 export type TasksSnoozeIn = {
   taskId: string;
   until: number | null;
@@ -27196,6 +27460,64 @@ export type TasksSnoozeOut = {
     createdAt: number;
     updatedAt: number;
   };
+};
+export type TasksSubmitIn = {
+  taskId: string;
+  outputs?: Record<string, unknown>;
+  summary: string;
+};
+export type TasksSubmitOut = {
+  task: {
+    id: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  next: "review" | "approval" | "done";
 };
 export type TasksTakeIn = {
   taskId: string;
@@ -32242,9 +32564,12 @@ export interface CapMap {
   "sync_types.undo_push": { in: SyncTypesUndoPushIn; out: SyncTypesUndoPushOut };
   "sync_types.update": { in: SyncTypesUpdateIn; out: SyncTypesUpdateOut };
   "tasks.act": { in: TasksActIn; out: TasksActOut };
+  "tasks.ask": { in: TasksAskIn; out: TasksAskOut };
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
+  "tasks.block": { in: TasksBlockIn; out: TasksBlockOut };
   "tasks.count_needs_you": { in: TasksCountNeedsYouIn; out: TasksCountNeedsYouOut };
   "tasks.create": { in: TasksCreateIn; out: TasksCreateOut };
+  "tasks.decide": { in: TasksDecideIn; out: TasksDecideOut };
   "tasks.delegate": { in: TasksDelegateIn; out: TasksDelegateOut };
   "tasks.dependencies.add": { in: TasksDependenciesAddIn; out: TasksDependenciesAddOut };
   "tasks.dependencies.remove": { in: TasksDependenciesRemoveIn; out: TasksDependenciesRemoveOut };
@@ -32259,7 +32584,9 @@ export interface CapMap {
   "tasks.my_work": { in: TasksMyWorkIn; out: TasksMyWorkOut };
   "tasks.needs_you": { in: TasksNeedsYouIn; out: TasksNeedsYouOut };
   "tasks.release": { in: TasksReleaseIn; out: TasksReleaseOut };
+  "tasks.review": { in: TasksReviewIn; out: TasksReviewOut };
   "tasks.snooze": { in: TasksSnoozeIn; out: TasksSnoozeOut };
+  "tasks.submit": { in: TasksSubmitIn; out: TasksSubmitOut };
   "tasks.take": { in: TasksTakeIn; out: TasksTakeOut };
   "tasks.transition": { in: TasksTransitionIn; out: TasksTransitionOut };
   "tasks.update": { in: TasksUpdateIn; out: TasksUpdateOut };

@@ -6,9 +6,12 @@ import type { Handlers } from './handlers.ts';
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
   "tasks.act": async (ctx) => { throw new VyreErr(notImplemented("tasks.act", ctx.trace)); },
+  "tasks.ask": async (ctx) => { throw new VyreErr(notImplemented("tasks.ask", ctx.trace)); },
   "tasks.assign": async (ctx) => { throw new VyreErr(notImplemented("tasks.assign", ctx.trace)); },
+  "tasks.block": async (ctx) => { throw new VyreErr(notImplemented("tasks.block", ctx.trace)); },
   "tasks.count_needs_you": async (ctx) => { throw new VyreErr(notImplemented("tasks.count_needs_you", ctx.trace)); },
   "tasks.create": async (ctx) => { throw new VyreErr(notImplemented("tasks.create", ctx.trace)); },
+  "tasks.decide": async (ctx) => { throw new VyreErr(notImplemented("tasks.decide", ctx.trace)); },
   "tasks.delegate": async (ctx) => { throw new VyreErr(notImplemented("tasks.delegate", ctx.trace)); },
   "tasks.dependencies.add": async (ctx) => { throw new VyreErr(notImplemented("tasks.dependencies.add", ctx.trace)); },
   "tasks.dependencies.remove": async (ctx) => { throw new VyreErr(notImplemented("tasks.dependencies.remove", ctx.trace)); },
@@ -23,7 +26,9 @@ export const handlers: Handlers<HandlerCtx> = {
   "tasks.my_work": async (ctx) => { throw new VyreErr(notImplemented("tasks.my_work", ctx.trace)); },
   "tasks.needs_you": async (ctx) => { throw new VyreErr(notImplemented("tasks.needs_you", ctx.trace)); },
   "tasks.release": async (ctx) => { throw new VyreErr(notImplemented("tasks.release", ctx.trace)); },
+  "tasks.review": async (ctx) => { throw new VyreErr(notImplemented("tasks.review", ctx.trace)); },
   "tasks.snooze": async (ctx) => { throw new VyreErr(notImplemented("tasks.snooze", ctx.trace)); },
+  "tasks.submit": async (ctx) => { throw new VyreErr(notImplemented("tasks.submit", ctx.trace)); },
   "tasks.take": async (ctx) => { throw new VyreErr(notImplemented("tasks.take", ctx.trace)); },
   "tasks.transition": async (ctx) => { throw new VyreErr(notImplemented("tasks.transition", ctx.trace)); },
   "tasks.update": async (ctx) => { throw new VyreErr(notImplemented("tasks.update", ctx.trace)); },

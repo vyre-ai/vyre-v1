@@ -7388,6 +7388,36 @@
     },
     {
       "deferred": false,
+      "name": "task_ask",
+      "summary": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_block",
+      "summary": "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_decide",
+      "summary": "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_review",
+      "summary": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_submit",
+      "summary": "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_act",
       "summary": "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
       "toolset": "tasks"
