@@ -358,18 +358,33 @@ async function seed(web, session, log) {
   for (const t of tries) { try { await t(); } catch (e) { log(`seed step refused: ${String(e?.message ?? e).slice(0, 140)}`); } }
 }
 
-async function sessionFor(kind, web, space, browser) {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+/** The owner claim makes keys (a slow Argon2 in the page), and a hosted Linux WebKit has taken over 30 s for it. The claim is not what is under test, so it runs in Chromium when one is installed (the real-app steps use it in the same job) and the session it makes is carried into the engine under test. On failure the page's text, console and a screenshot are saved and printed, so a CI run says what it saw. */
+async function sessionFor(kind, web, space, browser, out) {
+  let claimer = browser, own = null;
+  try { const pw = await import("playwright-core"); own = await (pw.default ?? pw).chromium.launch({ args: ["--no-sandbox"] }); claimer = own; } catch { /* no Chromium here: the engine under test claims */ }
+  const ctx = await claimer.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
-  await page.goto(claimOnEdge(space.claim, web.origin), { waitUntil: "load", timeout: 60000 });
-  await page.getByTestId("claim-name").fill("Olivia Owner");
+  const logs = [];
+  page.on("console", (m) => { if (m.type() === "error") logs.push(m.text().slice(0, 200)); });
+  page.on("pageerror", (e) => logs.push(`pageerror ${e.message.slice(0, 200)}`));
+  try {
+  await page.goto(claimOnEdge(space.claim, web.origin), { waitUntil: "load", timeout: 90000 });
+  await page.getByTestId("claim-name").fill("Olivia Owner", { timeout: 60000 });
   await page.getByTestId("claim-username").fill("olivia");
   await page.getByTestId("claim-password").fill("correct horse battery 9");
   await page.getByTestId("claim-confirm").fill("correct horse battery 9");
   await page.getByTestId("claim-next").click();
-  await page.getByTestId("claim-saved").click();
+  await page.getByTestId("claim-saved").click({ timeout: 60000 });
   await page.getByTestId("claim-create").click();
-  await page.getByTestId("shell").waitFor({ timeout: 30000 });
+  await page.getByTestId("shell").waitFor({ timeout: 120000 });
+  } catch (e) {
+    fs.mkdirSync(out, { recursive: true });
+    await page.screenshot({ path: path.join(out, `claim-failed-${kind}.png`) }).catch(() => undefined);
+    const text = await page.evaluate(() => document.body.innerText.replace(/\s+/g, " ").slice(0, 400)).catch(() => "");
+    console.error(`the owner claim did not reach the shell (${kind}, ${page.url()}): ${String(e).split("\n")[0]}\n  page text: ${text}\n  console: ${logs.slice(0, 5).join(" | ")}\n  screenshot: ${path.join(out, `claim-failed-${kind}.png`)}`);
+    await ctx.close(); if (own) await own.close();
+    throw e;
+  }
   // A new owner meets the onboarding first. It is crawled once as its own first-run state (?firstrun=1); every other state starts with it dismissed, as it is for a person a day later.
   await page.waitForTimeout(1500);
   for (const name of ["Finish later", "Skip for now", "Skip"]) {
@@ -378,7 +393,7 @@ async function sessionFor(kind, web, space, browser) {
   }
   const snapshot = await page.evaluate(() => Object.fromEntries(Object.keys(localStorage).map((k) => [k, localStorage.getItem(k)])));
   const s = await page.evaluate(() => localStorage.getItem("vyre.session.v1"));
-  await ctx.close();
+  await ctx.close(); if (own) await own.close();
   return { session: s, snapshot };
 }
 
@@ -415,7 +430,7 @@ export async function main(argv) {
       const space = await bootFreshSpace(kind === "team" ? undefined : "personal");
       const web = await edge(dist, space.url);
       try {
-        const made = await sessionFor(kind, web, space, browser);
+        const made = await sessionFor(kind, web, space, browser, out);
         space.session = made.session; space.snapshot = made.snapshot;
         await seed(web, space.session, (m) => console.log(m));
         const r = await crawl({ browser, space, name: kind, web, csp, workers, maxScreens, maxMinutes: Number(args["max-minutes"] || 12), places, out, log: (m) => console.log(m) });
