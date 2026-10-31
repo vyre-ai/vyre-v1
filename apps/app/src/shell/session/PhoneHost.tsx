@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { View } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { useResume } from "../../onboarding/ResumeChip.tsx";
 import { MobileShell, YouScreen } from "../../mobile/shell/index.ts";
 import type { Entry, MobileNav } from "../../mobile/shell/index.ts";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
@@ -25,9 +26,11 @@ function useLive<T>(q: LiveQuery<T> | null): QueryState<T> {
 function You({ session, nav, onSignOut, onAddSpace, onLock, onSwitchSpace }: { session: RealSession; nav: MobileNav; onSignOut(): void;onAddSpace?:()=>void;onLock?:()=>void;onSwitchSpace?:(id:string)=>void }): ReactElement {
   const work = useLive(session.hooks.capQuery<CapMap["tasks.my_work"]["out"]>("tasks.my_work", {}));
   const stars = useLive(session.hooks.capQuery<CapMap["stars.list"]["out"]>("stars.list", {}));
+  const resume = useResume();
   return (
     <View style={{ flex: 1 }}>
       <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
+      {resume ? <Row id="you-finish-setup" title="Finish setup" note={`${resume.handled} of ${resume.total} done`} onPress={resume.open} /> : null}
       <Row id="you-vault" title="Vault" note="Keys, logins and cards" onPress={() => nav.open(entryFor("vault", "")!)} />
       <Row id="you-automations" title="Automations" note="What runs on its own" onPress={() => nav.open(entryFor("automations", "")!)} />
       {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms, campaigns and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}

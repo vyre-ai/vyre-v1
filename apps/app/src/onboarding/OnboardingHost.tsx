@@ -5,7 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
-import { ResumeChip } from "./ResumeChip.tsx";
+import { ResumeChip, ResumeContext, resumeInfo } from "./ResumeChip.tsx";
 import { detectDevice } from "./device.ts";
 import { FirstWinCard } from "./FirstWinCard.tsx";
 import { ChromeCard } from "./ChromeCard.tsx";
@@ -125,10 +125,13 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can do it later from the checklist on Home.</Text>;
   }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName]);
 
+  const info = !shown && flow ? resumeInfo(flow, progress, detectDevice()) : null;
+  const resume = useMemo(() => (info ? { handled: info.handled, total: info.total, open: () => { setStep(info.step); setShown(true); } } : null), [info?.handled, info?.total, info?.step]);
+
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was
   return (
     <>
-      {children}
+      <ResumeContext.Provider value={resume}>{children}</ResumeContext.Provider>
       {!shown && flow ? <ResumeChip flow={flow} progress={progress} device={detectDevice()} onOpen={(k) => { setStep(k); setShown(true); }} /> : null}
       {shown && flow ? (
         <View style={s.fill}>

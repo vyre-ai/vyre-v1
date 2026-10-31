@@ -1,1 +1,1 @@
-- On the phone, the Finish setup entry floats above the places bar instead of covering Inbox and Records.
+- On the phone, Finish setup is a row at the top of the You page instead of a floating entry over the page.
