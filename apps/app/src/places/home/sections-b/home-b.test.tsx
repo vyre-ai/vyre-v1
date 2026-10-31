@@ -14,15 +14,17 @@ import { publishProgress } from "../../../onboarding/store.ts";
 import type { ActionDeps } from "./actions.ts";
 import { createSampleHomeB } from "./sample.ts";
 import type { SampleHomeB } from "./sample.ts";
+import { asDevice } from "../../../onboarding/test-device.ts";
 
 installComposerForTests(Composer);
 
 // The setup card is the person's onboarding steps, read from the onboarding host's published progress (a Space whose host has not published draws none).
 const setup = (flow: "personal" | "team" | "member" | null, progress: Record<string, "done" | "later"> = {}): void => { publishProgress(flow ? { flow, progress } : null); setSetupHidden(false); };
-const html = (h: SampleHomeB): string => {
+// These tests mean a browser: it has no sessions or folders, so the setup card counts six steps ("0 of 6"). The Mac app's eight are checked in chats/fixes/l9b_02c.test.tsx.
+const html = (h: SampleHomeB): string => asDevice("web", () => {
   const { top, bottom } = homeBSlots(h.extras);
   return renderToStaticMarkup(<Home data={h.data} top={top} bottom={bottom} personal={h.extras.space.kind === "personal"} />).replaceAll("<!-- -->", "");
-};
+});
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
   assert.ok(i >= 0, `expected ${needle}`);

@@ -8,6 +8,7 @@ import { homeBSlots } from "../../home/sections-b/index.ts";
 import { createSampleHomeB } from "../../home/sections-b/sample.ts";
 import { setSetupHidden } from "../../home/sections-b/Checklist.tsx";
 import { publishProgress } from "../../../onboarding/store.ts";
+import { asDevice } from "../../../onboarding/test-device.ts";
 
 const html = (v: "personal" | "northwind", o: Parameters<typeof createSampleHomeB>[1] = {}): string => {
   publishProgress({ flow: "personal", progress: {} });
@@ -25,11 +26,18 @@ test("the subtitle reads Your Personal Space, on this computer only", () => {
   assert.ok(!has(out, "Nothing is waiting on you"));
 });
 
-test("the setup card lists the onboarding steps, with no separate Get started list", () => {
-  const out = html("personal");
+test("the setup card lists the onboarding steps on the Mac app, with no separate Get started list", () => {
+  const out = asDevice("mac", () => html("personal"));
   assert.ok(has(out, ">Set up<") && has(out, ">0 of 8<"));
   for (const t of ["Connect your AI", "How you work", "Bring your sessions", "Local folders", "Chrome extension", "Your phone", "First win", "Add a team"]) assert.ok(has(out, t), t);
   assert.ok(!has(out, ">Get started<") && !has(out, "Add a photo and title") && !has(out, "Open your first project") && !has(out, "Import your data"));
+});
+
+test("in a browser the setup card has no sessions or folders: 0 of 6", () => {
+  const out = asDevice("web", () => html("personal"));
+  assert.ok(has(out, ">Set up<") && has(out, ">0 of 6<"));
+  for (const t of ["Connect your AI", "How you work", "Chrome extension", "Your phone", "First win", "Add a team"]) assert.ok(has(out, t), t);
+  for (const t of ["Bring your sessions", "Local folders"]) assert.ok(!has(out, t), `${t} is hidden in a browser`);
 });
 
 test("sections with nothing in them are not drawn", () => {

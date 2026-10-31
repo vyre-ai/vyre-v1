@@ -89,7 +89,7 @@ export function enumerate(scopeSel) {
     const r = e.getBoundingClientRect();
     if (r.width < 2 || r.height < 2 || cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) continue;
     const disabled = e.disabled === true || e.getAttribute("aria-disabled") === "true" || e.hasAttribute("disabled");
-    const selected = e.getAttribute("aria-selected") === "true" || e.getAttribute("aria-pressed") === "true" || (e.getAttribute("aria-current") && e.getAttribute("aria-current") !== "false");
+    const selected = e.getAttribute("aria-selected") === "true" || e.getAttribute("aria-pressed") === "true" || ((e.getAttribute("role") === "radio" || e.getAttribute("role") === "menuitemradio" || e.getAttribute("role") === "checkbox" || e.getAttribute("role") === "switch") && e.getAttribute("aria-checked") === "true") || (e.getAttribute("aria-current") && e.getAttribute("aria-current") !== "false");
     e.setAttribute("data-dbg-i", String(i));
     const href = e.getAttribute("href");
     out.push({ i: i++, label: shortLabel(e), tag: tn.toLowerCase(), role: e.getAttribute("role") || "", testid: e.getAttribute("data-testid") || "", sel: structural(e), disabled, selected, href: href || "", target: e.getAttribute("target") || "", rect: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)], hasKids: [...e.querySelectorAll(SEL)].some((k) => matched.has(k)) });

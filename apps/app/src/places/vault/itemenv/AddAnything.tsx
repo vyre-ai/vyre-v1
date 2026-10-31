@@ -14,7 +14,7 @@ import { Btn, Glyph, IconBtn, LogoTile, QuietLine } from "../layout/parts.tsx";
 import type { IconName } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { fieldsFor, filterTemplates, mergeFields, normalizeKey, patchAt, plainFields, templateById, understandPaste } from "./env.ts";
+import { fieldsFor, filterTemplates, mergeFields, nameFromKey, normalizeKey, patchAt, plainFields, templateById, understandPaste } from "./env.ts";
 import type { Field, ItemKind, Template } from "./env.ts";
 import { LAYOUT_SCREEN } from "./ItemEnv.tsx";
 
@@ -134,7 +134,8 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
     setFields((cur) => mergeFields(cur, u.fields));
     if (u.template) setTemplate(u.template);
     setKind(u.itemKind);
-    if (u.name && !nameTouched && !name) setName(u.name);
+    // a paste that names nothing still gets a name, so Add is never left disabled for a reason the person cannot see: the app, else the first key in words
+    if (!nameTouched && !name) setName(u.name ?? nameFromKey(u.fields[0]?.key ?? ""));
     setStatus({ text: u.note, undo: before });
   };
   // A paste anywhere in the sheet is understood (a key, a .env, a link, JSON): there is no paste box. A paste into the name or a value stays a plain paste.
@@ -168,6 +169,8 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   const started = fields.length > 0;
   const filled = fields.filter((f) => f.key && f.value !== "");
   const canSave = name.trim() !== "" && filled.length > 0 && target !== undefined && !saving;
+  // a disabled Add always says why, in one quiet line
+  const whyNot = name.trim() === "" ? "Give it a name" : filled.length === 0 ? "Give it a value" : target === undefined ? "Choose a folder" : null;
   const keys = fields.map((f) => f.key).filter(Boolean);
   const dup = keys.find((k, i) => keys.indexOf(k) !== i);
 
@@ -246,8 +249,9 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
         <>
           <View style={s.field}>
             <Text style={s.label}>Name</Text>
-            <TextInput value={name} onChangeText={(v) => { setName(v); setNameTouched(true); }} placeholder="GoHighLevel" accessibilityLabel="Name" style={s.input} testID="add-name" />
+            <TextInput value={name} onChangeText={(v) => { setName(v); setNameTouched(true); }} placeholder="Name this item" accessibilityLabel="Name" style={s.input} testID="add-name" />
             {name.trim() ? <Text style={s.handle} testID="add-handle">{handleFor(data.spaceName, name)}</Text> : null}
+            {whyNot ? <Text style={s.handle} testID="add-why">{whyNot}</Text> : null}
           </View>
           <View style={s.field}>
             <Text style={s.label}>Fields</Text>

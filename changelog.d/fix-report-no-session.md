@@ -1,0 +1,1 @@
+- Report a problem now works when the Space cannot be reached (the report sheet is mounted even with no session, and a report is queued); the error panel's Copy trace id only shows when there is a trace id and falls back to a selection copy; the current Space in the Space menu is marked current.
