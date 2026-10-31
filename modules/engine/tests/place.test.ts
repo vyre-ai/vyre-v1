@@ -153,3 +153,13 @@ test("the chip's options: this computer, the Space in a Team Space, each of the 
   const shared = await placementOptions(pinCtx({ members: [{ kind: "person", id: "usr_dana" }, { kind: "person", id: "usr_ravi" }] }), { threadId: "thr_1" });
   assert.deepEqual([shared.private, shared.effective], [false, { target: "space" }]);
 });
+
+test("the Space menu's Chats run on: with engine.local_runs off a private chat does not start on the computer, and runs on the Space for someone who allows it", async () => {
+  const mk = (localRuns: boolean) => {
+    const base = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [mac]);
+    const inner = base.ctx.call;
+    return Object.assign(Object.create(base.ctx), { call: async (cap: string, input: unknown) => (cap === "settings.get" ? { row: { value: localRuns } } : inner(cap, input)) });
+  };
+  assert.equal((await placementDecide(mk(true), { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "device");
+  assert.deepEqual(await placementDecide(mk(false), { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "wait", reason: "local_runs_off", wakeLine: "Running chats on your computer is off" });
+});

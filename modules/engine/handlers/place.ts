@@ -16,7 +16,7 @@ interface CallCtx extends EngineCtx { call(cap: string, input: unknown): Promise
 // DECISION: a device's role comes from its class. Desktop apps and daemons are daemons (they run CLI engines); phones, browsers and extensions are clients (they run none), so their private chats run on the Space.
 // DECISION: a device is online when the server heard from it in the last two minutes (ONLINE_MS below).
 // DECISION: until a device reports which engines it runs, every daemon device counts as running the three CLI drivers (claude_code, codex, grok).
-// DECISION: engine.local_runs is on for everyone (placeTurn's default); there is no setting to turn it off yet.
+// DECISION: engine.local_runs (Space menu: Chats run on This computer or The Space) is read for the asker; off sends new private chats to the Space when they opted in, else they wait with the line.
 const KINDS = new Set<string>(["chat", "channel", "thread", "ask", "run", "helper", "console"]);
 const CLI_ENGINES = ["claude_code", "codex", "grok"] as const;
 /** A device counts as online when the server heard from it this recently. */
@@ -63,12 +63,15 @@ export async function placementDecide(ctx: CallCtx, input: { threadId: string; a
   const kind = (KINDS.has(t.thread.kind) ? t.thread.kind : "chat") as ThreadKind;
   const persons = new Set((t.thread.members ?? []).filter((m) => m.kind === "person").map((m) => m.id)).size;
   const chosen = await chosenFor(ctx, input.threadId);
+  // the Space menu's "Chats run on": off means new chats run on the Space instead of this computer (engine.local_runs)
+  let localRuns = true;
+  try { localRuns = ((await ctx.call("settings.get", { key: "engine.local_runs" })) as { row?: { value?: unknown } }).row?.value !== false; } catch { /* the default stands */ }
   const place: PlaceInput = {
     thread: { kind, persons, onSharedRecord: kind === "ask" && t.thread.scopeType === "record" && persons > 1 },
     item: { kind: input.kind === "message" ? "message" : input.kind },
     agent: { hasComputer: a.agent.hasComputer === true },
     engine: engineOf(ctx, input.threadId, input.agentId),
-    asker: { devices: devicesFrom(d, ctx.now()), runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
+    asker: { devices: devicesFrom(d, ctx.now()), localRuns, runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
   };
   const p = placeTurn(place);
   return { placement: p.placement, reason: p.reason, ...(p.wakeLine ? { wakeLine: p.wakeLine } : {}), ...(p.nodeId ? { nodeId: p.nodeId } : {}) };
