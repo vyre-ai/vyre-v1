@@ -8,7 +8,7 @@ import type { QueryFailure } from "../../../../../../client/src/query/types.ts";
 import { portalInto } from "../../../shell/sidebar/portal.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -83,6 +83,9 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const data = useSidebarData();
   const online = useOnline();
   const menu = useMenu();
+  // a phone shows the top three Needs you rows and the rest behind "Show all" (0 is "not measured yet": the desktop list)
+  const width = useWindowDimensions().width;
+  const narrow = width > 0 && width < 560;
   const [filter, setFilter] = useState<Filter>("all");
   const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set());
   const [cursor, setCursor] = useState<string | null>(null);
@@ -135,8 +138,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed, facesMore, errors }),
-    [needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed],
+    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, closed, facesMore, errors, ...(narrow ? { needsLimit: 3 } : {}) }),
+    [needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, narrow],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -195,7 +198,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     else if (e.type === "face") data.nav.openAgentChat(e.agent.agentId);
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
     else if (e.type === "need") data.nav.openNeedsYou(e.item.task.id);
-    else if (e.type === "more") data.nav.openAllAgents();
+    else if (e.type === "more") { if (e.to === "needs") data.nav.openNeedsYou(); else data.nav.openAllAgents(); }
     else if (e.type === "head") { toggle(e.section); return; }
     leave();
   };
@@ -355,7 +358,9 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
 
   // In the shell the assistant's new-chat button sits in the slot's header, right of the title beside the collapse button (the prototype's "Chats ... V [panel]"); alone it sits in a row of its own.
   const inHeader = slot?.actionsOutlet !== undefined && slot.actionsOutlet !== null;
-  const headBusy = data.space.otherNeedsYou || !online;
+  // another Space needing you is a dot by the Space switcher: here on a desktop, on the You tab on a phone
+  const dot = data.space.otherNeedsYou && !narrow;
+  const headBusy = dot || !online;
   const newChatButton = (
     <Pressable accessibilityRole="button" accessibilityLabel={`New chat with ${data.space.assistant.name}`} {...{ title: `New chat with ${data.space.assistant.name}` }} onPress={() => { void api.newChat(); leave(); }} testID="new-chat" style={({ hovered }: { hovered?: boolean }) => [st.assistant, hovered === true && st.assistantOver]}>
       <Avatar name={data.space.assistant.name} kind="assistant" size={18} />
@@ -365,7 +370,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     <View testID="chats-sidebar" accessibilityRole="listbox" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown, ...(cursor ? { "aria-activedescendant": cursor.startsWith("h:") ? (cursor === "h:needs" ? "row-needs-parent" : `toggle-${cursor.slice(2)}`) : `row-${cursor}` } : {}) }}>
       {headBusy || !inHeader ? (
         <View style={st.top} testID="sidebar-head" accessibilityLabel={`Chats, ${data.space.name}`}>
-          {data.space.otherNeedsYou ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
+          {dot ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
           {online ? null : <Text testID="sidebar-offline" style={st.quiet}>Offline</Text>}
           <View style={{ flex: 1 }} />
           {inHeader ? null : newChatButton}
