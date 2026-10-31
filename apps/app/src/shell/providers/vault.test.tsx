@@ -136,3 +136,8 @@ test("Vault calls that need an idempotencyKey get one when the sheet sent none, 
   assert.equal(b!["idempotencyKey"], "mine");
   assert.equal(c!["idempotencyKey"], undefined, "a call that has no key in its contract is left alone");
 });
+
+test("the Inbox's Twilio tile reaches the Vault's Add form on the Twilio template", () => {
+  assert.deepEqual(vaultRoute({ screen: "vault.layout", args: { add: "twilio" } }), { surface: "layout", addApp: "twilio" });
+  assert.deepEqual(vaultRoute({ screen: "vault.layout", args: {} }), { surface: "layout" });
+});

@@ -8,7 +8,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { useInboxData, useOptionalInboxData, useScreenQuery } from "./data.tsx";
+import { useCanSend, useInboxData, useOptionalInboxData, useScreenQuery } from "./data.tsx";
 import { SCREENS, calendarIds, navGroups, sameScope } from "./model.ts";
 import type { ContactRow, NavInbox, Scope, View as ViewKind } from "./model.ts";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -63,6 +63,7 @@ function Sidebar(): ReactElement {
   const width = useWindowDimensions().width;
   const keys = !(width > 0 && width < 560);
   const { state, dispatch } = useInboxState();
+  const canSend = useCanSend();
   const menu = useMenu();
   const [focus, setFocus] = useState(false);
   const counts = useScreenQuery<CountsOut>(SCREENS.sidebar, "counts");
@@ -89,6 +90,8 @@ function Sidebar(): ReactElement {
     menu.show(entries, x, y);
   };
   const connectMenu = (x: number, y: number): void => {
+    // nothing connected: the plus opens the same choice the empty Inbox shows, not a menu
+    if (canSend === false) { dispatch({ type: "connect" }); return; }
     menu.show([
       { head: "Connect a mailbox" },
       { label: "Gmail", onSelect: () => data.nav.connect("gmail") },
@@ -145,7 +148,7 @@ function Sidebar(): ReactElement {
       <View style={styles.top}>
         <Text accessibilityRole="header" style={styles.title}>Inbox</Text>
         <View style={styles.grow} />
-        <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => data.nav.compose()} />
+        <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => (canSend === false ? dispatch({ type: "connect" }) : data.nav.compose())} />
         <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />
       </View>
       <View style={[styles.search, focus && styles.searchOn]}>
@@ -182,7 +185,7 @@ function Sidebar(): ReactElement {
         {closed("cals") ? null : calendarRows}
       </ScrollView>
       <View style={styles.foot}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open the dialer" testID="inbox-dialer" onPress={() => data.nav.openDialer()} style={({ hovered }: { hovered?: boolean }) => [styles.dialer, hovered === true && styles.dialerOver]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open the dialer" testID="inbox-dialer" onPress={() => (canSend === false ? dispatch({ type: "connect" }) : data.nav.openDialer())} style={({ hovered }: { hovered?: boolean }) => [styles.dialer, hovered === true && styles.dialerOver]}>
           <Glyph name="call" size={14} />
           <Text style={styles.dialerText}>Dialer</Text>
           <View style={styles.grow} />

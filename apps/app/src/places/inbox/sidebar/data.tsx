@@ -3,6 +3,8 @@
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
+import type { CapMap } from "../../../../../../generated/types.ts";
+import { canSend } from "./model.ts";
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
@@ -18,8 +20,8 @@ export interface InboxNav {
   openMatch(conversationId: string): void;
   /** The pencil at the top of the sidebar: a new message. */
   compose(): void;
-  /** The plus at the top: connect a mailbox or claim a number. */
-  connect(kind: "gmail" | "outlook" | "imap" | "number"): void;
+  /** The plus at the top and the connect choice: a mailbox, a number, or the Twilio account (its Account SID and Auth Token go to the Vault). */
+  connect(kind: "gmail" | "outlook" | "imap" | "number" | "twilio"): void;
   /** The email builder, where a template is designed: a new one, or the design with this id. */
   openEmailDesign?(emailId?: string): void;
   /** "Mailbox Settings" or "Number Settings" from an inbox row's menu. */
@@ -84,4 +86,12 @@ export function useOnline(): boolean {
   const { connection } = useInboxData();
   const online = (): boolean => connection.get() === "online";
   return useSyncExternalStore(connection.subscribe, online, online);
+}
+
+/** Whether any channel can send: null until the mailboxes and counts have loaded (nothing is decided on a guess), then true or false. */
+export function useCanSend(): boolean | null {
+  const boxes = useScreenQuery<CapMap["mail.mailbox.list"]["out"]>("inbox.sidebar", "mailboxes");
+  const counts = useScreenQuery<CapMap["inbox.counts"]["out"]>("inbox.sidebar", "counts");
+  if (boxes.status !== "ready" || counts.status !== "ready") return null;
+  return canSend(boxes.data.mailboxes, counts.data);
 }

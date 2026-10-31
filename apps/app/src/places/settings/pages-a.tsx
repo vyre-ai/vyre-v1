@@ -235,6 +235,7 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
         {list}
         <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("mailbox")} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
+        <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("twilio")} control={<Glyph name="chevR" size={13} />} />
       </Section>
       <RegistrySections page="connections" rows={rows} found={found} />
     </>
