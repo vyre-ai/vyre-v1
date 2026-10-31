@@ -81,7 +81,9 @@ test("no reads at all still gives the agent who it is, from the turn input", asy
 test("a slow read gives up after readMs and never holds the turn", async () => {
   const slow = async (): Promise<unknown> => new Promise(() => {});
   const t0 = Date.now();
-  const ctx = await createContextBuilder({ call: slow, now: () => at, readMs: 30 }).build(input());
+  // The read timer is unref'd so it never holds a process open; a live host keeps the loop running, so the test does too.
+  const alive = setInterval(() => undefined, 1_000);
+  const ctx = await createContextBuilder({ call: slow, now: () => at, readMs: 30 }).build(input()).finally(() => clearInterval(alive));
   assert.ok(Date.now() - t0 < 2_000);
   assert.ok(ctx.sections.some((s) => s.id === "identity"));
 });
