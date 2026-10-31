@@ -11,7 +11,7 @@ import {
 import { isHostService } from "../../../lib/trust.ts";
 import type { In, Member, Project, ProjectsCtx, Role, Source, TaskView } from "../projections.ts";
 
-interface Made { projectId: string; recordId: string; channelId: string; folderId: string }
+export interface Made { projectId: string; recordId: string; channelId: string; folderId: string }
 interface FolderOut { folderId: string; parentId?: string; name: string; path?: string }
 
 const subjectOf = (m: Pick<Member, "kind" | "principal">): { kind: string; id: string } => ({ kind: m.kind, id: m.principal });
@@ -147,14 +147,16 @@ async function vetStarters(ctx: ProjectsCtx, members: ReadonlyMap<string, Role>)
   }
 }
 
-interface Plan {
+export interface Plan {
   type: string; title: string; summary?: string | undefined; goal?: string | undefined; lead?: string | undefined; start?: number | undefined; due?: number | undefined;
   stages: Array<{ key: string; title: string }>; members: Array<{ principal: string; role: Role }>; source: Source; key: string;
   /** From a channel: the channel that already exists and its folder, if it has one. */
   channel?: { channelId: string; threadId?: string | undefined; folderId?: string | undefined } | undefined;
+  /** Adopting a record that exists (adoptRecord): its id, and the folder it already has if any. No new record is made. */
+  existing?: { recordId: string; folderId?: string | undefined } | undefined;
 }
 
-async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
+export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
   const now = ctx.now();
   const projectId = newId("prj", now);
   const maker = me(ctx);
@@ -168,13 +170,16 @@ async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
 
   await vetStarters(ctx, members);
 
-  const rec = await call<{ record?: { id?: string } }>(ctx, "records.create", {
-    type: o.type, fields: clean({ title: o.title, summary: o.summary, status: "planning", lead, start: o.start, due: o.due, goal: o.goal, stages: o.stages.map((s) => s.key) }),
-  }, { idempotencyKey: `prj-rec:${o.key}` });
-  const recordId = rec.record?.id;
+  let recordId = o.existing?.recordId;
+  if (!recordId) {
+    const rec = await call<{ record?: { id?: string } }>(ctx, "records.create", {
+      type: o.type, fields: clean({ title: o.title, summary: o.summary, status: "planning", lead, start: o.start, due: o.due, goal: o.goal, stages: o.stages.map((s) => s.key) }),
+    }, { idempotencyKey: `prj-rec:${o.key}` });
+    recordId = rec.record?.id;
+  }
   if (!recordId) raise(ctx, "internal.unexpected", "The project record was not created.");
 
-  let folderId = o.channel?.folderId;
+  let folderId = o.channel?.folderId ?? o.existing?.folderId;
   if (!folderId) {
     const root = await projectsRoot(ctx);
     try {

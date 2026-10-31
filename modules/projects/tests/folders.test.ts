@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { DANA, LEO, MAYA, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { mkProject } from "../fixtures/seed.ts";
-import { backfill, folderNameOf, onRecordEvent } from "../handlers/folders.ts";
+import { adoptRecord, backfill, folderNameOf, onRecordEvent, syncAccess } from "../handlers/folders.ts";
 
 /** A project record made the way the Records page makes one: a row with no projects row and no folder. */
 function mkRecord(h: Harness, fields: Record<string, unknown>, type = "project"): string {
@@ -140,7 +140,7 @@ test("access is brought in line again: a removed share is revoked, a changed lev
   const folderId = String(h.world.records.get(id)!.fields["folder"]);
   h.world.recordShares.set(id, [{ subject: { kind: "person", id: MAYA }, level: "view" }]);
   h.clear();
-  await backfill(h.ctx);
+  await syncAccess(h.ctx, "project", id, folderId);
   const got = h.world.grants.filter((g) => g.resource.id === folderId).map((g) => [g.subject.id, g.level]).sort();
   assert.deepEqual(got, [[DANA, "manage"], [MAYA, "view"]].sort(), "Leo's share is revoked, Maya's level is replaced, the maker keeps Manage");
 });
@@ -164,7 +164,7 @@ test("a project made by projects.create keeps its role grants; the record mirror
   assert.equal(h.world.grants.some((g) => g.source.startsWith("projfolder:")), false);
 });
 
-test("the boot sweep fills an empty folder field and leaves a filled one", async () => {
+test("the boot sweep adopts a bare project record: a project row, one channel, and the folder field filled; a filled one keeps its folder", async () => {
   const h = harness();
   const empty = mkRecord(h, { title: "Test" });
   const filled = mkRecord(h, { title: "Other", folder: "fld_theirs" });
@@ -173,6 +173,42 @@ test("the boot sweep fills an empty folder field and leaves a filled one", async
   assert.equal(named(h, "Test").length, 1);
   assert.equal(h.world.records.get(empty)!.fields["folder"], named(h, "Test")[0]!.folderId);
   assert.equal(h.world.records.get(filled)!.fields["folder"], "fld_theirs");
-  assert.equal(await backfill(h.ctx), 0, "a second sweep makes nothing");
   assert.equal(named(h, "Other").length, 0);
+  assert.equal(h.rows("SELECT * FROM projects_project").length, 2);
+  assert.equal(h.world.channels.size, 2);
+  assert.equal(h.rows("SELECT folderId FROM projects_project WHERE recordId = ?", filled)[0]!["folderId"], "fld_theirs");
+  assert.equal(h.world.records.get(empty)!.fields["channel"] !== undefined, true);
+  assert.equal(await backfill(h.ctx), 0, "a second sweep makes nothing");
+  assert.equal(h.world.channels.size, 2);
+  assert.equal(h.only("files.folder.create").length, 1);
+});
+
+test("adopting a record whose folder the event already made reuses that folder and makes no second", async () => {
+  const h = harness();
+  const id = mkRecord(h, { title: "Test" });
+  await created(h, id);
+  const folderId = String(h.world.records.get(id)!.fields["folder"]);
+  const made = await adoptRecord(h.ctx, "project", id);
+  assert.equal(made?.folderId, folderId);
+  assert.equal(h.only("files.folder.create").length, 1);
+  assert.equal(h.world.channels.size, 1);
+});
+
+test("adopting turns the record's lead and shares into roles on the project and its folder, and drops the mirror grants", async () => {
+  const h = harness();
+  const id = mkRecord(h, { title: "Test", lead: LEO });
+  h.world.recordShares.set(id, [{ subject: { kind: "person", id: MAYA }, level: "edit" }, { subject: { kind: "person", id: DANA }, level: "view" }]);
+  await created(h, id);
+  const made = (await adoptRecord(h.ctx, "project", id))!;
+  const roles = h.rows("SELECT principal, role FROM projects_member WHERE projectId = ?", made.projectId).map((r) => [r["principal"], r["role"]]).sort();
+  assert.deepEqual(roles, [[DANA, "guest"], [LEO, "lead"], [MAYA, "member"]].sort());
+  assert.equal(h.world.grants.some((g) => g.source.startsWith("projfolder")), false);
+  assert.ok(h.world.grants.some((g) => g.resource.id === made.folderId && g.subject.id === MAYA && g.level === "edit" && g.source === `project:${made.projectId}`));
+});
+
+test("adopting a record that already has a project does nothing", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  assert.equal(await adoptRecord(h.ctx, "project", p.recordId), undefined);
+  assert.equal(h.rows("SELECT * FROM projects_project").length, 1);
 });
