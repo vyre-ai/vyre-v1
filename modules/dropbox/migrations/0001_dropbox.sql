@@ -15,8 +15,7 @@ CREATE TABLE IF NOT EXISTS dropbox_account (
   "accountId" TEXT NOT NULL,
   "email" TEXT,
   "name" TEXT,
-  "refreshHandle" TEXT NOT NULL,
-  "refreshItem" TEXT NOT NULL,
+  "refreshSealed" TEXT NOT NULL,
   "created_at" INTEGER NOT NULL
 );
 

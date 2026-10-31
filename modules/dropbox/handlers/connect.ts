@@ -4,9 +4,11 @@
 //   connect.complete  the callback page hands back the state and code; only the person who started it can finish it. The tokens are exchanged by the host, the refresh token goes into a Vault item
 //                     (Mine for a person's own Dropbox, Shared for the Space's), and the access token is dropped: it is made again from the refresh token for every stretch of work.
 // DECISION: a person's connection is theirs alone (the host's own services act for it, as Google and Microsoft do), a Space connection is open to every member and takes the connectors.manage grant.
+// DECISION: the refresh token is not in the Vault at all. A Mine item opens only in its owner's session (a scheduled pass has none), and a Shared item is readable by Members, Admins and agents through the vault
+// capabilities. It is sealed with the Space seal in dropbox_account, which no capability returns: only this module opens it, for one call, and who may use it is accountOf (the owner, or the host's own services).
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  accountOf, accountsFor, actorOf, APP_HANDLE, AUTHORIZE, bad, codeOf, config, CONFIG_ID, ensure, first, FOLDER_NAME, intOrUndef, needConfig, needHost, obj, parseBody, rowsOf, SCOPES, sendJson,
+  accountOf, accountsFor, actorOf, APP_HANDLE, AUTHORIZE, bad, codeOf, config, CONFIG_ID, ensure, first, intOrUndef, needConfig, needHost, obj, parseBody, rowsOf, SCOPES, sendJson,
   str, strOrUndef, text, tokenFor,
 } from "../projections.ts";
 import type { Account, DropboxCtx } from "../projections.ts";
@@ -20,6 +22,9 @@ async function pkce(): Promise<{ verifier: string; challenge: string }> {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
   return { verifier, challenge: Buffer.from(new Uint8Array(digest)).toString("base64url") };
 }
+
+/** The refresh token as it is kept: sealed with the Space seal, in this module's table only. */
+const sealed = (ctx: DropboxCtx, token: string): string => JSON.stringify(ctx.seal.seal(new TextEncoder().encode(token), "dropbox.refresh"));
 
 const accountRow = (a: Account) => ({ connectionId: a.connectionId, ownerKind: a.ownerKind, accountId: a.accountId, ...(a.email ? { email: a.email } : {}), ...(a.name ? { name: a.name } : {}) });
 
@@ -78,16 +83,6 @@ export async function connectStart(ctx: DropboxCtx, input: unknown) {
   return { authUrl: u.toString(), state };
 }
 
-interface Folders { folders: { id: string; name: string }[] }
-
-/** The Vault folder the refresh token goes in: Connections, in Mine for a person and Shared for the Space. */
-async function folderFor(ctx: DropboxCtx, ownerKind: "person" | "space", ownerId: string): Promise<string> {
-  const scope = ownerKind === "person" ? "mine" : "shared";
-  const have = (obj(await ctx.call("vault.folders.list", { scope })) as unknown as Folders).folders.find((f) => f.name === FOLDER_NAME);
-  if (have) return have.id;
-  return text(obj(obj(await ctx.call("vault.folders.create", { name: FOLDER_NAME, scope, idempotencyKey: `connections-folder:${scope}:${ownerId}` }))["folder"])["id"]);
-}
-
 export async function connectComplete(ctx: DropboxCtx, input: unknown) {
   ensure(ctx);
   const i = obj(input);
@@ -124,19 +119,12 @@ export async function connectComplete(ctx: DropboxCtx, input: unknown) {
   if (known) {
     // signing in again to the same Dropbox account keeps the connection (and every mount on it) and replaces the token
     connectionId = str(known, "connectionId");
-    await ctx.call("vault.item.update", { itemId: str(known, "refreshItem"), fieldsSet: [{ key: "token", value: tokens.refreshToken, secret: true }] });
-    ctx.db.run(`UPDATE dropbox_account SET "email" = ?, "name" = ? WHERE "connectionId" = ?`, email ?? null, name ?? null, connectionId);
+    ctx.db.run(`UPDATE dropbox_account SET "email" = ?, "name" = ?, "refreshSealed" = ? WHERE "connectionId" = ?`, email ?? null, name ?? null, sealed(ctx, tokens.refreshToken), connectionId);
   } else {
     connectionId = `con_${hex(12)}`;
-    const folderId = await folderFor(ctx, ownerKind, ownerId);
-    const made = obj(obj(await ctx.call("vault.item.put", {
-      folderId, name: `Dropbox ${email ?? accountId.slice(-8)} ${connectionId.slice(-6)}`, kind: "other", fields: [{ key: "token", value: tokens.refreshToken, secret: true }], idempotencyKey: `dropbox-token:${connectionId}`,
-    }))["item"]);
-    const itemId = text(made["id"]), handle = text(made["handle"]);
-    if (itemId === "" || handle === "") throw fail("provider.bad_response", ctx.trace.traceId, { message: "The Vault did not keep the Dropbox sign-in." });
     ctx.db.run(
-      `INSERT INTO dropbox_account ("connectionId", "ownerKind", "ownerId", "accountId", "email", "name", "refreshHandle", "refreshItem", "created_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      connectionId, ownerKind, ownerId, accountId, email ?? null, name ?? null, handle, itemId, ctx.now(),
+      `INSERT INTO dropbox_account ("connectionId", "ownerKind", "ownerId", "accountId", "email", "name", "refreshSealed", "created_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      connectionId, ownerKind, ownerId, accountId, email ?? null, name ?? null, sealed(ctx, tokens.refreshToken), ctx.now(),
     );
   }
   ctx.emit("dropbox.connected", `entity/${connectionId}`, { connectionId, accountId, ownerKind, ...(email ? { email } : {}) });
@@ -154,9 +142,8 @@ export async function accountRemove(ctx: DropboxCtx, input: unknown) {
   if (a.ownerKind === "space" && ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow") {
     throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only an admin can remove the Space's Dropbox." });
   }
-  // Dropbox is told first (best effort: a token it already lost is not a reason to keep the connection), then the Vault item and the rows go
+  // Dropbox is told first (best effort: a token it already lost is not a reason to keep the connection), then the rows (and with them the sealed token) go
   try { await sendJson(ctx, await tokenFor(ctx, a), { path: "/auth/token/revoke" }); } catch (e) { ctx.log.warn("dropbox token was not revoked", { code: codeOf(e) }); }
-  await ctx.call("vault.item.delete", { itemId: a.refreshItem }).catch((e: unknown) => ctx.log.warn("dropbox token item was not removed", { code: codeOf(e) }));
   ctx.db.run(`DELETE FROM dropbox_account WHERE "connectionId" = ?`, a.connectionId);
   ctx.db.run(`DELETE FROM dropbox_node WHERE "connectionId" = ?`, a.connectionId);
   return { removed: true };

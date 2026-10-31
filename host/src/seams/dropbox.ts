@@ -2,10 +2,9 @@
 // Vault and the Space ports, so an app secret, a refresh token or a file's bytes never pass through module code that does not need them.
 //   app / appSecret   the Dropbox app's key and secret: fields app_key and app_secret of the Vault item the admin named (#Dropbox_App)
 //   exchange          the sign-in code for tokens (PKCE: the verifier proves it is the same server; the secret is added when the app has one)
-//   token             an access token made from the refresh token in a Vault item (a person's Mine item is read as that person), kept here until a minute before it ends and never stored
+//   token             an access token made from an account's refresh token (which the dropbox module keeps sealed in its own table), kept here by connection until a minute before it ends and never stored
 //   upload, download  the two transfers ctx.http (text only) cannot carry; the address is checked (https, a Dropbox host) before a token goes anywhere
 import { fail } from "../routes/errors.ts";
-import { HANDLE } from "./ports.ts";
 import type { SeamCtx, SeamFetch, SpaceBlobs, SpaceFiles, VaultPort } from "./ports.ts";
 import { MAX_DOWNLOAD, statusError } from "./transfer.ts";
 import { checked } from "./mail-providers.ts";
@@ -24,7 +23,7 @@ export interface DropboxHostSeam {
   appSecret(ctx: SeamCtx, handle: string): Promise<string>;
   publicUrl(ctx: SeamCtx): Promise<string>;
   exchange(ctx: SeamCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number; accountId?: string }>;
-  token(ctx: SeamCtx, a: { appHandle: string; refreshHandle: string; asker?: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
+  token(ctx: SeamCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
   upload(ctx: SeamCtx, a: { token: string; arg: Json; fileId: string }): Promise<{ status: number; json: Json }>;
   download(ctx: SeamCtx, a: { token: string; arg: Json; mime?: string }): Promise<{ status: number; json: Json; blob?: { blobId: string; size: number; mime: string } }>;
 }
@@ -107,14 +106,11 @@ export function createDropboxHost(d: DropboxSeamDeps): DropboxHostSeam {
       };
     },
     async token(ctx, a) {
-      if (!HANDLE.test(a.refreshHandle)) throw fail("validation.bad_input", ctx.trace.traceId, { message: "The Vault item is not a valid handle." });
-      const key = `${ctx.space}|${a.refreshHandle}|${a.asker ?? ""}`;
+      if (a.refreshToken === "") throw fail("provider.auth_failed", ctx.trace.traceId, { message: "The Dropbox sign-in is gone. Connect Dropbox again." });
+      const key = `${ctx.space}|${a.cacheKey}`;
       const hit = cache.get(key);
       if (hit && !a.fresh && hit.expiresAt - ctx.now() > 60_000) return hit;
-      let refresh = "";
-      try { refresh = await d.vault.secret(a.refreshHandle, ctx.space, a.asker); } catch { /* the Vault refused or has no such item: the same answer below */ }
-      if (!refresh) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "The Dropbox sign-in is not in the Vault. Connect Dropbox again." });
-      const body = await tokenCall(ctx, a.appHandle, new URLSearchParams({ grant_type: "refresh_token", refresh_token: refresh }));
+      const body = await tokenCall(ctx, a.appHandle, new URLSearchParams({ grant_type: "refresh_token", refresh_token: a.refreshToken }));
       const fresh = { token: body["access_token"] as string, expiresAt: ctx.now() + lifeOf(body) };
       cache.set(key, fresh);
       return fresh;

@@ -13,6 +13,7 @@ useContract(manifest);
 
 type Json = Record<string, unknown>;
 const out = (x: unknown): Json => x as Json;
+const out_ = out;
 const ME = "POST api.dropboxapi.com/2/users/get_current_account";
 
 async function setUp(h: Harness): Promise<void> {
@@ -73,7 +74,7 @@ async function signIn(h: Harness, ownerKind: "person" | "space" = "person"): Pro
   return { state, verifier: String(row["verifier"]) };
 }
 
-test("connect.complete trades the code, keeps the refresh token in the person's own Vault, drops the access token and records the account", async () => {
+test("connect.complete trades the code, seals the refresh token in the module's own table (not in the Vault), drops the access token and records the account", async () => {
   const h = harness();
   await setUp(h);
   const { state, verifier } = await signIn(h);
@@ -85,28 +86,28 @@ test("connect.complete trades the code, keeps the refresh token in the person's 
   // the host got the verifier, the call to Dropbox used the access token it was handed
   assert.deepEqual(h.requests.find((r) => r.method === "EXCHANGE")?.body, { verifier, redirectUri: "https://space.vyre.test/oauth/callback" });
   assert.equal(h.api()[0]?.headers["authorization"], `Bearer ${ACCESS}`);
-  // the Vault: a Connections folder in Mine, one item holding the refresh token as a secret field
-  assert.deepEqual(h.calls("vault.folders.list").map((c) => c.input), [{ scope: "mine" }]);
-  assert.equal(h.calls("vault.folders.create")[0]?.input["scope"], "mine");
-  const put = h.calls("vault.item.put")[0]!.input;
-  assert.deepEqual(put["fields"], [{ key: "token", value: REFRESH, secret: true }]);
+  // the refresh token is not in the Vault: no Vault capability is called, so no Member, Admin or agent can list, reveal, copy, fill or use it
+  assert.deepEqual(h.called.filter((c) => c.cap.startsWith("vault.")), [], "no Vault item is made");
+  const kept = h.rows(`SELECT * FROM dropbox_account`)[0]!;
+  assert.ok(!String(kept["refreshSealed"]).includes(REFRESH) && !Buffer.from(JSON.parse(String(kept["refreshSealed"])).bytes, "base64").toString().includes(REFRESH), "it is sealed, not plain");
+  assert.equal(JSON.parse(String(kept["refreshSealed"])).nonce, "dropbox.refresh", "sealed for this module's purpose");
   // nothing the module keeps holds a token
-  const kept = JSON.stringify([h.rows(`SELECT * FROM dropbox_account`), h.rows(`SELECT * FROM dropbox_oauth`)]);
-  assert.ok(!kept.includes(REFRESH) && !kept.includes(ACCESS), "no token in the module's tables");
+  const kept2 = JSON.stringify([h.rows(`SELECT * FROM dropbox_account`), h.rows(`SELECT * FROM dropbox_oauth`)]);
+  assert.ok(!kept2.includes(REFRESH) && !kept2.includes(ACCESS), "no token in the module's tables");
   assert.equal(h.rows(`SELECT * FROM dropbox_oauth`).length, 0, "the sign-in is used up");
   assert.deepEqual(h.named("dropbox.connected").map((e) => e.payload), [{ connectionId: done["connectionId"], accountId: "dbid:AAH4f99T0taONIb", ownerKind: "person", email: "maya@firm.example" }]);
   const mine = out(d.accountList(h.ctx));
   assert.deepEqual(contractErrors("dropbox.account.list", "out", mine), []);
+  assert.ok(!JSON.stringify(mine).includes("refresh") && !JSON.stringify(mine).includes("sealed"), "no capability answer carries the token, sealed or not");
   assert.deepEqual(mine["connections"], [{ connectionId: done["connectionId"], ownerKind: "person", accountId: "dbid:AAH4f99T0taONIb", email: "maya@firm.example", name: "Maya Rivera" }]);
 });
 
-test("a Space connection keeps its token in the Shared folder and is listed for every member", async () => {
+test("a Space connection is listed for every member", async () => {
   const h = harness();
   await setUp(h);
   const { state } = await signIn(h, "space");
   h.on(ME, { status: 200, body: RECORDED.account });
   await d.connectComplete(h.ctx, { state, code: "c" });
-  assert.equal(h.calls("vault.folders.list")[0]?.input["scope"], "shared");
   assert.equal(h.rows(`SELECT * FROM dropbox_account`)[0]?.["ownerKind"], "space");
   const other = harness({ principal: { kind: "person", id: OTHER } });
   other.connect({ ownerKind: "space" });
@@ -126,7 +127,7 @@ test("a person's connection is theirs alone; the host's own services act for it"
   service.connect();
   service.on("POST api.dropboxapi.com/2/files/get_metadata", { status: 200, body: RECORDED.file });
   assert.ok(await d.getMetadata(service.ctx, { connectionId: "con_dbx0001", path: "/Sales/Report.docx" }), "the engine syncs a mount for its owner");
-  assert.deepEqual(service.tokenAsks[0], { refreshHandle: "#Dropbox_tok0", asker: MAYA }, "and the token is read as the owner");
+  assert.deepEqual(service.tokenAsks[0], { cacheKey: "con_dbx0001", refreshToken: "refresh_not_real" }, "and the sealed token opens with the Space seal, no person's key: a scheduled pass has nobody signed in");
 });
 
 test("signing in again to the same Dropbox keeps the connection and replaces the token", async () => {
@@ -137,9 +138,7 @@ test("signing in again to the same Dropbox keeps the connection and replaces the
   const again = out(await d.connectComplete(h.ctx, { state: (await signIn(h)).state, code: "c2" }));
   assert.equal(again["connectionId"], first["connectionId"]);
   assert.equal(h.rows(`SELECT * FROM dropbox_account`).length, 1);
-  assert.equal(h.calls("vault.item.put").length, 1);
-  assert.equal(h.calls("vault.item.update").length, 1);
-  assert.deepEqual(h.calls("vault.item.update")[0]?.input["fieldsSet"], [{ key: "token", value: REFRESH, secret: true }]);
+  assert.equal(h.called.filter((c) => c.cap.startsWith("vault.")).length, 0);
 });
 
 test("only the person who started a sign-in can finish it, once, within ten minutes", async () => {
@@ -171,7 +170,7 @@ test("a declined sign-in, a missing code and a refused code say so and leave not
   h.on(ME, { status: 401, body: {} });
   assert.equal(await refusedWith(d.connectComplete(h.ctx, { state: (await signIn(h)).state, code: "c" })), "provider.auth_failed", "the token does not work");
   assert.equal(h.rows(`SELECT * FROM dropbox_account`).length, 0);
-  assert.equal(h.calls("vault.item.put").length, 0, "no token is kept for an account that never signed in");
+  assert.equal(h.rows(`SELECT * FROM dropbox_account`).length, 0, "no token is kept for an account that never signed in");
 });
 
 test("account.remove tells Dropbox, removes the Vault item and the rows; only an admin removes the Space's", async () => {
@@ -180,7 +179,6 @@ test("account.remove tells Dropbox, removes the Vault item and the rows; only an
   h.on("POST api.dropboxapi.com/2/auth/token/revoke", { status: 200, body: {} });
   assert.deepEqual(out(await d.accountRemove(h.ctx, { connectionId: "con_dbx0001" })), { removed: true });
   assert.equal(h.api()[0]?.path, "/2/auth/token/revoke");
-  assert.deepEqual(h.calls("vault.item.delete").map((c) => c.input), [{ itemId: "vit_dbx0" }]);
   assert.equal(h.rows(`SELECT * FROM dropbox_account`).length, 0);
   assert.equal(await refusedWith(d.accountRemove(h.ctx, { connectionId: "con_dbx0001" })), "validation.not_found");
 
@@ -209,4 +207,20 @@ test("health: not set up and not connected are not unhealthy; a refused token is
   assert.equal(out(await d.health(h.ctx))["state"], "degraded");
   h.on(ME, { throws: true });
   assert.equal(out(await d.health(h.ctx))["state"], "down");
+});
+
+test("a mount pass run by the scheduler, with no person signed in, gets a valid access token for a person's connection", async () => {
+  // the scheduler runs as the host's own service; the refresh token is a Shared item, so no asker and no key are involved
+  const h = harness({ principal: { kind: "service", id: "svc_host" } });
+  h.connect();
+  h.on("POST api.dropboxapi.com/2/files/list_folder", { status: 200, body: { entries: [], cursor: "c1", has_more: false } });
+  const out = out_(await d.listFolder(h.ctx, { connectionId: "con_dbx0001", path: "" }));
+  assert.equal(out["cursor"], "c1");
+  assert.deepEqual(h.tokenAsks.map((t) => t.cacheKey), ["con_dbx0001"]);
+  assert.equal(h.called.filter((c) => c.cap.startsWith("vault.")).length, 0, "and no Vault is involved");
+  assert.equal(h.api()[0]?.headers["authorization"], "Bearer tok-1");
+  // and a tenant-made service principal (an Automation, a form) is not the host's own service: it does not get someone's Dropbox
+  const tenant = harness({ principal: { kind: "service", id: `svc_${"a".repeat(32)}` } });
+  tenant.connect();
+  assert.equal(await refusedWith(d.listFolder(tenant.ctx, { connectionId: "con_dbx0001", path: "" })), "validation.not_found");
 });
