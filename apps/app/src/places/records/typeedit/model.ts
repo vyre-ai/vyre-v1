@@ -244,8 +244,12 @@ const NO_RETYPE_TO = new Set([...NO_RETYPE_FROM, "ai"]);
 /** Types a person can start a new field with (the others need setup the Console keeps). */
 export const ADDABLE = ["text", "longtext", "number", "money", "datetime", "duration", "checkbox", "rating", "person", "email", "phone", "url", "address", "choice", "multichoice", "status", "files"] as const;
 
+/** The words the chips use for a field type, the same as the Start with chips; a type not named here keeps the server's title. */
+const TITLES: Record<string, string> = { longtext: "Long text", datetime: "Date and time", url: "URL", multichoice: "Multi choice", duration: "Duration", checkbox: "Checkbox" };
+export const fieldTypeTitle = (key: string, fallback: string): string => TITLES[key] ?? fallback;
+
 export function addableTypes(all: readonly FieldTypeInfo[]): FieldTypeInfo[] {
-  return ADDABLE.flatMap((k) => all.find((t) => t.key === k) ?? []);
+  return ADDABLE.flatMap((k) => { const t = all.find((x) => x.key === k); return t ? [{ ...t, title: fieldTypeTitle(t.key, t.title) }] : []; });
 }
 
 /** Why this field cannot change type at all, or null. */
