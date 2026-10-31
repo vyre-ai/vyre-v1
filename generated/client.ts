@@ -20,6 +20,7 @@ export function createClient(transport: Transport) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp", 1),
         update: call("access.actors.update", 1),
       },
+      audience_set: call("access.audience_set", 1),
       check: call("access.check", 1),
       connector_builder: {
         grant: call("access.connector_builder.grant", 1),
@@ -59,6 +60,7 @@ export function createClient(transport: Transport) {
       projection_health: call("access.projection_health", 1),
       propose_change: call("access.propose_change", 1),
       provider_check: call("access.provider_check", 1),
+      record_marks: call("access.record_marks", 1),
       request: call("access.request", 1),
       requests: {
         approve: call("access.requests.approve", 1),

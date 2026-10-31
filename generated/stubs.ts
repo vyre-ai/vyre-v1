@@ -20,6 +20,7 @@ export function stubs(ctx: CallCtx) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp"),
         update: call("access.actors.update"),
       },
+      audience_set: call("access.audience_set"),
       check: call("access.check"),
       connector_builder: {
         grant: call("access.connector_builder.grant"),
@@ -59,6 +60,7 @@ export function stubs(ctx: CallCtx) {
       projection_health: call("access.projection_health"),
       propose_change: call("access.propose_change"),
       provider_check: call("access.provider_check"),
+      record_marks: call("access.record_marks"),
       request: call("access.request"),
       requests: {
         approve: call("access.requests.approve"),

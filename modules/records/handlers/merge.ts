@@ -34,6 +34,9 @@ export const XLSX_MAX_ROWS = 1_048_576;
 export type MergeCtx = Pick<WriteCtx, "trace" | "emit"> & { actor?: string };
 export type ExportCtx = Pick<WriteCtx, "trace"> & {
   actor?: string;
+  /** The Files module, as the caller: an export lands in their own Exports folder when no file port was handed in. */
+  call?: (cap: string, input: unknown) => Promise<unknown>;
+  now?: () => number;
   /** The host decision for the caller on one record. An export writes a file, which the row filter on the way out cannot reach, so the rows are checked here (the label against the clearance lives in it). */
   authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason?: string };
 };
@@ -526,10 +529,28 @@ export function toXlsx(sheet: string, columns: readonly FieldDef[], rows: readon
   ]);
 }
 
+/** An export is a file in the caller's own Exports folder (Personal), made through the Files module as the caller, so what they cannot read was never in it and the file is theirs to share. */
+function filesPort(call: (cap: string, input: unknown) => Promise<unknown>, trace: string): (f: { name: string; mime: string; bytes: Uint8Array }) => Promise<string> {
+  return async (f) => {
+    const root = ((await call("files.tree", {})) as { roots: { key: string; folderId?: string }[] }).roots.find((r) => r.key === "personal")?.folderId;
+    if (!root) throw new Error("the caller has no Personal folder for the export");
+    const inside = async (): Promise<string | undefined> => ((await call("files.list", { folder: root })) as { folders?: { folderId: string; name: string }[]; files?: { fileId: string; name: string }[] }).folders?.find((x) => x.name === "Exports")?.folderId;
+    let folder = await inside();
+    if (!folder) {
+      try { folder = ((await call("files.folder.create", { parentId: root, name: "Exports", idempotencyKey: `exports-folder:${trace}` })) as { folder: { folderId: string } }).folder.folderId; }
+      catch { folder = await inside(); }
+    }
+    if (!folder) throw new Error("no folder for the export");
+    const made = (await call("files.create", { folderId: folder, name: f.name, mime: f.mime, content: { base64: Buffer.from(f.bytes).toString("base64") }, idempotencyKey: `export:${trace}` })) as { file: { fileId: string } };
+    return made.file.fileId;
+  };
+}
+
 async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string; format: "csv" | "xlsx"; recordIds?: string[] } & ViewSpec): Promise<{ fileId: string }> {
   const { store, tx } = deps;
   ensure(tx);
-  if (!deps.putFile) throw new Error("records.export needs a file store: createMergeHandlers was given no putFile");
+  const putFile = deps.putFile ?? (ctx.call ? filesPort(ctx.call, ctx.trace.traceId) : undefined);
+  if (!putFile) throw new Error("records.export needs a file store: createMergeHandlers was given no putFile");
   // fail closed: a file cannot be filtered after it is written, so with no way to ask what the caller may read, nothing is exported
   if (!ctx.authorize) fail(ctx as WriteCtx, "permission.no_grant", "This export cannot check what you may read, so it exports nothing.");
   const def = await needType(store, input.type);
@@ -564,8 +585,8 @@ async function exportRows(deps: MergeDeps, ctx: ExportCtx, input: { type: string
   const stamp = new Date((deps.now ?? Date.now)()).toISOString().slice(0, 10);
   const base = `${input.type}-${stamp}`;
   const fileId = input.format === "csv"
-    ? await deps.putFile({ name: `${base}.csv`, mime: "text/csv; charset=utf-8", bytes: new TextEncoder().encode(toCsv(columns, rows)) })
-    : await deps.putFile({ name: `${base}.xlsx`, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes: toXlsx(def.label ?? def.name, columns, rows) });
+    ? await putFile({ name: `${base}.csv`, mime: "text/csv; charset=utf-8", bytes: new TextEncoder().encode(toCsv(columns, rows)) })
+    : await putFile({ name: `${base}.xlsx`, mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes: toXlsx(def.label ?? def.name, columns, rows) });
   return { fileId };
 }
 

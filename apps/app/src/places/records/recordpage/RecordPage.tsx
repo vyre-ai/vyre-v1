@@ -16,6 +16,8 @@ import { useJourneyStages } from "../journey/useStages.ts";
 import { stageFieldOf as typeStageField, stagesOf, stagesOn } from "../typeedit/stages.ts";
 import { Glyph as Icon } from "../schemamap/icons.tsx";
 import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
+import { useOptionalRecordsData } from "../sidebar/data.tsx";
+import { useRecordRights } from "../sharing/useRecordAccess.ts";
 import { tabsOf, visibleSections, withStages } from "./groups.ts";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
@@ -379,6 +381,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         {wide ? <><Text style={p.slash}>/</Text>
         <Text accessibilityRole="header" aria-level={1} style={p.h1} numberOfLines={1} testID="record-title-crumb">{title}</Text></> : null}
         <View style={p.grow} />
+        <ShareButton recordId={recordId} title={title} typeName={def.plural} wide={wide} />
         {late ? <><Pressable accessibilityRole="button" accessibilityLabel="Relationships" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, map && p.lit]}>Relationships</Text> : null}</Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Details" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, paneOpen && p.lit]}>Details</Text> : null}</Pressable></> : null}
       </View>
@@ -416,6 +419,18 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
       </View>
       {menu.element}
     </View>
+  );
+}
+
+/** Share, in a Team Space, for someone who may share this record. A Personal Space and a viewer draw nothing. */
+function ShareButton({ recordId, title, typeName, wide }: { recordId: string; title: string; typeName: string; wide: boolean }): ReactElement | null {
+  const data = useOptionalRecordsData();
+  const { on, can } = useRecordRights(recordId);
+  if (!on || !(can.manage || can.share)) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Share" testID="record-share-btn" onPress={() => data?.share?.open({ type: "record", id: recordId, name: title, typeName })} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver]}>
+      <Glyph name="share" size={14} color="var(--ink-2)" />{wide ? <Text style={p.hbText}>Share</Text> : null}
+    </Pressable>
   );
 }
 

@@ -942,59 +942,6 @@
       ],
       "type": "object"
     },
-    "s_090e0c0321": {
-      "properties": {
-        "by": {
-          "type": "string"
-        },
-        "conditions": {
-          "$ref": "#/$defs/s_87ec6d95cd"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "gnt_a1b2c3"
-          ],
-          "pattern": "^gnt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "level": {
-          "enum": [
-            "view",
-            "use",
-            "edit",
-            "manage"
-          ],
-          "type": "string"
-        },
-        "resource": {
-          "$ref": "#/$defs/s_f21ece25da"
-        },
-        "source": {
-          "type": "string"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_38b6d47dbd"
-        }
-      },
-      "required": [
-        "id",
-        "subject",
-        "resource",
-        "level",
-        "conditions",
-        "by",
-        "createdAt"
-      ],
-      "type": "object"
-    },
     "s_09238f98e5": {
       "properties": {
         "dkim": {
@@ -4179,6 +4126,68 @@
       ],
       "type": "object"
     },
+    "s_2e1bfcfbb5": {
+      "properties": {
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "export": {
+          "type": "boolean"
+        },
+        "hiddenFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labelCeiling": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ],
+          "type": "string"
+        },
+        "reshare": {
+          "type": "boolean"
+        },
+        "rowFilter": {
+          "description": "Any JSON value"
+        },
+        "window": {
+          "properties": {
+            "from": {
+              "description": "Milliseconds since the Unix epoch",
+              "examples": [
+                1760000000000
+              ],
+              "minimum": 0,
+              "type": "integer"
+            },
+            "to": {
+              "description": "Milliseconds since the Unix epoch",
+              "examples": [
+                1760000000000
+              ],
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "from",
+            "to"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "s_2e977f2711": {
       "properties": {
         "mount": {
@@ -6524,6 +6533,12 @@
         "address"
       ],
       "type": "object"
+    },
+    "s_4cd0b64c5d": {
+      "items": {
+        "$ref": "#/$defs/s_de3161587f"
+      },
+      "type": "array"
     },
     "s_4d39cc7304": {
       "properties": {
@@ -9164,12 +9179,6 @@
       ],
       "type": "object"
     },
-    "s_65809e04d5": {
-      "items": {
-        "$ref": "#/$defs/s_090e0c0321"
-      },
-      "type": "array"
-    },
     "s_65ae3d1fbc": {
       "properties": {
         "kind": {
@@ -11312,62 +11321,6 @@
       ],
       "type": "object"
     },
-    "s_87ec6d95cd": {
-      "properties": {
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "hiddenFields": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "labelCeiling": {
-          "enum": [
-            "public",
-            "internal",
-            "confidential",
-            "restricted"
-          ],
-          "type": "string"
-        },
-        "rowFilter": {
-          "description": "Any JSON value"
-        },
-        "window": {
-          "properties": {
-            "from": {
-              "description": "Milliseconds since the Unix epoch",
-              "examples": [
-                1760000000000
-              ],
-              "minimum": 0,
-              "type": "integer"
-            },
-            "to": {
-              "description": "Milliseconds since the Unix epoch",
-              "examples": [
-                1760000000000
-              ],
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "from",
-            "to"
-          ],
-          "type": "object"
-        }
-      },
-      "type": "object"
-    },
     "s_8887548e27": {
       "properties": {
         "author": {
@@ -12214,6 +12167,17 @@
       },
       "required": [
         "item"
+      ],
+      "type": "object"
+    },
+    "s_928000790c": {
+      "properties": {
+        "grant": {
+          "$ref": "#/$defs/s_de3161587f"
+        }
+      },
+      "required": [
+        "grant"
       ],
       "type": "object"
     },
@@ -16741,17 +16705,6 @@
       ],
       "type": "object"
     },
-    "s_c8f62afafb": {
-      "properties": {
-        "grant": {
-          "$ref": "#/$defs/s_090e0c0321"
-        }
-      },
-      "required": [
-        "grant"
-      ],
-      "type": "object"
-    },
     "s_c963887871": {
       "properties": {
         "class": {
@@ -17939,6 +17892,59 @@
           "type": "integer"
         }
       },
+      "type": "object"
+    },
+    "s_de3161587f": {
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "conditions": {
+          "$ref": "#/$defs/s_2e1bfcfbb5"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "gnt_a1b2c3"
+          ],
+          "pattern": "^gnt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "view",
+            "use",
+            "edit",
+            "manage"
+          ],
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/s_f21ece25da"
+        },
+        "source": {
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_38b6d47dbd"
+        }
+      },
+      "required": [
+        "id",
+        "subject",
+        "resource",
+        "level",
+        "conditions",
+        "by",
+        "createdAt"
+      ],
       "type": "object"
     },
     "s_de4eba3dc2": {
@@ -23473,6 +23479,113 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "grant.created",
+        "grant.revoked",
+        "access.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_team",
+        "permission.no_grant",
+        "permission.not_contained",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "audience": "space",
+            "exporters": "admins",
+            "resource": {
+              "id": "rec_a1b2c3",
+              "type": "space"
+            }
+          },
+          "name": "example",
+          "output": {
+            "audience": "space",
+            "exporters": "admins"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "exporters": {
+            "enum": [
+              "admins",
+              "viewers",
+              "chosen"
+            ],
+            "type": "string"
+          },
+          "resource": {
+            "$ref": "#/$defs/s_f21ece25da"
+          }
+        },
+        "required": [
+          "resource"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.audience_set",
+      "output": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "exporters": {
+            "enum": [
+              "admins",
+              "viewers",
+              "chosen"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "audience",
+          "exporters"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "ref": "/resource",
+        "type": "dynamic"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "teamOnly": true,
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -23887,10 +24000,12 @@
                 "by": "example",
                 "conditions": {
                   "expiresAt": 1760000000000,
+                  "export": true,
                   "hiddenFields": [
                     "example"
                   ],
                   "labelCeiling": "public",
+                  "reshare": true,
                   "rowFilter": {},
                   "window": {
                     "from": 1760000000000,
@@ -23945,7 +24060,7 @@
       "output": {
         "properties": {
           "grants": {
-            "$ref": "#/$defs/s_65809e04d5"
+            "$ref": "#/$defs/s_4cd0b64c5d"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -23995,10 +24110,12 @@
           "input": {
             "conditions": {
               "expiresAt": 1760000000000,
+              "export": true,
               "hiddenFields": [
                 "example"
               ],
               "labelCeiling": "public",
+              "reshare": true,
               "rowFilter": {},
               "window": {
                 "from": 1760000000000,
@@ -24014,10 +24131,12 @@
               "by": "example",
               "conditions": {
                 "expiresAt": 1760000000000,
+                "export": true,
                 "hiddenFields": [
                   "example"
                 ],
                 "labelCeiling": "public",
+                "reshare": true,
                 "rowFilter": {},
                 "window": {
                   "from": 1760000000000,
@@ -24044,7 +24163,7 @@
       "input": {
         "properties": {
           "conditions": {
-            "$ref": "#/$defs/s_87ec6d95cd"
+            "$ref": "#/$defs/s_2e1bfcfbb5"
           },
           "grantId": {
             "examples": [
@@ -24072,7 +24191,7 @@
       "module": "access",
       "name": "access.grants.update",
       "output": {
-        "$ref": "#/$defs/s_c8f62afafb"
+        "$ref": "#/$defs/s_928000790c"
       },
       "permission": null,
       "resource": {
@@ -24481,10 +24600,12 @@
                 "by": "example",
                 "conditions": {
                   "expiresAt": 1760000000000,
+                  "export": true,
                   "hiddenFields": [
                     "example"
                   ],
                   "labelCeiling": "public",
+                  "reshare": true,
                   "rowFilter": {},
                   "window": {
                     "from": 1760000000000,
@@ -24550,7 +24671,7 @@
       "output": {
         "properties": {
           "grants": {
-            "$ref": "#/$defs/s_65809e04d5"
+            "$ref": "#/$defs/s_4cd0b64c5d"
           },
           "group": {
             "$ref": "#/$defs/s_d82a98b687"
@@ -25466,10 +25587,12 @@
                 "by": "example",
                 "conditions": {
                   "expiresAt": 1760000000000,
+                  "export": true,
                   "hiddenFields": [
                     "example"
                   ],
                   "labelCeiling": "public",
+                  "reshare": true,
                   "rowFilter": {},
                   "window": {
                     "from": 1760000000000,
@@ -25515,7 +25638,7 @@
       "output": {
         "properties": {
           "grants": {
-            "$ref": "#/$defs/s_65809e04d5"
+            "$ref": "#/$defs/s_4cd0b64c5d"
           },
           "owns": {
             "items": {
@@ -25984,6 +26107,151 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "audience": "space",
+            "can": {
+              "export": true,
+              "manage": true,
+              "share": true
+            },
+            "rows": [
+              {
+                "audience": "space",
+                "direct": 1,
+                "id": "rec_a1b2c3",
+                "mine": true
+              }
+            ],
+            "typeShared": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.record_marks",
+      "output": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "can": {
+            "properties": {
+              "export": {
+                "type": "boolean"
+              },
+              "manage": {
+                "type": "boolean"
+              },
+              "share": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "manage",
+              "share",
+              "export"
+            ],
+            "type": "object"
+          },
+          "rows": {
+            "items": {
+              "properties": {
+                "audience": {
+                  "enum": [
+                    "space",
+                    "added",
+                    "me"
+                  ],
+                  "type": "string"
+                },
+                "direct": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "id": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "mine": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "audience",
+                "direct",
+                "mine"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "typeShared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "typeShared",
+          "audience",
+          "can",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "access.requested"
@@ -26118,10 +26386,12 @@
               "by": "example",
               "conditions": {
                 "expiresAt": 1760000000000,
+                "export": true,
                 "hiddenFields": [
                   "example"
                 ],
                 "labelCeiling": "public",
+                "reshare": true,
                 "rowFilter": {},
                 "window": {
                   "from": 1760000000000,
@@ -26173,7 +26443,7 @@
       "module": "access",
       "name": "access.requests.approve",
       "output": {
-        "$ref": "#/$defs/s_c8f62afafb"
+        "$ref": "#/$defs/s_928000790c"
       },
       "permission": null,
       "resource": {
@@ -26550,10 +26820,12 @@
                   "by": "example",
                   "conditions": {
                     "expiresAt": 1760000000000,
+                    "export": true,
                     "hiddenFields": [
                       "example"
                     ],
                     "labelCeiling": "public",
+                    "reshare": true,
                     "rowFilter": {},
                     "window": {
                       "from": 1760000000000,
@@ -26621,7 +26893,7 @@
                   "type": "string"
                 },
                 "grant": {
-                  "$ref": "#/$defs/s_090e0c0321"
+                  "$ref": "#/$defs/s_de3161587f"
                 },
                 "lastUsedAt": {
                   "description": "Milliseconds since the Unix epoch",
@@ -27696,18 +27968,22 @@
           "input": {
             "conditions": {
               "expiresAt": 1760000000000,
+              "export": true,
               "hiddenFields": [
                 "example"
               ],
               "labelCeiling": "public",
+              "reshare": true,
               "rowFilter": {},
               "window": {
                 "from": 1760000000000,
                 "to": 1760000000000
               }
             },
+            "export": true,
             "idempotencyKey": "idem_1",
             "level": "view",
+            "reshare": true,
             "resource": {
               "id": "rec_a1b2c3",
               "type": "space"
@@ -27724,10 +28000,12 @@
               "by": "example",
               "conditions": {
                 "expiresAt": 1760000000000,
+                "export": true,
                 "hiddenFields": [
                   "example"
                 ],
                 "labelCeiling": "public",
+                "reshare": true,
                 "rowFilter": {},
                 "window": {
                   "from": 1760000000000,
@@ -27754,7 +28032,10 @@
       "input": {
         "properties": {
           "conditions": {
-            "$ref": "#/$defs/s_87ec6d95cd"
+            "$ref": "#/$defs/s_2e1bfcfbb5"
+          },
+          "export": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "examples": [
@@ -27771,6 +28052,9 @@
               "manage"
             ],
             "type": "string"
+          },
+          "reshare": {
+            "type": "boolean"
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
@@ -27795,7 +28079,7 @@
       "module": "access",
       "name": "access.share",
       "output": {
-        "$ref": "#/$defs/s_c8f62afafb"
+        "$ref": "#/$defs/s_928000790c"
       },
       "permission": null,
       "resource": {
@@ -27833,16 +28117,26 @@
           },
           "name": "example",
           "output": {
+            "audience": "space",
+            "can": {
+              "export": true,
+              "manage": true,
+              "share": true
+            },
+            "exporters": "admins",
+            "inherits": "example",
             "shares": [
               {
                 "grant": {
                   "by": "example",
                   "conditions": {
                     "expiresAt": 1760000000000,
+                    "export": true,
                     "hiddenFields": [
                       "example"
                     ],
                     "labelCeiling": "public",
+                    "reshare": true,
                     "rowFilter": {},
                     "window": {
                       "from": 1760000000000,
@@ -27877,11 +28171,50 @@
       "name": "access.shares_of",
       "output": {
         "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "can": {
+            "properties": {
+              "export": {
+                "type": "boolean"
+              },
+              "manage": {
+                "type": "boolean"
+              },
+              "share": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "manage",
+              "share",
+              "export"
+            ],
+            "type": "object"
+          },
+          "exporters": {
+            "enum": [
+              "admins",
+              "viewers",
+              "chosen"
+            ],
+            "type": "string"
+          },
+          "inherits": {
+            "description": "The container this resource follows (the record type of a record), when it follows it",
+            "type": "string"
+          },
           "shares": {
             "items": {
               "properties": {
                 "grant": {
-                  "$ref": "#/$defs/s_090e0c0321"
+                  "$ref": "#/$defs/s_de3161587f"
                 },
                 "through": {
                   "enum": [
@@ -27915,7 +28248,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry",
+      "summary": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export",
       "surfaces": {
         "http": "auto",
         "mcp": {

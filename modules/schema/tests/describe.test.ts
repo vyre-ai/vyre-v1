@@ -162,3 +162,19 @@ test("a new Space starts with the neutral set: Kit types arrive with their Kit, 
   for (const k of ["matter", "lead", "client_plan", "commission"]) assert.ok(!keys.includes(k), `${k} is not seeded`);
   for (const k of ["contact", "company", "project", "task", "note_board", "agent"]) assert.ok(keys.includes(k), `${k} is seeded`);
 });
+
+test("describe: a type the caller was not given is not in their list, their map or their reads (Only people added)", async () => {
+  const { h, ctx } = kit();
+  const hidden = new Set(["contact"]);
+  const asDee = { ...ctx, authorize: (_a: unknown, r: { id: string }) => (hidden.has(r.id) ? { effect: "deny", reason: "no_grant" } : r.id === "company" ? { effect: "deny", reason: "not_found" } : { effect: "allow", reason: "ok" }) };
+  const listed = (await h["schema.types.list"](asDee as never, {})).types.map((t) => t.key);
+  assert.ok(!listed.includes("contact"), "the hidden type is not listed");
+  assert.ok(listed.includes("company"), "a type the access projection does not know stays visible");
+  assert.equal((await h["schema.types.list"](asDee as never, {})).total, listed.length);
+  assert.ok(!(await h["schema.describe"](asDee as never, {})).types.some((t) => t.key === "contact"));
+  assert.ok(!(await h["schema.map"](asDee as never, {})).nodes.some((n) => n.type === "contact"));
+  await assert.rejects(h["schema.describe"](asDee as never, { type: "contact" }), code("permission.no_grant"));
+  await assert.rejects(h["schema.types.get"](asDee as never, { type: "contact" }), code("permission.no_grant"));
+  await assert.rejects(h["schema.map"](asDee as never, { type: "contact" }), code("permission.no_grant"));
+  assert.ok((await h["schema.types.list"](ctx, {})).types.some((t) => t.key === "contact"), "a caller with no check wired sees them all");
+});

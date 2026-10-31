@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (62)
+## Capabilities (64)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -12,6 +12,7 @@ Requires: files.
 - [access.actors.revoke](../capabilities/access.actors.revoke.md): Revoke the token of an outside actor in one click
 - [access.actors.set_engineer_mcp](../capabilities/access.actors.set_engineer_mcp.md): Allow or stop an outside actor using the Engineer MCP toolset
 - [access.actors.update](../capabilities/access.actors.update.md): Change the roles or declared provider of an outside actor
+- [access.audience_set](../capabilities/access.audience_set.md): Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people
 - [access.check](../capabilities/access.check.md): Access checker: can principal P do action A on resource R, with each step in plain words
 - [access.connector_builder.grant](../capabilities/access.connector_builder.grant.md): Give an assistant the Connector builder role (Member permissions plus connectors.manage), making the role if the Space has none. Needs access.manage.
 - [access.connector_builder.status](../capabilities/access.connector_builder.status.md): Does this assistant hold the permission to build connectors, and may the caller give it
@@ -39,6 +40,7 @@ Requires: files.
 - [access.projection_health](../capabilities/access.projection_health.md): Health probe: access projections are current and the epoch is advancing
 - [access.propose_change](../capabilities/access.propose_change.md): View-level Ask: store a drafted change for the editors of an object as a changeset or Review task; writes nothing to the object
 - [access.provider_check](../capabilities/access.provider_check.md): Which of these resources may not go to an AI provider, by the same label-against-provider rule a chat turn is held to
+- [access.record_marks](../capabilities/access.record_marks.md): For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name
 - [access.request](../capabilities/access.request.md): Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource
 - [access.requests.approve](../capabilities/access.requests.approve.md): Approve an access request: shares as the approver and tells the requester
 - [access.requests.decline](../capabilities/access.requests.decline.md): Decline an access request with a note for the requester
@@ -58,7 +60,7 @@ Requires: files.
 - [access.roles.unassign](../capabilities/access.roles.unassign.md): Take a role away from a person, group or agent
 - [access.roles.update](../capabilities/access.roles.update.md): Rename a custom role or change its clearance; built-in roles are locked
 - [access.share](../capabilities/access.share.md): Give a person, group, role, agent or automation a level on a resource (flows down; folders cover their items)
-- [access.shares_of](../capabilities/access.shares_of.md): Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry
+- [access.shares_of](../capabilities/access.shares_of.md): Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export
 - [access.unshare](../capabilities/access.unshare.md): Remove a grant, or every grant of one source on a resource
 - [access.view_as](../capabilities/access.view_as.md): Preview what a member sees: a read-only preview session for 10 minutes (audited)
 - [folders.create](../capabilities/folders.create.md): Make a folder for one type of thing (Personal, or Space when the person may share)

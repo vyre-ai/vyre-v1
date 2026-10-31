@@ -86,6 +86,18 @@ export type AccessActorsUpdateOut = {
     lastSeenAt?: number;
   };
 };
+export type AccessAudienceSetIn = {
+  resource: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    id: string;
+  };
+  audience?: "space" | "added" | "me";
+  exporters?: "admins" | "viewers" | "chosen";
+};
+export type AccessAudienceSetOut = {
+  audience: "space" | "added" | "me";
+  exporters: "admins" | "viewers" | "chosen";
+};
 export type AccessCheckIn = {
   principal: {
     kind: "person" | "agent" | "actor" | "service";
@@ -174,6 +186,8 @@ export type AccessGrantsListOut = {
           to: number;
         };
         expiresAt?: number;
+        export?: boolean;
+        reshare?: boolean;
       };
       by: string;
       source?: string;
@@ -194,6 +208,8 @@ export type AccessGrantsUpdateIn = {
       to: number;
     };
     expiresAt?: number;
+    export?: boolean;
+    reshare?: boolean;
   };
 };
 export type AccessGrantsUpdateOut = {
@@ -217,6 +233,8 @@ export type AccessGrantsUpdateOut = {
         to: number;
       };
       expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
     };
     by: string;
     source?: string;
@@ -346,6 +364,8 @@ export type AccessGroupsGetOut = {
           to: number;
         };
         expiresAt?: number;
+        export?: boolean;
+        reshare?: boolean;
       };
       by: string;
       source?: string;
@@ -522,6 +542,8 @@ export type AccessPrincipalsEffectiveOut = {
           to: number;
         };
         expiresAt?: number;
+        export?: boolean;
+        reshare?: boolean;
       };
       by: string;
       source?: string;
@@ -604,6 +626,24 @@ export type AccessProviderCheckOut = {
       label?: "public" | "internal" | "confidential" | "restricted";
     }>;
 };
+export type AccessRecordMarksIn = {
+  type: string;
+};
+export type AccessRecordMarksOut = {
+  typeShared: boolean;
+  audience: "space" | "added" | "me";
+  can: {
+    manage: boolean;
+    share: boolean;
+    export: boolean;
+  };
+  rows: Array<{
+      id: string;
+      audience: "space" | "added" | "me";
+      direct: number;
+      mine: boolean;
+    }>;
+};
 export type AccessRequestIn = {
   resource: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -653,6 +693,8 @@ export type AccessRequestsApproveOut = {
         to: number;
       };
       expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
     };
     by: string;
     source?: string;
@@ -743,6 +785,8 @@ export type AccessReviewsGetOut = {
             to: number;
           };
           expiresAt?: number;
+          export?: boolean;
+          reshare?: boolean;
         };
         by: string;
         source?: string;
@@ -951,8 +995,12 @@ export type AccessShareIn = {
       to: number;
     };
     expiresAt?: number;
+    export?: boolean;
+    reshare?: boolean;
   };
   source?: string;
+  export?: boolean;
+  reshare?: boolean;
   idempotencyKey: string;
 };
 export type AccessShareOut = {
@@ -976,6 +1024,8 @@ export type AccessShareOut = {
         to: number;
       };
       expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
     };
     by: string;
     source?: string;
@@ -1010,6 +1060,8 @@ export type AccessSharesOfOut = {
             to: number;
           };
           expiresAt?: number;
+          export?: boolean;
+          reshare?: boolean;
         };
         by: string;
         source?: string;
@@ -1017,6 +1069,14 @@ export type AccessSharesOfOut = {
       };
       through: "direct" | "group" | "role" | "folder" | "owner";
     }>;
+  audience?: "space" | "added" | "me";
+  exporters?: "admins" | "viewers" | "chosen";
+  inherits?: string;
+  can?: {
+    manage: boolean;
+    share: boolean;
+    export: boolean;
+  };
 };
 export type AccessUnshareIn = {
   grantId?: string;
@@ -31540,6 +31600,7 @@ export interface CapMap {
   "access.actors.revoke": { in: AccessActorsRevokeIn; out: AccessActorsRevokeOut };
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
+  "access.audience_set": { in: AccessAudienceSetIn; out: AccessAudienceSetOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
   "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
   "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
@@ -31567,6 +31628,7 @@ export interface CapMap {
   "access.projection_health": { in: AccessProjectionHealthIn; out: AccessProjectionHealthOut };
   "access.propose_change": { in: AccessProposeChangeIn; out: AccessProposeChangeOut };
   "access.provider_check": { in: AccessProviderCheckIn; out: AccessProviderCheckOut };
+  "access.record_marks": { in: AccessRecordMarksIn; out: AccessRecordMarksOut };
   "access.request": { in: AccessRequestIn; out: AccessRequestOut };
   "access.requests.approve": { in: AccessRequestsApproveIn; out: AccessRequestsApproveOut };
   "access.requests.decline": { in: AccessRequestsDeclineIn; out: AccessRequestsDeclineOut };
