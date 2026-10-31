@@ -5,3 +5,5 @@ When a hub key is revoked or a sign-in ends, the Space's admins get one item in 
 When an agent wants to change something through an app hub, the approval card in the chat now reads "Ops wants to send message in Slack" with the fields it will send and "Runs through Composio", instead of the tool's internal name.
 
 Needs you reads right for requests Vyre makes itself. A hub key that stopped working shows "From Composio" (or "From Vyre"), is assigned to "Admins", and its main button is "Replace key", which opens a small sheet in place and puts the new key in the same Vault item. There is no Take button and no "Open its computer" for requests that did not come from an agent's run. Approval cards say "send a message" and "create a task", never a tool's or capability's own name.
+
+In Needs you, the participants button hides when no person is on a request, the footer lists only the keys that work for the open request (Enter to open when there is nothing to approve), and a request Vyre made shows the app's mark or the Vyre mark instead of a person's face.

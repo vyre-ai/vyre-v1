@@ -290,6 +290,17 @@ export function fixOf(t: Task): "replace_key" | null {
   return t.workingNotes["fix"] === "replace_key" && t.workingNotes["connection"] ? "replace_key" : null;
 }
 
+/** The keys that work on the open request, as the footer says them: arrows always, A and B only when the request has those actions, Enter to open when it has neither. */
+export function footerHint(t: Task | undefined): string {
+  const keys = ["\u2191 \u2193 to move"];
+  if (!t) return keys.join(" \u00b7 ");
+  const a = fixOf(t) === null ? splitActions(t) : { primary: null, sendBack: null, more: [] };
+  if (a.primary) keys.push("A approve");
+  if (a.sendBack) keys.push("B send back");
+  if (!a.primary && !a.sendBack) keys.push("Enter to open");
+  return keys.join(" \u00b7 ");
+}
+
 /** Whether "Open its computer" means anything here: only a request an agent made while it ran, never a system or manual one. */
 export function hasComputer(t: Task): boolean {
   return t.kind === "unblock" && t.createdBy.startsWith("agt_") && (t.source?.kind === "run" || t.source?.kind === "chat");

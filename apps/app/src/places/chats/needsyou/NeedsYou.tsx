@@ -16,12 +16,12 @@ import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
 import type { NeedsYouData } from "./data.tsx";
 import {
-  FILTERS, SNOOZES, arrivedLabel, assignedName, fixOf, fromName, hasComputer, originOf, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
+  FILTERS, SNOOZES, arrivedLabel, assignedName, fixOf, footerHint, fromName, hasComputer, originOf, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
   isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
 import { isNoAccount } from "./account.ts";
-import { Button, Face, Icon, LeadIcon, Tool } from "./parts.tsx";
+import { Button, Face, Icon, LeadIcon, OriginMark, Tool } from "./parts.tsx";
 import { ReplaceKeySheet } from "../../../hubs/ReplaceKey.tsx";
 
 type ItemsOut = CapMap["tasks.needs_you"]["out"];
@@ -102,7 +102,9 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
     const tag = (ev.target?.tagName ?? "").toUpperCase();
     if (tag === "INPUT" || tag === "TEXTAREA") return;
     if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault?.(); setSelected(stepSelection(pool, current?.task.id ?? null, ev.key === "ArrowDown" ? 1 : -1)); return; }
-    if (!current || fixOf(current.task) !== null) return;
+    if (!current) return;
+    if (ev.key === "Enter") { ev.preventDefault?.(); setScreen("detail"); return; }
+    if (fixOf(current.task) !== null) return;
     const a = splitActions(current.task);
     if ((ev.key === "a" || ev.key === "A") && a.primary) { ev.preventDefault?.(); void doAct(current, a.primary); }
     if ((ev.key === "b" || ev.key === "B") && a.sendBack) { ev.preventDefault?.(); void doAct(current, a.sendBack); }
@@ -119,7 +121,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
       <View style={isWithdrawn(i) ? st.dimRow : undefined} {...menuTrigger((x, y) => menu.show(entriesFor(i), x, y, "context", { label: i.task.title }))}>
         <Row
           id={`need-${i.task.id}`} title={i.task.title} note={note} noteLead={verb} noteLeadTone={i.task.kind === "unblock" ? "warning" : "accent"} selected={sel} onPress={() => choose(i.task.id)}
-          leading={<View style={{ marginRight: 10 }}><Face name={who(i.task)} seedId={i.task.createdBy} size={26} /></View>}
+          leading={<View style={{ marginRight: 10 }}>{originOf(i.task) ? <OriginMark name={who(i.task)} size={26} /> : <Face name={who(i.task)} seedId={i.task.createdBy} size={26} />}</View>}
           trailing={
             <RowEnd
               time={arrivedLabel(i.task.updatedAt, clock)} lit={sel}
@@ -148,7 +150,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
         <NeedList items={list} withdrawn={withdrawn} render={renderRow} {...(window ? { window } : {})} />
       )}
       {line ? <View testID="needs-line" style={st.note}><Text numberOfLines={2} style={st.noteText}>{line}</Text></View> : null}
-      <View style={st.foot}><Text style={st.footText}>↑ ↓ to move · A approve · B send back</Text></View>
+      <View style={st.foot}><Text testID="needs-foot" style={st.footText}>{footerHint(current?.task)}</Text></View>
     </View>
   );
   const detail = current ? (
@@ -217,20 +219,20 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
     <ScrollView testID="needs-detail" style={{ flex: 1 }} contentContainerStyle={st.dIn}>
       {narrow ? <Pressable accessibilityRole="button" accessibilityLabel="Back to Needs you" onPress={onBack} testID="needs-back" style={st.back}><Icon name="back" size={14} /><Text style={st.backText}>Needs you</Text></Pressable> : null}
       <View style={st.dTop}>
-        <Face name={who} seedId={t.createdBy} size={36} />
+        {system ? <OriginMark name={who} size={36} /> : <Face name={who} seedId={t.createdBy} size={36} />}
         <View style={st.dTopText}>
           <Text testID="needs-kind" style={[st.dKind, warn && { color: "var(--warn)" as string }]}>{gone ? "Withdrawn" : needsLine(t)}</Text>
           <Text accessibilityRole="header" style={st.dTitle}>{t.title}</Text>
           {t.summary ? <Text style={st.dSummary}>{t.summary}</Text> : null}
           <Text testID="needs-meta" style={st.dMeta}>{meta}</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Participants, ${peopleCount(people)}`} testID="needs-participants" onPress={(e) => {
+        {peopleCount(people) > 0 ? (<Pressable accessibilityRole="button" accessibilityLabel={`Participants, ${peopleCount(people)}`} testID="needs-participants" onPress={(e) => {
           const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
           peopleMenu(box ? box.left : 0, box ? box.bottom + 4 : 0);
         }} style={st.people}>
           <Icon name="people" size={14} color="var(--accent)" />
           <Text style={st.peopleN}>{peopleCount(people)}</Text>
-        </Pressable>
+        </Pressable>) : null}
         <Tool icon="more" label="More" onPress={(x, y) => showMenu(menuItems, x, y)} testID="needs-more" />
       </View>
       {gone ? <Text testID="needs-withdrawn" style={st.why}>{`Withdrawn by ${data.nameOf(t.createdBy)}, nothing to do.`}</Text> : null}
