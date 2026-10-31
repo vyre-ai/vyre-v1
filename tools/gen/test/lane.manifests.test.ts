@@ -10,7 +10,7 @@ const table = JSON.parse(readFileSync(new URL('../../../scripts/lanes.json', imp
 const hostRows = (JSON.parse(readFileSync(new URL('../../../host/modules.json', import.meta.url), 'utf8')) as { modules: Array<{ id: string; status: string }> }).modules;
 const lanes = table.lanes.filter((l) => /^L([1-8]|9[a-f])$/.test(l.id) && l.modules.length > 0);
 
-test('lane table covers the 72 modules exactly once', () => {
+test('lane table covers the 73 modules exactly once', () => {
   const ids = lanes.flatMap((l) => l.modules);
   assert.equal(new Set(ids).size, ids.length);
   const manifests = all.filter((m) => m.kind !== 'kit').map((m) => m.id);
