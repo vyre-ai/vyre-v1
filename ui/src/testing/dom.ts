@@ -16,11 +16,12 @@ export const textOf = (n: Node | string | null): string => (n === null ? "" : ty
 /** Call at the start of a test, after the imports have loaded: react-native-web must load without a document, and render with one. */
 export function installDom(): () => void {
   const g = globalThis as Record<string, unknown>;
-  const had = { window: "window" in g, Image: "Image" in g, document: "document" in g };
+  const had = { window: "window" in g, Image: "Image" in g, document: "document" in g, raf: "requestAnimationFrame" in g };
   g["IS_REACT_ACT_ENVIRONMENT"] = true;
   if (!had.window) g["window"] = globalThis;
   if (!had.Image) g["Image"] = class { onload: unknown; onerror: unknown; set src(_v: string) { /* never loads */ } };
   if (!had.document) g["document"] = { createElement: () => ({ style: {}, setAttribute: () => undefined, appendChild: () => undefined }), head: { appendChild: () => undefined }, getElementById: () => null, documentElement: { getAttribute: () => null, setAttribute: () => undefined, removeAttribute: () => undefined, style: { setProperty: () => undefined, removeProperty: () => undefined, getPropertyValue: () => "" }, classList: { add: () => undefined, remove: () => undefined } }, addEventListener: () => undefined };
+  if (!had.raf) { g["requestAnimationFrame"] = () => 0; g["cancelAnimationFrame"] = () => undefined; }
   const stub = { value: () => undefined, configurable: true, enumerable: false, writable: true };
   Object.defineProperty(Object.prototype, "addEventListener", stub);
   Object.defineProperty(Object.prototype, "removeEventListener", stub);
@@ -30,6 +31,7 @@ export function installDom(): () => void {
     if (!had.window) delete g["window"];
     if (!had.Image) delete g["Image"];
     if (!had.document) delete g["document"];
+    if (!had.raf) { delete g["requestAnimationFrame"]; delete g["cancelAnimationFrame"]; }
   };
 }
 
