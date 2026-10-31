@@ -105,17 +105,26 @@ async function nameStatus(env, name) {
 }
 
 /**
- * Does <name>.vyre.run already have an A or CNAME record of its own? The phone wildcard is an AAAA record only, so any answer to an A query means a real host (a download bucket, a site, a tunnel)
- * that a claim must never take over. Fails closed: no answer is "unavailable".
+ * Does <name>.vyre.run already have a record of its own that is not the phone wildcard? A proxied wildcard makes Cloudflare answer an A query for every name (with the zone's proxy addresses, the same
+ * ones any proxied host gets), so "has an answer" says nothing. What does differ is a host that is not proxied (a server with its own address): its answer is not what a name nobody holds gets, which a
+ * random label asked at the same moment shows. A proxied host that exists is fenced by INFRA instead; a host added to the zone later has to be added there.
+ * Fails closed: no answer is "unavailable".
  * @param {any} env @param {string} name
  */
 async function dnsTaken(env, name) {
   const f = typeof env.DOH_FETCH === "function" ? env.DOH_FETCH : globalThis.fetch.bind(globalThis);
-  try {
-    const r = await f(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`${name}.${String(env.HOST_ZONE || PHONE.zone)}`)}&type=A`, { headers: { accept: "application/dns-json" } });
+  const zone = String(env.HOST_ZONE || PHONE.zone);
+  const control = `zz-${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  /** @param {string} label */
+  const answers = async label => {
+    const r = await f(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`${label}.${zone}`)}&type=A`, { headers: { accept: "application/dns-json" } });
     const j = /** @type {any} */ (await r.json());
-    if (!r.ok || !j || typeof j.Status !== "number") return "unavailable";
-    return j.Status === 0 && Array.isArray(j.Answer) && j.Answer.length > 0 ? "taken" : "ok";
+    if (!r.ok || !j || typeof j.Status !== "number") throw new Error("no answer");
+    return (j.Status === 0 && Array.isArray(j.Answer) ? j.Answer : []).map((/** @type {any} */ a) => `${a.type}:${a.data}`).sort().join(",");
+  };
+  try {
+    const [mine, none] = await Promise.all([answers(name), answers(control)]);
+    return mine === none ? "ok" : "taken";
   } catch { return "unavailable"; }
 }
 

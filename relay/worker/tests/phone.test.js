@@ -11,7 +11,7 @@ import * as wire from "./wire.js";
 
 const { newRouteKey, routeId, authMessage, signRoute } = wire;
 
-/** @param {any} t @param {{ hibernateEveryEvent?: boolean, names?: (name: string) => string | Error, dns?: (name: string) => boolean | Error }} [o] */
+/** @param {any} t @param {{ hibernateEveryEvent?: boolean, names?: (name: string) => string | Error, dns?: (name: string) => boolean | Error, wildcard?: boolean }} [o] */
 function world(t, o = {}) {
   forgetUnclaimed();
   const asked = /** @type {string[]} */ ([]);
@@ -28,9 +28,12 @@ function world(t, o = {}) {
       // live DNS: a name with an A or CNAME record of its own is a real host
       DOH_FETCH: async (/** @type {string} */ u) => {
         const q = new URL(u).searchParams.get("name") || "";
-        const v = (o.dns || (() => false))(q.split(".")[0] || "");
+        const label = q.split(".")[0] || "";
+        const v = label.startsWith("zz-") ? false : (o.dns || (() => false))(label);
         if (v instanceof Error) throw v;
-        return new Response(JSON.stringify(v ? { Status: 0, Answer: [{ name: q, type: 1, data: "203.0.113.9" }] } : { Status: 0 }), { status: 200 });
+        // with the proxied wildcard in place every name, claimed or not, gets the zone's proxy addresses; only a host with an address of its own differs
+        const proxied = o.wildcard === false ? [] : [{ name: q, type: 1, data: "104.21.25.72" }, { name: q, type: 1, data: "172.67.223.243" }];
+        return new Response(JSON.stringify({ Status: 0, ...(v ? { Answer: [{ name: q, type: 1, data: "203.0.113.9" }] } : proxied.length ? { Answer: proxied } : {}) }), { status: 200 });
       },
       // the host's own origin, for names no route holds
       ORIGIN_FETCH: async (/** @type {Request} */ r) => new Response(`origin of ${new URL(r.url).hostname}`, { status: r.url.includes("down.") ? 522 : 200 }),
@@ -173,13 +176,15 @@ test("the gateway leaves every host no route holds alone: the request goes to it
   assert.equal(await (await rt.fetch("https://a.b-name.vyre.run/")).text(), "origin of a.b-name.vyre.run");
 });
 
-test("a claim never takes a host that already has a record of its own", async t => {
-  const rt = world(t, { dns: n => n === "docs-site" || n === "dns-down" ? (n === "dns-down" ? new Error("down") : true) : false });
+test("a claim never takes a host that already has an address of its own, with or without the proxied wildcard", async t => {
+  for (const wildcard of [true, false]) {
+  const rt = world(t, { wildcard, dns: n => n === "docs-site" || n === "dns-down" ? (n === "dns-down" ? new Error("down") : true) : false });
   const a = await box(rt);
   assert.equal((await a.say({ t: "host.claim", name: "docs-site" })).status, "taken");
   assert.equal((await a.say({ t: "host.claim", name: "dns-down" })).status, "unavailable");
   for (const n of ["dl", "prototype", "tracker", "www", "tess"]) assert.equal((await a.say({ t: "host.claim", name: n })).status, "invalid", n);
-  assert.equal((await a.say({ t: "host.claim", name: "free-name" })).status, "claimed");
+  assert.equal((await a.say({ t: "host.claim", name: "free-name" })).status, "claimed", "a name that only gets the wildcard's answer is free");
+  }
 });
 
 test("a staging Worker serves one named host so the whole path runs without the wildcard", async t => {
