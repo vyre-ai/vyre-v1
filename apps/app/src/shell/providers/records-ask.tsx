@@ -13,23 +13,28 @@ import type { ShellRuntime } from "./runtime.tsx";
 
 const ChatsConversation = lazy(() => import("./chats.tsx").then((m) => ({ default: m.ChatsConversation })));
 
-export function RecordsAssistant({ rt, about, title }: { rt: ShellRuntime; about: AskAbout; title?: string }): ReactElement {
+/** Another place reusing this pane says its own thread scope and what the assistant is told (Automations does). Records passes nothing. */
+export interface AskScope { type: string; id: string; title: string; context: ReturnType<typeof askContext> }
+
+export function RecordsAssistant({ rt, about, title, scope }: { rt: ShellRuntime; about: AskAbout; title?: string; scope?: AskScope }): ReactElement {
   const [thread, setThread] = useState<string | null>(null);
   const [error, setError] = useState(false);
-  const scopeId = askScopeId(about);
+  const scopeId = scope?.id ?? askScopeId(about);
+  const scopeType = scope?.type ?? ASK_SCOPE;
+  const threadTitle = scope?.title ?? "Records";
   useEffect(() => {
     let live = true;
     setThread(null);
     void (async () => {
       const agentId = await findAssistant(rt, rt.me.id);
       if (!agentId) throw new Error("no assistant");
-      const started = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType: ASK_SCOPE, scopeId, title: "Records", idempotencyKey: `records-ask-${rt.me.id}-${scopeId}` })) as { thread: { threadId: string } };
+      const started = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType, scopeId, title: threadTitle, idempotencyKey: `${scopeType}-ask-${rt.me.id}-${scopeId}` })) as { thread: { threadId: string } };
       if (live) { noteThreadKind(started.thread.threadId, "ask"); setThread(started.thread.threadId); }
     })().catch(() => { if (live) setError(true); });
     return () => { live = false; };
-  }, [rt, scopeId]);
+  }, [rt, scopeId, scopeType, threadTitle]);
   // where the person is, for every message they send here
-  useEffect(() => { addScreen(askContext(about, title)); }, [about, title]);
+  useEffect(() => { addScreen(scope?.context ?? askContext(about, title)); }, [about, title, scope]);
   const data = useMemo(() => {
     if (!thread) return null;
     const people = rt.principals.getSnapshot();
