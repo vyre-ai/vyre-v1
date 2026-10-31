@@ -7,6 +7,7 @@ export { createPlanMode, PlanError } from "./plan.ts";
 export type { PlanActor, PlanEvent, PlanMode, PlanState, PlanStep } from "./plan.ts";
 export { decideLocal, effectiveMode } from "./local.ts";
 export type { LocalDecision, LocalFacts, SecurityMode } from "./local.ts";
+export { localFacts, leavesWorkFolder } from "./local-facts.ts";
 export { LEVEL_RANK } from "./types.ts";
 export type {
   AgentRules, AgentToolRow, Catalog, Effects, Level, LocalKind, McpToolRow, PlanModeRule, RegistryCapRow, Refusal, ThreadFacts, ToolCtx, ToolDef, ToolResult, ToolSet,
