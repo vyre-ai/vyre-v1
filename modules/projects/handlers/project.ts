@@ -117,7 +117,7 @@ async function requireProjectType(ctx: ProjectsCtx, type: string): Promise<void>
 }
 
 /** The Projects folder of the Space (the root key `projects` of the Files tree). */
-async function projectsRoot(ctx: ProjectsCtx): Promise<string> {
+export async function projectsRoot(ctx: ProjectsCtx): Promise<string> {
   const found = await call<{ folders?: FolderOut[] }>(ctx, "files.folder.search", { q: "Projects", scope: "folders", limit: 20 });
   const root = (found.folders ?? []).find((f) => f.name === "Projects" && f.parentId === undefined) ?? (found.folders ?? []).find((f) => f.path === "Projects");
   if (!root) raise(ctx, "internal.unexpected", "The Projects folder is missing from this Space.");

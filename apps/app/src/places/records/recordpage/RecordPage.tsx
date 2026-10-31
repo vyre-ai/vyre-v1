@@ -115,6 +115,8 @@ function FieldRow(q: FieldProps): ReactElement {
     const cards: ReactElement[] = [];
     for (const id of relationIds(f, row)) cards.push(<RelationCard key={id} field={f} id={id} />);
     body = <View style={p.cards}>{cards.length > 0 ? cards : <Text style={p.empty}>None</Text>}</View>;
+  } else if (f.key === "folder" && typeof v === "string" && v.startsWith("fld_") && open === false) {
+    body = <FolderLink folderId={v} type={q.type} recordId={row.id} />;
   } else if (isEmpty(v) && kind !== "checkbox") {
     body = kind === "none" ? <Text style={p.empty}>Empty</Text> : <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${f.title}`} testID={`field-${f.key}`} onPress={(e) => { if (kind === "choice") { const pt = pointOf(e); chooseFrom(f, q, pt.x, pt.y); } else q.onEdit(f); }}><Text style={p.empty}>Empty</Text></Pressable>;
   } else if (kind === "checkbox") {
@@ -149,6 +151,29 @@ function FieldRow(q: FieldProps): ReactElement {
   );
 }
 
+/** The Folder field of a project: the folder's path as a link that opens it in Files. */
+function FolderLink({ folderId, type, recordId }: { folderId: string; type: string; recordId: string }): ReactElement {
+  const data = usePageData();
+  const fq = useLive("files.folder.get", { folderId });
+  const label = fq.status === "ready" ? fq.data.folder.path : "Open the folder";
+  return (
+    <Pressable accessibilityRole="link" accessibilityLabel={`Open ${label} in Files`} testID="field-folder-link" onPress={() => data.nav.openFiles(type, recordId)}>
+      <Text numberOfLines={1} style={[p.value, p.link]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** What is in the record's folder, so the Files tab shows the files and not only a button. */
+function FolderContents({ folderId, type, recordId }: { folderId: string; type: string; recordId: string }): ReactElement {
+  const data = usePageData();
+  const lq = useLive("files.list", { folder: folderId });
+  if (lq.status !== "ready") return <Text style={p.paneEmpty} testID="folder-contents-loading">Loading</Text>;
+  const kids: ReactElement[] = [];
+  for (const d of lq.data.folders) kids.push(<Row key={d.folderId} id={`folder:${d.folderId}`} title={d.name} note="Folder" onPress={() => data.nav.openFiles(type, recordId)} />);
+  for (const x of lq.data.files) kids.push(<Row key={x.fileId} id={`file:${x.fileId}`} title={x.name} note={x.kind} onPress={() => data.nav.openFiles(type, recordId)} />);
+  return kids.length > 0 ? <View testID="folder-contents">{kids}</View> : <Text style={p.paneEmpty} testID="folder-empty">Nothing in this folder yet.</Text>;
+}
+
 /** A choice or status field: its options in one menu under the value. */
 function chooseFrom(f: FieldDef, q: FieldProps, x: number, y: number): void {
   const items: MenuEntry[] = each(optionsOf(f), (o): MenuEntry => ({ label: o.title, checked: q.row.fields[f.key] === o.key, onSelect: () => q.onValue(f, o.key) }));
@@ -176,7 +201,10 @@ function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; de
   if (tab === "activity") body = lines.length > 0 ? <View testID="pane-activity">{lines}</View> : <Text style={p.paneEmpty}>Nothing has changed yet.</Text>;
   else if (tab === "comments") body = <View testID="pane-comments" style={p.paneBody}><Text style={p.paneText}>Comments and @mentions live in this record's chat, so everyone who follows it sees them.</Text>{link("Open the chat", () => data.nav.openChat(type, row.id), "open-chat-comments")}</View>;
   else if (tab === "chat") body = <View testID="pane-chat" style={p.paneBody}><Text style={p.paneText}>Ask any agent about this record. It reads the page, the history and its memory.</Text>{link("Chat about this record", () => data.nav.openChat(type, row.id), "open-chat")}</View>;
-  else if (tab === "files") body = <View testID="pane-files" style={p.paneBody}><Text style={p.paneText}>The files that belong to this record are in its folder.</Text>{link("Open its folder", () => data.nav.openFiles(type, row.id), "open-files")}</View>;
+  else if (tab === "files") {
+    const folderId = row.fields["folder"];
+    body = <View testID="pane-files" style={p.paneBody}><Text style={p.paneText}>The files that belong to this record are in its folder.</Text>{link("Open its folder", () => data.nav.openFiles(type, row.id), "open-files")}{typeof folderId === "string" && folderId.startsWith("fld_") ? <FolderContents folderId={folderId} type={type} recordId={row.id} /> : null}</View>;
+  }
   else if (tab === "memory") body = facts.length + notes.length > 0 ? <View testID="pane-memory">{facts}{notes}</View> : <Text style={p.paneEmpty}>No agent has remembered anything about this record.</Text>;
   else body = vq.status === "ready" ? (
     <View testID="pane-history"><HistoryTab resourceType="record" resourceId={row.id} recordType={type} versions={historyVersions(vq.data.versions, data.nameOf)} selectedVersionId={null} density="compact" invoke={(cap, input) => data.call(cap, input).then(() => undefined)} /></View>

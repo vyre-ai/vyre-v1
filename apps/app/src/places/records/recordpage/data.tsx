@@ -6,7 +6,7 @@ import type { LiveQuery, QueryState } from "../../../../../../client/src/index.t
 import type { CapMap } from "../../../../../../generated/types.ts";
 
 export type LiveCap =
-  | "records.get" | "schema.describe" | "schema.layout.get" | "records.completeness" | "records.page_prefs.get" | "records.relations_map" | "records.history" | "records.versions" | "memory.find_by_subject";
+  | "records.get" | "schema.describe" | "schema.layout.get" | "records.completeness" | "records.page_prefs.get" | "records.relations_map" | "records.history" | "records.versions" | "memory.find_by_subject" | "files.list" | "files.folder.get";
 
 export interface RecordPageNav {
   /** A linked record opens as a tab on its own page. */
