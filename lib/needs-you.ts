@@ -1,6 +1,6 @@
 // "A connection needs you": one small helper any module can call when a connection it owns stops working (a hub key revoked, a CRM key refused, a sign-in ended). It opens or keeps a single task for
 // the right person, an Unblock request that shows in Home's Needs you, and closes it when a call works again. `call` must be the host's own service actor (the system identity sync and polls use), not the person whose call failed, so
-// whoever's call works first closes the item and the tasks rules stay as they are. It never throws: a connection that cannot raise its task must not turn one failed call into two. The task says what to do in a line, never why in provider words, and never holds a secret.
+// the person whose call failed, so whoever's call works first closes the item and the tasks rules stay as they are. It never throws: a connection that cannot raise its task must not turn one failed call into two. The task says what to do in a line, never why in provider words, and never holds a secret.
 export type Call = (cap: string, input: unknown) => Promise<unknown>;
 export interface Assignee { kind: "person" | "role" | "group"; id: string }
 export interface NeedsYou {
