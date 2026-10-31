@@ -273,13 +273,14 @@ export function splitTemplate(value: string): Seg[] {
 }
 export const joinTemplate = (segs: readonly Seg[]): string => segs.map((s) => (s.kind === "text" ? s.text : `{{ ${s.ref} }}`)).join("");
 
-/** What a chip says, in words: what started the run, or a step's output (by the step's name) and the field. */
+/** What a chip says: where the data comes from, a dot, and which part of it (Trigger, Trigger · Name, Find rows · Count). */
 export function chipLabel(ref: string, titleOf: (stepId: string) => string): string {
-  if (ref === "trigger" || ref === "input") return "What started the run";
+  const cap = (w: string): string => w.replace(/[_-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+  if (ref === "trigger" || ref === "input") return "Trigger";
   const t = /^(?:trigger|input)\.(.+)$/.exec(ref);
-  if (t) return `Started with ${t[1]}`;
+  if (t) return `Trigger \u00b7 ${cap(t[1]!)}`;
   const st = /^steps\.([^.\[]+)\.out(?:\.(.+))?$/.exec(ref);
-  if (st) return `${titleOf(st[1]!)}${st[2] ? `: ${st[2]}` : ""}`;
+  if (st) return `${titleOf(st[1]!)}${st[2] ? ` \u00b7 ${cap(st[2])}` : ""}`;
   return ref;
 }
 
