@@ -13493,6 +13493,50 @@ export type GoogleSheetsUpdateValuesIn = {
 export type GoogleSheetsUpdateValuesOut = {
   updatedCells: number;
 };
+export type GoogleUserAppSetIn = {
+  vaultItem: string;
+};
+export type GoogleUserAppSetOut = {
+  configured: boolean;
+  clientId: string;
+};
+export type GoogleUserAppStatusIn = Record<string, unknown>;
+export type GoogleUserAppStatusOut = {
+  configured: boolean;
+  clientId?: string;
+  vaultItem?: string;
+  redirectUri?: string;
+};
+export type GoogleUserCompleteIn = {
+  state: string;
+  code?: string;
+  error?: string;
+};
+export type GoogleUserCompleteOut = {
+  accountId: string;
+  email: string;
+  mailboxId?: string;
+};
+export type GoogleUserListIn = Record<string, unknown>;
+export type GoogleUserListOut = {
+  accounts: Array<{
+      accountId: string;
+      email: string;
+    }>;
+};
+export type GoogleUserRemoveIn = {
+  accountId: string;
+};
+export type GoogleUserRemoveOut = {
+  removed: boolean;
+};
+export type GoogleUserStartIn = {
+  loginHint?: string;
+};
+export type GoogleUserStartOut = {
+  authUrl: string;
+  state: string;
+};
 export type GovernanceEraseApplyIn = {
   findingId: string;
   include: Array<"records" | "files" | "chats" | "inbox" | "mail" | "calls" | "memory" | "runs">;
@@ -16049,6 +16093,7 @@ export type MailConnectIn = {
     username: string;
     passwordHandle: string;
   };
+  connectionId?: string;
   idempotencyKey: string;
 };
 export type MailConnectOut = {
@@ -16412,6 +16457,25 @@ export type MailMailboxSetPrivacyIn = {
   privacy: "private" | "space" | "people";
 };
 export type MailMailboxSetPrivacyOut = {
+  mailbox: {
+    id: string;
+    kind: "personal" | "shared" | "agent" | "service";
+    address: string;
+    title: string;
+    ownerId?: string;
+    agentId?: string;
+    provider: "google" | "microsoft" | "imap" | "inbound_only";
+    privacy: "private" | "space" | "people";
+    state: "pending" | "syncing" | "paused" | "error" | "disconnected";
+    lastSyncAt?: number;
+  };
+};
+export type MailMailboxSetSyncStateIn = {
+  mailboxId: string;
+  state: "error" | "syncing";
+  reason?: string;
+};
+export type MailMailboxSetSyncStateOut = {
   mailbox: {
     id: string;
     kind: "personal" | "shared" | "agent" | "service";
@@ -20260,6 +20324,50 @@ export type MsTeamsRecordingsSubscribeIn = {
 export type MsTeamsRecordingsSubscribeOut = {
   subscriptionId: string;
   expiresAt: number;
+};
+export type MsUserAppSetIn = {
+  vaultItem: string;
+};
+export type MsUserAppSetOut = {
+  configured: boolean;
+  clientId: string;
+};
+export type MsUserAppStatusIn = Record<string, unknown>;
+export type MsUserAppStatusOut = {
+  configured: boolean;
+  clientId?: string;
+  vaultItem?: string;
+  redirectUri?: string;
+};
+export type MsUserCompleteIn = {
+  state: string;
+  code?: string;
+  error?: string;
+};
+export type MsUserCompleteOut = {
+  accountId: string;
+  email: string;
+  mailboxId?: string;
+};
+export type MsUserListIn = Record<string, unknown>;
+export type MsUserListOut = {
+  accounts: Array<{
+      accountId: string;
+      email: string;
+    }>;
+};
+export type MsUserRemoveIn = {
+  accountId: string;
+};
+export type MsUserRemoveOut = {
+  removed: boolean;
+};
+export type MsUserStartIn = {
+  loginHint?: string;
+};
+export type MsUserStartOut = {
+  authUrl: string;
+  state: string;
 };
 export type MsWorkbookAppendRowsIn = {
   connectionId: string;
@@ -32152,6 +32260,12 @@ export interface CapMap {
   "google.sheets.get_spreadsheet": { in: GoogleSheetsGetSpreadsheetIn; out: GoogleSheetsGetSpreadsheetOut };
   "google.sheets.get_values": { in: GoogleSheetsGetValuesIn; out: GoogleSheetsGetValuesOut };
   "google.sheets.update_values": { in: GoogleSheetsUpdateValuesIn; out: GoogleSheetsUpdateValuesOut };
+  "google.user.app_set": { in: GoogleUserAppSetIn; out: GoogleUserAppSetOut };
+  "google.user.app_status": { in: GoogleUserAppStatusIn; out: GoogleUserAppStatusOut };
+  "google.user.complete": { in: GoogleUserCompleteIn; out: GoogleUserCompleteOut };
+  "google.user.list": { in: GoogleUserListIn; out: GoogleUserListOut };
+  "google.user.remove": { in: GoogleUserRemoveIn; out: GoogleUserRemoveOut };
+  "google.user.start": { in: GoogleUserStartIn; out: GoogleUserStartOut };
   "governance.erase.apply": { in: GovernanceEraseApplyIn; out: GovernanceEraseApplyOut };
   "governance.erase.find": { in: GovernanceEraseFindIn; out: GovernanceEraseFindOut };
   "governance.erase.list": { in: GovernanceEraseListIn; out: GovernanceEraseListOut };
@@ -32317,6 +32431,7 @@ export interface CapMap {
   "mail.mailbox.pause": { in: MailMailboxPauseIn; out: MailMailboxPauseOut };
   "mail.mailbox.resume": { in: MailMailboxResumeIn; out: MailMailboxResumeOut };
   "mail.mailbox.set_privacy": { in: MailMailboxSetPrivacyIn; out: MailMailboxSetPrivacyOut };
+  "mail.mailbox.set_sync_state": { in: MailMailboxSetSyncStateIn; out: MailMailboxSetSyncStateOut };
   "mail.mailbox.update": { in: MailMailboxUpdateIn; out: MailMailboxUpdateOut };
   "mail.message.erase": { in: MailMessageEraseIn; out: MailMessageEraseOut };
   "mail.message.get": { in: MailMessageGetIn; out: MailMessageGetOut };
@@ -32529,6 +32644,12 @@ export interface CapMap {
   "ms.teams.recordings.list_recordings": { in: MsTeamsRecordingsListRecordingsIn; out: MsTeamsRecordingsListRecordingsOut };
   "ms.teams.recordings.list_transcripts": { in: MsTeamsRecordingsListTranscriptsIn; out: MsTeamsRecordingsListTranscriptsOut };
   "ms.teams.recordings.subscribe": { in: MsTeamsRecordingsSubscribeIn; out: MsTeamsRecordingsSubscribeOut };
+  "ms.user.app_set": { in: MsUserAppSetIn; out: MsUserAppSetOut };
+  "ms.user.app_status": { in: MsUserAppStatusIn; out: MsUserAppStatusOut };
+  "ms.user.complete": { in: MsUserCompleteIn; out: MsUserCompleteOut };
+  "ms.user.list": { in: MsUserListIn; out: MsUserListOut };
+  "ms.user.remove": { in: MsUserRemoveIn; out: MsUserRemoveOut };
+  "ms.user.start": { in: MsUserStartIn; out: MsUserStartOut };
   "ms.workbook.append_rows": { in: MsWorkbookAppendRowsIn; out: MsWorkbookAppendRowsOut };
   "ms.workbook.get_range": { in: MsWorkbookGetRangeIn; out: MsWorkbookGetRangeOut };
   "ms.workbook.update_range": { in: MsWorkbookUpdateRangeIn; out: MsWorkbookUpdateRangeOut };
@@ -34345,6 +34466,10 @@ export type GooglePushReceivedPayload = {
   resourceState?: string;
   resourceId?: string;
 };
+export type GoogleUserConnectedPayload = {
+  accountId: string;
+  email: string;
+};
 export type GrantCreatedPayload = {
   grantId: string;
   subject: {
@@ -34965,6 +35090,10 @@ export type MicrosoftNotificationReceivedPayload = {
   resource: string;
   changeType: "created" | "updated" | "deleted";
   tenantId?: string;
+};
+export type MicrosoftUserConnectedPayload = {
+  accountId: string;
+  email: string;
 };
 export type MountConflictPayload = {
   mountId: string;
@@ -36925,6 +37054,7 @@ export interface EventMap {
   "google.dwd_probed": GoogleDwdProbedPayload;
   "google.dwd_revoked": GoogleDwdRevokedPayload;
   "google.push_received": GooglePushReceivedPayload;
+  "google.user_connected": GoogleUserConnectedPayload;
   "grant.created": GrantCreatedPayload;
   "grant.revoked": GrantRevokedPayload;
   "grant.updated": GrantUpdatedPayload;
@@ -37034,6 +37164,7 @@ export interface EventMap {
   "microsoft.consent_revoked": MicrosoftConsentRevokedPayload;
   "microsoft.consent_verified": MicrosoftConsentVerifiedPayload;
   "microsoft.notification_received": MicrosoftNotificationReceivedPayload;
+  "microsoft.user_connected": MicrosoftUserConnectedPayload;
   "mount.conflict": MountConflictPayload;
   "mount.failed": MountFailedPayload;
   "mount.file_sent": MountFileSentPayload;

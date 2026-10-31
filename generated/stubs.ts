@@ -1077,6 +1077,14 @@ export function stubs(ctx: CallCtx) {
         get_values: call("google.sheets.get_values"),
         update_values: call("google.sheets.update_values"),
       },
+      user: {
+        app_set: call("google.user.app_set"),
+        app_status: call("google.user.app_status"),
+        complete: call("google.user.complete"),
+        list: call("google.user.list"),
+        remove: call("google.user.remove"),
+        start: call("google.user.start"),
+      },
     },
     governance: {
       erase: {
@@ -1289,6 +1297,7 @@ export function stubs(ctx: CallCtx) {
         pause: call("mail.mailbox.pause"),
         resume: call("mail.mailbox.resume"),
         set_privacy: call("mail.mailbox.set_privacy"),
+        set_sync_state: call("mail.mailbox.set_sync_state"),
         update: call("mail.mailbox.update"),
       },
       message: {
@@ -1599,6 +1608,14 @@ export function stubs(ctx: CallCtx) {
           list_transcripts: call("ms.teams.recordings.list_transcripts"),
           subscribe: call("ms.teams.recordings.subscribe"),
         },
+      },
+      user: {
+        app_set: call("ms.user.app_set"),
+        app_status: call("ms.user.app_status"),
+        complete: call("ms.user.complete"),
+        list: call("ms.user.list"),
+        remove: call("ms.user.remove"),
+        start: call("ms.user.start"),
       },
       workbook: {
         append_rows: call("ms.workbook.append_rows"),

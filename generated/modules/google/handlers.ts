@@ -74,4 +74,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.sheets.get_spreadsheet": Handler<"google.sheets.get_spreadsheet", X>;
   "google.sheets.get_values": Handler<"google.sheets.get_values", X>;
   "google.sheets.update_values": Handler<"google.sheets.update_values", X>;
+  "google.user.app_set": Handler<"google.user.app_set", X>;
+  "google.user.app_status": Handler<"google.user.app_status", X>;
+  "google.user.complete": Handler<"google.user.complete", X>;
+  "google.user.list": Handler<"google.user.list", X>;
+  "google.user.remove": Handler<"google.user.remove", X>;
+  "google.user.start": Handler<"google.user.start", X>;
 }

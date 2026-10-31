@@ -73,4 +73,10 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.sheets.get_spreadsheet": async () => ({"sheets":[{"columns":1,"rows":1,"sheetId":1,"title":"example"}],"title":"example"} as unknown) as never,
   "google.sheets.get_values": async () => ({"values":[["example"]]} as unknown) as never,
   "google.sheets.update_values": async () => ({"updatedCells":1} as unknown) as never,
+  "google.user.app_set": async () => ({"clientId":"example","configured":true} as unknown) as never,
+  "google.user.app_status": async () => ({"clientId":"example","configured":true,"redirectUri":"example","vaultItem":"example"} as unknown) as never,
+  "google.user.complete": async () => ({"accountId":"example","email":"maya@example.com","mailboxId":"mbx_a1b2c3"} as unknown) as never,
+  "google.user.list": async () => ({"accounts":[{"accountId":"example","email":"maya@example.com"}]} as unknown) as never,
+  "google.user.remove": async () => ({"removed":true} as unknown) as never,
+  "google.user.start": async () => ({"authUrl":"example","state":"example"} as unknown) as never,
 };

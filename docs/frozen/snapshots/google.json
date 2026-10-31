@@ -69,12 +69,19 @@
     "google.sheets.create_spreadsheet@1": "e6aaa70c23b32d7a46f8f05945f08e0d177e5acfe182a80ca0c5aac847c36783",
     "google.sheets.get_spreadsheet@1": "5fb63a132e726481d90e18b47f82386cb354318fe3cafcb922d5fef4990e5e15",
     "google.sheets.get_values@1": "2849ff5ffcb5014b3613f1ed90b25604d5d4b08567bc8171f0078429892de15a",
-    "google.sheets.update_values@1": "da0441ab1da28b3d846b7215639934d49d31b8d10fcb7b3dc0c11014adff2ed2"
+    "google.sheets.update_values@1": "da0441ab1da28b3d846b7215639934d49d31b8d10fcb7b3dc0c11014adff2ed2",
+    "google.user.app_set@1": "4e9bcf3456e03b6e539bc5d2f3928efce16e646115380baa81afcf868c52b074",
+    "google.user.app_status@1": "ba0b3b6a8fd0b79267e73fde836458e78415eab167165e4b477e0ac9639b99d8",
+    "google.user.complete@1": "68c4a222ee342db7e49d66f5e467a3abaae35675494878e97312099252fd2429",
+    "google.user.list@1": "cb8ae0456612379f8a02aac38f8049c13268b1eb20771d4d3132a056205799f4",
+    "google.user.remove@1": "1a0662db8530ba6032b362a266f032de6622b8273279b95037e267fb8f83254e",
+    "google.user.start@1": "03eb860f3beda3815256629662966ba66f3d303fbaf325a055c4757fe1b3d856"
   },
   "events": {
     "google.dwd_configured": "5b405fc385d4603578072456040b5ccf529370d05b18296545208498f4b8a48b",
     "google.dwd_probed": "fa514983b137a000066d2e0b269f4ed569f8a4639b71565da4f392483d934c0c",
     "google.dwd_revoked": "e1eda71de328a55f5cc0fe6de956fd811f119cfb75b8a5688ac14d3eda41a5e6",
-    "google.push_received": "66b1751621cd4e94fa4df14ff47db1e4308d22eb691bd51089271ddc357a7e49"
+    "google.push_received": "66b1751621cd4e94fa4df14ff47db1e4308d22eb691bd51089271ddc357a7e49",
+    "google.user_connected": "dd2201234c4d972be2d479a282f64f66a19a086310c1db49b76729812b4be951"
   }
 }

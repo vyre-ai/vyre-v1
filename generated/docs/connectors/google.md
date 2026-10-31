@@ -31,6 +31,12 @@ Key google, module google. Mode dwd, owned by a space. Auth service_account_dwd.
 - google.dwd.map_member
 - google.dwd.disable
 - google.health
+- google.user.app_status
+- google.user.app_set
+- google.user.start
+- google.user.complete
+- google.user.list
+- google.user.remove
 - google.receive_push
 - google.gmail.get_profile
 - google.gmail.list_labels

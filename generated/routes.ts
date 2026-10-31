@@ -14159,6 +14159,114 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/user/app_set",
+    "cap": "google.user.app_set",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/user/app_status",
+    "cap": "google.user.app_status",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/user/complete",
+    "cap": "google.user.complete",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/user/list",
+    "cap": "google.user.list",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/user/remove",
+    "cap": "google.user.remove",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/user/start",
+    "cap": "google.user.start",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/governance/erase/apply",
     "cap": "governance.erase.apply",
     "v": 1,
@@ -16527,7 +16635,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/kits/test_run",
@@ -16638,10 +16749,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/logs/query",
@@ -17166,6 +17274,25 @@ const routes3: Route[] = [
     "effects": "write",
     "permission": null,
     "level": "manage",
+    "resource": {
+      "type": "mailbox",
+      "id": "/mailboxId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mail/mailbox/set_sync_state",
+    "cap": "mail.mailbox.set_sync_state",
+    "v": 1,
+    "module": "mail",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
     "resource": {
       "type": "mailbox",
       "id": "/mailboxId"
@@ -21070,6 +21197,114 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/user/app_set",
+    "cap": "ms.user.app_set",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/user/app_status",
+    "cap": "ms.user.app_status",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/user/complete",
+    "cap": "ms.user.complete",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/user/list",
+    "cap": "ms.user.list",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/user/remove",
+    "cap": "ms.user.remove",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/user/start",
+    "cap": "ms.user.start",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/ms/workbook/append_rows",
     "cap": "ms.workbook.append_rows",
     "v": 1,
@@ -21899,7 +22134,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/notifications/send",
@@ -22133,10 +22371,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/plugins/get",
@@ -27432,7 +27667,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/stripe/customer/create",
@@ -27666,10 +27904,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/stripe/receive_webhook",
