@@ -1,14 +1,25 @@
 // Test harness for the dropbox handlers: an in-memory database, a recording ctx, a scripted Dropbox (recorded bodies matched by host and path, no socket is opened), a fake host seam (made-up credentials,
 // transfers in memory) and the capabilities dropbox calls in other modules (the Vault) as scripted answers. A call to another capability is checked against that capability's frozen schema in the generated
-// registry; the dropbox events and capabilities are checked against manifests/dropbox.ts itself, so these tests do not wait for a regeneration of generated/. The recorded bodies follow Dropbox's API
+// registry; the dropbox events and capabilities are checked against manifests/dropbox.ts itself (handed over by each test with useContract), so these tests do not wait for a regeneration of generated/. The recorded bodies follow Dropbox's API
 // documentation; live-account proof waits on the owner's Dropbox app until then these are the contract.
 import { registry } from "../../../generated/registry.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
-import manifest from "../../../manifests/dropbox.ts";
+import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
 import { ensure, setDropboxHost } from "../projections.ts";
 import type { DropboxCtx, DropboxHost } from "../projections.ts";
 import { memoryDb } from "./memory-db.ts";
+
+/** The part of manifests/dropbox.ts the harness checks against. A fixture may not import a manifest (B7: only a test may), so each test file hands it over with useContract(). */
+export interface Contract { events?: { name: string; payload: JsonSchema }[]; capabilities?: { name: string; input: JsonSchema; output: JsonSchema }[] }
+let contract: Contract | null = null;
+export function useContract(m: Contract): void {
+  contract = m;
+}
+const frozen = (): Contract => {
+  if (!contract) throw new Error("call useContract(manifest) first: the harness checks events and answers against the dropbox manifest");
+  return contract;
+};
 
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
@@ -104,7 +115,7 @@ export function harness(o: Options = {}) {
     db: memoryDb(),
     authorize: () => ({ effect: o.allow === false ? "deny" : "allow", reason: "test", decisionId: "dec_1" }),
     emit(name, subject, payload) {
-      const e = manifest.events?.find((x) => x.name === name);
+      const e = frozen().events?.find((x) => x.name === name);
       if (!e) throw new Error(`${name} is not in the dropbox manifest`);
       const misfit = validate(e.payload, payload, "", registry.$defs);
       if (misfit.length) throw new Error(`${name} was emitted with a payload its contract refuses: ${misfit.join("; ")}`);
@@ -187,7 +198,7 @@ export async function refusedWith(p: Promise<unknown>): Promise<string> {
 
 /** Check a value against one of the dropbox capabilities' frozen schemas, straight from the manifest. */
 export function contractErrors(cap: string, side: "in" | "out", value: unknown): string[] {
-  const d = manifest.capabilities?.find((c) => c.name === cap);
+  const d = frozen().capabilities?.find((c) => c.name === cap);
   if (!d) return [`${cap} is not in the dropbox manifest`];
   return validate(side === "in" ? d.input : d.output, value, "", registry.$defs);
 }

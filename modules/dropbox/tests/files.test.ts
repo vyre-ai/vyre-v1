@@ -3,9 +3,12 @@
 // Dropbox bodies. A deleted item is named by the id the mount knew it by, a write that names a revision never overwrites, and every Dropbox refusal maps to the error catalogue.
 import test from "node:test";
 import assert from "node:assert/strict";
+import manifest from "../../../manifests/dropbox.ts";
 import * as d from "../handlers/index.ts";
-import { RECORDED, contractErrors, harness, refusedWith } from "../fixtures/harness.ts";
+import { useContract, RECORDED, contractErrors, harness, refusedWith } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
+
+useContract(manifest);
 
 type Json = Record<string, unknown>;
 const out = (x: unknown): Json => x as Json;

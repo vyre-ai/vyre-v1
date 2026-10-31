@@ -4,9 +4,12 @@
 // the Space) and the connection is kept per owner. Replayed against recorded Dropbox bodies; no socket is opened.
 import test from "node:test";
 import assert from "node:assert/strict";
+import manifest from "../../../manifests/dropbox.ts";
 import * as d from "../handlers/index.ts";
-import { ACCESS, APP_KEY, MAYA, OTHER, RECORDED, REFRESH, contractErrors, harness, refusedWith } from "../fixtures/harness.ts";
+import { useContract, ACCESS, APP_KEY, MAYA, OTHER, RECORDED, REFRESH, contractErrors, harness, refusedWith } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
+
+useContract(manifest);
 
 type Json = Record<string, unknown>;
 const out = (x: unknown): Json => x as Json;

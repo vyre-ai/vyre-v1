@@ -5,8 +5,10 @@ import assert from "node:assert/strict";
 import manifest from "../../../manifests/dropbox.ts";
 import { handlers, hostCalls } from "../impl.ts";
 import * as d from "../handlers/index.ts";
-import { APP_SECRET, NOW, codeOf, harness, refusedWith } from "../fixtures/harness.ts";
+import { useContract, APP_SECRET, NOW, codeOf, harness, refusedWith } from "../fixtures/harness.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+
+useContract(manifest);
 
 const BODY = JSON.stringify({ list_folder: { accounts: ["dbid:AAH4f99T0taONIb", "dbid:BBB"] }, delta: { users: [1, 2] } });
 
