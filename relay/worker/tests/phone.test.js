@@ -198,3 +198,13 @@ test("a staging Worker serves one named host so the whole path runs without the 
   assert.equal((await rt.fetch("https://phone-stage.vyre.run/__vyre/nope")).status, 404);
   assert.equal((await rt.fetch("https://stage-phone.vyre.run/")).status, 404, "only the staging host answers there");
 });
+
+test("a label the deploy fenced from the zone is never a phone name: no claim, and the gateway hands it on", async t => {
+  const rt = world(t);
+  rt.env.FENCE_HOSTS = "newhost, status-page";
+  const a = await box(rt);
+  assert.equal((await a.say({ t: "host.claim", name: "newhost" })).status, "reserved");
+  assert.equal((await a.say({ t: "host.claim", name: "status-page" })).status, "reserved");
+  assert.equal(await (await rt.fetch("https://newhost.vyre.run/x")).text(), "origin of newhost.vyre.run");
+  assert.equal((await a.say({ t: "host.claim", name: "not-fenced" })).status, "claimed");
+});

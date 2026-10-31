@@ -21,6 +21,12 @@ export const PHONE = Object.freeze({
 });
 
 /** Hosts that are infrastructure, never a person's phone address. The names directory refuses most of these too; this is the gateway's own fence. */
+/** The labels the deploy fenced from the zone's own records (edge.mjs writes them to the FENCE_HOSTS secret): every host that exists, whatever the static list says. @param {any} env */
+export function fenceOf(env) {
+  const raw = typeof env.FENCE_HOSTS === "string" ? env.FENCE_HOSTS : "";
+  return new Set(raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
+}
+
 export const INFRA = Object.freeze(new Set([
   "names", "app", "api", "www", "relay", "acme", "mail", "docs", "status", "web", "reports", "escrow", "edge", "vyre", "phone", "setup",
   // the hosts that exist in the zone today and are not Workers; a claim also checks live DNS (dnsTaken), so a host added later is fenced too
@@ -55,7 +61,7 @@ export function gatewayOf(url, env) {
   const zone = String(env.HOST_ZONE || PHONE.zone).toLowerCase();
   if (!host.endsWith(`.${zone}`) || host === String(env.RELAY_HOST || `relay.${zone}`).toLowerCase()) return null;
   const label = host.slice(0, -(zone.length + 1));
-  return PHONE.nameRe.test(label) && !INFRA.has(label) ? { name: label } : { pass: true };
+  return PHONE.nameRe.test(label) && !INFRA.has(label) && !fenceOf(env).has(label) ? { name: label } : { pass: true };
 }
 
 /** @param {any} env @param {string} name */
@@ -156,6 +162,7 @@ export async function hostControl(relay, ws, m) {
   if (op !== "claim") return;
   const name = String(m.name || "").toLowerCase();
   if (!PHONE.nameRe.test(name) || INFRA.has(name)) return reply(op, "invalid", { name });
+  if (fenceOf(env).has(name)) return reply(op, "reserved", { name });
   if (mine && mine.name !== name) return reply(op, "has_name", { name: mine.name });
   const label = cleanLabel(m.label);
   const key = `hostClaims:${day()}`;

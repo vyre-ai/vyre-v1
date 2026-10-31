@@ -37,6 +37,23 @@ export async function toBoxRequest(request) {
   return { path: `${url.pathname}${url.search}`, init: { method, headers, body } };
 }
 
+const SHELL_TAG = '<script src="/__vyre-ws.js"></script>';
+
+/**
+ * The box's page with the live-socket shim as its first script, so the app's WebSocket reaches the box through this worker. Only an HTML page that came back 200 is touched; a page whose scripts the
+ * box's own policy keeps from loading it simply never gets the shim, and the app polls.
+ * @param {Response} res
+ */
+export async function withShim(res) {
+  if (res.status !== 200 || !/^text\/html\b/i.test(res.headers.get("content-type") || "")) return res;
+  const html = await res.text();
+  const head = /<head(\s[^>]*)?>/i.exec(html);
+  const at = head ? head.index + head[0].length : (/^\s*<!doctype[^>]*>/i.exec(html)?.[0].length ?? 0);
+  const headers = new Headers(res.headers);
+  headers.delete("content-length");
+  return new Response(html.slice(0, at) + SHELL_TAG + html.slice(at), { status: 200, headers });
+}
+
 /**
  * The box's answer as a Response whose body streams (server-sent events keep flowing).
  * @param {{ status: number, headers: Iterable<[string, string]>, body: AsyncIterable<Uint8Array> }} res
@@ -79,7 +96,8 @@ export function createBridge(o) {
       try {
         const { path, init } = await toBoxRequest(request);
         const res = await box.fetch(path, { ...init, signal: ac.signal });
-        return toResponse(res);
+        const out = toResponse(res);
+        return navigation ? await withShim(out) : out;
       } catch (e) {
         if (box.state === "relay_removed" || /device removed/.test(String(/** @type {Error} */ (e).message))) return removedPage(o.label());
         if (request.signal?.aborted) return new Response(null, { status: 499 });

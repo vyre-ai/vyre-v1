@@ -8,6 +8,8 @@ export const ZONE = "vyre.run";
 export const SCRIPT = "vyre-relay";
 export const ROUTE = `*.${ZONE}/*`;
 export const WILDCARD = `*.${ZONE}`;
+/** The Worker secret that carries the fenced labels: every host the zone already has a record for, which a phone name must never take (relay/worker/phone.js, fenceOf). */
+export const FENCE_SECRET = "FENCE_HOSTS";
 
 /** @param {typeof fetch} f @param {string} token */
 export function client(f, token) {
@@ -21,13 +23,33 @@ export function client(f, token) {
 }
 
 /**
+ * The single labels the zone already has a record for (A, AAAA or CNAME), except the phone wildcard. A new proxied host is fenced by running this again, with no code change.
+ * @param {ReturnType<typeof client>} call @param {string} zone
+ */
+export async function fencedLabels(call, zone) {
+  /** @type {Set<string>} */
+  const labels = new Set();
+  for (let page = 1; page <= 50; page++) {
+    const rows = await call("GET", `/zones/${zone}/dns_records?per_page=500&page=${page}`);
+    for (const r of rows) {
+      if (!["A", "AAAA", "CNAME"].includes(r.type) || r.name === WILDCARD) continue;
+      const m = new RegExp(`^([a-z0-9-]+)\\.${ZONE.replace(/\./g, "\\.")}$`).exec(String(r.name).toLowerCase());
+      if (m && m[1]) labels.add(m[1]);
+    }
+    if (rows.length < 500) break;
+  }
+  return [...labels].sort();
+}
+
+/**
  * @param {ReturnType<typeof client>} call
  * @param {"status" | "apply" | "remove"} mode
- * @returns {Promise<{ dns: "present" | "absent" | "created" | "removed", route: "present" | "absent" | "created" | "removed" }>}
+ * @returns {Promise<{ dns: "present" | "absent" | "created" | "removed", route: "present" | "absent" | "created" | "removed", fenced?: number }>}
  */
 export async function run(call, mode) {
   const zones = await call("GET", `/zones?name=${ZONE}`);
   const zone = zones[0] && zones[0].id;
+  const account = zones[0] && zones[0].account && zones[0].account.id;
   if (!zone) throw new Error(`no zone ${ZONE} for this token`);
   const dns = (await call("GET", `/zones/${zone}/dns_records?name=${encodeURIComponent(WILDCARD)}&per_page=50`));
   const wild = dns.find((/** @type {any} */ r) => r.name === WILDCARD && r.type === "AAAA");
@@ -42,6 +64,13 @@ export async function run(call, mode) {
     if (!route) { await call("POST", `/zones/${zone}/workers/routes`, { pattern: ROUTE, script: SCRIPT }); out.route = "created"; }
     // the route first: until the record exists nothing resolves to it, and once it does the Worker is already there to hand other hosts to their origins
     if (!wild) { await call("POST", `/zones/${zone}/dns_records`, { type: "AAAA", name: WILDCARD, content: "100::", proxied: true, ttl: 1, comment: "phone access wildcard (relay/worker/edge.mjs)" }); out.dns = "created"; }
+  }
+  if (mode === "apply") {
+    if (!account) throw new Error("the zone did not name its account");
+    // after the route and the record: from here a name could resolve, and from here the Worker knows which hosts are not names
+    const labels = await fencedLabels(call, zone);
+    await call("PUT", `/accounts/${account}/workers/scripts/${SCRIPT}/secrets`, { name: FENCE_SECRET, text: labels.join(","), type: "secret_text" });
+    out.fenced = labels.length;
   }
   if (mode === "remove") {
     if (wild) { await call("DELETE", `/zones/${zone}/dns_records/${wild.id}`); out.dns = "removed"; }

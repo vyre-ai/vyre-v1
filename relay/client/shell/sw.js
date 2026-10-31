@@ -4,6 +4,8 @@
 import { connect } from "../client.js";
 import { createBridge } from "./bridge.js";
 import { pins } from "./pins.js";
+import { createLive } from "./live.js";
+import { SHIM_SOURCE } from "./wsshim.js";
 
 const sw = /** @type {any} */ (self);
 
@@ -31,6 +33,7 @@ async function box() {
   return live.conn;
 }
 
+const pages = createLive({ conn: () => (live ? live.conn : null) });
 const bridge = createBridge({ box, label: () => info ? info.label : "This computer" });
 
 sw.addEventListener("install", () => { sw.skipWaiting(); });
@@ -38,7 +41,11 @@ sw.addEventListener("activate", (/** @type {any} */ e) => { e.waitUntil(sw.clien
 sw.addEventListener("fetch", (/** @type {any} */ e) => {
   const url = new URL(e.request.url);
   if (url.origin !== sw.location.origin || url.pathname.startsWith("/__vyre/")) return;
+  // the live-socket shim the pages this worker serves load first (bridge.js withShim)
+  if (url.pathname === "/__vyre-ws.js") { e.respondWith(new Response(SHIM_SOURCE, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } })); return; }
   e.respondWith((async () => (await bridge.handle(e.request)) || fetch(e.request))());
 });
+// A page's live sockets (relay/client/shell/wsshim.js) ride this worker's channel; a page that goes away closes them.
+sw.addEventListener("message", (/** @type {any} */ e) => { if (e.data && e.data.vyreWs && e.source) { pages.message(e.source, e.data); void sw.clients.matchAll().then((/** @type {any[]} */ all) => pages.keep(all.map(c => c.id))); } });
 // A changed name or a new link: forget what was read, so the next request asks again.
 sw.addEventListener("message", (/** @type {any} */ e) => { if (e.data && e.data.t === "reset") { info = null; if (live) { live.conn.close(); live = null; } } });
