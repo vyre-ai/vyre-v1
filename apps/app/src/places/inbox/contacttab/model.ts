@@ -180,7 +180,9 @@ export const isMissed = (ref: CallRef): boolean => ref.state === "missed" || ref
 
 // ---------------------------------------------------------------- the send options
 
-export interface InboxChoice { id: string; kind: "mailbox" | "number"; address: string; label: string; isDefault: boolean }
+export interface InboxChoice { id: string; kind: "mailbox" | "number"; address: string; label: string; isDefault: boolean;
+  /** Set when the choice came from comms.senders.list: sends name it, with the same id as the mailbox or number. */
+  senderId?: string }
 
 /** The inboxes a message of this channel can go out from. `label` is the name the sidebar shows (a mailbox title, a number). */
 export function choicesFor(chan: Chan, options: SendOptions | null, titles: ReadonlyMap<string, string>): InboxChoice[] {
@@ -273,6 +275,7 @@ export function party(address: string, conv: Conversation): Party {
 export function mailInput(d: ComposerDraft, inbox: InboxChoice, conv: Conversation, key: string, replyTo?: string): CapMap["mail.send"]["in"] {
   return {
     mailboxId: inbox.id,
+    ...(inbox.senderId ? { senderId: inbox.senderId } : {}),
     to: d.to.map((a) => party(a, conv)),
     ...(d.cc.length ? { cc: d.cc.map((a) => party(a, conv)) } : {}),
     ...(d.bcc.length ? { bcc: d.bcc.map((a) => party(a, conv)) } : {}),
@@ -286,7 +289,7 @@ export function mailInput(d: ComposerDraft, inbox: InboxChoice, conv: Conversati
 }
 
 export function smsInput(d: ComposerDraft, inbox: InboxChoice, conv: Conversation, to: string, key: string): CapMap["telephony.send_sms"]["in"] {
-  return { numberId: inbox.id, to, body: d.text, ...(conv.contactId ? { contactId: conv.contactId } : {}), idempotencyKey: key };
+  return { numberId: inbox.id, ...(inbox.senderId ? { senderId: inbox.senderId } : {}), to, body: d.text, ...(conv.contactId ? { contactId: conv.contactId } : {}), idempotencyKey: key };
 }
 
 /** The id of the newest inbound email, which a reply answers. */
