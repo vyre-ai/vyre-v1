@@ -120,6 +120,7 @@ import { createResourceRegistrar, missingAgentResources } from "../gateway/resou
 import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
+import { createRecordsVaultHost } from "../seams/records-vault.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
 import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts";
 import { createViewAs } from "./view-as.ts";
@@ -948,7 +949,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!result.ok) throw new Error(`could not register the folder: ${result.message}`);
         if (!result.duplicate) { access.fold(result.event); accessPending.push(toAccessEvent(result.event)); headSeq = Math.max(headSeq, result.event.seq); await syncAccess(); }
       };
+      // A Vault folder is a resource in access (vault_folder under the Space). One resource.created per folder, with an id made from the folder's own, so a reboot repeats the same event.
+      const registerVaultFolder = async (id: string, owner: string | null): Promise<void> => {
+        if (access.snap.resource(id)) return;
+        const made = await spaceLog.appendResult({
+          id: `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
+          payload: { id, type: "vault_folder", parent_id: spaceId, label: 0, owner_id: owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+        });
+        if (made.ok && !made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
+      };
       const hostDrivers: Record<string, SeamDriver> = {
+        // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
+        setRecordsVault: () => createRecordsVaultHost({
+          system: (cap, input) => system(cap, input),
+          as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "seam" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
+          registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null),
+        }),
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
         configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
@@ -1148,14 +1164,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // A Vault folder the AI provider flows made quietly (before they declared it) has rows in the Vault but no resource in access, so putting an item into it answered "not found" to its own owner.
       // Register each one that is missing, owned by the person the row names. A folder that is already registered is left alone.
       try {
-        for (const row of db!.all("SELECT id, owner FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null }[]) {
-          if (access.snap.resource(row.id)) continue;
-          const made = await spaceLog.appendResult({
-            id: `evt_res_${row.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: row.id,
-            payload: { id: row.id, type: "vault_folder", parent_id: spaceId, label: 0, owner_id: row.owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
-          });
-          if (made.ok && !made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
-        }
+        for (const row of db!.all("SELECT id, owner FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null }[]) await registerVaultFolder(row.id, row.owner);
       } catch { /* a Space without a Vault has no table to repair */ }
 
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.

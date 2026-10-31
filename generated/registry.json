@@ -150560,7 +150560,9 @@
     {
       "audit": "always",
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "field.revealed"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
