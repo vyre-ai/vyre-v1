@@ -146702,6 +146702,7 @@
       "effects": "write",
       "emits": [
         "provider.added",
+        "vault.folder_created",
         "vault.item_created"
       ],
       "errors": [
@@ -146949,6 +146950,7 @@
       "effects": "write",
       "emits": [
         "provider.added",
+        "vault.folder_created",
         "vault.item_created"
       ],
       "errors": [
@@ -147486,6 +147488,7 @@
       "effects": "write",
       "emits": [
         "provider.added",
+        "vault.folder_created",
         "vault.item_created"
       ],
       "errors": [
