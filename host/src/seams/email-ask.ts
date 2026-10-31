@@ -95,9 +95,11 @@ export function createAskDriver(d: EmailAskDeps, spec: AskSpec): { propose(req: 
     try {
       const s = (await d.call("chat.ask_suggest", { scopeType: spec.scope, scopeId: spec.idOf(req.doc) }, who)) as { agentId?: string | null };
       if (s.agentId) return s.agentId;
-    } catch { /* no suggestion: take the first awake agent the person can use */ }
+    } catch { /* no suggestion: take the first agent the person can use that is not paused */ }
     const list = (await d.call("agents.list", {}, who)) as { agents?: { agentId: string; status?: string }[] };
-    const agent = (list.agents ?? []).find((a) => a.status === undefined || a.status === "awake");
+    // A working agent takes the message into its queue and an asleep one wakes on it, so only a paused agent is passed over (an agent that has just ended a turn reads as working until the engine's end event lands). The ones awake or working come first.
+    const usable = (list.agents ?? []).filter((a) => a.status !== "paused");
+    const agent = usable.find((a) => a.status === undefined || a.status === "awake" || a.status === "working") ?? usable[0];
     if (!agent) throw new AskDriverError("validation.precondition_failed", NO_AGENT);
     return agent.agentId;
   }
