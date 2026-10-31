@@ -116,6 +116,9 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.answer !== undefined && (t.kind === "answer" || t.kind === "unblock")) {
     t.workingNotes = { ...t.workingNotes, answer: JSON.stringify(input.answer) };
     result.answer = input.answer;
+  } else if (note !== "" && (t.kind === "answer" || t.kind === "unblock") && key !== "dismiss" && key !== "cannot") {
+    // an answer typed as a note is the answer: the agent that asked reads it from the task
+    t.workingNotes = { ...t.workingNotes, answer: JSON.stringify(note) };
   }
   if (edits && Object.keys(edits).length > 0) t.workingNotes = { ...t.workingNotes, edits: JSON.stringify(edits) };
 
