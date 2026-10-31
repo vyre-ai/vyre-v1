@@ -6,6 +6,7 @@ import {
   actionableByMe, allTasks, clean, emitTask, findTask, getTask, historyOf, holds, isBlocked, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
   out, page, raise, readPolicy, sameAssignee, toOut, touch, visibleTo, whoIs,
 } from "../projections.ts";
+import { ensureThread, syncThread } from "./thread.ts";
 import type {
   ActionDef, Assignee, Block, ListFilter, Policy, Section, Slot, Task, TaskKind, TaskSource, TaskState, TasksCtx, Who,
 } from "../projections.ts";
@@ -224,7 +225,8 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.source) t.source = input.source as TaskSource;
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
-  if (ctx.thread) t.threadId = ctx.thread;
+  if (ctx.call) await ensureThread(ctx, t, ctx.thread);
+  if (t.threadId === undefined && ctx.thread) t.threadId = ctx.thread;
   const resp = await responsibleFor(ctx, assigned);
   if (resp !== undefined) t.responsible = resp;
   touch(ctx, ctx.db, t);
@@ -336,6 +338,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
   }
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.assigned", t, { slot, to, from }, { type: "assigned", by: ctx.principal.id });
+  await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }
 

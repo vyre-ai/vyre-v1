@@ -11,6 +11,7 @@ import {
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
 import { KIND_ACTIONS, afterReview, checkMove, commitMove, submitTarget } from "./state.ts";
 import type { Policy } from "../projections.ts";
+import { syncThread } from "./thread.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -163,6 +164,7 @@ export async function delegate(ctx: TasksCtx, input: In): Promise<unknown> {
   const note = typeof input.note === "string" && input.note.trim() ? input.note.trim() : undefined;
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.delegated", t, { from, to, passedTo }, clean({ type: "delegated", by: from, note }));
+  await syncThread(ctx, t);
   return { task: out(ctx, t), passedTo };
 }
 
@@ -180,6 +182,7 @@ export async function escalate(ctx: TasksCtx, input: In): Promise<unknown> {
   delete t.takenBy; delete t.takenAt; delete t.snoozedUntil;
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.escalated", t, { to: target, reason: input.reason }, { type: "escalated", by: ctx.principal.id });
+  await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }
 

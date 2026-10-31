@@ -1,0 +1,1 @@
+Every task now has its own thread, the one place for its work. The people and agents on a task (Assigned, Reviewer, Approver) are in it, and a new holder is added when a slot changes. Task threads do not show in Recent chats, and the agents in one run only when woken or mentioned.
