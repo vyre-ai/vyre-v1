@@ -134,8 +134,10 @@ test("a request is not work: it wakes nobody, and neither does a missing task", 
 });
 
 test("with no thread yet, the thread is made first, in the asker's name", async () => {
-  const s = scene({ tsk_t1: task({ threadId: undefined }) }, { "chat.start": () => ({ thread: { threadId: "thr_t1" } }) });
+  const s = scene({ tsk_t1: task({ threadId: undefined }) }, { "chat.start": () => ({ thread: { threadId: "thr_t1" } }), "tasks.update": () => ({}) });
   assert.deepEqual(await s.run("task.created", "tsk_t1"), [DOER]);
   const start = s.h.called.find((c) => c.cap === "chat.start")!;
   assert.deepEqual([start.input.scopeType, start.input.scopeId, start.input.as], ["task", "tsk_t1", OWNER]);
+  const link = s.h.called.find((c) => c.cap === "tasks.update")!;
+  assert.deepEqual([link.input.taskId, link.input.threadId], ["tsk_t1", "thr_t1"], "the task row gets the thread that was made");
 });

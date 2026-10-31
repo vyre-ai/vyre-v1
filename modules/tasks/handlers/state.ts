@@ -308,6 +308,8 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   if ("why" in input && input.why !== undefined) set("why", nonEmpty(input.why) ? input.why : undefined);
   if ("due" in input && input.due !== undefined) set("due", input.due === null ? undefined : (input.due as number));
   if ("effort" in input && input.effort !== undefined) set("effort", input.effort === null ? undefined : (input.effort as number));
+  // a task whose thread could not be made when it was created is linked to the one made later; a thread already linked is never replaced
+  if ("threadId" in input && typeof input.threadId === "string" && t.threadId === undefined) { t.threadId = input.threadId; changed.push("threadId"); }
   if (changed.length) {
     touch(ctx, ctx.db, t);
     emitTask(ctx, ctx.db, "task.updated", t, { fields: changed }, { type: "updated", by: ctx.principal.id });

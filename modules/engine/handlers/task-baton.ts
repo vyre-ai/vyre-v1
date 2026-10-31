@@ -118,7 +118,10 @@ async function threadOf(host: BatonHost, t: BatonTask, agentIds: string[], asker
   if (t.threadId) return t.threadId;
   try {
     const made = (await host.call("chat.start", { kind: "chat", agentIds, scopeType: "task", scopeId: t.id, title: t.title, idempotencyKey: `task-thread:${t.id}` }, asker)) as { thread?: { threadId?: string } };
-    return made.thread?.threadId;
+    const id = made.thread?.threadId;
+    // the thread chat could not make with the task is linked now, in one write, so the task page and the run page find it
+    if (id) await host.call("tasks.update", { taskId: t.id, threadId: id }).catch((e: unknown) => host.log?.("a task could not be linked to its thread", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }));
+    return id;
   } catch (e) { host.log?.("the thread of a task could not be made", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }); return undefined; }
 }
 

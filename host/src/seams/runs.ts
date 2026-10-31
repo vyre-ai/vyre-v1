@@ -457,7 +457,8 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
     async settle(ms: number): Promise<void> {
       for (const timer of later.values()) clearTimeout(timer);
       later.clear();
-      await Promise.race([Promise.allSettled([...inflight]), new Promise((r) => setTimeout(r, ms))]);
+      let giveUp: ReturnType<typeof setTimeout> | undefined;
+      try { await Promise.race([Promise.allSettled([...inflight]), new Promise((r) => { giveUp = setTimeout(r, ms); })]); } finally { clearTimeout(giveUp); }   // a timer left running would hold the process open after shutdown
     },
     resolve,
   };
