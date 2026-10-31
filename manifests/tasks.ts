@@ -24,6 +24,7 @@ const taskRow = t.obj({
   snoozedUntil: t.opt(t.ts()), createdBy: t.str(), createdAt: t.ts(), updatedAt: t.ts(),
 });
 const target = { taskId: id.task };
+const baton = t.enm('review', 'approval', 'done');
 const readyReason = t.enm('ready', 'due_today', 'overdue', 'blocking');
 
 export default defineManifest({
@@ -105,6 +106,32 @@ export default defineManifest({
       out: { task: taskRow, result: t.opt(t.json()) }, on: ['task', '/taskId'], level: 'use',
       emits: ['task.transitioned', 'task.completed', 'task.sent_back', 'task.approved', 'task.rejected', 'task.handled'], tool: 'tasks', offline: 'online',
       errors: ['validation.precondition_failed', 'permission.expired'],
+    }),
+    write('tasks.submit', 'Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done', {
+      in: { ...target, outputs: t.opt(t.rec()), summary: t.str({ minLength: 1, examples: ['Drafted the letter and checked the dates'] }) },
+      out: { task: taskRow, next: baton }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed'],
+      tool: 'tasks', mcpName: 'task_submit', offline: 'online', errors: ['validation.precondition_failed'],
+    }),
+    write('tasks.ask', 'Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you', {
+      in: { ...target, question: t.str({ minLength: 1, examples: ['Which of the two dates is right?'] }), to: t.opt(assignee) },
+      out: { task: taskRow, answerTaskId: id.task }, on: ['task', '/taskId'], level: 'use', emits: ['task.created', 'task.requested', 'task.assigned', 'task.link_changed'],
+      tool: 'tasks', mcpName: 'task_ask', offline: 'online', errors: ['validation.precondition_failed'],
+    }),
+    write('tasks.block', 'Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits', {
+      in: { ...target, reason: t.str({ minLength: 1, examples: ['I cannot open the client folder'] }) },
+      out: { task: taskRow, unblockTaskId: id.task }, on: ['task', '/taskId'], level: 'use', emits: ['task.created', 'task.requested', 'task.assigned', 'task.link_changed'],
+      tool: 'tasks', mcpName: 'task_block', offline: 'online', errors: ['validation.precondition_failed'],
+    }),
+    write('tasks.review', 'Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)', {
+      in: { ...target, verdict: t.enm('approve', 'send_back'), fixes: t.opt(t.arr(t.str({ minLength: 1 }))), note: t.opt(t.str()) },
+      out: { task: taskRow, next: t.enm('approval', 'done', 'fixes', 'person') }, on: ['task', '/taskId'], level: 'use',
+      emits: ['task.transitioned', 'task.completed', 'task.approved', 'task.sent_back', 'task.assigned'], tool: 'tasks', mcpName: 'task_review', offline: 'online',
+      errors: ['validation.precondition_failed'],
+    }),
+    write('tasks.decide', 'Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)', {
+      in: { ...target, verdict: t.enm('approve', 'reject'), reason: t.opt(t.str()) },
+      out: { task: taskRow, next: t.enm('done', 'fixes') }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed', 'task.approved', 'task.rejected'],
+      tool: 'tasks', mcpName: 'task_decide', offline: 'online', errors: ['validation.precondition_failed'],
     }),
     write('tasks.assign', 'Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)', {
       in: { ...target, slot, to: t.nullable(assignee) }, out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.assigned'], tool: 'tasks', offline: 'queue',
