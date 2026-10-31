@@ -1,8 +1,8 @@
-// Fields panel: Link to another record type, the groups-to-tabs hint, and the sensitive data check.
+// Fields panel: Link to another record type and the groups-to-tabs hint.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FieldsPanel, linkFieldOps, sensitiveKind } from "./index.ts";
+import { FieldsPanel, linkFieldOps } from "./index.ts";
 import type { PanelType } from "./index.ts";
 
 const has = (s: string, needle: string): boolean => s.replaceAll("<!-- -->", "").includes(needle);
@@ -23,15 +23,9 @@ test("a link to the same type keeps its two ends apart", () => {
   assert.equal((made.ops[0]!.def as { inverse: string }).inverse, "companies");
 });
 
-test("the panel says three or more groups show as tabs, offers Link to, and the quiet sensitive data check", () => {
+test("the panel says three or more groups show as tabs and offers Link to", () => {
   const closed = renderToStaticMarkup(<FieldsPanel call={async () => ({})} type={deal} hidden={[]} onToggleHidden={() => undefined} onClose={() => undefined} fieldTypes={[]} trash={[]} layout={[]} linkTypes={[{ key: "contact", title: "Contact", plural: "Contacts" }]} />);
   assert.ok(has(closed, "Three or more groups show as tabs."));
-  assert.ok(has(closed, 'data-testid="panel-scan"') && has(closed, "Check for sensitive data"));
+  assert.ok(!has(closed, "Check for sensitive data"), "no scan link until a field can be sealed");
   assert.ok(!has(closed, 'data-testid="panel-add-type-link"'));
-});
-
-test("sensitive kinds are named in plain words", () => {
-  assert.equal(sensitiveKind("id_number"), "an ID number");
-  assert.equal(sensitiveKind("health"), "health information");
-  assert.equal(sensitiveKind("other"), "sensitive data");
 });

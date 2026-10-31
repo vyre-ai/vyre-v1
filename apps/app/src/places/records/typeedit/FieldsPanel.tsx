@@ -11,7 +11,7 @@ import { Glyph } from "../schemamap/icons.tsx";
 import { fieldMark } from "../schemamap/model.ts";
 import { ConfirmLine, FieldMark, TextButton } from "./parts.tsx";
 import {
-  addFieldOps, addableTypes, confirmLine, connectChoices, linkFieldOps, namesOf, sensitiveKind, dropFieldOps, fieldDeleteBlocked, moveFieldOps, renameFieldOps, requiredOps, retypeBlocked, retypeFieldOps, retypeTarget, slugOf,
+  addFieldOps, addableTypes, confirmLine, connectChoices, linkFieldOps, namesOf, dropFieldOps, fieldDeleteBlocked, moveFieldOps, renameFieldOps, requiredOps, retypeBlocked, retypeFieldOps, retypeTarget, slugOf,
 } from "./model.ts";
 import type { Call, ConnectType, FieldDef, FieldTypeInfo } from "./model.ts";
 import { OVERVIEW, addGroup, deleteGroup, groupOf, groupsIn, moveField, renameGroup } from "./groups.ts";
@@ -55,7 +55,6 @@ export interface FieldsPanelProps {
   linkTypes?: readonly ConnectType[];
 }
 
-type Suggestion = CapMap["schema.sensitivity.scan"]["out"]["suggestions"][number];
 const LINK = "link";
 
 export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initial, fieldTypes: given, trash: givenTrash, viewToggles = true, layout: givenLayout, linkTypes: givenLinks }: FieldsPanelProps): ReactElement {
@@ -71,7 +70,6 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
   const [linkTypes, setLinkTypes] = useState<readonly ConnectType[]>(givenLinks ?? []);
   const [linkTo, setLinkTo] = useState<ConnectType | null>(null);
   const [farKeys, setFarKeys] = useState<readonly string[]>([]);
-  const [scan, setScan] = useState<{ busy: boolean; found: readonly Suggestion[] | null; marked: readonly string[]; error: string | null }>({ busy: false, found: null, marked: [], error: null });
   const [layout, setLayout] = useState<readonly LayoutSection[]>(givenLayout ?? []);
   const [groupBusy, setGroupBusy] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
@@ -153,19 +151,6 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
   const pickLink = (c: ConnectType): void => {
     setLinkTo(c); setFarKeys([]); change.clearError();
     void call("schema.types.get", { type: c.key }).then((out) => setFarKeys(((out as CapMap["schema.types.get"]["out"]).type?.fields ?? []).map((f: { key: string }) => f.key)), () => undefined);
-  };
-  const runScan = (): void => {
-    setScan((x) => ({ ...x, busy: true, error: null }));
-    call("schema.sensitivity.scan", { type: type.key }).then(
-      (out) => setScan((x) => ({ ...x, busy: false, found: (out as CapMap["schema.sensitivity.scan"]["out"]).suggestions ?? [] })),
-      () => setScan((x) => ({ ...x, busy: false, error: "Could not check this type. Try again." })),
-    );
-  };
-  const mark = (sg: Suggestion): void => {
-    call("schema.set_label", { type: type.key, field: sg.field, label: sg.suggestedLabel }).then(
-      () => setScan((x) => ({ ...x, marked: [...x.marked, sg.field] })),
-      () => setScan((x) => ({ ...x, error: "Could not change the label. Try again." })),
-    );
   };
   const groupRows: ReactElement[] = groups.map((g) => (
     <Row
@@ -290,19 +275,6 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
             </View>
           ) : <View style={s.addLink}><TextButton label="New group" testID="panel-group-new" onPress={() => { setGroupError(null); setNewGroup(""); }} /></View>}
           {groupError ? <Text style={s.error} accessibilityRole="alert" testID="panel-group-error">{groupError}</Text> : null}
-        </View>
-        <View style={s.trash} testID="panel-sensitive">
-          <View style={s.addLink}><TextButton label={scan.busy ? "Checking…" : "Check for sensitive data"} testID="panel-scan" off={scan.busy ? true : undefined} onPress={runScan} /></View>
-          {scan.found !== null && scan.found.length === 0 ? <Text style={s.hint} testID="panel-scan-none">Nothing sensitive found in this type.</Text> : null}
-          {/* ui-rows-lint: not a list (a short result of the check, one row per field) */}
-          {(scan.found ?? []).map((sg) => (
-            <Row
-              key={sg.field} id={`panel-scan-${sg.field}`} title={type.fields.find((f) => f.key === sg.field)?.title ?? sg.field}
-              note={`${sg.matches > 0 ? `Looks like ${sensitiveKind(sg.kind)} · ${sg.matches} ${sg.matches === 1 ? "value" : "values"}` : `The name suggests ${sensitiveKind(sg.kind)}`}`}
-              trailing={scan.marked.includes(sg.field) ? <Text style={s.hint}>{`Marked ${sg.suggestedLabel}`}</Text> : <TextButton label={`Mark ${sg.suggestedLabel}`} testID={`panel-scan-mark-${sg.field}`} onPress={() => mark(sg)} />}
-            />
-          ))}
-          {scan.error ? <Text style={s.error} accessibilityRole="alert" testID="panel-scan-error">{scan.error}</Text> : null}
         </View>
         {lost.length > 0 ? (
           <View style={s.trash} testID="panel-trash">

@@ -222,11 +222,6 @@ export function linkFieldOps(o: { type: string; plural: string; name: string; to
   return { key, ops: [{ op: "relation.add", type: o.type, field: key, def: { to: o.to.key, inverse: back, title, inverseTitle: o.plural } }] };
 }
 
-/** What a sensitivity suggestion found, said in a few words. */
-export function sensitiveKind(kind: string): string {
-  return kind === "id_number" ? "an ID number" : kind === "card" ? "a card number" : kind === "bank" ? "a bank number" : kind === "health" ? "health information" : "sensitive data";
-}
-
 /** Rename shows a new name; the key stays, so nothing that reads the field breaks. */
 export const renameFieldOps = (type: string, field: string, name: string): SchemaOp[] => [{ op: "field.update", type, field, def: { title: name.trim() } }];
 export const retypeFieldOps = (type: string, field: string, toType: string): SchemaOp[] => [{ op: "field.retype", type, field, toType }];
