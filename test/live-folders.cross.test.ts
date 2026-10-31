@@ -74,3 +74,11 @@ test("the dropbox module is registered the way every module is: a manifest, a ho
   assert.ok(lane.modules.includes("dropbox") && lane.owns.includes("modules/dropbox/"));
   assert.ok(read("manifests/index.ts").includes("m_dropbox"));
 });
+
+test("the dropbox module can reach Dropbox: ctx.http is limited to its connector's domains, so the connector entry must list every host the module calls", () => {
+  const domains = (dropbox.connectors ?? []).flatMap((c) => c.domains);
+  const src = read("modules/dropbox/projections.ts");
+  const hosts = [...src.matchAll(/https:\/\/([a-z.]+\.dropboxapi\.com)/g)].map((m) => m[1] as string);
+  assert.ok(hosts.length >= 2);
+  for (const h of hosts) assert.ok(domains.some((d) => h === d || h.endsWith(`.${d}`)), `${h} is a declared domain`);
+});
