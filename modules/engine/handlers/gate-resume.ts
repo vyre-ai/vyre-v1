@@ -3,7 +3,7 @@
 import { boundEngine } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 
-interface GateEvent { name: string; payload: { holdId: string; taskId: string } }
+interface GateEvent { name: string; payload: { holdId: string; taskId: string; note?: string } }
 
 export const gateResumeConsumers = {
   "engine.gate_resume": {
@@ -21,6 +21,9 @@ export const gateResumeConsumers = {
           ctx.log.warn("the hold's answer could not be read, so the turn is told only that it was approved", { holdId: event.payload.holdId, error: e instanceof Error ? e.message : String(e) });
         }
       }
+      // a turned-down call tells the agent why when the person said: the reason is what they typed on Deny
+      const note = event.name === "gate.denied" && typeof event.payload.note === "string" ? event.payload.note.trim() : "";
+      if (!approved && note !== "") result = { ok: false, content: { code: "denied", message: `A person did not approve this: ${note}` } };
       return { queued: engine.resume(event.payload.taskId, { approved, ...(result ? { result } : {}) }) };
     },
   },
