@@ -38,8 +38,9 @@ function SpaceEntryBody({ onTarget, onBack, onCreatePersonal, onCreateMacServer,
   useEffect(() => {
     const doc = (globalThis as { document?: Document }).document;
     const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape' && !busy) { event.preventDefault(); back(); } };
-    doc?.addEventListener('keydown', onKey);
-    return () => doc?.removeEventListener('keydown', onKey);
+    // in the capture phase: a text field stops its key events at the React root, so an Escape pressed with the cursor in the address field (focused on the join page) never reaches the document in the bubble phase
+    doc?.addEventListener('keydown', onKey, true);
+    return () => doc?.removeEventListener('keydown', onKey, true);
   }, [page, busy, onBack, kind, where]);
 
   const submit = async (): Promise<void> => {
