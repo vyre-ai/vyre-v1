@@ -23,6 +23,8 @@ export interface ConversationNav {
   openBeside(kind: string, id: string): void;
   /** The channel menu's "Connect an outside agent": the sheet for this channel (P-L9b_23). Left out where the shell has no such sheet. */
   openConnectOutsideAgent?(channelId: string): void;
+  /** "Connect your AI" on a reply that could not start: the sign-in and key page. Left out where the shell has none. */
+  openAiSetup?(): void;
 }
 
 /** A slash command a plugin adds. It runs `run` when it has one, else its `prompt` is sent as the message ($ARGUMENTS is replaced by what follows the name). */

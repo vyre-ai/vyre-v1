@@ -24,7 +24,7 @@ import { AttachmentChips, LinkedText, refsOf } from "./attachments.tsx";
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, planSteps, questionOptions, workOf } from "./model.ts";
+import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, planSteps, questionOptions, statusView, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 
 export interface MessageActions {
@@ -239,7 +239,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const work = workOf(m);
   const [workOpen, setWorkOpen] = useState(openWork === true);
   const cards = m.blocks.filter(isCard);
-  const errors = m.blocks.filter(isErrorBlock);
+  const statuses = m.blocks.filter(isTurnStatus).map(statusView);
+  const errors = [...m.blocks.filter(isErrorBlock), ...statuses.flatMap((x) => (x.kind === "error" ? [x.block] : []))];
   const person = item.who.kind === "person";
   const blocks = stream ? null : bodyBlocks(m.messageId, m.body);
   const subjects = useSubjectBlocks(blocks);
@@ -277,6 +278,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
+      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : null))}
       <Reactions m={m} a={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}

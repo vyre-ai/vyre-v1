@@ -141,6 +141,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openThread: a.openThread,
     togglePane: a.togglePane,
     openBeside: (kind, id) => rt.open({ subject: { type: kind, id } }),
+    openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId, me: { id: rt.me.id, name: rt.me.name },
