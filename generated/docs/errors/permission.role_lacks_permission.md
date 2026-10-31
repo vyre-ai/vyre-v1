@@ -12,6 +12,7 @@ HTTP 403. Retryable: no.
 - access.actors.set_engineer_mcp
 - access.actors.update
 - access.check
+- access.connector_builder.grant
 - access.grants.list
 - access.groups.add_member
 - access.groups.create
@@ -30,4 +31,3 @@ HTTP 403. Retryable: no.
 - access.reviews.list
 - access.reviews.start
 - access.roles.apply
-- access.roles.assign

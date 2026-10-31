@@ -26,6 +26,7 @@ Decide what happens when many records vanished at the source: mark them removed 
 ```ts
 type In = {
   type: string;
+  account?: string;
   decision: "mark_removed" | "keep";
 };
 ```
@@ -53,6 +54,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "decision": "mark_removed",
     "type": "contact"
   },

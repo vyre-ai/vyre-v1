@@ -1,8 +1,8 @@
 {
   "module": "vault-requests",
   "capabilities": {
-    "vault.request@1": "efeeed96855edb3505b689ba9f3a0e7a50ff9520c5890af25e80d0b27c26bb8d",
-    "vault.requests.cancel@1": "fc84171e73faf34fbc48fa057281e505008d72ddc96d8ca877549cff7beabbe0",
+    "vault.request@1": "7a8e32e7090786db373dc55961d952dc6cb9f6bee51d7dd1c4211fa02b109017",
+    "vault.requests.cancel@1": "1b91febcaa5fe6e2a97979eb0d6851f844465cf545d4f780aae8fe71094a3f7e",
     "vault.requests.decline@1": "f19e12ab3f2bd919d2c785fdd47b79787475b8e959ee3bb217243ede78efd7f2",
     "vault.requests.fulfil@1": "a7866070ee6ccef658e7794c7db85584fe975cca04fa1bb8b2c92f7162a47521",
     "vault.requests.get@1": "8372376d8649586049a5cfb5a8229c0f89859404078e3659112d124b855207d5",

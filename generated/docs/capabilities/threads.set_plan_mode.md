@@ -19,7 +19,7 @@ Switch plan mode for a thread: the agent may read and plan but changes nothing u
 | HTTP | POST /v1/threads/set_plan_mode |
 | MCP tool | threads_set_plan_mode (chats) |
 | CLI | none |
-| Emits | thread.plan_mode_changed |
+| Emits | thread.updated, thread.plan_mode_changed |
 
 ## Input
 
