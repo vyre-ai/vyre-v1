@@ -13,6 +13,7 @@ import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
 import { nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 import { nameOr } from "../../places/chats/names.ts";
+import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 
 export interface ChatsActions {
   /** Open a chat or channel's thread in the main column. */
@@ -75,12 +76,12 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
-    openNewChannel: () => rt.open({ screen: "chats.sidebar" }),
+    openNewChannel: () => requestChannelSheet("new"),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection,
-    space: { name: rt.space.name, otherNeedsYou: othersNeedingYou(rt.knownSpaces ?? [], rt.space.id).length > 0, assistant: { agentId: rt.assistant.id, name: rt.assistant.name } },
-    nav, clock: rt.clock,
+    space: { name: rt.space.name, otherNeedsYou: othersNeedingYou(rt.knownSpaces ?? [], rt.space.id).length > 0, ...(rt.space.kind === "personal" ? { personal: true } : {}), assistant: { agentId: rt.assistant.id, name: rt.assistant.name } },
+    nav, me: { id: rt.me.id }, clock: rt.clock,
   };
 }
 
