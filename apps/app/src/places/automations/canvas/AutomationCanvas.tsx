@@ -270,6 +270,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
       for (const p of g.items) out.push({
         label: p.availability === "preview" ? `${p.title} (Preview)` : p.title, keywords: `${p.key} ${p.group}`,
         leading: <StepLogo stepKey={p.key} {...(p.preset ? { input: p.preset } : {})} icon={iconForStep(p.key)} name={p.title} size={20} />,
+        ...(p.untested ? { mark: "Untested: never tried against the real app" } : {}),
         onSelect: () => onPick(p.key, p.preset),
       });
     }

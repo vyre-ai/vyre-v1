@@ -535,6 +535,7 @@ const styles = StyleSheet.create({
   checkAfterCount: { marginLeft: 0 },
   count: { marginLeft: "auto", minWidth: 24, textAlign: "right", fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   iconSlot: { width: ICON_SIZE, height: ICON_SIZE, alignItems: "center", justifyContent: "center" },
+  mark: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", backgroundColor: "var(--warn)" as string },
   leading: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
   search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingHorizontal: 9, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as ViewStyle) },

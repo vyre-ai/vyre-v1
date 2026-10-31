@@ -329,3 +329,16 @@ test("a connection lists the Vault handles it uses, never a value, so a Vault it
   assert.deepEqual(listed.connections[0]!.handles, ["#AcmeHook", "#AcmeKey"]);
   assert.equal(JSON.stringify(listed).includes(SECRET), false);
 });
+
+test("a pending connection says which slot is empty; filling it from a handle makes it active, and a value or an unknown slot is refused", async () => {
+  const k = kit();
+  k.install(ACME);
+  const made = await k.hs["connections.create"](k.ctx, { connector: "acme", title: "Acme", ownerKind: "space", secrets: { Acme_Key: "#AcmeKey" } } as never);
+  assert.equal(made.connection.state, "pending", "one slot is still empty");
+  assert.deepEqual(made.connection.filled, ["Acme_Key"]);
+  await assert.rejects(k.hs["connections.set_secret"](k.ctx, { connectionId: made.connection.connectionId, slot: "Nope", handle: "#X" }), code("validation.bad_input"));
+  await assert.rejects(k.hs["connections.set_secret"](k.ctx, { connectionId: made.connection.connectionId, slot: "Acme_Hook", handle: SECRET }), code("validation.bad_input"));
+  const done = await k.hs["connections.set_secret"](k.ctx, { connectionId: made.connection.connectionId, slot: "Acme_Hook", handle: "#AcmeHook.secret" });
+  assert.deepEqual([done.connection.state, done.connection.filled], ["active", ["Acme_Hook", "Acme_Key"]]);
+  assert.equal(JSON.stringify(done).includes(SECRET), false);
+});
