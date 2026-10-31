@@ -6828,6 +6828,19 @@ export type ComputersHealthOut = {
   awake: number;
   asleep: number;
 };
+export type ComputersHostsIn = Record<string, unknown>;
+export type ComputersHostsOut = {
+  available: boolean;
+  hosts: Array<{
+      hostId: string;
+      kind: "this" | "space" | "server";
+      name: string;
+      online: boolean;
+      canRun: boolean;
+      runs: number;
+      reason?: string;
+    }>;
+};
 export type ComputersListIn = {
   state?: Array<"provisioning" | "asleep" | "waking" | "working" | "takeover" | "error">;
   cursor?: string;
@@ -9192,6 +9205,34 @@ export type EnginePlacementDecideOut = {
   placement: "host" | "device" | "wait";
   reason: string;
   wakeLine?: string;
+  nodeId?: string;
+};
+export type EnginePlacementOptionsIn = {
+  threadId: string;
+  agentId?: string;
+};
+export type EnginePlacementOptionsOut = {
+  private: boolean;
+  effective: {
+    target: "device" | "space" | "server";
+    serverId?: string;
+  };
+  options: Array<{
+      target: "device" | "space" | "server";
+      serverId?: string;
+      name: string;
+      online: boolean;
+      reason?: string;
+    }>;
+};
+export type EnginePlacementSetIn = {
+  threadId: string;
+  target: "device" | "space" | "server";
+  serverId?: string;
+};
+export type EnginePlacementSetOut = {
+  target: "device" | "space" | "server";
+  serverId?: string;
 };
 export type EnginePolicyGetIn = Record<string, unknown>;
 export type EnginePolicyGetOut = {
@@ -9686,6 +9727,7 @@ export type EngineTurnStartIn = {
   agentId: string;
   qseq: number;
   placement: "host" | "device";
+  nodeId?: string;
   accountRef?: string;
   engine: string;
   model: string;
@@ -20175,17 +20217,43 @@ export type NetworkMyComputerApproveOut = {
   state: "approved";
 };
 export type NetworkMyComputerCodeIn = {
+  nickname?: string;
   idempotencyKey: string;
 };
 export type NetworkMyComputerCodeOut = {
   code: string;
   expiresAt: number;
+  address?: string;
 };
 export type NetworkMyComputerDeclineIn = {
   serverId: string;
 };
 export type NetworkMyComputerDeclineOut = {
   state: "declined";
+};
+export type NetworkMyComputerRemoveIn = {
+  serverId: string;
+};
+export type NetworkMyComputerRemoveOut = {
+  removed: boolean;
+};
+export type NetworkMyComputersIn = Record<string, unknown>;
+export type NetworkMyComputersOut = {
+  computers: Array<{
+      serverId: string;
+      name: string;
+      state: "healthy" | "degraded" | "down";
+      enrollment: "pending" | "approved";
+      fingerprint?: string;
+      lastSeenAt?: number;
+      requestedAt?: number;
+      facts?: {
+        os: string;
+        arch: string;
+        docker: boolean;
+        version: string;
+      };
+    }>;
 };
 export type NetworkPublicHostnamesIn = Record<string, unknown>;
 export type NetworkPublicHostnamesOut = {
@@ -25089,7 +25157,7 @@ export type SpacesMatrixIn = Record<string, unknown>;
 export type SpacesMatrixOut = {
   kind: "personal" | "team";
   features: Array<{
-      key: "apps_public" | "campaign_sending" | "console" | "agent_computers" | "webhooks" | "always_on_runs" | "sharing" | "members";
+      key: "apps_public" | "campaign_sending" | "console" | "webhooks" | "always_on_runs" | "sharing" | "members";
       available: boolean;
       line?: string;
     }>;
@@ -30965,6 +31033,7 @@ export interface CapMap {
   "computers.get": { in: ComputersGetIn; out: ComputersGetOut };
   "computers.give_back": { in: ComputersGiveBackIn; out: ComputersGiveBackOut };
   "computers.health": { in: ComputersHealthIn; out: ComputersHealthOut };
+  "computers.hosts": { in: ComputersHostsIn; out: ComputersHostsOut };
   "computers.list": { in: ComputersListIn; out: ComputersListOut };
   "computers.provision": { in: ComputersProvisionIn; out: ComputersProvisionOut };
   "computers.record_start": { in: ComputersRecordStartIn; out: ComputersRecordStartOut };
@@ -31152,6 +31221,8 @@ export interface CapMap {
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
+  "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };
+  "engine.placement.set": { in: EnginePlacementSetIn; out: EnginePlacementSetOut };
   "engine.policy.get": { in: EnginePolicyGetIn; out: EnginePolicyGetOut };
   "engine.policy.set": { in: EnginePolicySetIn; out: EnginePolicySetOut };
   "engine.pool.status": { in: EnginePoolStatusIn; out: EnginePoolStatusOut };
@@ -31795,6 +31866,8 @@ export interface CapMap {
   "network.my_computer_approve": { in: NetworkMyComputerApproveIn; out: NetworkMyComputerApproveOut };
   "network.my_computer_code": { in: NetworkMyComputerCodeIn; out: NetworkMyComputerCodeOut };
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
+  "network.my_computer_remove": { in: NetworkMyComputerRemoveIn; out: NetworkMyComputerRemoveOut };
+  "network.my_computers": { in: NetworkMyComputersIn; out: NetworkMyComputersOut };
   "network.public_hostnames": { in: NetworkPublicHostnamesIn; out: NetworkPublicHostnamesOut };
   "network.relay_set": { in: NetworkRelaySetIn; out: NetworkRelaySetOut };
   "network.server_approve": { in: NetworkServerApproveIn; out: NetworkServerApproveOut };
@@ -35644,6 +35717,7 @@ export type TurnStartedPayload = {
   threadId: string;
   agentId: string;
   placement: string;
+  nodeId?: string;
   engine: string;
   model: string;
   accountRef?: string;

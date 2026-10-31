@@ -1640,6 +1640,12 @@
     },
     {
       "deferred": false,
+      "name": "computers_hosts",
+      "summary": "The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them",
+      "toolset": "computer"
+    },
+    {
+      "deferred": false,
       "name": "computers_list",
       "summary": "List agent computers with state, tabs, disk and last activity",
       "toolset": "computer"
@@ -2417,6 +2423,18 @@
       "name": "engine_models_list",
       "summary": "Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "engine_placement_options",
+      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_placement_set",
+      "summary": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice",
+      "toolset": "chats"
     },
     {
       "deferred": false,
@@ -5445,13 +5463,25 @@
     {
       "deferred": false,
       "name": "network_my_computer_code",
-      "summary": "Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents",
+      "summary": "Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space",
       "toolset": "engineer"
     },
     {
       "deferred": false,
       "name": "network_my_computer_decline",
       "summary": "Turn your own waiting computer away",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_my_computer_remove",
+      "summary": "Remove one of your own computers or servers: its access ends at once",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_my_computers",
+      "summary": "The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare",
       "toolset": "engineer"
     },
     {

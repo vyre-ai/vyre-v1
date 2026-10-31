@@ -15,7 +15,7 @@ Act on an element or key: click, hover, press, select, scroll, check; a send, po
 | Idempotency | none |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/chrome/act |
 | MCP tool | chrome_act (computer) |
 | CLI | none |
@@ -47,7 +47,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.unavailable

@@ -449,6 +449,7 @@ export function stubs(ctx: CallCtx) {
       get: call("computers.get"),
       give_back: call("computers.give_back"),
       health: call("computers.health"),
+      hosts: call("computers.hosts"),
       list: call("computers.list"),
       provision: call("computers.provision"),
       record_start: call("computers.record_start"),
@@ -715,6 +716,8 @@ export function stubs(ctx: CallCtx) {
       },
       placement: {
         decide: call("engine.placement.decide"),
+        options: call("engine.placement.options"),
+        set: call("engine.placement.set"),
       },
       policy: {
         get: call("engine.policy.get"),
@@ -1605,6 +1608,8 @@ export function stubs(ctx: CallCtx) {
       my_computer_approve: call("network.my_computer_approve"),
       my_computer_code: call("network.my_computer_code"),
       my_computer_decline: call("network.my_computer_decline"),
+      my_computer_remove: call("network.my_computer_remove"),
+      my_computers: call("network.my_computers"),
       public_hostnames: call("network.public_hostnames"),
       relay_set: call("network.relay_set"),
       server_approve: call("network.server_approve"),

@@ -5320,7 +5320,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5339,7 +5339,7 @@ const routes0: Route[] = [
     "idempotency": "key",
     "risk": "high",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "post"
   },
   {
@@ -5358,7 +5358,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5377,7 +5377,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5396,7 +5396,7 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5415,7 +5415,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "high",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5434,7 +5434,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5453,7 +5453,7 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5472,7 +5472,7 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5491,7 +5491,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5510,7 +5510,7 @@ const routes0: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5529,7 +5529,7 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5548,7 +5548,7 @@ const routes0: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5567,7 +5567,7 @@ const routes0: Route[] = [
     "idempotency": "key",
     "risk": "high",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "send"
   }
 ];
@@ -5589,7 +5589,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5608,7 +5608,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5627,7 +5627,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5646,7 +5646,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5665,7 +5665,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5684,7 +5684,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5703,7 +5703,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5722,7 +5722,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5741,7 +5741,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5760,7 +5760,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "high",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "delete"
   },
   {
@@ -5779,7 +5779,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5798,7 +5798,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5817,7 +5817,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5836,7 +5836,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5855,7 +5855,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5874,7 +5874,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5892,7 +5892,25 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/computers/hosts",
+    "cap": "computers.hosts",
+    "v": 1,
+    "module": "computers",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5910,7 +5928,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5928,7 +5946,7 @@ const routes1: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5947,7 +5965,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5966,7 +5984,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -5984,7 +6002,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6002,7 +6020,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6020,7 +6038,7 @@ const routes1: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6039,7 +6057,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6058,7 +6076,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "high",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "delete"
   },
   {
@@ -6077,7 +6095,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6096,7 +6114,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6115,7 +6133,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6134,7 +6152,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6153,7 +6171,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6172,7 +6190,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6191,7 +6209,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6210,7 +6228,7 @@ const routes1: Route[] = [
     "idempotency": "none",
     "risk": "low",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6229,7 +6247,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6248,7 +6266,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6267,7 +6285,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6286,7 +6304,7 @@ const routes1: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6305,7 +6323,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6324,7 +6342,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6343,7 +6361,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6362,7 +6380,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6381,7 +6399,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -6400,7 +6418,7 @@ const routes1: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "online",
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -9323,6 +9341,44 @@ const routes1: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/engine/placement/options",
+    "cap": "engine.placement.options",
+    "v": 1,
+    "module": "engine",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/engine/placement/set",
+    "cap": "engine.placement.set",
+    "v": 1,
+    "module": "engine",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/engine/policy/get",
     "cap": "engine.policy.get",
     "v": 1,
@@ -11043,7 +11099,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/files/trash/list",
@@ -11097,10 +11156,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/files/versions",
@@ -16580,7 +16636,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/logs/trace",
@@ -16636,10 +16695,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/connect",
@@ -21123,6 +21179,42 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/network/my_computer_remove",
+    "cap": "network.my_computer_remove",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/my_computers",
+    "cap": "network.my_computers",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/network/public_hostnames",
     "cap": "network.public_hostnames",
     "v": 1,
@@ -22039,7 +22131,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/plugins/uninstall",
@@ -22133,10 +22228,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/portal/link_record",
@@ -27569,7 +27661,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sync_types/create",
@@ -27662,10 +27757,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sync_types/make_native",

@@ -12007,6 +12007,21 @@
     },
     {
       "blocks": [],
+      "cap": "computers.hosts",
+      "deferred": false,
+      "description": "The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "computers_hosts",
+      "planMode": "allowed",
+      "toolset": "computer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "computers.list",
       "deferred": false,
       "description": "List agent computers with state, tabs, disk and last activity",
@@ -16397,6 +16412,77 @@
       "name": "engine_models_list",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.placement.options",
+      "deferred": false,
+      "description": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_placement_options",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.placement.set",
+      "deferred": false,
+      "description": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "target": {
+            "enum": [
+              "device",
+              "space",
+              "server"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "target"
+        ],
+        "type": "object"
+      },
+      "name": "engine_placement_set",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -36650,7 +36736,7 @@
       "blocks": [],
       "cap": "network.my_computer_code",
       "deferred": false,
-      "description": "Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents",
+      "description": "Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -36659,6 +36745,13 @@
               "idem_1"
             ],
             "minLength": 1,
+            "type": "string"
+          },
+          "nickname": {
+            "examples": [
+              "home-box"
+            ],
+            "maxLength": 40,
             "type": "string"
           }
         },
@@ -36695,6 +36788,47 @@
       },
       "name": "network_my_computer_decline",
       "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.my_computer_remove",
+      "deferred": false,
+      "description": "Remove one of your own computers or servers: its access ends at once",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_my_computer_remove",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.my_computers",
+      "deferred": false,
+      "description": "The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_my_computers",
+      "planMode": "allowed",
       "toolset": "engineer",
       "v": 1
     },

@@ -15,7 +15,7 @@ Sign out of a site on the profile disk
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/session/sign_out |
 | MCP tool | computers_session_sign_out (computer) |
 | CLI | none |
@@ -42,7 +42,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input

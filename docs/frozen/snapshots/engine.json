@@ -21,7 +21,9 @@
     "engine.mcp.read@1": "2a6323f7aea2c263c94a9e0176a297162ba7277376e0d38f89978f4333687cc0",
     "engine.mcp.tools@1": "332f5efb52f05af08d9292f87beaf90fb4d3c8c2786bcebdc900244d9dc0b92e",
     "engine.models.list@1": "9b126ae9e1f4964a7a0ef4279dc1b31b1877ec7c6c7cc26226e3376e00521794",
-    "engine.placement.decide@1": "3d9b27ba96e53e0e42fd266f109db3b7bbe1bc7722e7e73be77dc7de4b727298",
+    "engine.placement.decide@1": "2090666da119a2cdb0759e2db7a72884fa871c0448d1c94f7e9121e824f776e4",
+    "engine.placement.options@1": "2ee64d2276f0327cbf21c2dc6ecf37b71d30499e161fd6cfe523c1862130d069",
+    "engine.placement.set@1": "6a0cd3fb77adcb927ab3dbcae86f9ae8b9d5bfdacce77b3f94aff6af0b3672b6",
     "engine.policy.get@1": "049732b447f42be061c30717fe0156cf73ca58b9a3413f5b2b7ad171c97d3464",
     "engine.policy.set@1": "d27dbc43121ba8e87f8e2e5707837a0df1aa5c1f8e6b71c249990c72b92a8cc9",
     "engine.pool.status@1": "39fc9a8d77a5f250da03ce2c0d8dc340307223531754bcc8380a5f20dfb4b013",
@@ -55,7 +57,7 @@
     "engine.turn.record@1": "b2d9aabf8ce49f65429127bc8ed3600a8358351781db03eac4f0d20346798578",
     "engine.turn.record_usage@1": "29e8d2e47c23469514e2d97f2963f41ef95723a3afb30f7675cd780ababad0d8",
     "engine.turn.retry@1": "a4e08f20bd8d87234985ade9c5d4f168c60bddb03853753c7dbe22d536474dd8",
-    "engine.turn.start@1": "218636874b19bc2ab462586b7e2a992c5adc961fe75e1ff7d04cd4125c4adde5",
+    "engine.turn.start@1": "7f146042be542053ab92976d8ae7884fd889197b4edcf4ae249e2d55df67cd77",
     "engine.turn.wait@1": "de4002b8dba4dfc12df3140b505da5fccbeba047bee487aa3f922c4d63f23994",
     "engine.turns.list@1": "2f6a463c037baa0229c26792b28d1f5d62d8e526b4834149e8cb249da6cc0d3b",
     "engine.usage.get@1": "364839be98b1755f4929f7f844465f639b640d27346302d98692bf96efb96a49",
@@ -88,7 +90,7 @@
     "turn.failed": "ae1e4360167e874b901095d7febd0bbf3a1f635e8918320d742d13a63ca2f8ca",
     "turn.fallback_used": "2d2ad210f89d11a4578845e2373d6324b8097126fbb4e3ab04ed1dbca9503489",
     "turn.queued": "29b3da976444cf049a0076e457fe22176ec7eaf44321c6a198ee78b26236db14",
-    "turn.started": "a63f2e6025a0ffcf83447b57ae96f04b620ab9885514508134d67479043e14cd",
+    "turn.started": "0a29ba804e0e7c4204e570c514e000ba52209f1eeb5b1a08bce273bee76fa7d5",
     "turn.waiting": "f370d731a5a11ffe370925fddc2549166bde75910b35d6f09906b5c176ff480a"
   }
 }

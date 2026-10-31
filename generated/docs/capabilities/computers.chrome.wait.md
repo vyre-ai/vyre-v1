@@ -15,7 +15,7 @@ Wait for a load, text, selector, network idle or a time
 | Idempotency | none |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/chrome/wait |
 | MCP tool | chrome_wait (computer) |
 | CLI | none |
@@ -46,7 +46,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.unavailable

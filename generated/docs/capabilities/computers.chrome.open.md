@@ -15,7 +15,7 @@ Open a URL, reusing the open tab by default (never one tab per step)
 | Idempotency | none |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/chrome/open |
 | MCP tool | chrome_open (computer) |
 | CLI | none |
@@ -45,7 +45,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.unavailable

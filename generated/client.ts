@@ -449,6 +449,7 @@ export function createClient(transport: Transport) {
       get: call("computers.get", 1),
       give_back: call("computers.give_back", 1),
       health: call("computers.health", 1),
+      hosts: call("computers.hosts", 1),
       list: call("computers.list", 1),
       provision: call("computers.provision", 1),
       record_start: call("computers.record_start", 1),
@@ -715,6 +716,8 @@ export function createClient(transport: Transport) {
       },
       placement: {
         decide: call("engine.placement.decide", 1),
+        options: call("engine.placement.options", 1),
+        set: call("engine.placement.set", 1),
       },
       policy: {
         get: call("engine.policy.get", 1),
@@ -1605,6 +1608,8 @@ export function createClient(transport: Transport) {
       my_computer_approve: call("network.my_computer_approve", 1),
       my_computer_code: call("network.my_computer_code", 1),
       my_computer_decline: call("network.my_computer_decline", 1),
+      my_computer_remove: call("network.my_computer_remove", 1),
+      my_computers: call("network.my_computers", 1),
       public_hostnames: call("network.public_hostnames", 1),
       relay_set: call("network.relay_set", 1),
       server_approve: call("network.server_approve", 1),
