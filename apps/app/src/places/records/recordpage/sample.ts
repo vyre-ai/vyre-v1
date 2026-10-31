@@ -156,7 +156,7 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
       return w(input as never);
     },
     now: () => SAMPLE_NOW, nameOf: (id) => space.people[id] ?? id,
-    nav: { openRecord: (t, id) => void opened.push(`record:${t}:${id}`), openChat: (t, id, ask) => void opened.push(`chat:${t}:${id}${ask ? `:${ask}` : ""}`), openFiles: (t, id) => void opened.push(`files:${t}:${id}`), openSource: (l) => void opened.push(`source:${l}`) },
+    nav: { openRecord: (t, id) => void opened.push(`record:${t}:${id}`), openChat: (t, id) => void opened.push(`chat:${t}:${id}`), askFor: (x) => void opened.push(`ask:${x.type}:${x.recordId}:${x.contact.contactId}:${x.missing.map((m) => m.field).join(",")}`), openFiles: (t, id) => void opened.push(`files:${t}:${id}`), openSource: (l) => void opened.push(`source:${l}`) },
   };
   return { data, replica, calls, opened, prefs };
 }
