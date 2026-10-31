@@ -14,6 +14,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimens
 import type { TextStyle, ViewStyle } from "react-native";
 import { route } from "../../../lib/route.ts";
 import type { RouteMessage, RouteThread } from "../../../lib/route.ts";
+import { AppIcon } from "../AppIcon/index.tsx";
 import { Avatar, avatarOf } from "../Avatar/index.tsx";
 import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
@@ -972,7 +973,7 @@ export function Composer(props: ComposerProps): ReactElement {
         listNodes.push(<Row key={`${entry.group}:${entry.label}`} id={`pop-${i}`} title={title} {...(entry.note === undefined ? {} : { note: entry.note })} selected={i === active} onPress={() => pick(entry)} leading={<View style={styles.lead}><IconTile icon={icon} /></View>} domProps={hover} />);
       } else {
         const look = lookOf(entry.kind);
-        listNodes.push(<Row key={`${entry.group}:${entry.ref ?? entry.label}`} id={`pop-${i}`} title={entry.label} {...(entry.note === undefined ? {} : { note: entry.note })} selected={i === active} onPress={() => pick(entry)} leading={<View style={styles.lead}><IconTile icon={look.icon} tint={look.tint} /></View>} domProps={hover} />);
+        listNodes.push(<Row key={`${entry.group}:${entry.ref ?? entry.label}`} id={`pop-${i}`} title={entry.label} {...(entry.note === undefined ? {} : { note: entry.note })} selected={i === active} onPress={() => pick(entry)} leading={<View style={styles.lead}>{entry.data?.["brand"] ? <AppIcon brand={entry.data["brand"]} size={24} /> : <IconTile icon={look.icon} tint={look.tint} />}</View>} domProps={hover} />);
       }
     }
   }

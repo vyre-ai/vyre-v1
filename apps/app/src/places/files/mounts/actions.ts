@@ -1,6 +1,6 @@
 // What a press does in the mount sheet: one capability call, then the answer in words. Reads never throw into a click; a failed write becomes a line under the buttons.
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { addInput, browseInputs, mountError, shareInputs, sourceOf } from "./model.ts";
+import { accountKey, addInput, browseInputs, mountError, shareInputs, sourceOf } from "./model.ts";
 import type { Accounts, BrowseItem, Draft, MountRow } from "./model.ts";
 
 export type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -10,7 +10,7 @@ export interface Listing { items: BrowseItem[]; next?: string }
 /** The things at the current level, with the provider kind of each. A Microsoft root merges SharePoint and OneDrive. */
 export async function browse(call: Call, d: Draft, accounts: Accounts, cursor?: string): Promise<Listing> {
   if (d.source === null) return { items: [] };
-  const inputs = browseInputs(d, accounts[d.source], cursor);
+  const inputs = browseInputs(d, accounts[accountKey(d.source)], cursor);
   const items: BrowseItem[] = [];
   let nextCursor: string | undefined;
   for (const input of inputs) {

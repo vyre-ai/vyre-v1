@@ -7,12 +7,14 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MountSheet, MountsDataProvider, UnmountSheet } from "../../places/files/mounts/index.ts";
 import type { Accounts, MountRow, MountsData } from "../../places/files/mounts/index.ts";
 import { loadAccounts, mountLine, peopleOf, thisDevice, writableFolders } from "./files-mounts-data.ts";
+import { useOpenConnect } from "../connect/index.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export type MountRequest = { kind: "mount"; into: string | null } | { kind: "unmount"; mount: MountRow };
 
 /** What the sheet needs, read from the Space when it opens: who is connected, the folders a mount can go into, the people it can be shared with. */
 export function useMountsData(rt: ShellRuntime): MountsData | null {
+  const openConnect = useOpenConnect();
   const [loaded, setLoaded] = useState<{ accounts: Accounts; folders: Array<{ id: string; name: string }> } | null>(null);
   useEffect(() => {
     let live = true;
@@ -32,9 +34,16 @@ export function useMountsData(rt: ShellRuntime): MountsData | null {
   }, [rt]);
   return useMemo(() => loaded && ({
     call: rt.call, space: { name: rt.space.name, ...(everyone ? { everyoneGroupId: everyone } : {}) }, accounts: loaded.accounts, folders: loaded.folders, people,
-    // a source with no connection: Connections in Settings, where Google and Microsoft are connected and the GitHub App is installed
-    connect: (source) => rt.open({ screen: "mail.connections", args: { kind: source === "google_drive" ? "gmail" : source === "microsoft" ? "outlook" : source } }),
-  }), [rt, loaded, people, everyone]);
+    // A source with no connection: Google and Microsoft sign in right here (connect in place) and the new account is read back; the GitHub App is installed from Connections in Settings.
+    connect: async (source) => {
+      if (source === "github" || !openConnect) { rt.open({ screen: "mail.connections", args: { kind: source === "google_drive" ? "gmail" : source === "local" ? "local" : source === "github" ? "github" : "outlook" } }); return null; }
+      const got = await openConnect({ kind: "connector", service: source === "google_drive" ? "google" : "microsoft" });
+      if (!got) return null;
+      const fresh = await loadAccounts(rt.call, null);
+      const acc = fresh[source === "google_drive" ? "google_drive" : "microsoft"];
+      return acc.connected ? acc : { label: got.title, connected: true, connectionId: got.id };
+    },
+  }), [rt, loaded, people, everyone, openConnect]);
 }
 
 /** The sheets over the Files place: the mount sheet, or the Unmount sheet for a mounted folder. */
