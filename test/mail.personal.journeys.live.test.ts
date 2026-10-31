@@ -76,10 +76,17 @@ test("journey 1, Personal first hour: guided setup, connect, mail appears, reply
     const [box] = (await w.owner.ok("mail.mailbox.list", { scope: "mine" })).mailboxes as { id: string; address: string }[];
     assert.equal(box!.address, "olivia@gmail.test");
 
-    // reply
-    const sent = await w.owner.ok("mail.send_as", { mailboxId: box!.id, to: [{ address: "pat@acme.test" }], subject: "Re: Lunch on Friday", text: "Yes, noon works." });
-    assert.ok(sent.messageId);
-    assert.deepEqual(w.fake.sent.map((m) => [m.email, m.to, m.subject]), [["olivia@gmail.test", ["pat@acme.test"], "Re: Lunch on Friday"]]);
+    // reply, in the Inbox, as a person does: open the conversation, write, send
+    await me.page.getByText("Lunch on Friday").first().click();
+    await me.page.getByTestId("contact-composer-field").waitFor({ timeout: 20_000 });
+    await shoot(me.page, dir, "conversation");
+    await me.page.getByTestId("contact-composer-field").fill("Yes, noon works.");
+    await shoot(me.page, dir, "reply-written");
+    await me.page.getByTestId("composer-send").click();
+    await until(async () => (w.fake.sent.length > 0 ? true : null), "the reply reaching Gmail");
+    assert.deepEqual(w.fake.sent.map((m) => [m.email, m.to]), [["olivia@gmail.test", ["pat@acme.test"]]]);
+    assert.match(w.fake.sent[0]!.text, /Yes, noon works\./);
+    await me.page.waitForTimeout(800);
     await shoot(me.page, dir, "replied");
 
     // quit; mail arrives while nothing runs; open again hours later
