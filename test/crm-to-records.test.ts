@@ -56,6 +56,8 @@ async function boot() {
       if (cap.startsWith("schema.")) return (schema.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(schemaCtx, input);
       if (cap === "runs.start") { const runId = `run_${runs.length + 1}`; runs.push({ runId }); return { runId }; }
       if (cap === "runs.finish") { const i = input as { runId: string; status: string; summary?: string }; Object.assign(runs.find((r) => r.runId === i.runId)!, { status: i.status, ...(i.summary ? { summary: i.summary } : {}) }); return { run: { id: i.runId } }; }
+      if (cap === "records.update") { const i = input as { type: string; recordId: string; patch: Record<string, unknown> }; const cur = await schema.store.get(i.type, i.recordId); await schema.store.update(i.type, i.recordId, i.patch as never, cur!.version); return { record: { id: i.recordId } }; }
+      if (cap === "records.counts") return { count: (await schema.store.query((input as { type: string }).type, { page: { limit: 500 } })).rows.length };
       if (cap === "connectors.run" || cap === "connectors.get" || cap === "sync_types.get") return (conn.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(ctx, input);
       throw new Error(`no ${cap}`);
     },
@@ -198,4 +200,91 @@ test("the first-pull filter holds until a backfill, then Cy arrives", async () =
     assert.equal((await w.rows("person")).some((r) => r.data["name"] === "Cy Lane"), true);
     assert.equal((await w.rows("person")).length, 5);
   } finally { await w.close(); }
+});
+
+test("what a person sees: where a record came from, how each field is doing, the value that lost and its Restore, the Sync page", async () => {
+  const w = await boot();
+  try {
+    await bring(w, LEDGER, "a");
+    const ada = await w.byName("person", "Ada Stone");
+    const state = () => w.hs["sync_types.record_state"](w.ctx, { type: "person", recordId: ada.id });
+    // before any edit: synced, with the address to open it in the app, and the lock on what is only read
+    const before = await state();
+    assert.deepEqual([before.synced, before.state, before.app?.title, before.remoteId, before.openUrl], [true, "synced", "Ledger", "101", undefined], "no open address unless the spec gave one");
+    assert.deepEqual(before.fields.find((f) => f.key === "org")!.dir, "pull");
+    assert.deepEqual(before.fields.find((f) => f.key === "phone")!.dir, "both");
+    assert.equal((await w.hs["sync_types.record_state"](w.ctx, { type: "org", recordId: "nope" })).synced, true);
+    assert.equal((await w.hs["sync_types.record_state"](w.ctx, { type: "task", recordId: "x" })).synced, false);
+
+    // an edit waits in the outbox while the app is down: saving, then failed after the retries, then saved after a retry
+    w.crm.c.state.rejectWrites = true;
+    await w.schema.store.update("person", ada.id, { phone: "+1 555 7777" }, ada.version);
+    await w.pass("person");
+    const failed = await state();
+    assert.equal(failed.fields.find((f) => f.key === "phone")!.state, "saving", "one failed try is still saving");
+    await w.pass("person");
+    await w.pass("person");
+    const dead = await state();
+    assert.deepEqual([dead.state, dead.fields.find((f) => f.key === "phone")!.state], ["failed", "failed"]);
+    assert.ok(dead.fields.find((f) => f.key === "phone")!.error);
+    const status = await w.hs["sync_types.status"](w.ctx, { type: "person" });
+    assert.equal(status.failedPushes, 1);
+    w.crm.c.state.rejectWrites = false;
+    await w.hs["connectors.outbox.retry"](w.ctx, { outboxId: dead.fields.find((f) => f.key === "phone")!.outboxId! });
+    const saved = await state();
+    assert.deepEqual([saved.state, saved.fields.find((f) => f.key === "phone")!.state], ["synced", "synced"]);
+    assert.ok(saved.fields.find((f) => f.key === "phone")!.at, "saved at a time, for the tooltip");
+    assert.equal(w.crm.c.state.people.find((p) => p.id === 101)!.attributes.phone, "+1 555 7777");
+
+    // a conflict the app wins: our value is in the field's history, Restore puts it back and sends it
+    const cur = await w.schema.store.get("person", ada.id);
+    await w.schema.store.update("person", ada.id, { note: "typed here" }, cur!.version);
+    const theirs = w.crm.c.state.people.find((p) => p.id === 101)!;
+    theirs.attributes.note = "typed there";
+    theirs.modified = "2099-01-01T00:00:00Z";
+    await w.pass("person");
+    assert.equal((await w.schema.store.get("person", ada.id))!.data["note"], "typed there");
+    assert.equal((await state()).fields.find((f) => f.key === "note")!.history, 1);
+    const hist = await w.hs["sync_types.field_history"](w.ctx, { type: "person", recordId: ada.id, field: "note" });
+    assert.deepEqual(hist.entries.map((e) => [e.value, e.replacedBy]), [["typed here", "app"]]);
+    assert.ok(hist.entries[0]!.at && hist.entries[0]!.at > 0);
+    const restored = await w.hs["sync_types.restore_field"](w.ctx, { type: "person", recordId: ada.id, field: "note", historyId: hist.entries[0]!.historyId });
+    assert.equal(restored.ok, true);
+    await w.drain();
+    assert.equal((await w.schema.store.get("person", ada.id))!.data["note"], "typed here");
+    assert.equal(theirs.attributes.note, "typed here", "the restored value is sent");
+    await assert.rejects(w.hs["sync_types.restore_field"](w.ctx, { type: "person", recordId: ada.id, field: "note", historyId: "999" }), (e: any) => e.error?.code === "validation.not_found");
+
+    // the Sync page
+    const page = await w.hs["sync_types.status"](w.ctx, { type: "person" });
+    assert.deepEqual([page.app.title, page.records, page.estimate, page.canBackfill, page.filter, page.paused, page.deletes, page.spec], ["Ledger", 4, 5, true, "People changed since the start of 2026", false, "off", true]);
+    assert.match(page.lastRun!.summary, /created|updated/);
+    assert.ok(page.nextPollAt);
+  } finally { await w.close(); }
+});
+
+test("Remove: keep the records as plain records, or remove them with their types", async () => {
+  const keep = await boot();
+  try {
+    await bring(keep, LEDGER, "a");
+    const out = await keep.hs["sync_specs.remove"](keep.ctx, { type: "person", records: "keep" });
+    assert.deepEqual(out.detached.sort(), ["org", "person"]);
+    assert.equal((await keep.rows("person")).length, 4, "the records stay");
+    assert.equal((await keep.hs["sync_types.record_state"](keep.ctx, { type: "person", recordId: "x" })).synced, false);
+    assert.equal(keep.schema.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = 'crm_ledger'"), undefined);
+    assert.equal(keep.schema.tx.get("SELECT 1 AS x FROM cn_connections"), undefined);
+    const before = keep.crm.methods().length;
+    await keep.pass("person").catch(() => undefined);
+    assert.equal(keep.crm.methods().length, before, "nothing talks to the app any more");
+  } finally { await keep.close(); }
+  const drop = await boot();
+  try {
+    await bring(drop, LEDGER, "a");
+    const out = await drop.hs["sync_specs.remove"](drop.ctx, { type: "person", records: "remove" });
+    assert.deepEqual(out.removed.sort(), ["org", "person"]);
+    const described = ((await drop.schema.handlers["schema.describe"]({ trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: () => undefined, actor: "usr_dana" }, {})) as { types: { key: string }[] }).types;
+    assert.equal(described.some((t) => t.key === "person" || t.key === "org"), false);
+    assert.equal(drop.crm.c.state.people.length, 5, "the app is untouched");
+    assert.ok(drop.crm.methods().every((m) => m === "GET"));
+  } finally { await drop.close(); }
 });

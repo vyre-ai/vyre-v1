@@ -69,7 +69,7 @@ export async function fillSpec(hs: Hs, ctx: ConnectorsCtx, know: Know): Promise<
       };
     });
     objects.push({
-      remote: o.remote, label: o.label, id: l.idAt ?? "/id", itemsAt: l.itemsAt, ...(l.updatedAtGuess ? { updatedAt: l.updatedAtGuess } : {}),
+      remote: o.remote, label: o.label, ...(s.estimate ? { count: s.estimate.count } : {}), id: l.idAt ?? "/id", itemsAt: l.itemsAt, ...(l.updatedAtGuess ? { updatedAt: l.updatedAtGuess } : {}),
       list: { path: o.path, cursor, ...(filter ? { filter } : {}) },
       ...(o.write ? { update: { path: o.write.path, method: "PATCH", evidence: o.write.evidence } } : {}),
       fields,

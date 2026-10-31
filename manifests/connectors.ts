@@ -45,6 +45,7 @@ const syncedTypeRow = t.obj({
   state: t.enm('initial', 'syncing', 'paused', 'needs_review', 'error'),
   fields: t.arr(fieldMap), match: t.arr(fieldKey), createAtSource: t.bool(), deletes, conflict: conflictRule, polling, nightlyReconcile: t.bool(),
   lastSyncAt: t.opt(t.ts()), pending: t.int({ minimum: 0 }), conflicts: t.int({ minimum: 0 }), schemaChanges: t.int({ minimum: 0 }),
+  app: t.opt(t.obj({ title: t.str(), domain: t.opt(t.str()) })),
 });
 
 const bindingIn = {
@@ -298,6 +299,39 @@ export default defineManifest({
     write('sync_specs.backfill', 'Bring in everything, not just the first-pull filter: re-applies the stored spec with the filter dropped and starts the pull', {
       in: { type: id.recordType }, out: { runId: t.opt(id.run) },
       perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.published'], tool: 'records', errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
+    read('sync_types.record_state', 'Where one record came from and how each of its synced fields is doing: saved, saving, failed or only here, with the address to open it in the app', {
+      in: { type: id.recordType, recordId: id.record },
+      out: {
+        synced: t.bool(), state: t.enm('synced', 'saving', 'failed', 'local'), lastSyncAt: t.opt(t.ts()), remoteId: t.opt(t.str()), openUrl: t.opt(t.str()),
+        app: t.opt(t.obj({ key: id.connector, title: t.str(), domain: t.opt(t.str()) })),
+        fields: t.arr(t.obj({ key: fieldKey, dir, state: t.enm('synced', 'saving', 'failed', 'local'), at: t.opt(t.ts()), error: t.opt(t.str()), outboxId: t.opt(outboxId), history: t.int({ minimum: 0 }) })),
+      },
+      on: ['record', '/recordId'], tool: 'records', label: 'check',
+    }),
+    read('sync_types.field_history', 'The earlier values of one field that a newest-wins settlement replaced: yours when the app was newer, the app\'s when you were', {
+      in: { type: id.recordType, recordId: id.record, field: fieldKey },
+      out: { entries: t.arr(t.obj({ historyId: t.str(), value: t.json(), at: t.opt(t.ts()), replacedBy: t.enm('app', 'you'), actor: t.str() })) },
+      on: ['record', '/recordId'], tool: 'records', label: 'check',
+    }),
+    write('sync_types.restore_field', 'Put an earlier value of a field back (an ordinary edit, newer than the app\'s value, so it is sent on the next pass) and start that pass', {
+      in: { type: id.recordType, recordId: id.record, field: fieldKey, historyId: t.str() }, out: { ok: t.bool(), runId: t.opt(id.run) },
+      on: ['record', '/recordId'], perm: 'records.edit', tool: 'records', emits: ['record.updated'], errors: ['validation.not_found', 'validation.bad_input', 'validation.field_locked'],
+    }),
+    read('sync_types.status', 'The Sync page of a synced type: last pass, counts, failures, pushes waiting, whether a first-pull filter still holds, and the next poll', {
+      in: { type: id.recordType },
+      out: {
+        type: id.recordType, app: t.obj({ key: id.connector, title: t.str(), domain: t.opt(t.str()) }), state: t.enm('initial', 'syncing', 'paused', 'needs_review', 'error'), paused: t.bool(), deletes, conflict: conflictRule,
+        polling, records: t.int({ minimum: 0 }), estimate: t.opt(t.int({ minimum: 0 })), filter: t.opt(t.str()), canBackfill: t.bool(), lastRun: t.opt(t.obj({ at: t.ts(), summary: t.str() })),
+        pending: t.int({ minimum: 0 }), failedPushes: t.int({ minimum: 0 }), conflicts: t.int({ minimum: 0 }), schemaChanges: t.int({ minimum: 0 }),
+        failures: t.arr(t.obj({ at: t.ts(), summary: t.str() })), sentToday: t.int({ minimum: 0 }), nextPollAt: t.opt(t.ts()), spec: t.bool(),
+      },
+      on: ['record_type', '/type'], tool: 'records', label: 'check', errors: ['validation.not_found'],
+    }),
+    write('sync_specs.remove', 'Stop syncing an app into Records and remove its connector and connection; keep its records as plain records, or remove them with their types (a copy waits in Trash for 30 days)', {
+      in: { type: id.recordType, records: t.enm('keep', 'remove') }, out: { detached: t.arr(id.recordType), removed: t.arr(id.recordType) },
+      on: ['record_type', '/type'], perm: 'connectors.manage', audit: 'always', emits: ['sync.type_native', 'connection.deleted', 'connector.removed', 'schema.changed', 'schema.type_dropped'], tool: 'records',
+      agent: { planMode: 'blocked' }, errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     // ---- sync engine
     write('connectors.sync_now', 'Start a sync Run for a synced type or a connection; modes: incremental, reconcile, backfill, dry_run', {

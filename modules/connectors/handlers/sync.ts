@@ -28,6 +28,8 @@ export interface SyncBindingRow {
   syncTypeId: string; type: string; connector: string; connectionId: string; remote: string; state: SyncState;
   fields: FieldMapRow[]; match: string[]; createAtSource: boolean; deletes: DeleteMode; conflict: ConflictRule; polling: PollingRow; nightlyReconcile: boolean;
   lastSyncAt?: number; pending: number; conflicts: number; schemaChanges: number;
+  /** The app the type is synced from: its name and API host, for the logo and the words on the screen. */
+  app?: { title: string; domain?: string };
 }
 export interface PreviewRow { creates: number; updates: number; removes: number; skips: number; summary: string; matches?: { sure: number; unsure: number; none: number }; samples: { recordId?: string; remoteId?: string; op: string; changes: Record<string, unknown> }[] }
 export interface OutboxRow { outboxId: string; syncTypeId: string; recordId: string; op: "create" | "update" | "delete"; fields: string[]; state: OutboxState; attempts: number; idempotencyKey: string; error?: string; at: number }
@@ -171,7 +173,14 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       fields: parse<FieldMapRow[]>(r.fields), match: parse<string[]>(r.match), createAtSource: r.create_at_source === 1, deletes: r.deletes, conflict: r.conflict,
       polling: parse<PollingRow>(r.polling), nightlyReconcile: r.nightly === 1, ...(last !== undefined ? { lastSyncAt: last } : {}),
       pending: pendingOf(r.sync_type_id), conflicts: conflictsOf(r.sync_type_id), schemaChanges: changes,
+      ...appOf(r.connector),
     };
+  };
+  const appOf = (key: string): { app?: { title: string; domain?: string } } => {
+    const c = tx.get<{ title: string; def: string }>("SELECT title, def FROM cn_connectors WHERE key = ?", key);
+    if (!c) return {};
+    const domain = parse<ConnectorDef>(c.def).domains[0];
+    return { app: { title: c.title, ...(domain ? { domain } : {}) } };
   };
   const dbByType = (ctx: ConnectorsCtx, type: string): SyncDb => {
     prep();
