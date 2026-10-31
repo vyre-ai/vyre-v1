@@ -7,6 +7,7 @@ import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistan
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
+import { SignInApps } from "./SignInApps.tsx";
 import { CONNECTIONS, MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
 import { labelOf, moneyLabel, sectionsFor } from "./model.ts";
 import type { SettingRow } from "./model.ts";
@@ -271,6 +272,7 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("twilio")} control={<Glyph name="chevR" size={13} />} />
       </Section>
+      <SignInApps />
       <RegistrySections page="connections" rows={rows} found={found} />
     </>
   );

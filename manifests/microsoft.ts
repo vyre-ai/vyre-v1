@@ -59,6 +59,23 @@ const capabilities = [
   read('ms.consent.my_account', 'The Microsoft 365 address the caller is matched to, if any (a OneDrive or SharePoint mount names it so it syncs as the person, not as an admin)', {
     in: {}, out: { email: t.opt(email) },
   }),
+  // ---- a person's own Microsoft sign-in for mail (no tenant consent needed): the OAuth app lives in a Vault item, the person's refresh token is sealed in the module
+  read('ms.user.app_status', 'Whether a Microsoft OAuth app is set up for signing in to your own Outlook, and the redirect address to give Microsoft for it', {
+    in: {}, out: { configured: t.bool(), clientId: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()) },
+  }),
+  write('ms.user.app_set', 'Name the Vault item that holds the Microsoft OAuth app (client_id, client_secret when it has one, tenant when it is not common)', {
+    in: { vaultItem: id.handle }, out: { configured: t.bool(), clientId: t.str() }, perm: 'connectors.manage', audit: 'always', errors: ['provider.auth_failed'],
+  }),
+  write('ms.user.start', 'Start signing in to your own Outlook: the address to approve at', {
+    in: { loginHint: t.opt(email) }, out: { authUrl: t.str(), state: t.str() }, idem: 'none', errors: ['validation.precondition_failed'],
+  }),
+  write('ms.user.complete', 'Finish signing in from the callback: the state and the code, or the error Microsoft sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync', {
+    in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { accountId: t.str(), email, mailboxId: t.opt(id.mailbox) },
+    emits: ['microsoft.user_connected'], audit: 'always', idem: 'none', offline: 'online',
+    errors: ['auth.invalid_code', 'provider.auth_failed', 'provider.network', 'provider.bad_response', 'validation.precondition_failed', 'validation.duplicate'],
+  }),
+  read('ms.user.list', 'Your own signed-in Microsoft accounts', { in: {}, out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) } }),
+  write('ms.user.remove', 'Sign out of your own Microsoft account and remove its token', { in: { accountId: t.str() }, out: { removed: t.bool() }, audit: 'always' }),
   read('ms.consent.members', 'Tenant users mapped to Space members by email, with exclusion and mailbox state', {
     in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
   }),
@@ -196,6 +213,7 @@ export default defineManifest({
   events: [
     ev('microsoft.consent_configured', 'The Microsoft app registration was stored and members mapped', { p: { connector: t.lit('microsoft'), tenantId: t.str(), mappedMembers: t.int(), autoConnect: t.bool() }, subject: ['connector', '/connector'] }),
     ev('microsoft.consent_verified', 'A consent and access policy check ran', { p: { connector: t.lit('microsoft'), ok: t.bool(), missingPermissions: t.arr(t.str()) }, subject: ['connector', '/connector'] }),
+    ev('microsoft.user_connected', 'A person signed in to their own Microsoft account', { p: { accountId: t.str(), email }, subject: ['entity', '/accountId'] }),
     ev('microsoft.consent_revoked', 'The Microsoft connection was turned off', { p: { connector: t.lit('microsoft'), by: t.str() }, subject: ['connector', '/connector'] }),
     ev('microsoft.notification_received', 'A verified Graph change notification arrived', {
       p: { connector: t.lit('microsoft'), notificationId: t.str(), subscriptionId: t.str(), resource: t.str(), changeType: t.enm('created', 'updated', 'deleted'), tenantId: t.opt(t.str()) }, subject: ['connector', '/connector'],

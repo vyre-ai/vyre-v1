@@ -1,6 +1,6 @@
 // The real connect flows, drawn as a sheet over the page the person is on. Nothing here is a copy of a flow: an AI account is the Vault's Add an AI provider, a key or a number's Twilio account
 // is the Vault's Add item with its template, a mailbox is mail.connect, a connector is connections.create. Each ends by handing the new account back to the picker that asked.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AddProvider } from "../../places/vault/providers/index.ts";
@@ -55,12 +55,27 @@ function reason(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
+/** The caps of a person's own sign-in per provider (google.user.*, ms.user.*), which exist once the Space has an OAuth client in the Vault. */
+const OWN = { google: { prefix: "google.user", word: "Gmail" }, microsoft: { prefix: "ms.user", word: "Outlook" } } as const;
+
 function MailboxSheet({ rt, onDone, onCancel }: { rt: FlowProps["rt"]; onDone: Done; onCancel: () => void }): ReactElement {
   const [provider, setProvider] = useState<"google" | "microsoft">("google");
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState<string | null>(null);
+  // whether the Space has a sign-in app for each provider; until it says so the sheet is the address form it always was
+  const [app, setApp] = useState<{ google: boolean; microsoft: boolean }>({ google: false, microsoft: false });
+  const [known, setKnown] = useState<string[] | null>(null);   // the person's signed-in accounts before this sign-in started; set once the window opened
   const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.trim());
+  useEffect(() => {
+    let live = true;
+    for (const p of ["google", "microsoft"] as const) {
+      rt.call(`${OWN[p].prefix}.app_status`, {}).then((out) => { if (live && (out as { configured?: boolean }).configured === true) setApp((a) => ({ ...a, [p]: true })); }, () => undefined);
+    }
+    return () => { live = false; };
+  }, [rt]);
+  const own = app[provider];
+  const accounts = async (): Promise<Array<{ accountId: string; email: string }>> => ((await rt.call(`${OWN[provider].prefix}.list`, {})) as { accounts: Array<{ accountId: string; email: string }> }).accounts;
   const connect = async (): Promise<void> => {
     setBusy(true); setLine(null);
     try {
@@ -68,24 +83,57 @@ function MailboxSheet({ rt, onDone, onCancel }: { rt: FlowProps["rt"]; onDone: D
       onDone({ id: out.mailbox.id, title: out.mailbox.title || out.mailbox.address, app: "mail" });
     } catch (e) { setLine(reason(e, "That did not connect.")); setBusy(false); }
   };
+  const signIn = async (): Promise<void> => {
+    setBusy(true); setLine(null);
+    try {
+      const before = (await accounts()).map((a) => a.accountId);
+      const out = (await rt.call(`${OWN[provider].prefix}.start`, ok ? { loginHint: address.trim() } : {})) as { authUrl: string };
+      rt.openUrl(out.authUrl);
+      setKnown(before);
+    } catch (e) { setLine(reason(e, "That did not connect.")); }
+    setBusy(false);
+  };
+  const finish = async (): Promise<void> => {
+    setBusy(true); setLine(null);
+    try {
+      const fresh = (await accounts()).filter((a) => !(known ?? []).includes(a.accountId));
+      const mine = fresh.find((a) => ok && a.email === address.trim().toLowerCase()) ?? fresh.at(-1);
+      if (mine) {
+        const boxes = ((await rt.call("mail.mailbox.list", { scope: "mine" })) as { mailboxes: Array<{ id: string; address: string; title?: string }> }).mailboxes;
+        const box = boxes.find((b) => b.address.toLowerCase() === mine.email);
+        if (box) { onDone({ id: box.id, title: box.title || box.address, app: "mail" }); return; }
+      }
+      setLine("Not finished yet. Approve the sign-in, then try again.");
+    } catch (e) { setLine(reason(e, "That did not check.")); }
+    setBusy(false);
+  };
   const other = (): void => { onCancel(); rt.open({ screen: "mail.connections", args: { kind: "imap" } }); };
+  const waiting = own && known !== null;
   return (
     <Sheet
       title="Connect a mailbox" onClose={onCancel} testID="connect-mailbox"
-      footer={<><Btn label="Cancel" onPress={onCancel} testID="connect-cancel" /><View style={{ flex: 1 }} /><Btn label={busy ? "Connecting" : "Connect"} primary disabled={busy || !ok} onPress={() => void connect()} testID="connect-go" /></>}
+      footer={<><Btn label="Cancel" onPress={onCancel} testID="connect-cancel" /><View style={{ flex: 1 }} />{waiting
+        ? <Btn label={busy ? "Checking" : "I have signed in"} primary disabled={busy} onPress={() => void finish()} testID="connect-signed-in" />
+        : own
+          ? <Btn label={busy ? "Opening" : `Sign in with ${provider === "google" ? "Google" : "Microsoft"}`} primary disabled={busy} onPress={() => void signIn()} testID="connect-signin" />
+          : <Btn label={busy ? "Connecting" : "Connect"} primary disabled={busy || !ok} onPress={() => void connect()} testID="connect-go" />}</>}
     >
       <View style={s.chips} accessibilityRole="radiogroup">
         {/* ui-rows-lint: not a list (two mail providers) */}
         {PROVIDERS.map((p) => (
-          <Pressable key={p.key} accessibilityRole="radio" accessibilityState={{ selected: provider === p.key }} accessibilityLabel={p.label} testID={`connect-${p.key}`} onPress={() => setProvider(p.key)} style={[s.chip, provider === p.key && s.chipOn]}>
+          <Pressable key={p.key} accessibilityRole="radio" accessibilityState={{ selected: provider === p.key }} accessibilityLabel={p.label} testID={`connect-${p.key}`} onPress={() => { setProvider(p.key); setKnown(null); setLine(null); }} style={[s.chip, provider === p.key && s.chipOn]}>
             <Text style={[s.chipText, provider === p.key && s.chipTextOn]}>{p.label}</Text>
           </Pressable>
         ))}
       </View>
-      <Text style={s.label}>Your address</Text>
-      <TextInput accessibilityLabel="Your address" testID="connect-address" value={address} onChangeText={setAddress} placeholder="you@example.com" autoCapitalize="none" keyboardType="email-address" style={s.input} />
+      {waiting ? <Text style={s.body}>Approve in the window, then come back.</Text> : (
+        <>
+          <Text style={s.label}>{own ? "Your address (optional)" : "Your address"}</Text>
+          <TextInput accessibilityLabel="Your address" testID="connect-address" value={address} onChangeText={setAddress} placeholder="you@example.com" autoCapitalize="none" keyboardType="email-address" style={s.input} />
+        </>
+      )}
       {line ? <Text accessibilityRole="alert" style={s.danger} testID="connect-line">{line}</Text> : null}
-      <Pressable accessibilityRole="button" accessibilityLabel="Another kind of mailbox" testID="connect-imap" onPress={other}><Text style={s.link}>Another kind of mailbox</Text></Pressable>
+      {waiting ? null : <Pressable accessibilityRole="button" accessibilityLabel="Another kind of mailbox" testID="connect-imap" onPress={other}><Text style={s.link}>Another kind of mailbox</Text></Pressable>}
     </Sheet>
   );
 }

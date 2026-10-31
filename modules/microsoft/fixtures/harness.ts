@@ -32,6 +32,12 @@ export interface HarnessOptions {
   roles?: string[];
 }
 
+/** A stand-in for the Space seal: reversible, and not the plain text, so a test can see a token never sits in a row as typed. */
+export const fakeSeal = {
+  seal: (v: Uint8Array, scope: string) => ({ keyId: `seal:${scope}`, nonce: "n", bytes: Buffer.from(Array.from(v).reverse()).toString("base64") }),
+  unseal: (s: { bytes: string }) => new Uint8Array(Array.from(Buffer.from(s.bytes, "base64")).reverse()),
+};
+
 const b64u = (o: unknown): string => Buffer.from(JSON.stringify(o)).toString("base64url");
 
 export function harness(opts: HarnessOptions = {}) {
@@ -42,6 +48,11 @@ export function harness(opts: HarnessOptions = {}) {
   const uploads: { url: string; ifMatch?: string }[] = [];
   const routes: { method: string; match: string | RegExp; reply: Reply | ((r: Req) => Reply) }[] = [];
   const ingests: Record<string, unknown>[] = [];
+  const userApps = new Map<string, { clientId: string; tenant?: string }>([["#Microsoft_Sign_In", { clientId: "22222222-3333-4444-5555-666666666666" }]]);
+  const exchanges: { appHandle: string; code: string; verifier: string; redirectUri: string }[] = [];
+  const refreshes: { appHandle: string; refreshToken: string; cacheKey: string; fresh: boolean }[] = [];
+  const userState = { exchangeFails: false, refreshFails: false, publicUrl: "https://space.test" as string | null };
+  const mailState = { duplicate: false };
   const ingestState = { fail: false, deduped: new Set<string>() };
   const state = { mints: 0, mintFails: false, roles: opts.roles ?? PERMISSIONS, eTag: "etag1" };
   let clock = NOW;
@@ -78,6 +89,11 @@ export function harness(opts: HarnessOptions = {}) {
         if (String(body.email).startsWith("bad")) throw fail("validation.bad_input", ctx.trace.traceId, { message: "That invitation could not be made." });
         return { invite: { id: `inv_${String(body.email).replace(/[^a-z0-9]/g, "")}` }, link: `https://space.test/join/${String(body.email).split("@")[0]}` };
       }
+      if (cap === "mail.connect") {
+        if (mailState.duplicate) throw fail("validation.duplicate", ctx.trace.traceId, { message: "That mailbox is already connected." });
+        return { mailbox: { id: `mbx_${String(body.connectionId ?? body.address)}`.slice(0, 40) } };
+      }
+      if (cap === "mail.sync_now") return { runId: "run_mail00001" };
       if (cap === "calendar.connect_provider") return { calendarId: "cld_" + String(body.account).replace(/[^a-z0-9]/g, "") .padEnd(8, "0"), created: true };
       if (cap === "calendar.sync_now") return { runId: "run_cal00001" };
       if (cap === "meetings.ingest") return { meetingId: "rec_team00001", created: true, merged: false };
@@ -104,6 +120,7 @@ export function harness(opts: HarnessOptions = {}) {
       return { status: 404, text: async () => JSON.stringify({ error: { code: "ResourceNotFound" } }) };
     },
     log: { info() {}, warn() {} },
+    seal: fakeSeal,
     async schedule(at, cap, input) {
       scheduled.push({ at: Number(at), cap, input: input as Record<string, unknown> });
       return `sch_${scheduled.length}`;
@@ -131,10 +148,31 @@ export function harness(opts: HarnessOptions = {}) {
       return { id: "up1", name: decodeURIComponent(/:\/([^/]+):\/content$/.exec(a.url)?.[1] ?? ""), size: 9, eTag: "etag2", lastModifiedBy: { user: { displayName: "Maya Lin", email: "maya@vyre.test" } } };
     },
   };
+  Object.assign(host, {
+    async userApp(_c: MsCtx, handle: string) {
+      const app = userApps.get(handle);
+      if (!app) throw fail("provider.auth_failed", ctx.trace.traceId, { message: `${handle} has no client_id.` });
+      return { clientId: app.clientId, hasSecret: true, ...(app.tenant ? { tenant: app.tenant } : {}) };
+    },
+    async userPublicUrl() {
+      if (userState.publicUrl === null) throw fail("internal.unavailable", ctx.trace.traceId, { message: "no public address" });
+      return userState.publicUrl;
+    },
+    async userExchange(_c: MsCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }) {
+      exchanges.push(a);
+      if (userState.exchangeFails) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Microsoft did not accept the sign-in." });
+      return { refreshToken: `refresh-for-${a.code}`, accessToken: `access-for-${a.code}`, expiresAt: clock + 3_600_000 };
+    },
+    async userRefresh(_c: MsCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }) {
+      refreshes.push({ appHandle: a.appHandle, refreshToken: a.refreshToken, cacheKey: a.cacheKey, fresh: a.fresh === true });
+      if (userState.refreshFails) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Microsoft did not accept the sign-in." });
+      return { token: `user-access-${refreshes.length}`, expiresAt: clock + 3_600_000 };
+    },
+  });
   setMsHost(host);
 
   return {
-    ctx, emitted, called, scheduled, requests, uploads, ingests, ingestState, state,
+    ctx, emitted, called, scheduled, requests, uploads, ingests, ingestState, state, userApps, exchanges, refreshes, userState, mailState,
     on(method: string, match: string | RegExp, reply: Reply | ((r: Req) => Reply) = {}) { routes.push({ method, match, reply }); },
     advance(ms: number) { clock += ms; },
     rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },

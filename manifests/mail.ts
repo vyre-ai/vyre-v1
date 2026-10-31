@@ -144,6 +144,7 @@ const manifest = defineManifest({
       in: {
         provider: t.enm('google', 'microsoft', 'imap'), address: email, privacy: t.opt(privacy),
         imap: t.opt(t.obj({ host: t.str(), port: t.int(), secure: t.bool(), username: t.str(), passwordHandle: id.handle })),
+        connectionId: t.opt(t.str({ pattern: '^(gua|mua)_[0-9a-f]{32}$', description: "A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) the mailbox reads and sends through" })),
       },
       out: { mailbox: mailboxRow }, emits: ['mailbox.connected'], idem: 'key', tool: 'inbox', offline: 'online', errors: ['provider.auth_failed', 'validation.duplicate'],
     }),

@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
+import type { Sealed } from "../../packages/contracts/src/ctx.ts";
 
 export interface GoogleDb {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -32,6 +33,7 @@ export interface GoogleCtx {
   http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
   log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
   schedule(at: number | string, cap: string, input: unknown): Promise<string>;
+  seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -53,6 +55,11 @@ export interface GoogleHost {
   download(ctx: GoogleCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
   /** Send a Space file to Google as a multipart upload and return Google's JSON answer. */
   upload(ctx: GoogleCtx, a: { url: string; token: string; fileId: string; metadata: Record<string, unknown>; method?: "POST" | "PATCH" }): Promise<unknown>;
+  /** A person's own sign-in (handlers/personal.ts): the OAuth client of a Vault item, the address people come back to, the code traded for tokens, an access token from a refresh token. */
+  userApp(ctx: GoogleCtx, handle: string): Promise<{ clientId: string; hasSecret: boolean }>;
+  userPublicUrl(ctx: GoogleCtx): Promise<string>;
+  userExchange(ctx: GoogleCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
+  userRefresh(ctx: GoogleCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
 }
 
 let host: GoogleHost | null = null;
@@ -111,7 +118,7 @@ export function bad(ctx: Pick<GoogleCtx, "trace">, message: string): never {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_google_core.sql", "0002_google_push.sql", "0003_google_meet.sql", "0004_google_calendar.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_google_core.sql", "0002_google_push.sql", "0003_google_meet.sql", "0004_google_calendar.sql", "0005_google_user.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -198,8 +205,58 @@ export function query(q: Query | undefined): string {
   return s ? `?${s}` : "";
 }
 
+// ---- a person's own account
+
+/** Connection ids that name a person's own Google sign-in instead of the Space's Workspace delegation. */
+export const USER_PREFIX = "gua_";
+export const isUserConnection = (connectionId: string): boolean => connectionId.startsWith(USER_PREFIX);
+
+export interface UserAccount { accountId: string; ownerId: string; email: string; refreshSealed: string }
+const accountOfRow = (r: Row): UserAccount => ({ accountId: str(r, "accountId"), ownerId: str(r, "ownerId"), email: str(r, "email"), refreshSealed: str(r, "refreshSealed") });
+
+/** A person's account is theirs alone; the host's own services (the poll that runs with nobody signed in) act for them. */
+function userUsable(ctx: GoogleCtx, a: UserAccount): boolean {
+  return a.ownerId === (ctx.actingFor ?? ctx.principal.id) || isTrustedService(ctx.principal);
+}
+
+export function userAccount(ctx: GoogleCtx, accountId: string): UserAccount {
+  ensure(ctx);
+  const r = first(ctx.db.all(`SELECT * FROM google_user_account WHERE "accountId" = ?`, accountId));
+  const a = r ? accountOfRow(r) : null;
+  if (!a || !userUsable(ctx, a)) throw fail("validation.not_found", ctx.trace.traceId, { message: "There is no such Google sign-in." });
+  return a;
+}
+
+/** The signed-in account behind a mailbox address, for the pull. */
+export function userAccountByEmail(ctx: GoogleCtx, email: string): UserAccount | null {
+  ensure(ctx);
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM google_user_account WHERE email = ?`, email)).map(accountOfRow).sort((a, b) => a.accountId.localeCompare(b.accountId));
+  return rows[0] ?? null;
+}
+
+export function userAppHandle(ctx: GoogleCtx): string {
+  ensure(ctx);
+  const cfg = first(ctx.db.all(`SELECT "vaultItem" FROM google_user_app WHERE id = ?`, CONFIG_ID));
+  const handle = strOrNull(cfg, "vaultItem");
+  if (!handle) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Google sign-in is not set up. Add a Google OAuth client first." });
+  return handle;
+}
+
+/** An access token for a person's own account. The refresh token is sealed in this module's table, opened for this one call and handed to the host, which keeps only the access token. */
+async function userToken(ctx: GoogleCtx, accountId: string, fresh: boolean): Promise<string> {
+  const a = userAccount(ctx, accountId);
+  const refreshToken = new TextDecoder().decode(ctx.seal.unseal(JSON.parse(a.refreshSealed) as Sealed));
+  return (await needHost(ctx).userRefresh(ctx, { appHandle: userAppHandle(ctx), refreshToken, cacheKey: accountId, ...(fresh ? { fresh: true } : {}) })).token;
+}
+
 /** Who the call acts as: the caller's mapped address, or another mapped member for an admin or a service. */
 export function subjectFor(ctx: GoogleCtx, c: Pick<Call, "connectionId" | "as" | "open">): string {
+  if (isUserConnection(c.connectionId)) {
+    // a person's own sign-in is one mailbox: the account's address, and nobody else's
+    const a = userAccount(ctx, c.connectionId);
+    if (c.as && normalizeEmail(c.as) !== a.email) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This sign-in is for another address." });
+    return a.email;
+  }
   const cfg = config(ctx);
   const admin = strOrNull(cfg, "adminEmail");
   const person = isTrustedService(ctx.principal) ? null : (ctx.actingFor ?? ctx.principal.id);
@@ -227,6 +284,11 @@ async function tokenFor(ctx: GoogleCtx, connectionId: string, sub: string, scope
   const key = `${connectionId}|${sub}|${scope}`;
   const hit = tokens.get(key);
   if (!fresh && hit && hit.expiresAt - ctx.now() > 60_000) return hit.token;
+  if (isUserConnection(connectionId)) {
+    const t = await userToken(ctx, connectionId, fresh);
+    tokens.set(key, { token: t, expiresAt: ctx.now() + 55 * 60_000 });
+    return t;
+  }
   const minted = await needHost(ctx).mintToken(ctx, { connectionId, sub, scopes: [SCOPE + scope] });
   tokens.set(key, minted);
   return minted.token;

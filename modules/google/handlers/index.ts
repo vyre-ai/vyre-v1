@@ -12,3 +12,4 @@ export { docInsert, docReplace } from "./docedit.ts";
 export { acceptHook, sameSecret } from "./hook.ts";
 export { pullMeet, toVtt, cueTime } from "./meet.ts";
 export { directoryImport, directoryList, syncMembers } from "./directory.ts";
+export { userAppSet, userAppStatus, userComplete, userList, userRemove, userStart } from "./personal.ts";

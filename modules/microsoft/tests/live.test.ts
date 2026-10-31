@@ -6,8 +6,8 @@ import { handlers } from "../impl.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "microsoft").map((c) => c.name).sort();
 
-test("microsoft live: the handler map equals the manifest's 60 capabilities", () => {
-  assert.equal(mine.length, 60);
+test("microsoft live: the handler map equals the manifest's 66 capabilities", () => {
+  assert.equal(mine.length, 66);
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine) assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
 });

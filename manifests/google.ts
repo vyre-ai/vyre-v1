@@ -89,6 +89,23 @@ const capabilities = [
     gate: { act: 'connection_change', when: "actor.kind != 'person'" },
   }),
   read('google.health', 'Health probe: mint a token for the probe user and call users.getProfile', { in: { as: t.opt(email) }, out: healthOut }),
+  // ---- a person's own Google sign-in for mail (no Workspace delegation needed): the OAuth client lives in a Vault item, the person's refresh token is sealed in the module
+  read('google.user.app_status', 'Whether a Google OAuth client is set up for signing in to your own Gmail, and the redirect address to give Google for it', {
+    in: {}, out: { configured: t.bool(), clientId: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()) },
+  }),
+  write('google.user.app_set', 'Name the Vault item that holds the Google OAuth client (client_id, and client_secret for a web client)', {
+    in: { vaultItem: id.handle }, out: { configured: t.bool(), clientId: t.str() }, perm: 'connectors.manage', audit: 'always', errors: ['provider.auth_failed'],
+  }),
+  write('google.user.start', 'Start signing in to your own Gmail: the address to approve at', {
+    in: { loginHint: t.opt(email) }, out: { authUrl: t.str(), state: t.str() }, idem: 'none', errors: ['validation.precondition_failed'],
+  }),
+  write('google.user.complete', 'Finish signing in from the callback: the state and the code, or the error Google sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync', {
+    in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { accountId: t.str(), email, mailboxId: t.opt(id.mailbox) },
+    emits: ['google.user_connected'], audit: 'always', idem: 'none', offline: 'online',
+    errors: ['auth.invalid_code', 'provider.auth_failed', 'provider.network', 'provider.bad_response', 'validation.precondition_failed', 'validation.duplicate'],
+  }),
+  read('google.user.list', 'Your own signed-in Google accounts', { in: {}, out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) } }),
+  write('google.user.remove', 'Sign out of your own Google account: revoke it at Google and remove its token', { in: { accountId: t.str() }, out: { removed: t.bool() }, audit: 'always' }),
   write('google.receive_push', 'Record a verified Google push (Gmail Pub/Sub, Calendar channel, Drive changes, Meet events) after dedupe', {
     in: {
       kind: t.enm('gmail', 'calendar', 'drive', 'meet'), messageId: t.str(), mailbox: t.opt(email), historyId: t.opt(t.str()), channelId: t.opt(t.str()),
@@ -234,6 +251,7 @@ export default defineManifest({
   events: [
     ev('google.dwd_configured', 'Domain-wide delegation was set up', { p: { connector: t.lit('google'), adminEmail: email, mappedMembers: t.int(), autoConnect: t.bool() }, subject: ['connector', '/connector'], vis: 'space' }),
     ev('google.dwd_probed', 'A delegation probe ran', { p: { connector: t.lit('google'), ok: t.bool(), email: t.opt(email), scopesMissing: t.arr(t.str()) }, subject: ['connector', '/connector'] }),
+    ev('google.user_connected', 'A person signed in to their own Google account', { p: { accountId: t.str(), email }, subject: ['entity', '/accountId'] }),
     ev('google.dwd_revoked', 'Delegation was turned off', { p: { connector: t.lit('google'), by: t.str() }, subject: ['connector', '/connector'] }),
     ev('google.push_received', 'A verified Google push notice arrived (Gmail, Calendar, Drive or Meet)', {
       p: { connector: t.lit('google'), kind: t.enm('gmail', 'calendar', 'drive', 'meet'), messageId: t.str(), mailbox: t.opt(email), historyId: t.opt(t.str()), channelId: t.opt(t.str()), resourceState: t.opt(t.str()), resourceId: t.opt(t.str()) },
