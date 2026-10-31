@@ -26,6 +26,7 @@ Change field directions, transforms, match, create-at-source, deletes, conflict 
 ```ts
 type In = {
   type: string;
+  account?: string;
   fields?: Array<{
       key: string;
       remote: string;
@@ -33,6 +34,7 @@ type In = {
       transform?: string;
       relation?: string;
       inverse?: string;
+      constant?: string;
     }>;
   match?: Array<string>;
   createAtSource?: boolean;
@@ -54,6 +56,7 @@ type Out = {
   syncedType: {
     syncTypeId: string;
     type: string;
+    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -65,6 +68,7 @@ type Out = {
         transform?: string;
         relation?: string;
         inverse?: string;
+        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -103,11 +107,13 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "conflict": "newest",
     "createAtSource": true,
     "deletes": "off",
     "fields": [
       {
+        "constant": "example",
         "dir": "pull",
         "inverse": "email",
         "key": "email",
@@ -129,6 +135,7 @@ type Out = {
   },
   "output": {
     "syncedType": {
+      "account": "example",
       "app": {
         "domain": "example",
         "title": "example"
@@ -141,6 +148,7 @@ type Out = {
       "deletes": "off",
       "fields": [
         {
+          "constant": "example",
           "dir": "pull",
           "inverse": "email",
           "key": "email",

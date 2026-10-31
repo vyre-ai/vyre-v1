@@ -26,6 +26,7 @@ Bring in everything, not just the first-pull filter: re-applies the stored spec 
 ```ts
 type In = {
   type: string;
+  account?: string;
   idempotencyKey: string;
 };
 ```
@@ -54,6 +55,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "idempotencyKey": "idem_1",
     "type": "contact"
   },

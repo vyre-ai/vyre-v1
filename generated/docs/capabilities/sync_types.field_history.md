@@ -39,7 +39,8 @@ type Out = {
       historyId: string;
       value: unknown;
       at?: number;
-      replacedBy: "app" | "you";
+      replacedBy: "app" | "you" | "push";
+      by?: string;
       actor: string;
     }>;
 };
@@ -68,6 +69,7 @@ type Out = {
       {
         "actor": "example",
         "at": 1760000000000,
+        "by": "example",
         "historyId": "example",
         "replacedBy": "app",
         "value": {}
