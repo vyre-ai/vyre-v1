@@ -182,7 +182,8 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
       const out = (await data.call("vault.item.put", { folderId: target, name: name.trim(), kind, fields: plainFields(filled), ...(templateById(template) && template !== "custom" ? { template } : {}) })) as { item: { id: string; name: string } };
       onAdded(out.item.id, out.item.name, target);
     } catch (e) {
-      setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : reasonOf(e, "Could not save. Nothing was lost; try again."));
+      // the pipeline answers a folder that is not there (or not yours to put into) as "not found, existence is not leaked": the owner of this Vault is told what to do instead
+      setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : e instanceof Error && /not found or not visible/i.test(e.message) ? "That place is not available. Pick another under Add to, or make a new folder there." : reasonOf(e, "Could not save. Nothing was lost; try again."));
       setSaving(false);
     }
   };

@@ -1425,7 +1425,7 @@
     {
       "deferred": false,
       "name": "chat_recent",
-      "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)",
       "toolset": "chats"
     },
     {
@@ -8000,6 +8000,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_archive",
+      "summary": "Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_close",
       "summary": "Close a thread (idle with nothing waiting, or done)",
       "toolset": "chats"
@@ -8061,13 +8067,19 @@
     {
       "deferred": false,
       "name": "threads_set_mode",
-      "summary": "Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode",
+      "summary": "Set how much the agents of a chat may do alone: auto (the default), ask (Ask first) or plan. Anything that leaves Vyre is held for a yes in every mode",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "threads_set_plan_mode",
       "summary": "Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_unarchive",
+      "summary": "Put an archived chat back in my list",
       "toolset": "chats"
     },
     {

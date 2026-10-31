@@ -29,6 +29,28 @@ import type { PurgeHandlers } from "./handlers/purge.ts";
 import { createSiteTableHandlers } from "./handlers/site-tables.ts";
 import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.ts";
 
+/** The singular and plural spellings a type key may be asked for by: deal and deals, company and companies, status and statuses. */
+function variants(name: string): string[] {
+  const out = new Set<string>([name, `${name}s`, `${name}es`]);
+  if (/[^aeiou]y$/.test(name)) out.add(`${name.slice(0, -1)}ies`);
+  if (name.endsWith("ies")) out.add(`${name.slice(0, -3)}y`);
+  if (name.endsWith("es")) out.add(name.slice(0, -2));
+  if (name.endsWith("s")) out.add(name.slice(0, -1));
+  return [...out];
+}
+
+/**
+ * The type a record call names. The name must match; failing that, the one type whose name is the singular or the plural of what was asked (a table that sends deal for the type deals), so
+ * a type made a moment ago works whichever of the two a screen holds. Two candidates, or none, is no match.
+ */
+export function typeNamed(types: readonly TypeDef[], asked: string): TypeDef | undefined {
+  const exact = types.find((t) => t.name === asked);
+  if (exact) return exact;
+  const near = variants(asked);
+  const found = types.filter((t) => t.name !== asked && near.includes(t.name));
+  return found.length === 1 ? found[0] : undefined;
+}
+
 export interface FieldWrite {
   value: unknown;
   hlc: string;
@@ -156,13 +178,12 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
   });
   const inner = opened.store;
   const host = opened.host;
-  let typeCache: readonly TypeDef[] | null = null;
-  const allTypes = async (): Promise<readonly TypeDef[]> => {
-    if (!typeCache) typeCache = await inner.types();
-    return typeCache;
-  };
+  // Types are read from the store every time, never kept: schema.apply (and sync, and replay) define types through the Space store without passing this wrapper,
+  // so a copy kept here went stale and a type made after the first record write answered "no type" (rc.7 owner bug). One indexed read of one row is cheap.
+  const allTypes = async (): Promise<readonly TypeDef[]> => inner.types();
   const needType = async (type: string): Promise<TypeDef> => {
-    const def = (await allTypes()).find((t) => t.name === type);
+    const row = /^[a-z][a-z0-9_]{0,62}$/.test(type) ? host.tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type) : undefined;
+    const def = row ? (JSON.parse(row.def) as TypeDef) : typeNamed(await allTypes(), type);
     if (!def) throw new StoreError("unknown_type", `no type ${type}`);
     return def;
   };
@@ -175,19 +196,19 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
         const t = have.find((x) => x.name === name);
         if (t?.["protected"] === true) throw new RecordsError("protected", `type ${name} is protected and cannot be dropped`);
       }
-      try { return await inner.define(diff); } finally { typeCache = null; }
+      return inner.define(diff);
     },
     async create(type, id, data) {
       const def = await needType(type);
-      return inner.create(type, id, scrub(def, { ...data }));
+      return inner.create(def.name, id, scrub(def, { ...data }));
     },
     async update(type, id, patch, base) {
       const def = await needType(type);
       const clean = scrub(def, { ...patch });
-      const row = await inner.get(type, id);
+      const row = await inner.get(def.name, id);
       if (row && row.version === base) assertWriteOnce(def, row.data, clean);
       if (row) assertStageGates(def, row.data, clean);
-      return inner.update(type, id, clean, base);
+      return inner.update(def.name, id, clean, base);
     },
     async remove(type, id, base) {
       const def = (await allTypes()).find((t) => t.name === type);

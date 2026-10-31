@@ -1,5 +1,6 @@
 // What the conversation writes: one capability per action, each through `call` as the signed-in person. Nothing here touches the screen; the components decide what to show while
 // a write is out (the message is already on the page before chat.post answers) and what to say when it fails.
+import { installCommand } from "./status.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { exportAs } from "./export.ts";
@@ -100,6 +101,22 @@ export async function setPlanMode(data: ConversationData, planMode: boolean): Pr
 
 export async function retryTurn(data: ConversationData, turnId: string): Promise<void> {
   await data.call("engine.turn.retry", { turnId } satisfies CapMap["engine.turn.retry"]["in"]);
+}
+
+/**
+ * What a button on a failed reply does. Connect and Open the Vault go to the Vault page; Install copies the exact command; Unlock asks for the password in place and, once the key is open, sends the
+ * reply that stopped again (one retry of that turn: the message is not posted twice). Anything else points to the model switcher.
+ */
+export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void): Promise<void> {
+  if (key === "connect_ai" || key === "open_vault") { if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open the Vault and add an AI account."); return; }
+  const command = installCommand(key);
+  if (command) { data.copy(command); say(`Copied: ${command}. Run it in a terminal, then try again.`); return; }
+  if (key === "unlock_vault") {
+    if (!data.nav.unlockVault) { say("Unlock your Vault from the Vault page, then try again."); return; }
+    if ((await data.nav.unlockVault()) && turnId) await retryTurn(data, turnId);
+    return;
+  }
+  say(`Choose ${key} in the model switcher or ask for access.`);
 }
 
 /** True when the person has an AI account that works (a connected, signed-in one): what "Connect your AI" is waiting for. */

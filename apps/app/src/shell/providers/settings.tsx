@@ -9,6 +9,9 @@ import type { DesktopUpdater, SettingsData } from "../../places/settings/data.ts
 import { SecuritySheet } from "../../places/settings/SecuritySheet.tsx";
 import type { SettingsNav } from "../../places/settings/data.tsx";
 import { SettingsPlace } from "../../places/settings/SettingsPlace.tsx";
+import { PAGES } from "../../places/settings/model.ts";
+import type { PageKey } from "../../places/settings/model.ts";
+import { usePlaceHash } from "../hash/context.tsx";
 import { nameOf } from "./misc-common.ts";
 import { chooseProfilePhoto } from "./settings-photo.ts";
 import { loadSecurity } from "./settings-security.ts";
@@ -48,7 +51,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
       openVault: () => rt.open({ screen: "vault.layout" }),
       openConsole: () => rt.open({ screen: "console.overview" }),
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
-      connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "mail.connections", args: { kind } }),
+      connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "connections" } }),
       choosePhoto: () => chooseProfilePhoto(rt),
       ...(manageSecurity ? { manageSecurity } : {}),
     },
@@ -68,9 +71,13 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
     return () => { live = false; };
   }, [rt, security]);
   const nonce = useAddServerNonce();
+  // a link into Settings names its page ({ page } or the mail connections screen); without this it always opened Profile
+  const { target } = usePlaceHash();
+  const asked = target.screen === "mail.connections" ? "connections" : typeof target.args["page"] === "string" ? target.args["page"] : "";
+  const page = PAGES.some((x) => x.key === asked) ? (asked as PageKey) : undefined;
   const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn) : null), [rt, signIn]);
   if (!data) return <View style={s.page} testID="settings-loading" />;
-  return <SettingsDataProvider value={data}><SettingsPlace key={nonce} {...(addServerAsked() ? { initialPage: "computer" as const } : {})} />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} /> : null}</SettingsDataProvider>;
+  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} /> : null}</SettingsDataProvider>;
 }
 
 const s = StyleSheet.create({ page: { flex: 1, backgroundColor: "var(--win)" as string } });

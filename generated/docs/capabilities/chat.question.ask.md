@@ -19,7 +19,7 @@ Ask the person a structured question (single, multi or free text); the turn park
 | HTTP | POST /v1/chat/question/ask |
 | MCP tool | ask_question (chats) |
 | CLI | none |
-| Emits | message.received, block.waiting |
+| Emits | message.received, block.waiting, thread.unarchived |
 
 ## Input
 

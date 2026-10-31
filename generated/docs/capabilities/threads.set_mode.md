@@ -1,6 +1,6 @@
 # threads.set_mode
 
-Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode
+Set how much the agents of a chat may do alone: auto (the default), ask (Ask first) or plan. Anything that leaves Vyre is held for a yes in every mode
 
 | | |
 |---|---|

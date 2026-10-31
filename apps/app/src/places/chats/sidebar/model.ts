@@ -31,7 +31,7 @@ export const GROUPS: readonly { key: GroupKey; label: string }[] = [
   { key: "earlier", label: "Earlier" },
 ];
 
-export type SectionKey = "needs" | "faces" | "recent" | "channels" | "imported";
+export type SectionKey = "needs" | "faces" | "recent" | "channels" | "imported" | "archived";
 
 /** A recent row as the sidebar draws it. `person` marks a chat with one person; `local` marks one made on this device that the server has not answered yet. */
 export interface ChatRow {
@@ -48,6 +48,10 @@ export interface ChatRow {
   starred: boolean;
   lastAt: number;
   local: boolean;
+  /** In my Archived section: the row menu offers Unarchive and the list keeps it quiet. */
+  archived?: boolean;
+  /** A chat with no agent is with other people (a direct message): the menu offers Leave chat, not Delete chat. */
+  withPeople?: boolean;
 }
 
 /** Who a recent item is with. The chat capability lists agents by id; a chat with no agent is with a person (its title is their name). */
@@ -65,6 +69,7 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string): Chat
     starred: item.starred,
     lastAt: item.lastAt,
     local: item.threadId.startsWith(LOCAL_PREFIX),
+    withPeople: item.agents.length === 0,
   };
 }
 
@@ -79,6 +84,11 @@ export function groupRecent(recent: RecentOut, local: readonly ChatRow[], agentN
     if (rows.length) out.push({ key: g.key, label: g.label, rows });
   }
   return out;
+}
+
+/** The chats I archived, newest first as the server sent them: the Archived section at the foot. An older server that sends none has none. */
+export function archivedRows(recent: RecentOut, agentName: (id: string) => string): ChatRow[] {
+  return (recent.archived ?? []).filter((i) => i.kind === "chat").map((i) => ({ ...rowOf(i, agentName), archived: true }));
 }
 
 /** The server filters; this is the same rule for rows already on the device (a local row with no agent counts as People). */
@@ -184,6 +194,9 @@ export interface SidebarInput {
   needsLimit?: number;
   /** Sections whose read failed: the row under the head says so (and the section never says "empty"). */
   errors?: Partial<Record<SectionKey, SectionError>>;
+  /** The chats I archived, already narrowed by the filter and the search box. The section is left out when there are none, and is collapsed until its head is pressed (`archivedOpen`). */
+  archived?: readonly ChatRow[];
+  archivedOpen?: boolean;
   /** The imported sessions, newest first, already narrowed by the search box. The group is left out when there are none. */
   imported?: readonly ImportedRow[];
   /** A Personal Space has no channels: the section and its entry points are left out. */
@@ -252,6 +265,10 @@ export function buildEntries(i: SidebarInput): Entry[] {
       out.push({ key: `g:${g.key}`, type: "group", label: g.label });
       for (const r of g.rows) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
     }
+  }
+  if (i.archived?.length) {
+    out.push({ key: "h:archived", type: "head", section: "archived", label: "Archived", count: i.archived.length, open: i.archivedOpen === true });
+    if (i.archivedOpen === true) for (const r of i.archived) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
   }
   if (i.imported?.length) {
     out.push({ key: "h:imported", type: "head", section: "imported", label: "Imported", count: i.imported.length, open: open("imported") });

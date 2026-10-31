@@ -19,7 +19,7 @@ Open a side tab beside the chat for the person (a file, record, diff, terminal);
 | HTTP | POST /v1/chat/open_tab |
 | MCP tool | open_tab (chats) |
 | CLI | none |
-| Emits | tab.opened, message.received |
+| Emits | tab.opened, message.received, thread.unarchived |
 
 ## Input
 

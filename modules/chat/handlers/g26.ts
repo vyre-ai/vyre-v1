@@ -17,22 +17,23 @@ type Row = Record<string, unknown>;
 
 // ---- recent -----------------------------------------------------------------------------------------------------------------------------------------
 
-type Section = "starred" | "today" | "yesterday" | "earlier";
-const SECTIONS: readonly Section[] = ["starred", "today", "yesterday", "earlier"];
+type Section = "starred" | "today" | "yesterday" | "earlier" | "archived";
+const SECTIONS: readonly Section[] = ["starred", "today", "yesterday", "earlier", "archived"];
 
 export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "unread" | "people" | "agents" }) {
   const asker = askerOf(ctx);
   const filter = input.filter ?? "all";
   // The group's function knows the listing rules; the unread filter is applied here on the counts it cannot see.
   const base = (await recent(ctx, { filter: filter === "unread" ? "all" : filter })) as Record<Section, Row[]> & { nextUnread: string | null };
-  const out: Record<Section, Row[]> = { starred: [], today: [], yesterday: [], earlier: [] };
+  const out: Record<Section, Row[]> = { starred: [], today: [], yesterday: [], earlier: [], archived: [] };
   let nextUnread: string | null = null;
   for (const s of SECTIONS) {
     for (const row of base[s] ?? []) {
       const unread = unreadOf(ctx, String(row["threadId"]), asker);
       if (filter === "unread" && unread === 0) continue;
       out[s].push({ ...row, unread });
-      if (nextUnread === null && unread > 0) nextUnread = String(row["threadId"]);
+      // an archived chat is quiet: its unread never picks the "next unread" chat
+      if (nextUnread === null && unread > 0 && s !== "archived") nextUnread = String(row["threadId"]);
     }
   }
   return { ...out, nextUnread };

@@ -42,6 +42,19 @@ function codeOf(e: unknown): string | null {
   return typeof c === "string" ? c : null;
 }
 
+/** A vault key that is closed: by its reason, or in the words the vault module uses (use.ts) when it throws a plain error. */
+function vaultLocked(e: unknown): boolean {
+  const x = e as { message?: unknown; details?: { reason?: unknown }; error?: { message?: unknown; details?: { reason?: unknown } } } | null;
+  const reason = x?.error?.details?.reason ?? x?.details?.reason;
+  const message = x?.error?.message ?? x?.message;
+  return reason === "vault_locked" || (typeof message === "string" && /vault key is locked/i.test(message));
+}
+
+/** An error the turn engine reads the code of (agent/src/turn-engine/engine.ts), so the failure reaches the chat under that code. */
+function coded(code: string, message: string): Error & { code: string } {
+  return Object.assign(new Error(message), { code });
+}
+
 export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSessionHost {
   /** An engine trace id is 32 hex; one that is not (a test double) is left out and the pipeline starts its own. */
   const traceOf = (id: string): Pick<CtxSeed, "trace"> => (TRACE_ID.test(id) ? { trace: { traceId: id, spanId: "0".repeat(16) } } : {});
@@ -74,7 +87,9 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
           if (code === "permission.provider_label") return { kind: "denied", reason: "provider_label" };
           if (code !== null && code.startsWith("permission.")) return { kind: "denied", reason: "no_access" };
           if (code === "validation.not_found" || code === "validation.bad_input") return { kind: "unknown" };
-          throw new Error(code !== null ? `The Vault could not be read (${code}).` : "The Vault could not be read.");   // never the original: it may carry request text
+          // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
+          if (vaultLocked(e)) throw coded("engine.vault_locked", "Your Vault is locked on this computer.");
+          throw coded("engine.vault_unreadable", code !== null ? `The Vault could not be read (${code}).` : "The Vault could not be read.");
         }
       },
     },

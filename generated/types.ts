@@ -6257,6 +6257,17 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
     }>;
+  archived: Array<{
+      threadId: string;
+      kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+      title: string;
+      agents: Array<string>;
+      unread: number;
+      working: boolean;
+      starred: boolean;
+      lastAt: number;
+      preview?: string;
+    }>;
   nextUnread: string | null;
 };
 export type ChatScreenGetIn = {
@@ -30007,6 +30018,12 @@ export type ThreadsAgentConfigureOut = {
       }>;
   };
 };
+export type ThreadsArchiveIn = {
+  threadId: string;
+};
+export type ThreadsArchiveOut = {
+  archived: boolean;
+};
 export type ThreadsCloseIn = {
   threadId: string;
 };
@@ -30048,6 +30065,12 @@ export type ThreadsCloseOut = {
         threadId: string;
       }>;
   };
+};
+export type ThreadsDeleteIn = {
+  threadId: string;
+};
+export type ThreadsDeleteOut = {
+  deleted: boolean;
 };
 export type ThreadsEraseIn = {
   threadId: string;
@@ -30097,6 +30120,12 @@ export type ThreadsGetOut = {
         threadId: string;
       }>;
   };
+};
+export type ThreadsLeaveIn = {
+  threadId: string;
+};
+export type ThreadsLeaveOut = {
+  ok: boolean;
 };
 export type ThreadsListIn = {
   kind?: Array<"chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console">;
@@ -30358,6 +30387,48 @@ export type ThreadsReopenOut = {
       }>;
   };
 };
+export type ThreadsRestoreIn = {
+  threadId: string;
+};
+export type ThreadsRestoreOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+  };
+};
 export type ThreadsSetFolderIn = {
   threadId: string;
   folderId: string | null;
@@ -30486,6 +30557,12 @@ export type ThreadsSetPlanModeOut = {
         threadId: string;
       }>;
   };
+};
+export type ThreadsUnarchiveIn = {
+  threadId: string;
+};
+export type ThreadsUnarchiveOut = {
+  archived: boolean;
 };
 export type ThreadsUpdateIn = {
   threadId: string;
@@ -33613,9 +33690,12 @@ export interface CapMap {
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };
   "threads.agent.configure": { in: ThreadsAgentConfigureIn; out: ThreadsAgentConfigureOut };
+  "threads.archive": { in: ThreadsArchiveIn; out: ThreadsArchiveOut };
   "threads.close": { in: ThreadsCloseIn; out: ThreadsCloseOut };
+  "threads.delete": { in: ThreadsDeleteIn; out: ThreadsDeleteOut };
   "threads.erase": { in: ThreadsEraseIn; out: ThreadsEraseOut };
   "threads.get": { in: ThreadsGetIn; out: ThreadsGetOut };
+  "threads.leave": { in: ThreadsLeaveIn; out: ThreadsLeaveOut };
   "threads.list": { in: ThreadsListIn; out: ThreadsListOut };
   "threads.make_channel": { in: ThreadsMakeChannelIn; out: ThreadsMakeChannelOut };
   "threads.mark_read": { in: ThreadsMarkReadIn; out: ThreadsMarkReadOut };
@@ -33623,9 +33703,11 @@ export interface CapMap {
   "threads.members.remove": { in: ThreadsMembersRemoveIn; out: ThreadsMembersRemoveOut };
   "threads.remove_agent": { in: ThreadsRemoveAgentIn; out: ThreadsRemoveAgentOut };
   "threads.reopen": { in: ThreadsReopenIn; out: ThreadsReopenOut };
+  "threads.restore": { in: ThreadsRestoreIn; out: ThreadsRestoreOut };
   "threads.set_folder": { in: ThreadsSetFolderIn; out: ThreadsSetFolderOut };
   "threads.set_mode": { in: ThreadsSetModeIn; out: ThreadsSetModeOut };
   "threads.set_plan_mode": { in: ThreadsSetPlanModeIn; out: ThreadsSetPlanModeOut };
+  "threads.unarchive": { in: ThreadsUnarchiveIn; out: ThreadsUnarchiveOut };
   "threads.update": { in: ThreadsUpdateIn; out: ThreadsUpdateOut };
   "twilio.a2p.attach_number": { in: TwilioA2pAttachNumberIn; out: TwilioA2pAttachNumberOut };
   "twilio.a2p.create_brand": { in: TwilioA2pCreateBrandIn; out: TwilioA2pCreateBrandOut };
@@ -36888,7 +36970,15 @@ export type TerminalRenamedPayload = {
 export type TerminalRulesChangedPayload = {
   personId: string;
 };
+export type ThreadArchivedPayload = {
+  person: string;
+  threadId: string;
+};
 export type ThreadClosedPayload = {
+  threadId: string;
+};
+export type ThreadDeletedPayload = {
+  person: string;
   threadId: string;
 };
 export type ThreadErasedPayload = {
@@ -36913,6 +37003,10 @@ export type ThreadRepliedPayload = {
   messageId: string;
   personId: string;
 };
+export type ThreadRestoredPayload = {
+  person: string;
+  threadId: string;
+};
 export type ThreadReviewerChangedPayload = {
   threadId: string;
   reviewer: ({
@@ -36929,6 +37023,11 @@ export type ThreadStartedPayload = {
   channelId?: string;
   scopeType?: string;
   scopeId?: string;
+};
+export type ThreadUnarchivedPayload = {
+  person: string;
+  threadId: string;
+  reason: "person" | "mention";
 };
 export type ThreadUpdatedPayload = {
   threadId: string;
@@ -37848,14 +37947,18 @@ export interface EventMap {
   "terminal.opened": TerminalOpenedPayload;
   "terminal.renamed": TerminalRenamedPayload;
   "terminal.rules_changed": TerminalRulesChangedPayload;
+  "thread.archived": ThreadArchivedPayload;
   "thread.closed": ThreadClosedPayload;
+  "thread.deleted": ThreadDeletedPayload;
   "thread.erased": ThreadErasedPayload;
   "thread.plan_mode_changed": ThreadPlanModeChangedPayload;
   "thread.promoted": ThreadPromotedPayload;
   "thread.reopened": ThreadReopenedPayload;
   "thread.replied": ThreadRepliedPayload;
+  "thread.restored": ThreadRestoredPayload;
   "thread.reviewer_changed": ThreadReviewerChangedPayload;
   "thread.started": ThreadStartedPayload;
+  "thread.unarchived": ThreadUnarchivedPayload;
   "thread.updated": ThreadUpdatedPayload;
   "token.issued": TokenIssuedPayload;
   "token.registered": TokenRegisteredPayload;

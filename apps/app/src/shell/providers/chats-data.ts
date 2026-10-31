@@ -1,5 +1,6 @@
 // The data contexts the Chats place hands its three parts, built from the Space's runtime. Each part reads the same ScreenHooks and `call`; what differs is the nav: a click
 // says what to open and this place decides (the open chat is local state of the place, the pane is a toggle). Nothing here touches the network.
+import { askVaultUnlock } from "../session/vault-gate.ts";
 import { computersAvailableNow } from "../computers-available.ts";
 import type { ComposerLists, ListItem } from "../../../../../ui/src/Composer/index.tsx";
 import type { ChatsNav, ChatsSidebarData } from "../../places/chats/sidebar/data.tsx";
@@ -144,6 +145,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     togglePane: a.togglePane,
     openBeside: (kind, id) => rt.open({ subject: { type: kind, id } }),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
+    ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId, me: { id: rt.me.id, name: rt.me.name },

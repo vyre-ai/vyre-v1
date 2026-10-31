@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine.
 
-## Capabilities (72)
+## Capabilities (77)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -49,7 +49,7 @@ Requires: engine.
 - [chat.post](../capabilities/chat.post.md): Post a message in a thread or channel; routes to the lead agent or @mentioned agents and records mentions
 - [chat.question.ask](../capabilities/chat.question.ask.md): Ask the person a structured question (single, multi or free text); the turn parks until it is answered
 - [chat.react](../capabilities/chat.react.md): Add or remove a reaction
-- [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse
+- [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)
 - [chat.screen.get](../capabilities/chat.screen.get.md): The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows
 - [chat.search](../capabilities/chat.search.md): Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it
 - [chat.start](../capabilities/chat.start.md): Start a chat or an Ask pane with one or more agents, or a direct message with one person (a third person means a channel)
@@ -64,9 +64,12 @@ Requires: engine.
 - [chat.unpin](../capabilities/chat.unpin.md): Remove the pinned marker from a message
 - [threads.add_agent](../capabilities/threads.add_agent.md): Add an agent to a thread as listening (or leading when it is the only agent)
 - [threads.agent.configure](../capabilities/threads.agent.configure.md): Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field
+- [threads.archive](../capabilities/threads.archive.md): Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does
 - [threads.close](../capabilities/threads.close.md): Close a thread (idle with nothing waiting, or done)
+- [threads.delete](../capabilities/threads.delete.md): Delete a chat only I am in (me and agents): hidden everywhere, running turns stop first, undone with threads.restore until the retention purge removes it. A chat with other people is left, not deleted
 - [threads.erase](../capabilities/threads.erase.md): Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)
 - [threads.get](../capabilities/threads.get.md): Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path
+- [threads.leave](../capabilities/threads.leave.md): Leave a chat that has other people in it: I stop being a member, they keep it. A channel is left with channels.leave
 - [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record
 - [threads.make_channel](../capabilities/threads.make_channel.md): Make a private chat into a channel with another person; the new channel links back to the chat
 - [threads.mark_read](../capabilities/threads.mark_read.md): Mark a thread read up to a sequence number
@@ -74,12 +77,14 @@ Requires: engine.
 - [threads.members.remove](../capabilities/threads.members.remove.md): Remove a person from a thread
 - [threads.remove_agent](../capabilities/threads.remove_agent.md): Remove an agent from a thread
 - [threads.reopen](../capabilities/threads.reopen.md): Reopen a closed thread
+- [threads.restore](../capabilities/threads.restore.md): Undo the delete of my chat (the Undo toast), while it has not been purged
 - [threads.set_folder](../capabilities/threads.set_folder.md): Set the thread work folder (the folder chip above the composer)
-- [threads.set_mode](../capabilities/threads.set_mode.md): Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode
+- [threads.set_mode](../capabilities/threads.set_mode.md): Set how much the agents of a chat may do alone: auto (the default), ask (Ask first) or plan. Anything that leaves Vyre is held for a yes in every mode
 - [threads.set_plan_mode](../capabilities/threads.set_plan_mode.md): Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved
+- [threads.unarchive](../capabilities/threads.unarchive.md): Put an archived chat back in my list
 - [threads.update](../capabilities/threads.update.md): Rename a thread
 
-## Events (37)
+## Events (41)
 
 - [agent.disengaged](../events/agent.disengaged.md): An agent left a thread
 - [agent.engaged](../events/agent.engaged.md): An agent joined a thread as lead or listener
@@ -109,12 +114,16 @@ Requires: engine.
 - [plan.rejected](../events/plan.rejected.md): A plan was rejected
 - [plan.step_done](../events/plan.step_done.md): A plan step finished
 - [tab.opened](../events/tab.opened.md): An agent opened a side tab for a person (delivered live to that person devices)
+- [thread.archived](../events/thread.archived.md): A person archived a chat: it left their list only
 - [thread.closed](../events/thread.closed.md): A thread was closed
+- [thread.deleted](../events/thread.deleted.md): A person deleted a chat only they were in: hidden everywhere, kept for Undo and the audit trail until the retention purge
 - [thread.erased](../events/thread.erased.md): A chat thread was erased for good with its messages, blocks, pins and transcript (ids only)
 - [thread.plan_mode_changed](../events/thread.plan_mode_changed.md): Plan mode was switched for a thread
 - [thread.promoted](../events/thread.promoted.md): A private chat became a channel with another person
 - [thread.reopened](../events/thread.reopened.md): A thread was reopened
 - [thread.replied](../events/thread.replied.md): A reply landed in a thread someone follows
+- [thread.restored](../events/thread.restored.md): A person undid the delete of their chat
 - [thread.started](../events/thread.started.md): A thread, chat or channel main thread was started
+- [thread.unarchived](../events/thread.unarchived.md): A chat came back into a person's list: they unarchived it, or someone @mentioned them in it
 - [thread.updated](../events/thread.updated.md): A thread title, folder or listing changed
 - [transcripts.purged](../events/transcripts.purged.md): Chat transcripts past their retention were removed (a count)

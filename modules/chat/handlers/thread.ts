@@ -342,8 +342,8 @@ export async function approvePlan(ctx: ChatCtx, input: { threadId: string; planI
   const now = ctx.now();
   ctx.db.run("UPDATE chat_plan SET state = 'approved', steps = ?, decidedBy = ?, decidedAt = ? WHERE id = ?", JSON.stringify(steps), by, now, plan.id);
   ctx.db.run("UPDATE chat_block SET state = 'done', answer = ?, answeredBy = ?, answeredAt = ? WHERE id = ?", JSON.stringify({ approved: true, edited: edits.length > 0 }), by, now, plan.block);
-  // Approving ends plan mode for the thread: the agent may now change things, and the steps tick off as they finish.
-  ctx.db.run("UPDATE chat_thread SET modePlan = 0, updated_at = ? WHERE id = ?", now, t.id);
+  // Approving ends plan mode for the thread: it goes back to Auto, the agent may now change things, and the steps tick off as they finish.
+  ctx.db.run("UPDATE chat_thread SET modePlan = 2, updated_at = ? WHERE id = ?", now, t.id);
   const block = blockBy(ctx.db, plan.block);
   if (block) patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), steps, state: "approved" } }));
   ctx.emit("plan.approved", t.id, { planId: plan.id, threadId: t.id, edited: edits.length > 0, by });

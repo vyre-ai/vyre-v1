@@ -19,7 +19,7 @@ Propose a plan with steps as a plan block; used when plan mode is on
 | HTTP | POST /v1/chat/plan/propose |
 | MCP tool | plan_propose (chats) |
 | CLI | none |
-| Emits | plan.proposed, message.received, block.waiting |
+| Emits | plan.proposed, message.received, block.waiting, thread.unarchived |
 
 ## Input
 
