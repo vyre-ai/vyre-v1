@@ -2,6 +2,8 @@
 // card, so the person reads a short list and not a paragraph. Rows are plain words from the agent; nothing here is a button, and nothing in a row is run.
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 
 export interface ChecklistRow { text: string; done: boolean }
 export interface ChecklistData { title: string; rows: ChecklistRow[] }
@@ -30,10 +32,10 @@ export function ChecklistCard({ id, data }: { id: string; data: unknown }): Reac
         {rows.length > 0 ? <Text style={s.count} testID={`checklist-${id}-count`}>{`${done} of ${rows.length}`}</Text> : null}
       </View>
       {rows.map((r, i) => (
-        <View key={i} style={s.row} testID={`checklist-${id}-row-${i}`}>
-          <View style={[s.dot, r.done && s.dotDone]} accessibilityLabel={r.done ? "Done" : "Not done"}>{r.done ? <Text style={s.tick}>{"✓"}</Text> : null}</View>
-          <Text style={[s.text, !r.done && s.textOpen]}>{r.text}</Text>
-        </View>
+        <Row
+          key={i} id={`${id}-${i}`} title={r.text}
+          leading={<View style={[s.dot, r.done && s.dotDone]} accessibilityLabel={r.done ? "Done" : "Not done"}>{r.done ? <Text style={s.tick}>{"\u2713"}</Text> : null}</View>}
+        />
       ))}
     </View>
   );

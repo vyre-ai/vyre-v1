@@ -106,6 +106,16 @@ async function main(): Promise<void> {
 
     // ---- the agent is the person's assistant; the button path: an Ask on the Vault item with the opening message and its title
     const agentId = (await ok("agents.create", { name: "Assistant", role: "You are the person's assistant." })).agent.agentId as string;
+    // Agents never hold Owner or Admin, and connectors.manage belongs to those two. As an admin would in Console > People, give the assistant a role that carries just that one more permission.
+    const roles = (await ok("access.roles.list", {})).roles as { id: string; name: string; builtIn: boolean; permissions: string[] }[];
+    const member = roles.find((r) => r.builtIn && /member/i.test(r.name)) ?? roles.find((r) => r.builtIn && !/owner|admin/i.test(r.name));
+    if (!member) throw new Error("no member role to clone");
+    const builder = (await ok("access.roles.create", { name: "Connector builder", cloneFrom: member.id, assignableToAgents: true })).role as { id: string; permissions: string[] };
+    const wanted = [...new Set([...builder.permissions, "connectors.manage"])];
+    const preview = await ok("access.roles.preview", { roleId: builder.id, permissions: wanted });
+    await ok("access.roles.apply", { roleId: builder.id, permissions: wanted, previewHash: preview.previewHash });
+    await ok("access.roles.assign", { subject: { kind: "agent", id: agentId }, roleId: builder.id });
+    say("setup", "the assistant holds the Connector builder role (member plus connectors.manage)");
     const first = connectorOpening({ name: app.name, handle: item.handle });
     const title = `Add ${app.name} to Automations`;
     const thread = (await ok("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "vault_item", scopeId: item.id, first, title })).thread.threadId as string;
