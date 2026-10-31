@@ -3,11 +3,11 @@
 
 import type { SeamDriverDeps } from "./index.ts";
 
-export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | "space">): (plan: { method: string; url: string; vaultItemId: string; header?: string; prefix?: string }) => Promise<{ status: number }> {
-  return async (plan) => {
+export function connectorReadSender(d: Pick<SeamDriverDeps, "vault" | "fetch" | "space">): (plan: { method: string; url: string; vaultItemId: string; header?: string; prefix?: string }, asker?: string) => Promise<{ status: number }> {
+  return async (plan, asker) => {
     let value = "";
     try {
-      value = await d.vault.secret(plan.vaultItemId, d.space);
+      value = await d.vault.secret(plan.vaultItemId, d.space, asker);
     } catch {
       return { status: 0 };
     }

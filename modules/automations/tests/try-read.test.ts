@@ -137,3 +137,10 @@ test("the header and prefix the docs name reach the sender, and a bad header nam
   await tryConnectorRead(ctx, readInput({ header: "Bad Header\r\nX: y" }));
   assert.deepEqual(plans, [{ ...PLAN, header: "X-Api-Key", prefix: "" }, PLAN]);
 });
+
+test("the read is made for the person who asked, so a key in their own folder can be released to them", async () => {
+  const askers: unknown[] = [];
+  setConnectorReadSender(async (_plan, asker) => { askers.push(asker); return { status: 200 }; });
+  await tryConnectorRead({ ...ctx, principal: { kind: "agent", id: "agt_x" }, actingFor: "usr_dana" } as AutoCtx, readInput());
+  assert.deepEqual(askers, ["usr_dana"]);
+});

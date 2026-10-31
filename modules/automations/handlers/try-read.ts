@@ -5,7 +5,8 @@ import type { LevelDb } from "../connector-level.ts";
 import { planSafeTest, runSafeTest } from "../connector-test.ts";
 import type { AutoCtx } from "../projections.ts";
 
-type ReadSender = (plan: { method: string; url: string; vaultItemId: string; header?: string; prefix?: string }) => Promise<{ status: number }>;
+/** `asker` is the person the read is for: a key in their own Mine folder is released to them and no one else. */
+type ReadSender = (plan: { method: string; url: string; vaultItemId: string; header?: string; prefix?: string }, asker?: string) => Promise<{ status: number }>;
 
 const HEADER = /^[A-Za-z0-9-]{1,40}$/;
 const PREFIX = /^[\x20-\x7e]{0,20}$/;
@@ -72,7 +73,7 @@ export async function tryConnectorRead(ctx: AutoCtx, input: unknown): Promise<{ 
 
   let status: number | undefined;
   const sender = readSender;
-  const outcome = await runSafeTest(planned.plan, async (plan) => { const r = await sender({ ...plan, ...(fields.header ? { header: fields.header } : {}), ...(fields.prefix !== undefined ? { prefix: fields.prefix } : {}) }); status = r.status; return r; });
+  const outcome = await runSafeTest(planned.plan, async (plan) => { const r = await sender({ ...plan, ...(fields.header ? { header: fields.header } : {}), ...(fields.prefix !== undefined ? { prefix: fields.prefix } : {}) }, ctx.actingFor ?? ctx.principal?.id); status = r.status; return r; });
   // the status the app answered, so the person sees "401" and not only "did not succeed"; 0 means the request never got an answer
   const answered = status !== undefined && status > 0 ? { status } : {};
   if (outcome.level === "tested") {

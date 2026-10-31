@@ -39,7 +39,13 @@ fs.mkdirSync(OUT, { recursive: true });
 const scrub = (s: string): string => s.split(TOKEN).join("[token]").split(APP_KEY).join("[app key]").replace(/sk-ant-[A-Za-z0-9_-]{6,}/g, "[token]");
 const lines: string[] = [];
 const say = (who: string, text: string): void => { const l = `**${who}** ${scrub(text)}`; lines.push(l); console.log(l.slice(0, 400)); };
-const save = (): void => { fs.writeFileSync(path.join(OUT, "transcript.md"), `# Add to Automations, real run on ${app.name}\n\n${lines.join("\n\n")}\n`); };
+let threadForDump = "";
+async function dump(): Promise<void> {
+  if (!threadForDump) return;
+  try { const r = await call("chat.messages.list", { threadId: threadForDump }); fs.writeFileSync(path.join(OUT, "messages.json"), scrub(JSON.stringify(r.data, null, 1))); } catch { /* the daemon is gone */ }
+}
+const save = (): void => {
+ fs.writeFileSync(path.join(OUT, "transcript.md"), `# Add to Automations, real run on ${app.name}\n\n${lines.join("\n\n")}\n`); };
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const core = bootCore();
@@ -103,6 +109,12 @@ async function main(): Promise<void> {
     const item = (await ok("vault.item.put", { folderId: keysFolder, name: app.name, kind: "api_key", fields: [{ key: "api_key", value: APP_KEY, secret: true }] })).item;
     say("setup", `Vault: AI account ${provider.providerKey} (${provider.state}); item ${item.name} handle ${item.handle}`);
     await ok("engine.pool.status");
+    if (process.env["E2E_PROBE"]) {
+      // the read test by itself, as the person: which status comes back, and what the network seam saw
+      const r = await call("automations.try_read", { method: "GET", path: "/external/v1/meetings?limit=1", domains: [app.host], vaultItemId: `${item.handle}.api_key`, header: "X-Api-Key", prefix: "" });
+      say("probe", `try_read -> ${r.status} ${JSON.stringify(r.data)}; seam saw ${JSON.stringify(requests)}`);
+      return;
+    }
 
     // ---- the agent is the person's assistant; the button path: an Ask on the Vault item with the opening message and its title
     const agentId = (await ok("agents.create", { name: "Assistant", role: "You are the person's assistant." })).agent.agentId as string;
@@ -119,6 +131,7 @@ async function main(): Promise<void> {
     const first = connectorOpening({ name: app.name, handle: item.handle });
     const title = `Add ${app.name} to Automations`;
     const thread = (await ok("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "vault_item", scopeId: item.id, first, title })).thread.threadId as string;
+    threadForDump = thread;
     say("person", first);
     await ok("threads.set_mode", { threadId: thread, mode: "auto" });
 
@@ -170,7 +183,7 @@ async function main(): Promise<void> {
         const t = (await ok("threads.get", { threadId: thread })).thread;
         say("debug", `thread ${JSON.stringify({ mode: t.mode, running: t.running, state: t.state, waiting: t.waiting }).slice(0, 200)}; messages ${msgs.map((m) => `${m.author?.kind}:${(m.blocks ?? []).map((b) => `${b.type}${b.state ? `/${b.state}` : ""}`).join("+") || "text"}`).join(" ")}`);
       }
-      if (!published && Date.now() - lastNew > 150_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 150 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
+      if (!published && Date.now() - lastNew > 300_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 300 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
       await sleep(1500);
     }
     if (!published) throw new Error("no connector was published before the deadline");
@@ -209,7 +222,8 @@ async function main(): Promise<void> {
   } catch (e) {
     say("ERROR", e instanceof Error ? e.message : String(e));
     save();
+    await dump();
     process.exitCode = 1;
-  } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally { await dump(); await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); setTimeout(() => process.exit(process.exitCode ?? 0), 500); }
 }
 await main();

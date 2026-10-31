@@ -429,7 +429,7 @@ export default defineManifest({
         path: t.str(),
         domains: t.arr(t.str()),
         markedSafe: t.opt(t.bool()),
-        vaultItemId: t.str(),
+        vaultItemId: t.str({ description: 'The Vault handle with its field (#Name.api_key) or an item id. The key is released to the person asking, never returned.' }),
         actionKey: t.opt(t.str()),
         header: t.opt(t.str({ description: 'The header the app wants the key in. Default Authorization.' })),
         prefix: t.opt(t.str({ description: 'Text before the key in that header. Default Bearer for Authorization, none otherwise.' })),
