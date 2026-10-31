@@ -24,11 +24,13 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.drive.copy_file": Handler<"google.drive.copy_file", X>;
   "google.drive.create_folder": Handler<"google.drive.create_folder", X>;
   "google.drive.download_file": Handler<"google.drive.download_file", X>;
+  "google.drive.download_revision": Handler<"google.drive.download_revision", X>;
   "google.drive.export_file": Handler<"google.drive.export_file", X>;
   "google.drive.get_file": Handler<"google.drive.get_file", X>;
   "google.drive.get_permissions": Handler<"google.drive.get_permissions", X>;
   "google.drive.list_changes": Handler<"google.drive.list_changes", X>;
   "google.drive.list_files": Handler<"google.drive.list_files", X>;
+  "google.drive.list_revisions": Handler<"google.drive.list_revisions", X>;
   "google.drive.share_file": Handler<"google.drive.share_file", X>;
   "google.drive.stop_watch": Handler<"google.drive.stop_watch", X>;
   "google.drive.trash_file": Handler<"google.drive.trash_file", X>;

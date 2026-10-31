@@ -6651,6 +6651,29 @@
     },
     {
       "blocks": [],
+      "cap": "automations.vault_usage",
+      "deferred": false,
+      "description": "Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "handle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_vault_usage",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.versions",
       "deferred": false,
       "description": "List versions of an Automation (One History)",
@@ -20407,7 +20430,8 @@
               "site_promote",
               "signature_send",
               "spend_raise",
-              "signin_change"
+              "signin_change",
+              "approve"
             ],
             "type": "string"
           },
@@ -20499,7 +20523,8 @@
               "site_promote",
               "signature_send",
               "spend_raise",
-              "signin_change"
+              "signin_change",
+              "approve"
             ],
             "type": "string"
           },
@@ -20592,7 +20617,8 @@
               "site_promote",
               "signature_send",
               "spend_raise",
-              "signin_change"
+              "signin_change",
+              "approve"
             ],
             "type": "string"
           },
@@ -23029,6 +23055,47 @@
     },
     {
       "blocks": [],
+      "cap": "google.drive.download_revision",
+      "deferred": true,
+      "description": "Download one revision of a Drive file into a blob",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId",
+          "revisionId"
+        ],
+        "type": "object"
+      },
+      "name": "google_drive_download_revision",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.drive.export_file",
       "deferred": true,
       "description": "Export a Google document, sheet or slide as PDF, DOCX, XLSX or text",
@@ -23197,6 +23264,43 @@
     },
     {
       "blocks": [],
+      "cap": "google.drive.list_revisions",
+      "deferred": true,
+      "description": "The revisions Drive keeps of a file, with who saved each",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "google_drive_list_revisions",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.drive.share_file",
       "deferred": true,
       "description": "Share a Drive file with people; Google emails them",
@@ -23313,7 +23417,7 @@
       "blocks": [],
       "cap": "google.drive.upload_file",
       "deferred": true,
-      "description": "Upload a Space file into Drive",
+      "description": "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -23345,10 +23449,16 @@
             "minLength": 1,
             "type": "string"
           },
+          "ifRevision": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
           "parentId": {
+            "type": "string"
+          },
+          "remoteId": {
             "type": "string"
           }
         },
@@ -33432,6 +33542,36 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.editors",
+      "deferred": false,
+      "description": "Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileIds": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fileIds"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_editors",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.get",
       "deferred": false,
       "description": "Read one mount: state, lag, pending changes and conflicts (the sync line of a folder)",
@@ -33452,6 +33592,32 @@
         "type": "object"
       },
       "name": "mounts_get",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.history",
+      "deferred": false,
+      "description": "The provider's revisions of a file, newest first, with who saved each (the person or agent for edits sent from Vyre)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_history",
       "planMode": "allowed",
       "toolset": "files",
       "v": 1
@@ -33487,6 +33653,75 @@
       },
       "name": "mounts_list",
       "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.nudge",
+      "deferred": false,
+      "description": "A provider push notice (Drive channel, Graph subscription) or an app showing a mount asks for a sync pass (system)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channelId": {
+            "type": "string"
+          },
+          "mountId": {
+            "examples": [
+              "mnt_a1b2c3"
+            ],
+            "pattern": "^mnt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "replacedBy": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "google",
+              "microsoft",
+              "client"
+            ],
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_nudge",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.open",
+      "deferred": false,
+      "description": "Open a file of a mount: ask the provider what it holds now and fetch the content only when the copy in Vyre is not that version",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_open",
+      "planMode": "blocked",
       "toolset": "files",
       "v": 1
     },
@@ -33541,6 +33776,36 @@
         "type": "object"
       },
       "name": "mounts_remove",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.restore",
+      "deferred": false,
+      "description": "Put an earlier revision of a file back as the newest; it goes out like any edit",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "revisionId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_restore",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -34621,6 +34886,50 @@
     },
     {
       "blocks": [],
+      "cap": "ms.drive.download_version",
+      "deferred": true,
+      "description": "Download one version of an item into a blob",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "versionId"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_download_version",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.drive.get_item",
       "deferred": true,
       "description": "Read item metadata",
@@ -34703,6 +35012,46 @@
     },
     {
       "blocks": [],
+      "cap": "ms.drive.list_versions",
+      "deferred": true,
+      "description": "The versions OneDrive or SharePoint keeps of an item, with who saved each",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_list_versions",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.drive.share_item",
       "deferred": true,
       "description": "Create a sharing link or invite people; Microsoft emails them",
@@ -34771,7 +35120,7 @@
       "blocks": [],
       "cap": "ms.drive.upload_item",
       "deferred": true,
-      "description": "Upload a Space file into OneDrive or SharePoint",
+      "description": "Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -34809,7 +35158,13 @@
             "minLength": 1,
             "type": "string"
           },
+          "ifMatch": {
+            "type": "string"
+          },
           "name": {
+            "type": "string"
+          },
+          "remoteId": {
             "type": "string"
           }
         },
