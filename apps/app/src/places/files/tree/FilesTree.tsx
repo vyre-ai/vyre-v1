@@ -254,6 +254,12 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
               />
             ) : null}
             <Kids parent={null} depth={0} c={c} query={q} />
+            {data.nav.openLive && q.length === 0 ? (
+              <SlotRow
+                id="folder-live" title="Live folders" selected={data.liveView === true} leadWidth={18 + 7 + 16 + 6}
+                lead={<View style={styles.subLead}><View style={styles.chev} /><Glyph name="link" size={16} /></View>} onPress={() => data.nav.openLive?.()}
+              />
+            ) : null}
             {data.nav.connectFolder && q.length === 0 ? (
               <SlotRow
                 id="folder-connect" title="Connect a folder…" leadWidth={18 + 7 + 16 + 6}
