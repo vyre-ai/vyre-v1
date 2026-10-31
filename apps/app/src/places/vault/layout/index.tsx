@@ -51,7 +51,7 @@ interface QuietNote { id: number; text: string; undo: (() => Promise<void> | voi
 const LINE_MS = 9000;
 
 export type VaultRoute =
-  | { surface: "layout"; addProvider?: true }
+  | { surface: "layout"; addProvider?: true; addApp?: string }
   | { surface: "share"; itemId: string }
   | { surface: "export"; folderId: string }
   | { surface: "advanced" }
@@ -81,6 +81,9 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   // A link that asks for the sign-in (an agent with no AI account) opens the sheet even when the Vault is already showing.
   const routedAdd = route.surface === "layout" && route.addProvider === true;
   useEffect(() => { if (routedAdd) setAddingProvider(true); }, [routedAdd]);
+  // The Inbox's Twilio tile asks for the Add form on that app's template.
+  const routedApp = route.surface === "layout" ? route.addApp : undefined;
+  useEffect(() => { if (routedApp) setAdding({ app: routedApp }); }, [routedApp]);
   const [importing, setImporting] = useState<boolean>(sheet?.importFrom !== undefined);
   const [addField, setAddField] = useState(false);
   const [lastFolder, setLastFolder] = useState<string | undefined>(undefined);
