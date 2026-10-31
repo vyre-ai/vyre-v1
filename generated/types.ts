@@ -20398,27 +20398,6 @@ export type NetworkMyComputersOut = {
       };
     }>;
 };
-export type NetworkPhoneIn = Record<string, unknown>;
-export type NetworkPhoneOut = {
-  state: "none" | "claiming" | "claimed" | "releasing" | "failed";
-  name?: string;
-  nickname?: string;
-  url?: string;
-  link?: string;
-  online: boolean;
-  detail?: string;
-};
-export type NetworkPhoneClaimIn = {
-  name: string;
-  nickname?: string;
-};
-export type NetworkPhoneClaimOut = {
-  state: "claiming";
-};
-export type NetworkPhoneReleaseIn = Record<string, unknown>;
-export type NetworkPhoneReleaseOut = {
-  state: "none" | "releasing";
-};
 export type NetworkPublicHostnamesIn = Record<string, unknown>;
 export type NetworkPublicHostnamesOut = {
   hosts: Array<{
@@ -32467,9 +32446,6 @@ export interface CapMap {
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
   "network.my_computer_remove": { in: NetworkMyComputerRemoveIn; out: NetworkMyComputerRemoveOut };
   "network.my_computers": { in: NetworkMyComputersIn; out: NetworkMyComputersOut };
-  "network.phone": { in: NetworkPhoneIn; out: NetworkPhoneOut };
-  "network.phone_claim": { in: NetworkPhoneClaimIn; out: NetworkPhoneClaimOut };
-  "network.phone_release": { in: NetworkPhoneReleaseIn; out: NetworkPhoneReleaseOut };
   "network.public_hostnames": { in: NetworkPublicHostnamesIn; out: NetworkPublicHostnamesOut };
   "network.relay_set": { in: NetworkRelaySetIn; out: NetworkRelaySetOut };
   "network.server_approve": { in: NetworkServerApproveIn; out: NetworkServerApproveOut };

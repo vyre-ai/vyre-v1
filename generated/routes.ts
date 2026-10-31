@@ -21343,60 +21343,6 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/network/phone",
-    "cap": "network.phone",
-    "v": 1,
-    "module": "network",
-    "effects": "read",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/phone_claim",
-    "cap": "network.phone_claim",
-    "v": 1,
-    "module": "network",
-    "effects": "write",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "high",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/phone_release",
-    "cap": "network.phone_release",
-    "v": 1,
-    "module": "network",
-    "effects": "write",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
     "path": "/v1/network/public_hostnames",
     "cap": "network.public_hostnames",
     "v": 1,
@@ -22262,10 +22208,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/plugins/marketplaces/list",
@@ -27924,10 +27867,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sync/health",

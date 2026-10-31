@@ -37148,68 +37148,6 @@
     },
     {
       "blocks": [],
-      "cap": "network.phone",
-      "deferred": false,
-      "description": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "network_phone",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.phone_claim",
-      "deferred": false,
-      "description": "Claim a name like alex.vyre.run once, so a phone reaches this computer there while it is on and online. The relay only passes sealed bytes",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "name": {
-            "examples": [
-              "alex"
-            ],
-            "type": "string"
-          },
-          "nickname": {
-            "examples": [
-              "home-laptop"
-            ],
-            "maxLength": 40,
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "type": "object"
-      },
-      "name": "network_phone_claim",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.phone_release",
-      "deferred": false,
-      "description": "Give up the phone address. The name stays reserved to this computer",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "network_phone_release",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "network.public_hostnames",
       "deferred": false,
       "description": "Public hostnames and /hooks endpoints served by this Space",
