@@ -234,6 +234,7 @@ async function main(): Promise<void> {
     if (/sk-ant|pit-[0-9a-f-]{12,}/i.test(fs.readFileSync(path.join(OUT, note("transcript") + ".md"), "utf8")) || fs.readFileSync(path.join(OUT, note("transcript") + ".md"), "utf8").includes(LOCATION)) throw new Error("the transcript holds a secret");
   } catch (e) {
     say("ERROR", e instanceof Error ? e.message : String(e));
+    try { fs.writeFileSync(path.join(OUT, note("host-log") + ".txt"), hostLines(800)); } catch { /* the log is a help, not the result */ }
     save();
     process.exitCode = 1;
   } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
