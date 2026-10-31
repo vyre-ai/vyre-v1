@@ -26,6 +26,7 @@ Read the SyncSpec a synced type was made from (so Edit mapping can open the agen
 ```ts
 type In = {
   type?: string;
+  account?: string;
   connector?: string;
 };
 ```
@@ -40,6 +41,7 @@ type Out = {
       domain: string;
       docsUrl?: string;
       logoHint?: string;
+      account?: string;
     };
     auth: {
       vaultHandle: string;
@@ -114,6 +116,7 @@ type Out = {
         webhook?: {
           events: Array<string>;
           subscribePath?: string;
+          evidence?: string;
           manualUrl?: boolean;
           signature?: string;
         };
@@ -166,6 +169,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "connector": "hubspot",
     "type": "contact"
   },
@@ -175,6 +179,7 @@ type Out = {
     "connector": "hubspot",
     "spec": {
       "app": {
+        "account": "example",
         "docsUrl": "example",
         "domain": "api.example.com",
         "logoHint": "example",
@@ -280,6 +285,7 @@ type Out = {
             "events": [
               "example"
             ],
+            "evidence": "example",
             "manualUrl": true,
             "signature": "example",
             "subscribePath": "example"

@@ -31,6 +31,7 @@ type In = {
       domain: string;
       docsUrl?: string;
       logoHint?: string;
+      account?: string;
     };
     auth: {
       vaultHandle: string;
@@ -105,6 +106,7 @@ type In = {
         webhook?: {
           events: Array<string>;
           subscribePath?: string;
+          evidence?: string;
           manualUrl?: boolean;
           signature?: string;
         };
@@ -173,6 +175,7 @@ type Out = {
   "input": {
     "spec": {
       "app": {
+        "account": "example",
         "docsUrl": "example",
         "domain": "api.example.com",
         "logoHint": "example",
@@ -278,6 +281,7 @@ type Out = {
             "events": [
               "example"
             ],
+            "evidence": "example",
             "manualUrl": true,
             "signature": "example",
             "subscribePath": "example"

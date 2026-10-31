@@ -26,6 +26,7 @@ Bind a record type (new or existing) to a remote object with field directions, m
 ```ts
 type In = {
   type: string;
+  account?: string;
   connectionId: string;
   remote: string;
   fields: Array<{
@@ -35,6 +36,7 @@ type In = {
       transform?: string;
       relation?: string;
       inverse?: string;
+      constant?: string;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -57,6 +59,7 @@ type Out = {
   syncedType: {
     syncTypeId: string;
     type: string;
+    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -68,6 +71,7 @@ type Out = {
         transform?: string;
         relation?: string;
         inverse?: string;
+        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -106,12 +110,14 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "conflict": "newest",
     "connectionId": "con_a1b2c3",
     "createAtSource": true,
     "deletes": "off",
     "fields": [
       {
+        "constant": "example",
         "dir": "pull",
         "inverse": "email",
         "key": "email",
@@ -135,6 +141,7 @@ type Out = {
   },
   "output": {
     "syncedType": {
+      "account": "example",
       "app": {
         "domain": "example",
         "title": "example"
@@ -147,6 +154,7 @@ type Out = {
       "deletes": "off",
       "fields": [
         {
+          "constant": "example",
           "dir": "pull",
           "inverse": "email",
           "key": "email",

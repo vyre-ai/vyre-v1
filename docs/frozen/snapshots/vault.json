@@ -46,7 +46,7 @@
     "vault.site_rules.list@1": "f277e775c5ec401b50797aed11872b0b68d39a98af20fe109bcc450b2af71ab7",
     "vault.site_rules.set@1": "4ac67994838ecc540521d39000feb0c8c6d5925770f3991632ee5eafef40323a",
     "vault.unshare@1": "b4984503a67124e7fe9078618c3b3902fd6c656351bf1f03fd41ad21db3737ed",
-    "vault.use@1": "df2cd1b1a6680233fc83640d1f248e507b652fb237f647dafe7f2c7a43e609e2"
+    "vault.use@1": "4fa0768532bafc458bdb261b49ad237fc53ad277b22a76bcbe38fa024d8b58ee"
   },
   "events": {
     "provider.added": "0ff1c2dba11c409d1b105a6448e70b60a93505b95a5dc359285c58149a7389b6",
