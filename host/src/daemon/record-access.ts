@@ -13,7 +13,9 @@ const object=(value:unknown):Record<string,unknown>=>value!==null&&typeof value=
 export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapshot;now():number;fresh():boolean;refresh?():Promise<void>;warn?(info:{cap:string;type:string;traceId:string;returned:number;allowed:number;missing:string[]}):void}){
  const cursors=new Map<string,{key:string;cursor:string;expires:number;skip:number}>();
  const random=()=>Array.from(crypto.getRandomValues(new Uint8Array(24)),byte=>byte.toString(16).padStart(2,"0")).join("");
- function related(resourceId:string|null,type:string):boolean{const snapshot=ports.snapshot();return resourceId!==null&&(snapshot.chain(type)?.some(parent=>parent.id===resourceId)===true||snapshot.chain(resourceId)?.some(parent=>parent.id===type)===true);}
+ function related(resourceId:string|null,type:string):boolean{const snapshot=ports.snapshot();return resourceId!==null&&(snapshot.chain(type)?.some(parent=>parent.id===resourceId)===true||snapshot.chain(resourceId)?.some(parent=>parent.id===type)===true||snapshot.resource(resourceId)?.home===type);}
+ // a record cut off from its type (Only me) is still a row of the type, but no grant on the type reaches it
+ function inType(snapshot:AccessSnapshot,resource:{id:string;home?:string|undefined},type:string):boolean{return resource.home===type||snapshot.chain(resource.id)?.some(parent=>parent.id===type)===true;}
  function subjects(req:Req):string[]{const output=[req.principal,...(req.actingFor?[req.actingFor]:[])];for(let at=0;at<output.length;at++){const info=ports.snapshot().info(output[at]!);if(info?.p.kind==="svc"&&info.p.owner&&!output.includes(info.p.owner))output.push(info.p.owner);}return output;}
  function assertFields(req:Req,type:string,labels:Readonly<Record<string,number>>,touched:readonly string[],trace:string):void{
   if(!touched.length)return;
@@ -41,7 +43,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
     const resource=grant.row.resource_id?snapshot.resource(grant.row.resource_id):undefined;
     if(resource&&related(resource.id,type))return true;
    }
-   return [...snapshot.allResources()].some(resource=>resource.type==="record"&&resource.owner_id===principal&&snapshot.chain(resource.id)?.some(parent=>parent.id===type));
+   return [...snapshot.allResources()].some(resource=>resource.type==="record"&&resource.owner_id===principal&&inType(snapshot,resource,type));
   });
  }
  function references(value:unknown):string[]{const output:string[]=[];const visit=(item:unknown):void=>{if(Array.isArray(item)){item.forEach(visit);return;}if(!item||typeof item!=="object")return;const row=object(item);if(typeof row["field"]==="string")output.push(row["field"]);Object.values(row).forEach(visit);};visit(value);return output;}
@@ -66,11 +68,12 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};
    const snapshot=ports.snapshot(),parent=authorize(snapshot,req),scope=parent.scope;
    if(parent.effect==="hold")throw fail("permission.needs_approval",trace);
-   if(parent.effect==="allow"&&scope&&!scope.rowFilter&&!scope.hiddenFields.length&&scope.labelCeiling>=3&&!seed.provider)return null;
-   const children=[...snapshot.allResources()].filter(resource=>resource.type==="record"&&snapshot.chain(resource.id)?.some(parent=>parent.id===type));
+   const cut=snapshot.cutFrom(type)>0;
+   if(parent.effect==="allow"&&scope&&!scope.rowFilter&&!scope.hiddenFields.length&&scope.labelCeiling>=3&&!seed.provider&&!cut)return null;
+   const children=[...snapshot.allResources()].filter(resource=>resource.type==="record"&&inType(snapshot,resource,type));
    // Keep the existing indexed query/FTS path for unrestricted callers. The
    // scoped path below pages authorized rows, rather than filtering a raw page.
-   if(!seed.provider&&parent.effect==="allow"&&scope&&!scope.rowFilter&&!scope.hiddenFields.length&&children.every(resource=>resource.label<=scope.labelCeiling)){
+   if(!seed.provider&&!cut&&parent.effect==="allow"&&scope&&!scope.rowFilter&&!scope.hiddenFields.length&&children.every(resource=>resource.label<=scope.labelCeiling)){
     const definition=await ports.store().describe(type);
     if(definition?.fields.every(field=>(seed.labels?.[field.name]??0)<=scope.labelCeiling&&snapshot.fieldLabel(type,field.name)<=scope.labelCeiling&&snapshot.fieldLabel("record",field.name)<=scope.labelCeiling))return null;
    }
