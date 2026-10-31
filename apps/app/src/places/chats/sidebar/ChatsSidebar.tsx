@@ -25,7 +25,7 @@ import {
 import type { Agent, ChatRow, Entry, Filter, Group, NeedsItem, RecentOut, SectionError, SectionKey } from "./model.ts";
 import { REPORT_PROBLEM_EVENT } from "../../../../../../ui/src/States/index.tsx";
 import { displayTitle } from "./titles.ts";
-import { Badge, EmptyLine, Face, GroupLabel, Glyph, LeadGlyph, SectionHead, Tool, UnreadDot } from "./parts.tsx";
+import { Badge, EmptyLine, Face, FaceStack, GroupLabel, Glyph, LeadGlyph, SectionHead, Tool, UnreadDot } from "./parts.tsx";
 import type { Channel } from "./model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { nameOr } from "../names.ts";
@@ -345,7 +345,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
             {(over) => (
               <Row
                 id={e.key} title={displayTitle(r, data.clock().offsetMin)} selected={sel} emphasis={r.unread > 0} onPress={() => open(e)}
-                leading={<View style={{ marginRight: 6 }}><Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} /></View>}
+                leading={<View style={{ marginRight: 6 }}>{r.members ? <FaceStack members={r.members} size={16} /> : <Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} />}</View>}
                 trailing={
                   <View style={st.tools}>
                     {r.starred && !over ? <Glyph name="star" size={12} color="var(--ink-4)" fill="var(--ink-4)" /> : null}

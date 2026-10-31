@@ -41,6 +41,8 @@ export interface ChatRow {
   /** The agent's id when the chat is with an agent: the face is seeded by it. */
   whoId?: string | undefined;
   kind: "person" | "agent";
+  /** A group chat: up to three of its agents, drawn as stacked faces. Absent for a chat with one. */
+  members?: { id: string; name: string }[] | undefined;
   unread: number;
   working: boolean;
   starred: boolean;
@@ -57,6 +59,7 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string): Chat
     who: agent !== undefined ? agentName(agent) : item.title,
     ...(agent !== undefined ? { whoId: agent } : {}),
     kind: agent !== undefined ? "agent" : "person",
+    ...(item.agents.length > 1 ? { members: item.agents.slice(0, 3).map((id) => ({ id, name: agentName(id) })) } : {}),
     unread: item.unread,
     working: item.working,
     starred: item.starred,
