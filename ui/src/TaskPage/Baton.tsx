@@ -18,6 +18,7 @@ const STEP_TIP: Record<string, string> = { assigned: "Does the work", review: "C
 /** Do, Review, Approve, Done: a face under each step that has someone, the holder lit, finished steps ticked. */
 export function Stepper({ steps, namer }: { steps: readonly BatonStep[]; namer: Namer }): ReactElement {
   return <View testID="baton-stepper" accessibilityRole="list" style={s.stepper}>
+    {/* ui-rows-lint: not a list (four steps of a stepper, not rows) */}
     {steps.map((step, i) => <View key={step.key} style={s.stepWrap}>
       {i > 0 ? <View style={[s.link, steps[i - 1]!.lit === "past" && s.linkDone]} /> : null}
       <View accessibilityRole="text" testID={`baton-step-${step.key}`} accessibilityLabel={`${step.title}${step.who ? `, ${namer.name(step.who.id)}` : ""}${step.lit === "now" ? ", now" : step.lit === "past" ? ", done" : ""}`} {...tip(`${STEP_TIP[step.key]}${step.who ? `: ${namer.name(step.who.id)}` : ""}`)} style={[s.step, step.lit === "now" && s.stepNow]}>
@@ -35,6 +36,7 @@ export function BriefCard({ text, doneMeans }: { text: string; doneMeans: readon
   return <Pressable testID="baton-brief" accessibilityRole="button" accessibilityLabel="Brief" accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)} {...tip(open ? "Collapse the brief" : "Open the brief")} style={s.card}>
     <View style={s.cardHead}><Text style={s.cardTitle}>Brief</Text><Text style={s.cardMeta}>{open ? "−" : "+"}</Text></View>
     <Text numberOfLines={open ? undefined : 2} style={s.cardBody}>{body}</Text>
+    {/* ui-rows-lint: not a list (a few checklist lines in a card) */}
     {open && doneMeans.length > 0 ? <View style={s.doneBox}><Text style={s.cardTitle}>Done means</Text>{doneMeans.map((d) => <Text key={d} style={s.cardBody}>{`• ${d}`}</Text>)}</View> : null}
   </Pressable>;
 }
@@ -44,6 +46,7 @@ export function DeliverableCard({ deliverable, by }: { deliverable: Deliverable;
   return <View testID="baton-deliverable" style={s.card}>
     <View style={s.cardHead}><Text style={s.cardTitle}>Handed in</Text>{by ? <Text style={s.cardMeta}>{by}</Text> : null}</View>
     {deliverable.summary ? <Text style={s.cardBody}>{deliverable.summary}</Text> : null}
+    {/* ui-rows-lint: not a list (fields and lines inside a card) */}
     {deliverable.fields.map((f) => <View key={f.name} style={s.field}><Text style={s.fieldName}>{f.name}</Text><Text selectable style={s.cardBody}>{f.value}</Text></View>)}
   </View>;
 }
@@ -53,6 +56,7 @@ export function FixesList({ fixes }: { fixes: readonly string[] }): ReactElement
   const [done, setDone] = useState<ReadonlySet<number>>(new Set());
   return <View testID="baton-fixes" style={s.card}>
     <Text style={s.cardTitle}>Fixes asked for</Text>
+    {/* ui-rows-lint: not a list (fields and lines inside a card) */}
     {fixes.map((fix, i) => <Pressable key={`${i}-${fix}`} accessibilityRole="checkbox" accessibilityLabel={fix} accessibilityState={{ checked: done.has(i) }} onPress={() => setDone((cur) => { const n = new Set(cur); if (n.has(i)) n.delete(i); else n.add(i); return n; })} style={s.fix}>
       <View style={[s.box, done.has(i) && s.boxOn]}>{done.has(i) ? <Text style={s.boxTick}>{"✓"}</Text> : null}</View>
       <Text style={[s.cardBody, { flex: 1 }, done.has(i) && s.struck]}>{`${i + 1}. ${fix}`}</Text>
@@ -86,6 +90,7 @@ export function BatonActions({ move, wanted, busy, onCall }: { move: Exclude<MyM
   };
   return <View testID="baton-actions" style={s.card}>
     {move === "work" ? <>
+      {/* ui-rows-lint: not a list (fields and lines inside a card) */}
       {wanted.map((f) => <View key={f.name} style={s.field}><Text style={s.fieldName}>{f.required ? f.name : `${f.name} (optional)`}</Text><TextInput accessibilityLabel={f.name} value={outputs[f.name] ?? ""} onChangeText={(v) => setOutputs({ ...outputs, [f.name]: v })} editable={!busy} multiline style={s.input} /></View>)}
       <TextInput accessibilityLabel="What you did" placeholder="What you did, in one line" value={text} onChangeText={setText} editable={!busy} style={s.input} />
       <View style={s.row}>{btn("Hand in", submit, true, "Pass it to the next step")}</View>
