@@ -14,11 +14,23 @@ import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { closeNoAccountTasks, ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import type { EngineCtx } from "./projections.ts";
+import { defaultPlan } from "./runtime.ts";
+import { spawnCli } from "./session.ts";
+import type { CliProcess, LaunchSpec } from "../../agent/src/drivers/cli/types.ts";
 
 // Every engine capability first makes sure the runtime exists on a daemon that wired the engine seam (the first call builds it; a daemon without the seam leaves it unbound).
 export const handlers: Record<string, Handler> = Object.fromEntries(
   Object.entries(table as unknown as Record<string, Handler>).map(([name, fn]) => [name, (async (ctx, input) => { await ensureRuntime(ctx as never); return fn(ctx, input); }) as Handler]),
 );
+
+/**
+ * What a computer that joined the Space runs a pinned chat's engine with (host/src/compute/node.ts cliLauncher): the CLI inside this machine's own sandbox, with the sign-in the Space filled into its
+ * environment. Without a sandbox this platform can build, it refuses and nothing runs unwrapped.
+ */
+export function nodeCliLauncher(dataDir: string): { spawn(spec: LaunchSpec): Promise<CliProcess> } {
+  const plan = defaultPlan(dataDir);
+  return { async spawn(spec) { return spawnCli(await plan(), spec, spec.argv); } };
+}
 
 /** The host half arrives here at boot (ruling 31 and 32): the runtime opens real sessions through it. */
 export const hostSeams = { setEngineHost };

@@ -11,6 +11,7 @@ const version = process.env["VYRE_VERSION"] ?? "0.0.0-dev";
 /** `vyred --role compute --server <address> --join <code>`: a guest computer for a Space (host/src/compute/node.ts). It holds no Space of its own. */
 async function runCompute(config: DaemonConfig): Promise<number> {
   let host: unknown;
+  let cli: { spawn(spec: unknown): Promise<never> } | undefined;
   const { fileExportsImporter } = await import("../loader.ts");
   const { createComputersHost } = await import("../seams/computers-host.ts");
   const importSeams = (root: string): Promise<unknown> => fileExportsImporter(root)("computers");
@@ -39,6 +40,16 @@ async function runCompute(config: DaemonConfig): Promise<number> {
             return s.nodeRun(host, kind, input);
           },
         };
+      },
+      // a turn the person pinned to this computer: the engine module's own launcher (the CLI in this machine's sandbox), reached through its exports like the agent computers module above
+      cliLauncher: {
+        async spawn(spec) {
+          const root = fileURLToPath(new URL("../../..", import.meta.url));
+          const engine = (await fileExportsImporter(root)("engine")) as { nodeCliLauncher?: (dataDir: string) => { spawn(spec: unknown): Promise<never> } } | undefined;
+          if (!engine?.nodeCliLauncher) throw Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" });
+          cli ??= engine.nodeCliLauncher(config.dataDir);
+          return cli.spawn(spec);
+        },
       },
       pollMs: Number(process.env["VYRE_POLL_MS"]) || 3_000, log: (line) => process.stdout.write(`vyred: ${line}\n`),
       facts: () => ({ os: process.platform, arch: process.arch, docker: dockerUp, version }),
