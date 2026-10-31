@@ -1,0 +1,27 @@
+{
+  "module": "dropbox",
+  "capabilities": {
+    "dropbox.account.list@1": "310a070953d98b37b11f0ad1ea28d04b91437fa3d6a720f7b2d5d8a9d5d617b3",
+    "dropbox.account.remove@1": "63d5044196d7c8370bedc8d9a3ecc580ae2e8cadab9675dad7d7dc95db962a74",
+    "dropbox.app.set@1": "3ea35c3ac8167170275855e92ba4108fc717fd4c3f6996d3244e75f294185eb9",
+    "dropbox.app.status@1": "2fa56e7d6fe3c21ab440bc7a98719e86a56e9d4b4723cfc8289a1a0e52f54f1e",
+    "dropbox.connect.complete@1": "190680dcf0ed6f940500aeda30d6089303c0f98963eaf9c9e68795e74052ff71",
+    "dropbox.connect.start@1": "a00c878f7452d18b3970c54a45226b5b4202647d2e5b3401ae833682478eb1a3",
+    "dropbox.files.create_folder@1": "1d5cfafc0f5e508758b750a0fd1cdab02bb50632ca867fe145666e8994871805",
+    "dropbox.files.delete@1": "3946efa1845bba2bbec5d7bc59665725040fc17d3797e56850409184579e64f0",
+    "dropbox.files.download@1": "b5dd0e6627c22bd16b01b90d57079f137cbec7f08ffe8c06e2cf077331a94cfc",
+    "dropbox.files.get_metadata@1": "c114b1cb24ae46f28c3053c3f13da6fc62cec2b3f6594ade8b16604ecc820d9a",
+    "dropbox.files.latest_cursor@1": "a84bb5fe34a180cca3f033658701cb79ab75adb7ec6bbf047113d44e925603e8",
+    "dropbox.files.list_folder@1": "4e66b560c73e3668639c1bdd7f964b4d3f8f625d9041786a2c450f1cf1637d6e",
+    "dropbox.files.list_revisions@1": "133ea593527fe65dfa09770aae63cd901090be6d820e2751e2587a2282760c22",
+    "dropbox.files.longpoll@1": "92fd1210accf8d0c5cd5228d82060a39827d902ffc909b3250aec554e2de62cc",
+    "dropbox.files.restore@1": "0f97de7cf3960dcf6a45cf5ffb25d98cb84da346ebb173146b88f76d3cdce987",
+    "dropbox.files.upload@1": "525a23a39ed09035e6c6d350b82e0a4447d4d044305002c398220d9042d662d7",
+    "dropbox.health@1": "8172e8ffadbf965447b6f843480b5e5d4cb6936ef97f999df3bf61098540fe15",
+    "dropbox.receive_webhook@1": "bfccbd96e2144b73fe48401b4797bf8d62aee792c4d137c0cebf4875d4df4032"
+  },
+  "events": {
+    "dropbox.changes_received": "95d31c2b798f946b50443bfc22410c02a7a65cf138419f5c7d6c2800ea5dd5ac",
+    "dropbox.connected": "0fdf1f59db410325aaf59e6233a975d3d0b768aaac55cea57f7462fd4a3f7c49"
+  }
+}

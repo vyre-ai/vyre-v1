@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (57)
+## Capabilities (60)
 
 - [ms.calendar.create_event](../capabilities/ms.calendar.create_event.md): Create an event; Exchange invites the attendees
 - [ms.calendar.delete_event](../capabilities/ms.calendar.delete_event.md): Delete an event; Exchange tells the attendees
@@ -63,6 +63,9 @@ Requires: mail.
 - [ms.teams.recordings.list_recordings](../capabilities/ms.teams.recordings.list_recordings.md): Recordings of an online meeting
 - [ms.teams.recordings.list_transcripts](../capabilities/ms.teams.recordings.list_transcripts.md): Transcripts of an online meeting
 - [ms.teams.recordings.subscribe](../capabilities/ms.teams.recordings.subscribe.md): Subscribe to recording and transcript ready notices
+- [ms.workbook.append_rows](../capabilities/ms.workbook.append_rows.md): Add rows under the last used row of a worksheet in an Excel workbook
+- [ms.workbook.get_range](../capabilities/ms.workbook.get_range.md): Read a range of cells from an Excel workbook in OneDrive or SharePoint
+- [ms.workbook.update_range](../capabilities/ms.workbook.update_range.md): Write a block of cells in an Excel workbook; a single start cell grows to the size of the values
 
 ## Events (4)
 

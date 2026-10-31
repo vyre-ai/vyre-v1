@@ -15153,6 +15153,284 @@
     },
     {
       "blocks": [],
+      "cap": "dropbox.files.create_folder",
+      "deferred": true,
+      "description": "Create a Dropbox folder",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_create_folder",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.delete",
+      "deferred": true,
+      "description": "Delete a Dropbox file or folder (Dropbox keeps it in its deleted files for a while)",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_delete",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.download",
+      "deferred": true,
+      "description": "Download a Dropbox file, or one of its revisions, into a blob",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_download",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.get_metadata",
+      "deferred": true,
+      "description": "Read one Dropbox file or folder",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_get_metadata",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.list_folder",
+      "deferred": true,
+      "description": "List a Dropbox folder, or continue a listing with its cursor; a cursor kept from before reads only what changed since",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 2000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "description": "Empty for the root, /Folder, or an id such as id:abc",
+            "type": "string"
+          },
+          "recursive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_list_folder",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.list_revisions",
+      "deferred": true,
+      "description": "List the saved revisions of a Dropbox file, newest first",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_list_revisions",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.restore",
+      "deferred": true,
+      "description": "Restore a Dropbox file to one of its revisions",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path",
+          "rev"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_restore",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.upload",
+      "deferred": true,
+      "description": "Upload a Space file to Dropbox; with rev it only replaces that revision",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "description": "Where it goes, such as /Sales/Report.docx",
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_upload",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "email_builder.ask_cancel",
       "deferred": false,
       "description": "Stop my Ask Vyre request on a design that is still waiting for the agent",
@@ -18641,7 +18919,7 @@
       "blocks": [],
       "cap": "files.read",
       "deferred": false,
-      "description": "Read the content of a file or one of its versions as text, base64 or a short-lived download address",
+      "description": "Read the content of a file or one of its versions as text, base64 or a short-lived download address; as text, a PDF, Word, Excel or PowerPoint file comes back as its extracted text",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -22948,6 +23226,130 @@
       },
       "name": "google_docs_get_document",
       "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.docs.insert_text",
+      "deferred": true,
+      "description": "Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "anchor": {
+            "description": "The text to put it after or before",
+            "minLength": 1,
+            "type": "string"
+          },
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "where": {
+            "enum": [
+              "after",
+              "before",
+              "start",
+              "end"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "documentId",
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_docs_insert_text",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.docs.replace_text",
+      "deferred": true,
+      "description": "Replace every occurrence of some text in a Google Doc",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          },
+          "find": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "replace": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "documentId",
+          "find",
+          "replace",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_docs_replace_text",
+      "planMode": "blocked",
       "toolset": "files",
       "v": 1
     },
@@ -33434,7 +33836,7 @@
       "blocks": [],
       "cap": "mounts.add",
       "deferred": false,
-      "description": "Mount a Google or SharePoint folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
+      "description": "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -33489,6 +33891,7 @@
                   "google_drive",
                   "sharepoint",
                   "onedrive",
+                  "dropbox",
                   "local",
                   "github"
                 ],
@@ -33502,7 +33905,7 @@
                 "type": "string"
               },
               "ref": {
-                "description": "Drive or folder id, library path, or owner/repo",
+                "description": "Drive or folder id, library path, Dropbox folder id or / for all of Dropbox, or owner/repo",
                 "type": "string"
               }
             },
@@ -33528,7 +33931,7 @@
       "blocks": [],
       "cap": "mounts.browse",
       "deferred": false,
-      "description": "Browse a drive, library or repository search to pick what to mount",
+      "description": "Browse a drive, library, Dropbox folder or repository search to pick what to mount",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -33547,6 +33950,7 @@
               "google_drive",
               "sharepoint",
               "onedrive",
+              "dropbox",
               "local",
               "github"
             ],
@@ -33576,6 +33980,107 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.doc_insert_text",
+      "deferred": true,
+      "description": "Insert text into a mounted Google Doc after or before some existing text, or at its start or end; refuses if the Doc changed meanwhile",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "anchor": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "where": {
+            "enum": [
+              "after",
+              "before",
+              "start",
+              "end"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_doc_insert_text",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.doc_replace_text",
+      "deferred": true,
+      "description": "Replace text in a mounted Google Doc, in the Doc itself; the change shows in its Google version history",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "find": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "replace": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "find",
+          "replace",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_doc_replace_text",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.editors",
       "deferred": false,
       "description": "Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)",
@@ -33600,6 +34105,32 @@
         "type": "object"
       },
       "name": "mounts_editors",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.file_link",
+      "deferred": true,
+      "description": "Where a mounted file opens at its provider (Google Docs, Sheets, Slides, Word, Excel, PowerPoint, Dropbox) and what an agent can do to it in place",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_file_link",
       "planMode": "allowed",
       "toolset": "files",
       "v": 1
@@ -33672,6 +34203,7 @@
               "google_drive",
               "sharepoint",
               "onedrive",
+              "dropbox",
               "local",
               "github"
             ],
@@ -33694,7 +34226,7 @@
       "blocks": [],
       "cap": "mounts.nudge",
       "deferred": false,
-      "description": "A provider push notice (Drive channel, Graph subscription) or an app showing a mount asks for a sync pass (system)",
+      "description": "A provider push notice (Drive channel, Graph subscription, Dropbox account) or an app showing a mount asks for a sync pass (system)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -33715,6 +34247,7 @@
             "enum": [
               "google",
               "microsoft",
+              "dropbox",
               "client"
             ],
             "type": "string"
@@ -33866,6 +34399,146 @@
         "type": "object"
       },
       "name": "mounts_resume",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.sheet_append",
+      "deferred": true,
+      "description": "Add rows under the last used row of a mounted Google Sheet or Excel worksheet",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fileId",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_sheet_append",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.sheet_read",
+      "deferred": true,
+      "description": "Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "A1:D20"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "description": "Worksheet name; needed for Excel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "range"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_sheet_read",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.sheet_write",
+      "deferred": true,
+      "description": "Write cells of a mounted Google Sheet or Excel workbook in the provider file itself",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "B2"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fileId",
+          "range",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_sheet_write",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -35696,6 +36369,193 @@
       "name": "ms_teams_recordings_list_transcripts",
       "planMode": "allowed",
       "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.workbook.append_rows",
+      "deferred": true,
+      "description": "Add rows under the last used row of a worksheet in an Excel workbook",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "sheet",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_workbook_append_rows",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.workbook.get_range",
+      "deferred": true,
+      "description": "Read a range of cells from an Excel workbook in OneDrive or SharePoint",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "A1:C10"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "examples": [
+              "Sheet1"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "sheet",
+          "range"
+        ],
+        "type": "object"
+      },
+      "name": "ms_workbook_get_range",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.workbook.update_range",
+      "deferred": true,
+      "description": "Write a block of cells in an Excel workbook; a single start cell grows to the size of the values",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "B2"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "sheet",
+          "range",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_workbook_update_range",
+      "planMode": "blocked",
+      "toolset": "files",
       "v": 1
     },
     {

@@ -1,6 +1,6 @@
 # files.read
 
-Read the content of a file or one of its versions as text, base64 or a short-lived download address
+Read the content of a file or one of its versions as text, base64 or a short-lived download address; as text, a PDF, Word, Excel or PowerPoint file comes back as its extracted text
 
 | | |
 |---|---|
@@ -55,6 +55,7 @@ type Out = {
 - validation.bad_input
 - validation.not_found
 - validation.too_large
+- validation.unsupported
 
 ## Example
 

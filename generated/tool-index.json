@@ -2203,6 +2203,54 @@
       "toolset": "files"
     },
     {
+      "deferred": true,
+      "name": "dropbox_files_create_folder",
+      "summary": "Create a Dropbox folder",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_delete",
+      "summary": "Delete a Dropbox file or folder (Dropbox keeps it in its deleted files for a while)",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_download",
+      "summary": "Download a Dropbox file, or one of its revisions, into a blob",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_get_metadata",
+      "summary": "Read one Dropbox file or folder",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_list_folder",
+      "summary": "List a Dropbox folder, or continue a listing with its cursor; a cursor kept from before reads only what changed since",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_list_revisions",
+      "summary": "List the saved revisions of a Dropbox file, newest first",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_restore",
+      "summary": "Restore a Dropbox file to one of its revisions",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_upload",
+      "summary": "Upload a Space file to Dropbox; with rev it only replaces that revision",
+      "toolset": "files"
+    },
+    {
       "deferred": false,
       "name": "email_builder_ask_cancel",
       "summary": "Stop my Ask Vyre request on a design that is still waiting for the agent",
@@ -2775,7 +2823,7 @@
     {
       "deferred": false,
       "name": "files_read",
-      "summary": "Read the content of a file or one of its versions as text, base64 or a short-lived download address",
+      "summary": "Read the content of a file or one of its versions as text, base64 or a short-lived download address; as text, a PDF, Word, Excel or PowerPoint file comes back as its extracted text",
       "toolset": "files"
     },
     {
@@ -3394,6 +3442,18 @@
       "deferred": true,
       "name": "google_docs_get_document",
       "summary": "Read a Google Doc as structured content",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "google_docs_insert_text",
+      "summary": "Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "google_docs_replace_text",
+      "summary": "Replace every occurrence of some text in a Google Doc",
       "toolset": "files"
     },
     {
@@ -4977,19 +5037,37 @@
     {
       "deferred": false,
       "name": "mounts_add",
-      "summary": "Mount a Google or SharePoint folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
+      "summary": "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "mounts_browse",
-      "summary": "Browse a drive, library or repository search to pick what to mount",
+      "summary": "Browse a drive, library, Dropbox folder or repository search to pick what to mount",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_doc_insert_text",
+      "summary": "Insert text into a mounted Google Doc after or before some existing text, or at its start or end; refuses if the Doc changed meanwhile",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_doc_replace_text",
+      "summary": "Replace text in a mounted Google Doc, in the Doc itself; the change shows in its Google version history",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "mounts_editors",
       "summary": "Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_file_link",
+      "summary": "Where a mounted file opens at its provider (Google Docs, Sheets, Slides, Word, Excel, PowerPoint, Dropbox) and what an agent can do to it in place",
       "toolset": "files"
     },
     {
@@ -5013,7 +5091,7 @@
     {
       "deferred": false,
       "name": "mounts_nudge",
-      "summary": "A provider push notice (Drive channel, Graph subscription) or an app showing a mount asks for a sync pass (system)",
+      "summary": "A provider push notice (Drive channel, Graph subscription, Dropbox account) or an app showing a mount asks for a sync pass (system)",
       "toolset": "files"
     },
     {
@@ -5044,6 +5122,24 @@
       "deferred": false,
       "name": "mounts_resume",
       "summary": "Resume a paused mount",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_sheet_append",
+      "summary": "Add rows under the last used row of a mounted Google Sheet or Excel worksheet",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_sheet_read",
+      "summary": "Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_sheet_write",
+      "summary": "Write cells of a mounted Google Sheet or Excel workbook in the provider file itself",
       "toolset": "files"
     },
     {
@@ -5303,6 +5399,24 @@
       "name": "ms_teams_recordings_list_transcripts",
       "summary": "Transcripts of an online meeting",
       "toolset": "inbox"
+    },
+    {
+      "deferred": true,
+      "name": "ms_workbook_append_rows",
+      "summary": "Add rows under the last used row of a worksheet in an Excel workbook",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "ms_workbook_get_range",
+      "summary": "Read a range of cells from an Excel workbook in OneDrive or SharePoint",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "ms_workbook_update_range",
+      "summary": "Write a block of cells in an Excel workbook; a single start cell grows to the size of the values",
+      "toolset": "files"
     },
     {
       "deferred": false,

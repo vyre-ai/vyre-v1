@@ -618,6 +618,34 @@ export function createClient(transport: Transport) {
       health: call("docusign.health", 1),
       status: call("docusign.status", 1),
     },
+    dropbox: {
+      account: {
+        list: call("dropbox.account.list", 1),
+        remove: call("dropbox.account.remove", 1),
+      },
+      app: {
+        set: call("dropbox.app.set", 1),
+        status: call("dropbox.app.status", 1),
+      },
+      connect: {
+        complete: call("dropbox.connect.complete", 1),
+        start: call("dropbox.connect.start", 1),
+      },
+      files: {
+        create_folder: call("dropbox.files.create_folder", 1),
+        delete: call("dropbox.files.delete", 1),
+        download: call("dropbox.files.download", 1),
+        get_metadata: call("dropbox.files.get_metadata", 1),
+        latest_cursor: call("dropbox.files.latest_cursor", 1),
+        list_folder: call("dropbox.files.list_folder", 1),
+        list_revisions: call("dropbox.files.list_revisions", 1),
+        longpoll: call("dropbox.files.longpoll", 1),
+        restore: call("dropbox.files.restore", 1),
+        upload: call("dropbox.files.upload", 1),
+      },
+      health: call("dropbox.health", 1),
+      receive_webhook: call("dropbox.receive_webhook", 1),
+    },
     dropbox_sign: {
       cancel: call("dropbox_sign.cancel", 1),
       create: call("dropbox_sign.create", 1),
@@ -972,6 +1000,8 @@ export function createClient(transport: Transport) {
         batch_update: call("google.docs.batch_update", 1),
         create_document: call("google.docs.create_document", 1),
         get_document: call("google.docs.get_document", 1),
+        insert_text: call("google.docs.insert_text", 1),
+        replace_text: call("google.docs.replace_text", 1),
       },
       drive: {
         changes_start_token: call("google.drive.changes_start_token", 1),
@@ -1463,7 +1493,10 @@ export function createClient(transport: Transport) {
     mounts: {
       add: call("mounts.add", 1),
       browse: call("mounts.browse", 1),
+      doc_insert_text: call("mounts.doc_insert_text", 1),
+      doc_replace_text: call("mounts.doc_replace_text", 1),
       editors: call("mounts.editors", 1),
+      file_link: call("mounts.file_link", 1),
       get: call("mounts.get", 1),
       history: call("mounts.history", 1),
       lag: call("mounts.lag", 1),
@@ -1475,6 +1508,9 @@ export function createClient(transport: Transport) {
       remove: call("mounts.remove", 1),
       restore: call("mounts.restore", 1),
       resume: call("mounts.resume", 1),
+      sheet_append: call("mounts.sheet_append", 1),
+      sheet_read: call("mounts.sheet_read", 1),
+      sheet_write: call("mounts.sheet_write", 1),
       sync_now: call("mounts.sync_now", 1),
       update: call("mounts.update", 1),
     },
@@ -1551,6 +1587,11 @@ export function createClient(transport: Transport) {
           list_transcripts: call("ms.teams.recordings.list_transcripts", 1),
           subscribe: call("ms.teams.recordings.subscribe", 1),
         },
+      },
+      workbook: {
+        append_rows: call("ms.workbook.append_rows", 1),
+        get_range: call("ms.workbook.get_range", 1),
+        update_range: call("ms.workbook.update_range", 1),
       },
     },
     network: {

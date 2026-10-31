@@ -69,6 +69,9 @@ Key microsoft, module microsoft. Mode oauth_app, owned by a space. Auth client_c
 - ms.drive.create_folder
 - ms.drive.share_item
 - ms.drive.delete_item
+- ms.workbook.get_range
+- ms.workbook.update_range
+- ms.workbook.append_rows
 - ms.teams.recordings.list_recordings
 - ms.teams.recordings.get_recording
 - ms.teams.recordings.list_transcripts

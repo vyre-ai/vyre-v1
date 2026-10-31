@@ -25,7 +25,7 @@ List mounts the caller can see
 
 ```ts
 type In = {
-  kind?: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+  kind?: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
   cursor?: string;
   limit?: number;
 };
@@ -38,7 +38,7 @@ type Out = {
   mounts: Array<{
       mountId: string;
       folderId: string;
-      kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+      kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
       provider: string;
       ref?: string;
       name: string;

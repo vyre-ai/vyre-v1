@@ -618,6 +618,34 @@ export function stubs(ctx: CallCtx) {
       health: call("docusign.health"),
       status: call("docusign.status"),
     },
+    dropbox: {
+      account: {
+        list: call("dropbox.account.list"),
+        remove: call("dropbox.account.remove"),
+      },
+      app: {
+        set: call("dropbox.app.set"),
+        status: call("dropbox.app.status"),
+      },
+      connect: {
+        complete: call("dropbox.connect.complete"),
+        start: call("dropbox.connect.start"),
+      },
+      files: {
+        create_folder: call("dropbox.files.create_folder"),
+        delete: call("dropbox.files.delete"),
+        download: call("dropbox.files.download"),
+        get_metadata: call("dropbox.files.get_metadata"),
+        latest_cursor: call("dropbox.files.latest_cursor"),
+        list_folder: call("dropbox.files.list_folder"),
+        list_revisions: call("dropbox.files.list_revisions"),
+        longpoll: call("dropbox.files.longpoll"),
+        restore: call("dropbox.files.restore"),
+        upload: call("dropbox.files.upload"),
+      },
+      health: call("dropbox.health"),
+      receive_webhook: call("dropbox.receive_webhook"),
+    },
     dropbox_sign: {
       cancel: call("dropbox_sign.cancel"),
       create: call("dropbox_sign.create"),
@@ -972,6 +1000,8 @@ export function stubs(ctx: CallCtx) {
         batch_update: call("google.docs.batch_update"),
         create_document: call("google.docs.create_document"),
         get_document: call("google.docs.get_document"),
+        insert_text: call("google.docs.insert_text"),
+        replace_text: call("google.docs.replace_text"),
       },
       drive: {
         changes_start_token: call("google.drive.changes_start_token"),
@@ -1463,7 +1493,10 @@ export function stubs(ctx: CallCtx) {
     mounts: {
       add: call("mounts.add"),
       browse: call("mounts.browse"),
+      doc_insert_text: call("mounts.doc_insert_text"),
+      doc_replace_text: call("mounts.doc_replace_text"),
       editors: call("mounts.editors"),
+      file_link: call("mounts.file_link"),
       get: call("mounts.get"),
       history: call("mounts.history"),
       lag: call("mounts.lag"),
@@ -1475,6 +1508,9 @@ export function stubs(ctx: CallCtx) {
       remove: call("mounts.remove"),
       restore: call("mounts.restore"),
       resume: call("mounts.resume"),
+      sheet_append: call("mounts.sheet_append"),
+      sheet_read: call("mounts.sheet_read"),
+      sheet_write: call("mounts.sheet_write"),
       sync_now: call("mounts.sync_now"),
       update: call("mounts.update"),
     },
@@ -1551,6 +1587,11 @@ export function stubs(ctx: CallCtx) {
           list_transcripts: call("ms.teams.recordings.list_transcripts"),
           subscribe: call("ms.teams.recordings.subscribe"),
         },
+      },
+      workbook: {
+        append_rows: call("ms.workbook.append_rows"),
+        get_range: call("ms.workbook.get_range"),
+        update_range: call("ms.workbook.update_range"),
       },
     },
     network: {

@@ -61,4 +61,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "ms.teams.recordings.list_recordings": async () => ({"recordings":[{"contentUrl":"example","createdAt":"example","id":"example"}]} as unknown) as never,
   "ms.teams.recordings.list_transcripts": async () => ({"transcripts":[{"createdAt":"example","id":"example"}]} as unknown) as never,
   "ms.teams.recordings.subscribe": async () => ({"expiresAt":1760000000000,"subscriptionId":"example"} as unknown) as never,
+  "ms.workbook.append_rows": async () => ({"address":"example","updatedRows":1} as unknown) as never,
+  "ms.workbook.get_range": async () => ({"address":"example","values":[[{}]]} as unknown) as never,
+  "ms.workbook.update_range": async () => ({"address":"example","updatedCells":1} as unknown) as never,
 };
