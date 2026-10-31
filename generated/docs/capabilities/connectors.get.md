@@ -17,7 +17,7 @@ Read one connector: auth, egress domains, secret names, sources, synced types an
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/connectors/get |
-| MCP tool | connectors_get (engineer) |
+| MCP tool | connectors_get (automations) |
 | CLI | none |
 | Emits | none |
 

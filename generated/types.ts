@@ -2112,6 +2112,17 @@ export type AutomationsAnalyticsOut = {
       count: number;
     }>;
 };
+export type AutomationsConnectorCardIn = {
+  threadId: string;
+  title: string;
+  items: Array<{
+      text: string;
+      done: boolean;
+    }>;
+};
+export type AutomationsConnectorCardOut = {
+  messageId: string;
+};
 export type AutomationsConnectorOfferAcceptIn = {
   itemId: string;
 };
@@ -3169,6 +3180,22 @@ export type AutomationsPromoteOut = {
       }>;
   };
 };
+export type AutomationsReadDocsIn = {
+  url: string;
+  focus?: string;
+};
+export type AutomationsReadDocsOut = {
+  ok: boolean;
+  reason?: string;
+  finalUrl?: string;
+  kind?: "openapi" | "html" | "text";
+  text?: string;
+  links?: Array<{
+      text: string;
+      url: string;
+    }>;
+  truncated?: boolean;
+};
 export type AutomationsReplayIn = {
   automationId: string;
   runId: string;
@@ -3566,10 +3593,13 @@ export type AutomationsTryReadIn = {
   markedSafe?: boolean;
   vaultItemId: string;
   actionKey?: string;
+  header?: string;
+  prefix?: string;
 };
 export type AutomationsTryReadOut = {
   level: "tested" | "draft";
   reason?: string;
+  status?: number;
 };
 export type AutomationsUndeleteIn = {
   automationId: string;
@@ -7453,6 +7483,36 @@ export type ConnectorsBuildOut = {
   runId: string;
   draftId: string;
 };
+export type ConnectorsDefineIn = {
+  key: string;
+  title?: string;
+  domains: Array<string>;
+  auth: {
+    type: "none" | "api_key" | "bearer";
+    secret?: string;
+    header?: string;
+    prefix?: string;
+  };
+  secrets?: Array<{
+      name: string;
+      description: string;
+    }>;
+  actions: Array<{
+      name: string;
+      method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+      url: string;
+      headers?: Record<string, string>;
+      query?: Record<string, string>;
+      output?: string;
+      write?: boolean;
+    }>;
+};
+export type ConnectorsDefineOut = {
+  key: string;
+  draftId: string;
+  actions: Array<string>;
+  domains: Array<string>;
+};
 export type ConnectorsDiffIn = {
   key: string;
   draftId?: string;
@@ -7514,11 +7574,12 @@ export type ConnectorsInitIn = {
   title: string;
   mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
   docsUrl?: string;
+  source?: boolean;
   idempotencyKey: string;
 };
 export type ConnectorsInitOut = {
   key: string;
-  folderId: string;
+  folderId?: string;
 };
 export type ConnectorsListIn = {
   state?: "live" | "draft" | "failing_tests";
@@ -30383,6 +30444,7 @@ export interface CapMap {
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
+  "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
   "automations.connector_offer.decline": { in: AutomationsConnectorOfferDeclineIn; out: AutomationsConnectorOfferDeclineOut };
   "automations.connector_offers": { in: AutomationsConnectorOffersIn; out: AutomationsConnectorOffersOut };
@@ -30414,6 +30476,7 @@ export interface CapMap {
   "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
+  "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -30637,6 +30700,7 @@ export interface CapMap {
   "connections.test": { in: ConnectionsTestIn; out: ConnectionsTestOut };
   "connections.update": { in: ConnectionsUpdateIn; out: ConnectionsUpdateOut };
   "connectors.build": { in: ConnectorsBuildIn; out: ConnectorsBuildOut };
+  "connectors.define": { in: ConnectorsDefineIn; out: ConnectorsDefineOut };
   "connectors.diff": { in: ConnectorsDiffIn; out: ConnectorsDiffOut };
   "connectors.export": { in: ConnectorsExportIn; out: ConnectorsExportOut };
   "connectors.get": { in: ConnectorsGetIn; out: ConnectorsGetOut };

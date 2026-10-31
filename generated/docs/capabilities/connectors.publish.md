@@ -17,7 +17,7 @@ Publish a draft after a fresh test run; a failing test keeps the last good versi
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/connectors/publish |
-| MCP tool | connectors_publish (engineer) |
+| MCP tool | connectors_publish (automations) |
 | CLI | vyre connector publish |
 | Emits | connector.published, connector.publish_failed |
 
