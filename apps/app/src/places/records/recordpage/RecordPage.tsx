@@ -196,7 +196,7 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
   const paneNow = phone ? win.width : paneW;
   // the tabs that do not fit fold behind one More tab, as in the Chats pane
   const { strip, select } = useFittedTabs(PINNED_TABS, tab, paneNow, {
-    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, ...(titles.widths.size > 0 ? { chevron: true } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
+    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME + 28, ...(titles.widths.size > 0 ? { chevron: true } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
     pick: (key) => onTab(key as PaneKey),
   });
   const vq = useLive("records.versions", { type, recordId: row.id });
