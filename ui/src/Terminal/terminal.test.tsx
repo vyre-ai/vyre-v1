@@ -226,3 +226,13 @@ test("the label falls back to Terminal", () => {
   assert.equal(terminalLabel({ ...base, title: "" }), "Terminal");
   assert.equal(terminalLabel(base), "Rivera dev server");
 });
+
+test("the bar shows a dot for what the typed line would do, and none without one", () => {
+  const base = { sessionId: "trm_1", title: "build", host: "device" as const, hostLabel: "This computer", state: "running" as const, output: "" };
+  for (const risk of ["read", "change", "danger"] as const) {
+    const html = renderToStaticMarkup(<Terminal {...base} risk={risk} />);
+    assert.ok(html.includes(`data-testid="terminal-risk-${risk}"`), risk);
+  }
+  assert.ok(!renderToStaticMarkup(<Terminal {...base} risk={null} />).includes("terminal-risk-"));
+  assert.ok(!renderToStaticMarkup(<Terminal {...base} />).includes("terminal-risk-"));
+});

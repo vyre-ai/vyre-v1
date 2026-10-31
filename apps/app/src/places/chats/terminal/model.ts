@@ -129,3 +129,19 @@ export function ago(now: number, at: number): string {
   if (h < 24) return `${h} h ago`;
   return `${Math.floor(h / 24)} d ago`;
 }
+
+/**
+ * The line being typed, from the keys the screen sends: letters add, Backspace takes one off, Enter, Ctrl-C and Ctrl-U clear it, and anything else the shell does for itself (arrow keys, Tab) leaves it as it is.
+ * It is a preview for the risk dot, not a copy of what the shell holds.
+ */
+export function lineAfter(line: string, data: string): string {
+  let out = line;
+  // an escape sequence (an arrow key, Home, a paste marker) is the shell's business, not text
+  const keys = data.replace(/\x1b\[[0-9;?]*[A-Za-z~]|\x1bO[A-Za-z]/g, "");
+  for (const ch of keys) {
+    if (ch === "\r" || ch === "\n" || ch === "\x03" || ch === "\x15") out = "";
+    else if (ch === "\x7f" || ch === "\b") out = out.slice(0, -1);
+    else if (ch >= " " && ch !== "\x7f") out += ch;
+  }
+  return out.slice(-2000);
+}

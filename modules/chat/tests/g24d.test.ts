@@ -152,6 +152,15 @@ test("a question can carry a terminal card, and what the person ran comes back a
   assert.equal(JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", plain.blockId)[0]!["data"])).card, undefined);
 });
 
+test("a question made only of mount sources takes the words of what was mounted", async () => {
+  const hn = harness();
+  const threadId = await chatOf(hn);
+  const q = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Where is the Q4 deck?", mode: "single", options: [{ key: "mount:google_drive", label: "Google Drive" }, { key: "mount:github", label: "GitHub" }] });
+  assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: q.blockId, answer: 'Mounted "Sales" (folder fld_1). It is shared with you.' }), { ok: true });
+  const plain = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Pick", mode: "single", options: [{ key: "a", label: "A" }] });
+  await assert.rejects(() => answerBlock(hn.ctx, { threadId, blockId: plain.blockId, answer: "free words" }));
+});
+
 test("plans: propose, approve, tick steps, reject", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);

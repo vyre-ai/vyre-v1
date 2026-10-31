@@ -14,6 +14,8 @@ export interface ShellTarget {
   screen?: string;
   subject?: { type: string; id: string };
   args?: Record<string, unknown>;
+  /** Open it in a tab behind the one the person is in (Cmd-click, middle click). */
+  background?: boolean;
 }
 
 export type SpaceKind = "team" | "personal";

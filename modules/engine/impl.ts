@@ -12,7 +12,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
 import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
-import { closeNoAccountTasks, engineHost, ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
+import { closeNoAccountTasks, engineHost, ensureRuntime, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
 import type { EngineCtx } from "./projections.ts";
 
@@ -65,6 +65,10 @@ export const consumers = {
       if (!engine || !host) return [];
       return onTaskEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
     },
+  },
+  "engine.block_answered": {
+    on: ["block.answered"],
+    run: async (ctx: EngineCtx, event: { payload: { threadId: string; blockId: string; by: string } }): Promise<string[]> => ((await wakeAfterAnswer(ctx, event)) ? [event.payload.blockId] : []),
   },
   "engine.unblock": {
     on: ["task.completed"],
