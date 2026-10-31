@@ -70,7 +70,7 @@
     "threads.remove_agent@1": "75e429e2857501d39b204ba5e068e9f4e5b8469758f73a7fcca3c53c21eaa685",
     "threads.reopen@1": "34eb9aea48917cf4f543ec274c99f502175e83a90ee21e55691538854b456e11",
     "threads.set_folder@1": "ae8ac44502fc022dc375dd5717aa1232fdc3f04d4f1d42a0563c40ba99ac5862",
-    "threads.set_mode@1": "05c90863d59effa223120653ea51efb83a49d988d676fdce9d865c8c8e824625",
+    "threads.set_mode@1": "6b0e340d44d4e9114c95d7a868d15c5cf5d5892c20c29a2c0f77b3cc9023841d",
     "threads.set_plan_mode@1": "11c46aee13c71d7970facfd1b41ab431b1f65584aaf791c75710807a7753c9ca",
     "threads.update@1": "d4dac97e8094b16c86b187ef2d096a1ddde2a01e24181809b5434c263e833d99"
   },

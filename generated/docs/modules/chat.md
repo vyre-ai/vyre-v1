@@ -75,7 +75,7 @@ Requires: engine.
 - [threads.remove_agent](../capabilities/threads.remove_agent.md): Remove an agent from a thread
 - [threads.reopen](../capabilities/threads.reopen.md): Reopen a closed thread
 - [threads.set_folder](../capabilities/threads.set_folder.md): Set the thread work folder (the folder chip above the composer)
-- [threads.set_mode](../capabilities/threads.set_mode.md): Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode
+- [threads.set_mode](../capabilities/threads.set_mode.md): Set how much the agents of a chat may do alone: auto (the default), ask (Ask first) or plan. Anything that leaves Vyre is held for a yes in every mode
 - [threads.set_plan_mode](../capabilities/threads.set_plan_mode.md): Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved
 - [threads.update](../capabilities/threads.update.md): Rename a thread
 
