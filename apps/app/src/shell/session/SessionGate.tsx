@@ -264,6 +264,17 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, deviceClass }: { r
 async function resumePersonal(local:{address:string;spaceId:string},old:StoredSession,open:NonNullable<SessionGateProps['open']>):Promise<StoredSession>{const stored=await openVerifiedSession({baseUrl:local.address,token:old.token,continuity:{id:local.spaceId,marker:old.marker},open:()=>open({baseUrl:local.address,token:old.token}),getSpace:()=>authenticatedSpace(local.address,old.token)});if(old.baseUrl!==local.address)clearStored(undefined,old.baseUrl);return stored;}
 
 export function SessionGate(props: SessionGateProps): ReactElement {
+  // What the first-launch screen reads about this window (the desktop app, the Mac, the width) is known only in the browser: the static page is drawn without it, so the first client
+  // render must be drawn without it too (a different door count or title is a hydration mismatch, React #418); it is read right after mount and follows the window size.
+  const [windowKnown, setWindowKnown] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(1280);
+  useEffect(() => {
+    const g = globalThis as { innerWidth?: number; addEventListener?: (t: string, f: () => void) => void; removeEventListener?: (t: string, f: () => void) => void };
+    const read = (): void => setWindowWidth(g.innerWidth ?? 1280);
+    read(); setWindowKnown(true);
+    g.addEventListener?.("resize", read);
+    return () => g.removeEventListener?.("resize", read);
+  }, []);
   const baseUrl = props.baseUrl === undefined ? spaceAddress() : props.baseUrl === null ? null : spaceEndpoint(props.baseUrl);
   const open = props.open ?? openRealSession;
   const onHub = props.onHub ?? noHub;
@@ -338,7 +349,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const createMacServer=async():Promise<void>=>{if(!invoke)throw new Error('Desktop shell required');const local=await ensureMacServer(invoke);if(local.claimUrl){const link=new URL(local.claimUrl);setPersonalClaim({address:local.address,token:link.pathname.slice('/claim/'.length),fragment:link.hash});setEntry(false);}else await chooseEntry({kind:'signin',address:local.address});};
   // first launch on the desktop app: three doors; elsewhere (and for a person who already has a Space) the plain connect screen
   const connectScreen=<ConnectSpaceWelcome onConnect={connectSpace} onGetStarted={()=>{setEntryStart('choice');setEntry(true);}} />;
-  const device=deviceOf({desktop:!!invoke,mac:isMacShell(),width:(globalThis as {innerWidth?:number}).innerWidth??1280});
+  const device=windowKnown?deviceOf({desktop:!!invoke,mac:isMacShell(),width:windowWidth}):deviceOf({desktop:false,mac:false,width:1280});
   const getApp=():void=>{(globalThis as {open?:(url:string,target?:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank');};
   const emailApp=():void=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(`mailto:?subject=${encodeURIComponent('Get Vyre')}&body=${encodeURIComponent(VYRE_DOWNLOADS)}`);};
   const firstScreen=<FirstLaunch device={device} existing={connectScreen} {...(device==='web'?{onGetApp:getApp}:{})} onDoor={async door=>{if(door==='invited'){setEntryStart('join');setEntry(true);return;}if(door==='server'){setEntryStart('team');setEntry(true);return;}if(door==='app'){emailApp();return;}wantTeamNext(door==='team');await createPersonal();}} />;
