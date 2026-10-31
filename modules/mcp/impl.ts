@@ -24,6 +24,20 @@ export interface RuntimeOptions {
   allowedOrigins?: McpServerDeps["allowedOrigins"];
 }
 
+/**
+ * A CLI engine's session works for one chat. The chat's mode (Ask first, Auto, Plan) decides what its tools may do, so it is read when the session opens: the engine opens a new session, with a new token, whenever
+ * the mode changes (the pool key holds it). A chat that cannot be read leaves the caller as it was; the Gate and access checks still stand.
+ */
+export async function withChatMode(o: RuntimeOptions, caller: McpCaller): Promise<McpCaller> {
+  if (caller.kind !== "driver" || caller.threadId === undefined) return caller;
+  try {
+    const r = await o.invoke("threads.get", { threadId: caller.threadId }, { space: o.space, principal: caller.principal, ...(caller.actingFor ? { actingFor: caller.actingFor } : {}), origin: "mcp" });
+    const mode = (r.status === "ok" ? (r.output as { thread?: { mode?: unknown } } | null)?.thread?.mode : undefined);
+    if (mode === "ask" || mode === "auto" || mode === "plan") return { ...caller, mode, planMode: mode === "plan" };
+  } catch { /* the chat is not readable here: no mode is applied */ }
+  return caller;
+}
+
 /** The MCP server on this host's tables. Binds itself so mcp.session.close also ends the live session. */
 export function createMcpRuntime(o: RuntimeOptions): McpServer {
   const now = o.now ?? Date.now;
@@ -42,7 +56,7 @@ export function createMcpRuntime(o: RuntimeOptions): McpServer {
       const r = await callerForToken(o.db, o.space, token, now(), clientName);
       if ("refused" in r) return null;
       if (r.fresh) o.onStarted?.(r.caller);
-      return r.caller;
+      return withChatMode(o, r.caller);
     },
     async stillValid(caller) {
       const s = sessionBy(o.db, "session_id", caller.sessionId);

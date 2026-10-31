@@ -15,6 +15,7 @@
 // Codex does not stream deltas: a message arrives whole when it is done.
 import { num, obj, parseLine, str } from "./json.ts";
 import type { Json } from "./json.ts";
+import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
 
@@ -105,6 +106,20 @@ export function createCodexDecoder(): CliDecoder {
   };
 }
 
+/**
+ * The chat mode as Codex's own settings. CHECKED against codex-cli 0.164 (`codex exec --help`, `codex --help`): `-s/--sandbox` takes read-only, workspace-write, danger-full-access; the approval policy is
+ * `-a/--ask-for-approval` (on-request, never) but only on the interactive command, so `exec` takes it as the config key `approval_policy` through `-c`, the way the sandbox already is. A headless run cannot
+ * stop and ask, so Ask first and Plan both run read-only (the model describes a change and the person says yes in the chat, or picks Auto); Auto runs workspace-write when a work folder was granted.
+ * Codex has no plan mode in `exec`: Plan is read-only plus the plan instruction the engine puts in the turn context, and Vyre's own tools refuse writes in plan mode on the MCP side.
+ * Nothing here is ever danger-full-access or --dangerously-bypass-approvals-and-sandbox.
+ */
+export function codexSandbox(o: Pick<CommandOptions, "mode" | "planMode" | "workFolder" | "noTools">): "workspace-write" | "read-only" {
+  const mode = o.mode ?? (o.planMode ? "plan" : "auto");   // no mode: the older rule, writable inside a granted folder unless plan mode
+  return o.workFolder !== null && mode === "auto" && o.noTools !== true ? "workspace-write" : "read-only";
+}
+/** `model_reasoning_effort` is the config key Codex itself writes (low, medium, high are the values its config files show); max is high, as xhigh is not proven on every account. */
+export const codexEffort = (e: Effort | null | undefined): string | null => (e === undefined || e === null ? null : e === "max" ? "high" : e);
+
 export const codex: CliAdapter = {
   id: "codex",
   bin: "codex",
@@ -117,7 +132,9 @@ export const codex: CliAdapter = {
     return [
       "codex", "exec", "--json", "--skip-git-repo-check",
       // Codex's own sandbox stays on inside ours: read-only unless a work folder was granted and the chat is not in plan mode.
-      "-c", `sandbox_mode=${toml(o.workFolder !== null && !o.planMode && o.noTools !== true ? "workspace-write" : "read-only")}`,
+      "-c", `sandbox_mode=${toml(codexSandbox(o))}`,
+      ...(o.mode !== undefined ? ["-c", `approval_policy=${toml("never")}`] : []),
+      ...(codexEffort(o.effort) !== null ? ["-c", `model_reasoning_effort=${toml(codexEffort(o.effort)!)}`] : []),
       // ASSUMED until the live recording: Codex's stdio server block takes command, args and env_vars (names of variables to pass on), as its HTTP block takes bearer_token_env_var.
       ...(o.noTools === true ? [] : o.mcpStdio
         ? ["-c", `mcp_servers.vyre.command=${toml(o.mcpStdio.command)}`, "-c", `mcp_servers.vyre.args=[${o.mcpStdio.args.map(toml).join(", ")}]`, "-c", `mcp_servers.vyre.env_vars=[${toml(TOKEN_ENV)}]`]

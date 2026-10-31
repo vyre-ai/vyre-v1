@@ -200,7 +200,10 @@ export function createContextBuilder(d: ContextDeps) {
       if (rv.kind === "agent" && rv.id === agentId) where.push(`You are the reviewer of this chat. When you are asked, read the lead agent's last answer and what it changed, check it against what ${who(asker)} asked, and say Approved or list what is wrong. Address your verdict to ${who(asker)} with a mention.`);
       else where.push(`${who(rv.id)} reviews the work done here before it counts. Say plainly what you did, so it can be checked.`);
     }
-    if (th?.["planMode"] === true) where.push("Plan mode is on: read and plan, change nothing until a plan is approved.");
+    const chatMode = th?.["mode"];
+    if (chatMode === "plan" || (chatMode === undefined && th?.["planMode"] === true)) where.push("Mode: Plan. Read and plan, change nothing until the person approves a plan. Propose the plan with plan_propose, then wait.");
+    else if (chatMode === "ask") where.push("Mode: Ask first. Before you change or send anything, say what you are about to do. A change that needs a yes waits for it: a held tool call is not a failure, tell the person it is waiting. Your own file-changing and shell tools are not available in this mode; if you need them, say so and the person can switch the chat to Auto.");
+    else if (chatMode === "auto") where.push("Mode: Auto. Act on your own without asking. Anything that leaves Vyre (an email, a text, a post, a payment) is still held for a yes.");
     add("where", true, where.join("\n"));
 
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it

@@ -88,6 +88,8 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
         env: deps.env?.(spec) ?? {},
         ...(deps.plugins?.(spec) ? { plugins: deps.plugins(spec)! } : {}),
         ...(noTools ? { noTools: true } : {}),
+        ...(spec.mode !== undefined ? { mode: spec.mode } : {}),
+        ...(spec.agent.effort !== undefined ? { effort: spec.agent.effort } : {}),
         ...(deps.planMode ? { planMode: () => deps.planMode?.(spec) ?? false } : {}),
         ...(deps.prompt ? { prompt: deps.prompt } : {}),
         ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),

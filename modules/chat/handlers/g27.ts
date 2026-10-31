@@ -63,7 +63,7 @@ export async function fork(ctx: ChatCtx, input: { threadId: string; messageId?: 
 
   const srcTitle = titleOf(ctx, src);
   const t = insertThread(ctx, {
-    kind: "chat", title: (input.title?.trim() || `Fork of ${srcTitle}`).slice(0, 120), starter: asker, listed: true, planMode: src.planMode,
+    kind: "chat", title: (input.title?.trim() || `Fork of ${srcTitle}`).slice(0, 120), starter: asker, listed: true, planMode: src.planMode, mode: src.mode,
     ...(src.folderId !== undefined ? { folderId: src.folderId } : {}), ...(src.recordId !== undefined ? { recordId: src.recordId } : {}),
   });
   addMember(ctx, t.id, asker, "owner");
