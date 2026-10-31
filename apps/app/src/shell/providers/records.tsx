@@ -8,6 +8,7 @@ import { RecordsDataProvider, RecordsSidebarSlot, RecordsStateProvider, SidebarL
 import { TableLoading } from "../../places/records/table/index.ts";
 import { usePlaceHash, useOpenedId } from "../hash/context.tsx";
 import { RecordDetail } from "./record-detail.tsx";
+import { agentOfRecord, openAgent } from "./agent-record.tsx";
 import { useRecordsState } from "../../places/records/sidebar/state.tsx";
 import { useScreenQuery } from "../../places/records/sidebar/data.tsx";
 import { SCREENS, effectiveType, typeGroups } from "../../places/records/sidebar/model.ts";
@@ -47,7 +48,12 @@ function RecordsBody({ rt }: { rt: ShellRuntime }): ReactElement {
   const type = target.args.type ?? effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : []));
   const data = useMemo(() => {
     const base = recordsData(rt, target.screen);
-    return { ...base, nav: { ...base.nav, openRecord: (recordId: string) => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} }) } };
+    return { ...base, nav: { ...base.nav, openRecord: (recordId: string) => {
+      const open = (): void => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} });
+      // an Agents row opens the agent's own page; a row with no agent behind it opens the "not set up" page
+      if (type !== "agent") { open(); return; }
+      void agentOfRecord(rt.call, recordId).then((r) => { if ("agent" in r) openAgent(rt, r.agent.agentId); else open(); }, open);
+    } } };
   }, [rt, type, target.screen]);
   return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}</View></RecordsDataProvider>;
 }

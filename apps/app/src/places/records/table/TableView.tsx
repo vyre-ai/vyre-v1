@@ -23,6 +23,7 @@ import {
   FaceLru, faceClassOf, faceRule, flingWindow, hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, sortable, toSaved, toggleHidden, totalWidth, safeBitmapUrl,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
+import { makeRecord } from "./make.ts";
 import { filterMenuEntries } from "./filtermenu.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
@@ -553,9 +554,8 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     const name = adding.name.trim();
     if (name === "") { setAdding({ ...adding, error: `Give the ${def.title.toLowerCase()} a ${titleLabel}.` }); return; }
     setAdding({ name, busy: true });
-    data.call("records.create", { type, fields: { [def.titleField]: name }, idempotencyKey: `new-${type}-${Date.now()}` }).then((out) => {
+    makeRecord(data.call, def, name, `new-${type}-${Date.now()}`).then((id) => {
       setAdding(null);
-      const id = (out as { record?: { id?: string } } | undefined)?.record?.id;
       if (id) data.nav.openRecord(id);
     }, (e: unknown) => {
       const x = e as { error?: { message?: string }; message?: string };
