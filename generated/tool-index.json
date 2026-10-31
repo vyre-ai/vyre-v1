@@ -7142,6 +7142,54 @@
     },
     {
       "deferred": false,
+      "name": "sync_specs_apply",
+      "summary": "Apply a validated SyncSpec: a live connector (with its own tests), a connection holding the Vault handle, the record types with fields, choices, relations and stages, the synced-type bindings, and the first pull",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "sync_specs_backfill",
+      "summary": "Bring in everything, not just the first-pull filter: re-applies the stored spec with the filter dropped and starts the pull",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "sync_specs_get",
+      "summary": "Read the SyncSpec a synced type was made from (so Edit mapping can open the agent with it)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "sync_specs_preview",
+      "summary": "Dry run of a SyncSpec: the record types it would make, three sample records drawn from the real page, and what the first pull would bring in. Writes nothing to Vyre or to the app",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "sync_specs_remove",
+      "summary": "Stop syncing an app into Records and remove its connector and connection; keep its records as plain records, or remove them with their types (a copy waits in Trash for 30 days)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "sync_specs_sample",
+      "summary": "Read one page of an app, read-only (GET only), with a Vault handle as the key: where the lists are, what one item holds, how the next page is asked for, a total if there is one. Also reads field-metadata and schema endpoints",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "sync_specs_survey",
+      "summary": "Read up to 12 paths of an app at once, read-only, and say for each what lists it holds, how many items, a total if given. Use it to see which objects an app has",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "sync_specs_validate",
+      "summary": "Check a SyncSpec against a real sampled page of the app (read-only GET with the Vault handle): the list, ids, next page, every mapped field path, value types and choices. Writes nothing",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "sync_status",
       "summary": "Sync state of this device: head, cursor, lag, epoch and the last full snapshot",
       "toolset": "meta"
@@ -7163,6 +7211,12 @@
       "name": "sync_types_discover",
       "summary": "List remote objects and their fields with a proposed record type and mapping",
       "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "sync_types_field_history",
+      "summary": "The earlier values of one field that a newest-wins settlement replaced: yours when the app was newer, the app's when you were",
+      "toolset": "records"
     },
     {
       "deferred": false,
@@ -7202,6 +7256,12 @@
     },
     {
       "deferred": false,
+      "name": "sync_types_record_state",
+      "summary": "Where one record came from and how each of its synced fields is doing: saved, saving, failed or only here, with the address to open it in the app",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "sync_types_replay_conflict",
       "summary": "Replay a conflict on a copy to see what each rule would have produced",
       "toolset": "records"
@@ -7210,6 +7270,12 @@
       "deferred": false,
       "name": "sync_types_resolve_conflict",
       "summary": "Settle a sync conflict: keep ours, take theirs, or enter a value",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "sync_types_restore_field",
+      "summary": "Put an earlier value of a field back (an ordinary edit, newer than the app's value, so it is sent on the next pass) and start that pass",
       "toolset": "records"
     },
     {
@@ -7228,6 +7294,12 @@
       "deferred": false,
       "name": "sync_types_schema_changes",
       "summary": "Remote schema changes waiting for review (for example 3 changes to review)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "sync_types_status",
+      "summary": "The Sync page of a synced type: last pass, counts, failures, pushes waiting, whether a first-pull filter still holds, and the next poll",
       "toolset": "records"
     },
     {

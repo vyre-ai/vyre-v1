@@ -45,6 +45,8 @@ type Out = {
         remote: string;
         dir: "pull" | "push" | "both" | "off";
         transform?: string;
+        relation?: string;
+        inverse?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -60,6 +62,10 @@ type Out = {
     pending: number;
     conflicts: number;
     schemaChanges: number;
+    app?: {
+      title: string;
+      domain?: string;
+    };
   };
 };
 ```
@@ -82,6 +88,10 @@ type Out = {
   },
   "output": {
     "syncedType": {
+      "app": {
+        "domain": "example",
+        "title": "example"
+      },
       "conflict": "newest",
       "conflicts": 1,
       "connectionId": "con_a1b2c3",
@@ -91,7 +101,9 @@ type Out = {
       "fields": [
         {
           "dir": "pull",
+          "inverse": "email",
           "key": "email",
+          "relation": "contact",
           "remote": "example",
           "transform": "example"
         }
