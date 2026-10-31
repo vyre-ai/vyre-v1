@@ -9,6 +9,7 @@
 #   --domain NAME      serve this Space on your own domain (Caddy gets the certificate by ACME, ports 80 and 443 must reach this machine)
 #   --relay [URL]      serve through Vyre's relay instead (default https://relay.vyre.run); the machine opens no public port
 #   --data-dir DIR     where the Space's data lives (default $VYRE_DIR/data); must be on an encrypted volume
+#   --role compute     with --server ADDRESS and VYRE_JOIN=<code>: add this machine to your Space as a server (agent computers run here)
 #   --uninstall        stop the server, remove the units and /usr/local/bin/vyre-server; data and backups stay
 #   --purge            with --uninstall: also delete the data and backups, after asking
 #
@@ -45,6 +46,9 @@ WANT=""
 DOMAIN=""
 RELAY=""
 DATA_DIR_ARG=""
+ROLE=space
+SERVER_ARG=""
+JOIN_ARG=${VYRE_JOIN:-}
 TMP=""
 
 DIR=${VYRE_DIR:-/srv/vyre}
@@ -180,7 +184,7 @@ default_feed() {
   esac
 }
 
-usage() { sed -n '2,19p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; }
+usage() { sed -n '2,20p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; }
 
 parse_args() {
   while [ $# -gt 0 ]; do
@@ -194,6 +198,8 @@ parse_args() {
       --domain) shift; [ $# -gt 0 ] || die "--domain needs a value"; DOMAIN=$1 ;;
       --relay) if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then shift; RELAY=$1; else RELAY=$DEFAULT_RELAY; fi ;;
       --data-dir) shift; [ $# -gt 0 ] || die "--data-dir needs a value"; DATA_DIR_ARG=$1 ;;
+      --role) shift; [ $# -gt 0 ] || die "--role needs a value"; ROLE=$1 ;;
+      --server) shift; [ $# -gt 0 ] || die "--server needs a value"; SERVER_ARG=$1 ;;
       -h|--help) usage; exit 0 ;;
       *) die "unknown option $1 (see --help)" 2 ;;
     esac
@@ -202,6 +208,9 @@ parse_args() {
   case "$CHANNEL" in stable|beta|nightly) ;; *) die "--channel is stable, beta or nightly" 2 ;; esac
   if [ -n "$DOMAIN" ] && [ -n "$RELAY" ]; then die "--domain and --relay are two ways to reach this server; choose one" 2; fi
   case "$DOMAIN" in ""|*[!A-Za-z0-9.-]*) [ -z "$DOMAIN" ] || die "--domain must be a host name like vyre.example.com" 2 ;; esac
+  node_check_args
+  # a machine that joins someone else's Space keeps its own small folder, apart from any server's
+  if [ "$ROLE" = compute ] && [ -z "${VYRE_DIR:-}" ]; then DIR=/srv/vyre-node; fi
   DATA_DIR=${DATA_DIR_ARG:-${VYRE_DATA_DIR:-$DIR/data}}
   [ -n "$UPDATE_URL" ] || UPDATE_URL=$(default_feed "$CHANNEL")
 }
@@ -581,6 +590,152 @@ uninstall() {
   fi
 }
 
+node_own_data() { chown 1000:1000 "$DIR/data" 2>/dev/null || [ "${VYRE_TEST_MODE:-0}" = 1 ] || die "could not give the data folder to the server's user (uid 1000)."; }
+
+# ---- the compute role (identical in both installers; the test compares the two copies) ----------------------------------------------
+# BEGIN node
+# `--role compute --server ADDRESS` with VYRE_JOIN=<the one-time code> in the environment makes this machine a server of someone's Space: it holds no Space data, only its own key and the
+# credential the Space hands it after a person approves it. It runs the release's vyred image with --role compute and the Docker socket, so agent computers can run here. The same signed
+# manifest and checksum checks as the server install run first (fetch_release); the join code is read from the environment, written only to node.env at mode 0600, and removed once the
+# machine has joined. Docker restarts the container (restart: unless-stopped), so there is no unit of our own.
+NODE_JOIN_RE='^VYRE-[A-Z2-9]{4}-[A-Z2-9]{4}$'
+
+# node_check_args: what --role, --server and the join code must look like. Called once the flags are read.
+node_check_args() {
+  case "$ROLE" in space|compute) ;; *) die "--role is space or compute" 2 ;; esac
+  if [ "$ROLE" != compute ]; then
+    [ -z "$SERVER_ARG" ] || die "--server is for --role compute (the address of the Space this machine joins)" 2
+    return 0
+  fi
+  case "$SERVER_ARG" in
+    http://?*|https://?*) ;;
+    *) die "--role compute needs --server <the address of your Space>, like https://home.example.com" 2 ;;
+  esac
+  case "$SERVER_ARG" in *[!A-Za-z0-9_@%+=:,./~?-]*) die "--server holds a character that is not part of an address" 2 ;; esac
+  if [ -n "$JOIN_ARG" ]; then
+    printf '%s' "$JOIN_ARG" | grep -Eq "$NODE_JOIN_RE" || die "the join code looks like VYRE-ABCD-2345; copy it again from the Add a server sheet" 2
+  fi
+  [ -z "$DOMAIN$RELAY" ] || die "--domain and --relay are for a server that runs a Space, not for --role compute" 2
+}
+
+# node_need_code: a first install needs the code; a re-run on a machine that already joined does not.
+node_need_code() {
+  [ -n "$JOIN_ARG" ] && return 0
+  [ -f "$DIR/data/compute-state.json" ] && return 0
+  die "give the one-time join code: VYRE_JOIN=VYRE-ABCD-2345 in the environment of this command (make one in Vyre: Settings, Computers, Add a server)." 2
+}
+
+# node_write_config: node.env (0600), compose.env and compose.node.yml, and the data folder the container's user (uid 1000) owns.
+node_write_config() {
+  if [ "$DRY" = 1 ]; then say "would write $DIR/node.env (0600), $DIR/compose.env and $DIR/compose.node.yml, and create $DIR/data"; return 0; fi
+  mkdir -p "$DIR/data" "$DIR/state"
+  chmod 0700 "$DIR/data"
+  node_own_data
+  ( umask 077; { printf 'VYRE_ROLE=compute\nVYRE_SERVER=%s\n' "$SERVER_ARG"; [ -z "$JOIN_ARG" ] || printf 'VYRE_JOIN=%s\n' "$JOIN_ARG"; } >"$DIR/node.env.new" )
+  chmod 0600 "$DIR/node.env.new"
+  mv "$DIR/node.env.new" "$DIR/node.env"
+  gid=$(stat -c %g /var/run/docker.sock 2>/dev/null || stat -f %g /var/run/docker.sock 2>/dev/null || printf '0')
+  {
+    printf 'VYRE_IMAGE=%s\n' "$(lock_get VYRE_IMAGE)"
+    printf 'VYRE_AGENT_IMAGE=%s\n' "$(lock_get VYRE_AGENT_IMAGE)"
+    printf 'DOCKER_GID=%s\n' "$gid"
+  } >"$DIR/compose.env"
+  cat >"$DIR/compose.node.yml" <<COMPOSE
+# $MARK (compute role). The Space this machine joined is in node.env; the Docker socket is how agent computers run here.
+name: vyre-node
+services:
+  vyred:
+    image: \${VYRE_IMAGE}
+    restart: unless-stopped
+    command: ["node", "/opt/vyre/host/src/daemon/main.ts", "--role", "compute"]
+    env_file:
+      - ./node.env
+    environment:
+      VYRE_AGENT_COMPUTER_IMAGE: \${VYRE_AGENT_IMAGE}
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "\${DOCKER_GID}"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+COMPOSE
+  printf '%s\n' "$CHANNEL" >"$DIR/channel"
+}
+
+node_compose() { docker compose --project-directory "$DIR" --env-file "$DIR/compose.env" -f "$DIR/compose.node.yml" "$@"; }
+
+node_start() {
+  if [ "$DRY" = 1 ]; then say "would start the server: docker compose up -d in $DIR"; return 0; fi
+  node_compose up -d || die "the server did not start; read: docker compose -f $DIR/compose.node.yml logs"
+}
+
+# node_wait_fingerprint: the machine prints the eight characters a person compares when they approve it; show them here too, then forget the one-time code.
+node_wait_fingerprint() {
+  [ "$DRY" = 1 ] && return 0
+  say "  Waiting for this machine to ask to join (up to ${VYRE_UP_WAIT:-90} s)"
+  n=0
+  while [ "$n" -lt "${VYRE_UP_WAIT:-90}" ]; do
+    fp=$(node_compose logs --no-color 2>/dev/null | grep -Eo 'Fingerprint [A-Z2-9]{4}-[A-Z2-9]{4}' | tail -n 1 | awk '{print $2}')
+    if [ -n "$fp" ]; then
+      NODE_FP=$fp
+      if grep -q '^VYRE_JOIN=' "$DIR/node.env" 2>/dev/null; then
+        ( umask 077; grep -v '^VYRE_JOIN=' "$DIR/node.env" >"$DIR/node.env.new" || true )
+        chmod 0600 "$DIR/node.env.new"
+        mv "$DIR/node.env.new" "$DIR/node.env"
+      fi
+      return 0
+    fi
+    [ -f "$DIR/data/compute-state.json" ] && { NODE_FP=""; return 0; }
+    n=$((n + 3))
+    sleep 3
+  done
+  die "this machine did not ask to join. Read: docker compose -f $DIR/compose.node.yml logs (is the Space address reachable from here, and is the code still valid? It lasts ten minutes)."
+}
+
+node_finish() {
+  say ""
+  if [ "$DRY" = 1 ]; then
+    say "That is the whole plan. Nothing on this machine changed. Run it again without --dry-run when you are ready."
+  else
+    say "This machine asked to join your Space."
+    [ -z "${NODE_FP:-}" ] || say "Fingerprint $NODE_FP. Compare it with the one in Vyre, then approve."
+    say "Docker keeps it running, and starts it again after a restart. Remove it with: the same command and --uninstall."
+  fi
+  say ""
+}
+
+node_uninstall() {
+  [ -d "$DIR" ] || die "nothing is installed at $DIR."
+  if [ -f "$DIR/compose.node.yml" ] && command -v docker >/dev/null 2>&1; then
+    # shellcheck disable=SC2086
+    run docker compose --project-directory "$DIR" --env-file "$DIR/compose.env" -f "$DIR/compose.node.yml" down --remove-orphans || true
+  fi
+  run rm -rf "$DIR"
+  say "Removed this server. Remove it from Settings, Computers in Vyre too, so its access ends there."
+}
+# END node
+
+# compute_main: add this machine to a Space as a server.
+compute_main() {
+  node_need_code
+  say "Adding this machine to your Space as a server. It checks the download against Vyre's signature before installing anything."
+  need_tools
+  check_openssl
+  MIN_FREE_MB=${VYRE_MIN_FREE_MB:-4096}
+  check_space "$DIR"
+  need_docker
+  fetch_release
+  unpack_release
+  node_write_config
+  pull_images
+  node_start
+  node_wait_fingerprint
+  node_finish
+}
+
+
 main() {
   umask 022
   parse_args "$@"
@@ -589,7 +744,9 @@ main() {
   case "$(uname -s)" in Linux) ;; *) [ "${VYRE_TEST_MODE:-0}" = 1 ] || die "this installer is for Linux; on a Mac run: curl -fsSL https://vyre.run/install-mac.sh | sh" ;; esac
   case "$(uname -m)" in x86_64|amd64|aarch64|arm64) ;; *) die "Vyre Server runs on x86_64 and arm64; this machine is $(uname -m)." ;; esac
   is_root || die "run this as root (for example: curl -fsSL https://vyre.run/install.sh | sudo sh)."
+  if [ "$UNINSTALL" = 1 ] && [ "$ROLE" = compute ]; then node_uninstall; return 0; fi
   if [ "$UNINSTALL" = 1 ]; then uninstall; return 0; fi
+  if [ "$ROLE" = compute ]; then compute_main; return 0; fi
   say "Installing Vyre Server on this machine. It checks the download against Vyre's signature before installing anything."
   need_tools
   check_openssl

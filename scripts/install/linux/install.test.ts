@@ -443,3 +443,85 @@ test("the default release feed is the GitHub feed of the chosen channel (no depe
   assert.doesNotMatch(read(SERVER), /vyre\.run\/server/);
   assert.match(read(SERVER), /printf 'https:\/\/github\.com\/vyre-ai\/vyre-v1\/releases\/latest\/download\/'/, "an install with no update-url file reads the stable feed");
 });
+
+// ---- the compute role: --role compute --server ADDRESS with VYRE_JOIN in the environment
+
+test("the compute-role block is the same text in both installers", () => {
+  const mac = fs.readFileSync(path.join(HERE, "../macos/install.sh"), "utf8");
+  const mine = block(INSTALL, "node");
+  assert.ok(mac.includes(mine), "the macOS installer carries the same node block");
+});
+
+test("parse_args for the compute role: it needs a Space address and a well-formed code, refuses the server flags, and keeps its own folder", () => {
+  const args = (a: string, env: Record<string, string> = {}): Out => sh(INSTALL, `parse_args ${a}; echo "role=$ROLE server=$SERVER_ARG dir=$DIR data=$DATA_DIR join=$JOIN_ARG"`, env);
+  const ok = args("--role compute --server https://home.example.com", { VYRE_JOIN: "VYRE-AB23-CD45" });
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /role=compute server=https:\/\/home\.example\.com dir=\/srv\/vyre-node data=\/srv\/vyre-node\/data join=VYRE-AB23-CD45/);
+  assert.match(args("--role compute --server https://x.example --data-dir /mnt/a", { VYRE_DIR: "/opt/node" }).stdout, /dir=\/opt\/node data=\/mnt\/a/);
+  assert.match(args("--role compute").stderr, /needs --server/);
+  assert.match(args("--role compute --server home.example.com").stderr, /needs --server/);
+  assert.match(args("--role compute --server 'https://x.example;rm'").stderr, /not part of an address/);
+  assert.match(args("--role compute --server https://x.example", { VYRE_JOIN: "nope" }).stderr, /looks like VYRE-ABCD-2345/);
+  assert.match(args("--role compute --server https://x.example --domain a.example.com").stderr, /not for --role compute/);
+  assert.match(args("--server https://x.example").stderr, /--server is for --role compute/);
+  assert.match(args("--role both").stderr, /space or compute/);
+  assert.match(args("").stdout, /role=space server= dir=\/srv\/vyre /, "the server install is unchanged");
+});
+
+test("a first compute install needs the one-time code; a machine that already joined does not", () => {
+  const dir = tmp();
+  const need = (join: string): Out => sh(INSTALL, `DIR="${dir}"; JOIN_ARG="${join}"; node_need_code`);
+  assert.match(need("").stderr, /one-time join code/);
+  assert.equal(need("VYRE-AB23-CD45").status, 0);
+  fs.mkdirSync(path.join(dir, "data"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "data/compute-state.json"), "{}");
+  assert.equal(need("").status, 0, "already joined");
+  fs.rmSync(dir, { recursive: true });
+});
+
+test("node_write_config keeps the code out of output and arguments, at mode 0600, and the compose file runs the compute role with the Docker socket", () => {
+  const dir = tmp();
+  const rel = path.join(dir, "releases/1.0.0");
+  fs.mkdirSync(rel, { recursive: true });
+  fs.writeFileSync(path.join(rel, "images.lock"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${"b".repeat(64)}\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent@sha256:${"c".repeat(64)}\n`);
+  const body = `DIR="${dir}"; REL_VERSION=1.0.0; CHANNEL=stable; DRY=0; SERVER_ARG=https://home.example.com; JOIN_ARG=VYRE-AB23-CD45; node_write_config`;
+  const r = sh(INSTALL, body);
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout + r.stderr, /VYRE-AB23-CD45/);
+  const envFile = path.join(dir, "node.env");
+  assert.equal(fs.statSync(envFile).mode & 0o777, 0o600);
+  assert.equal(read(envFile), "VYRE_ROLE=compute\nVYRE_SERVER=https://home.example.com\nVYRE_JOIN=VYRE-AB23-CD45\n");
+  assert.equal(fs.statSync(path.join(dir, "data")).mode & 0o777, 0o700);
+  const compose = read(path.join(dir, "compose.env"));
+  assert.match(compose, /^VYRE_IMAGE=ghcr\.io\/vyre-ai\/vyred@sha256:b{64}$/m);
+  assert.match(compose, /^VYRE_AGENT_IMAGE=ghcr\.io\/vyre-ai\/agent@sha256:c{64}$/m);
+  const yml = read(path.join(dir, "compose.node.yml"));
+  assert.match(yml, /"--role", "compute"/);
+  assert.match(yml, /\/var\/run\/docker\.sock:\/var\/run\/docker\.sock/);
+  assert.match(yml, /image: \$\{VYRE_IMAGE\}/);
+  assert.match(yml, /cap_drop: \[ALL\]/);
+  assert.doesNotMatch(yml, /VYRE-AB23/, "the code is in node.env only");
+  const dry = sh(INSTALL, body.replace("DRY=0", "DRY=1").replace(dir, path.join(dir, "elsewhere")));
+  assert.match(dry.stdout, /would write .*node\.env/);
+  assert.equal(fs.existsSync(path.join(dir, "elsewhere")), false, "a dry run writes nothing");
+  fs.rmSync(dir, { recursive: true });
+});
+
+test("node_wait_fingerprint shows the fingerprint the machine printed, then forgets the one-time code; with no sign of joining it says what to read", () => {
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, "node.env"), "VYRE_ROLE=compute\nVYRE_SERVER=https://x.example\nVYRE_JOIN=VYRE-AB23-CD45\n", { mode: 0o600 });
+  fs.mkdirSync(path.join(dir, "bin"));
+  fs.writeFileSync(path.join(dir, "bin/docker"), `#!/bin/sh\nprintf 'vyred: Asked to join as "x". Fingerprint K7QD-4M2X. Waiting for a person to approve it.\\n'\n`, { mode: 0o755 });
+  const env = { PATH: `${path.join(dir, "bin")}:${process.env.PATH ?? ""}` };
+  const ok = sh(INSTALL, `DIR="${dir}"; DRY=0; node_wait_fingerprint; node_finish; echo "fp=$NODE_FP"`, env);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /Fingerprint K7QD-4M2X\. Compare it with the one in Vyre, then approve\./);
+  assert.match(ok.stdout, /fp=K7QD-4M2X/);
+  assert.equal(read(path.join(dir, "node.env")), "VYRE_ROLE=compute\nVYRE_SERVER=https://x.example\n", "the code is gone once the machine has asked");
+  assert.equal(fs.statSync(path.join(dir, "node.env")).mode & 0o777, 0o600);
+  fs.writeFileSync(path.join(dir, "bin/docker"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  const none = sh(INSTALL, `DIR="${dir}"; DRY=0; node_wait_fingerprint`, { ...env, VYRE_UP_WAIT: "1" });
+  assert.notEqual(none.status, 0);
+  assert.match(none.stderr, /did not ask to join/);
+  fs.rmSync(dir, { recursive: true });
+});

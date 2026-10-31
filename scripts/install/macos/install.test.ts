@@ -260,3 +260,12 @@ test("the default release feed is the GitHub feed of the chosen channel, and VYR
   assert.equal(feed("--channel beta", { VYRE_UPDATE_URL: "https://updates.example/server/" }), "https://updates.example/server/");
   assert.doesNotMatch(read(INSTALL), /vyre\.run\/server/);
 });
+
+test("the compute role on a Mac: the same block as Linux, its own folder under the home folder, and the same checks of the address and the code", () => {
+  assert.equal(block(INSTALL, "node"), block(LINUX, "node"));
+  const r = sh(INSTALL, `parse_args --role compute --server https://home.example.com; echo "role=$ROLE dir=$DIR join=$JOIN_ARG"`, { VYRE_JOIN: "VYRE-AB23-CD45" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /role=compute dir=.*\/\.vyre\/node join=VYRE-AB23-CD45/);
+  assert.match(sh(INSTALL, "parse_args --role compute").stderr, /needs --server/);
+  assert.match(sh(INSTALL, "parse_args --role compute --server https://x.example", { VYRE_JOIN: "x" }).stderr, /looks like VYRE-ABCD-2345/);
+});
