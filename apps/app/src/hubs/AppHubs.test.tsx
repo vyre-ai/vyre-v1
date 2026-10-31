@@ -37,7 +37,8 @@ test("the hub says where it runs once; apps show collapsed with their tool count
   const t = view([{ connectionId: "mcs_1", name: "composio", hub: "composio" }], { composio: { ok: true, tools } });
   assert.equal((t.match(/Runs through Composio/g) ?? []).length, 1);
   assert.match(t, /HubSpot/);
-  assert.match(t, /2 tools/);
+  assert.match(t, /1 tool . Shared by the Space/);
+  assert.match(t, /2 tools . Each person signs in/);
   assert.doesNotMatch(t, /Asks first|Reads|Disconnect/);
   assert.match(t, /Connect an app hub/);
 });

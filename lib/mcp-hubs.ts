@@ -20,6 +20,8 @@ export interface HubTemplate {
   connectUrl: string;
   /** The app a tool belongs to, from its name (the hubs prefix every tool with its app). */
   appOf(tool: string): string;
+  /** Where the hub reads whose sign-in a call uses: a query parameter on the address (Composio) or a header (Pipedream). */
+  identity: { in: "query" | "header"; name: string };
 }
 
 const firstWord = (tool: string): string => (/^[A-Za-z0-9]+/.exec(tool)?.[0] ?? tool).toLowerCase();
@@ -27,11 +29,11 @@ const firstWord = (tool: string): string => (/^[A-Za-z0-9]+/.exec(tool)?.[0] ?? 
 export const HUBS: readonly HubTemplate[] = [
   {
     id: "composio", name: "Composio", urlPattern: /^https:\/\/(backend|mcp)\.composio\.dev\//, urlExample: "https://backend.composio.dev/v3/mcp/<server id>/mcp",
-    header: "x-api-key", prefix: "", keyHint: "Composio dashboard, Settings, API keys.", keyUrl: "https://platform.composio.dev/", connectUrl: "https://platform.composio.dev/apps/{app}", appOf: firstWord,
+    header: "x-api-key", prefix: "", keyHint: "Composio dashboard, Settings, API keys.", keyUrl: "https://platform.composio.dev/", connectUrl: "https://platform.composio.dev/apps/{app}", appOf: firstWord, identity: { in: "query", name: "user_id" },
   },
   {
     id: "pipedream", name: "Pipedream", urlPattern: /^https:\/\/remote\.mcp\.pipedream\.net(\/|$)/, urlExample: "https://remote.mcp.pipedream.net",
-    header: "Authorization", prefix: "Bearer ", keyHint: "Pipedream, Settings, API, a project access token.", keyUrl: "https://pipedream.com/settings/api", connectUrl: "https://pipedream.com/apps/{app}", appOf: firstWord,
+    header: "Authorization", prefix: "Bearer ", keyHint: "Pipedream, Settings, API, a project access token.", keyUrl: "https://pipedream.com/settings/api", connectUrl: "https://pipedream.com/apps/{app}", appOf: firstWord, identity: { in: "header", name: "x-pd-external-user-id" },
   },
 ];
 
@@ -51,3 +53,14 @@ const APP_NAMES: Record<string, string> = {
 
 /** An app's name as people write it ("HubSpot"), from the slug a hub puts in front of its tool names. Unknown slugs get a capital letter. */
 export const appName = (slug: string): string => APP_NAMES[slug.toLowerCase()] ?? (slug.charAt(0).toUpperCase() + slug.slice(1));
+
+/** Apps that act as a person (their mail, their chat, their calendar). Each person signs in to these as themselves; every other app is a tool of the Space and shares one sign-in. */
+const PERSON_APPS = new Set(["slack", "gmail", "outlook", "googlecalendar", "outlookcalendar", "linkedin", "twitter", "instagram", "facebook", "discord", "telegram", "whatsapp", "microsoftteams", "teams", "calendly", "zoom"]);
+
+export type Identity = "person" | "space";
+
+/** Whose sign-in an app uses on the hub. */
+export const identityOfApp = (app: string): Identity => (PERSON_APPS.has(app.toLowerCase()) ? "person" : "space");
+
+/** Whose sign-in a tool uses, from its name. */
+export const identityOfTool = (hub: HubTemplate, tool: string): Identity => identityOfApp(hub.appOf(tool));

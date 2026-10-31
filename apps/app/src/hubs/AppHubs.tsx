@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { AppState, Linking, Pressable, Text, View } from "react-native";
-import { HUBS, appName, connectLink, hubById, hubLine } from "../../../../lib/mcp-hubs.ts";
+import { HUBS, appName, connectLink, hubById, hubLine, identityOfApp } from "../../../../lib/mcp-hubs.ts";
 import type { HubTemplate } from "../../../../lib/mcp-hubs.ts";
 import { AppIcon } from "../../../../ui/src/AppIcon/index.tsx";
 import { Dialog } from "../../../../ui/src/Dialog/index.tsx";
@@ -98,7 +98,7 @@ export function AppHubsView({ connections, servers, onConnect, onDisconnect }: A
     for (const g of groups) {
       const key2 = `${c.connectionId}:${g.app}`;
       const tools = open[key2] === true;
-      rows.push(<Row key={key2} id={`hub-app-${g.app}`} title={g.label} note={`${g.tools.length} ${g.tools.length === 1 ? "tool" : "tools"}`} leading={<View style={lead}><AppIcon brand={g.app} name={g.label} size={24} /></View>}
+      rows.push(<Row key={key2} id={`hub-app-${g.app}`} title={g.label} note={`${g.tools.length} ${g.tools.length === 1 ? "tool" : "tools"} \u00B7 ${identityOfApp(g.app) === "person" ? "Each person signs in" : "Shared by the Space"}`} leading={<View style={lead}><AppIcon brand={g.app} name={g.label} size={24} /></View>}
         onPress={() => setOpen({ ...open, [key2]: !tools })}
         trailing={<Pressable accessibilityRole="link" accessibilityLabel={`Connect ${g.label} on ${h.name}`} testID={`hub-connect-${g.app}`} onPress={() => { void Linking.openURL(connectLink(h, g.app)); }} style={{ paddingHorizontal: 10, paddingVertical: 4 }}><Text style={{ fontSize: 13, color: "var(--accent)" }}>Connect</Text></Pressable>} />);
       if (tools) for (const t of g.tools) rows.push(<Row key={`${key2}:${t.name}`} id={`hub-tool-${t.name}`} title={t.label} leading={<View style={lead} />}

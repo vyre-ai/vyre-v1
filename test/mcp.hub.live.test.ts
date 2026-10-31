@@ -10,7 +10,7 @@ import { boot, call, connect, makeAgent, ok, post, scriptedModel, seededDir, sta
 const HUB_KEY = "cmp_live_FAKEhubKEY0123456789abcdef"; // secret-scan: fake
 const HUB_URL = "https://backend.composio.dev/v3/mcp/srv_123/mcp";
 
-interface Seen { method: string; tool?: string; key: string | undefined }
+interface Seen { method: string; tool?: string; key: string | undefined; user: string | null }
 
 function fakeHub(seen: Seen[]): Promise<{ port: number; close(): Promise<void> }> {
   const tools = [
@@ -25,7 +25,7 @@ function fakeHub(seen: Seen[]): Promise<{ port: number; close(): Promise<void> }
       const key = req.headers["x-api-key"] as string | undefined;
       if (key !== HUB_KEY) { res.writeHead(401, { "content-type": "application/json" }); res.end('{"error":"bad key"}'); return; }
       const m = JSON.parse(body) as { id?: number; method: string; params?: { name?: string; arguments?: { text?: string } } };
-      seen.push({ method: m.method, ...(m.params?.name ? { tool: m.params.name } : {}), key });
+      seen.push({ method: m.method, ...(m.params?.name ? { tool: m.params.name } : {}), key, user: new URL(req.url ?? "/", "http://x").searchParams.get("user_id") });
       const reply = (result: unknown): void => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ jsonrpc: "2.0", id: m.id, result })); };
       if (m.method === "initialize") reply({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "fake-composio", version: "1" } });
       else if (m.method === "tools/list") reply({ tools });
@@ -79,6 +79,12 @@ test("a Composio connection from its template: the key is a Vault handle, tools 
     assert.match(read, /general, random/);
     assert.ok(!read.includes(HUB_KEY));
 
+    // the hub is told whose sign-in this is: the Space for a Space tool, a hashed person for an app that acts as someone, never the person's own id
+    const slackCall = seen.find((s) => s.tool === "SLACK_LIST_CHANNELS");
+    assert.match(slackCall?.user ?? "", /^p_[0-9a-f]{32}$/);
+    assert.ok(!JSON.stringify(seen).includes("usr_"), "no Vyre id reaches the hub");
+    assert.ok(seen.filter((s) => s.method === "tools/list").every((s) => s.user === "space"));
+
     // a change is held for the agent; nothing reaches the hub until the person approves it
     for (const [ask, name, key] of [["send hello", "SLACK_SEND_MESSAGE", "hub1b"], ["update page", "NOTION_UPDATE_PAGE", "hub1c"]] as const) {
       const before = seen.filter((s) => s.tool === name).length;
@@ -92,6 +98,8 @@ test("a Composio connection from its template: the key is a Vault handle, tools 
       const done = await call(d, "tasks.act", { taskId: hold.taskId, action: "approve" });
       assert.equal(done.status, 200, JSON.stringify(done.data));
       await waitFor(async () => { await d.hooks?.pump?.(); return seen.filter((s) => s.tool === name).length > before ? true : null; }, 30_000);
+      const ran = seen.filter((s) => s.tool === name).at(-1);
+      assert.equal(ran?.user === "space", name.startsWith("NOTION"), `${name} ran as ${ran?.user}`);
     }
   } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); await hub.close(); }
 });
