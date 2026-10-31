@@ -1,0 +1,1 @@
+- Fixed a message that arrived before the engine runtime was built, as the first message after a server restart did, being skipped with no turn and no failure shown. The engine's chat bridge and the Gate-resume consumer now build the runtime first, the same way the first engine call does, then run the turn.
