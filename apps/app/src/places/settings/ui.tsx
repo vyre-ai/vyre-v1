@@ -109,6 +109,7 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
           {...(danger ? { titleMarks: <View style={s.dangerDot} /> } : {})}
           {...(onPress ? { onPress } : { domProps: { style: { cursor: "default", backgroundColor: "transparent" } } })}
         />
+        {subAlert && sub ? <Text accessibilityRole="alert" style={s.srOnly}>{sub}</Text> : null}
         {stack ? <View style={s.stacked}>{control}</View> : null}
       </View>
     </Tip>
@@ -278,6 +279,7 @@ export const s = StyleSheet.create({
   card: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   rowWrap: { paddingHorizontal: 4, paddingVertical: 4, justifyContent: "center" },
   stacked: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, paddingHorizontal: 8, paddingBottom: 6 },
+  srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   dangerDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--danger)" as string },
   rowLine: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   lead: { width: 34, alignItems: "center", justifyContent: "center" },
