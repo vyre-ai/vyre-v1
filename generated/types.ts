@@ -9298,6 +9298,28 @@ export type EngineMcpCallOut = {
   text: string;
   structured?: unknown;
 };
+export type EngineMcpOauthCompleteIn = {
+  state: string;
+  code?: string;
+  error?: string;
+};
+export type EngineMcpOauthCompleteOut = {
+  connectionId: string;
+};
+export type EngineMcpOauthStartIn = {
+  connectionId: string;
+  redirectUri: string;
+};
+export type EngineMcpOauthStartOut = {
+  authUrl: string;
+  state: string;
+};
+export type EngineMcpOauthStatusIn = {
+  connectionId: string;
+};
+export type EngineMcpOauthStatusOut = {
+  signedIn: boolean;
+};
 export type EngineMcpReadIn = {
   agentId: string;
   server: string;
@@ -9326,6 +9348,8 @@ export type EngineMcpToolsOut = {
           inputSchema: unknown;
           readOnly: boolean;
         }>;
+      hub?: "composio" | "pipedream";
+      oauth?: boolean;
     }>;
 };
 export type EngineModelsListIn = {
@@ -20904,6 +20928,8 @@ export type PluginsConnectionAddIn = {
   args?: Array<string>;
   env?: Record<string, string>;
   headers?: Record<string, string>;
+  hub?: "composio" | "pipedream";
+  auth?: "oauth";
   idempotencyKey: string;
 };
 export type PluginsConnectionAddOut = {
@@ -20920,6 +20946,8 @@ export type PluginsConnectionAddOut = {
     headers: Record<string, string>;
     enabled: boolean;
     createdAt: number;
+    hub?: "composio" | "pipedream";
+    auth?: "oauth";
   };
 };
 export type PluginsConnectionRemoveIn = {
@@ -20949,6 +20977,8 @@ export type PluginsConnectionsListOut = {
       headers: Record<string, string>;
       enabled: boolean;
       createdAt: number;
+      hub?: "composio" | "pipedream";
+      auth?: "oauth";
     }>;
 };
 export type PluginsFilesIn = {
@@ -21165,6 +21195,9 @@ export type PluginsMcpServersOut = {
       headers: Record<string, string>;
       files?: string;
       needs: Array<string>;
+      hub?: "composio" | "pipedream";
+      oauth?: boolean;
+      connectionId?: string;
     }>;
 };
 export type PluginsSetEnabledIn = {
@@ -31893,6 +31926,9 @@ export interface CapMap {
   "engine.lease.heartbeat": { in: EngineLeaseHeartbeatIn; out: EngineLeaseHeartbeatOut };
   "engine.lease.release": { in: EngineLeaseReleaseIn; out: EngineLeaseReleaseOut };
   "engine.mcp.call": { in: EngineMcpCallIn; out: EngineMcpCallOut };
+  "engine.mcp.oauth_complete": { in: EngineMcpOauthCompleteIn; out: EngineMcpOauthCompleteOut };
+  "engine.mcp.oauth_start": { in: EngineMcpOauthStartIn; out: EngineMcpOauthStartOut };
+  "engine.mcp.oauth_status": { in: EngineMcpOauthStatusIn; out: EngineMcpOauthStatusOut };
   "engine.mcp.read": { in: EngineMcpReadIn; out: EngineMcpReadOut };
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };

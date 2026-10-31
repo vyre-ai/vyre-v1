@@ -38517,6 +38517,12 @@
             },
             "type": "array"
           },
+          "auth": {
+            "enum": [
+              "oauth"
+            ],
+            "type": "string"
+          },
           "command": {
             "type": "string"
           },
@@ -38533,6 +38539,13 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "hub": {
+            "enum": [
+              "composio",
+              "pipedream"
+            ],
+            "type": "string"
           },
           "idempotencyKey": {
             "examples": [

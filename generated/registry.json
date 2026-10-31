@@ -1,5 +1,100 @@
 {
   "$defs": {
+    "s_0009d545f0": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "auth": {
+          "enum": [
+            "oauth"
+          ],
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "connectionId": {
+          "examples": [
+            "mcs_a1b2c3"
+          ],
+          "pattern": "^mcs_[a-z0-9]+$",
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "hub": {
+          "enum": [
+            "composio",
+            "pipedream"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "agent"
+          ],
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "stdio",
+            "http"
+          ],
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "name",
+        "scope",
+        "transport",
+        "args",
+        "env",
+        "headers",
+        "enabled",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_0046d61ae3": {
       "properties": {
         "eTag": {
@@ -19819,88 +19914,6 @@
         "providerEventId",
         "envelopeId",
         "status"
-      ],
-      "type": "object"
-    },
-    "s_f37bc5d2c7": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "args": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "command": {
-          "type": "string"
-        },
-        "connectionId": {
-          "examples": [
-            "mcs_a1b2c3"
-          ],
-          "pattern": "^mcs_[a-z0-9]+$",
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "headers": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "name": {
-          "type": "string"
-        },
-        "scope": {
-          "enum": [
-            "space",
-            "agent"
-          ],
-          "type": "string"
-        },
-        "transport": {
-          "enum": [
-            "stdio",
-            "http"
-          ],
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "connectionId",
-        "name",
-        "scope",
-        "transport",
-        "args",
-        "env",
-        "headers",
-        "enabled",
-        "createdAt"
       ],
       "type": "object"
     },
@@ -72131,6 +72144,209 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.unavailable",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "error": "example",
+            "state": "example"
+          },
+          "name": "example",
+          "output": {
+            "connectionId": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.mcp.oauth_complete",
+      "output": {
+        "properties": {
+          "connectionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Finish an OAuth sign-in with the state and code the server sent back, or the error it sent when the person declined. Only the person who started it can finish it.",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "example",
+            "redirectUri": "example"
+          },
+          "name": "example",
+          "output": {
+            "authUrl": "example",
+            "state": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "type": "string"
+          },
+          "redirectUri": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "redirectUri"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "engine",
+      "name": "engine.mcp.oauth_start",
+      "output": {
+        "properties": {
+          "authUrl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authUrl",
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Begin signing a remote outside-tool connection in with OAuth (the MCP authorization flow). Answers the address to send the person to; the token that comes back is sealed and never answered.",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "example"
+          },
+          "name": "example",
+          "output": {
+            "signedIn": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.mcp.oauth_status",
+      "output": {
+        "properties": {
+          "signedIn": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "signedIn"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Has this remote connection signed in? A yes or no, never the token.",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -72226,8 +72442,10 @@
               {
                 "error": "example",
                 "from": "plugin",
+                "hub": "composio",
                 "key": "greeter/echo",
                 "name": "example",
+                "oauth": true,
                 "ok": true,
                 "tools": [
                   {
@@ -72279,6 +72497,13 @@
                   ],
                   "type": "string"
                 },
+                "hub": {
+                  "enum": [
+                    "composio",
+                    "pipedream"
+                  ],
+                  "type": "string"
+                },
                 "key": {
                   "examples": [
                     "greeter/echo"
@@ -72287,6 +72512,9 @@
                 },
                 "name": {
                   "type": "string"
+                },
+                "oauth": {
+                  "type": "boolean"
                 },
                 "ok": {
                   "type": "boolean"
@@ -140929,9 +141157,11 @@
             "args": [
               "example"
             ],
+            "auth": "oauth",
             "command": "example",
             "env": {},
             "headers": {},
+            "hub": "composio",
             "idempotencyKey": "idem_1",
             "name": "crm",
             "scope": "space",
@@ -140944,12 +141174,14 @@
               "args": [
                 "example"
               ],
+              "auth": "oauth",
               "command": "example",
               "connectionId": "mcs_a1b2c3",
               "createdAt": 1760000000000,
               "enabled": true,
               "env": {},
               "headers": {},
+              "hub": "composio",
               "name": "example",
               "scope": "space",
               "transport": "stdio",
@@ -140974,6 +141206,12 @@
             },
             "type": "array"
           },
+          "auth": {
+            "enum": [
+              "oauth"
+            ],
+            "type": "string"
+          },
           "command": {
             "type": "string"
           },
@@ -140990,6 +141228,13 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "hub": {
+            "enum": [
+              "composio",
+              "pipedream"
+            ],
+            "type": "string"
           },
           "idempotencyKey": {
             "examples": [
@@ -141028,7 +141273,7 @@
       "output": {
         "properties": {
           "connection": {
-            "$ref": "#/$defs/s_f37bc5d2c7"
+            "$ref": "#/$defs/s_0009d545f0"
           }
         },
         "required": [
@@ -141172,12 +141417,14 @@
                 "args": [
                   "example"
                 ],
+                "auth": "oauth",
                 "command": "example",
                 "connectionId": "mcs_a1b2c3",
                 "createdAt": 1760000000000,
                 "enabled": true,
                 "env": {},
                 "headers": {},
+                "hub": "composio",
                 "name": "example",
                 "scope": "space",
                 "transport": "stdio",
@@ -141207,7 +141454,7 @@
         "properties": {
           "connections": {
             "items": {
-              "$ref": "#/$defs/s_f37bc5d2c7"
+              "$ref": "#/$defs/s_0009d545f0"
             },
             "type": "array"
           }
@@ -142135,15 +142382,18 @@
                   "example"
                 ],
                 "command": "example",
+                "connectionId": "mcs_a1b2c3",
                 "env": {},
                 "files": "example",
                 "from": "plugin",
                 "headers": {},
+                "hub": "composio",
                 "key": "deploy-tools/api",
                 "name": "example",
                 "needs": [
                   "example"
                 ],
+                "oauth": true,
                 "pluginId": "plg_a1b2c3",
                 "transport": "stdio",
                 "url": "example"
@@ -142182,6 +142432,13 @@
                 "command": {
                   "type": "string"
                 },
+                "connectionId": {
+                  "examples": [
+                    "mcs_a1b2c3"
+                  ],
+                  "pattern": "^mcs_[a-z0-9]+$",
+                  "type": "string"
+                },
                 "env": {
                   "additionalProperties": {
                     "type": "string"
@@ -142205,6 +142462,13 @@
                   },
                   "type": "object"
                 },
+                "hub": {
+                  "enum": [
+                    "composio",
+                    "pipedream"
+                  ],
+                  "type": "string"
+                },
                 "key": {
                   "description": "plugin:<plugin>/<server> or <name> for a connection made by hand",
                   "examples": [
@@ -142221,6 +142485,9 @@
                     "type": "string"
                   },
                   "type": "array"
+                },
+                "oauth": {
+                  "type": "boolean"
                 },
                 "pluginId": {
                   "examples": [

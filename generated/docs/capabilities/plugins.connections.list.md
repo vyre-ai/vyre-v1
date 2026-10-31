@@ -46,6 +46,8 @@ type Out = {
       headers: Record<string, string>;
       enabled: boolean;
       createdAt: number;
+      hub?: "composio" | "pipedream";
+      auth?: "oauth";
     }>;
 };
 ```
@@ -72,12 +74,14 @@ type Out = {
         "args": [
           "example"
         ],
+        "auth": "oauth",
         "command": "example",
         "connectionId": "mcs_a1b2c3",
         "createdAt": 1760000000000,
         "enabled": true,
         "env": {},
         "headers": {},
+        "hub": "composio",
         "name": "example",
         "scope": "space",
         "transport": "stdio",
