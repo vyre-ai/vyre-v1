@@ -7340,6 +7340,7 @@ export type ConnectionsCreateOut = {
     scopes: Array<string>;
     lastSyncAt?: number;
     createdAt: number;
+    handles: Array<string>;
   };
   authUrl?: string;
 };
@@ -7366,6 +7367,7 @@ export type ConnectionsGetOut = {
     scopes: Array<string>;
     lastSyncAt?: number;
     createdAt: number;
+    handles: Array<string>;
   };
 };
 export type ConnectionsListIn = {
@@ -7388,6 +7390,7 @@ export type ConnectionsListOut = {
       scopes: Array<string>;
       lastSyncAt?: number;
       createdAt: number;
+      handles: Array<string>;
     }>;
   next?: string;
   total?: number;
@@ -7437,6 +7440,7 @@ export type ConnectionsUpdateOut = {
     scopes: Array<string>;
     lastSyncAt?: number;
     createdAt: number;
+    handles: Array<string>;
   };
 };
 export type ConnectorsBuildIn = {
