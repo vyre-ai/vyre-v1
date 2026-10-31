@@ -81,7 +81,7 @@ test("terminal live: an agent asks the person to run a command, the card carries
   } finally { await d.stop(); bindHost(null); }
 });
 
-test("terminal live: an agent's destructive terminal_run is held at the Gate in Auto mode, a read-only one runs", async () => {
+test("terminal live: a local tool follows the person's own mode: Ask holds `ls`, Auto runs it, a red command and a delete outside work/ are still held, a path out of the folder is refused", async () => {
   const fake = fakeHost();
   bindHost(fake.host);
   const d = await boot(seededDir());
@@ -91,20 +91,39 @@ test("terminal live: an agent's destructive terminal_run is held at the Gate in 
     const threadId = (await ok(d, "chat.start", { kind: "chat", agentIds: [agent.id] })).thread.threadId as string;
     await ok(d, "threads.set_mode", { threadId, mode: "auto" });
     const terminalId = (await ok(d, "terminal.open", { host: "agent_computer", agentId: agent.id })).terminal.terminalId as string;
-    await ok(d, "chat.post", { threadId, body: `TOOL terminal_run ${JSON.stringify({ terminalId, command: "ls -la", idempotencyKey: "tr-run-ls" })}`, mentions: [{ kind: "agent", id: agent.id }] });
-    const ran = await waitFor(async () => {
+    let n = 0;
+    const run = (command: string, extra: Record<string, unknown> = {}): Promise<unknown> => ok(d, "chat.post", { threadId, body: `TOOL terminal_run ${JSON.stringify({ terminalId, command, idempotencyKey: `tr-run-${++n}`, ...extra })}`, mentions: [{ kind: "agent", id: agent.id }] });
+    const holdFor = (count: number): Promise<Array<{ act: string; capName: string }>> => waitFor(async () => {
       await d.hooks?.pump?.();
-      return (await messages(d, threadId)).find((m) => m.author?.kind === "agent" && /ran: ls -la/.test(m.body ?? ""))?.body ?? null;
+      const holds = ((await call(d, "gate.holds.list", { states: ["held"] })).data.holds as Array<{ act: string; capName: string }> | undefined)?.filter((h) => h.capName === "terminal.run") ?? [];
+      return holds.length >= count ? holds : null;
     });
-    assert.match(ran, /TOOL RESULT ok/, "a read-only command runs");
+    const said = (re: RegExp): Promise<string> => waitFor(async () => {
+      await d.hooks?.pump?.();
+      return (await messages(d, threadId)).find((m) => m.author?.kind === "agent" && re.test(m.body ?? ""))?.body ?? null;
+    });
 
-    await ok(d, "chat.post", { threadId, body: `TOOL terminal_run ${JSON.stringify({ terminalId, command: "rm -rf /tmp/build", idempotencyKey: "tr-run-rm" })}`, mentions: [{ kind: "agent", id: agent.id }] });
-    const hold = await waitFor(async () => {
-      await d.hooks?.pump?.();
-      const holds = (await call(d, "gate.holds.list", { states: ["held"] })).data.holds as Array<{ act: string; capName: string }> | undefined;
-      return holds?.find((h) => h.capName === "terminal.run") ?? null;
-    });
-    assert.equal(hold.act, "approve", "a red command always asks, whatever the mode");
-    assert.ok(!fake.typed.concat().some((t) => /rm -rf/.test(t)));
+    // the default is Ask: even a read-only command waits for a yes, held for the person to answer in the chat
+    await run("ls -la");
+    const first = await holdFor(1);
+    assert.equal(first[0]!.act, "approve");
+    assert.ok(!fake.typed.some((t) => /ls -la/.test(t)));
+
+    // Auto, chosen by the person: ls runs at once
+    await ok(d, "settings.set", { key: "security.terminal_mode", value: { base: "auto", spaces: {} } });
+    await run("ls /work");
+    assert.match(await said(/ran: ls \/work/), /TOOL RESULT ok/);
+
+    // Auto still holds a red command (the Gate) and a delete outside work/ (always asks)
+    await run("rm -rf /tmp/build");
+    await holdFor(2);
+    await run("rm /tmp/old.log");
+    await holdFor(3);
+
+    // a working folder that leaves the work folder is refused, never held
+    await run("ls", { cwd: "/etc" });
+    const refused = await said(/not allowed on this computer/);
+    assert.match(refused, /outside the work folder/);
+    assert.equal((await holdFor(3)).length, 3, "a refused call is not a hold");
   } finally { await d.stop(); bindHost(null); }
 });
