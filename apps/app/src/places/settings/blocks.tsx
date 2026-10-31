@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { useSettingsData } from "./data.tsx";
-import { sectionsFor } from "./model.ts";
+import { useIsPersonal, useSettingsData } from "./data.tsx";
+import { TEAM_ONLY_ROWS, sectionsFor } from "./model.ts";
 import type { PageKey, SettingRow } from "./model.ts";
 import { SettingRowFor } from "./rows.tsx";
 import { Section } from "./ui.tsx";
@@ -11,8 +11,9 @@ import { Section } from "./ui.tsx";
 /** The rows of the registry that belong to a page, grouped under their headings. `found` is the key the search is pointing at. */
 export function RegistrySections({ page, rows, found, skip = [] }: { page: PageKey; rows: readonly SettingRow[]; found?: string | null; skip?: readonly string[] }): ReactElement {
   const parts: ReactElement[] = [];
+  const personal = useIsPersonal();
   for (const sec of sectionsFor(page, rows)) {
-    const list = sec.rows.filter((r) => !skip.includes(r.key));
+    const list = sec.rows.filter((r) => !skip.includes(r.key) && !(personal && TEAM_ONLY_ROWS.includes(r.key) && r.key.startsWith("engine.")));
     if (list.length === 0) continue;
     const items: ReactElement[] = [];
     list.forEach((r, i) => items.push(<SettingRowFor key={r.key} row={r} first={i === 0} found={found === r.key} />));
@@ -47,7 +48,9 @@ export function Hint({ children }: { children: ReactNode }): ReactElement {
   return <Text style={s.hint}>{children}</Text>;
 }
 
-export function Everywhere({ text }: { text: string }): ReactElement {
+/** The short line that says a page is the same in every Space. A Personal Space has one, so it says nothing. */
+export function Everywhere({ text }: { text: string }): ReactElement | null {
+  if (useIsPersonal()) return null;
   return <Text style={s.every} testID="everywhere-note">{text}</Text>;
 }
 

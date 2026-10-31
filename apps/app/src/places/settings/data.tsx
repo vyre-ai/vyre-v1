@@ -73,6 +73,12 @@ export function useScreenQuery<T>(screenId: string, name: string, state: Record<
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 
+/** The open Space is a Personal Space: one person, this computer. Team-only rows and the words about other Spaces are not drawn. */
+export function useIsPersonal(): boolean {
+  const { spaces } = useSettingsData();
+  return spaces.find((sp) => sp.current)?.kind === "personal";
+}
+
 export const PAGE = "settings.page";
 export const SEARCH = "settings.search";
 export const NOTIFICATIONS = "notifications.settings";

@@ -51,7 +51,7 @@ export function MemoryKeys(): ReactElement | null {
   }
   return (
     <>
-      <Section title="Who pays for memory" note="Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model.">
+      <Section title="Who pays for memory" help="Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model.">
         <SettingsRow
           id="memory.key.person" label="Your memory" first sub={sub(k.personal, personalNone)}
           control={<Choice value={k.personal.accountRef ?? NONE} options={optionsOf(k.personal, personalNone)} label="Your memory account" testID="ctl-memory-key-person" onChange={(v) => set("person", v === NONE ? null : v, k.personal.accountRef)} connect={{ need: AI, empty: k.personal.choices.length === 0, onConnected: (made) => set("person", made.ref ?? made.id, k.personal.accountRef) }} />}
@@ -64,7 +64,7 @@ export function MemoryKeys(): ReactElement | null {
         ) : null}
       </Section>
       {k.space && projects.status === "ready" && projects.data.projects.length > 0 ? (
-        <Section title="Project memory" note="A project without its own account uses the Space's.">
+        <Section title="Project memory" help="A project without its own account uses the Space's.">
           {projectRows}
         </Section>
       ) : null}
