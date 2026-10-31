@@ -103,3 +103,38 @@ test("the other steps that sign with the same Vault item are named by title, or 
   assert.deepEqual(sameKeySteps(nodes, "b", "#Acme_API"), ["http_request"]);
   assert.deepEqual(sameKeySteps(nodes, "a", ""), []);
 });
+
+// ---- the agent task kind (work baton, lane W2)
+import { doneMeansText, fieldsOf, modeOf, schemaFromFields, setDoneMeans, setMode, setNudgeMinutes, setTimeLimit } from "./edits.ts";
+
+test("the mode is Answer unless the step says Task, and switching back leaves no mode behind", () => {
+  assert.equal(modeOf(undefined), "answer");
+  assert.equal(modeOf(setMode({ agentId: "a" }, "task")), "task");
+  assert.deepEqual(setMode({ agentId: "a", mode: "task" }, "answer"), { agentId: "a" });
+});
+
+test("done means is one check per line; bullets and blanks are dropped; none leaves the field out", () => {
+  assert.deepEqual(setDoneMeans({}, "- Names the client\n\n• States the fee\n  third  ").doneMeans, ["Names the client", "States the fee", "third"]);
+  assert.equal(doneMeansText({ doneMeans: ["a", "b"] }), "a\nb");
+  assert.equal("doneMeans" in setDoneMeans({ doneMeans: ["a"] }, "  \n"), false);
+});
+
+test("a task's time limit runs to a day and the nudge to a day; both refuse what is not whole minutes", () => {
+  assert.equal(setTimeLimit({}, "90", 1440).ok, true);
+  assert.deepEqual(setTimeLimit({}, "1441", 1440), { ok: false, message: "Minutes is a whole number from 1 to 1440." });
+  assert.equal(setTimeLimit({ timeoutMinutes: 5 }, "", 1440).ok && "timeoutMinutes" in (setTimeLimit({ timeoutMinutes: 5 }, "", 1440) as { value: object }).value, false);
+  assert.equal(setNudgeMinutes({}, "10").ok, true);
+  assert.equal(setNudgeMinutes({}, "0").ok, false);
+  assert.equal(setNudgeMinutes({}, "soon").ok, false);
+});
+
+test("the deliverable is a list of fields and back: every named field is required, an unknown type is text, and a deeper shape is not a field list", () => {
+  const schema = schemaFromFields([{ key: "letter", value: "text" }, { key: "pages", value: "Whole Number" }, { key: "ok", value: "mystery" }, { key: "  ", value: "text" }])!;
+  assert.deepEqual(schema, { type: "object", required: ["letter", "pages", "ok"], properties: { letter: { type: "string" }, pages: { type: "integer" }, ok: { type: "string" } } });
+  assert.deepEqual(fieldsOf(schema), [{ key: "letter", value: "text" }, { key: "pages", value: "whole number" }, { key: "ok", value: "text" }]);
+  assert.equal(schemaFromFields([]), undefined);
+  assert.deepEqual(fieldsOf(undefined), []);
+  assert.equal(fieldsOf({ type: "object", properties: { a: { type: "object" } } }), null);
+  assert.equal(fieldsOf({ type: "object", required: [], properties: { a: { type: "string" } } }), null, "an optional field is not a plain list");
+  assert.equal(fieldsOf({ type: "array" }), null);
+});

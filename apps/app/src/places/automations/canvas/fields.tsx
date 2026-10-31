@@ -14,8 +14,8 @@ export const MapTargetContext = createContext<{ set(t: MapTarget | null): void }
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 /** A labelled text field. The value commits on blur and on Enter (one line); Escape puts the old value back. `rows` makes it a box of several lines. */
-export function Field({ label, value, onCommit, placeholder, mono = false, readOnly = false, testID, rows, invalid }: {
-  label: string; value: string; onCommit(v: string): void; placeholder?: string; mono?: boolean; readOnly?: boolean; testID?: string; rows?: number; invalid?: boolean;
+export function Field({ label, value, onCommit, placeholder, mono = false, readOnly = false, testID, rows, invalid, hint }: {
+  label: string; value: string; onCommit(v: string): void; placeholder?: string; mono?: boolean; readOnly?: boolean; testID?: string; rows?: number; invalid?: boolean; /** What the field is for, on hover. */ hint?: string;
 }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
   const map = useContext(MapTargetContext);
@@ -25,6 +25,7 @@ export function Field({ label, value, onCommit, placeholder, mono = false, readO
     <View style={f.field}>
       <Text style={f.label}>{label}</Text>
       <TextInput
+        {...(hint ? webOnly({ title: hint }) : {})}
         accessibilityLabel={label}
         testID={testID}
         value={shown}
@@ -42,20 +43,49 @@ export function Field({ label, value, onCommit, placeholder, mono = false, readO
   );
 }
 
-export function Choice({ label, value, onOpen, testID }: { label: string; value: string; onOpen(x: number, y: number): void; testID?: string }): ReactElement {
+export function Choice({ label, value, onOpen, testID, hint, face }: { label: string; value: string; onOpen(x: number, y: number): void; testID?: string; /** What the choice is for, on hover. */ hint?: string; /** A face drawn before the value (a person, an agent). */ face?: ReactNode }): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <View style={f.field}>
       <Text style={f.label}>{label}</Text>
       <Pressable
+        {...(hint ? webOnly({ title: hint }) : {})}
         accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} testID={testID}
         onPress={(e) => { const ev = e as unknown as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }; const r = ev.currentTarget?.getBoundingClientRect?.(); onOpen(r?.left ?? ev.nativeEvent?.pageX ?? 0, (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4); }}
         onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
         style={[f.choice, over && { backgroundColor: "var(--hover)" as string }, pointer]}
       >
+        {face ?? null}
         <Text numberOfLines={1} style={f.choiceText}>{value}</Text>
         <Glyph name="chevD" size={12} color="var(--ink-3)" />
       </Pressable>
+    </View>
+  );
+}
+
+/** Two options side by side, one lit: the Answer or Task switch of the AI step. */
+export function Segmented({ options, value, onPick, testID }: { options: ReadonlyArray<{ key: string; label: string; hint?: string }>; value: string; onPick(key: string): void; testID?: string }): ReactElement {
+  return (
+    <View testID={testID} accessibilityRole="radiogroup" style={f.seg}>
+      {options.map((o) => (
+        <Pressable key={o.key} accessibilityRole="radio" accessibilityLabel={o.label} accessibilityState={{ checked: value === o.key }} testID={`${testID ?? "seg"}-${o.key}`} onPress={() => onPick(o.key)} {...webOnly({ title: o.hint ?? o.label, "aria-checked": value === o.key })} style={[f.segOpt, value === o.key && f.segOn, pointer]}>
+          <Text style={[f.segText, value === o.key && { color: "var(--ink)" as string, fontWeight: "600" }]}>{o.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/** A group that starts closed: the settings most people leave alone (More). */
+export function More({ head, children, testID }: { head: string; children: ReactNode; testID?: string }): ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={f.group} testID={testID}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={head} testID={testID ? `${testID}-toggle` : undefined} onPress={() => setOpen(!open)} style={[f.moreHead, pointer]}>
+        <Glyph name="chevD" size={11} color="var(--ink-3)" />
+        <Text style={f.groupHead}>{head}</Text>
+      </Pressable>
+      {open ? children : null}
     </View>
   );
 }
@@ -136,6 +166,11 @@ export const f = StyleSheet.create({
   choiceText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   hint: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   group: { gap: 8, paddingTop: 6 },
+  moreHead: { flexDirection: "row", alignItems: "center", gap: 6, height: 24 },
+  seg: { flexDirection: "row", borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, padding: 2, gap: 2 },
+  segOpt: { flex: 1, height: 26, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  segOn: { backgroundColor: "var(--hover)" as string },
+  segText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   groupHead: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-2)" as string },
   pair: { flexDirection: "row", alignItems: "center", gap: 6 },
   pairKey: { flex: 2, minWidth: 0 },
