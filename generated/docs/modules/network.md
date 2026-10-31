@@ -4,7 +4,7 @@ Lane L7b. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (24)
+## Capabilities (21)
 
 - [network.certificate_renew](../capabilities/network.certificate_renew.md): Renew a certificate now
 - [network.domain_set](../capabilities/network.domain_set.md): Set the Space address to an own domain (DNS check, then ACME)
@@ -18,9 +18,6 @@ Requires: nothing.
 - [network.my_computer_decline](../capabilities/network.my_computer_decline.md): Turn your own waiting computer away
 - [network.my_computer_remove](../capabilities/network.my_computer_remove.md): Remove one of your own computers or servers: its access ends at once
 - [network.my_computers](../capabilities/network.my_computers.md): The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare
-- [network.phone](../capabilities/network.phone.md): Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone
-- [network.phone_claim](../capabilities/network.phone_claim.md): Claim a name like alex.vyre.run once, so a phone reaches this computer there while it is on and online. The relay only passes sealed bytes
-- [network.phone_release](../capabilities/network.phone_release.md): Give up the phone address. The name stays reserved to this computer
 - [network.public_hostnames](../capabilities/network.public_hostnames.md): Public hostnames and /hooks endpoints served by this Space
 - [network.relay_set](../capabilities/network.relay_set.md): Switch the Space to the relay or back, with no re-invite (devices pin the Space key, not the address)
 - [network.server_approve](../capabilities/network.server_approve.md): Admit a waiting computer to the Space: a person looks at its name, what it runs on and its fingerprint and approves once

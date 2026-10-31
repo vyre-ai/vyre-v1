@@ -6,7 +6,6 @@
     "automations.alerts.set@1": "769ec17ca456259041900fbe502dcbe7d7cfcb1ded0dd9dbd2d2d812e10d323e",
     "automations.analytics@1": "7441433ff3b41000c78022331209b30bacb44261fbd5ad940a026bbaee998526",
     "automations.connector_card@1": "d15d7cf97eda757bc9a6d7af76322f10bc1ba4cd06ee0b194b8444d417645c08",
-    "automations.connector_levels@1": "6a71dac24e7733d8e92eccbfe7641e9e88f69caa62522f63e0d6db4faf21256f",
     "automations.connector_offer.accept@1": "6c50ff44f6dc7d592cd72ed88dbeceb5bdfc45b3e908f5f473836056e6afcc25",
     "automations.connector_offer.decline@1": "7061c9d35fb3be553f0830591f838c1e54fea560edc5c49eefb06ba4c7934fbe",
     "automations.connector_offers@1": "96baeb63f5628667d3f9f865eea6a2485aff96c5a867700c4ebab1c02dc70810",

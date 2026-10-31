@@ -20,7 +20,6 @@ Area: space. Risk: high. Applies to: space.
 - access.actors.set_engineer_mcp
 - access.actors.update
 - access.check
-- access.connector_builder.grant
 - access.grants.list
 - access.groups.add_member
 - access.groups.create

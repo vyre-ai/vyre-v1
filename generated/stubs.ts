@@ -21,10 +21,6 @@ export function stubs(ctx: CallCtx) {
         update: call("access.actors.update"),
       },
       check: call("access.check"),
-      connector_builder: {
-        grant: call("access.connector_builder.grant"),
-        status: call("access.connector_builder.status"),
-      },
       deciders: call("access.deciders"),
       grants: {
         list: call("access.grants.list"),
@@ -177,7 +173,6 @@ export function stubs(ctx: CallCtx) {
       },
       analytics: call("automations.analytics"),
       connector_card: call("automations.connector_card"),
-      connector_levels: call("automations.connector_levels"),
       connector_offer: {
         accept: call("automations.connector_offer.accept"),
         decline: call("automations.connector_offer.decline"),
@@ -517,7 +512,6 @@ export function stubs(ctx: CallCtx) {
       pause: call("connections.pause"),
       reconnect: call("connections.reconnect"),
       resume: call("connections.resume"),
-      set_secret: call("connections.set_secret"),
       test: call("connections.test"),
       update: call("connections.update"),
     },
@@ -1621,9 +1615,6 @@ export function stubs(ctx: CallCtx) {
       my_computer_decline: call("network.my_computer_decline"),
       my_computer_remove: call("network.my_computer_remove"),
       my_computers: call("network.my_computers"),
-      phone: call("network.phone"),
-      phone_claim: call("network.phone_claim"),
-      phone_release: call("network.phone_release"),
       public_hostnames: call("network.public_hostnames"),
       relay_set: call("network.relay_set"),
       server_approve: call("network.server_approve"),
