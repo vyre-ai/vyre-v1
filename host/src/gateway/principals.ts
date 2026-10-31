@@ -18,7 +18,7 @@ export const AGENT_ROLE_LOW = "rol_guest";
 export type SpaceLevel = "edit" | "view" | "none";
 
 /** Contract-valid, deterministic ids for grants synthesized from an agent birth. */
-export const agentGrantId = (agentId: string, purpose: "space" | "home" | "owner"): string => `gnt_${agentId.slice(4)}${purpose}`;
+export const agentGrantId = (agentId: string, purpose: "space" | "home" | "owner" | "grown"): string => `gnt_${agentId.slice(4)}${purpose}`;
 
 type EventLike = Pick<EventEnvelope, "type" | "payload">;
 const recordOf = (value: unknown): Record<string, unknown> => {
@@ -105,6 +105,23 @@ export function missingAgentPrincipalEvents(a: { space: string; events: readonly
       if (!hasLiveEquivalent && !wasRevoked) out.push({ type: "grant.created", entity: "grant", id, payload: { id, ...payload } });
     };
     if (level !== "none") addGrant("space", { subject_kind: "actor", subject_id: birth.id, resource_type: "space", resource_id: a.space, level, by: birth.owner });
+  }
+  return out;
+}
+
+/**
+ * An agent born while its maker's own access was not yet in the snapshot (the person's private assistant is made the moment their account exists, before the sync that makes the person
+ * "active" has run) is born Guest with no Space grant, and then cannot read the maker's AI key or post a word. Once the maker may edit the Space, the agent gets what a Member agent gets: the
+ * role and the edit grant, under ids made from the agent so running this again changes nothing. An agent the maker cannot edit for is left as it is (never above its person).
+ */
+export function lowAgentUpgradeEvents(a: { space: string; agents: readonly { id: string; owner: string; roleNames: string }[]; levelOf(person: string, space: string): SpaceLevel }): PrincipalEvent[] {
+  const out: PrincipalEvent[] = [];
+  for (const agent of a.agents) {
+    if (agent.roleNames !== "Guest" || !/^agt_[a-z0-9]+$/.test(agent.id) || !/^usr_[a-z0-9]+$/.test(agent.owner)) continue;
+    if (a.levelOf(agent.owner, a.space) !== "edit") continue;
+    const gid = agentGrantId(agent.id, "grown");
+    out.push({ type: "principal.role_set", entity: "principal", id: agent.id, payload: { holder: agent.id, role: AGENT_ROLE } });
+    out.push({ type: "grant.created", entity: "grant", id: gid, payload: { id: gid, subject_kind: "actor", subject_id: agent.id, resource_type: "space", resource_id: a.space, level: "edit", by: agent.owner } });
   }
   return out;
 }
