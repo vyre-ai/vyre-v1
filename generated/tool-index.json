@@ -5486,6 +5486,24 @@
     },
     {
       "deferred": false,
+      "name": "network_phone",
+      "summary": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_phone_claim",
+      "summary": "Claim a name like alex.vyre.run once, so a phone reaches this computer there while it is on and online. The relay only passes sealed bytes",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_phone_release",
+      "summary": "Give up the phone address. The name stays reserved to this computer",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "network_public_hostnames",
       "summary": "Public hostnames and /hooks endpoints served by this Space",
       "toolset": "engineer"
