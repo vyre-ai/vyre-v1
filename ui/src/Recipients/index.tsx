@@ -471,7 +471,7 @@ export function Recipients(props: RecipientsViewProps): ReactElement {
     }
     rowNodes.push(
       <View key={row} style={styles.row} testID={`recipients-row-${row}`} {...webProps({ dataSet: { row } })}>
-        <Text style={styles.label}>{ROW_LABEL[row]}</Text>
+        {row === "to" && props.hideToLabel === true ? null : <Text style={styles.label}>{ROW_LABEL[row]}</Text>}
         <View style={styles.box}>
           {collapsed ? (
             <Pressable style={styles.summary} onPress={() => inputs.current[row]?.focus()} accessibilityLabel={`${ROW_LABEL[row]}: ${summary(tokens)}`}>

@@ -46,7 +46,7 @@ test("Learned draws the title, the lede, the day groups with counts, and one row
   const s = createKnowSample();
   const m = wrap(s, <KnowLearned />);
   has(m, "data-testid=\"know-learned\"");
-  has(m, "What Vyre picked up from chats, runs and records. Undo or Edit any of it.");
+  has(m, "What Vyre picked up. Undo or edit any of it.");
   const groups = groupByDay(learned(s), (x) => x.at, KNOW_NOW);
   assert.deepEqual(groups.map((g) => g.label), ["Today", "Yesterday", "Earlier"]);
   for (const g of groups) { has(m, `data-testid="group-${g.label}"`); has(m, `data-testid="day-${g.label}"`); }
@@ -170,10 +170,10 @@ test("a refused write shows its error text, not a silent nothing", async () => {
 test("People, Clients, Projects and Topics each draw their title, lede and one row per page with its words, layer and fact count", () => {
   const s = createKnowSample();
   const want: Array<["person" | "client" | "project" | "topic", string, string, string]> = [
-    ["person", "People", "The people on your team and what Vyre knows about working with them.", "Maya Chen"],
-    ["client", "Clients", "Clients and their contacts: preferences, plans, history.", "Ian Brooks"],
-    ["project", "Projects", "Each project keeps its own facts, shared with the people on it.", "Q4 billing"],
-    ["topic", "Topics", "Rules and ideas that cut across clients and projects.", "Consult fee"],
+    ["person", "People", "Your team and how they like to work.", "Maya Chen"],
+    ["client", "Clients", "Clients and their contacts.", "Ian Brooks"],
+    ["project", "Projects", "Facts each project keeps.", "Q4 billing"],
+    ["topic", "Topics", "Rules that cut across.", "Consult fee"],
   ];
   for (const [kind, title, lede, name] of want) {
     const m = wrap(s, <KnowList kind={kind} />);
@@ -232,7 +232,7 @@ test("a list with no pages says so", () => {
 test("History draws its lede, the Filter button and one row per trail line with the actor, the verb, the words and the reason", () => {
   const s = createKnowSample();
   const m = wrap(s, <KnowHistory />);
-  has(m, "Every change to what Vyre knows: who made it, what changed and why. The trail is never deleted. An erase keeps a line with no content.");
+  has(m, "Every change to what Vyre knows. Never deleted.");
   has(m, "data-testid=\"history-filter\"");
   has(m, "Assistant"); has(m, " learned"); has(m, "Ian Brooks: Prefers updates on Fridays."); has(m, "From you in Brooks weekly update");
   has(m, "Upkeep"); has(m, " merged"); has(m, " flagged"); has(m, " moved to Trash"); has(m, " edited");
@@ -284,7 +284,7 @@ test("a change made now shows on the trail with its words", async () => {
 test("Trash lists each removed fact with its subject, struck text, reason, who removed it, days left and a Restore button", () => {
   const s = createKnowSample();
   const m = wrap(s, <KnowTrash />);
-  has(m, "Facts that were deleted or merged away. Agents do not recall them, but search can find them. Anyone, or any agent, who could see a fact can restore it with one click. After 60 days untouched they move to Archive.");
+  has(m, "Deleted or merged facts. Restore one with a click. After 60 days they move to Archive.");
   const rows = trash(s);
   assert.equal(rows.length, 4);
   for (const f of rows) { has(m, f.text); has(m, `data-testid="restore-${f.factId}"`); has(m, `data-testid="trash-${f.factId}"`); }
@@ -343,7 +343,7 @@ test("days and words for age", () => {
 test("Archive lists what stayed in Trash past the keep days, archived, with Restore for an admin", async () => {
   const s = createKnowSample();
   const m = wrap(s, <KnowArchive />);
-  has(m, "Facts untouched in Trash for 60 days. They are out of search and out of recall. An admin can restore one, and the trail keeps every step.");
+  has(m, "Untouched in Trash for 60 days. Out of search and recall. An admin can restore one.");
   has(m, "Meyer Law charged $225 before the July change."); has(m, "The office was closed Jul 3 to Jul 6.");
   has(m, "Archived 71 days ago"); has(m, "Archived 112 days ago"); has(m, "Untouched in Trash for 60 days");
   assert.equal(ids(m, "restore-fct_m").length, 2);
@@ -393,7 +393,7 @@ const now = (): number => KNOW_NOW;
 test("Search with nothing typed offers the three example questions", () => {
   const s = createKnowSample();
   const m = wrap(s, <KnowSearch q="" />);
-  has(m, "Ask in plain words or type a name. Vyre matches meaning as well as words, on this server, so nothing leaves it.");
+  has(m, "Ask in plain words or type a name.");
   has(m, "Try a question");
   assert.deepEqual([...EXAMPLE_QUESTIONS], ["How does Ian like to hear from us?", "What do we charge for a first consult?", "When does Maya take consults?"]);
   for (const q of EXAMPLE_QUESTIONS) has(m, q);

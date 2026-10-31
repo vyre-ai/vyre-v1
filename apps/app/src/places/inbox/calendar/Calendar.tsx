@@ -252,8 +252,8 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   };
 
   const header = (
-    <View style={s.head} testID="calendar-head">
-      <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1} testID="calendar-title">{viewTitle(mode, cal.day, off)}</Text>
+    <View style={[s.head, phone && s.headPhone]} testID="calendar-head">
+      <Text accessibilityRole="header" aria-level={1} style={[s.h1, phone && s.h1Phone]} numberOfLines={1} testID="calendar-title">{viewTitle(mode, cal.day, off)}</Text>
       <View style={s.nv}>
         <HeadIcon icon="chevl" label="Previous" testID="cal-prev" onPress={() => dispatch({ type: "step", dir: -1, offsetMin: off })} />
         <Pressable accessibilityRole="button" accessibilityLabel="Go to today" testID="cal-today" onPress={() => dispatch({ type: "today", today })} style={({ hovered }: { hovered?: boolean }) => [s.todayBtn, hovered === true && s.hicOver]}><Text style={s.todayText}>Today</Text></Pressable>
@@ -328,7 +328,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
           const out = monthOf(d, off) !== monthOf(cal.day, off);
           return (
             <Pressable
-              key={d} accessibilityRole="button" accessibilityLabel={`${weekdayShort(d, off)} ${dateOf(d, off)}`} testID={`cell:${d}`}
+              key={d} accessibilityRole="none" accessibilityLabel={`${weekdayShort(d, off)} ${dateOf(d, off)}`} testID={`cell:${d}`}
               {...menuTrigger((x, y) => menu.show(dayMenuEntries({ newHere: () => withDraft(clickCreate(d, 9 * HH)), goDay: () => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); } }), x, y))}
               {...({ onDoubleClick: () => withDraft(clickCreate(d, 9 * HH)) } as object)}
               onPress={() => dispatch({ type: "go", day: d })} style={({ hovered }: { hovered?: boolean }) => [s.mc, hovered === true && s.hicOver]}
@@ -417,6 +417,8 @@ const s = StyleSheet.create({
   cal: { flex: 1, minHeight: 0, minWidth: 0, backgroundColor: ink("--win") },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: ink("--line") },
   h1: { fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: ink("--ink"), flexShrink: 1, fontVariant: ["tabular-nums"] },
+  headPhone: { height: undefined, minHeight: 48, flexWrap: "wrap", paddingVertical: 6, rowGap: 4, paddingLeft: 14 },
+  h1Phone: { width: "100%", flexShrink: 0 },
   nv: { flexDirection: "row", alignItems: "center", gap: 2, marginLeft: 4 },
   grow: { flex: 1 },
   hic: { height: 28, minWidth: 28, paddingHorizontal: 6, borderRadius: 7, flexDirection: "row", alignItems: "center", justifyContent: "center" },

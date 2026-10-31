@@ -96,7 +96,7 @@ export function KnowHistory({ pageId }: { pageId?: string }): ReactElement {
   return (
     <View style={frame.main} testID="know-history">
       <KnowHeader crumbs={[{ t: "Knowledge", route: { v: "learned" } }, { t: "History" }]} right={right} />
-      <KnowColumn testID="know-history-body" label="History" title="History" lede="Every change to what Vyre knows: who made it, what changed and why. The trail is never deleted. An erase keeps a line with no content.">
+      <KnowColumn testID="know-history-body" label="History" title="History" lede="Every change to what Vyre knows. Never deleted.">
         <Flash flash={doing.flash} onClose={() => doing.setFlash(null)} />
         <ErrorLine text={doing.err ?? failed} />
         {active ? <FilterBanner text={bannerText} onClear={clear} /> : null}

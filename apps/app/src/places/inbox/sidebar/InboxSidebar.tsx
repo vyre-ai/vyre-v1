@@ -33,6 +33,7 @@ function SideRow({ id, title, glyph, selected, count, trailing, dim = false, onP
         id={`nav:${id}`}
         title={title}
         selected={selected}
+        emphasis={count !== undefined && count > 0}
         leading={<View style={styles.glyph}>{glyph}</View>}
         trailing={<View style={styles.trail}>{trailing ?? null}{count ? <Unread n={count} /> : null}</View>}
         onPress={onPress}

@@ -27,7 +27,7 @@ test("step 1 lists the four sources in order, with the connected account under e
   assert.ok(at.every((i) => i >= 0), "four source rows");
   assert.deepEqual([...at].sort((a, b) => a - b), at, "in the prototype's order");
   for (const name of ["Google Drive", "Microsoft 365", "This computer", "GitHub", "irfad@northwind.example", "Irfad&#x27;s MacBook", "irfad7"]) assert.ok(has(out, name), name);
-  assert.ok(has(out, 'aria-label="Mount a folder"') && has(out, 'role="dialog"'));
+  assert.ok(has(out, 'aria-label="Connect a folder"') && has(out, 'role="dialog"'));
   const off = createSampleMounts({ accounts: { ...northwindAccounts, github: { label: "irfad7", connected: false } } });
   const o2 = html(off, <MountSheet onClose={noop} onMounted={noop} />);
   assert.ok(has(o2, "Not connected") && has(o2, ">Connect<"));

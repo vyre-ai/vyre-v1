@@ -272,6 +272,8 @@ function List(): ReactElement {
   const meta = state.scope.kind === "all" ? unreadMeta(entries) : "";
   const showing = showingNames(state, mailboxes);
   const filtered = isFiltering(state) || state.query.trim() !== "";
+  // Nothing can send and nothing is here: the page is the Connect choice alone, so the view, filter and dial controls (which would do nothing useful) stay away.
+  const connectOnly = q.status === "ready" && entries.length === 0 && !filtered && canSend === false;
 
   return (
     <View style={styles.main} testID="inbox-list" accessibilityLabel={`${scopeTitle(state.scope, mailboxes)}, ${VIEW_LABEL[view]}`}>
@@ -281,7 +283,7 @@ function List(): ReactElement {
           {meta ? <Text style={styles.metaText} testID="inbox-unread-meta">{meta}</Text> : null}
         </View>
         <View style={styles.grow} />
-        <Pressable
+        {connectOnly ? null : <Pressable
           accessibilityRole="button" accessibilityLabel="View" testID="inbox-view"
           onPress={(e) => { const p = pointOf(e); menu.show(viewMenuEntries(state, (v) => dispatch({ type: "view", view: v })), p.x, p.y); }}
           style={({ hovered }: { hovered?: boolean }) => [styles.viewBtn, hovered === true && styles.btnOver]}
@@ -289,9 +291,9 @@ function List(): ReactElement {
           <Glyph name={view === "calls" ? "call" : view === "thread" ? "thread" : "users"} size={14} color="var(--ink-2)" />
           <Text style={styles.viewText}>{VIEW_LABEL[view]}</Text>
           <Glyph name="chevd" size={9} />
-        </Pressable>
-        <IconButton icon="filter" label="Filter" on={isFiltering(state)} testID="inbox-filter" onPress={(x, y) => showFilter(x, y, state)} />
-        <IconButton icon="call" label="Dial" testID="inbox-dial" onPress={() => (canSend === false ? dispatch({ type: "connect" }) : data.nav.openDialer())} />
+        </Pressable>}
+        {connectOnly ? null : <IconButton icon="filter" label="Filter" on={isFiltering(state)} testID="inbox-filter" onPress={(x, y) => showFilter(x, y, state)} />}
+        {connectOnly ? null : <IconButton icon="call" label="Dial" testID="inbox-dial" onPress={() => (canSend === false ? dispatch({ type: "connect" }) : data.nav.openDialer())} />}
       </View>
       {showing.length > 0 ? (
         <View style={styles.showing} testID="inbox-showing">
@@ -301,7 +303,7 @@ function List(): ReactElement {
         </View>
       ) : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="inbox-offline">Offline, showing your saved copy</Text>}
-      {q.status !== "ready" ? <ListLoading bare /> : entries.length === 0 && !filtered && canSend === false ? (
+      {q.status !== "ready" ? <ListLoading bare /> : connectOnly ? (
         <ConnectChannel />
       ) : entries.length === 0 ? (
         <States kind="empty" title={filtered ? "Nothing matches these filters." : view === "calls" ? "No calls yet." : "No messages yet."} icon="inbox" {...(filtered ? { action: { label: "Show all", onPress: () => dispatch({ type: "showAll" }) } } : view === "calls" ? {} : { action: { label: "New message", onPress: () => data.nav.compose() } })} />

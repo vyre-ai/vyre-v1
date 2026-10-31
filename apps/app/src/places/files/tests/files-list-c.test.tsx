@@ -9,7 +9,7 @@ import { FilesList, StagedBanner, approveStaged, lineMenuEntries, moreMenuEntrie
 import { LineMarks, RowCells, ThumbTile, TypeTile } from "../FileList.tsx";
 import { createSampleFiles } from "../list/sample.ts";
 import type { SampleFiles } from "../list/sample.ts";
-import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyText, fileLine, hasAgentFace, openByDefault, orderFolders, reduce, rootRank, sourceOf, spaceRoots, tileLabel } from "../tree/index.ts";
+import { FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, emptyIcon, emptyText, fileLine, hasAgentFace, openByDefault, orderFolders, reduce, rootRank, sourceOf, spaceRoots, tileLabel } from "../tree/index.ts";
 import type { FileRow, FilesState, FolderRow, TreeRoots, Where } from "../tree/index.ts";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts";
@@ -125,7 +125,7 @@ test("the sidebar has Starred between Recent and Shared with me, counted from th
 test("Starred is a place: the list shows the starred files, with the star after the name", () => {
   const s = subjects();
   assert.deepEqual(sourceOf({ kind: "starred" }).cap, "files.recent");
-  assert.equal(emptyText({ kind: "starred" }), "Nothing starred yet.");
+  assert.equal(emptyText({ kind: "starred" }), "Nothing starred");
   assert.ok(has(tree(s, { where: { kind: "starred" } }), "background-color:var(--sel)"), "the Starred row is the selected one");
   const out = list(s, { where: { kind: "starred" } });
   assert.ok(has(out, "Pitch deck v4.pptx") && has(out, "Rivera engagement letter.docx"));
@@ -318,4 +318,24 @@ test("an agent's folder shows the attention dot when a change set of its own wai
   const out = tree(subjects());
   assert.ok(has(out, 'data-testid="folder-attention-fld_ag_docs"') && has(out, 'aria-label="Waiting for you"'), "Docs staged writes that wait for review");
   assert.ok(!has(out, 'data-testid="folder-attention-fld_ag_research"') && !has(out, 'data-testid="folder-count-fld_ag_research"'), "Research has nothing waiting, and no count");
+});
+
+test("Recent opens newest first and leaving it puts the sort back to the name; a sort chosen in a folder stays across folders", () => {
+  const recent = reduce(INITIAL_STATE, { type: "go", where: { kind: "recent" } });
+  assert.deepEqual([recent.sort, recent.dir], ["updated", "desc"]);
+  const back = reduce(recent, { type: "go", where: { kind: "folder", id: "fld_sales" } });
+  assert.deepEqual([back.sort, back.dir], ["name", "asc"]);
+  const sized = reduce(reduce(INITIAL_STATE, { type: "sort", key: "size" }), { type: "go", where: { kind: "folder", id: "fld_sales" } });
+  assert.equal(sized.sort, "size", "a sort chosen by hand survives a move between folders");
+  assert.deepEqual([reduce(recent, { type: "back" }).sort, reduce(back, { type: "back" }).sort], ["name", "updated"], "Back restores each place's own sort");
+});
+
+test("every empty place says two or three words and has its own icon", () => {
+  const places = [{ kind: "folder", id: null }, { kind: "recent" }, { kind: "starred" }, { kind: "shared" }, { kind: "trash" }, { kind: "knowledge" }] as const;
+  for (const w of places) {
+    assert.ok(emptyText(w).split(" ").length <= 3, emptyText(w));
+    assert.ok(!emptyText(w).endsWith("."), "a title, not a sentence");
+  }
+  assert.equal(emptyText({ kind: "trash" }), "Trash is empty");
+  assert.notEqual(emptyIcon({ kind: "recent" }), emptyIcon({ kind: "folder", id: null }));
 });

@@ -373,7 +373,7 @@ function Conflict({ question, now, setFlash, setErr }: { question: Question; now
         <View style={p.grow} />
         <Pressable accessibilityRole="button" accessibilityLabel="More" testID="question-more" onPress={(e) => { const pt = pointOf(e); menu.show(entries(), pt.x, pt.y); }} style={({ hovered }: { hovered?: boolean }) => [p.more, hovered === true && p.over]}><Icon name="more" size={14} color="var(--ink-3)" /></Pressable>
       </View>
-      <Text style={c.sub}>Upkeep found two facts that cannot both be true. Pick one and the other goes to Trash, where you can restore it.</Text>
+      <Text style={c.sub}>Two facts cannot both be true. The other one goes to Trash.</Text>
       <View style={c.opts}>
         {each([a, b], (f, i) => (
           <Pressable key={f.factId} accessibilityRole="button" accessibilityLabel={`Keep this one: ${f.text}`} testID={`question-keep-${i === 0 ? "a" : "b"}`} onPress={() => answer(i === 0 ? "keep_a" : "keep_b")} style={({ hovered }: { hovered?: boolean }) => [c.opt, hovered === true && p.over]}>

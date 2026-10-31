@@ -161,7 +161,7 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
     menu.show(items, x, y, "other");
   };
 
-  let title = "Mount a folder";
+  let title = "Connect a folder";
   if (d.step >= 2 && source) title = source.name;
   if (d.step === 3 && d.picked && source) title = source.id === "github" ? d.picked.ref : d.picked.name;
 
@@ -229,7 +229,7 @@ function SourceStep({ onChoose }: { onChoose: (id: SourceId) => void }): ReactEl
         title={s.name}
         note={acc.connected ? acc.label : "Not connected"}
         leading={<View style={st.markSlot}><Mark kind={markKind(s.id)} size={24} /></View>}
-        trailing={acc.connected ? <Glyph name="chev" size={12} /> : <Text style={st.meta}>Connect</Text>}
+        trailing={acc.connected ? <Glyph name="chev" size={12} /> : <Text style={st.connect}>Connect</Text>}
         onPress={() => onChoose(s.id)}
       />,
     );
@@ -362,6 +362,7 @@ const st = StyleSheet.create({
   markSlot: { width: 28, alignItems: "flex-start", justifyContent: "center" },
   trail: { flexDirection: "row", alignItems: "center", gap: 8 },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
+  connect: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   branch: { flexDirection: "row", alignItems: "center", gap: 8 },
   crumbs: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 2 },
   crumbWrap: { flexDirection: "row", alignItems: "center", gap: 2 },

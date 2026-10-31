@@ -160,7 +160,7 @@ export function KnowLearned(): ReactElement {
       <KnowHeader crumbs={[{ t: "Knowledge", route: { v: "learned" } }, { t: "Learned" }]} right={right} />
       <KnowColumn
         testID="know-learned-body" label="Learned" title="Learned"
-        lede="What Vyre picked up from chats, runs and records. Undo or Edit any of it."
+        lede="What Vyre picked up. Undo or edit any of it."
       >
         <Flash flash={doing.flash} onClose={() => doing.setFlash(null)} />
         <ErrorLine text={doing.err ?? failed} />
