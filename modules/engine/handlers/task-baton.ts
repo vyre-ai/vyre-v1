@@ -124,13 +124,14 @@ async function threadOf(host: BatonHost, t: BatonTask, agentIds: string[], asker
 
 /** Open the task's thread in the engine for this asker, with the agents chat knows, and the agent that is about to be woken among them. */
 async function openThread(db: Db, host: BatonHost, engine: TurnEngine, threadId: string, agentId: string, asker: string): Promise<boolean> {
-  const read: Reader = (cap, input) => host.call(cap, input, asker);
+  // the thread is the server's to read: whoever made the task (a service, for a Space automation) owns it, and the person it runs for need not be able to open it
+  const read: Reader = (cap, input) => host.call(cap, input);
   let open = true;
   try { engine.agents(threadId); } catch (e) { if (!(e instanceof RangeError)) throw e; open = false; }
   let got: ThreadOut;
   try { got = (await read("threads.get", { threadId })) as ThreadOut; } catch (e) { host.log?.("the thread of a task could not be read", { threadId, error: e instanceof Error ? e.message : String(e) }); return false; }
   if (!got.thread.agents.some((a) => a.agentId === agentId)) {
-    try { await host.call("threads.add_agent", { threadId, agentId, mode: "listen" }, asker); got.thread.agents.push({ agentId, mode: "listen" }); }
+    try { await host.call("threads.add_agent", { threadId, agentId, mode: "listen" }); got.thread.agents.push({ agentId, mode: "listen" }); }
     catch (e) { host.log?.("an agent could not join the thread of its task", { threadId, agentId, error: e instanceof Error ? e.message : String(e) }); return false; }
   }
   const agents: EngineAgent[] = [];
