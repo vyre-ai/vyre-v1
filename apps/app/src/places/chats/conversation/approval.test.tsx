@@ -72,6 +72,6 @@ test("a hold already answered somewhere else shows the one-line row at once, and
   const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" data={failing} />);
   await press(find(root, "approval-allow-tsk_1"));
   await flush();
-  assert.match(textOf(root), /did not go through/);
+  assert.match(textOf(root), /Failed/);
   assert.ok(find(root, "approval-allow-tsk_1"), "still answerable");
 });

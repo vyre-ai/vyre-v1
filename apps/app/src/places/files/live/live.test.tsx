@@ -56,7 +56,7 @@ test("the view: each row has its button, the first action runs, empty and error 
   await press(find(root, "live-connect"));
   assert.deepEqual(done, ["mnt_1:reconnect", "connect"]);
   const empty = await mount(createRoot, <LiveFolders rows={[]} busy={new Set()} said={null} onAction={() => undefined} onConnect={() => done.push("c2")} onRetry={() => undefined} />);
-  assert.match(textOf(find(empty, "live-empty")), /No live folders yet/);
+  assert.match(textOf(find(empty, "live-empty")), /No folders yet/);
   await press(find(empty, "live-connect"));
   const err = await mount(createRoot, <LiveFolders rows="error" busy={new Set()} said={null} onAction={() => undefined} onConnect={() => undefined} onRetry={() => done.push("retry")} />);
   await press(find(err, "live-retry"));

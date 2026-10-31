@@ -33,7 +33,7 @@ export function LiveFolders({ rows, busy, said, onAction, onConnect, onRetry }: 
   if (rows === "error") {
     return (
       <View testID="live-error" style={st.center}>
-        <Text style={st.title}>Could not read your folders.</Text>
+        <Text style={st.title}>Could not load</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Try again" testID="live-retry" onPress={onRetry} style={st.btn}><Text style={st.btnText}>Try again</Text></Pressable>
       </View>
     );
@@ -41,8 +41,7 @@ export function LiveFolders({ rows, busy, said, onAction, onConnect, onRetry }: 
   if (rows.length === 0) {
     return (
       <View testID="live-empty" style={st.center}>
-        <Text style={st.title}>No live folders yet</Text>
-        <Text style={st.quiet}>Connect Google Drive, OneDrive, SharePoint or GitHub and it stays up to date here.</Text>
+        <Text style={st.title}>No folders yet</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Connect a folder" testID="live-connect" onPress={onConnect} style={[st.btn, st.btnPrimary]}><Text style={st.btnPrimaryText}>Connect a folder</Text></Pressable>
       </View>
     );

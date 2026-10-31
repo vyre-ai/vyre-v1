@@ -59,7 +59,7 @@ export function ApprovalCard({ taskId, agent, data }: { taskId: string; agent: s
     setBusy(true); setLine(null);
     void Promise.resolve(data.call("tasks.act", { taskId, action: key, ...(note !== undefined ? { note } : {}) })).then(
       () => setOutcome(key === "approve" ? "allowed" : "denied"),
-      () => setLine("That did not go through. Try again."),
+      () => setLine("Failed. Try again."),
     ).finally(() => setBusy(false));
   };
   const rows = excerptLines(held.input);
@@ -81,7 +81,7 @@ export function ApprovalCard({ taskId, agent, data }: { taskId: string; agent: s
       ) : null}
       {denying ? (
         <View style={st.deny}>
-          <TextInput accessibilityLabel="Why not (optional)" testID={`approval-reason-${taskId}`} value={reason} onChangeText={setReason} placeholder="Tell it why (optional)" placeholderTextColor="var(--ink-4)" multiline style={st.input} />
+          <TextInput accessibilityLabel="Why not (optional)" testID={`approval-reason-${taskId}`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline style={st.input} />
           <View style={st.acts}>
             <TextButton label="Back" onPress={() => setDenying(false)} testID={`approval-back-${taskId}`} />
             <TextButton label="Deny" danger disabled={busy} onPress={() => act("reject", denyNote(reason))} testID={`approval-deny-go-${taskId}`} />

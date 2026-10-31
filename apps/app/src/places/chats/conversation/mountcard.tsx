@@ -29,8 +29,8 @@ export function MountCard({ id, prompt, offers, agents, data, answer }: MountCar
   const mounted = (info: { folderId: string; name: string }): void => {
     setOpen(null);
     void shareWithAgents(data, [{ type: "folder", id: info.folderId }], agents, `mount-card:${id}`).then(
-      () => { setDone(`Mounted ${info.name} and shared it with ${agents.map((a) => a.name).join(", ")}.`); answer(id, mountedAnswer(info.name, info.folderId)); },
-      () => { setDone(`Mounted ${info.name}. Sharing it with the chat did not work: drag it onto the chat to share it.`); },
+      () => { setDone(`Mounted ${info.name}`); answer(id, mountedAnswer(info.name, info.folderId)); },
+      () => { setDone(`Mounted ${info.name}. Not shared: drag it here.`); },
     );
   };
   return (
@@ -45,7 +45,7 @@ export function MountCard({ id, prompt, offers, agents, data, answer }: MountCar
         ))}
       </View>
       <View style={st.acts}>
-        <TextButton label="Not now" onPress={() => { setDone("Not now."); answer(id, "Not now. Carry on without it."); }} testID={`mount-card-skip-${id}`} />
+        <TextButton label="Not now" onPress={() => { setDone("Skipped"); answer(id, "Not now. Carry on without it."); }} testID={`mount-card-skip-${id}`} />
       </View>
       {line ? <Text style={st.err}>{line}</Text> : null}
       {open !== null && data.mountSheet ? data.mountSheet({ source: open, onMounted: mounted, onClose: () => setOpen(null) }) : null}
