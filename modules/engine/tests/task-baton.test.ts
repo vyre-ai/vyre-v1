@@ -46,6 +46,8 @@ test("the doer is woken once for a new task, in the task thread, for the person 
   assert.equal(s.provider.specs[0]!.agent.id, DOER);
   assert.equal(s.provider.specs[0]!.threadId, "thr_t1");
   assert.equal(s.provider.specs[0]!.asker, OWNER, "the turn runs for the person, not for the service that made the task");
+  const share = s.h.called.find((c) => c.cap === "access.share")!;
+  assert.deepEqual([share.input.resource, share.input.subject, share.input.level], [{ type: "task", id: "tsk_t1" }, { kind: "agent", id: DOER }, "use"], "the agent is given its task before it is woken");
   assert.deepEqual(await s.run("task.assigned", "tsk_t1"), [], "the same baton is not woken twice");
   assert.deepEqual(await s.run("task.transitioned", "tsk_t1"), []);
   await s.engine.idle("thr_t1");
