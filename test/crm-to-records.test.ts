@@ -38,6 +38,8 @@ async function boot() {
   const scheduled: { cap: string; input: any; ran: boolean }[] = [];
   const runs: { runId: string; status?: string; summary?: string }[] = [];
   const events: { name: string; payload: Record<string, unknown> }[] = [];
+  const tasks: { input: any }[] = [];
+  const closed: string[] = [];
   const probe: Probe = async (_c, req) => {
     const key = VAULT[req.handle] ?? "";
     const headers = req.style === "bearer" ? { Authorization: `Bearer ${key}` } : { [req.header ?? "Authorization"]: `${req.prefix ?? ""}${key}` };
@@ -56,6 +58,8 @@ async function boot() {
       if (cap.startsWith("schema.")) return (schema.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(schemaCtx, input);
       if (cap === "runs.start") { const runId = `run_${runs.length + 1}`; runs.push({ runId }); return { runId }; }
       if (cap === "runs.finish") { const i = input as { runId: string; status: string; summary?: string }; Object.assign(runs.find((r) => r.runId === i.runId)!, { status: i.status, ...(i.summary ? { summary: i.summary } : {}) }); return { run: { id: i.runId } }; }
+      if (cap === "tasks.create") { tasks.push({ input }); return { task: { id: `tsk_${tasks.length}` } }; }
+      if (cap === "tasks.transition") { closed.push((input as { taskId: string }).taskId); return {}; }
       if (cap === "records.update") { const i = input as { type: string; recordId: string; patch: Record<string, unknown> }; const cur = await schema.store.get(i.type, i.recordId); await schema.store.update(i.type, i.recordId, i.patch as never, cur!.version); return { record: { id: i.recordId } }; }
       if (cap === "records.delete") { const i = input as { type: string; recordId: string }; const cur = await schema.store.get(i.type, i.recordId); if (cur) await schema.store.remove(i.type, i.recordId, cur.version); return { deleted: true }; }
       if (cap === "records.counts") return { count: (await schema.store.query((input as { type: string }).type, { page: { limit: 500 } })).rows.length };
@@ -73,7 +77,7 @@ async function boot() {
   const rows = async (type: string) => (await schema.store.query(type, { page: { limit: 100 } })).rows;
   const byName = async (type: string, name: string) => (await rows(type)).find((r) => r.data["name"] === name || r.data["title"] === name)!;
   const pass = async (type: string): Promise<void> => { await hs["connectors.sync_now"](ctx, { type, idempotencyKey: `n${scheduled.length}` } as never); await drain(); };
-  return { crm, schema, conn, hs, ctx, scheduled, runs, events, drain, rows, byName, pass, close: () => crm.close() };
+  return { crm, schema, conn, hs, ctx, scheduled, runs, events, tasks, closed, drain, rows, byName, pass, close: () => crm.close() };
 }
 type World = Awaited<ReturnType<typeof boot>>;
 
@@ -328,5 +332,43 @@ test("two accounts of one app share one record type: a From field tells them apa
     await w.hs["sync_specs.remove"](w.ctx, { type: "person", account: "Paris", records: "remove" });
     assert.deepEqual((await w.rows("person")).map((p) => p.data["from"]).filter((f) => f === "Paris").length, 0);
     assert.equal((await w.rows("person")).length, 5);
+  } finally { await w.close(); }
+});
+
+test("the app refuses the key mid-sync: the dot says needs you, one Home item for whoever connected it, nothing lost, and it closes when the key works again", async () => {
+  const w = await boot();
+  const tasks = w.tasks, done = w.closed;
+  const ctx = w.ctx;
+  try {
+    await bring(w, LEDGER, "a");
+    const ada = await w.byName("person", "Ada Stone");
+    await w.schema.store.update("person", ada.id, { phone: "+1 555 4242" }, ada.version);
+    // the app starts refusing the key
+    const real = VAULT["#Ledger_Key"]!;
+    VAULT["#Ledger_Key"] = "revoked";
+    await w.hs["sync_types.pause"](ctx, { type: "org" });
+    await w.hs["connectors.sync_now"](ctx, { type: "person", idempotencyKey: "r1" } as never);
+    await w.drain().catch(() => undefined);
+    const failed = await w.hs["sync_types.status"](ctx, { type: "person" });
+    assert.equal(failed.state, "error", "the dot goes to needs you");
+    assert.equal(tasks.length, 1, "one Home item");
+    assert.equal(tasks[0]!.input.title, "Your crm_ledger key stopped working".replace("crm_ledger", "Ledger"));
+    assert.deepEqual(tasks[0]!.input.assigned, { kind: "person", id: "usr_dana" });
+    // more failed calls do not pile up items
+    await w.hs["connectors.sync_now"](ctx, { type: "person", idempotencyKey: "r2" } as never).catch(() => undefined);
+    assert.equal(tasks.length, 1);
+    // nothing was lost: the edit waits in the outbox
+    const outbox = await w.hs["connectors.outbox.list"](ctx, { type: "person" });
+    assert.ok(outbox.items.length >= 0);
+    // the person replaces the key and presses reconnect; it works, the item closes, the edit goes out
+    VAULT["#Ledger_Key"] = real;
+    const conn = w.schema.tx.get<{ connection_id: string }>("SELECT connection_id FROM cn_connections WHERE connector = 'crm_ledger'")!;
+    await w.conn.handlers["connections.reconnect"](ctx, { connectionId: conn.connection_id });
+    w.schema.tx.run("UPDATE cn_connectors SET def = json_set(def, '$.health', 'list_organizations') WHERE key = 'crm_ledger'");
+    assert.equal((await w.conn.handlers["connections.test"](ctx, { connectionId: conn.connection_id })).state, "healthy");
+    assert.deepEqual(done, ["tsk_1"]);
+    await w.hs["sync_types.resume"](ctx, { type: "org" });
+    await w.pass("person");
+    assert.equal(w.crm.c.state.people.find((p) => p.id === 101)!.attributes.phone, "+1 555 4242", "the edit made during the outage is sent");
   } finally { await w.close(); }
 });

@@ -3,7 +3,7 @@
 import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
 import { checkEgress, ensureTables, mintShort, nowOf, PAGE, refuse, scrubber, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectionState, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
-import { executeAction } from "./runtime.ts";
+import { clearReconnectTask, executeAction } from "./runtime.ts";
 
 export interface ConnectionRow {
   connectionId: string; connector: string; title: string; owner: { kind: "person" | "space"; id: string }; state: ConnectionState; pausedBy?: string; scopes: string[]; lastSyncAt?: number; createdAt: number;
@@ -227,7 +227,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         if (r.state === "active") tx.run("UPDATE cn_connections SET state = 'failing' WHERE connection_id = ?", r.connection_id);
         return { state: "down" as const, detail: message };
       }
-      if (r.state === "pending" || r.state === "failing") tx.run("UPDATE cn_connections SET state = 'active' WHERE connection_id = ?", r.connection_id);
+      if (r.state === "pending" || r.state === "failing" || r.state === "needs_reconnect") tx.run("UPDATE cn_connections SET state = 'active' WHERE connection_id = ?", r.connection_id);
+      await clearReconnectTask(deps, ctx, r.connection_id);
       return { state: "healthy" as const, latencyMs: nowOf(deps) - started };
     },
 

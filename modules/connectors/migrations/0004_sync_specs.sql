@@ -5,3 +5,5 @@ CREATE TABLE IF NOT EXISTS cn_sync_specs (
 CREATE TABLE IF NOT EXISTS cn_sync_spec_types (
   type TEXT NOT NULL, connector TEXT NOT NULL, remote TEXT NOT NULL, PRIMARY KEY (type, connector)
 );
+-- the Home item raised when an app refuses the key, so it can close when the key works again
+CREATE TABLE IF NOT EXISTS cn_reconnect_tasks (connection_id TEXT PRIMARY KEY, task_id TEXT NOT NULL);
