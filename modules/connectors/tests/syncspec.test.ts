@@ -219,7 +219,8 @@ test("preview shows the types, three real records and writes nothing", async () 
   assert.deepEqual(p.types.map((t) => [t.type, t.isNew]), [["org", true], ["person", true]]);
   assert.equal(p.samples.filter((s) => s.type === "person").length, 2);
   assert.equal(p.samples.find((s) => s.type === "person")!.fields.find((f) => f.key === "name")!.value, "Ada Stone");
-  assert.match(p.summary, /Would make 2 record types and bring in Organizations, 5 Persons\. People changed since the start of 2026\. Nothing is written to Ledger\./);
+  assert.match(p.summary, /Would make 2 record types and bring in Organizations, 5 Persons \(under 1 MB on this computer\)\. People changed since the start of 2026\. Nothing is written to Ledger\./);
+  assert.deepEqual([p.size.records, p.size.text], [7, "under 1 MB"]);
   assert.equal(w.calls.length, 1, "only schema.describe was called");
   assert.equal(w.k.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = 'crm_ledger'"), undefined);
   assert.ok(w.c.state.requests.every((r) => r.method === "GET"));
@@ -261,4 +262,13 @@ test("a multi-pick with no choices listed is plain text here, joined, so a recor
   })).spec!);
   assert.equal(withChoices.types.find((t) => t.remote === "people")!.defs.find((d) => d.key === "tags")!.type, "multichoice");
   assert.deepEqual(coerceValue(["a", "z"], "multi", ["a", "b"]), { ok: false }, "a value outside the choices does not fit");
+});
+
+test("validate warns that conversations belong in Inbox, and the size is stated for a big app", async () => {
+  const w = await (async () => world())();
+  const spec = mutate(ledgerSpec(), (s) => { s["objects"][0]["label"] = "Conversation"; s["objects"][1]["count"] = 95_699; });
+  const r = await w.k.hs["sync_specs.preview"](w.ctx, { spec });
+  assert.match(r.problems.map((p) => p.message).join(" "), /Conversation look like conversations\. They belong in Inbox/);
+  assert.equal(r.ok, true, "a warning, not a refusal");
+  assert.match(r.size.text, /about \d+(\.\d)? MB/);
 });

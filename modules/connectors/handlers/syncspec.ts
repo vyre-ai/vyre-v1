@@ -18,7 +18,7 @@ export interface ObjectCheck { remote: string; items: number; hasNext: boolean; 
 export interface Validation { ok: boolean; problems: Problem[]; objects: ObjectCheck[] }
 export interface TypePreview { type: string; remote: string; isNew: boolean; title: string; fields: { key: string; label: string; type: string; dir: string }[]; existing: number }
 export interface SamplePreview { type: string; remote: string; title: string; fields: { key: string; label: string; value: unknown }[] }
-export interface PreviewOut extends Validation { types: TypePreview[]; samples: SamplePreview[]; summary: string }
+export interface PreviewOut extends Validation { types: TypePreview[]; samples: SamplePreview[]; summary: string; /** What bringing everything in takes on disk, stated before Go. */ size: { records: number; bytes: number; text: string } }
 export interface ApplyOut { connector: string; connectionId: string; version: string; types: { type: string; syncTypeId: string; runId?: string }[]; live: "polling" }
 export interface SpecRow { spec: SyncSpec; connector: string; connectionId: string; appliedAt: number; types: { type: string; remote: string }[] }
 
@@ -83,6 +83,14 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
   }
   return tests;
 }
+
+
+/** About how much disk the records take: the app's count per object times the size of a sampled row as it is stored here (a fixed cost per row on top). */
+export function sizeText(bytes: number): string {
+  const mb = bytes / 1_048_576;
+  return mb < 1 ? "under 1 MB" : mb < 10 ? `about ${mb.toFixed(1)} MB` : mb < 1024 ? `about ${Math.round(mb / 5) * 5 || 5} MB` : `about ${(mb / 1024).toFixed(1)} GB`;
+}
+const ROW_COST = 700;
 
 export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
   const { tx } = deps;
@@ -185,9 +193,25 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       for (const p of m.match ?? []) if (!m.fields.some((f) => f.path === p && f.direction !== "off")) err(`mapping.${o.remote}.match`, `The match rule uses ${p}, which is not a mapped field.`);
       if (m.createAtSource && !o.create) err(`mapping.${o.remote}.createAtSource`, "Creating in the app needs a documented create.");
       if ((m.deletes ?? "off") !== "off" && !o.delete) err(`mapping.${o.remote}.deletes`, "Deleting in the app needs a documented delete.");
+      if (/conversation|message|thread|chat|sms|email|call/i.test(`${o.remote} ${o.label}`)) warn(`mapping.${o.remote}`, `${o.label} look like conversations. They belong in Inbox, not Records: leave them for a later step.`);
       objects.push({ remote: o.remote, items: items.length, hasNext, fieldsFound: found, fieldsMissing: missing, status: reply.status });
     }
     return { result: { ok: !problems.some((p) => p.level === "error"), problems, objects }, pages };
+  };
+
+  const sizeOf = (compiled: Compiled, spec: SyncSpec, pages: Map<string, { body: unknown; link?: string }>): PreviewOut["size"] => {
+    let records = 0, bytes = 0;
+    for (const t of compiled.types) {
+      const o = spec.objects.find((x) => x.remote === t.remote)!;
+      const page = pages.get(t.remote);
+      const action = compiled.connector.actions.find((a) => a.name === compiled.connector.objects![t.remote]!.list);
+      let sample = 0, rows = 0;
+      if (page && action?.shape) { try { const r = shapeList(page.body, page.link, action.shape, undefined).rows; rows = r.length; sample = r.reduce((n, x) => n + JSON.stringify(x.data).length, 0); } catch { /* an unreadable page has no size */ } }
+      const per = (rows ? sample / rows : 400) + ROW_COST;
+      const count = o.count ?? rows;
+      records += count; bytes += count * per;
+    }
+    return { records, bytes: Math.round(bytes), text: sizeText(bytes) };
   };
 
   /** Existing record types decide what apply adds. */
@@ -339,9 +363,9 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       const types = typePreview(compiled, spec, existing);
       const estimate = spec.objects.filter((o) => compiled.types.some((t) => t.remote === o.remote)).map((o) => (o.count !== undefined ? `${o.count} ${o.label}${o.count === 1 ? "" : "s"}` : `${o.label}s`));
       const summary = result.ok
-        ? `Would make ${types.filter((t) => t.isNew).length} record types and bring in ${estimate.join(", ")}. ${spec.plan.firstPull.words.replace(/[.\s]+$/, "")}. Nothing is written to ${spec.app.name}.`
+        ? `Would make ${types.filter((t) => t.isNew).length} record types and bring in ${estimate.join(", ")} (${sizeText(sizeOf(compiled, spec, pages).bytes)} on this computer). ${spec.plan.firstPull.words.replace(/[.\s]+$/, "")}. Nothing is written to ${spec.app.name}.`
         : `${result.problems.filter((p) => p.level === "error").length} problems to fix first.`;
-      return { ...result, types, samples: samplesOf(compiled, spec, pages), summary };
+      return { ...result, types, samples: samplesOf(compiled, spec, pages), summary, size: sizeOf(compiled, spec, pages) };
     },
 
     "sync_specs.apply": (ctx, input) => applySpec(ctx, parse(ctx, input.spec), input.idempotencyKey),

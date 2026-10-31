@@ -273,7 +273,7 @@ export default defineManifest({
     read('sync_specs.preview', 'Dry run of a SyncSpec: the record types it would make, three sample records drawn from the real page, and what the first pull would bring in. Writes nothing to Vyre or to the app', {
       in: { spec: syncSpec },
       out: {
-        ...specChecks, summary: t.str(),
+        ...specChecks, summary: t.str(), size: t.obj({ records: t.int({ minimum: 0 }), bytes: t.int({ minimum: 0 }), text: t.str({ examples: ['about 180 MB'] }) }),
         types: t.arr(t.obj({ type: id.recordType, remote: t.str(), isNew: t.bool(), title: t.str(), existing: t.int(), fields: t.arr(t.obj({ key: fieldKey, label: t.str(), type: t.str(), dir: t.str() })) })),
         samples: t.arr(t.obj({ type: id.recordType, remote: t.str(), title: t.str(), fields: t.arr(t.obj({ key: fieldKey, label: t.str(), value: t.json() })) })),
       },
