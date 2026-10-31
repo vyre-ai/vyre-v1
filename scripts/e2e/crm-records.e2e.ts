@@ -108,7 +108,7 @@ async function main(): Promise<void> {
     await ok("vault.item.put", { folderId: accounts, name: "Claude setup", kind: "ai_subscription", fields: [{ key: "setup_token", value: TOKEN, secret: true }] });
     const provider = (await ok("providers.subscription_complete", { flowId: flow.flowId })).provider;
     await ok("providers.set_space_use", { providerId: provider.id, allow: true });
-    const keysFolder = (await ok("vault.folders.create", { name: "Keys", scope: "mine" })).folder.id as string;
+    const keysFolder = (await ok("vault.folders.create", { name: "Keys", scope: "shared" })).folder.id as string;
     const item = (await ok("vault.item.put", { folderId: keysFolder, name: "GoHighLevel", kind: "api_key", fields: [{ key: "api_key", value: KEY, secret: true }] })).item;
     if (MODE === "discover") {
       // no agent: the discovery capabilities the agent uses, read-only, one small page each
