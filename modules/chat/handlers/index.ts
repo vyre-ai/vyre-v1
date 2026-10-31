@@ -1,4 +1,4 @@
-// Handler table of the chat module: all 62 capabilities. P-L2_10 wrote the first eight (post, start, thread, blocks, plans, channels); chat.post runs behind the sealed-thread guard of private chats
+// Handler table of the chat module: all 64 capabilities. P-L2_10 wrote the first eight (post, start, thread, blocks, plans, channels); chat.post runs behind the sealed-thread guard of private chats
 // (P-L2_11, with the three Ask capabilities). P-L2_24a to d wrote the other 51: threads (g24a), channels (g24b), messages and pins (g24c), transcript, plans and helpers (g24d).
 import { askLevel, askSuggest, asksOf, openAsChat } from "./ask.ts";
 import { g24aHandlers } from "./g24a.ts";
@@ -8,6 +8,7 @@ import { g24dHandlers } from "./g24d.ts";
 import { g26Handlers } from "./g26.ts";
 import { historySearch } from "./history.ts";
 import { g27Handlers } from "./g27.ts";
+import { modesHandlers } from "./modes.ts";
 import { post } from "./post.ts";
 import { screenHandlers } from "./screen.ts";
 import { guardPrivate } from "./private.ts";
@@ -38,6 +39,7 @@ export const handlers = {
   ...askHandlers,
   ...screenHandlers,
   ...g24aHandlers,
+  ...modesHandlers,
   ...g24bHandlers,
   ...g24cHandlers,
   ...g24dHandlers,

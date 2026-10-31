@@ -53,13 +53,13 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     if (primed.size > 500) primed.delete(primed.values().next().value as string);
     const [agent, thread] = await Promise.all([
       d.call("agents.get", { agentId: t.agentId }, t.asker).catch(() => undefined) as Promise<{ agent?: { toolsAllowed?: string[]; toolsDenied?: string[] } } | undefined>,
-      d.call("threads.get", { threadId: t.threadId }, t.asker).catch(() => undefined) as Promise<{ thread?: { kind?: ThreadFacts["kind"]; planMode?: boolean; scopeType?: string; scopeId?: string } } | undefined>,
+      d.call("threads.get", { threadId: t.threadId }, t.asker).catch(() => undefined) as Promise<{ thread?: { kind?: ThreadFacts["kind"]; planMode?: boolean; mode?: ThreadFacts["mode"]; scopeType?: string; scopeId?: string } } | undefined>,
     ]);
     const a = agent?.agent;
     rules.set(t.agentId, { ...(a?.toolsAllowed?.length ? { allow: a.toolsAllowed } : {}), ...(a?.toolsDenied?.length ? { deny: a.toolsDenied } : {}) });
     const th = thread?.thread;
     const scope = th?.scopeType && th.scopeId ? { type: th.scopeType, id: th.scopeId } : undefined;
-    facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(scope ? { scope } : {}) });
+    facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(th?.mode === "ask" || th?.mode === "auto" || th?.mode === "plan" ? { mode: th.mode } : {}), ...(scope ? { scope } : {}) });
     if (th?.kind === "ask" && scope) {
       const lvl = await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined) as { level?: Level | null } | undefined;
       levels.set(levelKey(t.asker, scope), lvl?.level ?? null);

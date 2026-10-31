@@ -33,6 +33,12 @@ function wireMessages(req: CallRequest): unknown[] {
   return out;
 }
 
+/**
+ * Models that take `output_config.effort` (GA, no beta header): Opus 4.6 and later, Sonnet 4.6 and later, Fable, Mythos, and the 5.x Haiku. Older models refuse the field, so it is left out for them.
+ * Vyre's four levels are the API's own (low, medium, high, max). Thinking is left as it is: turning it on would need the thinking blocks carried between tool steps.
+ */
+export const takesEffort = (model: string): boolean => /^claude-(opus|sonnet)-(4-[6-9]|[5-9])|^claude-(fable|mythos)-|^claude-haiku-[5-9]/.test(model);
+
 function request(req: CallRequest): WireRequest {
   const ordered = orderSystem(req.system);
   const lastStable = ordered.reduce((n, b, i) => (b.stable ? i : n), -1);
@@ -48,6 +54,7 @@ function request(req: CallRequest): WireRequest {
       model: req.model, max_tokens: req.maxOutputTokens, stream: true,
       ...(system.length > 0 ? { system } : {}),
       ...(tools.length > 0 ? { tools } : {}),
+      ...(req.effort !== undefined && takesEffort(req.model) ? { output_config: { effort: req.effort } } : {}),
       messages: wireMessages(req),
     },
   };

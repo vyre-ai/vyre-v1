@@ -135,6 +135,8 @@ export function createToolSession(deps: CallDeps): ToolSession {
       origin: "agent",
       provider: ctx.provider,
       approval: opts.approval,
+      // Ask first: a tool that changes or sends something is parked for a yes before it runs. Tools plan mode allows (reads, questions, plan proposals) never wait. Auto adds nothing and removes nothing: the Gate decides, as before.
+      ...(ctx.thread.mode === "ask" && t.effects !== "read" && t.planMode === "blocked" ? { askFirst: true } : {}),
     };
     try {
       const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : input, seed);

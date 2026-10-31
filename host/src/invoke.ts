@@ -66,6 +66,8 @@ export interface CtxSeed {
   preAuth?: boolean | undefined;
   /** set by a caller that wants the Gate to hold only on an explicit rule (a step with Ask before sending Off); it follows every nested call */
   gateMode?: "admin_only" | undefined;
+  /** Ask first (chat mode): a call that changes or sends something is parked for a yes before its handler runs. Set only by the tool session of a chat in Ask first mode; it follows no nested call. */
+  askFirst?: boolean | undefined;
 }
 
 export interface AuditRow {
@@ -332,6 +334,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         return park(c, input, seed, traceId, did(), g.act, null);
       }
     }
+
+    // Ask first (chat mode): the Gate parks any call that is not read-only, once, at the top of the call. The approval token of the resume path skips it, as it skips the capability's own Gate.
+    if (seed.askFirst === true && !approved && depth === 0 && c.effects !== "read") return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
 
     // 6 handler, with a ctx whose emit buffers events for the one commit
     const h = deps.handler(c.name, c.v);

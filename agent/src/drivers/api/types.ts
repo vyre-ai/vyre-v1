@@ -1,6 +1,6 @@
 // API drivers (ARCH 6.6, spec 4.14): our own tool loop over each provider's streaming HTTP API. The shapes here are provider neutral; every provider file maps them to its wire format.
 // Nothing in this folder holds a key. An account is named by its Vault handle and the Authorizer port returns the auth headers at the HTTP layer (ARCH 6.4).
-import type { DriverEvent } from "../../turn-engine/types.ts";
+import type { DriverEvent, Effort } from "../../turn-engine/types.ts";
 
 export type ProviderId = "anthropic" | "openai" | "openrouter" | "google" | "xai";
 export const PROVIDER_IDS: readonly ProviderId[] = ["anthropic", "openai", "openrouter", "google", "xai"];
@@ -31,6 +31,8 @@ export interface CallRequest {
   tools: readonly ApiTool[];
   messages: readonly Msg[];
   maxOutputTokens: number;
+  /** The agent's effort in this chat; a provider sends it only for models that take one (anthropic.ts, openai.ts). */
+  effort?: Effort;
   /** Hash of the stable system blocks and the tool list (prefix.ts). */
   prefixHash: string;
 }

@@ -6,6 +6,9 @@ import type { TurnContext } from "./context.ts";
 
 export type ThreadKind = "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
 export type AgentMode = "lead" | "listen";
+/** How much the agents of a chat may do alone (threads.set_mode): "ask" asks before it changes or sends anything, "auto" acts alone, "plan" only reads and plans. Anything that leaves Vyre is held for a yes in every mode. */
+export type ChatMode = "ask" | "auto" | "plan";
+export type Effort = "low" | "medium" | "high" | "max";
 export type QueueKind = "message" | "interrupt" | "wake" | "handoff";
 export type QueueState = "queued" | "running" | "done" | "consumed" | "cancelled";
 export type TurnState = "running" | "waiting" | "completed" | "failed" | "cancelled";
@@ -22,6 +25,8 @@ export interface EngineAgent {
   /** Role line from agent.toml. Goes into the lead's context for listeners; never a reason to run inference. */
   role?: string;
   model?: string;
+  /** How hard the model thinks for this agent in this chat; each driver maps it onto its own setting. */
+  effort?: Effort;
   accountRef?: string;
   /** "Watches this channel": acts without an @mention, logged as a routine. */
   watching?: boolean;
@@ -177,6 +182,8 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
 export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[] }
 export interface SessionSpec {
   threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
+  /** The chat's mode for this turn. Absent: the driver's older behaviour (a session of a step or a one-shot job has no chat mode). */
+  mode?: ChatMode;
   /** "none": the session has no Vyre tools and no tools of its own (an automation's AI step answers in words and sends nothing). Absent: the agent's tools. */
   tools?: "none";
 }

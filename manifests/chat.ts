@@ -14,6 +14,7 @@ import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut } from 
 const threadKind = t.enm('chat', 'channel', 'thread', 'ask', 'run', 'helper', 'console');
 const agentMode = t.enm('lead', 'listen');
 const effort = t.enm('low', 'medium', 'high', 'max');
+const chatMode = t.enm('ask', 'auto', 'plan');
 const threadAgent = t.obj({
   agentId: id.agent, mode: agentMode, model: t.opt(t.str({ examples: ['claude-sonnet-5-5'] })), provider: t.opt(t.str({ examples: ['anthropic'] })),
   effort: t.opt(effort), accountRef: t.opt(t.str({ description: 'Vault handle or subscription account reference; never a secret' })), watches: t.opt(t.bool()),
@@ -21,7 +22,7 @@ const threadAgent = t.obj({
 const threadRow = t.obj({
   threadId: id.thread, kind: threadKind, title: t.opt(t.str()), starter: t.opt(t.str()), channelId: t.opt(id.channel),
   parentThreadId: t.opt(id.thread), parentMessageId: t.opt(id.message), recordId: t.opt(id.record), folderId: t.opt(id.folder),
-  scopeType: t.opt(t.str({ examples: ['record'] })), scopeId: t.opt(t.str()), listed: t.bool(), planMode: t.bool(),
+  scopeType: t.opt(t.str({ examples: ['record'] })), scopeId: t.opt(t.str()), listed: t.bool(), planMode: t.bool(), mode: t.opt(chatMode),
   members: t.arr(principalRef), agents: t.arr(threadAgent), createdAt: t.ts(), closedAt: t.opt(t.ts()),
   replyCount: t.opt(t.int({ minimum: 0, description: 'Messages in the thread that are not deleted' })), lastMessageAt: t.opt(t.ts()),
   path: t.opt(t.arr(t.obj({ title: t.str(), threadId: id.thread }), { description: 'Address bar parts for helper chats, each a link back' })),
@@ -131,6 +132,16 @@ export default defineManifest({
     }),
     write('threads.set_plan_mode', 'Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved', {
       in: { ...threadT, planMode: t.bool() }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.plan_mode_changed'], tool: 'chats', offline: 'queue',
+    }),
+    write('threads.set_mode', 'Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode', {
+      in: { ...threadT, mode: chatMode }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated', 'thread.plan_mode_changed'], tool: 'chats', offline: 'queue', idem: 'natural',
+    }),
+    write('threads.agent.configure', 'Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field', {
+      in: {
+        ...threadT, agentId: id.agent, model: t.opt(t.nullable(t.str())), provider: t.opt(t.nullable(t.str())), effort: t.opt(t.nullable(effort)), accountRef: t.opt(t.nullable(t.str())),
+        scope: t.opt(t.enm('chat', 'agent')),
+      },
+      out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated'], tool: 'chats', offline: 'queue', idem: 'natural', errors: ['validation.not_found', 'validation.bad_input'],
     }),
     write('threads.close', 'Close a thread (idle with nothing waiting, or done)', {
       in: threadT, out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['thread.closed'], tool: 'chats',
