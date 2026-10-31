@@ -137,9 +137,9 @@ test("complete: signing in again to the same address keeps the account and swaps
   h.mailState.duplicate = true;
   const again = await signIn(h, "c2");
   assert.equal(again.accountId, first.accountId);
-  assert.equal(again.mailboxId, undefined);
+  assert.equal(again.mailboxId, first.mailboxId, "the mailbox is the same one");
   assert.equal(h.rows(`SELECT * FROM microsoft_user_account`).length, 1);
-  assert.equal(h.calls("mail.sync_now").length, 1);
+  assert.equal(h.calls("mail.sync_now").length, 2);
   walk(h);
   await pullMailbox(h.ctx, { connectionId: first.accountId, mailbox: MAYA });
   assert.equal(h.refreshes.at(-1)!.refreshToken, "refresh-for-c2");
@@ -198,4 +198,45 @@ test("poll with nobody signed in: a personal address is pulled, no calendar or T
   assert.equal(h.hits(/\/calendar|\/onlineMeetings|\/drive/).length, 0);
   assert.equal(h.scheduled.length, 1);
   assert.equal(h.scheduled[0]!.cap, "ms.receive_notification");
+});
+
+test("complete: the mailbox is private in a Team Space and plain in a Personal Space", async () => {
+  const team = harness();
+  await app(team);
+  await signIn(team);
+  assert.equal(team.calls("mail.connect")[0]!.input["privacy"], "private");
+  const personal = harness();
+  personal.spaceState.kind = "personal";
+  await app(personal);
+  await signIn(personal);
+  assert.equal(personal.calls("mail.connect")[0]!.input["privacy"], "space");
+});
+
+test("a lost sign-in: the first failed poll marks the mailbox, makes one Needs you task for the owner and stops the chain; signing in again closes it", async () => {
+  const h = harness();
+  await app(h);
+  const out = await signIn(h);
+  const maya = h.ctx.principal;
+  walk(h);
+  await pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA });
+  h.ctx.principal = { kind: "service", id: "svc_host" } as never;
+  h.advance(2 * 3_600_000);
+  h.userState.refreshFails = true;
+  const note = (id: string) => receiveNotification(h.ctx, { notificationId: id, subscriptionId: "poll", resource: `users/${MAYA}/messages`, changeType: "updated", clientStateOk: true });
+  await note("n-lost-1");
+  assert.deepEqual(h.calls("mail.mailbox.set_sync_state").map((c) => [c.input["mailboxId"], c.input["state"]]), [[out.mailboxId, "error"]]);
+  const made = h.calls("tasks.create");
+  assert.equal(made.length, 1);
+  assert.deepEqual([made[0]!.input["kind"], made[0]!.input["assigned"]], ["unblock", { kind: "person", id: "usr_maya01" }]);
+  assert.deepEqual((made[0]!.input["blocks"] as { type: string }[])[0]!.type, "mail_signin");
+  assert.equal(h.scheduled.length, 0);
+  await note("n-lost-2");
+  assert.equal(h.calls("tasks.create").length, 1);
+
+  h.userState.refreshFails = false;
+  h.ctx.principal = maya;
+  const again = await signIn(h, "c2");
+  assert.equal(again.accountId, out.accountId);
+  assert.deepEqual(h.calls("tasks.transition").map((c) => [c.input["taskId"], c.input["to"]]), [["tsk_fix1", "done"]]);
+  assert.equal(h.calls("mail.mailbox.set_sync_state").at(-1)!.input["state"], "syncing");
 });

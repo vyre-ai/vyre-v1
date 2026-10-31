@@ -155,6 +155,23 @@ export async function mailboxSetPrivacy(ctx: MailCtx, input: { mailboxId: string
   return answer(ctx, id);
 }
 
+// ---- mail.mailbox.set_sync_state
+
+/** A connection that owns its own sign-in (the google and microsoft modules) says it lost it, or has it again. A paused or disconnected mailbox keeps its state. */
+export async function mailboxSetSyncState(ctx: MailCtx, input: { mailboxId: string; state: "error" | "syncing"; reason?: string }): Promise<{ mailbox: MailboxRow }> {
+  ensureAll(ctx);
+  const id = mbxId(ctx, input.mailboxId);
+  if (input.state !== "error" && input.state !== "syncing") bad(ctx, "State is not supported.");
+  const row = loadLive(ctx, id);
+  const now = str(row, "state");
+  if (now === "paused" || now === "disconnected" || now === input.state) return answer(ctx, id);
+  bump(ctx, row, { state: input.state });
+  if (input.state === "error") {
+    ctx.emit("mailbox.sync_failed", `mailbox/${id}`, { mailboxId: id, reason: (input.reason ?? "The sign-in was lost. Sign in again.").slice(0, 200) }, { vis: "participants" });
+  }
+  return answer(ctx, id);
+}
+
 // ---- mail.mailbox.pause / resume / disconnect
 
 export async function mailboxPause(ctx: MailCtx, input: { mailboxId: string }): Promise<{ mailbox: MailboxRow }> {

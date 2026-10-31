@@ -125,10 +125,10 @@ test("complete: signing in again to the same address keeps the account and swaps
   h.mailState.duplicate = true;
   const again = await signIn(h, "c2");
   assert.equal(again.accountId, first.accountId);
-  assert.equal(again.mailboxId, undefined);
+  assert.equal(again.mailboxId, first.mailboxId, "the mailbox is the same one");
   const rows = h.rows(`SELECT * FROM google_user_account`);
   assert.equal(rows.length, 1);
-  assert.equal(h.calls("mail.sync_now").length, 1);
+  assert.equal(h.calls("mail.sync_now").length, 2);
   // the new token is the one used
   h.on("GET", /\/history\?/, { body: { history: [], historyId: "1" } });
   h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`, MAYA, first.accountId, "1");
@@ -190,4 +190,62 @@ test("poll with nobody signed in: a personal address is pulled, no calendar or M
   assert.equal(h.scheduled.length, 1);
   assert.equal(h.scheduled[0]!.cap, "google.receive_push");
   assert.equal(h.scheduled[0]!.input["mailbox"], MAYA);
+});
+
+test("complete: the mailbox is private in a Team Space and plain in a Personal Space", async () => {
+  const team = harness();
+  await app(team);
+  await signIn(team);
+  assert.equal(team.calls("mail.connect")[0]!.input["privacy"], "private");
+  const personal = harness();
+  personal.spaceState.kind = "personal";
+  await app(personal);
+  await signIn(personal);
+  assert.equal(personal.calls("mail.connect")[0]!.input["privacy"], "space");
+});
+
+test("a lost sign-in: the first failed poll marks the mailbox, makes one Needs you task for the owner and stops the chain; signing in again closes it and starts over", async () => {
+  const h = harness();
+  await app(h);
+  const out = await signIn(h);
+  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`, MAYA, out.accountId, "1");
+  const maya = h.ctx.principal;
+  h.ctx.principal = { kind: "service", id: "svc_host" } as never;
+  h.advance(2 * 3_600_000);   // the access token made at sign-in has ended
+  h.userState.refreshFails = true;
+
+  await receivePush(h.ctx, { kind: "gmail", messageId: "poll:1", mailbox: MAYA });
+  const state = h.calls("mail.mailbox.set_sync_state");
+  assert.deepEqual(state.map((c) => [c.input["mailboxId"], c.input["state"]]), [[out.mailboxId, "error"]]);
+  const made = h.calls("tasks.create");
+  assert.equal(made.length, 1);
+  assert.deepEqual([made[0]!.input["kind"], made[0]!.input["assigned"], made[0]!.input["title"]], ["unblock", { kind: "person", id: "usr_maya01" }, `Sign in to ${MAYA} again`]);
+  assert.deepEqual((made[0]!.input["blocks"] as { type: string; data: Record<string, unknown> }[])[0], { type: "mail_signin", v: 1, data: { provider: "google", address: MAYA, accountId: out.accountId } });
+  assert.deepEqual((made[0]!.input["actions"] as { key: string }[]).map((a) => a.key), ["fix"]);
+  assert.equal(h.scheduled.length, 0, "no poll is queued for a sign-in that is gone");
+  assert.equal(h.rows(`SELECT "nextPollAt" FROM google_mailbox`)[0]!["nextPollAt"], null);
+
+  await receivePush(h.ctx, { kind: "gmail", messageId: "poll:2", mailbox: MAYA });
+  assert.equal(h.calls("tasks.create").length, 1, "one task however many pulls fail");
+
+  h.userState.refreshFails = false;
+  h.ctx.principal = maya;
+  const again = await signIn(h, "c2");
+  assert.equal(again.accountId, out.accountId);
+  assert.deepEqual(h.calls("tasks.transition").map((c) => [c.input["taskId"], c.input["to"]]), [["tsk_fix1", "done"]]);
+  assert.equal(h.calls("mail.mailbox.set_sync_state").at(-1)!.input["state"], "syncing");
+  assert.equal(h.calls("mail.sync_now").length, 2, "a pull starts again");
+  assert.equal(h.rows(`SELECT "fixTaskId" FROM google_user_account`)[0]!["fixTaskId"], null);
+});
+
+test("remove while the sign-in task is open cancels the task", async () => {
+  const h = harness();
+  await app(h);
+  const out = await signIn(h);
+  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`, MAYA, out.accountId, "1");
+  h.advance(2 * 3_600_000);
+  h.userState.refreshFails = true;
+  await receivePush(h.ctx, { kind: "gmail", messageId: "poll:1", mailbox: MAYA });
+  await userRemove(h.ctx, { accountId: out.accountId });
+  assert.deepEqual(h.calls("tasks.transition").map((c) => c.input["to"]), ["canceled"]);
 });

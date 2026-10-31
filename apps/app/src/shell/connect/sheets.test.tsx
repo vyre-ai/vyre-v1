@@ -59,7 +59,7 @@ test("Gmail and Outlook without a Workspace or Microsoft 365 set-up say so in on
     assert.equal(calls.some((c) => c.cap === "mail.connect"), false, "no half-made mailbox");
     const line = find(root, "connect-unavailable");
     assert.ok(line, `${word}: the line is there`);
-    assert.match(JSON.stringify(line), new RegExp(`${word} sign-in needs ${space} set up for your Space`));
+    assert.match(JSON.stringify(line), new RegExp(`${word} sign-in needs a sign-in app, or ${space}, set up for your Space`));
     assert.equal(find(root, "connect-go"), null, "nothing to press that does nothing");
     await press(find(root, "connect-use-imap"));
     await flush();

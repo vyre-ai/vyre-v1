@@ -196,8 +196,8 @@ export const isUserConnection = (connectionId: string): boolean => connectionId.
 /** A person's own token reaches their own mailbox as Graph's /me (a personal Microsoft account has no /users/{id}); the subject names it so. */
 export const ME = "me";
 
-export interface UserAccount { accountId: string; ownerId: string; email: string; refreshSealed: string }
-const accountOfRow = (r: Row): UserAccount => ({ accountId: str(r, "accountId"), ownerId: str(r, "ownerId"), email: str(r, "email"), refreshSealed: str(r, "refreshSealed") });
+export interface UserAccount { accountId: string; ownerId: string; email: string; refreshSealed: string; mailboxId: string | null; fixTaskId: string | null }
+const accountOfRow = (r: Row): UserAccount => ({ accountId: str(r, "accountId"), ownerId: str(r, "ownerId"), email: str(r, "email"), refreshSealed: str(r, "refreshSealed"), mailboxId: strOrNull(r, "mailboxId"), fixTaskId: strOrNull(r, "fixTaskId") });
 
 /** A person's account is theirs alone; the host's own services (the poll that runs with nobody signed in) act for them. */
 function userUsable(ctx: MsCtx, a: UserAccount): boolean {

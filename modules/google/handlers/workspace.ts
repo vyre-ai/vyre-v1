@@ -9,6 +9,7 @@ import {
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
+import { userSigninLost } from "./personal.ts";
 import { pullMeet } from "./meet.ts";
 import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./gmail.ts";
@@ -335,6 +336,12 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
     ctx.log.info("google pull", { mailbox: email, ingested: pull.ingested, deduped: pull.deduped, skipped: pull.skipped, complete: pull.complete, cause });
   } catch (e) {
     ctx.log.warn("google pull failed", { mailbox: email, code: codeOf(e), cause });
+    // a person's own sign-in that the provider no longer accepts: say so once and stop polling (signing in again starts the chain)
+    if (own && !delegated && codeOf(e) === "provider.auth_failed") {
+      await userSigninLost(ctx, own);
+      ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, email);
+      return;
+    }
     delay = pollInterval(now, null, false);
   }
   // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull. A person's own sign-in carries mail only.

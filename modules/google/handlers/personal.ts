@@ -6,9 +6,9 @@
 //     work unchanged: they ask for the connection's token, and a gua_ connection answers with this account's.
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  CONFIG_ID, GMAIL, bad, codeOf, ensure, first, needHost, newId, normalizeEmail, rowsOf, str, text, userAccount, userAppHandle,
+  CONFIG_ID, GMAIL, bad, codeOf, ensure, first, needHost, newId, normalizeEmail, rowsOf, str, strOrNull, text, userAccount, userAppHandle,
 } from "../projections.ts";
-import type { GoogleCtx, Row } from "../projections.ts";
+import type { GoogleCtx, Row, UserAccount } from "../projections.ts";
 
 const AUTHORIZE = "https://accounts.google.com/o/oauth2/v2/auth";
 const REVOKE = "https://oauth2.googleapis.com/revoke";
@@ -130,14 +130,51 @@ export async function userComplete(ctx: GoogleCtx, input: unknown) {
   // the mailbox is the person's own, made through mail like any other; a mailbox for this address that is already there is the one to use
   let mailboxId: string | undefined;
   try {
-    const made = obj(await ctx.call("mail.connect", { provider: "google", address: email, connectionId: accountId, idempotencyKey: `gua-connect:${accountId}` }));
+    // a person's own mailbox is theirs: private in a Team Space (nobody else sees it unless they share it), plain in a Personal Space (one person, so mail files like any other)
+    const privacy = (await spaceKind(ctx)) === "personal" ? "space" : "private";
+    const made = obj(await ctx.call("mail.connect", { provider: "google", address: email, connectionId: accountId, privacy, idempotencyKey: `gua-connect:${accountId}` }));
     mailboxId = text(obj(made["mailbox"])["id"]);
   } catch (e) {
     if (codeOf(e) !== "validation.duplicate") throw e;
   }
-  if (mailboxId) await ctx.call("mail.sync_now", { mailboxId }).catch((e: unknown) => ctx.log.warn("google first pull did not start", { code: codeOf(e) }));
+  if (mailboxId) ctx.db.run(`UPDATE google_user_account SET "mailboxId" = ? WHERE "accountId" = ?`, mailboxId, accountId);
+  const box = mailboxId ?? (known ? strOrNull(known, "mailboxId") : null) ?? undefined;
+  // the person signed in again after a lost sign-in: the mailbox is well again and its Needs you task is done
+  if (known) await signedInAgain(ctx, { accountId, ownerId: owner, email, refreshSealed: "", mailboxId: box ?? null, fixTaskId: strOrNull(known, "fixTaskId") });
+  if (box) await ctx.call("mail.sync_now", { mailboxId: box }).catch((e: unknown) => ctx.log.warn("google first pull did not start", { code: codeOf(e) }));
   ctx.emit("google.user_connected", `entity/${accountId}`, { accountId, email });
-  return { accountId, email, ...(mailboxId ? { mailboxId } : {}) };
+  return { accountId, email, ...(box ? { mailboxId: box } : {}) };
+}
+
+// ---- a lost sign-in
+
+const spaceKind = async (ctx: GoogleCtx): Promise<string> => text(obj(await ctx.call("spaces.get", {}).catch(() => ({})))["kind"]) ?? "team";
+
+/** The saved sign-in no longer works (revoked, expired, the app's secret changed). The mailbox says so and the owner gets one Needs you task, however many pulls fail. */
+export async function userSigninLost(ctx: GoogleCtx, a: UserAccount): Promise<void> {
+  if (a.mailboxId) {
+    await ctx.call("mail.mailbox.set_sync_state", { mailboxId: a.mailboxId, state: "error", reason: "Google stopped accepting the saved sign-in. Sign in again." })
+      .catch((e: unknown) => ctx.log.warn("google mailbox state was not set", { code: codeOf(e) }));
+  }
+  if (a.fixTaskId) return;
+  try {
+    const made = obj(await ctx.call("tasks.create", {
+      kind: "unblock", title: `Sign in to ${a.email} again`, summary: "Google stopped accepting the saved sign-in.", why: "The mailbox does not sync until you sign in again. Mail already here stays.",
+      assigned: { kind: "person", id: a.ownerId }, source: { kind: "manual", id: a.accountId },
+      blocks: [{ type: "mail_signin", v: 1, data: { provider: "google", address: a.email, accountId: a.accountId } }],
+      actions: [{ key: "fix", label: "Sign in again" }], idempotencyKey: `gua-fix:${a.accountId}:${ctx.now()}`,
+    }));
+    const taskId = text(obj(made["task"])["id"]);
+    if (taskId) ctx.db.run(`UPDATE google_user_account SET "fixTaskId" = ? WHERE "accountId" = ?`, taskId, a.accountId);
+  } catch (e) { ctx.log.warn("google sign-in task was not made", { code: codeOf(e) }); }
+}
+
+async function signedInAgain(ctx: GoogleCtx, a: UserAccount): Promise<void> {
+  if (a.fixTaskId) {
+    await ctx.call("tasks.transition", { taskId: a.fixTaskId, to: "done" }).catch((e: unknown) => ctx.log.warn("google sign-in task was not closed", { code: codeOf(e) }));
+    ctx.db.run(`UPDATE google_user_account SET "fixTaskId" = ? WHERE "accountId" = ?`, null, a.accountId);
+  }
+  if (a.mailboxId) await ctx.call("mail.mailbox.set_sync_state", { mailboxId: a.mailboxId, state: "syncing" }).catch((e: unknown) => ctx.log.warn("google mailbox state was not set", { code: codeOf(e) }));
 }
 
 // ---- accounts
@@ -156,6 +193,7 @@ export async function userRemove(ctx: GoogleCtx, input: unknown) {
     const refresh = new TextDecoder().decode(ctx.seal.unseal(JSON.parse(a.refreshSealed)));
     await ctx.http(`${REVOKE}?token=${encodeURIComponent(refresh)}`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" } });
   } catch (e) { ctx.log.warn("google token was not revoked", { code: codeOf(e) }); }
+  if (a.fixTaskId) await ctx.call("tasks.transition", { taskId: a.fixTaskId, to: "canceled" }).catch((e: unknown) => ctx.log.warn("google sign-in task was not closed", { code: codeOf(e) }));
   ctx.db.run(`DELETE FROM google_user_account WHERE "accountId" = ?`, a.accountId);
   ctx.db.run(`DELETE FROM google_mailbox WHERE "connectionId" = ?`, a.accountId);
   return { removed: true };

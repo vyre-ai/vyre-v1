@@ -265,10 +265,10 @@ function MailboxSheet({ rt, first, onDone, onCancel }: { rt: FlowProps["rt"]; fi
       {provider !== "imap" && !mine && typeof delegated === "object" ? <Text style={s.body} testID="connect-matched">{`${word} as ${delegated.address}`}</Text> : null}
       {provider !== "imap" && !mine && delegated === "none" ? (
         <>
-          <Text style={s.body} testID="connect-unavailable">{`${word} sign-in needs ${space} set up for your Space.`}</Text>
+          <Text style={s.body} testID="connect-unavailable">{`${word} sign-in needs a sign-in app, or ${space}, set up for your Space.`}</Text>
           <View style={s.row}>
             <Btn label="Use an app password" primary onPress={() => { const from = provider; setProvider("imap"); setHost(PRESET[from].host); setPort(PRESET[from].port); setLine(null); }} testID="connect-use-imap" />
-            <Pressable accessibilityRole="button" accessibilityLabel={`Set up ${space}`} testID="connect-setup" onPress={setup}><Text style={s.link}>{`Set up ${space}`}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Set up sign-in" testID="connect-setup" onPress={setup}><Text style={s.link}>Set up sign-in</Text></Pressable>
           </View>
         </>
       ) : null}

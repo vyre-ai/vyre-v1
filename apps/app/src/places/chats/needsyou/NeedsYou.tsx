@@ -20,7 +20,8 @@ import {
   isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
-import { isNoAccount } from "./account.ts";
+import { isNoAccount, mailFix } from "./account.ts";
+import { useOpenConnect } from "../../../shell/connect/index.ts";
 import { Button, Face, Icon, LeadIcon, Tool } from "./parts.tsx";
 
 type ItemsOut = CapMap["tasks.needs_you"]["out"];
@@ -206,6 +207,8 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const moreButtons: ReactElement[] = [];
   for (const m of actions.more) moreButtons.push(<Button key={m.key} label={m.label} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />);
   const noAccount = isNoAccount(t);
+  const fix = mailFix(t);
+  const openConnect = useOpenConnect();
   const primary = actions.primary;
   const sendBack = actions.sendBack;
   const meta = [stateWord(t.state), `Assigned to ${assigned}`, t.kind === "approve" || t.kind === "review" || t.kind === "unblock" || t.kind === "answer" ? `${roleWord(t)}: You` : ""].filter((x) => x !== "").join(" · ");
@@ -255,7 +258,8 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
         <View testID="needs-actions" style={st.acts}>
           {mustTake ? <Button label="Take" primary onPress={() => void take(deps, t)} testID="needs-take" /> : null}
           {!mustTake && noAccount ? <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" /> : null}
-          {!mustTake && !noAccount && primary ? <Button label={primary.label} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
+          {!mustTake && fix ? <Button label="Sign in again" primary onPress={() => void openConnect?.({ kind: "mailbox", provider: fix })} testID="needs-mailfix" /> : null}
+          {!mustTake && !noAccount && !fix && primary ? <Button label={primary.label} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
           {!mustTake && sendBack ? <Button label="Send back" hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
           {!mustTake ? moreButtons : null}
           {t.kind === "unblock" && t.source && !noAccount ? <Button label="Open its computer" onPress={() => data.nav.openComputer(t.createdBy)} testID="needs-computer" /> : null}

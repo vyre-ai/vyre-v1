@@ -6,9 +6,9 @@
 //     work unchanged: they ask for the connection's token, and a mua_ connection answers with this account's. Graph reads it as /me, which also works for a personal Microsoft account.
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  CONFIG_ID, GRAPH, bad, codeOf, ensure, first, needHost, newId, normalizeEmail, rowsOf, str, text, userAccount, userAppHandle,
+  CONFIG_ID, GRAPH, bad, codeOf, ensure, first, needHost, newId, normalizeEmail, rowsOf, str, strOrNull, text, userAccount, userAppHandle,
 } from "../projections.ts";
-import type { MsCtx, Row } from "../projections.ts";
+import type { MsCtx, Row, UserAccount } from "../projections.ts";
 
 const authorizeUrl = (tenant: string | undefined): string => `https://login.microsoftonline.com/${encodeURIComponent(tenant ?? "common")}/oauth2/v2.0/authorize`;
 export const USER_SCOPES = ["offline_access", "User.Read", "Mail.ReadWrite", "Mail.Send"] as const;
@@ -129,14 +129,51 @@ export async function userComplete(ctx: MsCtx, input: unknown) {
   // the mailbox is the person's own, made through mail like any other; a mailbox for this address that is already there is the one to use
   let mailboxId: string | undefined;
   try {
-    const made = obj(await ctx.call("mail.connect", { provider: "microsoft", address: email, connectionId: accountId, idempotencyKey: `mua-connect:${accountId}` }));
+    // a person's own mailbox is theirs: private in a Team Space (nobody else sees it unless they share it), plain in a Personal Space (one person, so mail files like any other)
+    const privacy = (await spaceKind(ctx)) === "personal" ? "space" : "private";
+    const made = obj(await ctx.call("mail.connect", { provider: "microsoft", address: email, connectionId: accountId, privacy, idempotencyKey: `mua-connect:${accountId}` }));
     mailboxId = text(obj(made["mailbox"])["id"]);
   } catch (e) {
     if (codeOf(e) !== "validation.duplicate") throw e;
   }
-  if (mailboxId) await ctx.call("mail.sync_now", { mailboxId }).catch((e: unknown) => ctx.log.warn("microsoft first pull did not start", { code: codeOf(e) }));
+  if (mailboxId) ctx.db.run(`UPDATE microsoft_user_account SET "mailboxId" = ? WHERE "accountId" = ?`, mailboxId, accountId);
+  const box = mailboxId ?? (known ? strOrNull(known, "mailboxId") : null) ?? undefined;
+  // the person signed in again after a lost sign-in: the mailbox is well again and its Needs you task is done
+  if (known) await signedInAgain(ctx, { accountId, ownerId: owner, email, refreshSealed: "", mailboxId: box ?? null, fixTaskId: strOrNull(known, "fixTaskId") });
+  if (box) await ctx.call("mail.sync_now", { mailboxId: box }).catch((e: unknown) => ctx.log.warn("microsoft first pull did not start", { code: codeOf(e) }));
   ctx.emit("microsoft.user_connected", `entity/${accountId}`, { accountId, email });
-  return { accountId, email, ...(mailboxId ? { mailboxId } : {}) };
+  return { accountId, email, ...(box ? { mailboxId: box } : {}) };
+}
+
+// ---- a lost sign-in
+
+const spaceKind = async (ctx: MsCtx): Promise<string> => text(obj(await ctx.call("spaces.get", {}).catch(() => ({})))["kind"]) ?? "team";
+
+/** The saved sign-in no longer works (revoked, expired, the app's secret changed). The mailbox says so and the owner gets one Needs you task, however many pulls fail. */
+export async function userSigninLost(ctx: MsCtx, a: UserAccount): Promise<void> {
+  if (a.mailboxId) {
+    await ctx.call("mail.mailbox.set_sync_state", { mailboxId: a.mailboxId, state: "error", reason: "Microsoft stopped accepting the saved sign-in. Sign in again." })
+      .catch((e: unknown) => ctx.log.warn("microsoft mailbox state was not set", { code: codeOf(e) }));
+  }
+  if (a.fixTaskId) return;
+  try {
+    const made = obj(await ctx.call("tasks.create", {
+      kind: "unblock", title: `Sign in to ${a.email} again`, summary: "Microsoft stopped accepting the saved sign-in.", why: "The mailbox does not sync until you sign in again. Mail already here stays.",
+      assigned: { kind: "person", id: a.ownerId }, source: { kind: "manual", id: a.accountId },
+      blocks: [{ type: "mail_signin", v: 1, data: { provider: "microsoft", address: a.email, accountId: a.accountId } }],
+      actions: [{ key: "fix", label: "Sign in again" }], idempotencyKey: `mua-fix:${a.accountId}:${ctx.now()}`,
+    }));
+    const taskId = text(obj(made["task"])["id"]);
+    if (taskId) ctx.db.run(`UPDATE microsoft_user_account SET "fixTaskId" = ? WHERE "accountId" = ?`, taskId, a.accountId);
+  } catch (e) { ctx.log.warn("microsoft sign-in task was not made", { code: codeOf(e) }); }
+}
+
+async function signedInAgain(ctx: MsCtx, a: UserAccount): Promise<void> {
+  if (a.fixTaskId) {
+    await ctx.call("tasks.transition", { taskId: a.fixTaskId, to: "done" }).catch((e: unknown) => ctx.log.warn("microsoft sign-in task was not closed", { code: codeOf(e) }));
+    ctx.db.run(`UPDATE microsoft_user_account SET "fixTaskId" = ? WHERE "accountId" = ?`, null, a.accountId);
+  }
+  if (a.mailboxId) await ctx.call("mail.mailbox.set_sync_state", { mailboxId: a.mailboxId, state: "syncing" }).catch((e: unknown) => ctx.log.warn("microsoft mailbox state was not set", { code: codeOf(e) }));
 }
 
 // ---- accounts
@@ -151,6 +188,7 @@ export function userList(ctx: MsCtx) {
 export async function userRemove(ctx: MsCtx, input: unknown) {
   const a = userAccount(ctx, text(obj(input)["accountId"]) ?? "");
   // Microsoft has no revoke address for a person's token: the rows, and with them the sealed token, go, and the person removes the app's access in their account if they want it gone there too
+  if (a.fixTaskId) await ctx.call("tasks.transition", { taskId: a.fixTaskId, to: "canceled" }).catch((e: unknown) => ctx.log.warn("microsoft sign-in task was not closed", { code: codeOf(e) }));
   ctx.db.run(`DELETE FROM microsoft_user_account WHERE "accountId" = ?`, a.accountId);
   ctx.db.run(`DELETE FROM microsoft_mailbox WHERE "connectionId" = ?`, a.accountId);
   return { removed: true };

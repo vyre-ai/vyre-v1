@@ -211,8 +211,8 @@ export function query(q: Query | undefined): string {
 export const USER_PREFIX = "gua_";
 export const isUserConnection = (connectionId: string): boolean => connectionId.startsWith(USER_PREFIX);
 
-export interface UserAccount { accountId: string; ownerId: string; email: string; refreshSealed: string }
-const accountOfRow = (r: Row): UserAccount => ({ accountId: str(r, "accountId"), ownerId: str(r, "ownerId"), email: str(r, "email"), refreshSealed: str(r, "refreshSealed") });
+export interface UserAccount { accountId: string; ownerId: string; email: string; refreshSealed: string; mailboxId: string | null; fixTaskId: string | null }
+const accountOfRow = (r: Row): UserAccount => ({ accountId: str(r, "accountId"), ownerId: str(r, "ownerId"), email: str(r, "email"), refreshSealed: str(r, "refreshSealed"), mailboxId: strOrNull(r, "mailboxId"), fixTaskId: strOrNull(r, "fixTaskId") });
 
 /** A person's account is theirs alone; the host's own services (the poll that runs with nobody signed in) act for them. */
 function userUsable(ctx: GoogleCtx, a: UserAccount): boolean {

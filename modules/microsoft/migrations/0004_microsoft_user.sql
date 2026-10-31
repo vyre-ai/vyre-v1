@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS microsoft_user_account (
   "ownerId" TEXT NOT NULL,
   email TEXT NOT NULL,
   "refreshSealed" TEXT NOT NULL,
+  "mailboxId" TEXT,
+  "fixTaskId" TEXT,
   created_at INTEGER NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS microsoft_user_account__owner ON microsoft_user_account ("ownerId", email);

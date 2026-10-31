@@ -53,6 +53,8 @@ export function harness(opts: HarnessOptions = {}) {
   const refreshes: { appHandle: string; refreshToken: string; cacheKey: string; fresh: boolean }[] = [];
   const userState = { exchangeFails: false, refreshFails: false, publicUrl: "https://space.test" as string | null };
   const mailState = { duplicate: false };
+  const spaceState = { kind: "team" as "team" | "personal" };
+  let taskSeq = 0;
   const ingestState = { fail: false, deduped: new Set<string>() };
   const state = { mints: 0, mintFails: false, roles: opts.roles ?? PERMISSIONS, eTag: "etag1" };
   let clock = NOW;
@@ -94,6 +96,10 @@ export function harness(opts: HarnessOptions = {}) {
         return { mailbox: { id: `mbx_${String(body.connectionId ?? body.address)}`.slice(0, 40) } };
       }
       if (cap === "mail.sync_now") return { runId: "run_mail00001" };
+      if (cap === "mail.mailbox.set_sync_state") return { mailbox: { id: body.mailboxId, state: body.state } };
+      if (cap === "spaces.get") return { kind: spaceState.kind };
+      if (cap === "tasks.create") return { task: { id: `tsk_fix${++taskSeq}` } };
+      if (cap === "tasks.transition") return { task: { id: body.taskId, state: body.to } };
       if (cap === "calendar.connect_provider") return { calendarId: "cld_" + String(body.account).replace(/[^a-z0-9]/g, "") .padEnd(8, "0"), created: true };
       if (cap === "calendar.sync_now") return { runId: "run_cal00001" };
       if (cap === "meetings.ingest") return { meetingId: "rec_team00001", created: true, merged: false };
@@ -172,7 +178,7 @@ export function harness(opts: HarnessOptions = {}) {
   setMsHost(host);
 
   return {
-    ctx, emitted, called, scheduled, requests, uploads, ingests, ingestState, state, userApps, exchanges, refreshes, userState, mailState,
+    ctx, emitted, called, scheduled, requests, uploads, ingests, ingestState, state, userApps, exchanges, refreshes, userState, mailState, spaceState,
     on(method: string, match: string | RegExp, reply: Reply | ((r: Req) => Reply) = {}) { routes.push({ method, match, reply }); },
     advance(ms: number) { clock += ms; },
     rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },
