@@ -84,7 +84,7 @@ export function ChipText({ label, value, onCommit, chipLabel, placeholder, testI
           key={`t${i}`} accessibilityLabel={first ? label : `${label} part ${i / 2 + 1}`} testID={first ? testID : testID ? `${testID}-${i}` : undefined} value={seg.text} multiline
           placeholder={first && segs.length === 1 ? placeholder : undefined} placeholderTextColor="var(--ink-4)"
           onChangeText={(t) => edit(i, t)} onBlur={() => done(segs)} {...(hint && first ? webOnly({ title: hint }) : {})}
-          style={[f.chipInput, i < segs.length - 1 ? { flexGrow: 0, flexShrink: 1, height: 22, width: Math.min(280, Math.max(14, Math.round(seg.text.length * 7.4) + 8)) } : { flexGrow: 1, minWidth: 40, minHeight: 22 }]}
+          style={[f.chipInput, i < segs.length - 1 ? { flexGrow: 0, flexShrink: 1, height: 22, width: Math.min(280, Math.max(14, Math.round(seg.text.length * 7.4) + 8)) } : { flexGrow: 1, flexShrink: 1, minHeight: 22, width: Math.min(120, Math.max(14, Math.round(seg.text.length * 7.4) + 8)) }]}
         />,
       );
     } else {

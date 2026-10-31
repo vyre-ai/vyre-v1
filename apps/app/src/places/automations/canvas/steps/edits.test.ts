@@ -158,10 +158,11 @@ test("a template is text and data chips, and goes back to the same string", () =
 
 test("chips say what they bring in, by the step's name, and dropping one joins the text around it", () => {
   const title = (id: string): string => (id === "find" ? "Find rows" : id);
-  assert.equal(chipLabel("trigger", title), "What started the run");
-  assert.equal(chipLabel("trigger.name", title), "Started with name");
+  assert.equal(chipLabel("trigger", title), "Trigger");
+  assert.equal(chipLabel("trigger.name", title), "Trigger \u00b7 Name");
+  assert.equal(chipLabel("trigger.first_name", title), "Trigger \u00b7 First name");
   assert.equal(chipLabel("steps.find.out", title), "Find rows");
-  assert.equal(chipLabel("steps.find.out.count", title), "Find rows: count");
+  assert.equal(chipLabel("steps.find.out.count", title), "Find rows \u00b7 Count");
   assert.equal(chipLabel("vars.x", title), "vars.x");
   assert.equal(joinTemplate(dropChip(splitTemplate("a {{ trigger }} b"), 1)), "a  b");
   assert.equal(addChip("Draft it", "trigger"), "Draft it {{ trigger }}");
