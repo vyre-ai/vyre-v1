@@ -317,7 +317,7 @@ export interface Pending {
   refs?: readonly PendingRef[];
 }
 
-export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string }
+export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string; fileId?: string }
 export interface PendingRef { kind: string; id: string; title: string }
 
 /** A file id before the file is stored: the chip shows the name the person picked. */

@@ -267,14 +267,14 @@ test("find in chat: matches are ignoring case and accents, counted, and stepped"
   assert.deepEqual(findMatches([{ ...all[0]!, body: "Café Rivera" }], "cafe"), ["m1"]);
 });
 
-test("the composer has the model chip (Opus) and the computer button; its placeholder names who answers", () => {
+test("the composer's agent strip names who answers and on what model (Opus), with the computer button; its placeholder names who answers", () => {
   const s = createSample("idle");
   const out = html(s);
-  assert.ok(has(out, 'data-testid="model-chip"') && has(out, "Model: Opus") && has(out, 'data-testid="computer-button"') && has(out, "Intake's computer"));
+  assert.ok(has(out, 'data-testid="composer-strip"') && has(out, "Intake will answer on Opus") && has(out, 'data-testid="computer-button"') && has(out, "Intake's computer"));
   assert.ok(has(out, "Message Intake…"));
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
-  assert.ok(!has(html(createSample("nolead")), 'data-testid="model-chip"'));
+  assert.ok(!has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned: no strip");
 });
 
 test("switching the model lists the allowed models and sets the lead's model; the header and composer follow", async () => {
@@ -284,7 +284,7 @@ test("switching the model lists the allowed models and sets the lead's model; th
   await act.setModel(s.data, "agt_intake", models[1]!);
   assert.deepEqual(s.calls.map((c) => c.cap), ["engine.models.list", "engine.set_model"]);
   assert.deepEqual(s.calls[1]!.input, { threadId: "c1", agentId: "agt_intake", provider: "anthropic", model: "sonnet" });
-  assert.ok(has(html(s), "Model: Sonnet"));
+  assert.ok(has(html(s), "Intake will answer on Sonnet"));
 });
 
 test("the browser chat-open probe: one warm-up discarded, the median of five against the unchanged 100 ms budget, the worst printed, exactly 50 messages", () => {

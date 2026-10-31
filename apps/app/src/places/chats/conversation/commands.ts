@@ -3,6 +3,7 @@
 import { CHAT_COMMANDS, chatCommand, parseSlash } from "../../../../../../lib/chat-commands.ts";
 import type { ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import * as act from "./actions.ts";
+import { setChatMode } from "./brain.tsx";
 import type { ConversationData, PluginCommand } from "./data.tsx";
 import { mentionsIn } from "./model.ts";
 import type { Message, Thread } from "./model.ts";
@@ -69,7 +70,7 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
   switch (id) {
     case "plan": {
       const want = /^(on|yes|start)$/i.test(arg) ? true : /^(off|no|stop)$/i.test(arg) ? false : !thread.planMode;
-      await act.setPlanMode(data, want);
+      await setChatMode(data, want ? "plan" : "ask");
       say(want ? "Plan mode is on: the agent plans and changes nothing until you approve" : "Plan mode is off");
       return;
     }
