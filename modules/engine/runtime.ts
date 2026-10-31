@@ -17,6 +17,7 @@ import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "
 import { withTranscript } from "./transcript.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
+import { onTurnEnded } from "./handlers/task-baton.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { createPluginTools } from "./plugin-tools.ts";
@@ -252,6 +253,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     };
     engine.subscribe((ev) => {
       if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
+      if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
+        void onTurnEnded(ctx, { call: h.call, now, ...(h.log ? { log: h.log } : {}) }, engine, ev).catch((err) => h.log?.("a task baton check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
+      }
       if (ev.type !== "turn.completed") return;
       void reviewAfter({ call: h.call, ...(h.postAs ? { postAs: h.postAs } : {}) }, ctx.db, engine, ev, () => mintEngineId("msg", now())).catch((err) => h.log?.("the reviewer could not be asked", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
     });

@@ -13,7 +13,7 @@ import { bridgeConsumers } from "./handlers/bridge.ts";
 import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { closeNoAccountTasks, engineHost, ensureRuntime, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
-import { onTaskEvent } from "./handlers/task-baton.ts";
+import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
 import type { EngineCtx } from "./projections.ts";
 
 // Every engine capability first makes sure the runtime exists on a daemon that wired the engine seam (the first call builds it; a daemon without the seam leaves it unbound).
@@ -27,6 +27,15 @@ export const hostSeams = { setEngineHost };
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {
   "engine.runtime": { everyMs: 5_000, run: async (ctx: EngineCtx): Promise<void> => { await ensureRuntime(ctx); } },
+  /** A baton an agent stopped on goes to a person after nudgeMinutes (handlers/task-baton.ts). */
+  "engine.task_baton_sweep": {
+    everyMs: 60_000,
+    run: async (ctx: EngineCtx): Promise<string[]> => {
+      const host = engineHost();
+      if (!host) return [];
+      return sweepBaton(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, await ensureRuntime(ctx));
+    },
+  },
   ...capturePeriodic,
 };
 
@@ -54,7 +63,7 @@ export const consumers = {
       const engine = await ensureRuntime(ctx);
       const host = engineHost();
       if (!engine || !host) return [];
-      return onTaskEvent(ctx, { call: host.call, ...(host.log ? { log: host.log } : {}) }, engine, event);
+      return onTaskEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
     },
   },
   "engine.unblock": {

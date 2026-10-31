@@ -28,6 +28,7 @@ function scene(tasks: Record<string, BatonTask>, extra: Record<string, (input: a
   const logs: string[] = [];
   const host = {
     call: async (cap: string, input: unknown, as?: string) => { const i = input as Record<string, any>; h.called.push({ cap, input: { ...i, as } }); if (extra[cap]) return extra[cap]!(i); return h.ctx.call(cap, input); },   // eslint-disable-line @typescript-eslint/no-explicit-any
+    now: () => h.ctx.now(),
     log: (m: string) => { logs.push(m); },
   };
   const event = (name: string, taskId: string) => ({ name, id: `evt_${name}_${taskId}`, payload: { taskId } });

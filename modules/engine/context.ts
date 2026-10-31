@@ -159,6 +159,7 @@ export function createContextBuilder(d: ContextDeps) {
     const out = await kept<Obj>(`names:${asker}`, () => read("access.principals.list", { limit: 500 }, asker));
     const map: Record<string, string> = {};
     for (const p of arr(out?.["principals"])) { const id = str(p["id"]), n = str(p["name"]); if (id && n) map[id] = n; }
+    map["svc_host"] = "Vyre";   // the server's own lines in a thread (a nudge, an escalation) read as Vyre
     return map;
   }
 
