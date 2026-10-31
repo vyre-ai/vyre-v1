@@ -70,8 +70,8 @@ test("First win lists the starter routines; picking one and Continue creates, en
   const r = createRoot();
   await act(async () => { r.render(t.el); });
   const root = r.container as never;
-  for (const st of STARTERS) assert.ok(find(root, `starter-${st.id}`), st.id);
-  await press(find(root, "starter-inbox"));
+  for (const st of STARTERS) assert.ok(find(root, `row-starter-${st.id}`), st.id);
+  await press(find(root, "row-starter-inbox"));
   await press(find(root, "step-next"));
   await flush();
   assert.deepEqual(t.calls.map((c) => c.cap), ["automations.create", "automations.set_enabled", "automations.run"]);

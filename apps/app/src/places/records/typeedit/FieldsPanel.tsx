@@ -115,6 +115,7 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
           <View style={s.add} testID="panel-add-form">
             <TextField value={newName} onChangeText={(t) => { setNewName(t); change.clearError(); }} placeholder="Field name" accessibilityLabel="Field name" testID="panel-add-name" autoFocus onSubmitEditing={submitAdd} />
             <View style={s.chips} accessibilityRole="radiogroup">
+              {/* ui-rows-lint: not a list (field type chips in a wrapping strip) */}
               {choices.map((t) => (
                 <TextButton key={t.key} label={t.title} selected={newType === t.key} testID={`panel-add-type-${t.key}`} onPress={() => setNewType(t.key)} />
               ))}
@@ -177,6 +178,7 @@ function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, chan
       {mode === "type" && staged === null ? (
         <View>
           <View style={s.chips} accessibilityRole="radiogroup">
+            {/* ui-rows-lint: not a list (field type chips in a wrapping strip) */}
             {choices.map((t) => {
               const why = retypeTarget(f.type, t.key);
               return <TextButton key={t.key} label={t.title} selected={f.type === t.key} testID={`panel-to-${t.key}`} off={why ?? (change.busy ? true : undefined)} onPress={() => run(retypeFieldOps(type.key, f.key, t.key))} />;

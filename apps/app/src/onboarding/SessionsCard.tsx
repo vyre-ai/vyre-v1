@@ -96,6 +96,7 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
       ) : null}
       {folders.length > 1 ? (
         <View testID="sessions-folders" style={s.chips}>
+          {/* ui-rows-lint: not a list (folder filter chips in a wrapping strip, not rows) */}
           {[{ name: "", count: (found ?? []).length }, ...folders.slice(0, 8)].map((f) => (
             <Pressable key={f.name || "all"} testID={`sessions-folder-${f.name || "all"}`} accessibilityRole="button" accessibilityState={{ selected: folder === f.name }} onPress={() => setFolder(f.name)} style={[s.chip, folder === f.name && s.chipOn]}>
               <Text style={s.chipText} numberOfLines={1}>{f.name ? `${f.name} ${f.count}` : "All folders"}</Text>

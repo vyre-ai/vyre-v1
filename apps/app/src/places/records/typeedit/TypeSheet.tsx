@@ -58,6 +58,7 @@ export function TypeSheet({ call, takenKeys, rename, connectTo = [], onAsk, onCl
           <>
             <Text style={s.label}>Icon</Text>
             <View style={s.icons} accessibilityRole="radiogroup">
+              {/* ui-rows-lint: not a list (icon picker swatches in a wrapping grid) */}
               {TYPE_ICONS.map((i) => (
                 <Pressable key={i} accessibilityRole="radio" accessibilityLabel={i} accessibilityState={{ selected: icon === i }} testID={`type-icon-${i}`} onPress={() => setIcon(i)} style={({ hovered }: { hovered?: boolean }) => [s.icon, hovered === true && s.iconOver, icon === i && s.iconOn]}>
                   <Glyph name={typeIcon(i)} size={16} color={icon === i ? "var(--accent)" : "var(--ink-2)"} />
@@ -70,12 +71,14 @@ export function TypeSheet({ call, takenKeys, rename, connectTo = [], onAsk, onCl
           <>
             <Text style={s.label}>Start with</Text>
             <View style={s.chips} testID="type-starters">
+              {/* ui-rows-lint: not a list (toggle chips in a wrapping strip) */}
               {STARTER_FIELDS.map((f) => <TextButton key={f.key} label={f.title} selected={starters.includes(f.key)} testID={`type-starter-${f.key}`} onPress={() => setStarters((l) => flip(l, f.key))} />)}
             </View>
             {connectTo.length > 0 ? (
               <>
                 <Text style={s.label}>Connect it to</Text>
                 <View style={s.chips} testID="type-connect">
+                  {/* ui-rows-lint: not a list (toggle chips in a wrapping strip) */}
                   {connectTo.map((c) => <TextButton key={c.key} label={c.plural} selected={links.includes(c.key)} testID={`type-connect-${c.key}`} onPress={() => setLinks((l) => flip(l, c.key))} />)}
                 </View>
               </>

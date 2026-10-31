@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../ui/src/Row/index.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
 
 export interface Starter { id: string; title: string; line: string; prompt: string }
@@ -53,9 +54,7 @@ export function FirstWinCard({ call, hasAi, gate, onConnectAi, starters = STARTE
   return (
     <View testID="first-win-card" style={s.col}>
       {starters.map((st) => (
-        <Pressable key={st.id} testID={`starter-${st.id}`} accessibilityRole="radio" accessibilityState={{ selected: pick === st.id }} onPress={() => setPick(st.id)} style={[s.row, pick === st.id && s.rowOn]}>
-          <View style={s.text}><Text style={s.title}>{st.title}</Text><Text style={s.note}>{st.line}</Text></View>
-        </Pressable>
+        <Row key={st.id} id={`starter-${st.id}`} title={st.title} note={st.line} selected={pick === st.id} onPress={() => setPick(st.id)} />
       ))}
       {error ? <Text accessibilityRole="alert" testID="first-win-error" style={s.err}>{error}</Text> : null}
     </View>
@@ -64,11 +63,6 @@ export function FirstWinCard({ call, hasAi, gate, onConnectAi, starters = STARTE
 
 const s = StyleSheet.create({
   col: { gap: 8 },
-  row: { flexDirection: "row", alignItems: "center", minHeight: 52, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
-  rowOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
-  text: { flex: 1, minWidth: 0, gap: 2 },
-  title: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
-  note: { fontSize: 12.5, color: "var(--ink-3)" as string },
   line: { fontSize: 15, lineHeight: 22, color: "var(--ink)" as string },
   err: { fontSize: 13, color: "var(--danger)" as string },
   primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
