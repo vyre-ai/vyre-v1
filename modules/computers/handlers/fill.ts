@@ -8,6 +8,7 @@
 // The Vault source is the engine session host's (host/src/seams/engine-session.ts): the same lookup the CLI engines use, so the label-vs-provider rule and the access check are the one
 // implementation. This file mounts nothing: the daemon routes POST <fillUrl> to fillHttp().
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { linkIsSecure } from "../../../host/src/routes/compute-stream.ts";
 
 /** The result of asking the Vault for one handle, as host/src/seams/engine-session.ts answers it (structural, so the module imports nothing from the host). */
 export type FillLookup =
@@ -32,7 +33,8 @@ export interface FillServiceDeps {
 export interface FillGrant { fillToken: string; revoke(): void }
 export interface FillResponse { status: 200 | 400 | 401 | 403 | 404 | 503; body: Record<string, unknown> }
 
-interface Holder { computerId: string; agentId: string; asker: string }
+/** `nodeId` is set for a computer that lives on a computer that joined the Space: its fill crosses a network link, which must be private. */
+interface Holder { computerId: string; agentId: string; asker: string; nodeId?: string }
 
 const HANDLE = /^[A-Za-z][A-Za-z0-9_]*$/;
 const FIELD = /^[A-Za-z0-9_]+$/;
@@ -47,7 +49,7 @@ export interface FillService {
   /** A token for one computer, held as a hash. Issuing again for the same computer ends the earlier token. */
   issue(h: Holder): Promise<FillGrant>;
   /** The endpoint, without the transport: header and parsed body in, status and body out. */
-  serve(req: { authorization: string | undefined; body: unknown }): Promise<FillResponse>;
+  serve(req: { authorization: string | undefined; body: unknown; /** is the link the request came over private (TLS, or this machine)? */ secure?: boolean }): Promise<FillResponse>;
   /** How many computers hold a live token (tests). */
   live(): number;
 }
@@ -84,6 +86,11 @@ export function createFillService(d: FillServiceDeps): FillService {
       if (typeof b.computerId !== "string" || b.computerId !== holder.computerId) return { status: 403, body: { code: "forbidden" } };
 
       const handle = `#${b.handle}.${b.field}`;
+      // A computer on a server of the person's asks over the network: a secret goes only over a private link, and nothing is read from the Vault for one that is not.
+      if (holder.nodeId !== undefined && req.secure !== true) {
+        await Promise.resolve(d.log({ computerId: holder.computerId, agentId: holder.agentId, asker: holder.asker, handle, itemId: handle, outcome: "refused", at: now() })).catch(() => undefined);
+        return { status: 403, body: { code: "insecure_link" } };
+      }
       const use = (outcome: FillUse["outcome"], itemId: string): FillUse => ({ computerId: holder.computerId, agentId: holder.agentId, asker: holder.asker, handle, itemId, outcome, at: now() });
       // A log that throws (or rejects) must not decide the answer of a refusal.
       const note = async (u: FillUse): Promise<void> => { try { await d.log(u); } catch { /* the refusal stands */ } };
@@ -132,7 +139,7 @@ export function fillHttp(service: FillService): (req: IncomingMessage, res: Serv
       let body: unknown = null;
       try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { /* a body that is not JSON is a 400 below */ }
       const auth = req.headers["authorization"];
-      void service.serve({ authorization: typeof auth === "string" ? auth : undefined, body }).then(send, () => send({ status: 503, body: { code: "unavailable" } }));
+      void service.serve({ authorization: typeof auth === "string" ? auth : undefined, body, secure: linkIsSecure(req) }).then(send, () => send({ status: 503, body: { code: "unavailable" } }));
     });
   };
 }
