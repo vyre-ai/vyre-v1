@@ -18,6 +18,8 @@ function target(ctx: SeamCtx, url: string, domains: readonly string[]): string {
 
 function statusError(ctx: SeamCtx, status: number, what: string): never {
   const traceId = ctx.trace.traceId;
+  // 412 is a conditional write refused because the file moved on (Graph If-Match); a caller that sent a condition keeps both copies
+  if (status === 412) throw fail("validation.version_conflict", traceId, { details: { status, what } });
   if (status === 401 || status === 403) throw fail("provider.auth_failed", traceId, { details: { status, what } });
   if (status === 429) throw fail("provider.rate_limited", traceId, { details: { status, what } });
   if (status >= 500) throw fail("provider.unavailable", traceId, { details: { status, what } });
@@ -47,13 +49,13 @@ export function multipartBody(boundary: string, metadata: Record<string, unknown
 
 export async function uploadFile(
   ctx: SeamCtx, d: { fetch: SeamFetch; files: SpaceFiles; domains: readonly string[]; boundary?: () => string },
-  a: { url: string; token: string; fileId: string; metadata: Record<string, unknown> },
+  a: { url: string; token: string; fileId: string; metadata: Record<string, unknown>; method?: "POST" | "PATCH" },
 ): Promise<unknown> {
   const url = target(ctx, a.url, d.domains);
   const file = await d.files.read(ctx.space, a.fileId);
   const boundary = d.boundary?.() ?? `vyre-${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
   const r = await d.fetch(url, {
-    method: "POST",
+    method: a.method ?? "POST",
     headers: { authorization: `Bearer ${a.token}`, "content-type": `multipart/related; boundary=${boundary}` },
     body: multipartBody(boundary, a.metadata, file.mime, file.bytes),
   });
@@ -62,14 +64,14 @@ export async function uploadFile(
   try { return text ? JSON.parse(text) : {}; } catch { throw fail("provider.bad_response", ctx.trace.traceId, { details: { what: "upload answer is not JSON" } }); }
 }
 
-/** A PUT of the file's bytes (Microsoft Graph's upload): the body is the file, the content type its own. */
+/** A PUT of the file's bytes (Microsoft Graph's upload): the body is the file, the content type its own. `ifMatch` makes it conditional on the item's eTag. */
 export async function putFile(
-  ctx: SeamCtx, d: { fetch: SeamFetch; files: SpaceFiles; domains: readonly string[] }, a: { url: string; token: string; fileId: string },
+  ctx: SeamCtx, d: { fetch: SeamFetch; files: SpaceFiles; domains: readonly string[] }, a: { url: string; token: string; fileId: string; ifMatch?: string },
 ): Promise<unknown> {
   const url = target(ctx, a.url, d.domains);
   const file = await d.files.read(ctx.space, a.fileId);
   if (file.bytes.byteLength > MAX_DOWNLOAD) throw fail("validation.too_large", ctx.trace.traceId, { message: "That file is too large to send." });
-  const r = await d.fetch(url, { method: "PUT", headers: { authorization: `Bearer ${a.token}`, "content-type": file.mime || "application/octet-stream" }, body: file.bytes });
+  const r = await d.fetch(url, { method: "PUT", headers: { authorization: `Bearer ${a.token}`, "content-type": file.mime || "application/octet-stream", ...(a.ifMatch !== undefined ? { "if-match": a.ifMatch } : {}) }, body: file.bytes });
   if (r.status < 200 || r.status >= 300) statusError(ctx, r.status, "upload");
   const text = await r.text();
   try { return text ? JSON.parse(text) : {}; } catch { throw fail("provider.bad_response", ctx.trace.traceId, { details: { what: "upload answer is not JSON" } }); }

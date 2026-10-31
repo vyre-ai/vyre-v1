@@ -52,7 +52,7 @@ export interface GoogleHost {
   /** GET a Google download address with the token and store the bytes as a blob. */
   download(ctx: GoogleCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
   /** Send a Space file to Google as a multipart upload and return Google's JSON answer. */
-  upload(ctx: GoogleCtx, a: { url: string; token: string; fileId: string; metadata: Record<string, unknown> }): Promise<unknown>;
+  upload(ctx: GoogleCtx, a: { url: string; token: string; fileId: string; metadata: Record<string, unknown>; method?: "POST" | "PATCH" }): Promise<unknown>;
 }
 
 let host: GoogleHost | null = null;

@@ -26,7 +26,7 @@ const graphEvent = t.obj({
   id: t.str(), subject: t.opt(t.str()), start: t.rec(), end: t.rec(), location: t.opt(t.rec()), onlineMeeting: t.opt(t.rec()),
   attendees: t.opt(t.arr(t.obj({ email, response: t.opt(t.str()), type: t.opt(t.str()) }))), organizer: t.opt(t.rec()), isCancelled: t.opt(t.bool()),
 });
-const driveItem = t.obj({ id: t.str(), name: t.str(), size: t.opt(t.int()), lastModifiedDateTime: t.opt(t.str()), folder: t.opt(t.bool()), webUrl: t.opt(t.str()), parentId: t.opt(t.str()) });
+const driveItem = t.obj({ id: t.str(), name: t.str(), size: t.opt(t.int()), lastModifiedDateTime: t.opt(t.str()), folder: t.opt(t.bool()), webUrl: t.opt(t.str()), parentId: t.opt(t.str()), eTag: t.opt(t.str()), lastModifiedBy: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) });
 const eventWrite = {
   calendarId: t.opt(t.str()), subject: t.opt(t.str()), body: t.opt(t.str()), location: t.opt(t.str()), start: t.opt(t.rec()), end: t.opt(t.rec()),
   attendees: t.opt(t.arr(t.obj({ email, optional: t.opt(t.bool()) }))), teamsMeeting: t.opt(t.bool()),
@@ -129,7 +129,11 @@ const capabilities = [
   gr('ms.drive.get_item', 'Read item metadata', { driveId: t.opt(t.str()), itemId: t.str() }, { item: driveItem }, { tool: 'files', deferred: true }),
   gr('ms.drive.download_item', 'Download an item into a blob', { driveId: t.opt(t.str()), itemId: t.str() }, { blobId: id.blob, size: t.int() }, { tool: 'files', deferred: true }),
   gr('ms.drive.delta', 'Item changes since a delta link (mount sync and mount lag)', { driveId: t.opt(t.str()), deltaLink: t.opt(t.str()) }, { changed: t.arr(driveItem), removed: t.arr(t.str()), deltaLink: t.str() }),
-  gw('ms.drive.upload_item', 'Upload a Space file into OneDrive or SharePoint', { driveId: t.opt(t.str()), folderId: t.opt(t.str()), name: t.str(), fileId: id.file }, { item: driveItem }, { gate: 'post', tool: 'files', deferred: true }),
+  gw('ms.drive.upload_item', 'Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag', { driveId: t.opt(t.str()), folderId: t.opt(t.str()), name: t.str(), fileId: id.file, remoteId: t.opt(t.str()), ifMatch: t.opt(t.str()) }, { item: t.opt(driveItem), stale: t.opt(t.bool()) }, { gate: 'post', tool: 'files', deferred: true }),
+  gr('ms.drive.list_versions', 'The versions OneDrive or SharePoint keeps of an item, with who saved each', { driveId: t.opt(t.str()), itemId: t.str() }, { versions: t.arr(t.obj({ id: t.str(), lastModifiedDateTime: t.str(), size: t.opt(t.int()), lastModifiedBy: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) })) }, { tool: 'files', deferred: true }),
+  gr('ms.drive.download_version', 'Download one version of an item into a blob', { driveId: t.opt(t.str()), itemId: t.str(), versionId: t.str() }, { blobId: id.blob, size: t.int() }, { tool: 'files', deferred: true }),
+  gw('ms.drive.subscribe', 'Subscribe to change notifications for a drive', { driveId: t.opt(t.str()), notificationUrl: t.str() }, { subscriptionId: t.str(), expiresAt: t.ts() }, { gate: quiet('Registers a change subscription for the Space; nothing is sent to anyone') }),
+  gw('ms.drive.unsubscribe', 'Remove a drive change subscription', { subscriptionId: t.str() }, { removed: t.bool() }, { gate: quiet('Removes a change subscription; nothing is sent to anyone') }),
   gw('ms.drive.create_folder', 'Create a folder', { driveId: t.opt(t.str()), parentId: t.opt(t.str()), name: t.str() }, { item: driveItem }, { gate: 'post', tool: 'files', deferred: true }),
   gw('ms.drive.share_item', 'Create a sharing link or invite people; Microsoft emails them', { driveId: t.opt(t.str()), itemId: t.str(), emails: t.opt(t.arr(email)), role: t.enm('read', 'write') }, { shared: t.bool(), link: t.opt(t.str()) }, { gate: 'send', tool: 'files', deferred: true }),
   gw('ms.drive.delete_item', 'Delete an item', { driveId: t.opt(t.str()), itemId: t.str() }, { deleted: t.bool() }, { gate: 'delete', tool: 'files', deferred: true }),

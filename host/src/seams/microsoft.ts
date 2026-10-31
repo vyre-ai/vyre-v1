@@ -18,7 +18,7 @@ export interface MsHostSeam {
   fileBytes(ctx: SeamCtx, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
   putBlob(ctx: SeamCtx, bytes: Uint8Array, mime: string): Promise<string>;
   download(ctx: SeamCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
-  upload(ctx: SeamCtx, a: { url: string; token: string; fileId: string }): Promise<unknown>;
+  upload(ctx: SeamCtx, a: { url: string; token: string; fileId: string; ifMatch?: string }): Promise<unknown>;
 }
 
 export interface MsSeamDeps {
