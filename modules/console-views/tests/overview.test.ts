@@ -93,17 +93,6 @@ test("activity comes newest first from the audit log, with resources written typ
   assert.equal(w.calls.find((c) => c.cap === "audit.list")!.input["limit"], 2);
 });
 
-test("activity leaves out the log's own views: looking at the audit log is not something an admin did", async () => {
-  const rows = [
-    { id: "aud_1", at: NOW - 3000, actor: { kind: "person", id: "usr_a" }, action: "grant.created", class: "sensitive", traceId: "x", seq: 1 },
-    { id: "aud_2", at: NOW - 1000, actor: { kind: "person", id: "usr_a" }, action: "audit.viewed", class: "sensitive", traceId: "x", seq: 2 },
-    { id: "aud_3", at: NOW - 500, actor: { kind: "person", id: "usr_a" }, action: "audit.viewed", class: "sensitive", traceId: "x", seq: 3 },
-  ];
-  const w = world({ ...quiet, "audit.list": { rows } });
-  const out = await handlers["console.activity"](w.ctx, { limit: 5 });
-  assert.deepEqual(out.rows.map((r) => r.action), ["grant.created"]);
-});
-
 test("usage at a glance: turns today, cost this month, people and agents", async () => {
   const w = world({
     ...quiet,

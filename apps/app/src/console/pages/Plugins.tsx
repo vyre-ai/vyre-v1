@@ -45,7 +45,7 @@ export function PluginsPage(): ReactElement {
   const install = (m: string, plugin: string): void => void action.run("plugins.install", { marketplaceId: m, plugin, scope: target === "space" ? "space" : "agent", ...(target === "space" ? {} : { agentId: target }), idempotencyKey: attempt() }, (out: { plugin: Plugin }) => `${out.plugin.name} installed`).then((out) => { if (out) setOpenPlugin((out as { plugin: Plugin }).plugin.pluginId); });
   return <View testID="console-plugins">
     {action.note ? <Note>{action.note}</Note> : null}
-    <Note>Skills, commands and tools for agents. They run in the agent's sandbox, never on this server.</Note>
+    <Note>A plugin brings skills, / commands, sub-agents and tool servers. Its code runs only in the agent's sandbox, never on this server. Secrets are Vault handles.</Note>
     <Section title="Marketplaces" count={markets.data.marketplaces.length}><Group>
       {markets.data.marketplaces.length === 0 ? <Row id="mk-none" title="No marketplace yet" note="Add a git address (https) or a folder on this server that holds .claude-plugin/marketplace.json." /> : markets.data.marketplaces.map((m) =>
         <Row key={m.marketplaceId} id={`mk-${m.name}`} title={m.name} note={`${n(m.plugins, "plugin")} · ${m.owner} · ${m.allowed ? "Allowed" : "Not allowed"}${m.warnings.length ? ` · ${n(m.warnings.length, "warning")}` : ""}`}
