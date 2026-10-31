@@ -368,6 +368,14 @@ export async function saveSigned(ctx: Ctx, env: EnvelopeRow): Promise<string> {
       if (typeof made.file?.fileId === "string") certificateId = made.file.fileId;
     });
   }
+  // a signed document that belongs to a record is filed with the record's files (moved, not copied; the sent file carries the signed version)
+  if (env.recordId !== null) {
+    await soft(ctx, "filing the signed document with its record", async () => {
+      const folder = (await ctx.call("projects.files_folder", { recordId: env.recordId })) as { folderId?: string | null };
+      if (typeof folder.folderId !== "string") return;
+      for (const id of [fileId, certificateId]) if (id !== null) await ctx.call("files.move", { fileId: id, toFolderId: folder.folderId });
+    });
+  }
   const now = ctx.now();
   ctx.db.run("UPDATE esign_envelope SET status = ?, signed_file_id = ?, certificate_file_id = ?, updated_at = ? WHERE id = ?", "signed", fileId, certificateId, now, env.id);
   ctx.db.run("UPDATE esign_signer SET status = ?, signed_at = ? WHERE envelope_id = ? AND status != ?", "signed", now, env.id, "signed");
