@@ -8,7 +8,9 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { Glyph, TextButton } from "./parts.tsx";
 import { collect } from "./model.ts";
-import { denyNote, doneLine, excerptLines, heldOf, outcomeOf, wantsLine } from "./approval-model.ts";
+import { denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, wantsLine } from "./approval-model.ts";
+import type { DiffLine } from "./approval-model.ts";
+import { Face } from "../needsyou/parts.tsx";
 
 type Task = CapMap["tasks.get"]["out"]["task"];
 type Data = Pick<ConversationData, "call" | "nav">;
@@ -22,9 +24,11 @@ async function subjectOf(data: Data, cap: string, input: Record<string, unknown>
   return undefined;
 }
 
-export function ApprovalCard({ taskId, agent, data }: { taskId: string; agent: string; data: Data }): ReactElement | null {
+export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string; agent: string; agentId: string; data: Data }): ReactElement | null {
   const [task, setTask] = useState<Task | null | undefined>(undefined);
   const [subject, setSubject] = useState<string | undefined>(undefined);
+  /** For an edit of a file that exists: what is taken out and put in, instead of the new text alone. */
+  const [diff, setDiff] = useState<{ lines: DiffLine[]; more: number } | null>(null);
   const [denying, setDenying] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,7 +42,15 @@ export function ApprovalCard({ taskId, agent, data }: { taskId: string; agent: s
         const t = ((await data.call("tasks.get", { taskId })) as CapMap["tasks.get"]["out"]).task;
         const h = heldOf(t.blocks);
         const s = await subjectOf(data, h.cap, h.input);
-        if (live) { setTask(t); setSubject(s); }
+        let d: { lines: DiffLine[]; more: number } | null = null;
+        const next = (h.input["content"] as { text?: unknown } | undefined)?.text;
+        if (h.cap === "files.write" && typeof next === "string" && typeof h.input["fileId"] === "string") {
+          try {
+            const cur = ((await data.call("files.read", { fileId: h.input["fileId"], as: "text" })) as { text?: string }).text;
+            if (typeof cur === "string") d = diffLines(cur, next);
+          } catch { /* no current text: the new text is shown */ }
+        }
+        if (live) { setTask(t); setSubject(s); setDiff(d); }
       } catch { if (live) setTask(null); }
     })();
     return () => { live = false; };
@@ -66,10 +78,20 @@ export function ApprovalCard({ taskId, agent, data }: { taskId: string; agent: s
   return (
     <View testID={`approval-${taskId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={wantsLine(agent, held.cap, subject)}>
       <View style={st.head}>
-        <Glyph name="lock" size={14} color="var(--ink-3)" />
+        <Face name={agent} seedId={agentId} kind="agent" size={20} />
         <Text style={st.title}>{wantsLine(agent, held.cap, subject)}</Text>
       </View>
-      {rows.length > 0 ? (
+      {diff && diff.lines.length > 0 ? (
+        <View testID={`approval-diff-${taskId}`} style={st.excerpt}>
+          {collect(diff.lines.map((l, i) => ({ ...l, i })), (l) => (
+            <View key={l.i} style={st.diffLine}>
+              <Text style={[st.mark, { color: l.kind === "add" ? "var(--ok)" : "var(--danger)" }]}>{l.kind === "add" ? "+" : "\u2212"}</Text>
+              <Text numberOfLines={2} style={[st.value, l.kind === "del" && st.del]}>{l.text}</Text>
+            </View>
+          ))}
+          {diff.more > 0 ? <Text style={st.label}>{`+${diff.more} more`}</Text> : null}
+        </View>
+      ) : rows.length > 0 ? (
         <View testID={`approval-excerpt-${taskId}`} style={st.excerpt}>
           {collect(rows, (r) => (
             <View key={r.label} style={st.line}>
@@ -106,6 +128,9 @@ const st = StyleSheet.create({
   line: { gap: 1 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
   value: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
+  diffLine: { flexDirection: "row", gap: 8 },
+  mark: { width: 12, fontSize: 13, fontWeight: "600" },
+  del: { color: "var(--ink-3)" as string, textDecorationLine: "line-through" },
   acts: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
   deny: { gap: 8 },
   input: { minHeight: 56, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },

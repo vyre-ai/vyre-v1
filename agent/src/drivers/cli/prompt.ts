@@ -27,7 +27,9 @@ export function defaultPrompt(input: TurnInput, fresh: boolean, steered: readonl
   if (context !== "") parts.push(`${fresh ? "Earlier in this thread" : "Since your last reply"}:\n${context}`);
   if (input.resumed) {
     const r = input.resumed;
-    parts.push(`(${r.toolName} was ${r.approved ? "approved" : "declined"}.)`);
+    // a declined call carries the person's reason in the result's message; the agent reads it
+    const why = !r.approved && typeof (r.result.content as { message?: unknown } | null)?.message === "string" ? ` ${(r.result.content as { message: string }).message}` : "";
+    parts.push(`(${r.toolName} was ${r.approved ? "approved" : "declined"}.${why})`);
   }
   for (const m of steered) parts.push(say(m, input.context));
   const recalled = input.recall ? recallText(input.recall) : "";
