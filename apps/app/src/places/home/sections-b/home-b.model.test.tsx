@@ -85,9 +85,9 @@ test("a Personal Space turns the team-only stars into one Needs a Team Space lin
   assert.equal(team.rows.length, 4);
   assert.deepEqual(team.blocked, []);
   const personal = splitForSpace(rows, true);
-  assert.deepEqual(personal.rows.map((r) => r.id), ["t1"]);
-  assert.deepEqual(personal.blocked, ["computer", "site", "campaign"]);
-  assert.equal(teamOnlyWhat(personal.blocked), "Agent computers, sites and campaigns");
+  assert.deepEqual(personal.rows.map((r) => r.id), ["c1", "t1"], "an agent computer star stays: it only exists once a host runs it");
+  assert.deepEqual(personal.blocked, ["site", "campaign"]);
+  assert.equal(teamOnlyWhat(personal.blocked), "Sites and campaigns");
   assert.equal(teamOnlyWhat(["computer"]), "Agent computers");
   assert.equal(teamOnlyWhat(["form", "site"]), "Sites and forms");
   assert.ok(needsTeamSpace("form") && !needsTeamSpace("terminal") && !needsTeamSpace("thread"));

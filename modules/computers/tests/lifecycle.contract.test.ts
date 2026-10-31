@@ -16,8 +16,8 @@ const OURS = [
   "computers.recording.process", "computers.recording.delete", "computers.screenshot", "computers.stream", "computers.timeline", "computers.timeline_step", "computers.skill_from_step",
 ];
 
-test("the handler table holds the twenty-three lifecycle capabilities and the 35 tools: all 58 frozen computers capabilities, nothing else", () => {
-  assert.equal(mine.length, 58);
+test("the handler table holds the twenty-four lifecycle capabilities and the 35 tools: all 59 frozen computers capabilities, nothing else", () => {
+  assert.equal(mine.length, 59);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const name of OURS) assert.ok(h[name], name);
 });
@@ -36,7 +36,6 @@ const cases: Case[] = [
   { cap: "computers.get", code: "validation.not_found", run: (hn) => h["computers.get"]!(hn.ctx, { computerId: NONE }) },
   { cap: "computers.provision", code: "validation.duplicate", run: (hn) => h["computers.provision"]!(hn.ctx, { agentId: INTAKE, idempotencyKey: "k2" }) },
   { cap: "computers.provision", code: "validation.bad_input", hn: () => harness({ respond: { "agents.get": () => { throw new Error("none"); } } }), run: (hn) => h["computers.provision"]!(hn.ctx, { agentId: "agt_x", idempotencyKey: "k" }) },
-  { cap: "computers.provision", code: "permission.needs_team", hn: () => harness({ personalSpace: true }), run: (hn) => h["computers.provision"]!(hn.ctx, { agentId: INTAKE, idempotencyKey: "k" }) },
   { cap: "computers.configure", code: "validation.bad_input", run: (hn, id) => h["computers.configure"]!(hn.ctx, { computerId: id }) },
   { cap: "computers.remove", code: "validation.not_found", run: (hn) => h["computers.remove"]!(hn.ctx, { computerId: NONE }) },
   { cap: "computers.wake", code: "validation.not_found", run: (hn) => h["computers.wake"]!(hn.ctx, { computerId: NONE }) },
@@ -53,7 +52,6 @@ const cases: Case[] = [
   { cap: "computers.timeline_step", code: "validation.not_found", run: (hn, id) => h["computers.timeline_step"]!(hn.ctx, { computerId: id, stepId: "stp_none" }) },
   { cap: "computers.skill_from_step", code: "validation.not_found", run: (hn, id) => h["computers.skill_from_step"]!(hn.ctx, { computerId: id, stepId: "stp_none", idempotencyKey: "k" }) },
   { cap: "computers.session.sign_out", code: "validation.bad_input", run: (hn, id) => h["computers.session.sign_out"]!(hn.ctx, { computerId: id, site: " " }) },
-  { cap: "computers.list", code: "permission.needs_team", hn: () => harness({ personalSpace: true }), run: (hn) => h["computers.list"]!(hn.ctx, {}) },
 ];
 
 test("every error a handler raises is one its capability declares", async () => {

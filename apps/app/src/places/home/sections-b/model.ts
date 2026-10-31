@@ -128,8 +128,8 @@ export function terminalIds(stars: readonly Star[]): string[] {
 
 // ---------------------------------------------------------------- Personal Space (spec 2.1 matrix)
 
-/** Starred things a Personal Space cannot hold: agent computers and the Apps (public sites, forms, campaigns) need a Team Space. */
-const TEAM_ONLY: ReadonlySet<StarType> = new Set<StarType>(["computer", "site", "form", "campaign"]);
+/** Starred things a Personal Space cannot hold: the Apps (public sites, forms, campaigns) need a Team Space. Agent computers are not on the list: they need a capable host, and a star only exists once one does. */
+const TEAM_ONLY: ReadonlySet<StarType> = new Set<StarType>(["site", "form", "campaign"]);
 export const needsTeamSpace = (t: StarType): boolean => TEAM_ONLY.has(t);
 
 const TEAM_WORDS: Partial<Record<StarType, string>> = { computer: "Agent computers", site: "Sites", form: "forms", campaign: "campaigns" };

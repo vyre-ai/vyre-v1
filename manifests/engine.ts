@@ -125,7 +125,7 @@ export default defineManifest({
       out: { qseq: t.int() }, on: ['thread', '/threadId'], emits: ['turn.queued'], idem: 'natural', risk: 'low',
     }),
     write('engine.turn.start', 'Start a queued turn on the placement chosen (host or device); records account, engine and model', {
-      in: { ...threadT, agentId: id.agent, qseq: t.int(), placement: t.enm('host', 'device'), accountRef: t.opt(accountRef), engine: t.str(), model: t.str() },
+      in: { ...threadT, agentId: id.agent, qseq: t.int(), placement: t.enm('host', 'device'), nodeId: t.opt(t.str({ description: 'One of the asker\'s own servers the chat is pinned to; the turn is recorded as running there' })), accountRef: t.opt(accountRef), engine: t.str(), model: t.str() },
       out: { turn: turnRow }, on: ['thread', '/threadId'], emits: ['turn.started'], idem: 'natural', risk: 'low',
     }),
     write('engine.turn.append', 'Persist a coalesced chunk of a running turn (text, tool call, tool result, block)', {
@@ -168,7 +168,19 @@ export default defineManifest({
     }),
     read('engine.placement.decide', 'Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)', {
       in: { ...threadT, agentId: id.agent, kind: t.enm('message', 'interrupt', 'wake', 'handoff') },
-      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })) }, on: ['thread', '/threadId'],
+      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()) }, on: ['thread', '/threadId'],
+    }),
+    write('engine.placement.set', 'Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate\'s machine is never a choice', {
+      in: { ...threadT, target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()) }, out: { target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()) },
+      on: ['thread', '/threadId'], perm: null, level: 'use', tool: 'chats', errors: ['permission.no_grant', 'validation.precondition_failed', 'validation.bad_input'],
+    }),
+    read('engine.placement.options', 'What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now', {
+      in: { ...threadT, agentId: t.opt(id.agent) },
+      out: {
+        private: t.bool(), effective: t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()) }),
+        options: t.arr(t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), name: t.str(), online: t.bool(), reason: t.opt(t.str()) })),
+      },
+      on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
     read('engine.account.resolve', 'Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock', {
       in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })) },
@@ -304,7 +316,7 @@ export default defineManifest({
       p: { threadId: id.thread, agentId: id.agent, kind: t.str(), qseq: t.int(), messageId: t.opt(id.message) }, subject: ['thread', '/threadId'], vis: 'participants', label: 'subject',
     }),
     ev('turn.started', 'A turn started on a host or device', {
-      p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, placement: t.str(), engine: t.str(), model: t.str(), accountRef: t.opt(accountRef) },
+      p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, placement: t.str(), nodeId: t.opt(t.str()), engine: t.str(), model: t.str(), accountRef: t.opt(accountRef) },
       subject: ['thread', '/threadId'], vis: 'participants', label: 'subject',
     }),
     ev('turn.block', 'A coalesced chunk of a running turn was persisted', {

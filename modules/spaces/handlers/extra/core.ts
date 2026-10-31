@@ -201,8 +201,8 @@ export async function update(ctx: ExtraCtx, input: { name?: string; legalName?: 
   return { space: await spaceRow(ctx, readProfile(ctx)) };
 }
 
-/** Features the Personal Space does not have (spec 2.1): public apps, campaign sending, the Console, agent computers, webhooks, always-on runs, and the two that need other people. */
-export const TEAM_ONLY = ["apps_public", "campaign_sending", "console", "agent_computers", "webhooks", "always_on_runs", "sharing", "members"] as const;
+/** Features the Personal Space does not have (spec 2.1): public apps, campaign sending, the Console, webhooks, always-on runs, and the two that need other people. */
+export const TEAM_ONLY = ["apps_public", "campaign_sending", "console", "webhooks", "always_on_runs", "sharing", "members"] as const;
 export const TEAM_LINE = "Needs a Team Space";
 
 export async function matrix(ctx: ExtraCtx, _input: Record<string, unknown>) {

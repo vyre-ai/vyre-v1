@@ -57,7 +57,7 @@ export function turnEnqueue(
 
 export function turnStart(
   ctx: EngineCtx,
-  input: { threadId: string; agentId: string; qseq: number; placement: "host" | "device"; accountRef?: string; engine: string; model: string },
+  input: { threadId: string; agentId: string; qseq: number; placement: "host" | "device"; nodeId?: string; accountRef?: string; engine: string; model: string },
 ): { turn: TurnOut } {
   ensureExtra(ctx.db);
   const q = rows(ctx, "SELECT * FROM engine_thread_queue WHERE thread_id = ? AND qseq = ?", input.threadId, input.qseq)[0];
@@ -88,6 +88,7 @@ export function turnStart(
   ctx.db.run("UPDATE engine_thread_lease SET turn_id = ? WHERE thread_id = ? AND expires_at > ? AND turn_id IS NULL", turnId, input.threadId, now);
   ctx.emit("turn.started", input.threadId, {
     turnId, threadId: input.threadId, agentId: input.agentId, placement: input.placement, engine: input.engine, model: input.model,
+    ...(input.nodeId === undefined ? {} : { nodeId: input.nodeId }),
     ...(input.accountRef === undefined ? {} : { accountRef: input.accountRef }),
   });
   return { turn: turnOf(loadTurn(ctx, turnId)) };

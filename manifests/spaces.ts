@@ -15,7 +15,7 @@ const spaceRow = t.obj({
 const stepKey = t.enm('photo_title', 'connect_mailbox', 'meet_assistant', 'first_project', 'import');
 const flowKind = t.enm('personal', 'team', 'member');
 const flowStep = t.str({ examples: ['ai'] });
-const featureKey = t.enm('apps_public', 'campaign_sending', 'console', 'agent_computers', 'webhooks', 'always_on_runs', 'sharing', 'members');
+const featureKey = t.enm('apps_public', 'campaign_sending', 'console', 'webhooks', 'always_on_runs', 'sharing', 'members');
 
 export default defineManifest({
   id: 'spaces',
