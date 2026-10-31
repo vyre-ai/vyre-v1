@@ -164,7 +164,7 @@ function LinkPiece({ r, data }: { r: LinkRef; data: Pick<ConversationData, "call
           <View testID={`link-card-${r.id}`} accessibilityRole="text" pointerEvents="none" style={[st.card, { left: at.x, top: at.y }]}>
             <Text style={st.cardKind}>{kindName[r.kind] ?? "Link"}</Text>
             <Text numberOfLines={2} style={st.cardTitle}>{card === undefined ? r.title : card?.title ?? r.title}</Text>
-            <Text numberOfLines={3} style={st.cardLine}>{card === undefined ? "Loading" : card === null ? "You cannot open this" : card.line || "Click to open beside the chat"}</Text>
+            <Text numberOfLines={3} style={st.cardLine}>{card === undefined ? "Loading" : card === null ? "You cannot open this" : card.line || "Open beside the chat"}</Text>
           </View>
         </Overlay>
       ) : null}
