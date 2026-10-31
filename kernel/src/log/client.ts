@@ -92,6 +92,8 @@ export class LogClient {
     return createIdempotency(backend);
   }
   purgeIdempotency(): Promise<number> { return this.call("idem_purge"); }
+  /** Blank a sealed field in the kept answers of old writes (how many answers changed). */
+  forgetField(type: string, field: string): Promise<number> { return this.call("idem_forget_field", { type, field }); }
 
   async close(): Promise<void> {
     if (this.closed) return;

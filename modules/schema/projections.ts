@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { fail } from "../../host/src/routes/errors.ts";
-import type { Tx } from "../../kernel/src/store/projection.ts";
+import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { FieldDef, Store, TypeDef } from "../../kernel/src/store/types.ts";
 
 export type Label = "public" | "internal" | "confidential" | "restricted";
@@ -74,6 +74,8 @@ export interface Registry { fieldTypes: FieldTypeRow[]; viewKinds: ViewKindRow[]
 export interface SchemaDeps {
   store: Store;
   tx: Tx;
+  /** The Space store's host, when the module was given it: sealing erases old event payloads and scrubs the file through it. */
+  host?: ProjectionHost;
   registry: Registry;
   now?: () => number;
   /** The text of a file for schema.infer (a CSV, or a sheet already turned into CSV by the files module). */

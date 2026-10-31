@@ -8,6 +8,8 @@ export interface RecordsVaultSeam {
   put(o: { type: string; recordId: string; field: string; value: string; ref?: string }): Promise<string>;
   /** Show one value to one person. The Vault refuses a person without access and logs every reveal. */
   reveal(ref: string, person: string): Promise<string>;
+  /** After a field was sealed: take the old plaintext out of the copies only the host reaches (the Space log, kept answers, the sync copies, the search index). */
+  scrubField(type: string, field: string): Promise<void>;
 }
 
 export interface RecordsVaultDeps {
@@ -17,6 +19,7 @@ export interface RecordsVaultDeps {
   as(person: string, cap: string, input: unknown): Promise<unknown>;
   /** Make the folder a resource in access, as the Vault's folder repair does, so people with the Space role can reach what is in it. */
   registerFolder(folderId: string): Promise<void>;
+  scrub(type: string, field: string): Promise<void>;
 }
 
 export const SEALED_FOLDER = "Sealed fields";
@@ -45,6 +48,7 @@ export function createRecordsVaultHost(d: RecordsVaultDeps): RecordsVaultSeam {
       })) as { item: { id: string } };
       return out.item.id;
     },
+    scrubField: (type, field) => d.scrub(type, field),
     async reveal(ref, person) {
       const out = (await d.as(person, "vault.item.reveal", { itemId: ref, fields: [SEALED_KEY], reason: "Revealed from a record" })) as { fields: { key: string; value: string }[] };
       const v = out.fields.find((f) => f.key === SEALED_KEY)?.value;

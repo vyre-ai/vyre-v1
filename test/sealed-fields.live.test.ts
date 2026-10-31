@@ -104,3 +104,88 @@ test("sealed field live: the value goes to the Vault, the record keeps a referen
   assert.deepEqual(filesHolding(dir, SECRET), [], "no file holds the first value");
   assert.deepEqual(filesHolding(dir, "987-65-4321"), [], "no file holds the second value");
 });
+
+// ---------------------------------------------------------------- sealing a field that already holds values
+
+test("seal this field live: 50 plaintext values move into the Vault, the apply says it is one way, the record page shows references, and no file holds a value", async () => {
+  const { d, dir } = await bootSealed();
+  const values = Array.from({ length: 50 }, (_, i) => `TAX-${String(1000 + i)}-PLAIN`);
+  try {
+    const ops0 = [{ op: "type.create", type: "client", def: { title: "Client", plural: "Clients", icon: "table", label: "internal", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "taxid", type: "text", title: "Tax ID" }] } }];
+    const p0 = await ok(d, "schema.diff", { ops: ops0 });
+    await ok(d, "schema.apply", { ops: ops0, previewToken: p0.previewToken, confirm: [] });
+    const ids: string[] = [];
+    for (const [i, v] of values.entries()) ids.push((await ok(d, "records.create", { type: "client", fields: { name: `Client ${i}`, taxid: v } })).record.id);
+    // one value is edited, so the old text is in the change history too
+    await ok(d, "records.update", { type: "client", recordId: ids[0], patch: { taxid: "TAX-OLD-EDITED" } });
+
+    const ops = [{ op: "field.retype", type: "client", field: "taxid", toType: "sealed" }];
+    const preview = await ok(d, "schema.diff", { ops });
+    assert.deepEqual(preview.problems, []);
+    assert.equal(preview.destructive, 1, "sealing needs a yes");
+    assert.match(preview.items[0].summary, /cannot be turned back into plain text/);
+    assert.equal(preview.items[0].affectedRows, 50);
+    await ok(d, "schema.apply", { ops, previewToken: preview.previewToken, confirm: preview.items.map((i: { itemKey: string }) => i.itemKey) });
+    await d.hooks?.pump?.();
+
+    const rows = (await ok(d, "records.query", { type: "client" })).rows as { id: string; fields: Record<string, any> }[];   // eslint-disable-line @typescript-eslint/no-explicit-any
+    assert.equal(rows.length, 50);
+    for (const r of rows) { assert.equal(r.fields.taxid.sealed, "taxid"); assert.match(r.fields.taxid.ref, /^vit_/); }
+    const first = (await ok(d, "records.reveal", { type: "client", recordId: ids[0]!, field: "taxid" })).value;
+    assert.equal(first, "TAX-OLD-EDITED");
+    assert.equal((await ok(d, "records.reveal", { type: "client", recordId: ids[7]!, field: "taxid" })).value, values[7]);
+  } finally { await d.stop(); }
+  const leaks = [...values, "TAX-OLD-EDITED"].filter((v) => filesHolding(dir, v).length > 0).map((v) => `${v}: ${filesHolding(dir, v).join(", ")}`);
+  assert.deepEqual(leaks.slice(0, 5), [], `no file holds a sealed value (${dir})`);
+});
+
+test("seal this field live: a crash halfway leaves the plaintext as it was, pressing Seal again carries on, and a crash before the cleaning ended is finished at the next boot", async () => {
+  const { schemaVault, setSchemaVault } = await import("../modules/schema/handlers/seal.ts");
+  const values = Array.from({ length: 50 }, (_, i) => `KILL-${String(2000 + i)}-PLAIN`);
+  let { d, dir } = await bootSealed();
+  const ids: string[] = [];
+  try {
+    const ops0 = [{ op: "type.create", type: "client", def: { title: "Client", plural: "Clients", icon: "table", label: "internal", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "taxid", type: "text", title: "Tax ID" }] } }];
+    const p0 = await ok(d, "schema.diff", { ops: ops0 });
+    await ok(d, "schema.apply", { ops: ops0, previewToken: p0.previewToken, confirm: [] });
+    for (const [i, v] of values.entries()) ids.push((await ok(d, "records.create", { type: "client", fields: { name: `Client ${i}`, taxid: v } })).record.id);
+
+    const ops = [{ op: "field.retype", type: "client", field: "taxid", toType: "sealed" }];
+    const seal = async (): Promise<{ status: number; data: any }> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+      const preview = await ok(d, "schema.diff", { ops });
+      return api(d, "schema.apply", { ops, previewToken: preview.previewToken, confirm: preview.items.map((i: { itemKey: string }) => i.itemKey) });
+    };
+    const real = schemaVault()!;
+    assert.ok(real, "the host wired the Vault into the schema module");
+
+    // 1. the Vault stops answering after 20 values: the apply fails and nothing changed
+    let puts = 0;
+    setSchemaVault({ ...real, put: async (o) => { if (++puts > 20) throw new Error("the Vault went away"); return real.put(o); } });
+    const failed = await seal();
+    assert.notEqual(failed.status, 200, "the apply fails when the Vault goes away");
+    const after = (await ok(d, "records.query", { type: "client" })).rows as { fields: Record<string, unknown> }[];
+    assert.deepEqual(after.map((r) => r.fields["taxid"]).sort(), [...values].sort(), "every value is still there, as text, and the field is still text");
+
+    // 2. the Vault is back and the apply goes through (the 20 already made are reused), but the cleaning stops before it ends
+    let scrubs = 0;
+    setSchemaVault({ ...real, scrubField: async (t, f) => { if (++scrubs === 1) throw new Error("killed before the host copies were cleaned"); return real.scrubField!(t, f); } });
+    const done = await seal();
+    assert.equal(done.status, 200, JSON.stringify(done.data));
+    await d.hooks?.pump?.();
+    const left = (await ok(d, "records.query", { type: "client" })).rows as { fields: Record<string, any> }[];   // eslint-disable-line @typescript-eslint/no-explicit-any
+    assert.ok(left.every((r) => r.fields["taxid"].sealed === "taxid"), "every row holds a reference");
+    const items = (await ok(d, "vault.items.list", { q: "client.taxid" })).items as unknown[];
+    assert.equal(items.length, 50, "one Vault item per value: the 20 from the first try were reused");
+  } finally { await d.stop(); }
+
+  // 3. the next boot finishes what was owed
+  setSchemaVault(null);
+  ({ d } = await bootSealed(dir));
+  try {
+    const end = Date.now() + 20_000;
+    while (values.some((v) => filesHolding(dir, v).length > 0) && Date.now() < end) { await d.hooks?.pump?.(); await new Promise((r) => setTimeout(r, 300)); }
+    assert.equal((await ok(d, "records.reveal", { type: "client", recordId: ids[3]!, field: "taxid" })).value, values[3]);
+  } finally { await d.stop(); }
+  const leaks = values.filter((v) => filesHolding(dir, v).length > 0).map((v) => `${v}: ${filesHolding(dir, v).join(", ")}`);
+  assert.deepEqual(leaks.slice(0, 5), [], `no file holds a value after the resume (${dir})`);
+});
