@@ -1,7 +1,7 @@
 // Live folders (rc.8): the Files view that lists every mount with its source logo, live or last synced, lag, conflicts, who can see it, and the buttons that mend or move it. Reads and writes go through
 // `data`, which the shell fills; the places's own rows are ui/Row. Empty: a quiet line and the Connect a folder button. Error: a retry.
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -26,6 +26,9 @@ const TONE = { ok: "var(--ok)", warn: "var(--warn)", bad: "var(--danger)", quiet
 
 export function LiveFolders({ rows, busy, said, onAction, onConnect, onRetry }: LiveFoldersProps): ReactElement {
   const menu = useMenu();
+  // On a phone the row is the state and the line; a press opens every action in a menu (there is no room for buttons beside the words)
+  const width = useWindowDimensions().width;
+  const narrow = width > 0 && width < 560;
   if (rows === null) return <View testID="live-loading" style={st.root}><Text style={st.quiet}>Loading</Text></View>;
   if (rows === "error") {
     return (
@@ -47,7 +50,7 @@ export function LiveFolders({ rows, busy, said, onAction, onConnect, onRetry }: 
   const list = orderRows(rows);
   const more = (r: LiveRow, e: unknown): void => {
     const box = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
-    const entries: MenuEntry[] = r.actions.slice(1).map((a) => ({ label: ACTION_LABEL[a], onSelect: () => onAction(r, a) }));
+    const entries: MenuEntry[] = (narrow ? r.actions : r.actions.slice(1)).map((a) => ({ label: ACTION_LABEL[a], onSelect: () => onAction(r, a) }));
     menu.show(entries, box?.left ?? 0, (box?.bottom ?? 0) + 4, "other", { label: r.name });
   };
   return (
@@ -71,17 +74,17 @@ export function LiveFolders({ rows, busy, said, onAction, onConnect, onRetry }: 
                 <View style={st.trail}>
                   <View style={[st.dot, { backgroundColor: TONE[r.tone] }]} />
                   <Text testID={`live-state-${r.mountId}`} style={[st.state, { color: TONE[r.tone] }]}>{r.state}</Text>
-                  {first ? (
+                  {first && !narrow ? (
                     <Pressable accessibilityRole="button" accessibilityLabel={`${ACTION_LABEL[first]} ${r.name}`} testID={`live-act-${r.mountId}`} disabled={busy.has(r.mountId)} onPress={() => onAction(r, first)} style={[st.btn, busy.has(r.mountId) && { opacity: 0.5 }]}>
                       <Text style={st.btnText}>{ACTION_LABEL[first]}</Text>
                     </Pressable>
                   ) : null}
-                  {r.actions.length > 1 ? (
+                  {r.actions.length > 1 && !narrow ? (
                     <Pressable accessibilityRole="button" accessibilityLabel={`More for ${r.name}`} testID={`live-more-${r.mountId}`} onPress={(e) => more(r, e)} style={st.btn}><Text style={st.btnText}>{"…"}</Text></Pressable>
                   ) : null}
                 </View>
               )}
-              onPress={() => onAction(r, "open")}
+              onPress={(e) => (narrow ? more(r, e) : onAction(r, "open"))}
             />
           );
         })}
