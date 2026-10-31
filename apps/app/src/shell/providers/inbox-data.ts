@@ -15,7 +15,7 @@ export function inboxData(rt: ShellRuntime, openConversation: (id: string) => vo
     // no compose screen exists yet (message-detail only reads a message), so New message opens the assistant to draft it
     compose: () => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, about: "compose:email", draft: "Draft an email to " } }),
     // Twilio is an account, not a mailbox: its Account SID and Auth Token go to the Vault from the Twilio template
-    connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "mail.connections", args: { kind } }),
+    connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "connections" } }),
     openEmailDesign: (emailId) => rt.open({ screen: "apps.email-builder", ...(emailId ? { args: { emailId } } : {}) }),
     openInboxSettings: (inboxId) => rt.open({ screen: "settings.page", args: { page: "inboxes", inboxId } }),
   };
