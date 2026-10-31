@@ -18,13 +18,13 @@ import type { FieldDefT, FieldTypeRow, Registry, SchemaCtx, SchemaDeps, SeedType
  * The registry the schema module seeds a new Space from. A new Space starts with the neutral set of record types: the types a Kit declares (matters, commissions, client plans ...) are left out and
  * arrive when that Kit is installed (the Kit's own schema.apply step creates them). The default Kit's types stay.
  */
-export function loadRegistry(path: URL = new URL("../../generated/registry.json", import.meta.url)): Registry {
+export function loadRegistry(path: URL = new URL("../../generated/registry.json", import.meta.url), o: { withKitTypes?: boolean } = {}): Registry {
   const raw = JSON.parse(readFileSync(path, "utf8")) as { fieldTypes: FieldTypeRow[]; viewKinds: ViewKindRow[]; recordTypes: (SeedType & { module?: string })[]; modules?: { id: string; kind?: string }[] };
   const kits = new Set((raw.modules ?? []).filter((m) => m.kind === "kit" && m.id !== "default").map((m) => m.id));
   return {
     fieldTypes: raw.fieldTypes,
     viewKinds: raw.viewKinds,
-    recordTypes: raw.recordTypes.filter((t) => t.module === undefined || !kits.has(t.module)).map(({ module: _m, ...t }) => { void _m; return { ...t, fields: t.fields as FieldDefT[] }; }),
+    recordTypes: raw.recordTypes.filter((t) => o.withKitTypes || t.module === undefined || !kits.has(t.module)).map(({ module: _m, ...t }) => { void _m; return { ...t, fields: t.fields as FieldDefT[] }; }),
   };
 }
 
@@ -38,6 +38,44 @@ export interface SchemaHandle {
   ready(): Promise<void>;
   /** Seed the manifests' record types once, now, as a write of its own; reads after it never seed (P-L3_17). The host calls it at start. */
   start(): Promise<void>;
+  /** The example-kit types the start removed because the person never used them (empty until start has run). */
+  pruned: string[];
+}
+
+/** The keys of the record types that only an example Kit (not the Default Kit) declares: no Space is seeded with them, and an older Space may still hold unused copies. */
+export function exampleKitTypeKeys(path?: URL): Set<string> {
+  const all = loadRegistry(path, { withKitTypes: true }).recordTypes.map((t) => t.key);
+  const base = new Set(loadRegistry(path).recordTypes.map((t) => t.key));
+  return new Set(all.filter((k) => !base.has(k)));
+}
+
+const asKeys = (json: string): string[] => { try { const v = JSON.parse(json) as unknown; return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; } };
+
+/**
+ * Removes the example-kit record types an older build seeded into every Space (client plans, commissions, matters, leads). A type goes only when the person never touched it: it was
+ * seeded (version 1, never updated), has no record (a deleted one counts), no saved view, page layout, gap rule or Trash entry, and no schema change names it (a Kit that was installed
+ * on purpose leaves a change and a layout). The drop is the schema module's own type.drop, so nothing is lost behind the person's back. Safe to run at every start.
+ */
+export async function pruneSeededKitTypes(h: SchemaHandle, candidates: Set<string>): Promise<string[]> {
+  const { tx } = h;
+  const touchedByChange = new Set<string>();
+  for (const r of tx.all<{ types: string }>("SELECT types FROM sc_changes")) for (const k of asKeys(r.types)) touchedByChange.add(k);
+  const gone: string[] = [];
+  for (const row of tx.all<{ type: string; version: number; created_at: number; updated_at: number; system: number }>("SELECT type, version, created_at, updated_at, system FROM sc_types ORDER BY type")) {
+    const k = row.type;
+    if (!candidates.has(k) || row.system) continue;
+    if (row.version !== 1 || row.updated_at !== row.created_at || touchedByChange.has(k)) continue;
+    const used = (sql: string): boolean => (tx.get<{ n: number }>(sql, k)?.n ?? 0) > 0;
+    if (used("SELECT count(*) AS n FROM sc_views WHERE type = ?") || used("SELECT count(*) AS n FROM sc_layout WHERE type = ?") || used("SELECT count(*) AS n FROM sc_gap_rules WHERE type = ?") || used("SELECT count(*) AS n FROM sc_trash WHERE type = ?")) continue;
+    let records = 0;
+    try { records = tx.get<{ n: number }>(`SELECT count(*) AS n FROM rt_${k}`)?.n ?? 0; } catch { records = 0; }
+    if (records > 0) continue;
+    try {
+      await h.handlers["schema.apply"]({ trace: { traceId: "0".repeat(32) }, emit: () => undefined, actor: "system" }, { ops: [{ op: "type.drop", type: k }], confirm: [`type.drop:${k}`], idempotencyKey: `schema.prune.${k}`, reason: "Unused example Kit type removed" });
+      gone.push(k);
+    } catch { /* another type relates to it, or it is guarded: leave it */ }
+  }
+  return gone;
 }
 
 export function openSchema(o: {
@@ -58,7 +96,13 @@ export function openSchema(o: {
     ...(o.now ? { now: o.now } : {}), ...(o.readFile ? { readFile: o.readFile } : {}), ...(o.publicBase ? { publicBase: o.publicBase } : {}),
   };
   ensureTables(tx);
-  return { deps, store, tx, ...(host ? { host } : {}), handlers: createSchemaHandlers(deps), ready: () => seedManifestTypes(deps), start: () => (deps.started ??= seedManifestTypes(deps)) };
+  const handle: SchemaHandle = {
+    deps, store, tx, ...(host ? { host } : {}), handlers: createSchemaHandlers(deps), pruned: [],
+    ready: () => seedManifestTypes(deps),
+    // the prune only runs on the default registry: a handle given its own registry (tests) keeps whatever it seeded
+    start: () => (deps.started ??= seedManifestTypes(deps).then(async () => { if (!o.registry) handle.pruned = await pruneSeededKitTypes(handle, exampleKitTypeKeys()); })),
+  };
+  return handle;
 }
 
 /**
@@ -110,7 +154,7 @@ const live = (): SchemaHandle => {
  * Called by the host once at start, after the Space store is wired: seeds the manifest-declared record types in a write of their own, so no read path has to (a read can run in a
  * transaction that is rolled back, which lost the seed and left a Kit's later schema.layout.set on its declared type answering not found).
  */
-export async function startSchema(): Promise<void> { await live().start(); }
+export async function startSchema(): Promise<string[]> { const h = live(); await h.start(); return h.pruned; }
 
 function adapt(name: keyof SchemaHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
