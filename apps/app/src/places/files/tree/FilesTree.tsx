@@ -128,6 +128,9 @@ function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number
     </View>
   );
   const drop = {
+    // a folder is dragged out as "folder:<id>": onto another folder it moves, onto a chat it is shared with the chat's agents
+    draggable: true,
+    onDragStart: (e: { dataTransfer?: { setData?: (t: string, v: string) => void; effectAllowed?: string } }) => { e.dataTransfer?.setData?.("text/plain", `folder:${fid}`); if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyMove"; },
     onDragOver: (e: { preventDefault: () => void }) => { e.preventDefault(); c.setOver(fid); },
     onDragLeave: () => c.setOver((o) => (o === fid ? null : o)),
     onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => { e.preventDefault(); c.setOver(null); const item = e.dataTransfer?.getData?.("text/plain") ?? ""; if (item.length > 0) c.onDrop(item, fid, f.scope); },
