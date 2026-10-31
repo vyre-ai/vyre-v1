@@ -10,7 +10,7 @@ import { updateStep } from "../model.ts";
 import type { DefNode, Definition, KeyChoice } from "../model.ts";
 import {
   AUTH_LABEL, CODE_STARTER, HTTP_METHODS, answerKindOf, authOf, bodyKindOf, headerProblem, hostsOf, joinHandle, pairsOf, readsOnly, recordOf, setAnswerKind, setAuth, setBodyKind, setHosts, setJsonBody, setMethod,
-  setSchemaText, setTimeoutMinutes, splitHandle, withAi, withField,
+  sameKeySteps, setSchemaText, setTimeoutMinutes, splitHandle, withAi, withField,
 } from "./edits.ts";
 import type { Assignee, AuthKind, BodyKind, Input } from "./edits.ts";
 import type { Load } from "./useLists.ts";
@@ -105,6 +105,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
             ) : null}
             {auth.kind === "basic" ? <Field label="User name" value={auth.username} testID="field-auth-user" onCommit={(t) => setAuthPart({ username: t.trim() })} /> : null}
             {auth.kind === "header" ? <Field label="Header name" value={auth.header} mono placeholder="x-api-key" testID="field-auth-header" onCommit={(t) => setAuthPart({ header: t.trim() })} /> : null}
+            {sameKeySteps(def.nodes, node.id, chosen.item).length > 0 ? <Hint testID="auth-also-used">{`Also used by ${sameKeySteps(def.nodes, node.id, chosen.item).join(", ")} in this Automation.`}</Hint> : null}
             <Hint testID="auth-note">The Vault puts the key in the request when it is sent. It is never saved in this step, shown in a run, or handed to a later step.</Hint>
           </>
         )}

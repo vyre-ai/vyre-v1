@@ -103,6 +103,18 @@ export function splitHandle(handle: string): { item: string; field: string } {
 }
 export const joinHandle = (item: string, field: string): string => (item === "" ? "" : field.trim() === "" ? item : `${item}.${field.trim()}`);
 
+/** The other steps of this Automation that sign with the same Vault item, by title (or kind): the "also used by" line under a chosen key. */
+export function sameKeySteps(nodes: readonly DefNode[], self: string, itemHandle: string): string[] {
+  if (itemHandle === "") return [];
+  const out: string[] = [];
+  for (const n of nodes) {
+    if (n.id === self) continue;
+    const a = authOf((n.input ?? {}) as Input);
+    if (a.kind !== "none" && splitHandle(a.handle).item === itemHandle) out.push(n.title && n.title.trim() !== "" ? n.title : n.key);
+  }
+  return out;
+}
+
 /** Write the auth block from its parts. None removes it; a kind keeps only the parts it uses. */
 export function setAuth(input: Input, a: Auth): Input {
   if (a.kind === "none") return withField(input, "auth", undefined);

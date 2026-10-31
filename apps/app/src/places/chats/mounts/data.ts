@@ -210,7 +210,16 @@ export async function chatWith(rt: Pick<ShellRuntime, "call">, agentId: string):
  * The Ask thread to open for an agent about an object (Ask Vyre): the person's newest Ask thread on it with that agent, else a new one. "Bring this conversation": a new one starts with the person's own
  * first message carrying a summary of the chat they were in, so switching agent does not start from nothing. Null when neither could be had.
  */
-export async function askWith(rt: Pick<ShellRuntime, "call">, agentId: string, scopeType: string, scopeId: string, bringFrom: string | null): Promise<string | null> {
+export async function askWith(rt: Pick<ShellRuntime, "call">, agentId: string, scopeType: string, scopeId: string, bringFrom: string | null, opening?: string): Promise<string | null> {
+  // An opening message starts its own session on the object (a connector build from the Vault): the same object and message come back to the same thread, never a twin.
+  if (opening) {
+    try {
+      const out = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType, scopeId, first: opening, idempotencyKey: `open_${scopeType}_${scopeId}_${agentId}` })) as { thread?: { threadId?: string } } | null;
+      return out?.thread?.threadId ?? null;
+    } catch {
+      return null;
+    }
+  }
   try {
     const out = (await rt.call("chat.asks_of", { resourceType: scopeType, resourceId: scopeId, limit: 20 })) as CapMap["chat.asks_of"]["out"];
     const mine = out.threads.filter((t) => t.closedAt === undefined && t.agents.some((a) => a.agentId === agentId))[0];

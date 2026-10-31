@@ -45,7 +45,7 @@ import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "./data.tsx";
 import {
   addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, updateStep,
-  startsByHand,
+  startsByHand, withPreset,
 } from "./model.ts";
 import type { CardNode, DefTrigger, Definition, Issue, RunState } from "./model.ts";
 import { Dot, IconButton, SubTabs, TextButton, pointer, webOnly } from "./parts.tsx";
@@ -257,13 +257,13 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   };
 
   // ---- menus. The product catalog is the runtime list. A failed load stays unavailable.
-  const addEntries = (onPick: (key: string) => void): MenuEntry[] => {
+  const addEntries = (onPick: (key: string, preset?: Record<string, unknown>) => void): MenuEntry[] => {
     if (catalog.phase === "loading") return [{ label: "Loading the step catalog", onSelect: () => undefined }];
     if (catalog.phase === "unavailable") return [{ label: catalog.message, onSelect: () => undefined }];
     const out: MenuEntry[] = [];
     for (const g of menuGroups(catalog.steps)) {
       out.push({ head: g.head });
-      for (const p of g.items) out.push({ label: p.availability === "preview" ? `${p.title} (Preview)` : p.title, onSelect: () => onPick(p.key) });
+      for (const p of g.items) out.push({ label: p.availability === "preview" ? `${p.title} (Preview)` : p.title, onSelect: () => onPick(p.key, p.preset) });
     }
     if (out.length === 0) return [{ label: "The step catalog is empty", onSelect: () => undefined }];
     return out;
@@ -286,13 +286,13 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     if (host && lanes.length > 0) {
       // a step with lanes: say which lane the new step starts
       const choose: MenuEntry[] = [{ head: "Add to which lane?" }];
-      lanes.forEach((b, i) => choose.push({ label: b.label || `Lane ${i + 1}`, onSelect: () => show(addEntries((key) => { const r = addInto(def, host.id, key, i); edit(r.def); openPanel(r.id); }), p.x, p.y, "other") }));
+      lanes.forEach((b, i) => choose.push({ label: b.label || `Lane ${i + 1}`, onSelect: () => show(addEntries((key, preset) => { const r = addInto(def, host.id, key, i); edit(withPreset(r.def, r.id, preset)); openPanel(r.id); }), p.x, p.y, "other") }));
       show(choose, p.x, p.y, "other");
       return;
     }
-    show(addEntries((key) => {
+    show(addEntries((key, preset) => {
       const r = addAfter(def, afterId, key);
-      edit(r.def);
+      edit(withPreset(r.def, r.id, preset));
       openPanel(r.id);
     }), p.x, p.y, "other");
   };

@@ -121,3 +121,33 @@ test("Ask Vyre opens the assistant in a pane of the tab and does not open Chats"
   assert.deepEqual(asked, [], "nothing navigated to Chats");
   assert.deepEqual(opened, []);
 });
+
+test("a saved Vault item offers a connector: Set up accepts it and starts the session, Not now declines it, and both clear the card", async () => {
+  const { data, calls } = wired();
+  const set: { itemId: string; appName: string }[] = [];
+  const offered = { ...data, call: async (cap: string, input: unknown) => {
+    if (cap === "automations.connector_offers") return { offers: [{ itemId: "vit_acme", appName: "Acme", text: "Set up Acme for Automations?" }, { itemId: "vit_beta", appName: "Beta", text: "Set up Beta for Automations?" }] };
+    if (cap.startsWith("automations.connector_offer.")) { calls.push({ cap, input }); return { decision: cap.endsWith("accept") ? "accepted" : "declined" }; }
+    return data.call(cap, input);
+  }, nav: { ...data.nav, setUpConnector: (o: { itemId: string; appName: string }) => { set.push(o); } } };
+  const root = await mount(createRoot, <AutomationsDataProvider value={offered}><AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} /></AutomationsDataProvider>);
+  await flush();
+  assert.match(textOf(find(root, "automations-start-offers")!), /Set up Acme for Automations\?/);
+  await press(find(root, "offer-setup-vit_acme"));
+  await flush();
+  assert.deepEqual(set.map((o) => [o.itemId, o.appName]), [["vit_acme", "Acme"]]);
+  assert.ok(calls.some((c) => c.cap === "automations.connector_offer.accept" && (c.input as { itemId: string }).itemId === "vit_acme"));
+  assert.equal(find(root, "offer-vit_acme"), null, "the accepted offer is gone");
+  await press(find(root, "offer-decline-vit_beta"));
+  await flush();
+  assert.ok(calls.some((c) => c.cap === "automations.connector_offer.decline" && (c.input as { itemId: string }).itemId === "vit_beta"));
+  assert.equal(find(root, "automations-start-offers"), null, "no offers left, no card");
+});
+
+test("without a connector_offers answer the page is the page", async () => {
+  const { data } = wired();
+  const none = { ...data, call: async (cap: string, input: unknown) => { if (cap === "automations.connector_offers") throw new Error("no module"); return data.call(cap, input); } };
+  const root = await mount(createRoot, <AutomationsDataProvider value={none}><AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} /></AutomationsDataProvider>);
+  await flush();
+  assert.equal(find(root, "automations-start-offers"), null);
+});
