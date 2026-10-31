@@ -307,6 +307,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     let unlisten: (() => void) | undefined;
     void consumeDesktopBootstrap(bridge, (route) => {
       if (!alive) return;
+      // a link opens its own screen from wherever the person is: the doors, a half-filled entry, a Personal claim
+      setEntry(false);
+      setPersonalClaim(null);
       setDesktopRoute(route);
       setNotice(false);
       setPhase({ kind: "signin" });
