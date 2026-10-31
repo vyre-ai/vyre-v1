@@ -67,6 +67,7 @@ export function Choice({ label, value, onOpen, testID, hint, face }: { label: st
 export function Segmented({ options, value, onPick, testID }: { options: ReadonlyArray<{ key: string; label: string; hint?: string }>; value: string; onPick(key: string): void; testID?: string }): ReactElement {
   return (
     <View testID={testID} accessibilityRole="radiogroup" style={f.seg}>
+      {/* ui-rows-lint: not a list (two options of a switch) */}
       {options.map((o) => (
         <Pressable key={o.key} accessibilityRole="radio" accessibilityLabel={o.label} accessibilityState={{ checked: value === o.key }} testID={`${testID ?? "seg"}-${o.key}`} onPress={() => onPick(o.key)} {...webOnly({ title: o.hint ?? o.label, "aria-checked": value === o.key })} style={[f.segOpt, value === o.key && f.segOn, pointer]}>
           <Text style={[f.segText, value === o.key && { color: "var(--ink)" as string, fontWeight: "600" }]}>{o.label}</Text>
