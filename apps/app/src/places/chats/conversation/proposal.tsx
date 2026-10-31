@@ -146,17 +146,16 @@ export function planFileData(b: { id: string; data: unknown }): PlanFileData {
   return { fileId: str(d.id) || b.id, name: str(d.name) || str(d.title) || "Plan", openComments: typeof d.openComments === "number" ? d.openComments : 0 };
 }
 
-/** The plan document card: "Plan · 1 open comment · click to open beside the chat". */
+/** The plan document card: "Plan · 1 open comment". */
 export const isPlanFile = (b: { type: string; data: unknown }): boolean => b.type === "file" && isRec(b.data) && b.data.kind === "plan";
 
-export const planFileLine = (n: number): string => `Plan · ${n} open comment${n === 1 ? "" : "s"} · click to open beside the chat`;
+export const planFileLine = (n: number): string => `Plan · ${n} open comment${n === 1 ? "" : "s"}`;
 
 export function PlanFileCard({ block, onOpen }: { block: { id: string; data: unknown }; onOpen: (fileId: string) => void }): ReactElement {
   const d = planFileData(block);
   const [over, setOver] = useState(false);
-  // a phone has no "beside": the line is the count alone, and the card never runs past the screen
   const w = useWindowDimensions().width;
-  const line = w > 0 && w < 560 ? planFileLine(d.openComments).replace(" · click to open beside the chat", "") : planFileLine(d.openComments);
+  const line = planFileLine(d.openComments);
   return (
     <Pressable
       testID={`plancard-${block.id}`} accessibilityRole="button" accessibilityLabel={`Open ${d.name} beside the chat`} onPress={() => onOpen(d.fileId)}

@@ -370,9 +370,9 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
       <View style={st.errActions}>
         {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key); }} />)}
         {e.retryable && e.turnId ? <TextButton link label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
-        <TextButton link label="What happened?" testID="err-what" onPress={() => setOpen((o) => !o)} />
-        <TextButton link label="Copy trace id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
-        <TextButton link label="Report a problem" testID="err-report" onPress={() => reportProblem({ label: reportLabel(e.message, e.traceId) })} />
+        <TextButton link label="Details" testID="err-what" onPress={() => setOpen((o) => !o)} />
+        <TextButton link label="Copy id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
+        <TextButton link label="Report" testID="err-report" onPress={() => reportProblem({ label: reportLabel(e.message, e.traceId) })} />
       </View>
       {noAccount && ready && !resent ? (
         <View testID="err-connected" style={st.errActions}>
