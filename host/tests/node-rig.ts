@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
@@ -22,7 +21,8 @@ export const post = async (d: Daemon, p: string, body: unknown, token?: string):
   return { status: r.status, json: (await r.json()) as Reply["json"] };
 };
 
-export async function boot(): Promise<{ d: Daemon; dir: string }> {
+/** `bootCore` is the seeded Space of fixtures/seed/core (a test passes it: only a test file may import the fixtures). */
+export async function boot(bootCore: () => { store: { db: { exec(sql: string): void } }; file: string; close(): void }): Promise<{ d: Daemon; dir: string }> {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-relay-space-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");

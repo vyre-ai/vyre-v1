@@ -9,17 +9,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createLocalLauncher } from "../../agent/src/drivers/cli/index.ts";
-import { createTurnEngine } from "../../agent/src/turn-engine/index.ts";
-import type { EngineAgent, SessionSpec } from "../../agent/src/turn-engine/index.ts";
-import type { Lookup, ValueSource } from "../../agent/src/vault-use/index.ts";
-import { buildNodeOpener } from "../../modules/engine/session.ts";
-import { nodeOfTurn, remoteLauncher, routed } from "../../modules/engine/node-turns.ts";
-import type { NodeRelay } from "../../modules/engine/node-turns.ts";
-import type { NodeLauncher } from "../src/compute/node.ts";
-import { boot, enroll } from "./node-rig.ts";
+import { createLocalLauncher } from "../../../agent/src/drivers/cli/index.ts";
+import { createTurnEngine } from "../../../agent/src/turn-engine/index.ts";
+import type { EngineAgent, SessionSpec } from "../../../agent/src/turn-engine/index.ts";
+import type { Lookup, ValueSource } from "../../../agent/src/vault-use/index.ts";
+import { buildNodeOpener } from "../session.ts";
+import { nodeOfTurn, remoteLauncher, routed } from "../node-turns.ts";
+import type { NodeRelay } from "../node-turns.ts";
+import type { NodeLauncher } from "../../../host/src/compute/node.ts";
+import { bootCore } from "../../../fixtures/seed/core/index.ts";
+import { boot as bootRig, enroll } from "../../../host/tests/node-rig.ts";
 
-const FAKE_CLI = fileURLToPath(new URL("./fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
+const boot = () => bootRig(bootCore);
+
+const FAKE_CLI = fileURLToPath(new URL("../../../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
 const SECRET = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 const TRACE = "a".repeat(32);
 const AGENT: EngineAgent = { id: "intake", mode: "lead", model: "sonnet", accountRef: "#Dana_Claude" };

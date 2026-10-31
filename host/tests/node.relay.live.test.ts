@@ -8,7 +8,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { NodeLauncher, NodeProc } from "../src/compute/node.ts";
-import { boot, enroll } from "./node-rig.ts";
+import { bootCore } from "../../fixtures/seed/core/index.ts";
+import { boot as bootRig, enroll } from "./node-rig.ts";
+
+const boot = () => bootRig(bootCore);
 
 
 /** A launcher that starts a real child process, as the node's sandboxed one would. */
