@@ -245,16 +245,16 @@ export async function onHost(request, env, name) {
       if (!info.route || info.released) unclaimed(url.hostname, true);
     }
   } catch { return passthrough(request, env); }
-  if (!info.route || info.released) return url.pathname.startsWith("/__vyre/") ? new Response(null, { status: 404 }) : passthrough(request, env);
+  if (!info.route || info.released) return url.pathname.startsWith("/__vyre/") ? new Response(null, { status: 404, headers: { "x-vyre-gateway": "unclaimed" } }) : passthrough(request, env);
   const relayWss = String(env.RELAY_PUBLIC_URL || "wss://relay.vyre.run");
   const online = async () => {
     try { return Boolean(((await (await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/online")).json())).online); } catch { return false; }
   };
   if (url.pathname === "/__vyre/info.json") return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online() });
   if (url.pathname.startsWith("/__vyre/")) {
-    if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD")) return new Response(null, { status: 404 });
+    if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD")) return new Response(null, { status: 404, headers: { "x-vyre-gateway": "no-assets" } });
     const res = await env.ASSETS.fetch(new Request(new URL(url.pathname, "https://assets.invalid"), { method: request.method }));
-    if (res.status !== 200) return new Response(null, { status: 404 });
+    if (res.status !== 200) return new Response(null, { status: 404, headers: { "x-vyre-gateway": `asset-${res.status}` } });
     const headers = new Headers(res.headers);
     headers.set("cache-control", "no-cache");
     headers.set("x-content-type-options", "nosniff");
