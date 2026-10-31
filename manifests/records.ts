@@ -93,7 +93,7 @@ export default defineManifest({
     }),
     write('records.comments.add', 'Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)', {
       in: { ...target, text: t.str({ minLength: 1, maxLength: 4000 }), parentId: t.opt(t.str()), mentions: t.opt(t.arr(mentionRef, { maxItems: 20 })) },
-      out: { comment: commentRow }, on: ['record', '/recordId'], level: 'use', idem: 'key', emits: ['record.comment_added'], tool: 'records', offline: 'queue',
+      out: { comment: commentRow }, on: ['record', '/recordId'], level: 'use', idem: 'key', emits: ['record.comment_added'], tool: 'records', offline: 'queue', agent: { planMode: 'allowed' },
     }),
     write('records.comments.edit', 'Edit your own comment', { in: { ...commentId, text: t.str({ minLength: 1, maxLength: 4000 }) }, out: { comment: commentRow }, tool: 'records' }),
     write('records.comments.resolve', 'Resolve a comment thread or reopen it', { in: { ...commentId, resolved: t.bool() }, out: { comment: commentRow }, emits: ['record.comment_resolved'], tool: 'records' }),
