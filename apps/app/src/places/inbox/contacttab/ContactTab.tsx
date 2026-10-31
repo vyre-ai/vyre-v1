@@ -2,6 +2,8 @@
 // texts are bubbles; calls carry a player, a summary and a transcript; campaign steps are quiet lines; record chips link to the record. The header has the record link, Email, Text, Call, Follow
 // and Ask. The composer switches Email and Text and picks the sending inbox (a reply goes out from the inbox the thread came in on); an agent's draft shows its Gate line with Send, Edit and
 // Discard. Everything reads from the local copy and works offline: a send queues and the foot says so.
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectEntries } from "../../../shell/connect/model.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -179,7 +181,14 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     const id = conv.contactId;
     menu.show(followMenuEntries(conv.followed, conv.alertOnReplies, { follow: (f) => void setFollow(data, id, f), alert: (a) => void setFollow(data, id, true, a) }), x, y);
   };
-  const showFrom = (x: number, y: number): void => menu.show(fromMenuEntries(choices, inbox?.id ?? null, conv.mailboxIds, (id) => patch({ from: { ...draft.from, [chan]: id } })), x, y);
+  const openConnect = useOpenConnect();
+  // the list can end in Connect: a mailbox joins the picker and is chosen; a Twilio account is added and its number is claimed from the Inbox
+  const showFrom = (x: number, y: number): void => menu.show(connectEntries(
+    fromMenuEntries(choices, inbox?.id ?? null, conv.mailboxIds, (id) => patch({ from: { ...draft.from, [chan]: id } })),
+    mail ? { kind: "mailbox" } : { kind: "number" }, openConnect,
+    (made) => { if (mail) patch({ from: { ...draft.from, [chan]: made.id } }); },
+    choices.length === 0,
+  ), x, y);
   // the dock (when one is mounted, `dock`) places the call and saves it to this conversation; otherwise the app's own handler, else the shell opens the dialer
   const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else if (n && dock) dock.dial(n, conv.contactId); else data.nav.openDialer(); };
 

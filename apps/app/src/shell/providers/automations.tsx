@@ -1,5 +1,6 @@
 // The Automations place: the shell sidebar slot holds the list, and the body holds the open Automation or an operational view.
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
+import { useConnectVersion } from "../connect/context.ts";
 import { useEffect, useMemo, useState } from "react";
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
@@ -50,6 +51,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [keys, setKeys] = useState<readonly KeyChoice[]>([]);
   const [keysStatus, setKeysStatus] = useState<KeysStatus>("loading");
   const [accounts, setAccounts] = useState<readonly AccountOption[]>([]);
+  const connectVersion = useConnectVersion();
   const [lastPicks, setLastPicks] = useState<Readonly<Record<string, string>> | undefined>(undefined);
   // the Automations row in the sidebar leaves the open automation (the hash keeps naming it, so that id is remembered as left)
   const [left, setLeft] = useState<string | null>(null);
@@ -66,7 +68,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       setKeysStatus(parsed.length > 0 ? "ready" : "empty");
     }).catch(() => { if (live) { setKeys([]); setKeysStatus("unavailable"); } });
     return () => { live = false; };
-  }, [rt]);
+  }, [rt, connectVersion]);
   useEffect(() => {
     let live = true;
     void Promise.all([
@@ -90,7 +92,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       setLastPicks(undefined);
     });
     return () => { live = false; };
-  }, [rt]);
+  }, [rt, connectVersion]);
   const data = useMemo(() => automationsData(rt, {
     openAutomation: (id) => { setView("automations"); setStep(null); setOpenId(id); opened({ subject: { type: "automation", id } }); },
     openJourney: (id) => { setViewRaw("automations"); setOverlay({ kind: "journey", id }); },

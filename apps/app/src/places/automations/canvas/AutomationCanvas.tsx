@@ -17,6 +17,9 @@ import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
 import { loadProductCatalog, menuGroups } from "../catalog/model.ts";
 import type { CatalogStep, CatalogTrigger } from "../catalog/model.ts";
+import { applyAccount, connectedOption } from "../connect/accounts.ts";
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectLabel, connectThen, stepNeed } from "../../../shell/connect/model.ts";
 import { setupFromIssue } from "../connect/route.ts";
 import type { ConnectTarget } from "../connect/route.ts";
 import { AutomationConfig } from "../config/AutomationConfig.tsx";
@@ -38,7 +41,7 @@ import { Inspector } from "./Inspector.tsx";
 import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "./data.tsx";
 import {
-  addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, titleOfKey,
+  addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, titleOfKey, updateStep,
   startsByHand,
 } from "./model.ts";
 import type { CardNode, DefTrigger, Definition, Issue, RunState } from "./model.ts";
@@ -332,6 +335,24 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const connectTarget: ConnectTarget | null = issues.map((issue) => setupFromIssue(issue)).find((setup) => setup.connect)?.connect ?? null;
   const blockedIssue = !connectTarget ? issues.map((issue) => ({ issue, setup: setupFromIssue(issue) })).find((row) => row.issue.message === a.pausedReason && row.setup.blocked) : undefined;
   const needs = a.pausedReason ?? null;
+  const openConnect = useOpenConnect();
+  // the first problem that is a missing account: its own Connect opens the flow here and puts the new account on that step
+  const fixable = openConnect ? errors.map((issue) => {
+    const node = issue.nodeId ? def.nodes.find((n) => n.id === issue.nodeId) : undefined;
+    const schema = node && catalog.phase === "ready" ? catalog.steps.find((step) => step.key === node.key)?.input : undefined;
+    const need = node ? stepNeed(node, schema, a.kind) : undefined;
+    return node && need ? { node, need, issue } : undefined;
+  }).find((row) => row !== undefined) : undefined;
+  const connectFix = (): void => {
+    if (!fixable || !openConnect) return;
+    const { node, need } = fixable;
+    void connectThen(openConnect, need, (made) => {
+      if (need.kind === "mailbox") edit(updateStep(def, node.id, { input: applyAccount(node.input ?? {}, "mailboxId", connectedOption(made)) }));
+      else if (need.kind === "connector") edit(updateStep(def, node.id, { input: applyAccount(node.input ?? {}, "connectionId", connectedOption(made)) }));
+      else if (need.kind === "ai") edit(updateStep(def, node.id, { ai: { ...(node.ai ?? {}), keyId: made.id } }));
+      else flash("Connected. Pick it on the step.");
+    });
+  };
   const statusLabel = a.status === "on" ? "On" : a.status === "paused" ? "Paused" : a.status === "draft" ? "Draft" : "Off";
   const test = async (): Promise<void> => {
     if (errors.length > 0) { flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} first, then test.`); setTab("steps"); return; }
@@ -513,6 +534,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               <Pressable accessibilityRole="button" accessibilityLabel={blockerId ? `Go to ${blockerId}. This step blocks going live.` : "Show the first problem"} testID="problem-go" onPress={goToBlocker} style={pointer}>
                 <Text style={s.problemsLink}>{errors[0]?.message ?? ""}</Text>
               </Pressable>
+              {fixable ? <Pressable accessibilityRole="button" accessibilityLabel={connectLabel(fixable.need, true)} testID="problem-connect" onPress={connectFix} style={pointer}><Text style={s.problemsLink}>{connectLabel(fixable.need, true)}</Text></Pressable> : null}
               {errors[0] ? <AskVyre bundle={askBundle(errors[0])} onOpen={(safe) => data.nav.ask(a.id, safe)} /> : null}
             </View>
           ) : null}

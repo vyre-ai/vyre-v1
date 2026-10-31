@@ -3,6 +3,7 @@
 // rule-based upkeep, and the sub line says so. Each change saves as it is made, with Undo.
 import type { ReactElement } from "react";
 import type { CapMap } from "../../../../../generated/types.ts";
+import type { ConnectNeed } from "../../shell/connect/model.ts";
 import { MEMORY_KEYS, useScreenQuery, useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
 import { MemorySpend } from "./MemorySpend.tsx";
@@ -14,6 +15,7 @@ type Picker = KeysOut["personal"];
 type Layer = "space" | "project" | "person";
 
 export const NONE = "";
+const AI: ConnectNeed = { kind: "ai" };
 const optionsOf = (p: Picker, none: string): { value: string; label: string }[] => [
   { value: NONE, label: none },
   ...p.choices.map((c) => ({ value: c.ref, label: `${c.title}${c.mine ? " (yours)" : " (shared)"}${c.state === "ok" ? "" : c.state === "needs_sign_in" ? ", sign in again" : ", failing"}` })),
@@ -42,7 +44,7 @@ export function MemoryKeys(): ReactElement | null {
       projectRows.push(
         <SettingsRow
           key={p.projectId} id={`memory.key.project.${p.projectId}`} label={p.title} first={i === 0} sub={cur === null ? "The Space's account" : "Its own account"}
-          control={<Choice value={cur ?? NONE} options={optionsOf(k.space as Picker, "The Space's account")} label={`${p.title} memory account`} testID={`ctl-memory-key-project-${p.projectId}`} onChange={(v) => set("project", v === NONE ? null : v, cur, p.projectId)} />}
+          control={<Choice value={cur ?? NONE} options={optionsOf(k.space as Picker, "The Space's account")} label={`${p.title} memory account`} testID={`ctl-memory-key-project-${p.projectId}`} onChange={(v) => set("project", v === NONE ? null : v, cur, p.projectId)} connect={{ need: AI, empty: (k.space as Picker).choices.length === 0, onConnected: (made) => set("project", made.ref ?? made.id, cur, p.projectId) }} />}
         />,
       );
     });
@@ -52,12 +54,12 @@ export function MemoryKeys(): ReactElement | null {
       <Section title="Who pays for memory" note="Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model.">
         <SettingsRow
           id="memory.key.person" label="Your memory" first sub={sub(k.personal, personalNone)}
-          control={<Choice value={k.personal.accountRef ?? NONE} options={optionsOf(k.personal, personalNone)} label="Your memory account" testID="ctl-memory-key-person" onChange={(v) => set("person", v === NONE ? null : v, k.personal.accountRef)} />}
+          control={<Choice value={k.personal.accountRef ?? NONE} options={optionsOf(k.personal, personalNone)} label="Your memory account" testID="ctl-memory-key-person" onChange={(v) => set("person", v === NONE ? null : v, k.personal.accountRef)} connect={{ need: AI, empty: k.personal.choices.length === 0, onConnected: (made) => set("person", made.ref ?? made.id, k.personal.accountRef) }} />}
         />
         {k.space ? (
           <SettingsRow
             id="memory.key.space" label="Space memory" sub={sub(k.space, personalNone)}
-            control={<Choice value={k.space.accountRef ?? NONE} options={optionsOf(k.space, personalNone)} label="Space memory account" testID="ctl-memory-key-space" onChange={(v) => set("space", v === NONE ? null : v, k.space?.accountRef ?? null)} />}
+            control={<Choice value={k.space.accountRef ?? NONE} options={optionsOf(k.space, personalNone)} label="Space memory account" testID="ctl-memory-key-space" onChange={(v) => set("space", v === NONE ? null : v, k.space?.accountRef ?? null)} connect={{ need: AI, empty: k.space.choices.length === 0, onConnected: (made) => set("space", made.ref ?? made.id, k.space?.accountRef ?? null) }} />}
           />
         ) : null}
       </Section>
