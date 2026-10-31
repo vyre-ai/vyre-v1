@@ -186,7 +186,7 @@ export default defineManifest({
     read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status', {
       out: { accounts: t.arr(accountRow) }, tool: 'meta',
     }),
-    read('engine.usage.get', 'What the composer model panel shows for a chat and an account: the context used against the model window (from the chat\'s latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null and the meter is hidden; nothing is estimated', {
+    read('engine.usage.get', 'For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated', {
       in: { ...threadT, agentId: id.agent, accountRef: t.opt(accountRef) },
       out: {
         account: t.nullable(t.obj({ ref: accountRef, name: t.str({ description: 'The name the person gave the account in the Vault', examples: ['Dana Claude Max'] }), provider: t.str({ examples: ['anthropic'] }), plan: t.opt(t.str()) })),

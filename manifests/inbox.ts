@@ -139,7 +139,7 @@ const manifest = defineManifest({
       },
       tool: 'inbox', label: 'check',
     }),
-    read('comms.senders.list', 'Every address the caller can send from, for the composer From picker: mailboxes (Gmail, Outlook, IMAP, shared, agent and service), the Space sending domain provider (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now are listed with usable false and why', {
+    read('comms.senders.list', 'Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why', {
       in: { channel: t.opt(senderChannel) }, out: { senders: t.arr(senderRow) }, tool: 'inbox', label: 'check',
     }),
     write('comms.senders.set_default', 'Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list', {
