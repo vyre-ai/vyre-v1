@@ -17,6 +17,8 @@ export interface AgentPageNav extends RightPaneNav {
   openFolder(folderId: string): void;
   /** AGENT.md or agent.toml in the agent's folder, as a tab. */
   openAgentFile(agentId: string, file: "AGENT.md" | "agent.toml"): void;
+  /** Opens Settings, Computers, with the Add a server sheet. Absent where there is no Settings (a sample). */
+  openAddServer?(): void;
   /** "Automation runs": every run of this agent's routines, as a place of its own. */
   openAutomationRuns(agentId: string): void;
   /** After the agent moved to Trash: leave the page. */

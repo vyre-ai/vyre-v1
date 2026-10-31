@@ -23,6 +23,7 @@ import type { SpaceKind } from "./model.ts";
 import { SpaceSkeleton } from "./Skeleton.tsx";
 import { watchPurge } from "./purge.ts";
 import type { ShellPurge } from "./purge.ts";
+import { requestAddServer } from "../computers-available.ts";
 import { SpaceTile } from "./SpaceSwitcher.tsx";
 import type { SpaceAction, SpaceMenuInput } from "./SpaceSwitcher.tsx";
 
@@ -114,6 +115,7 @@ export function Shell(props: ShellProps): ReactElement {
     const name = session.def.name;
     if (action === "settings") hub.go("settings");
     else if (action === "terminal") hub.go("chats", "terminal");
+    else if (action === "add-server") { requestAddServer(); hub.go("settings"); }
     else if (action === "profile") hub.go("settings", "profile");
     else if (action === "away") {
       hub.setAway(!state.away);

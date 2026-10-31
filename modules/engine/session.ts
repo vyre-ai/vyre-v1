@@ -9,7 +9,7 @@ import { enginePath } from "./sandbox-default.ts";
 import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
 import { placeCredentialFiles, takeCredentialFiles } from "./credential-files.ts";
 import type { Placed } from "./credential-files.ts";
-import type { CliProcess, LaunchSpec } from "../../agent/src/drivers/cli/types.ts";
+import type { CliProcess, LaunchSpec, Launcher } from "../../agent/src/drivers/cli/types.ts";
 import { nativePlugins } from "./plugin-native.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
@@ -120,6 +120,22 @@ export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: rea
     if (placed) { const p = placed; void proc.exited.then(() => p.release(), () => p.release()); }
     return proc;
   } catch (e) { placed?.release(); throw e; }
+}
+
+/**
+ * The opener of a turn pinned to one of the person's servers (node-turns.ts): the same driver, account fill and MCP session as the Space's own, but the CLI engine is started on the server by `launcher`.
+ * The server has no Space work folder, no native plugins and no sandbox socket for MCP: the engine works in a folder of the server's and reaches the Space's tools at the address it joined by.
+ */
+export function buildNodeOpener(h: OpenerHost, launcher: Launcher): SessionOpener {
+  const system = roleBlocks(h.call);
+  return createSessionOpener({
+    source: h.session.source, reportMiss: h.session.reportMiss, mcp: h.session.mcp, ...(h.own ? { own: h.own } : {}),
+    launcher, where: "device", placement: "device",
+    apiContext: async (spec, input) => {
+      if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };
+      return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec, input), tools: [] };
+    },
+  });
 }
 
 /** Builds the opener; the runtime keeps it for the life of the daemon and calls close() on shutdown. */

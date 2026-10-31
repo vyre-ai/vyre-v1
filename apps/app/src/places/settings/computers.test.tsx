@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AddServerSheet, ComputersBody, ComputersSection } from "./Computers.tsx";
 import { SettingsDataProvider } from "./data.tsx";
-import { emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
+import { addressKind, emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
 import type { HostInfo, ServerInfo } from "./computers-model.ts";
 import { createSampleSettings, northwind } from "./sample.ts";
 
@@ -16,7 +16,11 @@ const body = (hosts: HostInfo[], servers: ServerInfo[], removing: string | null 
   renderToStaticMarkup(<ComputersBody hosts={hosts} servers={servers} removing={removing} onAdd={noop} onAskRemove={noop} onRemove={noop} />).replaceAll("<!-- -->", "");
 
 test("the command carries the address and the code, and a server's facts read as one short line", () => {
-  assert.equal(joinCommand("https://home.example", "VYRE-AB12-CD34"), "vyred --role compute --server https://home.example --join VYRE-AB12-CD34");
+  const cmd = joinCommand("https://home.example", "VYRE-AB12-CD34");
+  assert.ok(cmd.startsWith("VYRE_JOIN=VYRE-AB12-CD34 sh -c '") && cmd.includes("--role compute --server https://home.example"), cmd);
+  assert.ok(cmd.includes("install-mac.sh") && cmd.includes("releases/latest/download") && cmd.includes('env VYRE_JOIN="$VYRE_JOIN"'), "the Mac or Linux installer, the code through the environment");
+  assert.ok(!/--join/.test(cmd), "the code is not an argument");
+  assert.deepEqual(["", null, "http://localhost:8420", "http://127.0.0.1:8420", "https://192.168.1.20:8420", "http://10.0.0.5:8420", "http://mac.local:8420", "https://home.vyre.run", "home.example.com"].map((a) => addressKind(a)), ["none", "none", "loopback", "loopback", "lan", "lan", "lan", "public", "public"]);
   assert.equal(factsLine({ os: "linux", arch: "x64", docker: true, version: "1" }), "Linux x64, Docker");
   assert.equal(factsLine({ os: "darwin", arch: "arm64", docker: false, version: "1" }), "Mac arm64");
   assert.equal(factsLine(undefined), "");
@@ -58,7 +62,15 @@ test("the sheet goes from naming, to a command and waiting, to comparing the fin
   const name = render(emptySheet());
   assert.ok(name.includes('data-testid="add-nickname"') && name.includes('data-testid="add-make"') && !name.includes("add-command"));
   const wait = render();
-  assert.ok(wait.includes("vyred --role compute --server https://home.example --join VYRE-AB12-CD34") && wait.includes('data-testid="add-copy"') && wait.includes('data-testid="add-waiting"') && wait.includes("10 min"));
+  assert.ok(wait.includes("VYRE_JOIN=VYRE-AB12-CD34") && wait.includes("--role compute --server https://home.example") && wait.includes('data-testid="add-copy"') && wait.includes('data-testid="add-waiting"') && wait.includes("10 min"));
+  assert.ok(!wait.includes('data-testid="add-lan-warning"') && !wait.includes('data-testid="add-no-address"'), "a public address needs no warning");
+  const lan = render({ ...made, address: "http://192.168.1.20:8420" });
+  assert.ok(lan.includes("--server http://192.168.1.20:8420") && lan.includes('data-testid="add-lan-warning"') && lan.includes('data-testid="add-copy"'), "the local network address, with its warning");
+  for (const address of ["http://127.0.0.1:8420", null]) {
+    const none = render({ ...made, address });
+    assert.ok(none.includes('data-testid="add-no-address"') && none.includes("Needs an address") && none.includes("Phone access"), `no address another machine can reach: ${address}`);
+    assert.ok(!none.includes('data-testid="add-copy"') && !none.includes("--role compute"), "no command to paste");
+  }
   const compare = render(made, [waiting]);
   assert.ok(compare.includes("K7QD-4M2X") && compare.includes("Linux x64, Docker") && compare.includes('data-testid="add-approve"') && compare.includes('data-testid="add-decline"'));
   const done = render({ ...made, approved: true, serverId: "srv_home" }, [server()]);
@@ -73,4 +85,16 @@ test("the section reads the hosts and your servers through the capabilities", as
   const out = renderToStaticMarkup(<SettingsDataProvider value={data}><ComputersSection /></SettingsDataProvider>);
   assert.ok(out.includes("This computer") && out.includes("Add a server"));
   assert.equal(out.includes("Needs a Team Space"), false);
+});
+
+test("asked for from the Space menu or an agent's page, Computers opens with the Add a server sheet, once", async () => {
+  const { requestAddServer, addServerAsked, takeAddServerRequest } = await import("../../shell/computers-available.ts");
+  const s = createSampleSettings(northwind);
+  const draw = (): string => renderToStaticMarkup(<SettingsDataProvider value={{ ...s.data, call: async () => ({}) }}><ComputersSection /></SettingsDataProvider>);
+  assert.ok(!draw().includes('data-testid="add-server-sheet"'), "nothing asked, no sheet");
+  requestAddServer();
+  assert.equal(addServerAsked(), true);
+  assert.ok(draw().includes('data-testid="add-server-sheet"'), "the sheet is open");
+  assert.equal(addServerAsked(), false, "taken: a redraw does not open it again");
+  assert.equal(takeAddServerRequest(), false);
 });

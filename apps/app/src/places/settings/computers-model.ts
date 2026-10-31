@@ -9,9 +9,27 @@ export interface ServerInfo {
 
 const OS: Record<string, string> = { linux: "Linux", darwin: "Mac", win32: "Windows" };
 
-/** The one line to paste on the machine. The join code is inside and works once for ten minutes. */
+const RELEASES = "https://github.com/vyre-ai/vyre-v1/releases/latest/download";
+
+/**
+ * The one line to paste on the machine, Linux or Mac: it picks the installer for the machine it runs on (the release's install.sh, or install-mac.sh), checks the signed download, and
+ * passes the join code in the environment, not in an argument. The code works once for ten minutes. On Linux the install needs root, so it runs under sudo; on a Mac it must not.
+ */
 export function joinCommand(address: string, code: string): string {
-  return `vyred --role compute --server ${address} --join ${code}`;
+  return `VYRE_JOIN=${code} sh -c 'if [ "$(uname)" = Darwin ]; then s=install-mac.sh; r=; else s=install.sh; r=sudo; fi; curl -fsSL ${RELEASES}/$s | $r env VYRE_JOIN="$VYRE_JOIN" sh -s -- --role compute --server ${address}'`;
+}
+
+export type AddressKind = "none" | "loopback" | "lan" | "public";
+
+/** What the Space's address means to another machine: nothing, only this computer, this network, or anywhere. */
+export function addressKind(address: string | null | undefined): AddressKind {
+  if (!address) return "none";
+  let host = "";
+  try { host = new URL(/^[a-z]+:\/\//i.test(address) ? address : `https://${address}`).hostname.toLowerCase(); } catch { return "none"; }
+  if (host === "" ) return "none";
+  if (host === "localhost" || host === "[::1]" || host === "::1" || /^127\./.test(host) || host === "0.0.0.0") return "loopback";
+  if (/^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host) || host.endsWith(".local") || host.endsWith(".lan") || !host.includes(".")) return "lan";
+  return "public";
 }
 
 /** What a machine runs, as short as it can be said: "Linux x64, Docker". */

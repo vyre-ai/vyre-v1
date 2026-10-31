@@ -11,7 +11,7 @@ import { ShellIcon, iconMarkup } from "../rail/icons.tsx";
 import { initialOf, othersNeedingYou, tileGradient } from "./model.ts";
 import type { SpaceDef } from "./model.ts";
 
-export type SpaceAction = "add" | "invite" | "settings" | "terminal" | "away" | "profile" | "sign-out" | "lock";
+export type SpaceAction = "add" | "invite" | "settings" | "terminal" | "add-server" | "away" | "profile" | "sign-out" | "lock";
 
 export interface SpaceMenuInput {
   spaces: readonly SpaceDef[];
@@ -41,6 +41,7 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
   out.push({ label: "Add a Space", icon: iconMarkup("join"), onSelect: () => input.onAction("add") });
   out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
   out.push({ label: "Space Settings", icon: iconMarkup("settings"), onSelect: () => input.onAction("settings") });
+  out.push({ label: "Add a Server", icon: iconMarkup("server"), onSelect: () => input.onAction("add-server") });
   if (open !== undefined && open.terminal) out.push({ label: "Open Terminal", icon: iconMarkup("terminal"), onSelect: () => input.onAction("terminal") });
   if (input.runsOn !== undefined && open?.kind === "team") {
     const on = input.runsOn;

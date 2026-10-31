@@ -5,13 +5,15 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
-import { setComputersAvailable } from "../../shell/computers-available.ts";
+import { setComputersAvailable, takeAddServerRequest } from "../../shell/computers-available.ts";
 import { useSettingsData } from "./data.tsx";
-import { emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
+import { addressKind, emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
 import type { HostInfo, ServerInfo, Sheet } from "./computers-model.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Tip, pointer } from "./ui.tsx";
 
 const WHERE = "Any Linux machine or Mac that stays on. A small cloud server from Hetzner or DigitalOcean works.";
+const LAN_ONLY = "Works only while the server and this computer are on the same network. Over plain http the server can run agent computers, but not your chats: those need an https address.";
+const NO_ADDRESS = "This Space has no address another machine can reach. Set up Phone access (a vyre.run address) first, then add the server.";
 const POLL_MS = 2000;
 
 export function Dot({ on, why }: { on: boolean; why?: string }): ReactElement {
@@ -74,10 +76,13 @@ export interface AddSheetProps {
   onDecline(serverId: string): void;
   onCopy(text: string): void;
   onClose(): void;
+  /** Opens Phone access (the vyre.run address). Absent until it exists: the notice then only explains. */
+  onPhoneAccess?: () => void;
 }
 
-export function AddServerSheet({ sheet, servers, busy, error, now, onNickname, onMake, onApprove, onDecline, onCopy, onClose }: AddSheetProps): ReactElement {
+export function AddServerSheet({ sheet, servers, busy, error, now, onNickname, onMake, onApprove, onDecline, onCopy, onClose, onPhoneAccess }: AddSheetProps): ReactElement {
   const { phase, arrived } = phaseOf(sheet, servers);
+  const reach = addressKind(sheet.address);
   const command = sheet.code && sheet.address ? joinCommand(sheet.address, sheet.code) : sheet.code ? joinCommand("<this address>", sheet.code) : "";
   const left = sheet.expiresAt ? Math.max(0, Math.ceil((sheet.expiresAt - now) / 60000)) : 0;
   const actions = phase === "name"
@@ -95,10 +100,20 @@ export function AddServerSheet({ sheet, servers, busy, error, now, onNickname, o
       ) : null}
       {phase === "waiting" ? (
         <View style={st.col}>
+          {reach === "none" || reach === "loopback" ? (
+            // no address another machine can reach: no command to paste, and the way to get one
+            <View style={st.notice} testID="add-no-address">
+              <Tip help={NO_ADDRESS}><Glyph name="globe" size={16} color="var(--warn, #b7791f)" /></Tip>
+              <Text style={st.hint}>Needs an address</Text>
+              {onPhoneAccess ? <SmallButton label="Phone access" testID="add-phone-access" onPress={onPhoneAccess} /> : <Tip help={NO_ADDRESS}><Text style={st.link}>Phone access</Text></Tip>}
+            </View>
+          ) : (
           <View style={st.cmdRow}>
             <Text selectable testID="add-command" style={st.cmd}>{command}</Text>
+            {reach === "lan" ? <Tip help={LAN_ONLY}><View testID="add-lan-warning" accessibilityLabel="Same network only"><Glyph name="globe" size={16} color="var(--warn, #b7791f)" /></View></Tip> : null}
             <Pressable accessibilityRole="button" accessibilityLabel="Copy" testID="add-copy" onPress={() => onCopy(command)} style={[st.copy, pointer]}><Glyph name="copy" color="var(--ink-2)" /></Pressable>
           </View>
+          )}
           <View style={st.waitRow}>
             <View testID="add-waiting" accessibilityRole="progressbar" accessibilityLabel="Waiting" style={st.pulse} />
             <Tip help={WHERE}><Text style={st.hint}>{left > 0 ? `${left} min` : "Expired"}</Text></Tip>
@@ -130,7 +145,8 @@ export function ComputersSection(): ReactElement {
   const [hosts, setHosts] = useState<HostInfo[]>([]);
   const [servers, setServers] = useState<ServerInfo[]>([]);
   const [removing, setRemoving] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<Sheet | null>(null);
+  // asked for from the Space menu or an agent's page: the sheet is open as Computers draws
+  const [sheet, setSheet] = useState<Sheet | null>(() => (takeAddServerRequest() ? emptySheet() : null));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => data.clock().now);
@@ -194,6 +210,8 @@ const st = StyleSheet.create({
   waitRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   pulse: { width: 9, height: 9, borderRadius: 5, backgroundColor: "var(--accent)" as string },
   hint: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  notice: { flexDirection: "row", alignItems: "center", gap: 8 },
+  link: { fontSize: 12.5, color: "var(--accent)" as string },
   name: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   facts: { fontSize: 12.5, color: "var(--ink-3)" as string },
   print: { fontSize: 26, letterSpacing: 2, color: "var(--ink)" as string, ...({ fontFamily: "ui-monospace, Menlo, monospace" } as object) },

@@ -21,6 +21,8 @@ export const handlers: Record<string, Handler> = Object.fromEntries(
   Object.entries(table as unknown as Record<string, Handler>).map(([name, fn]) => [name, (async (ctx, input) => { await ensureRuntime(ctx as never); return fn(ctx, input); }) as Handler]),
 );
 
+export { nodeCliLauncher, nodeCliReport } from "./node-cli.ts";
+
 /** The host half arrives here at boot (ruling 31 and 32): the runtime opens real sessions through it. */
 export const hostSeams = { setEngineHost };
 

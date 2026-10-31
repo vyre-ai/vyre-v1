@@ -9,7 +9,9 @@ import { bindBridge, createBridge } from "./handlers/bridge.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
-import { buildOpener, roleBlocks } from "./session.ts";
+import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
+import { remoteLauncher, routed } from "./node-turns.ts";
+import type { NodeRelay } from "./node-turns.ts";
 import { withRecall } from "./recall.ts";
 import { withChatSettings } from "./chat-settings.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
@@ -42,6 +44,8 @@ export interface EngineHostSeam {
   /** The host's invoke pipeline, for tools on API-key chats: each tool call is one capability invoke as the agent acting for the asker. Absent: an API chat answers in words only. */
   invoke?: Invoke;
   space?: string;
+  /** The computers that joined the Space, for a turn pinned to one of them (node-turns.ts). Absent: no turn runs on a server. */
+  nodes?: NodeRelay;
   /** True when the person is on their own computer (a local model on this machine is then reachable). */
   own?: (person: string) => boolean;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
@@ -187,7 +191,7 @@ async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => numbe
 
 let defaultBuilt: DefaultSandbox | null = null;
 /** The default sandbox plan for this platform, built once per runtime. */
-const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}) })).plan;
+export const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}) })).plan;
 /** Stop the default sandbox's wall (daemon shutdown, tests). */
 export async function closeDefaultSandbox(): Promise<void> { const d = defaultBuilt; defaultBuilt = null; await d?.close(); }
 
@@ -200,8 +204,17 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
   const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
-  const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
-  closeOpener = opener ? () => opener.close() : null;
+  const baseOpen = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
+  // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
+  const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
+  const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call };
+  const nodeOpener = (nodeId: string) => {
+    let o = nodeOpeners.get(nodeId);
+    if (!o) { o = buildNodeOpener(openerHost, remoteLauncher(h.nodes as NodeRelay, nodeId)); nodeOpeners.set(nodeId, o); }
+    return o.openSession;
+  };
+  const openSession = host.session && h.nodes && !host.openSession ? routed(baseOpen, { call: h.call, relay: h.nodes, nodeOpener, db: ctx.db }) : baseOpen;
+  closeOpener = opener ? async () => { await opener.close(); await Promise.all([...nodeOpeners.values()].map((o) => o.close())); } : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
     const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.stream ? { stream: h.stream } : {}), addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
