@@ -3,7 +3,7 @@
 // DECISION: local folder mounts default to a server copy (private to the person, shareable); live_only keeps no server copy and is read only while the computer is online (provisional b17).
 // DECISION: GitHub mounts are clones made through the git module with the installation token; mounts.add hands the clone to git and registers the mount.
 // DECISION: mounts.browse is a read although it calls the provider, because it only lists names the person can already open there.
-import { create, defineManifest, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, health, outward, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, runStarted } from './_common.ts';
 
 const kind = t.enm('google_drive', 'sharepoint', 'onedrive', 'dropbox', 'local', 'github');
@@ -19,6 +19,11 @@ const mountRow = t.obj({
   state: t.enm('idle', 'syncing', 'paused', 'failing', 'device_offline'), mode, reviewChanges: t.bool(),
   lagSeconds: t.opt(t.int({ minimum: 0 })), lastSyncAt: t.opt(t.ts()), pendingChanges: t.int({ minimum: 0 }), conflicts: t.int({ minimum: 0 }),
   fromDevice: t.opt(t.str({ examples: ["Irfad's MacBook"] })), error: t.opt(t.str()),
+});
+
+const fileLink = t.obj({
+  mountId: id.mount, kind, type: t.enm('google_doc', 'google_sheet', 'google_slides', 'google_file', 'word', 'excel', 'powerpoint', 'sharepoint_file', 'onedrive_file', 'dropbox_file'),
+  openIn: t.str({ examples: ['Google Docs'] }), webUrl: t.str(), edit: t.arr(t.enm('replace_text', 'insert_text', 'read_cells', 'write_cells', 'append_rows')),
 });
 
 const browseItem = t.obj({ ref: t.str(), name: t.str(), isFolder: t.bool(), path: t.opt(t.str()), shared: t.opt(t.bool()) });
@@ -67,6 +72,30 @@ export default defineManifest({
     write('mounts.local_report', 'A device reports changes in a mounted local folder and uploads their blobs (system)', {
       in: { mountId: id.mount, deviceId: id.device, changes: t.arr(t.obj({ path: t.str(), op: t.enm('add', 'modify', 'delete', 'rename'), blobId: t.opt(id.blob), mtime: t.ts(), from: t.opt(t.str()) })) },
       out: { applied: t.int(), conflicts: t.int() }, level: 'use', idem: 'key', emits: ['file.version_added', 'file.conflict_kept', 'mount.synced'], offline: 'online',
+    }),
+    // ---- mounted files at their provider (live folders L3): where they open, and editing them in place through the provider's own API
+    read('mounts.file_link', 'Where a mounted file opens at its provider (Google Docs, Sheets, Slides, Word, Excel, PowerPoint, Dropbox) and what an agent can do to it in place', {
+      in: { fileId: id.file }, out: { link: t.opt(fileLink), reason: t.opt(t.str()) }, on: ['file', '/fileId'], tool: 'files', deferred: true,
+    }),
+    outward('mounts.doc_replace_text', 'Replace text in a mounted Google Doc, in the Doc itself; the change shows in its Google version history', {
+      in: { fileId: id.file, find: t.str({ minLength: 1 }), replace: t.str(), matchCase: t.opt(t.bool()) }, out: { replaced: t.int({ minimum: 0 }) }, on: ['file', '/fileId'], level: 'edit', gate: 'post', audit: 'always',
+      tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'provider.auth_failed'],
+    }),
+    outward('mounts.doc_insert_text', 'Insert text into a mounted Google Doc after or before some existing text, or at its start or end; refuses if the Doc changed meanwhile', {
+      in: { fileId: id.file, text: t.str({ minLength: 1 }), where: t.opt(t.enm('after', 'before', 'start', 'end')), anchor: t.opt(t.str({ minLength: 1 })), matchCase: t.opt(t.bool()) }, out: { inserted: t.bool() },
+      on: ['file', '/fileId'], level: 'edit', gate: 'post', audit: 'always', tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'validation.not_found', 'validation.version_conflict', 'provider.auth_failed'],
+    }),
+    read('mounts.sheet_read', 'Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file', {
+      in: { fileId: id.file, sheet: t.opt(t.str({ description: 'Worksheet name; needed for Excel' })), range: t.str({ examples: ['A1:D20'] }) }, out: { values: t.arr(t.arr(t.json())) },
+      on: ['file', '/fileId'], tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'provider.auth_failed'],
+    }),
+    outward('mounts.sheet_write', 'Write cells of a mounted Google Sheet or Excel workbook in the provider file itself', {
+      in: { fileId: id.file, sheet: t.opt(t.str()), range: t.str({ examples: ['B2'] }), values: t.arr(t.arr(t.json()), { minItems: 1 }) }, out: { updatedCells: t.int({ minimum: 0 }) },
+      on: ['file', '/fileId'], level: 'edit', gate: 'post', audit: 'always', tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'provider.auth_failed'],
+    }),
+    outward('mounts.sheet_append', 'Add rows under the last used row of a mounted Google Sheet or Excel worksheet', {
+      in: { fileId: id.file, sheet: t.opt(t.str()), values: t.arr(t.arr(t.json()), { minItems: 1 }) }, out: { updatedRows: t.int({ minimum: 0 }) },
+      on: ['file', '/fileId'], level: 'edit', gate: 'post', audit: 'always', tool: 'files', deferred: true, errors: ['validation.unsupported', 'validation.precondition_failed', 'provider.auth_failed'],
     }),
     read('mounts.lag', 'Worst mount lag in seconds and the mounts that are failing', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), worstLagSeconds: t.int({ minimum: 0 }), failing: t.arr(id.mount) },

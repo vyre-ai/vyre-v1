@@ -9,5 +9,6 @@ export {
   calendarSubscribe, calendarUnsubscribe, consentDisable, consentExclude, consentMapMember, consentLink, consentMembers, consentMyAccount, consentSetup, consentSnippet, consentStatus, consentVerify, health,
   mailSubscribe, mailUnsubscribe, receiveNotification, renew, teamsSubscribe,
 } from "./subscriptions.ts";
+export { workbookAppend, workbookRange, workbookUpdate } from "./workbook.ts";
 export { acceptHook, sameState } from "./hook.ts";
 export { directoryImport, directoryList, syncMembers } from "./directory.ts";

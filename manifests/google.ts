@@ -156,6 +156,11 @@ const capabilities = [
   gr('google.docs.get_document', 'Read a Google Doc as structured content', { documentId: t.str() }, { title: t.str(), body: t.rec() }, { tool: 'files', deferred: true }),
   gw('google.docs.create_document', 'Create a Google Doc', { title: t.str(), parentId: t.opt(t.str()) }, { documentId: t.str(), url: t.str() }, { gate: 'post', tool: 'files', deferred: true }),
   gw('google.docs.batch_update', 'Edit a Google Doc with a list of requests', { documentId: t.str(), requests: t.arr(t.rec()) }, { applied: t.int() }, { gate: 'post', tool: 'files', deferred: true }),
+  gw('google.docs.replace_text', 'Replace every occurrence of some text in a Google Doc', { documentId: t.str(), find: t.str({ minLength: 1 }), replace: t.str(), matchCase: t.opt(t.bool()) }, { replaced: t.int({ minimum: 0 }) },
+    { gate: 'post', tool: 'files', deferred: true }),
+  gw('google.docs.insert_text', 'Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile', {
+    documentId: t.str(), text: t.str({ minLength: 1 }), where: t.opt(t.enm('after', 'before', 'start', 'end')), anchor: t.opt(t.str({ minLength: 1, description: 'The text to put it after or before' })), matchCase: t.opt(t.bool()),
+  }, { inserted: t.bool(), index: t.int({ minimum: 1 }) }, { gate: 'post', tool: 'files', deferred: true, errors: ['validation.not_found', 'validation.version_conflict'] }),
   // ---- Meet (conferenceRecords through the Google connector)
   gr('google.meet.list_conference_records', 'List Meet conference records in a time range', { from: t.opt(t.str()), to: t.opt(t.str()), pageToken: t.opt(t.str()) },
     { records: t.arr(t.obj({ name: t.str(), startTime: t.str(), endTime: t.opt(t.str()), space: t.opt(t.str()) })), nextPageToken: t.opt(t.str()) }, { tool: 'inbox', deferred: true }),
