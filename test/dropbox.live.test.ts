@@ -90,7 +90,7 @@ function everything(dir: string): Buffer[] {
   return out;
 }
 
-test("dropbox live: a connected Dropbox leaves nothing in the Vault but the app's own item, the token is sealed on disk, and a pass with nobody signed in still gets an access token", async () => {
+test("dropbox live: a connected Dropbox leaves nothing in the Vault but the app's own item, the token is sealed on disk, and a locked vault does not stop it getting an access token", async () => {
   const dbx = dropbox();
   const { d, dir } = await boot({ http: dbx.http, seams: { fetch: dbx.fetch } });
   try {
@@ -122,13 +122,17 @@ test("dropbox live: a connected Dropbox leaves nothing in the Vault but the app'
     const needle = Buffer.from(REFRESH);
     for (const bytes of everything(dir)) assert.equal(bytes.includes(needle), false, "the plaintext token is in no file");
 
-    // a scheduled pass: the host runs the call itself, no person signed in
-    const listed = (await d.hooks!.call("dropbox.files.list_folder", { connectionId: done.connectionId, path: "", recursive: true })) as { entries: { id: string }[]; cursor: string };
-    assert.deepEqual(listed.entries.map((e) => e.id), ["id:f1"]);
+    // nobody has their vault open any more (the person locks it): a scheduled pass could not open a Mine item now, and the sealed token does not need one
+    const lock = await fetch(`${d.url}/local/vault/key/lock`, { method: "POST", headers: { authorization: `Bearer ${d.token}` } });
+    assert.ok(lock.status === 204 || lock.status === 200, `lock: ${lock.status}`);
+    const listed = await ok(d, "dropbox.files.list_folder", { connectionId: done.connectionId, path: "", recursive: true });
+    assert.deepEqual(listed.entries.map((e: { id: string }) => e.id), ["id:f1"]);
+    const mine = await ok(d, "dropbox.account.list", {});
+    assert.ok(!JSON.stringify(mine).includes(REFRESH), "the account list never carries the token");
     const refresh = dbx.seen.find((s) => s.form?.get("grant_type") === "refresh_token");
     assert.ok(refresh, "an access token was made from the sealed refresh token");
     assert.equal(refresh!.form!.get("refresh_token"), REFRESH);
     const api = dbx.seen.filter((s) => s.url === "api.dropboxapi.com/2/files/list_folder").at(-1)!;
     assert.match(String(api.auth), /^Bearer sl\.access-\d+$/);
-  } finally { await d.close(); }
+  } finally { await d.stop(); }
 });
