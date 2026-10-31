@@ -1,0 +1,1 @@
+- Phone: one tap on an Inbox contact opens it (it needed a double tap); the dialer row drops its keyboard shortcut; the plan card in a chat fits the screen and drops the beside-the-chat hint; a runtime that cannot answer a capability query no longer makes the Inbox loop (the loading snapshot is one object).
