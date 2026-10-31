@@ -78,6 +78,7 @@ const d: Daemon = await startDaemon({
 });
 
 let keys = 0;
+let threadId = "";
 async function call(cap: string, input: Record<string, unknown> = {}): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
   const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ idempotencyKey: `e2e-${cap}-${++keys}`, ...input }) });
   const body = (await r.json()) as { data?: unknown; error?: unknown };
@@ -149,7 +150,7 @@ async function main(): Promise<void> {
     // ---- the button path: an Ask on the Vault item with the opening message and its title; then what the person adds in their own words
     const first = `${syncOpening({ name: "GoHighLevel", handle: item.handle })} My GoHighLevel location id is ${LOCATION}. This is a read-only first look: bring in at most a handful of contacts.`;
     const title = "Sync GoHighLevel to Records";
-    const thread = (await ok("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "vault_item", scopeId: item.id, first, title })).thread.threadId as string;
+    const thread = threadId = (await ok("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "vault_item", scopeId: item.id, first, title })).thread.threadId as string;
     say("person", first);
     await ok("threads.set_mode", { threadId: thread, mode: "auto" });
 
@@ -191,7 +192,7 @@ async function main(): Promise<void> {
         const runs = ((await ok("runs.list", { kind: "connector_sync" })).runs ?? []) as { status: string }[];
         if (runs.length > 0 && runs.every((r) => r.status === "succeeded" || r.status === "failed")) done = true;
       }
-      if (!done && Date.now() - lastNew > 360_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 360 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
+      if (!done && Date.now() - lastNew > 200_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 200 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
       await sleep(1500);
     }
     if (!done) throw new Error("the sync was not applied and pulled before the deadline");
@@ -235,6 +236,8 @@ async function main(): Promise<void> {
   } catch (e) {
     say("ERROR", e instanceof Error ? e.message : String(e));
     try { fs.writeFileSync(path.join(OUT, note("host-log") + ".txt"), hostLines(800)); } catch { /* the log is a help, not the result */ }
+    // the raw thread with every tool answer, for finding why a tool failed; it can hold record values, so it stays in the scratchpad and is not part of the transcript
+    try { if (threadId) fs.writeFileSync(path.join(OUT, note("messages-private") + ".json"), scrub(JSON.stringify((await ok("chat.messages.list", { threadId })).messages, null, 1))); } catch { /* best effort */ }
     save();
     process.exitCode = 1;
   } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
