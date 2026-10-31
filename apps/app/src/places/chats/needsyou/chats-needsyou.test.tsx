@@ -199,7 +199,7 @@ test("a lost mailbox sign-in leaves one task whose action is Sign in again, whic
   const base = item(s, "n4").task;
   const fix: Item = {
     reason: "ready",
-    task: { ...base, id: "mailfix", kind: "unblock", title: "Sign in to maya@gmail.test again", blocked: false, source: { kind: "manual", id: "gua_1" }, actions: [{ key: "fix", label: "Sign in again" }], blocks: [{ type: "mail_signin", v: 1, data: { provider: "google", address: "maya@gmail.test", accountId: "gua_1" } }] },
+    task: { ...base, id: "mailfix", kind: "unblock", title: "Sign in to maya@gmail.test again", blocked: false, source: { kind: "manual", id: "gua_1" }, actions: [{ key: "resolved", label: "Sign in again" }], blocks: [{ type: "mail_signin", v: 1, data: { provider: "google", address: "maya@gmail.test", accountId: "gua_1" } }] },
   };
   s.replica.put("needs", [{ id: "mailfix", ...fix }]);
   const out = html(s, "mailfix");

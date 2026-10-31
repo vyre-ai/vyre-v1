@@ -719,6 +719,15 @@ async function viaMailbox(ctx: SendCtx, box: Row, c: Composed, id: string): Prom
   if (c.text !== undefined) body.text = c.text;
   if (c.html !== undefined) body.html = c.html;
   if (c.files.length) body.attachments = c.files;
+  // a mailbox made by a person's own sign-in sends through that account (google.user.*, ms.user.*), not through the Space's delegation
+  const own = /^(gua|mua)_/.test(str(box, "connectionId"));
+  if (own) {
+    const { connectionId, as: _as, ...rest } = body;
+    const mine = { ...rest, accountId: connectionId };
+    if (str(box, "provider") === "google") return text(obj(await ctx.call("google.user.send_message", mine)).id) ?? null;
+    await ctx.call("ms.user.send_message", mine);
+    return null;
+  }
   if (str(box, "provider") === "google") return text(obj(await ctx.call("google.gmail.send_message", body)).id) ?? null;
   await ctx.call("ms.mail.send_message", body);   // Graph answers sent: true and no id; the Sent folder copy arrives through sync
   return null;

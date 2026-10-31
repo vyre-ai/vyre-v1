@@ -97,7 +97,7 @@ export function harness(opts: HarnessOptions = {}) {
       }
       if (cap === "mail.sync_now") return { runId: "run_mail00001" };
       if (cap === "mail.mailbox.set_sync_state") return { mailbox: { id: body.mailboxId, state: body.state } };
-      if (cap === "spaces.get") return { kind: spaceState.kind };
+      if (cap === "spaces.get") return { space: { kind: spaceState.kind } };
       if (cap === "tasks.create") return { task: { id: `tsk_fix${++taskSeq}` } };
       if (cap === "tasks.transition") return { task: { id: body.taskId, state: body.to } };
       if (cap === "calendar.connect_provider") return { calendarId: "cld_" + String(body.account).replace(/[^a-z0-9]/g, "") .padEnd(8, "0"), created: true };

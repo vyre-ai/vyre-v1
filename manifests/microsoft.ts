@@ -76,6 +76,10 @@ const capabilities = [
   }),
   read('ms.user.list', 'Your own signed-in Microsoft accounts', { in: {}, out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) } }),
   write('ms.user.remove', 'Sign out of your own Microsoft account and remove its token', { in: { accountId: t.str() }, out: { removed: t.bool() }, audit: 'always' }),
+  outward('ms.user.send_message', "Send a message from your own signed-in Outlook (mail.send_as uses it for a mailbox made by ms.user.complete)", {
+    in: { accountId: t.str(), to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), conversationId: t.opt(t.str()), attachments: t.opt(t.arr(id.file)) },
+    out: { sent: t.bool() }, gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed', 'validation.not_found'],
+  }),
   read('ms.consent.members', 'Tenant users mapped to Space members by email, with exclusion and mailbox state', {
     in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
   }),

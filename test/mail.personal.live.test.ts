@@ -36,6 +36,7 @@ test("Team: two members sign in to their own Gmail; each mailbox is private to i
     await connectClaude(w);
     w.fake.open("google", "ana@gmail.test", [{ from: "pat@acme.test", subject: "For Ana", text: "Ana's private note" }, { from: "kim@acme.test", subject: "Also Ana", text: "Second" }]);
     w.fake.open("google", "bo@gmail.test", [{ from: "lee@acme.test", subject: "For Bo", text: "Bo's private note" }]);
+    w.fake.open("google", "olivia@gmail.test", [{ from: "kim@acme.test", subject: "For Olivia", text: "The admin's own note" }]);
 
     // the admin files the app once; members see only that it is set
     assert.equal((await w.owner.ok("google.user.app_status", {})).configured, false);
@@ -48,30 +49,32 @@ test("Team: two members sign in to their own Gmail; each mailbox is private to i
 
     const anaIn = await signInAs(w, ana, "google", "ana@gmail.test");
     const boIn = await signInAs(w, bo, "google", "bo@gmail.test");
+    const adminIn = await signInAs(w, w.owner, "google", "olivia@gmail.test");
     assert.match(anaIn.accountId, /^gua_/);
     assert.ok(anaIn.mailboxId && boIn.mailboxId);
 
     // each mailbox is private to its owner
     assert.deepEqual((await boxes(ana)).map((b) => [b.address, b.privacy, b.provider]), [["ana@gmail.test", "private", "google"]]);
     assert.deepEqual((await boxes(bo)).map((b) => b.address), ["bo@gmail.test"]);
-    assert.deepEqual((await boxes(w.owner)).map((b) => b.address), [], "the admin does not see a member's own mailbox");
+    assert.deepEqual((await boxes(w.owner)).map((b) => b.address), ["olivia@gmail.test"], "the admin sees their own mailbox and no member's");
     await waitCount(ana, anaIn.mailboxId!, 2);
     await waitCount(bo, boIn.mailboxId!, 1);
-    assert.notEqual((await bo.call("mail.message.list", { mailboxId: anaIn.mailboxId })).status, 200, "Bo cannot read Ana's mail");
-    assert.notEqual((await w.owner.call("mail.message.list", { mailboxId: anaIn.mailboxId })).status, 200, "the admin cannot read it either");
+    assert.equal(await count(bo, anaIn.mailboxId!), 0, "Bo reads none of Ana's mail");
+    assert.equal(await count(w.owner, anaIn.mailboxId!), 0, "nor does the admin");
     assert.equal((await bo.call("mail.message.search", { q: "Ana" })).data.messages?.length ?? 0, 0, "search shows Bo nothing of Ana's");
     assert.deepEqual((await ana.ok("google.user.list", {})).accounts.map((a: { email: string }) => a.email), ["ana@gmail.test"]);
     assert.notEqual((await bo.call("google.user.remove", { accountId: anaIn.accountId })).status, 200, "Bo cannot remove Ana's sign-in");
     assert.notEqual((await bo.call("mail.send_as", { mailboxId: anaIn.mailboxId, to: [{ address: "x@y.test" }], subject: "s", text: "t", idempotencyKey: "bo-as-ana" })).status, 200, "Bo cannot send as Ana");
 
-    // an agent acts for whoever asked: Ana's agent in Ana's chat cannot reach Bo's mailbox
-    const agent = (await ana.ok("agents.create", { name: "Ana helper", role: "You help Ana with her mail." })).agent.agentId as string;
-    const reply = await ask(w, ana, agent, `TOOL mail_message_list ${JSON.stringify({ mailboxId: boIn.mailboxId })}`);
-    assert.match(reply, /TOOL RESULT failed/, "Bo's mailbox is closed to Ana's agent");
-    assert.ok(!reply.includes("Bo's private note") && !reply.includes("For Bo"));
+    // an agent acts for whoever asked: the admin's assistant reads no member's mail, and not even the admin's own private mailbox until they allow it
+    const agent = (await w.owner.ok("agents.create", { name: "Olivia helper", role: "You help Olivia with her mail." })).agent.agentId as string;
+    for (const [whose, mailboxId] of [["Ana's", anaIn.mailboxId], ["Bo's", boIn.mailboxId], ["Olivia's own", adminIn.mailboxId]] as const) {
+      const reply = await ask(w, w.owner, agent, `TOOL mail_message_list ${JSON.stringify({ mailboxId })}`);
+      assert.ok(!/For Ana|Ana's private|For Bo|Bo's private|For Olivia|admin's own note/.test(reply), `${whose} mailbox is closed to the assistant: ${reply.slice(0, 200)}`);
+    }
 
     // tokens: sealed, in no Vault item, no file
-    await assertNoSecret(w, [w.fake.refreshOf("ana@gmail.test"), w.fake.refreshOf("bo@gmail.test")], ["Google_Sign_In", "Olivia_Claude"]);
+    await assertNoSecret(w, [w.fake.refreshOf("ana@gmail.test"), w.fake.refreshOf("bo@gmail.test"), w.fake.refreshOf("olivia@gmail.test")], ["Google_Sign_In", "Olivia_Claude"]);
 
     // nobody has the vault open: new mail still arrives on the sealed token, only what changed is fetched
     await lockVault(w);

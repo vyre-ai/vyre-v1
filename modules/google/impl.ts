@@ -32,6 +32,7 @@ export const handlers: Record<string, Handler> = {
   "google.user.complete": (ctx, i) => h.userComplete(ctx, i),
   "google.user.list": (ctx) => h.userList(ctx),
   "google.user.remove": (ctx, i) => h.userRemove(ctx, i),
+  "google.user.send_message": (ctx, i) => h.userSend(ctx, i),
   "google.receive_push": async (ctx, i) => { internalOnly(ctx, "google.receive_push"); return h.receivePush(ctx, i); },
   "google.gmail.get_profile": (ctx, i) => h.getProfile(ctx, i),
   "google.gmail.list_labels": (ctx, i) => h.listLabels(ctx, i),

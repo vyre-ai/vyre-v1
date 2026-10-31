@@ -26,6 +26,7 @@ export const handlers: Record<string, Handler> = {
   "ms.user.complete": (ctx, i) => h.userComplete(ctx, i),
   "ms.user.list": (ctx) => h.userList(ctx),
   "ms.user.remove": (ctx, i) => h.userRemove(ctx, i),
+  "ms.user.send_message": (ctx, i) => h.userSend(ctx, i),
   "ms.consent.set_excluded": (ctx, i) => h.consentExclude(ctx, i),
   "ms.directory.list": (ctx, i) => h.directoryList(ctx, i),
   "ms.directory.import": (ctx, i) => h.directoryImport(ctx, i),

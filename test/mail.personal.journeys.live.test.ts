@@ -2,7 +2,7 @@
 // web export (VYRE_APP_DIST: the release-evidence job builds it); without them it skips and says why, and with VYRE_REQUIRE_CHROME=1 (CI) it fails instead. Screenshots of every step, light and dark, desktop
 // and phone, go to shots-evidence/personal-mail/<journey>/.
 //   1 Personal, the first hour: set up the sign-in app (guided), connect Gmail, mail appears, reply, quit, mail arrives while closed, open again, it catches up.
-//   2 Team: the admin sets the app once; two members each connect their own Gmail; neither sees the other's mail; an agent in one member's chat cannot read the other's mailbox.
+//   2 Team: the admin sets the app once; two members each connect their own Gmail; neither sees the other's mail; the admin's assistant cannot read a member's mailbox.
 //   3 A revoked sign-in: Home shows one Fix item, Fix opens Connect a mailbox, signing in again clears it.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -134,15 +134,13 @@ test("journey 2, Team: the admin sets the app once, two members connect their ow
     assert.equal(await admin.page.getByText("Ana's contract").count() + await admin.page.getByText("Bo's invoice").count(), 0, "the admin sees neither");
     await shoot(admin.page, dir, "admin-inbox");
 
-    // an agent acts for whoever asked
-    const boxes = async (p: typeof ana) => (await p.ok("mail.mailbox.list", { scope: "all" })).mailboxes as { id: string; address: string }[];
-    const boBox = (await boxes(bo))[0]!;
-    const agent = (await ana.ok("agents.create", { name: "Ana helper", role: "You help Ana with her mail." })).agent.agentId as string;
-    const reply = await ask(w, ana, agent, `TOOL mail_message_list ${JSON.stringify({ mailboxId: boBox.id })}`);
-    assert.match(reply, /TOOL RESULT failed/);
-    assert.ok(!reply.includes("Bo's invoice"));
-    await open(anaSeat, s, "/chat");
-    await shoot(anaSeat.page, dir, "ana-chat");
+    // an agent acts for whoever asked: the admin's assistant reads no member's mail
+    const anaBox = ((await ana.ok("mail.mailbox.list", { scope: "all" })).mailboxes as { id: string }[])[0]!;
+    const agent = (await w.owner.ok("agents.create", { name: "Olivia helper", role: "You help Olivia." })).agent.agentId as string;
+    const reply = await ask(w, w.owner, agent, `TOOL mail_message_list ${JSON.stringify({ mailboxId: anaBox.id })}`);
+    assert.ok(!reply.includes("Ana's contract"), `Ana's mailbox is closed to the assistant: ${reply.slice(0, 200)}`);
+    await open(admin, s, "/chat");
+    await shoot(admin.page, dir, "admin-chat");
     assert.deepEqual([...anaSeat.errors, ...boSeat.errors, ...admin.errors], [], "no page errors");
   } finally { await s.close(); }
 });

@@ -14,7 +14,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { pullMailbox } from "../handlers/graph.ts";
 import { receiveNotification } from "../handlers/subscriptions.ts";
-import { userAppSet, userAppStatus, userComplete, userList, userRemove, userStart } from "../handlers/personal.ts";
+import { userAppSet, userAppStatus, userComplete, userList, userRemove, userSend, userStart } from "../handlers/personal.ts";
 import { codeOf, fixture, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -227,6 +227,7 @@ test("a lost sign-in: the first failed poll marks the mailbox, makes one Needs y
   assert.deepEqual(h.calls("mail.mailbox.set_sync_state").map((c) => [c.input["mailboxId"], c.input["state"]]), [[out.mailboxId, "error"]]);
   const made = h.calls("tasks.create");
   assert.equal(made.length, 1);
+  assert.match(String(made[0]!.input["idempotencyKey"]), /-fix:/, "the call carries its idempotency key");
   assert.deepEqual([made[0]!.input["kind"], made[0]!.input["assigned"]], ["unblock", { kind: "person", id: "usr_maya01" }]);
   assert.deepEqual((made[0]!.input["blocks"] as { type: string }[])[0]!.type, "mail_signin");
   assert.equal(h.scheduled.length, 0);
@@ -239,4 +240,17 @@ test("a lost sign-in: the first failed poll marks the mailbox, makes one Needs y
   assert.equal(again.accountId, out.accountId);
   assert.deepEqual(h.calls("tasks.transition").map((c) => [c.input["taskId"], c.input["to"]]), [["tsk_fix1", "done"]]);
   assert.equal(h.calls("mail.mailbox.set_sync_state").at(-1)!.input["state"], "syncing");
+});
+
+test("send: the account's own Outlook sends through /me/sendMail with its token; another person is refused", async () => {
+  const h = harness();
+  await app(h);
+  const out = await signIn(h);
+  h.on("POST", `${ME}/sendMail`, { status: 202 });
+  assert.deepEqual(await userSend(h.ctx, { accountId: out.accountId, to: ["pat@acme.test"], subject: "Hello", text: "Hi Pat", idempotencyKey: "k1" }), { sent: true });
+  const req = h.hits(`${ME}/sendMail`, "POST")[0]!;
+  assert.match(req.headers["authorization"] ?? "", /^Bearer user-access-\d+$/);
+  assert.equal((req.body as { message: { subject: string } }).message.subject, "Hello");
+  h.ctx.principal = { kind: "person", id: "usr_other01" };
+  await expectCode(userSend(h.ctx, { accountId: out.accountId, to: ["pat@acme.test"], subject: "x", text: "y", idempotencyKey: "k2" }), "validation.not_found");
 });

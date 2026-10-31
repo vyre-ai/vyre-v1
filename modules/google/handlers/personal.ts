@@ -9,6 +9,7 @@ import {
   CONFIG_ID, GMAIL, bad, codeOf, ensure, first, needHost, newId, normalizeEmail, rowsOf, str, strOrNull, text, userAccount, userAppHandle,
 } from "../projections.ts";
 import type { GoogleCtx, Row, UserAccount } from "../projections.ts";
+import { sendMessage } from "./gmail.ts";
 
 const AUTHORIZE = "https://accounts.google.com/o/oauth2/v2/auth";
 const REVOKE = "https://oauth2.googleapis.com/revoke";
@@ -148,7 +149,7 @@ export async function userComplete(ctx: GoogleCtx, input: unknown) {
 
 // ---- a lost sign-in
 
-const spaceKind = async (ctx: GoogleCtx): Promise<string> => text(obj(await ctx.call("spaces.get", {}).catch(() => ({})))["kind"]) ?? "team";
+const spaceKind = async (ctx: GoogleCtx): Promise<string> => text(obj(obj(await ctx.call("spaces.get", {}).catch(() => ({})))["space"])["kind"]) ?? "team";
 
 /** The saved sign-in no longer works (revoked, expired, the app's secret changed). The mailbox says so and the owner gets one Needs you task, however many pulls fail. */
 export async function userSigninLost(ctx: GoogleCtx, a: UserAccount): Promise<void> {
@@ -162,7 +163,8 @@ export async function userSigninLost(ctx: GoogleCtx, a: UserAccount): Promise<vo
       kind: "unblock", title: `Sign in to ${a.email} again`, summary: "Google stopped accepting the saved sign-in.", why: "The mailbox does not sync until you sign in again. Mail already here stays.",
       assigned: { kind: "person", id: a.ownerId }, source: { kind: "manual", id: a.accountId },
       blocks: [{ type: "mail_signin", v: 1, data: { provider: "google", address: a.email, accountId: a.accountId } }],
-      actions: [{ key: "fix", label: "Sign in again" }], idempotencyKey: `gua-fix:${a.accountId}:${ctx.now()}`,
+      actions: [{ key: "resolved", label: "Sign in again" }],   // unblock tasks take resolved or cannot (modules/tasks/handlers/state.ts)
+      idempotencyKey: `gua-fix:${a.accountId}:${ctx.now()}`,
     }));
     const taskId = text(obj(made["task"])["id"]);
     if (taskId) ctx.db.run(`UPDATE google_user_account SET "fixTaskId" = ? WHERE "accountId" = ?`, taskId, a.accountId);
@@ -199,3 +201,10 @@ export async function userRemove(ctx: GoogleCtx, input: unknown) {
   return { removed: true };
 }
 
+
+/** Send from the signed-in account: the account answers for the address and the token, and only its owner (or the host) may use it. */
+export async function userSend(ctx: GoogleCtx, input: Record<string, unknown> & { accountId: string }) {
+  const a = userAccount(ctx, input.accountId);
+  const { accountId: _account, ...rest } = input;
+  return sendMessage(ctx, { ...(rest as Parameters<typeof sendMessage>[1]), connectionId: a.accountId, as: a.email });
+}

@@ -106,6 +106,10 @@ const capabilities = [
   }),
   read('google.user.list', 'Your own signed-in Google accounts', { in: {}, out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) } }),
   write('google.user.remove', 'Sign out of your own Google account: revoke it at Google and remove its token', { in: { accountId: t.str() }, out: { removed: t.bool() }, audit: 'always' }),
+  outward('google.user.send_message', "Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)", {
+    in: { accountId: t.str(), to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()), attachments: t.opt(t.arr(id.file)) },
+    out: { id: t.str(), threadId: t.str() }, gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed', 'validation.not_found'],
+  }),
   write('google.receive_push', 'Record a verified Google push (Gmail Pub/Sub, Calendar channel, Drive changes, Meet events) after dedupe', {
     in: {
       kind: t.enm('gmail', 'calendar', 'drive', 'meet'), messageId: t.str(), mailbox: t.opt(email), historyId: t.opt(t.str()), channelId: t.opt(t.str()),
