@@ -1,3 +1,4 @@
+import { askAgentOf } from "./ask-agent.ts";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
@@ -27,9 +28,9 @@ export function CampaignEmail({ step, onChange, title = "Campaign email", intro 
   const [proposals, setProposals] = useState<Array<{ path: string; before: unknown; after: unknown }>>([]);
   // Ask Vyre: the person's own agents, the one picked, and the Ask in flight (cancelled on the server too, so the agent stops working)
   const agentList = useRead<CapMap["agents.list"]["out"]>("agents.list", {}, "campaigns");
-  const agents: AskAgent[] = (agentList.data?.agents ?? []).map((a, index) => ({ id: a.agentId, name: a.name, ...(a.role ? { role: a.role } : {}), ...(index === 0 ? { assistant: true } : {}) }));
+  const agents: AskAgent[] = (agentList.data?.agents ?? []).map((a) => ({ id: a.agentId, name: a.name, ...(a.role ? { role: a.role } : {}), ...(a.role === "assistant" ? { assistant: true } : {}) }));
   const [agentId, setAgentId] = useState<string | null>(null);
-  const chosen = agents.find((a) => a.id === agentId) ?? agents[0] ?? null;
+  const chosen = askAgentOf(agents, agentId);
   const [asking, setAsking] = useState<{ agent: string; emailId: string } | null>(null), [askError, setAskError] = useState("");
   const round = useRef(0), cancelled = useRef(false);
   const ask = async (instruction: string): Promise<void> => {

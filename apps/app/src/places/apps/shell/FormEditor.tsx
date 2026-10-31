@@ -1,3 +1,4 @@
+import { askAgentOf } from "./ask-agent.ts";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
@@ -33,7 +34,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
   const [css, setCss] = useState(""), [html, setHtml] = useState(""), [js, setJs] = useState("");
   // Ask Vyre on the source, inline: the person's agents, the Ask in flight (stopped on the server too), and the proposed changes accepted or rejected one by one
   const agentList = useRead<CapMap["agents.list"]["out"]>("agents.list", {});
-  const agents = (agentList.data?.agents ?? []).map((a) => ({ id: a.agentId, name: a.name }));
+  const agents = (agentList.data?.agents ?? []).map((a) => ({ id: a.agentId, name: a.name, ...(a.role ? { role: a.role } : {}) }));
   const [agentId, setAgentId] = useState(""), [instruction, setInstruction] = useState("");
   const [asking, setAsking] = useState<string | null>(null), [askError, setAskError] = useState("");
   const [proposals, setProposals] = useState<SourceChange[]>([]), [decided, setDecided] = useState<Record<string, "accepted" | "rejected">>({});
@@ -67,7 +68,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
     await mutate(d, "forms.design_set", { formId: route.id, thankYou: { text: thankYou }, css, html, js, theme, logic }, key);
     setDirty(false); setNotice("Saved the form."); form.refresh();
   };
-  const chosenAgent = agents.find((a) => a.id === agentId) ?? agents[0];
+  const chosenAgent = askAgentOf(agents, agentId) ?? undefined;
   const askAgent = async (): Promise<void> => {
     if (!route.id || !chosenAgent) return;
     askCancelled.current = false; setAskError(""); setProposals([]); setDecided({}); setAsking(chosenAgent.name);
