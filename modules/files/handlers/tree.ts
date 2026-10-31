@@ -848,6 +848,24 @@ async function filesGet(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   return { file: fileOutC(ctx, mustFile(ctx, reqStr(ctx, o, "fileId"))) };
 }
 
+const EXTRACT_EXT = new Set(["pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp", "doc", "xls", "ppt", "rtf"]);
+
+/** Files whose text is not their bytes: a PDF, or a Word, Excel, PowerPoint or OpenDocument file. */
+function extractable(name: string, mime: string): boolean {
+  return EXTRACT_EXT.has(extOf(name)) || mime === "application/pdf" || mime.includes("officedocument") || mime.includes("opendocument") || mime === "application/msword" || mime === "application/vnd.ms-excel" || mime === "application/vnd.ms-powerpoint";
+}
+
+async function extractedText(ctx: Ctx, fileId: string, versionId: string | undefined): Promise<{ text: string; truncated: boolean }> {
+  try {
+    const out = (await ctx.call("previews.text", { fileId, ...(versionId ? { versionId } : {}) })) as { text?: string; truncated?: boolean; source?: string };
+    return { text: typeof out.text === "string" ? out.text : "", truncated: out.truncated === true };
+  } catch (e) {
+    // the text could not be taken out (a converter is down, a damaged file): say so, rather than hand back the bytes of a zip file as if they were words
+    const code = (e as { error?: { code?: string } } | null)?.error?.code;
+    fail(ctx, "validation.unsupported", code === "provider.unavailable" || code === "internal.unavailable" ? "The text of this file cannot be read right now." : "The text of this file cannot be read.");
+  }
+}
+
 async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; base64?: string; url?: string; mime: string; size: number; version: number; truncated: boolean }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
@@ -874,6 +892,12 @@ async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; bas
   const length = optInt(ctx, o, "length");
   if (offset < 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "offset" });
   if (length !== undefined && length < 1) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "length" });
+  // As text, a PDF or an Office file is read through its extracted text (previews.text), the way an agent or a person reads it, not as the bytes of a zip file. Offset and length then count characters.
+  if (as === "text" && !textLike(mime) && extractable(String(file.name), mime)) {
+    const out = await extractedText(ctx, String(file.id), versionId);
+    const text = out.text.slice(Math.min(offset, out.text.length), length === undefined ? undefined : offset + length);
+    return { text, mime, size, version: n, truncated: out.truncated || offset > 0 || (length !== undefined && offset + length < out.text.length) };
+  }
   const plain = openBlob(ctx, blobId);
   const end = length === undefined ? plain.byteLength : Math.min(plain.byteLength, offset + length);
   const slice = plain.subarray(Math.min(offset, plain.byteLength), end);

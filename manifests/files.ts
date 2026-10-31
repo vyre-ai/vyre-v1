@@ -183,10 +183,10 @@ export default defineManifest({
       in: { path: t.str() }, out: { kind: t.enm('file', 'folder'), fileId: t.opt(id.file), folderId: t.opt(id.folder) }, tool: 'files', label: 'check',
     }),
     read('files.get', 'Read the metadata of one file', { in: { fileId: id.file }, out: { file: fileRow }, on: ['file', '/fileId'], tool: 'files', label: 'check' }),
-    read('files.read', 'Read the content of a file or one of its versions as text, base64 or a short-lived download address', {
+    read('files.read', 'Read the content of a file or one of its versions as text, base64 or a short-lived download address; as text, a PDF, Word, Excel or PowerPoint file comes back as its extracted text', {
       in: { fileId: id.file, versionId: t.opt(id.version), as: t.opt(t.enm('text', 'base64', 'url')), offset: t.opt(t.int({ minimum: 0 })), length: t.opt(t.int({ minimum: 1 })) },
       out: { text: t.opt(t.str()), base64: t.opt(t.str()), url: t.opt(t.str()), mime: t.str(), size: t.int(), version: t.int(), truncated: t.bool() },
-      on: ['file', '/fileId'], tool: 'files', label: 'check', cli: 'vyre files cat', errors: ['validation.too_large'],
+      on: ['file', '/fileId'], tool: 'files', label: 'check', cli: 'vyre files cat', errors: ['validation.too_large', 'validation.unsupported'],
     }),
     read('files.viewer_data', 'Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do', {
       in: { fileId: id.file, versionId: t.opt(id.version) },
