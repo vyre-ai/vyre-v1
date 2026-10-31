@@ -68,6 +68,7 @@ async function assistantAnswers(kind: "personal" | "team"): Promise<void> {
     const started = await call(d, token, "chat.start", { kind: "chat", agentIds: [assistant.agentId], title: "Hello", idempotencyKey: "as-chat" });
     assert.equal(started.status, 200, JSON.stringify(started.data));
     const threadId = started.data.thread.threadId as string;
+    assert.equal((await call(d, token, "engine.pool.status", {})).status, 200);   // the first engine call builds and binds the runtime, so the bridge has an engine for the message
     const posted = await call(d, token, "chat.post", { threadId, body: "hello", mentions: [{ kind: "agent", id: assistant.agentId }], idempotencyKey: "as-post" });
     assert.equal(posted.status, 200, JSON.stringify(posted.data));
     const reply = await waitFor(async () => {
