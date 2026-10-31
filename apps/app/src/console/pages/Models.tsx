@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Help,  Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice, Tick } from "./ai-controls.tsx";
 import { policyMatches, policyMode, policySelection } from "./ai-data-values.ts";
 
@@ -73,7 +73,7 @@ function ModelsEditor({ policy, providers, models, refresh }: { policy: Policy; 
     </Group></Section>
     {error ? <Note>{error}</Note> : null}
     {preview ? <Section title="Review policy change"><Group>
-      <Note>These rules apply to subsequent AI turns throughout this Space.</Note>
+      <Help>These rules apply to subsequent AI turns throughout this Space.</Help>
       <Row title="Accounts" note={preview.allowedAccounts === "company" ? "Company accounts only" : "Company and personal accounts"} />
       <Row title="Providers" note={preview.allowedProviders?.length ? preview.allowedProviders.join(", ") : "All providers"} />
       <Row title="Models" note={preview.allowedModels?.length ? preview.allowedModels.join(", ") : "All models"} />

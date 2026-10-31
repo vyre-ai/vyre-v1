@@ -2,6 +2,7 @@
 // every colour is a skin token, so a skin switch repaints with no re-render.
 import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
+import { Tip } from "../../../../../../ui/src/Tip/index.tsx";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { AppIcon, brandForName } from "../../../../../../ui/src/AppIcon/index.tsx";
 
@@ -58,10 +59,10 @@ export function LogoTile({ name, size = 32 }: { name: string; size?: number }): 
 }
 
 /** A small round-cornered button: quiet by default, accent when `primary`. */
-export function Btn({ label, onPress, icon, primary = false, danger = false, disabled = false, testID }: { label: string; onPress: () => void; icon?: IconName | undefined; primary?: boolean; danger?: boolean; disabled?: boolean; testID?: string | undefined }): ReactElement {
+export function Btn({ label, onPress, icon, primary = false, danger = false, disabled = false, why, testID }: { label: string; onPress: () => void; icon?: IconName | undefined; primary?: boolean; danger?: boolean; disabled?: boolean; why?: string | undefined; testID?: string | undefined }): ReactElement {
   const [over, setOver] = useState(false);
   const color = danger ? "var(--danger)" : primary ? "var(--accent-ink)" : "var(--ink)";
-  return (
+  const button = (
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} testID={testID}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
@@ -71,6 +72,7 @@ export function Btn({ label, onPress, icon, primary = false, danger = false, dis
       <Text style={[s.btnText, { color: color as string }]}>{label}</Text>
     </Pressable>
   );
+  return disabled && why ? <Tip help={why}>{button}</Tip> : button;
 }
 
 /** An icon-only button with a label for screen readers and a hover wash. */

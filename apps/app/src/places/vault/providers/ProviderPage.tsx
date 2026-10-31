@@ -10,7 +10,8 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useScreenQuery, usePrincipals, useVaultData } from "../layout/data.tsx";
 import { agoLabel } from "../layout/model.ts";
 import type { Provider } from "../layout/model.ts";
-import { Btn, LogoTile, Mono } from "../layout/parts.tsx";
+import { Btn, Glyph, LogoTile, Mono } from "../layout/parts.tsx";
+import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { countWords, tokenWords, userKind } from "./model.ts";
 
@@ -55,7 +56,7 @@ export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPag
             <View style={s.meta}><View style={s.chip}><Mono size={12}>{handle}</Mono></View><Text style={s.dim}>Sign-in</Text></View>
           </View>
         </View>
-        <Text style={s.dim} testID="provider-private">Only you can use it</Text>
+        <View style={s.private} testID="provider-private"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={s.dim}>Mine</Text><Info help="Only you can use it" /></View>
 
         <View style={s.box} testID="provider-signin">
           <View style={s.boxRow}>
@@ -101,6 +102,7 @@ const s = StyleSheet.create({
   dim: { fontSize: 13, color: "var(--ink-3)" as string },
   strong: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   box: { marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, padding: 14, gap: 8 },
+  private: { flexDirection: "row", alignItems: "center", gap: 6 },
   state: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 99 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },

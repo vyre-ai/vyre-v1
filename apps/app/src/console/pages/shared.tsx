@@ -2,10 +2,14 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState, useSy
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
+import { Tip, Info } from "../../../../../ui/src/Tip/index.tsx";
+import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
+import type { CapMap } from "../../../../../generated/types.ts";
 import { pendingAction, safeDownload } from "./infra-model.ts";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import { useConsoleData } from "../shell/data.tsx";
+import { useInGroup } from "../shell/ui.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 
 export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean; enabled?: boolean } = {}) {
@@ -54,17 +58,55 @@ export function useAction(refresh: () => void) {
 export function Field({ label, value, onChange, testID, secure = false, multiline = false }: { label: string; value: string; onChange: (value: string) => void; testID?: string; secure?: boolean; multiline?: boolean }): ReactElement {
   return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput multiline={multiline} value={value} onChangeText={onChange} accessibilityLabel={label} testID={testID} secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} style={s.input} /></View>;
 }
-/** `why`: a disabled button says why in one quiet line beside it, so nobody meets a dead button without a reason. */
+/** `why`: a disabled button says why as its tooltip, so nobody meets a dead button without a reason and no sentence sits beside it. */
 export function Button({ label, onPress, disabled = false, testID, danger = false, why }: { label: string; onPress: () => void; disabled?: boolean; testID?: string; danger?: boolean; why?: string }): ReactElement {
-  const button = <Pressable accessibilityRole="button" accessibilityState={{ disabled }} onPress={onPress} disabled={disabled} testID={testID} style={[s.button, { alignSelf: "flex-start" }, disabled && { opacity: 0.5 }]}><Text style={[s.buttonText, danger && { color: "var(--danger)" as string }]}>{label}</Text></Pressable>;
-  if (!disabled || !why) return button;
-  return <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>{button}<Text testID={testID ? `${testID}-why` : undefined} style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{why}</Text></View>;
+  const button = <Pressable accessibilityRole="button" accessibilityState={{ disabled }} {...(disabled && why ? { accessibilityHint: why } : {})} onPress={onPress} disabled={disabled} testID={testID} style={[s.button, { alignSelf: "flex-start" }, disabled && { opacity: 0.5 }]}><Text style={[s.buttonText, danger && { color: "var(--danger)" as string }]}>{label}</Text></Pressable>;
+  return disabled && why ? <Tip help={why}>{button}</Tip> : button;
+}
+/** A help sentence as a quiet info mark with the sentence in its tooltip. */
+export function Help({ children }: { children: string }): ReactElement {
+  const inGroup = useInGroup();
+  return inGroup ? <View style={{ position: "absolute", top: 6, right: 8, zIndex: 1 }}><Info help={children} /></View> : <Info help={children} />;
 }
 export function Actions({ children }: { children: ReactNode }): ReactElement { return <View style={s.actions}>{children}</View>; }
 export function Note({ children }: { children: ReactNode }): ReactElement { return <Text accessibilityRole="status" style={s.note}>{children}</Text>; }
 export function ReadState({ error, retry }: { error?: string | undefined; retry: () => void }): ReactElement { return error ? <States kind="error" message={error} retryable onRetry={retry} /> : <Text accessibilityRole="progressbar">Loading…</Text>; }
 export function Select({label,value,options,onChange,disabled=false}:{label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean}):ReactElement{
  const menu=useMenu();return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{menu.element}</View>;
+}
+/** A row of views on one page ("Server logs", "Services", "Storage"): the open one is filled, the others are quiet. */
+export function Segmented({ options, value, onChange }: { options: readonly { key: string; title: string }[]; value: string; onChange: (key: string) => void }): ReactElement {
+  return (
+    <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: 4, marginBottom: 12 }}>
+      {/* ui-rows-lint: not a list (the views of one page, drawn as tabs) */}
+      {options.map((o) => (
+        <Pressable key={o.key} accessibilityRole="tab" accessibilityState={{ selected: o.key === value }} testID={`seg-${o.key}`} onPress={() => onChange(o.key)} style={{ height: 30, paddingHorizontal: 12, borderRadius: 7, justifyContent: "center", backgroundColor: (o.key === value ? "var(--sel)" : "transparent") as string }}>
+          <Text style={{ fontSize: 13, fontWeight: o.key === value ? "600" : "400", color: (o.key === value ? "var(--ink)" : "var(--ink-3)") as string }}>{o.title}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+/** The button in a section header that opens a create sheet ("New agent"). Create forms are never open on the page. */
+export function NewButton({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }): ReactElement {
+  return <Button label={label} onPress={onPress} {...(testID ? { testID } : {})} />;
+}
+/** A create sheet on the shared Dialog: the fields, one quiet line saying what is missing, Cancel and the one primary action. */
+export function FormSheet({ title, onClose, onSubmit, submit = "Create", disabled = false, why, note, children, testID }: { title: string; onClose: () => void; onSubmit: () => void; submit?: string; disabled?: boolean; why?: string | undefined; note?: string; children: ReactNode; testID?: string }): ReactElement {
+  return (
+    <Dialog title={title} onClose={onClose} width={480} {...(testID ? { testID } : {})} actions={[{ label: "Cancel", onPress: onClose, testID: "sheet-cancel" }, { label: submit, primary: true, disabled, ...(why ? { why } : {}), onPress: onSubmit, testID: "sheet-submit" }]}>
+      {children}
+      {note ? <Info help={note} testID="sheet-help" /> : null}
+    </Dialog>
+  );
+}
+/** The model list as a picker: every model the Space can run, by its title, and Default when none is chosen. A model that is set but no longer listed still shows. */
+export function ModelSelect({ label, value, onChange, none = "Default" }: { label: string; value: string; onChange: (value: string) => void; none?: string }): ReactElement {
+  const list = useRead<CapMap["engine.models.list"]["out"]>("engine.models.list");
+  const models = list.data?.models ?? [];
+  const options = [{ key: "", title: none }, ...models.filter((m) => m.allowed || m.model === value).map((m) => ({ key: m.model, title: `${m.title} · ${m.provider}` }))];
+  if (value && !options.some((o) => o.key === value)) options.push({ key: value, title: value });
+  return <Select label={label} value={value} options={options} onChange={onChange} />;
 }
 export function useFileDownload(){
  const {call}=useConsoleData();const urls=useRef<string[]>([]);const [url,setUrl]=useState(''),[name,setName]=useState('');

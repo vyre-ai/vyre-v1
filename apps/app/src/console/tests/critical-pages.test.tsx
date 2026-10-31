@@ -34,7 +34,7 @@ test("the Backups page mounts configuration and real backup verification/restore
 test("Devices and access pages mount real object-specific controls instead of generic placeholders", () => {
   assert.match(draw(<Devices />, { "devices.list": { devices: [{ id: "dev_fixture", person: "usr_fixture", name: "Test laptop", class: "desktop", epoch: 1 }] } }), /Test laptop|Revoke/);
   const roles = { roles: [{ id: "rol_fixture", name: "Member", builtIn: true, permissions: [], holders: 1 }] };
-  assert.match(draw(<People />, { "access.principals.list": { principals: [] }, "access.roles.list": roles, "access.groups.list": { groups: [] } }), /Create invite|console-invite-create/);
+  assert.match(draw(<People />, { "access.principals.list": { principals: [] }, "access.roles.list": roles, "access.groups.list": { groups: [] } }), /Invite a person|console-invite-open/);
   assert.match(draw(<Roles />, { "access.roles.list": roles }), /console-role-rol_fixture/);
   assert.match(draw(<Grants />, { "access.grants.list": { grants: [] } }), /grant-add|Give access/);
   assert.match(draw(<Checker />, {}), /checker-run|Check access/);

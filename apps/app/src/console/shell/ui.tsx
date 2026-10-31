@@ -1,8 +1,10 @@
 // The pieces every Console page is made of: a section head and a grouped card. Colours are skin tokens, so a skin switch repaints with no re-render.
+import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
-import { Glyph } from "./glyphs.tsx";
+import { Dot, Glyph } from "./glyphs.tsx";
+import type { Tone } from "./glyphs.tsx";
 
 export const web = Platform.OS === "web";
 export const pointer = (web ? { cursor: "pointer" } : {}) as ViewStyle;
@@ -22,9 +24,12 @@ export function Section({ title, count, right, children, testID }: { title: stri
 }
 
 /** The grouped card rows sit in. */
+/** Whether a Help is inside a Group: it then sits in the card's corner instead of on a line of its own. */
+export const InGroup = createContext(false);
 export function Group({ children, testID }: { children: ReactNode; testID?: string }): ReactElement {
-  return <View style={s.group} testID={testID}>{children}</View>;
+  return <View style={s.group} testID={testID}><InGroup.Provider value>{children}</InGroup.Provider></View>;
 }
+export const useInGroup = (): boolean => useContext(InGroup);
 
 export function LinkButton({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }): ReactElement {
   return (
@@ -50,7 +55,16 @@ export function Lead({ children }: { children: ReactNode }): ReactElement {
   return <View style={s.lead}>{children}</View>;
 }
 
+const STATUS_TONE: Readonly<Record<string, Tone>> = { active: "ok", awake: "ok", working: "ok", healthy: "ok", pending: "warn", paused: "warn", degraded: "warn", suspended: "warn", failed: "bad", down: "bad", revoked: "off", asleep: "off", disabled: "off", archived: "off" };
+/** A state as a dot and a capitalised word, never "active ·" in a note. */
+export function StatusLabel({ status }: { status: string }): ReactElement {
+  const word = status ? `${status[0]!.toUpperCase()}${status.slice(1)}` : "";
+  return <View style={s.status} testID={`status-${status}`}><Dot tone={STATUS_TONE[status] ?? "off"} size={7} /><Text style={s.statusText}>{word}</Text></View>;
+}
+
 const s = StyleSheet.create({
+  status: { flexDirection: "row", alignItems: "center", gap: 6 },
+  statusText: { fontSize: 12, color: "var(--ink-3)" as string },
   section: { marginBottom: 22 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, height: 28, marginBottom: 6, paddingHorizontal: 2 },
   title: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-3)" as string },

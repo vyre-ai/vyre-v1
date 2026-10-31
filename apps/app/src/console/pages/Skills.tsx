@@ -5,8 +5,8 @@ import type { ReactElement } from "react";
 import { Text, TextInput, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
-import { Group, Section } from "../shell/ui.tsx";
-import { Actions, Button, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { Empty, Group, Section } from "../shell/ui.tsx";
+import { Help,  Actions, Button, FormSheet, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 import { Tick } from "./ai-controls.tsx";
 
 type Skills = CapMap["skills.list"]["out"];
@@ -45,6 +45,7 @@ export function SkillsPage(): ReactElement {
   const list = useRead<Skills>("skills.list", { includeOff: true });
   const [text, setText] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const action = useAction(list.refresh);
   if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
   const mine = list.data.skills.filter((s) => s.tier !== "builtin");
@@ -57,24 +58,19 @@ export function SkillsPage(): ReactElement {
       trailing={removable ? <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{s.enabled ? "On" : "Off"}</Text><Tick label={`${s.name} is on`} checked={s.enabled} disabled={action.busy} onChange={(on) => void action.run("skills.set_enabled", { name: s.name, ...(s.agentId ? { agentId: s.agentId } : {}), enabled: on, idempotencyKey: attempt() }, on ? "Skill on" : "Skill off")} /></View> : <Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Always on</Text>} />;
   };
   return <View testID="console-skills">
-    <Note>Short instructions an agent loads when they fit the work.</Note>
-    <Section title="Your skills" count={mine.length}><Group>
-      {mine.length === 0 ? <Row id="skills-none" title="No skills of your own yet" note="Add one below, or install a plugin or a Kit that brings some." /> : mine.map(row)}
+    <Section title="Your skills" count={mine.length} right={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Help>Short instructions an agent loads when they fit the work.</Help><Button label="Add a skill" testID="skill-new" onPress={() => setAdding(true)} /></View>}><Group>
+      {mine.length === 0 ? <Empty testID="skills-none" icon="assistant" action={{ label: "Add a skill", onPress: () => setAdding(true) }}>No skills yet</Empty> : mine.map(row)}
     </Group></Section>
     {open && mine.some((s) => `${s.tier}:${s.agentId ?? ""}:${s.name}` === open) ? (() => {
       const s = mine.find((x) => `${x.tier}:${x.agentId ?? ""}:${x.name}` === open)!;
       return <Section title={s.name}><Group><Note>{s.description}</Note><Actions><Button label="Remove skill" danger testID="skill-remove" disabled={action.busy} onPress={() => void action.run("skills.remove", { name: s.name, ...(s.agentId ? { agentId: s.agentId } : {}), idempotencyKey: attempt() }, "Skill removed").then(() => setOpen(null))} /></Actions></Group></Section>;
     })() : null}
-    <Section title="Add a skill"><Group>
-      <Note>Paste a SKILL.md or choose the file.</Note>
+    {adding ? <FormSheet title="Add a skill" testID="skill-sheet" onClose={() => setAdding(false)} submit="Add skill" disabled={action.busy || text.trim() === ""} why={text.trim() === "" ? "Add the skill text" : undefined} onSubmit={() => { add(); setAdding(false); }}>
+      <Help>Paste a SKILL.md or choose the file.</Help>
       <SkillBox value={text} onChange={setText} />
-      <Actions>
-        <Button label="Use the template" onPress={() => setText(TEMPLATE)} />
-        <PickFile label="Upload a SKILL.md" onText={(t) => setText(t)} />
-        <Button label="Add skill" testID="skill-add" disabled={action.busy || text.trim() === ""} why={text.trim()===""?"Add the skill text":undefined} onPress={add} />
-      </Actions>
-    </Group></Section>
-    <Section title="Built in to Vyre" count={shipped.length}><Group>{shipped.map(row)}</Group></Section>
+      <Actions><Button label="Use the template" onPress={() => setText(TEMPLATE)} /><PickFile label="Upload a SKILL.md" onText={(t) => setText(t)} /></Actions>
+    </FormSheet> : null}
+    <Section title="Built in to Vyre" count={shipped.length}><Group>{shipped.length ? shipped.map(row) : <Empty icon="assistant">Nothing built in</Empty>}</Group></Section>
     {action.note ? <Text accessibilityRole="status" style={{ fontSize: 12, color: "var(--ink-3)" as string, marginTop: 8 }}>{action.note}</Text> : null}
   </View>;
 }
