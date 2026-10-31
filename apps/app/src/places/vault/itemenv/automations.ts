@@ -21,6 +21,9 @@ export function connectorOpening(item: { name: string; handle: string }): string
   return `Add ${appNameOf(item.name)} to Automations. Vault handle ${item.handle}. Load the connector-builder skill. Never ask for the key.`;
 }
 
+/** The first message of a session that builds a connector for an app that is not picked yet (the picker's Build a connector row). */
+export const BUILD_CONNECTOR_OPENING = "Build a connector for Automations. Ask me which app. Look for its key in the Vault first. Load the connector-builder skill. Never ask me to paste a key in chat.";
+
 export interface AiAccount { state: string }
 export type Gate =
   | { state: "ready" }

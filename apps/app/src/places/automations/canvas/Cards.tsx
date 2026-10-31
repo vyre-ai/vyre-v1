@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { Glyph } from "./icons.tsx";
+import { StepLogo } from "./StepLogo.tsx";
 import { cardLabel, moreLabel, runStateText, triggerLabel } from "../a11y.ts";
 import { NOT_SET_UP } from "./form-model.ts";
 import { CARD_H, CARD_W, TRIG_HEAD, TRIG_ROW, messages, triggerMeta } from "./model.ts";
@@ -71,7 +72,7 @@ export function StepCard({ card, selected, hovered, focused = false, handlers, a
         dim && ring === null && card.state ? { opacity: 0.55 } : null,
       ]}
     >
-      <View style={c.tile}><Glyph name={card.icon ?? "record"} size={16} color="var(--ink-2)" /></View>
+      <StepLogo stepKey={card.node?.key ?? ""} {...(card.node ? { input: card.node.input } : {})} icon={card.icon ?? "record"} name={card.title} />
       <View style={c.text}>
         <Text numberOfLines={1} style={c.title}>{card.title}</Text>
         <Text numberOfLines={1} testID={`card-sub-${card.id}`} style={[c.sub, card.sub === NOT_SET_UP && c.subWarn]}>{card.sub}</Text>

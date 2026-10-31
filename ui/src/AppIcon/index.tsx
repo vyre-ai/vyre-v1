@@ -7,13 +7,15 @@ import type { ReactElement } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { BRANDS } from "./brands.ts";
-import { markKey } from "./domains.ts";
+import { markKey, toolKey } from "./domains.ts";
 import type { AppIconProps } from "./props.ts";
+import { TOOL_FILES } from "./toolfiles.ts";
 
 export type { AppIconProps } from "./props.ts";
 export { BRANDS } from "./brands.ts";
 export type { BrandMark } from "./brands.ts";
-export { brandForDomain, brandForName, brandForUrl, markKey } from "./domains.ts";
+export { brandForDomain, brandForName, brandForUrl, markKey, toolKey } from "./domains.ts";
+export { TOOL_FILES } from "./toolfiles.ts";
 
 export const APP_ICON_DEFAULT_SIZE = 28;
 
@@ -64,6 +66,17 @@ export const AppIcon = memo(function AppIcon({ brand, size = APP_ICON_DEFAULT_SI
   }
   const key = markKey(brand);
   const mark = key ? BRANDS[key] : undefined;
+  const file = !mark ? toolKey(brand) : null;
+  if (file !== null) {
+    // the brand's own icon file, on white as an app icon sits
+    const ext = TOOL_FILES[file];
+    const s = Math.round(size * (ext === "png" ? 0.86 : 0.62));
+    return (
+      <View testID={id} accessible={false} accessibilityLabel={label} style={[tileStyle(size), { backgroundColor: "#fff" }]} {...webProps({ dataSet: { appicon: file } })}>
+        {web ? createElement("img", { src: `/tools/${file}.${ext}`, alt: "", width: s, height: s, draggable: false, style: { display: "block", objectFit: "contain" } }) : <Text style={[styles.letter, { fontSize: Math.round(size * 0.46), color: "#333" }]}>{letterOf(brand, name)}</Text>}
+      </View>
+    );
+  }
   if (!mark) {
     return (
       <View testID={id} accessible={false} accessibilityLabel={label} style={tileStyle(size)} {...webProps({ dataSet: { appicon: "letter" } })}>

@@ -26,6 +26,8 @@ export interface AutomationsNav {
   /** The provider and key screen. */
   openKeys?(): void;
   /** Start the connector session for a Vault item the person accepted an offer for. Without it an offer has no Set up button. */
+  /** The step picker's last row: starts a session that builds a connector for an app. Without it the row is not drawn. */
+  buildConnector?(): void;
   setUpConnector?(offer: { itemId: string; appName: string }): Promise<void> | void;
 }
 

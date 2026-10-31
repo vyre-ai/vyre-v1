@@ -10,7 +10,7 @@ function itemIdOf(input: In): string {
 }
 
 export function connectorOffers(ctx: AutoCtx): { offers: { itemId: string; appName: string; text: string }[] } {
-  return { offers: listOpenOffers(ctx.db as OfferDb) };
+  return { offers: listOpenOffers(ctx.db as OfferDb, ctx.actingFor ?? ctx.principal.id) };
 }
 
 export function declineConnectorOffer(ctx: AutoCtx, input: In): { decision: "declined" | "absent" } {

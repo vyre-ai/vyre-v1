@@ -8,7 +8,7 @@ import { useMissing } from "../hash/useMissing.ts";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { scrubAskContext } from "../../places/automations/ask/bundle.ts";
-import { connectorOpening } from "../../places/vault/itemenv/automations.ts";
+import { BUILD_CONNECTOR_OPENING, connectorOpening } from "../../places/vault/itemenv/automations.ts";
 import { openAsk } from "./ask.ts";
 import { AutomationsDataProvider } from "../../places/automations/canvas/data.tsx";
 import type { AutomationsData, KeysStatus } from "../../places/automations/canvas/data.tsx";
@@ -116,6 +116,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       rt.open({ screen: route.screen, args: route.args });
     },
     openKeys: () => rt.open({ screen: "vault.providers" }),
+    buildConnector: () => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: BUILD_CONNECTOR_OPENING } }),
     setUpConnector: async (offer) => {
       // the offer holds an item id and a name; the handle comes from the Vault, which never sends a value
       const got = (await rt.call("vault.item.get", { itemId: offer.itemId })) as { item?: { handle?: string; name?: string } } | null;

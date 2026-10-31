@@ -41,3 +41,7 @@ test("first is the opening message of a session on the object, and it rides alon
   const s = fromHash("#screen=chats.conversation&with=assistant&about=vault_item%3Avit_1&first=Add%20Acme%20to%20Automations");
   assert.deepEqual(s.route, { view: "ask", agentId: "assistant", scopeType: "vault_item", scopeId: "vit_1", bringFrom: null, first: "Add Acme to Automations" });
 });
+
+test("first with an agent and no object opens a chat that starts with that message", () => {
+  assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant&first=Build%20a%20connector").route, { view: "ask", agentId: "assistant", scopeType: "", scopeId: "", bringFrom: null, first: "Build a connector" });
+});

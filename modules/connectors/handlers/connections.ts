@@ -7,6 +7,8 @@ import { executeAction } from "./runtime.ts";
 
 export interface ConnectionRow {
   connectionId: string; connector: string; title: string; owner: { kind: "person" | "space"; id: string }; state: ConnectionState; pausedBy?: string; scopes: string[]; lastSyncAt?: number; createdAt: number;
+  /** The Vault handles the connection uses (names, never values), so a Vault item can list what depends on it. */
+  handles: string[];
 }
 type Health = { state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number };
 
@@ -33,6 +35,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
   const rowOf = (r: ConnectionDb): ConnectionRow => ({
     connectionId: r.connection_id, connector: r.connector, title: r.title, owner: { kind: r.owner_kind, id: r.owner_id }, state: r.state,
     ...(r.paused_by ? { pausedBy: r.paused_by } : {}), scopes: JSON.parse(r.scopes) as string[], ...(r.last_sync_at !== null ? { lastSyncAt: r.last_sync_at } : {}), createdAt: r.created_at,
+    handles: Object.values(JSON.parse(r.secrets) as Record<string, string>).sort(),
   });
   /** A person sees their own connections and the Space's; nobody sees another person's. */
   const visible = (ctx: ConnectorsCtx, r: ConnectionDb): boolean => r.owner_kind === "space" || r.owner_id === actorOf(ctx);
