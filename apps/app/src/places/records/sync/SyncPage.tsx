@@ -52,10 +52,12 @@ function Stat({ label, value, tip, bad = false, testID }: { label: string; value
 
 export function SyncPage({ type, call, nav, now = Date.now, title }: SyncPageProps): ReactElement {
   const status = usePolled(async () => (await call("sync_types.status", { type })) as TypeStatus, `status:${type}`, 6000);
-  const waiting = usePolled(async () => {
-    const [failed, pending] = await Promise.all([call("connectors.outbox.list", { type, state: "failed", limit: 5 }), call("connectors.outbox.list", { type, state: "pending", limit: 5 })]);
-    return [...((failed as { items?: OutboxItem[] }).items ?? []), ...((pending as { items?: OutboxItem[] }).items ?? [])];
+  const outbox = usePolled(async () => {
+    const [failed, pending, sent] = await Promise.all([call("connectors.outbox.list", { type, state: "failed", limit: 5 }), call("connectors.outbox.list", { type, state: "pending", limit: 5 }), call("connectors.outbox.list", { type, state: "sent", limit: 3 })]);
+    const items = (r: unknown): OutboxItem[] => (r as { items?: OutboxItem[] }).items ?? [];
+    return { open: [...items(failed), ...items(pending)], sent: items(sent) };
   }, `waiting:${type}`, 6000);
+  const waiting = { value: outbox.value?.open, refresh: outbox.refresh };
   const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
   const [removing, setRemoving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -136,6 +138,18 @@ export function SyncPage({ type, call, nav, now = Date.now, title }: SyncPagePro
                 key={o.outboxId} id={`out:${o.outboxId}`} title={`${o.op === "create" ? "New record" : o.op === "delete" ? "Delete" : o.fields.join(", ")}`}
                 note={o.state === "failed" ? (o.error ?? "Could not be sent") : "Waiting to be sent"}
                 trailing={o.state === "failed" ? <View style={s.rowBtns}><Btn label="Retry" testID={`sync-retry-${o.outboxId}`} onPress={() => void act("connectors.outbox.retry", { outboxId: o.outboxId }, "Trying again.")} /><Btn label="Cancel" onPress={() => void act("connectors.outbox.cancel", { outboxId: o.outboxId }, "Cancelled. The change stays here.")} /></View> : null}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {(outbox.value?.sent ?? []).length > 0 ? (
+          <View style={s.section} testID="sync-sent">
+            <Text style={s.secHead}>Sent</Text>
+            {(outbox.value?.sent ?? []).map((o) => (
+              <Row
+                key={o.outboxId} id={`sent:${o.outboxId}`} title={o.op === "create" ? "New record" : o.op === "delete" ? "Delete" : o.fields.join(", ")} note={`${agoShort(o.at, t)} ago`}
+                trailing={<Btn label="Undo" testID={`sync-undo-${o.outboxId}`} onPress={() => void act("sync_types.undo_push", { outboxId: o.outboxId }, "Put back in the app.")} />}
               />
             ))}
           </View>

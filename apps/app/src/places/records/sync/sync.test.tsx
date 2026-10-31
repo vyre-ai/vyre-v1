@@ -24,6 +24,7 @@ function server(over: Partial<TypeStatus> = {}) {
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as any });
     if (cap === "sync_types.status") return status;
+    if (cap === "connectors.outbox.list" && (input as { state: string }).state === "sent") return { items: [{ outboxId: "obx_9", recordId: "rec_3", op: "update", fields: ["email"], state: "sent", attempts: 1, at: NOW - 30_000 }] };
     if (cap === "connectors.outbox.list") return { items: (input as { state: string }).state === "failed" ? [{ outboxId: "obx_1", recordId: "rec_1", op: "update", fields: ["phone"], state: "failed", attempts: 3, error: "The app answered 500.", at: NOW }] : [] };
     return { ok: true };
   };
@@ -97,10 +98,11 @@ test("the Sync page buttons call the server: pause, resync, bring in everything,
   await press(find(root, "sync-resync"));
   await press(find(root, "sync-backfill"));
   await press(find(root, "sync-retry-obx_1"));
+  await press(find(root, "sync-undo-obx_9"));
   await press(find(root, "sync-edit"));
   await settle();
   const sent = s.calls.filter((c) => c.cap !== "sync_types.status" && c.cap !== "connectors.outbox.list").map((c) => [c.cap, c.input.type ?? c.input.outboxId, c.input.mode ?? ""]);
-  assert.deepEqual(sent, [["sync_types.pause", "person", ""], ["connectors.sync_now", "person", "reconcile"], ["sync_specs.backfill", "person", ""], ["connectors.outbox.retry", "obx_1", ""]]);
+  assert.deepEqual(sent, [["sync_types.pause", "person", ""], ["connectors.sync_now", "person", "reconcile"], ["sync_specs.backfill", "person", ""], ["connectors.outbox.retry", "obx_1", ""], ["sync_types.undo_push", "obx_9", ""]]);
   assert.ok(s.calls.filter((c) => c.cap !== "sync_types.status" && c.cap !== "connectors.outbox.list").every((c) => typeof c.input.idempotencyKey === "string" || c.cap === "connectors.outbox.retry"));
   assert.deepEqual(n.log, ["edit:Ledger:person"]);
 });
