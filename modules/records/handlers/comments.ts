@@ -138,7 +138,11 @@ export function createCommentsHandlers(deps: CommentsDeps): CommentsHandlers {
         kind: "ask", agentIds: [agentId], scopeType: "record", scopeId: c.record_id, recordId: c.record_id, title: "Comment replies", idempotencyKey: `rcm:${root.id}:${agentId}`,
       })) as { thread?: { threadId?: string } } | undefined;
       const threadId = res?.thread?.threadId;
-      if (!threadId) throw new Error("no pane");
+      if (!threadId) {
+        tx.run("UPDATE records_comment_agent SET state = 'failed' WHERE comment_id = ? AND agent_id = ?", c.id, agentId);
+        ctx.log?.warn("a mentioned agent could not be started", { commentId: c.id, agentId, error: "no pane" });
+        return;
+      }
       tx.run("UPDATE records_comment_agent SET thread_id = ? WHERE comment_id = ? AND agent_id = ?", threadId, c.id, agentId);
       // The pane keeps the person's own mode (Ask first by default): the agent's other writes wait for their yes. Its reply is a comment, which never waits (records.comments.add is allowed in every mode).
       await ctx.call("chat.post" as never, { threadId, body: promptFor(c, root, title, names), mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `rcm-post:${c.id}:${agentId}` });

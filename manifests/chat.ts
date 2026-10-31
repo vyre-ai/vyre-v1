@@ -131,7 +131,7 @@ export default defineManifest({
       in: { ...threadT, folderId: t.nullable(id.folder) }, out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['thread.updated'], tool: 'chats', offline: 'patch',
     }),
     write('threads.set_plan_mode', 'Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved', {
-      in: { ...threadT, planMode: t.bool() }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.plan_mode_changed'], tool: 'chats', offline: 'queue',
+      in: { ...threadT, planMode: t.bool() }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated', 'thread.plan_mode_changed'], tool: 'chats', offline: 'queue',
     }),
     write('threads.set_mode', 'Set how much the agents of a chat may do alone: ask (Ask first, the default), auto or plan. Anything that leaves Vyre is held for a yes in every mode', {
       in: { ...threadT, mode: chatMode }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated', 'thread.plan_mode_changed'], tool: 'chats', offline: 'queue', idem: 'natural',
