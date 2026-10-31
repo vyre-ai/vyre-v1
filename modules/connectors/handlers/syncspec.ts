@@ -3,12 +3,12 @@
 // synced-type bindings, then starts the first pull. The spec is kept per connector so Edit mapping can open the agent with it.
 // @reads /modules/connectors/migrations/0004_sync_specs.sql
 import { canonical } from "../../../lib/canonical.ts";
-import { ensureTables, nowOf, pointerGet, refuse, seedBuiltins } from "../projections.ts";
-import type { ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
+import { ensureTables, mintShort, nowOf, pointerGet, refuse, seedBuiltins } from "../projections.ts";
+import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
 import { coerceValue, compileSpec, firstPageRequest, parseSpec, readPage, unflatten } from "../syncspec.ts";
 import type { Compiled, CompiledType, Problem, SpecObject, SyncSpec } from "../syncspec.ts";
 import { createConnectionsHandlers } from "./connections.ts";
-import { diffDefs, runCases } from "./runtime.ts";
+import { diffDefs, executeAction, runCases } from "./runtime.ts";
 import type { TestResult } from "./runtime.ts";
 import { shapeList } from "./shape.ts";
 import { createSyncHandlers, ensureSyncTables } from "./sync.ts";
@@ -19,7 +19,7 @@ export interface Validation { ok: boolean; problems: Problem[]; objects: ObjectC
 export interface TypePreview { type: string; remote: string; isNew: boolean; title: string; fields: { key: string; label: string; type: string; dir: string }[]; existing: number }
 export interface SamplePreview { type: string; remote: string; title: string; fields: { key: string; label: string; value: unknown }[] }
 export interface PreviewOut extends Validation { types: TypePreview[]; samples: SamplePreview[]; summary: string; /** What bringing everything in takes on disk, stated before Go. */ size: { records: number; bytes: number; text: string } }
-export interface ApplyOut { connector: string; connectionId: string; version: string; types: { type: string; syncTypeId: string; runId?: string }[]; live: "polling" }
+export interface ApplyOut { connector: string; connectionId: string; version: string; types: { type: string; syncTypeId: string; runId?: string }[]; live: "polling" | "webhook"; /** For an app whose docs name no subscribe call: the address to give it by hand. */ webhookUrl?: string }
 export interface SpecRow { spec: SyncSpec; connector: string; connectionId: string; appliedAt: number; types: { type: string; remote: string }[] }
 
 export interface SpecHandlers {
@@ -344,7 +344,27 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       const started = await sync["connectors.sync_now"](ctx, { type: o.type, mode: spec.plan.backfill === "now" ? "backfill" : "incremental", idempotencyKey: `${idem}:pull:${o.type}` } as Parameters<typeof sync["connectors.sync_now"]>[1]).catch(() => undefined);
       if (started) o.runId = started.runId;
     }
-    return { connector: key, connectionId, version, types: out, live: "polling" };
+    // live: a Team Space has a public address, so the app can call it when something changes; a Personal one has none and polls while it is open
+    let how: ApplyOut["live"] = "polling";
+    let webhookUrl: string | undefined;
+    if (spec.objects.some((o) => o.webhook !== undefined && compiled.types.some((t) => t.remote === o.remote))) {
+      const where = (await ctx.call("spaces.get", {}).catch(() => undefined)) as { space?: { kind?: string; address?: string } } | undefined;
+      const base = (deps.publicBase ?? where?.space?.address ?? "").replace(/\/+$/, "");
+      if (where?.space?.kind === "team" && base !== "") {
+        let hook = tx.get<{ token: string }>("SELECT token FROM cn_sync_hooks WHERE connector = ?", key);
+        if (!hook) { const token = mintShort("h", now).replace(/[^a-z]/g, "").padEnd(24, "q").slice(0, 24); tx.run("INSERT INTO cn_sync_hooks (token, connector, created_at) VALUES (?, ?, ?)", token, key, now); hook = { token }; }
+        webhookUrl = `${base}/hooks/connectors/${hook.token}`;
+        let subscribed = false;
+        for (const o of spec.objects) {
+          if (!o.webhook?.subscribePath || !compiled.types.some((t) => t.remote === o.remote)) continue;
+          const row = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", connectionId)!;
+          try { await executeAction(deps, ctx, next, `subscribe_${o.remote.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`, { connection: row, input: { url: webhookUrl } }); subscribed = true; } catch { /* polling still keeps it current */ }
+        }
+        if (subscribed || spec.objects.some((o) => o.webhook?.manualUrl)) how = "webhook";
+        if (subscribed) webhookUrl = undefined;
+      }
+    }
+    return { connector: key, connectionId, version, types: out, live: how, ...(webhookUrl ? { webhookUrl } : {}) };
   };
 
   return {

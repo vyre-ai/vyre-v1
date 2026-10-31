@@ -17,7 +17,7 @@ export interface SpecWrite { path: string; method?: string; evidence: string; bo
 export interface SpecObject {
   remote: string; label: string; count?: number; list: SpecList; get?: { path: string }; create?: SpecWrite; update?: SpecWrite; delete?: SpecWrite;
   id: string; updatedAt?: string; itemsAt: string; openUrl?: string; fields: SpecField[];
-  webhook?: { events: string[]; subscribePath?: string; manualUrl?: boolean; signature?: string };
+  webhook?: { events: string[]; subscribePath?: string; /** The docs page that shows the subscribe call (required with subscribePath). */ evidence?: string; manualUrl?: boolean; signature?: string };
 }
 export interface SpecMappingField { path: string; field?: string; direction: (typeof DIRECTIONS)[number] }
 export interface SpecMapping {
@@ -79,6 +79,11 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
       if (!(CURSOR_KINDS as readonly unknown[]).includes(c["kind"])) bad(`${at}.list.cursor.kind`, `cursor.kind is one of ${CURSOR_KINDS.join(", ")}.`);
       else if ((c["kind"] === "page" || c["kind"] === "cursor" || c["kind"] === "offset") && !str(c["param"])) bad(`${at}.list.cursor.param`, "Name the query parameter that carries the page, cursor or offset.");
       if (c["kind"] === "cursor" && !pointerOk(c["next"])) bad(`${at}.list.cursor.next`, "A cursor needs next: the pointer to the next cursor in the answer.");
+    }
+    const wh = o["webhook"];
+    if (wh !== undefined) {
+      if (!isObj(wh) || !Array.isArray(wh["events"])) bad(`${at}.webhook`, "webhook needs events: a list of event names.");
+      else if (wh["subscribePath"] !== undefined && (!str(wh["subscribePath"]) || !str(wh["evidence"]))) bad(`${at}.webhook.evidence`, "A subscribe call is refused without evidence: cite the docs page that shows it.");
     }
     for (const w of ["create", "update", "delete"] as const) {
       const wr = o[w];
@@ -284,6 +289,9 @@ export function compileSpec(spec: SyncSpec): Compiled {
     if (o.delete && (m.deletes ?? "off") !== "off") {
       actions.push({ name: names.delete, method: (o.delete.method ?? "DELETE") as ActionDef["method"], url: `https://${spec.app.domain}${o.delete.path.replaceAll("{id}", "{input.id}")}`, headers, write: true });
       entry.delete = names.delete;
+    }
+    if (o.webhook?.subscribePath) {
+      actions.push({ name: actionName("subscribe", o.remote), method: "POST", url: `https://${spec.app.domain}${o.webhook.subscribePath}`, headers, body: { url: "{input.url}", events: o.webhook.events }, write: true });
     }
     objects[o.remote] = entry;
 

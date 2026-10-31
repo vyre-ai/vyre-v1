@@ -7,6 +7,8 @@ import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
+import { hostOnly } from "../../host/src/ctx/host-only.ts";
+import { fail } from "../../host/src/routes/errors.ts";
 import { writeConnectorFolder, writeSourceFolder } from "./handlers/files.ts";
 import { readSource } from "./handlers/source.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
@@ -134,3 +136,20 @@ const NAMES = [
 export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as Record<(typeof NAMES)[number], (ctx: HostCtx, input: never) => Promise<unknown>>;
 export { createConnectorsHandlers };
 export { executeAction, runCases, diffDefs, noteSchemaChanges, syncRequest } from "./handlers/index.ts";
+
+/**
+ * POST /hooks/connectors/<token>: an app tells the Space something changed. The token in the address is the credential; it carries no data in, it only starts an incremental pass for every
+ * type the connector syncs, so what the app says is always read back through the Vault key and the connector's own list, never trusted from the call.
+ */
+export async function acceptWebhook(tx: Tx, ctx: { origin: string; depth: number; trace: { traceId: string }; call(cap: string, input: unknown): Promise<unknown> }, a: { kind?: string }): Promise<unknown> {
+  hostOnly(ctx, "connectors.accept_webhook");
+  const hook = a.kind ? tx.get<{ connector: string }>("SELECT connector FROM cn_sync_hooks WHERE token = ?", a.kind) : undefined;
+  if (!hook) throw fail("auth.bad_credentials", ctx.trace.traceId, { message: "That address is not one of this Space's." });
+  const types = tx.all<{ sync_type_id: string }>("SELECT sync_type_id FROM cn_synced_types WHERE connector = ? AND paused = 0", hook.connector);
+  for (const t of types) await ctx.call("connectors.sync_now", { syncTypeId: t.sync_type_id, mode: "incremental", idempotencyKey: `hook:${t.sync_type_id}:${Math.floor(Date.now() / 5000)}` }).catch(() => undefined);
+  return { accepted: true, types: types.length };
+}
+
+export const hostCalls = {
+  "connectors.accept_webhook": (ctx: HostCtx & { origin: string; depth: number }, a: { kind?: string; headers: Record<string, string | undefined>; body: string; url: string }): Promise<unknown> => acceptWebhook(live().tx, ctx, a),
+};

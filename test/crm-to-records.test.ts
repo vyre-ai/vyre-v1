@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { openSchema } from "../modules/schema/impl.ts";
 import { openConnectors } from "../modules/connectors/impl.ts";
 import * as sources from "../modules/sources/impl.ts";
+import { acceptWebhook } from "../modules/connectors/impl.ts";
 import { KEY_A, KEY_B, ledgerAccountSpec } from "../modules/connectors/fixtures/crm.ts";
 import { coreOf, createSyncEngine } from "../host/src/daemon/syncengine.ts";
 import type { SyncEngine } from "../modules/connectors/handlers/sync.ts";
@@ -31,7 +32,7 @@ const ORBIT: Know = {
   fieldsEndpoint: { path: "/v1/schema/jobs", forRemote: "jobs" }, backfill: "now",
 };
 
-async function boot() {
+async function boot(spaceKind: "personal" | "team" = "personal") {
   const crm = await startFakeCrm();
   const schema = openSchema();
   sources.openSources({ tx: schema.tx });
@@ -58,6 +59,8 @@ async function boot() {
       if (cap.startsWith("schema.")) return (schema.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(schemaCtx, input);
       if (cap === "runs.start") { const runId = `run_${runs.length + 1}`; runs.push({ runId }); return { runId }; }
       if (cap === "runs.finish") { const i = input as { runId: string; status: string; summary?: string }; Object.assign(runs.find((r) => r.runId === i.runId)!, { status: i.status, ...(i.summary ? { summary: i.summary } : {}) }); return { run: { id: i.runId } }; }
+      if (cap === "spaces.get") return { space: { kind: spaceKind, address: "https://team.example" } };
+      if (cap === "connectors.sync_now") return (conn.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(ctx, input);
       if (cap === "tasks.create") { tasks.push({ input }); return { task: { id: `tsk_${tasks.length}` } }; }
       if (cap === "tasks.transition") { closed.push((input as { taskId: string }).taskId); return {}; }
       if (cap === "records.update") { const i = input as { type: string; recordId: string; patch: Record<string, unknown> }; const cur = await schema.store.get(i.type, i.recordId); await schema.store.update(i.type, i.recordId, i.patch as never, cur!.version); return { record: { id: i.recordId } }; }
@@ -371,4 +374,38 @@ test("the app refuses the key mid-sync: the dot says needs you, one Home item fo
     await w.pass("person");
     assert.equal(w.crm.c.state.people.find((p) => p.id === 101)!.attributes.phone, "+1 555 4242", "the edit made during the outage is sent");
   } finally { await w.close(); }
+});
+
+test("Team: the app is told where to call, a call starts a pass, a wrong address is refused; Personal never registers a webhook", async () => {
+  const spec = (): Record<string, unknown> => {
+    const s = ledgerAccountSpec("Main") as { objects: { remote: string; webhook?: unknown }[]; app: Record<string, unknown> };
+    delete s.app["account"];
+    s.objects.find((o) => o.remote === "people")!.webhook = { events: ["person.updated"], subscribePath: "/api/v2/webhooks", evidence: "https://docs.crm-a.test/webhooks" };
+    return s as unknown as Record<string, unknown>;
+  };
+  const team = await boot("team");
+  try {
+    const out = await team.hs["sync_specs.apply"](team.ctx, { spec: spec(), idempotencyKey: "wh" });
+    await team.drain();
+    assert.equal(out.live, "webhook");
+    assert.equal(team.crm.c.state.webhooks.length, 1);
+    const url = team.crm.c.state.webhooks[0]!.url;
+    assert.match(url, /^https:\/\/team\.example\/hooks\/connectors\/[a-z]{24}$/);
+    // the app changes a person and calls the address: both screens would see it without a poll
+    team.crm.c.state.people.find((p) => p.id === 102)!.attributes.phone = "+1 555 8888";
+    const hookCtx = { ...team.ctx, origin: "hook", depth: 0 };
+    const token = url.split("/").pop()!;
+    await acceptWebhook(team.schema.tx, hookCtx as never, { kind: token });
+    await team.drain();
+    assert.equal((await team.byName("person", "Ben Ford")).data["phone"], "+1 555 8888");
+    await assert.rejects(acceptWebhook(team.schema.tx, hookCtx as never, { kind: "aaaaaaaaaaaaaaaaaaaaaaaa" }), (e: any) => e.error?.code === "auth.bad_credentials");
+    await assert.rejects(acceptWebhook(team.schema.tx, { ...team.ctx, origin: "gateway", depth: 0 } as never, { kind: token }), (e: any) => e.error?.code === "permission.no_grant");
+  } finally { await team.close(); }
+  const personal = await boot("personal");
+  try {
+    const out = await personal.hs["sync_specs.apply"](personal.ctx, { spec: spec(), idempotencyKey: "wh2" });
+    assert.equal(out.live, "polling");
+    assert.equal(personal.crm.c.state.webhooks.length, 0);
+    assert.ok(personal.crm.methods().every((m) => m === "GET"));
+  } finally { await personal.close(); }
 });

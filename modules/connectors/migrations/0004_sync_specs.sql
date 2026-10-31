@@ -7,3 +7,5 @@ CREATE TABLE IF NOT EXISTS cn_sync_spec_types (
 );
 -- the Home item raised when an app refuses the key, so it can close when the key works again
 CREATE TABLE IF NOT EXISTS cn_reconnect_tasks (connection_id TEXT PRIMARY KEY, task_id TEXT NOT NULL);
+-- the address a CRM calls when something changed: /hooks/connectors/<token>. The token is the secret in the address; it only ever starts a sync pass, it never carries data in.
+CREATE TABLE IF NOT EXISTS cn_sync_hooks (token TEXT PRIMARY KEY, connector TEXT NOT NULL, created_at INTEGER NOT NULL);

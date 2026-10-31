@@ -120,7 +120,7 @@ interface OutboxDb {
 interface ConflictDb { conflict_id: string; sync_type: string; status: string }
 interface LogDb { at: number; kind: LogRow["kind"]; summary: string; run_id: string | null; trace_id: string | null }
 
-export const DEFAULT_POLLING: PollingRow = { activeSec: 60, idleSec: 300, dormantSec: 3600 };
+export const DEFAULT_POLLING: PollingRow = { activeSec: 120, idleSec: 900, dormantSec: 3600 };
 const FIELD_KEY = /^[a-z][a-z0-9_]*$/;
 const DIRS: readonly Dir[] = ["pull", "push", "both", "off"];
 const DELETES: readonly DeleteMode[] = ["off", "soft", "travel"];

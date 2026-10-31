@@ -73,7 +73,7 @@ const specObject = t.obj({
   get: t.opt(t.obj({ path: t.str() })), create: t.opt(specWrite), update: t.opt(specWrite), delete: t.opt(specWrite),
   id: specPointer, updatedAt: t.opt(specPointer), itemsAt: specPointer, openUrl: t.opt(t.str({ description: 'Address of a record in the app; {id} is filled in. Shown as Open in the app.' })),
   fields: t.arr(specField),
-  webhook: t.opt(t.obj({ events: t.arr(t.str()), subscribePath: t.opt(t.str()), manualUrl: t.opt(t.bool()), signature: t.opt(t.str()) })),
+  webhook: t.opt(t.obj({ events: t.arr(t.str()), subscribePath: t.opt(t.str()), evidence: t.opt(t.str()), manualUrl: t.opt(t.bool()), signature: t.opt(t.str()) })),
 });
 const specMapping = t.obj({
   remote: t.str(), recordType: id.recordType, title: t.opt(t.str()),
@@ -299,7 +299,7 @@ export default defineManifest({
     }),
     write('sync_specs.apply', 'Apply a validated SyncSpec: a live connector (with its own tests), a connection holding the Vault handle, the record types with fields, choices, relations and stages, the synced-type bindings, and the first pull', {
       in: { spec: syncSpec },
-      out: { connector: id.connector, connectionId: id.connection, version: t.str(), types: t.arr(t.obj({ type: id.recordType, syncTypeId, runId: t.opt(id.run) })), live: t.lit('polling') },
+      out: { connector: id.connector, connectionId: id.connection, version: t.str(), types: t.arr(t.obj({ type: id.recordType, syncTypeId, runId: t.opt(id.run) })), live: t.enm('polling', 'webhook'), webhookUrl: t.opt(t.str({ description: 'The address to give the app by hand when its docs show no subscribe call' })) },
       perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.created', 'connector.published', 'connection.created', 'sync.type_bound', 'schema.changed'], tool: 'records', cli: 'vyre sync-spec apply',
       agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.precondition_failed', 'validation.duplicate', 'internal.unavailable'],
     }),

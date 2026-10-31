@@ -112,7 +112,7 @@ test("create binds a new record type: the type and its columns come from schema.
   assert.deepEqual({ type: s.type, connector: s.connector, remote: s.remote, state: s.state, match: s.match, createAtSource: s.createAtSource, deletes: s.deletes, conflict: s.conflict, nightlyReconcile: s.nightlyReconcile }, {
     type: "contact", connector: "acme", remote: "contacts", state: "initial", match: ["email"], createAtSource: false, deletes: "off", conflict: "newest", nightlyReconcile: true,
   });
-  assert.deepEqual(s.polling, { activeSec: 60, idleSec: 300, dormantSec: 3600 });
+  assert.deepEqual(s.polling, { activeSec: 120, idleSec: 900, dormantSec: 3600 });
   assert.deepEqual([s.pending, s.conflicts, s.schemaChanges], [0, 0, 0]);
   const apply = w.calls.find((c) => c.cap === "schema.apply")!;
   assert.equal(apply.input.ops.length, 1);

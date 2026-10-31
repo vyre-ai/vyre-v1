@@ -33,6 +33,7 @@ export function crm() {
       { uid: "j-3", props: { title: "Moss repair", kind: "repair", amount: 500, opened: "2026-08-20", contact_ref: "104" }, touched: "2026-10-05T00:00:00Z" },
     ] as Job[],
     requests: [] as { method: string; host: string; path: string }[],
+    webhooks: [] as { url: string; events: string[] }[],
     rejectWrites: false,
   };
 
@@ -73,6 +74,12 @@ export function crm() {
         return { status: 200, body: { data: p } };
       }
       if (m && method === "DELETE") return { status: 204 };
+      if (method === "POST" && url.pathname === "/api/v2/webhooks") {
+        const b = (req.body ?? {}) as { url?: string; events?: string[] };
+        if (!b.url) return { status: 422, body: { error: "url required" } };
+        state.webhooks.push({ url: b.url, events: b.events ?? [] });
+        return { status: 201, body: { id: `wh_${state.webhooks.length}` } };
+      }
       return { status: 404, body: { error: "no route" } };
     }
     if (url.hostname === "crm-b.test") {
