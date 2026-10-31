@@ -566,6 +566,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_connector_card",
+      "summary": "Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_connector_offer_accept",
       "summary": "Accept a connector setup offer. Accepting is final for that Vault item.",
       "toolset": "automations"
@@ -730,6 +736,12 @@
       "deferred": false,
       "name": "automations_promote",
       "summary": "Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_read_docs",
+      "summary": "Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.",
       "toolset": "automations"
     },
     {
@@ -1858,6 +1870,12 @@
       "deferred": false,
       "name": "connectors_build",
       "summary": "Run the build-connector flow: read the app docs, draft the connector, ask for a key through a Vault request, run the harness",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "connectors_define",
+      "summary": "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
       "toolset": "engineer"
     },
     {

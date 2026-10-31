@@ -15,6 +15,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "connections.test": async () => ({"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
   "connections.update": async () => ({"connection":{"connectionId":"con_a1b2c3","connector":"hubspot","createdAt":1760000000000,"handles":["#Dana_Lawmatics"],"lastSyncAt":1760000000000,"owner":{"id":"example","kind":"person"},"pausedBy":"example","scopes":["example"],"state":"pending","title":"example"}} as unknown) as never,
   "connectors.build": async () => ({"draftId":"cdr_a1b2c3","runId":"run_a1b2c3"} as unknown) as never,
+  "connectors.define": async () => ({"actions":["example"],"domains":["example"],"draftId":"cdr_a1b2c3","key":"hubspot"} as unknown) as never,
   "connectors.diff": async () => ({"breaking":true,"files":[{"added":1,"path":"example","removed":1}]} as unknown) as never,
   "connectors.export": async () => ({"folderId":"fld_a1b2c3"} as unknown) as never,
   "connectors.get": async () => ({"connector":{"actions":["example"],"builtin":true,"connections":1,"domains":["example"],"key":"hubspot","mode":"api","objects":{},"scope":"person","secrets":[{"description":"example","name":"example"}],"sourceFolderId":"fld_a1b2c3","sources":["example"],"state":"live","syncedTypes":["example"],"title":"example","version":"1.0.0"}} as unknown) as never,

@@ -4,12 +4,13 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (55)
+## Capabilities (57)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
 - [automations.alerts.set](../capabilities/automations.alerts.set.md): Set error alerts: who, when (every failure or after N in a row), where (Needs you, DM, channel), and the escalation chain
 - [automations.analytics](../capabilities/automations.analytics.md): Outcomes from runs: totals, success rate, a daily series, the busiest automations and where failures stop
+- [automations.connector_card](../capabilities/automations.connector_card.md): Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.
 - [automations.connector_offer.accept](../capabilities/automations.connector_offer.accept.md): Accept a connector setup offer. Accepting is final for that Vault item.
 - [automations.connector_offer.decline](../capabilities/automations.connector_offer.decline.md): Decline a connector setup offer. Declining is final for that Vault item.
 - [automations.connector_offers](../capabilities/automations.connector_offers.md): Open connector setup offers. Each one names an app. A Vault value is not included.
@@ -41,6 +42,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.packages.list](../capabilities/automations.packages.list.md): List portable Automation packages this person has exported
 - [automations.preview_promote](../capabilities/automations.preview_promote.md): Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys
 - [automations.promote](../capabilities/automations.promote.md): Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself
+- [automations.read_docs](../capabilities/automations.read_docs.md): Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.
 - [automations.replay](../capabilities/automations.replay.md): Live rerun of a past run on the same definition version or the current one, not a sandbox replay
 - [automations.restore_version](../capabilities/automations.restore_version.md): Restore an Automation to an earlier version (saved as a new version)
 - [automations.retry](../capabilities/automations.retry.md): Retry a failed run of this Automation from the start or from a step

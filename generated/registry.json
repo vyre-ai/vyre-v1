@@ -32583,6 +32583,106 @@
       "examples": [
         {
           "input": {
+            "items": [
+              {
+                "done": true,
+                "text": "example"
+              }
+            ],
+            "threadId": "thr_a1b2c3",
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "messageId": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "done": {
+                  "type": "boolean"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "done"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "title",
+          "items"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "automations",
+      "name": "automations.connector_card",
+      "output": {
+        "properties": {
+          "messageId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
             "itemId": "vit_a1b2c3"
           },
           "name": "example",
@@ -36754,6 +36854,123 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "focus": "example",
+            "url": "example"
+          },
+          "name": "example",
+          "output": {
+            "finalUrl": "example",
+            "kind": "openapi",
+            "links": [
+              {
+                "text": "example",
+                "url": "example"
+              }
+            ],
+            "ok": true,
+            "reason": "example",
+            "text": "example",
+            "truncated": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "focus": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "automations",
+      "name": "automations.read_docs",
+      "output": {
+        "properties": {
+          "finalUrl": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "openapi",
+              "html",
+              "text"
+            ],
+            "type": "string"
+          },
+          "links": {
+            "items": {
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "url"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.",
+      "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "automations"
+        }
+      },
+      "v": 1
+    },
+    {
       "audit": "always",
       "effects": "write",
       "emits": [
@@ -38284,15 +38501,18 @@
             "domains": [
               "example"
             ],
+            "header": "example",
             "markedSafe": true,
             "method": "example",
             "path": "example",
+            "prefix": "example",
             "vaultItemId": "example"
           },
           "name": "example",
           "output": {
             "level": "tested",
-            "reason": "example"
+            "reason": "example",
+            "status": 1
           }
         }
       ],
@@ -38308,6 +38528,10 @@
             },
             "type": "array"
           },
+          "header": {
+            "description": "The header the app wants the key in. Default Authorization.",
+            "type": "string"
+          },
           "markedSafe": {
             "type": "boolean"
           },
@@ -38315,6 +38539,10 @@
             "type": "string"
           },
           "path": {
+            "type": "string"
+          },
+          "prefix": {
+            "description": "Text before the key in that header. Default Bearer for Authorization, none otherwise.",
             "type": "string"
           },
           "vaultItemId": {
@@ -38343,6 +38571,9 @@
           },
           "reason": {
             "type": "string"
+          },
+          "status": {
+            "type": "integer"
           }
         },
         "required": [
@@ -59532,6 +59763,238 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "connector.built"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "actions": [
+              {
+                "headers": {},
+                "method": "GET",
+                "name": "example",
+                "output": "example",
+                "query": {},
+                "url": "example",
+                "write": true
+              }
+            ],
+            "auth": {
+              "header": "example",
+              "prefix": "example",
+              "secret": "example",
+              "type": "none"
+            },
+            "domains": [
+              "example"
+            ],
+            "key": "hubspot",
+            "secrets": [
+              {
+                "description": "example",
+                "name": "example"
+              }
+            ],
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "actions": [
+              "example"
+            ],
+            "domains": [
+              "example"
+            ],
+            "draftId": "cdr_a1b2c3",
+            "key": "hubspot"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "headers": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "method": {
+                  "enum": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "output": {
+                  "type": "string"
+                },
+                "query": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "write": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "url"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "auth": {
+            "properties": {
+              "header": {
+                "type": "string"
+              },
+              "prefix": {
+                "type": "string"
+              },
+              "secret": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "none",
+                  "api_key",
+                  "bearer"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "key": {
+            "examples": [
+              "hubspot"
+            ],
+            "type": "string"
+          },
+          "secrets": {
+            "items": {
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "domains",
+          "auth",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "connectors",
+      "name": "connectors.define",
+      "output": {
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "draftId": {
+            "examples": [
+              "cdr_a1b2c3"
+            ],
+            "pattern": "^cdr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "hubspot"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "draftId",
+          "actions",
+          "domains"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "id": "/key",
+        "type": "connector"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "engineer"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -59881,6 +60344,7 @@
             "idempotencyKey": "idem_1",
             "key": "hubspot",
             "mode": "api",
+            "source": true,
             "title": "example"
           },
           "name": "example",
@@ -59919,6 +60383,9 @@
             ],
             "type": "string"
           },
+          "source": {
+            "type": "boolean"
+          },
           "title": {
             "type": "string"
           }
@@ -59951,8 +60418,7 @@
           }
         },
         "required": [
-          "key",
-          "folderId"
+          "key"
         ],
         "type": "object"
       },

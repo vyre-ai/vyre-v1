@@ -172,6 +172,7 @@ export function stubs(ctx: CallCtx) {
         set: call("automations.alerts.set"),
       },
       analytics: call("automations.analytics"),
+      connector_card: call("automations.connector_card"),
       connector_offer: {
         accept: call("automations.connector_offer.accept"),
         decline: call("automations.connector_offer.decline"),
@@ -211,6 +212,7 @@ export function stubs(ctx: CallCtx) {
       },
       preview_promote: call("automations.preview_promote"),
       promote: call("automations.promote"),
+      read_docs: call("automations.read_docs"),
       replay: call("automations.replay"),
       restore_version: call("automations.restore_version"),
       retry: call("automations.retry"),
@@ -514,6 +516,7 @@ export function stubs(ctx: CallCtx) {
     },
     connectors: {
       build: call("connectors.build"),
+      define: call("connectors.define"),
       diff: call("connectors.diff"),
       export: call("connectors.export"),
       get: call("connectors.get"),
