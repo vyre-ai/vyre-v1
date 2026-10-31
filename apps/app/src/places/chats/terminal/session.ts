@@ -5,6 +5,7 @@ import { inputPayload, resizePayload } from "../../../../../../ui/src/Terminal/i
 import type { TerminalHost, TerminalSource } from "../../../../../../ui/src/Terminal/index.tsx";
 import type { Rules, TerminalRow } from "./model.ts";
 import { openCall, pollSource } from "./model.ts";
+import { thisDeviceId } from "./hosts.ts";
 import type { ReadOut } from "./model.ts";
 
 export interface SessionDeps {
@@ -65,6 +66,8 @@ export function createSender(d: SessionDeps, terminalId: string, onFail: (what: 
 /** A new session on a host. An agent computer needs the agent (or its computer); the Space server needs server.services and answers with a refusal without it. */
 export async function openSession(d: SessionDeps, host: TerminalHost, who: { agentId?: string; computerId?: string }): Promise<TerminalRow> {
   const c = openCall(host, who, d.newKey());
+  // a terminal on this computer names it: the device the person is signed in on
+  if (host === "device" && c.cap === "terminal.open") { const id = await thisDeviceId(d.call); if (id) c.input.deviceId = id; }
   const out = (await d.call(c.cap, c.input)) as { terminal: TerminalRow };
   return out.terminal;
 }

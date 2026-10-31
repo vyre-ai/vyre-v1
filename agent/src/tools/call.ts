@@ -3,7 +3,7 @@
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
-import { askLevel, refusalFor, searchTools, toolsFor } from "./access.ts";
+import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
@@ -98,7 +98,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (why !== null) return refused(why, ctx, t, traceId);
 
     const isDynamic = !deps.catalog.byName(name);
-    if (!isDynamic && !deps.defaults.has(t.name) && !loadedSet(ctx.thread.threadId).has(t.name)) {
+    if (!isDynamic && !deps.defaults.has(t.name) && !(ctx.thread.scope?.type === "task" && TASK_BATON_TOOLS.has(t.name)) && !loadedSet(ctx.thread.threadId).has(t.name)) {
       return fail("validation.precondition_failed", traceId, { message: "Find this tool with tool_search first.", details: { tool: t.name, reason: "not_loaded" } });
     }
 
@@ -112,12 +112,16 @@ export function createToolSession(deps: CallDeps): ToolSession {
       };
     }
 
+    let localAsk = false;
     if (t.local !== "none") {
       const d = deps.localPolicy ? deps.localPolicy(t, ctx, input) : ({ action: "refuse", reason: "no local policy" } as LocalDecision);
       if (d.action === "refuse") return fail("permission.role_lacks_permission", traceId, { message: "That is not allowed on this computer.", details: { tool: t.name, reason: d.reason } });
       if (d.action === "prompt") {
-        const yes = deps.prompt ? await deps.prompt(t, ctx, input) : false;
-        if (!yes) return fail("permission.needs_approval", traceId, { message: "The person did not allow this.", details: { tool: t.name, reason: "local_prompt" } });
+        // With no way to ask on the spot (a turn that runs on a server) the question is the Gate's: the call is held for a yes the person answers in the chat, never refused and never run unasked.
+        if (deps.prompt) {
+          const yes = await deps.prompt(t, ctx, input);
+          if (!yes) return fail("permission.needs_approval", traceId, { message: "The person did not allow this.", details: { tool: t.name, reason: "local_prompt" } });
+        } else localAsk = true;
       }
     }
 
@@ -136,7 +140,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       provider: ctx.provider,
       approval: opts.approval,
       // Ask first: a tool that changes or sends something is parked for a yes before it runs. Tools plan mode allows (reads, questions, plan proposals) never wait. Auto adds nothing and removes nothing: the Gate decides, as before.
-      ...(ctx.thread.mode === "ask" && t.effects !== "read" && t.planMode === "blocked" ? { askFirst: true } : {}),
+      ...((ctx.thread.mode === "ask" && t.effects !== "read" && t.planMode === "blocked") || (localAsk && t.effects !== "read") ? { askFirst: true } : {}),
     };
     try {
       const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : input, seed);

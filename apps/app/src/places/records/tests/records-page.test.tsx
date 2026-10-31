@@ -209,22 +209,23 @@ test("screen: the page has the title, the ring, the sections, the relation cards
 
 test("screen: on a wide window the sheet is two columns and the right pane starts on Activity", () => {
   const out = page(createSamplePage());
-  assert.ok(has(out, 'data-testid="record-pane"') && has(out, 'data-testid="pane-activity"') && has(out, "Maya Chen set status to Active") && !has(out, "Nothing has changed yet."));
-  for (const t of ["Activity", "Comments", "Chat", "Files", "Memory", "History"]) assert.ok(has(out, `>${t}<`), t);
-  assert.ok(has(page(createSamplePage(), undefined, "clients", "cl_1"), "Nothing has changed yet."), "a record nobody has touched says so");
+  assert.ok(has(out, 'data-testid="record-pane"') && has(out, 'data-testid="pane-activity"') && has(out, "Maya set status to Active") && !has(out, "Nothing yet"));
+  for (const t of ["Activity", "Comments", "Chat"]) assert.ok(has(out, `>${t}<`), t);
+  assert.ok(has(out, ">More<") || has(out, "More tabs"), "at 340 px the tabs that do not fit fold behind More");
+  assert.ok(has(page(createSamplePage(), undefined, "clients", "cl_1"), 'data-testid="pane-activity-empty"'), "a record nobody has touched says so, in one short line");
   const shut = page(createSamplePage(), { pane: false });
   assert.ok(!has(shut, 'data-testid="record-pane"') && has(shut, 'data-testid="toggle-pane"'));
 });
 
-test("screen: the pane's tabs: Activity after an edit, Memory with the fact and its source, History in the shared tab, Chat and Files lead to their places", async () => {
+test("screen: the pane's tabs: Activity after an edit, Memory with the fact and its source, History in the shared tab, Chat, Files and Comments are panes of their own", async () => {
   const s = createSamplePage();
   await saveField(s.data, "clients", row(s), field("phone"), "+1 415 555 0100");
-  assert.ok(has(page(s, { tab: "activity" }), "Irfad Imtiaz set phone to +1 415 555 0100"));
+  assert.ok(has(page(s, { tab: "activity" }), "Irfad set phone to +1 415 555 0100"));
   const memory = page(s, { tab: "memory" });
   assert.ok(has(memory, 'data-testid="pane-memory"') && has(memory, "Elena prefers email over phone calls") && has(memory, "project"));
   const history = page(s, { tab: "history" });
   assert.ok(has(history, 'data-testid="pane-history"') && has(history, "Signed the retainer") && has(history, "Moved the next step") && has(history, "Edited on the page"));
-  assert.ok(has(page(s, { tab: "chat" }), 'data-testid="open-chat"') && has(page(s, { tab: "files" }), 'data-testid="open-files"') && has(page(s, { tab: "comments" }), 'data-testid="open-chat-comments"'));
+  assert.ok(has(page(s, { tab: "chat" }), "Ask pane for clients cl_0") && has(page(s, { tab: "files" }), 'data-testid="pane-files"') && has(page(s, { tab: "comments" }), 'data-testid="pane-comments"'), "each tab is its own pane now, not a link to another place");
 });
 
 test("screen: a field open for editing is an input with its label, no Save button anywhere", () => {

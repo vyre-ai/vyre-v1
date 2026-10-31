@@ -1,5 +1,6 @@
 // Threads, channels and waiting blocks (spec 2.5, 3.2, 4.6; ARCH 6.1, 7.2).
-//   chat.start                   a chat, an Ask pane, a direct message, or (scopeType 'run') the one thread of a Run, shown as a line in the subject record's channel
+//   chat.start                   a chat, an Ask pane, a direct message, or (scopeType 'run') the one thread of a Run, shown as a line in the subject record's channel,
+//                                or (scopeType 'task') the one thread of a task: unlisted, open like a Run's, its agents listen and run only when woken or mentioned
 //   chat.thread                  the inline thread under a message
 //   threads.make_channel         a private chat becomes a channel with another person, linked back to the chat
 //   channels.create              a named room, public to the Team Space or invite-only; a record's channel is a Project or Journey channel
@@ -86,23 +87,34 @@ export async function start(ctx: ChatCtx, input: StartInput) {
   }
   if ((input.scopeType === undefined) !== (input.scopeId === undefined)) raise(ctx, "validation.bad_input", "Name the object with both scopeType and scopeId.");
   const isRun = input.scopeType === "run";
+  const isTask = input.scopeType === "task";
 
   if (input.kind === "ask") {
     if (isRun) raise(ctx, "validation.bad_input", "A Run has a chat, not an Ask pane.");
+    if (isTask) raise(ctx, "validation.bad_input", "A task has a thread, not an Ask pane.");
     if (input.scopeType === undefined) raise(ctx, "validation.bad_input", "An Ask pane is about something: say which record, file, event or page.");
     if (personId !== undefined) raise(ctx, "validation.bad_input", "An Ask pane is private. Start a chat to talk to a person.");
     if (agentIds.length === 0) raise(ctx, "validation.bad_input", "Pick the agent to ask.");
-  } else if (agentIds.length === 0 && personId === undefined) {
+  } else if (agentIds.length === 0 && personId === undefined && !isTask) {
     raise(ctx, "validation.bad_input", "Pick an agent or a person to talk to.");
   }
   if (isRun) {
     if (!input.scopeId!.startsWith("run_")) raise(ctx, "validation.bad_input", "A Run thread is named by its Run id.", { scopeId: input.scopeId });
     if (personId !== undefined) raise(ctx, "validation.bad_input", "A Run chat belongs to the Run, not to a pair of people.");
   }
+  if (isTask) {
+    if (!input.scopeId!.startsWith("tsk_")) raise(ctx, "validation.bad_input", "A task thread is named by its task id.", { scopeId: input.scopeId });
+    if (personId !== undefined) raise(ctx, "validation.bad_input", "A task thread belongs to the task, not to a pair of people.");
+  }
 
   // One chat per Run: starting it again opens the one that exists.
   if (isRun) {
     const row = (ctx.db.all("SELECT id FROM chat_thread WHERE kind = 'run' AND scopeId = ? AND deleted_at IS NULL", input.scopeId) as Row[])[0];
+    if (row) { const t = threadBy(ctx.db, String(row["id"]))!; return { thread: threadOut(ctx.db, t) }; }
+  }
+  // One thread per task, whoever asks: the agents of a task listen in it and run only when woken or mentioned.
+  if (isTask) {
+    const row = (ctx.db.all("SELECT id FROM chat_thread WHERE kind = 'thread' AND scopeType = 'task' AND scopeId = ? AND deleted_at IS NULL", input.scopeId) as Row[])[0];
     if (row) { const t = threadBy(ctx.db, String(row["id"]))!; return { thread: threadOut(ctx.db, t) }; }
   }
   // The same two people have one direct message.
@@ -124,13 +136,13 @@ export async function start(ctx: ChatCtx, input: StartInput) {
   }
 
   const t = insertThread(ctx, {
-    kind: isRun ? "run" : input.kind, title: input.title?.trim() || undefined, starter: asker, recordId: input.recordId, folderId: input.folderId, scopeType: input.scopeType, scopeId: input.scopeId,
-    parentThreadId: parent?.threadId, parentMessageId: parent?.messageId, listed: input.kind === "chat" && !isRun,
+    kind: isRun ? "run" : isTask ? "thread" : input.kind, title: input.title?.trim() || undefined, starter: asker, recordId: input.recordId, folderId: input.folderId, scopeType: input.scopeType, scopeId: input.scopeId,
+    parentThreadId: parent?.threadId, parentMessageId: parent?.messageId, listed: input.kind === "chat" && !isRun && !isTask,
   });
   if (asker.startsWith("usr_")) addMember(ctx, t.id, asker, "owner");
   if (personId !== undefined) addMember(ctx, t.id, personId);
   // The first agent leads when nobody else is talking; a second person (a direct message) or more agents mean the rest listen.
-  const engaged = agentIds.map((agentId, i): { agentId: string; mode: Mode } => ({ agentId, mode: i === 0 && personId === undefined ? "lead" : "listen" }));
+  const engaged = agentIds.map((agentId, i): { agentId: string; mode: Mode } => ({ agentId, mode: i === 0 && personId === undefined && !isTask ? "lead" : "listen" }));
   for (const a of engaged) addAgent(ctx, t.id, { ...a, model: input.model, provider: input.provider, effort: input.effort, addedBy: asker });
 
   emitStarted(ctx, t);
@@ -246,7 +258,8 @@ const onlyPeople = (ctx: ChatCtx): void => {
 function answerFits(data: Record<string, unknown>, answer: unknown): boolean {
   const mode = String(data["mode"] ?? "free");
   const keys = Array.isArray(data["options"]) ? (data["options"] as Array<{ key?: unknown }>).map((o) => String(o.key)) : [];
-  const other = data["allowOther"] === true;
+  // a Mount card hands back what was mounted as words, so a question made only of mount sources always takes words
+  const other = data["allowOther"] === true || (keys.length > 0 && keys.every((k) => k.startsWith("mount:")));
   const text = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
   const otherText = (v: unknown): boolean => other && (text(v) || (typeof v === "object" && v !== null && !Array.isArray(v) && text((v as Record<string, unknown>)["other"])));
   if (mode === "free") return text(answer);

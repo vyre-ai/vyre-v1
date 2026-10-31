@@ -36,11 +36,22 @@ export interface HistoryDeps {
   now?: () => number;
 }
 
+export interface ActivityEntry {
+  id: string;
+  kind: "created" | "edited" | "stage" | "linked" | "unlinked" | "removed" | "restored" | "synced";
+  at: number;
+  actor: string;
+  field?: string;
+  from?: unknown;
+  to?: unknown;
+}
+
 export interface HistoryEntry { field: string; value: unknown; hlc: string; actor: string; reason?: string }
 export interface VersionRow { versionId: string; n: number; by: string; at: number; reason?: string; name?: string }
 
 export interface HistoryHandlers {
   "records.history"(ctx: HistoryCtx, input: { type: string; recordId: string; field?: string }): Promise<{ entries: HistoryEntry[] }>;
+  "records.activity"(ctx: HistoryCtx, input: { type: string; recordId: string; limit?: number; before?: number }): Promise<{ entries: ActivityEntry[]; next?: number }>;
   "records.as_of"(ctx: HistoryCtx, input: { type: string; recordId: string; at: number }): Promise<{ record: RecordRow }>;
   "records.versions"(ctx: HistoryCtx, input: { type: string; recordId: string }): Promise<{ versions: VersionRow[] }>;
   "records.restore_version"(ctx: HistoryCtx, input: { type: string; recordId: string; versionId: string }): Promise<{ record: RecordRow }>;
@@ -55,7 +66,7 @@ const NEXT: Record<NextStep["kind"], string> = {
   reconnect: "Reconnect", edit_input: "Fix the input", wait: "Wait a moment", contact_admin: "Contact an admin", report: "Report a problem",
 };
 
-function fail(ctx: Pick<HistoryCtx, "trace">, code: ErrorCode, message: string): never {
+export function fail(ctx: Pick<HistoryCtx, "trace">, code: ErrorCode, message: string): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
@@ -133,6 +144,12 @@ function sealedFields(def: TypeDef): Set<string> {
   return new Set(def.fields.filter((f) => f.kind === "sealed").map((f) => f.name));
 }
 
+/** Where an event came from that is not a person at a screen: a sync push or an import. */
+const SYNC_ORIGINS = new Set(["sync", "connector", "import"]);
+const ACTIVITY_LIMIT = 50;
+const same = (a: unknown, b: unknown): boolean => canonical(a ?? null) === canonical(b ?? null);
+const empty = (v: unknown): boolean => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+
 const masked = (field: string): Record<string, unknown> => ({ sealed: field, masked: true });
 
 export function createHistoryHandlers(deps: HistoryDeps): HistoryHandlers {
@@ -196,6 +213,37 @@ export function createHistoryHandlers(deps: HistoryDeps): HistoryHandlers {
         return (a && b ? compareHlc(a, b) : 0) || x.i - y.i;
       }).map((x) => x.e);
       return { entries: input.field ? sorted.filter((e) => e.field === input.field) : sorted };
+    }),
+
+    // What happened, newest first. One log event is one change; an edit of several fields is one entry per field, so each row reads on its own. Sealed values are masked as in history.
+    "records.activity": (ctx, input) => guard(ctx, () => {
+      const d = def(ctx, input.type);
+      const seal = sealedFields(d);
+      const kindOf = new Map(d.fields.map((f) => [f.name, f.kind]));
+      const all = need(ctx, input.type, input.recordId);
+      const out: ActivityEntry[] = [];
+      all.forEach((s, i) => {
+        const e = s.event;
+        const base = { actor: e.actor, at: payloadOf<Payload>(e).at ?? e.at };
+        if (s.kind === "created") { out.push({ id: `${e.id}`, kind: "created", ...base }); return; }
+        if (s.kind === "removed" || s.kind === "restored") { out.push({ id: `${e.id}`, kind: s.kind, ...base }); return; }
+        const prev = all[i - 1]?.data ?? {};
+        const synced = e.origin !== undefined && SYNC_ORIGINS.has(e.origin);
+        for (const field of new Set([...Object.keys(prev), ...Object.keys(s.data)])) {
+          if (same(prev[field], s.data[field])) continue;
+          const k = kindOf.get(field);
+          const from = seal.has(field) ? masked(field) : prev[field] ?? null;
+          const to = seal.has(field) ? masked(field) : s.data[field] ?? null;
+          const kind: ActivityEntry["kind"] = synced ? "synced" : k === "relation" ? (empty(s.data[field]) ? "unlinked" : "linked") : k === "status" ? "stage" : "edited";
+          out.push({ id: `${e.id}:${field}`, kind, ...base, field, from, to });
+        }
+      });
+      out.reverse();
+      const cut = input.before === undefined ? out : out.filter((x) => x.at < input.before!);
+      const limit = input.limit ?? ACTIVITY_LIMIT;
+      const page = cut.slice(0, limit);
+      const next = cut.length > limit ? page[page.length - 1]?.at : undefined;
+      return { entries: page, ...(next !== undefined ? { next } : {}) };
     }),
 
     "records.as_of": (ctx, input) => guard(ctx, () => {

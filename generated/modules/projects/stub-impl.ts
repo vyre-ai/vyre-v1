@@ -8,6 +8,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "projects.cascade": async () => ({"holds":[{"reason":"example","taskId":"tsk_a1b2c3"}],"moves":[{"fromDue":1760000000000,"fromStart":1760000000000,"taskId":"tsk_a1b2c3","toDue":1760000000000,"toStart":1760000000000}],"proposalId":"csc_a1b2c3","summary":"3 later tasks move, the Tuesday consult still holds"} as unknown) as never,
   "projects.create": async () => ({"channelId":"chn_a1b2c3","folderId":"fld_a1b2c3","projectId":"prj_a1b2c3","recordId":"rec_a1b2c3"} as unknown) as never,
   "projects.file_chat": async () => ({"ok":true} as unknown) as never,
+  "projects.files_folder": async () => ({"folderId":"fld_a1b2c3"} as unknown) as never,
   "projects.from_channel": async () => ({"channelId":"chn_a1b2c3","folderId":"fld_a1b2c3","projectId":"prj_a1b2c3","recordId":"rec_a1b2c3"} as unknown) as never,
   "projects.get": async () => ({"project":{"channelId":"chn_a1b2c3","due":1760000000000,"folderId":"fld_a1b2c3","lateTasks":1,"lead":"usr_a1b2c3","memberCount":1,"openTasks":1,"projectId":"prj_a1b2c3","recordId":"rec_a1b2c3","start":1760000000000,"status":"active","summary":"example","title":"example","type":"contact"}} as unknown) as never,
   "projects.link_tasks": async () => ({"ok":true} as unknown) as never,

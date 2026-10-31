@@ -326,6 +326,9 @@ export async function copySelection(selection: string, write: (text: string) => 
   return text;
 }
 
+const RISK_TEXT = { read: "Only reads", change: "Changes something", danger: "Destructive or elevated" } as const;
+const RISK_COLOR = { read: "var(--ok)", change: "var(--warn)", danger: "var(--danger)" } as const;
+
 /** One place a terminal can open. An offline one is shown but not choosable, and says why on hover. */
 export interface TerminalHostChoice { key: string; label: string; kind: TerminalHost; online: boolean; why?: string }
 
@@ -389,6 +392,8 @@ export interface TerminalViewProps extends TerminalProps {
   /** A short confirmation shown at the right of the bar, for example "Copied". */
   note?: string;
   /** Every computer the person can open a terminal on (this computer, other computers, servers, agent computers). When given, the host chip lists these instead of the three kinds. */
+  /** What the line being typed would do: a dot in the bar (green reads, amber changes, red is destructive and always asks). Null or absent: no dot. */
+  risk?: "read" | "change" | "danger" | null;
   hosts?: readonly TerminalHostChoice[];
   /** The key of the host this session runs on, to check it in the list. */
   hostKey?: string;
@@ -525,6 +530,7 @@ export function Terminal(props: TerminalViewProps): ReactElement {
         {session ? sessionChip : hostChip}
         {session ? <Text style={styles.sub} numberOfLines={1} testID="terminal-sub">{sub}</Text> : null}
         <View style={styles.grow} />
+        {props.risk ? <View testID={`terminal-risk-${props.risk}`} accessibilityRole="image" accessibilityLabel={RISK_TEXT[props.risk]} {...webProps({ title: RISK_TEXT[props.risk] })} style={[styles.riskDot, { backgroundColor: RISK_COLOR[props.risk] }]} /> : null}
         {text.length > 0 ? <Text style={styles.note} testID="terminal-note">{text}</Text> : null}
         {session && props.onStar !== undefined ? (
           <Pressable accessibilityRole="button" accessibilityLabel={props.starred === true ? "Remove star" : "Star"} accessibilityState={{ selected: props.starred === true }} onPress={() => props.onStar?.(props.sessionId)} testID="terminal-star" {...webProps({ title: "Star  ⌘D" })} style={({ hovered }: { hovered?: boolean }) => [styles.btn, hovered === true && styles.btnHover]}>
@@ -593,6 +599,7 @@ const styles = StyleSheet.create({
   chipHover: { backgroundColor: "var(--hover)" as string },
   chipText: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   chev: { color: "var(--ink-3)" as string, fontSize: 10 },
+  riskDot: { width: 9, height: 9, borderRadius: 5 },
   statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   statusLocked: { backgroundColor: "var(--ink-4)" as string },
   statusExited: { backgroundColor: "var(--ink-4)" as string },

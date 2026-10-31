@@ -4654,6 +4654,14 @@
                         "backupKeyId": {
                           "type": "string"
                         },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
                         "escalateTo": {
                           "properties": {
                             "id": {
@@ -4680,6 +4688,13 @@
                           "type": "object"
                         },
                         "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
                           "type": "string"
                         },
                         "nudgeMinutes": {
@@ -6171,6 +6186,14 @@
                         "backupKeyId": {
                           "type": "string"
                         },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
                         "escalateTo": {
                           "properties": {
                             "id": {
@@ -6197,6 +6220,13 @@
                           "type": "object"
                         },
                         "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
                           "type": "string"
                         },
                         "nudgeMinutes": {
@@ -6467,6 +6497,14 @@
                         "backupKeyId": {
                           "type": "string"
                         },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
                         "escalateTo": {
                           "properties": {
                             "id": {
@@ -6493,6 +6531,13 @@
                           "type": "object"
                         },
                         "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
                           "type": "string"
                         },
                         "nudgeMinutes": {
@@ -39308,6 +39353,42 @@
     },
     {
       "blocks": [],
+      "cap": "projects.files_folder",
+      "deferred": false,
+      "description": "The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "create": {
+            "type": "boolean"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_files_folder",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.from_channel",
       "deferred": false,
       "description": "Make this channel a project: create the record and attach the channel, a folder and an empty plan",
@@ -40505,6 +40586,53 @@
     },
     {
       "blocks": [],
+      "cap": "records.activity",
+      "deferred": false,
+      "description": "What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "records_activity",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "records.as_of",
       "deferred": false,
       "description": "Read a record as it was at a time",
@@ -40594,6 +40722,205 @@
         "type": "object"
       },
       "name": "records_bulk_upsert",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.add",
+      "deferred": false,
+      "description": "Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "mentions": {
+            "items": {
+              "properties": {
+                "id": {
+                  "examples": [
+                    "usr_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "person",
+                    "agent"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_add",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.delete",
+      "deferred": false,
+      "description": "Delete your own comment (or any, with manage on the record)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "commentId": {
+            "examples": [
+              "rcm_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "commentId"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_delete",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.edit",
+      "deferred": false,
+      "description": "Edit your own comment",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "commentId": {
+            "examples": [
+              "rcm_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commentId",
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_edit",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.list",
+      "deferred": false,
+      "description": "Comments on a record as threads (a root comment and its replies, oldest first); resolved threads only when asked for",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "includeResolved": {
+            "type": "boolean"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.resolve",
+      "deferred": false,
+      "description": "Resolve a comment thread or reopen it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "commentId": {
+            "examples": [
+              "rcm_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "resolved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "commentId",
+          "resolved"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_resolve",
       "planMode": "blocked",
       "toolset": "records",
       "v": 1
@@ -49036,6 +49363,218 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.ask",
+      "deferred": false,
+      "description": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "question": {
+            "examples": [
+              "Which of the two dates is right?"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "group",
+                  "role",
+                  "automation"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "taskId",
+          "question"
+        ],
+        "type": "object"
+      },
+      "name": "task_ask",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.block",
+      "deferred": false,
+      "description": "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "reason": {
+            "examples": [
+              "I cannot open the client folder"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "name": "task_block",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.decide",
+      "deferred": false,
+      "description": "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "name": "task_decide",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.review",
+      "deferred": false,
+      "description": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fixes": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "note": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "send_back"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "name": "task_review",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.submit",
+      "deferred": false,
+      "description": "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "outputs": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "summary": {
+            "examples": [
+              "Drafted the letter and checked the dates"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "name": "task_submit",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.act",
       "deferred": false,
       "description": "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
@@ -49334,6 +49873,12 @@
               "signature"
             ],
             "type": "string"
+          },
+          "notes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
           },
           "parentTaskId": {
             "examples": [
@@ -50066,7 +50611,7 @@
       "blocks": [],
       "cap": "tasks.update",
       "deferred": false,
-      "description": "Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)",
+      "description": "Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -50128,6 +50673,13 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
           },
           "title": {

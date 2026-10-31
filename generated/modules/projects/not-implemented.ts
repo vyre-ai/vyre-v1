@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "projects.cascade": async (ctx) => { throw new VyreErr(notImplemented("projects.cascade", ctx.trace)); },
   "projects.create": async (ctx) => { throw new VyreErr(notImplemented("projects.create", ctx.trace)); },
   "projects.file_chat": async (ctx) => { throw new VyreErr(notImplemented("projects.file_chat", ctx.trace)); },
+  "projects.files_folder": async (ctx) => { throw new VyreErr(notImplemented("projects.files_folder", ctx.trace)); },
   "projects.from_channel": async (ctx) => { throw new VyreErr(notImplemented("projects.from_channel", ctx.trace)); },
   "projects.get": async (ctx) => { throw new VyreErr(notImplemented("projects.get", ctx.trace)); },
   "projects.link_tasks": async (ctx) => { throw new VyreErr(notImplemented("projects.link_tasks", ctx.trace)); },

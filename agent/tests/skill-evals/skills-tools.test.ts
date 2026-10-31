@@ -13,7 +13,7 @@ const text = (dir: string): string => readFileSync(new URL(`${dir}/SKILL.md`, ro
 const NOT_TOOLS = new Set(["secret_input", "sources_kind", "diff_card"]);
 
 test("the places each have a focus skill, and the manual, loops and computer skills are there", () => {
-  for (const n of ["working-in-vyre", "focus-records", "focus-files", "focus-automations", "focus-vault", "focus-inbox", "focus-apps", "focus-console", "agent-loops", "agent-computer"]) assert.ok(dirs.includes(n), n);
+  for (const n of ["working-in-vyre", "focus-records", "focus-files", "focus-automations", "focus-vault", "focus-inbox", "focus-apps", "focus-console", "agent-loops", "agent-computer", "working-on-tasks"]) assert.ok(dirs.includes(n), n);
 });
 
 test("every skill has the front matter of an open SKILL.md: name equal to its folder, a description, system true", () => {

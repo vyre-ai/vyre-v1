@@ -18,6 +18,7 @@ const triggerRef = t.obj({ key: t.str({ examples: ['record_change'] }), config: 
 const aiBlock = t.obj({
   agentId: t.opt(id.agent), keyId: t.opt(t.str()), backupKeyId: t.opt(t.str()), assigned: t.opt(assignee), reviewer: t.opt(assignee), approver: t.opt(assignee),
   timeoutMinutes: t.opt(t.int({ minimum: 1 })), nudgeMinutes: t.opt(t.int({ minimum: 1 })), escalateTo: t.opt(assignee),
+  mode: t.opt(t.enm('answer', 'task')), doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
 });
 const anyJson = t.json();
 // HTTP request step (spec 2.12): the same request shape for a read and for a send. The secret is a Vault handle; the host fills it for one call and it never reaches the definition, the log or the output.

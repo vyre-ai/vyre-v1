@@ -21,6 +21,8 @@ export interface FilesViewerData {
   openFile?(fileId: string): void;
   /** Open an address outside Vyre (a mounted file in its provider's editor); without it the viewer shows no Open in button. */
   openUrl?(url: string): void;
+  /** A file named in the words opens in a tab of its own; `background` leaves the person where they are (Cmd-click, middle click). */
+  openFileTab?(fileId: string, background: boolean): void;
   /** Files in the same folder, for the strip under an image. */
   siblings?(folderId: string): readonly { id: string; title: string }[];
 }

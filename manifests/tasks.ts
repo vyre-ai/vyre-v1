@@ -24,6 +24,7 @@ const taskRow = t.obj({
   snoozedUntil: t.opt(t.ts()), createdBy: t.str(), createdAt: t.ts(), updatedAt: t.ts(),
 });
 const target = { taskId: id.task };
+const baton = t.enm('review', 'approval', 'done');
 const readyReason = t.enm('ready', 'due_today', 'overdue', 'blocking');
 
 export default defineManifest({
@@ -68,6 +69,7 @@ export default defineManifest({
         assigned: assignee, reviewer: t.opt(assignee), approver: t.opt(assignee), due: t.opt(t.ts()), effort: t.opt(t.int({ minimum: 0 })),
         recordId: t.opt(id.record), fileIds: t.opt(t.arr(id.file)), source: t.opt(source), parentTaskId: t.opt(id.task), dependsOn: t.opt(t.arr(id.task)),
         expiresAt: t.opt(t.ts()), actions: t.opt(t.arr(action)),
+        notes: t.opt(t.rec(t.str())),   // working notes to start the task with: the brief, what done means, the schema its outputs must match
         decisionId: t.opt(t.str()), payloadHash: t.opt(t.str()),   // the Gate's Approve task keeps the held act's decision and payload hash (working notes decision_id, payload_hash)
       },
       out: { task: taskRow }, make: ['task', '/recordId'], emits: ['task.created', 'task.requested', 'task.assigned'], tool: 'tasks', offline: 'queue', hook: true, cli: 'vyre tasks create',
@@ -91,8 +93,8 @@ export default defineManifest({
       in: { section: t.opt(t.enm('open', 'assigned_by_me', 'done', 'all')), ...pageIn },
       out: { tasks: t.arr(taskRow), counts: t.obj({ open: t.int(), assignedByMe: t.int(), done: t.int() }), ...pageOut }, tool: 'tasks', label: 'filter',
     }),
-    write('tasks.update', 'Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)', {
-      in: { ...target, title: t.opt(t.str()), summary: t.opt(t.str()), why: t.opt(t.str()), due: t.opt(t.nullable(t.ts())), effort: t.opt(t.nullable(t.int())), blocks: t.opt(t.arr(blockIn)) },
+    write('tasks.update', 'Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)', {
+      in: { ...target, title: t.opt(t.str()), summary: t.opt(t.str()), why: t.opt(t.str()), due: t.opt(t.nullable(t.ts())), effort: t.opt(t.nullable(t.int())), blocks: t.opt(t.arr(blockIn)), threadId: t.opt(id.thread) },
       out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.updated'], tool: 'tasks', offline: 'patch',
     }),
     write('tasks.transition', 'Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules', {
@@ -105,6 +107,32 @@ export default defineManifest({
       out: { task: taskRow, result: t.opt(t.json()) }, on: ['task', '/taskId'], level: 'use',
       emits: ['task.transitioned', 'task.completed', 'task.sent_back', 'task.approved', 'task.rejected', 'task.handled'], tool: 'tasks', offline: 'online',
       errors: ['validation.precondition_failed', 'permission.expired'],
+    }),
+    write('tasks.submit', 'Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done', {
+      in: { ...target, outputs: t.opt(t.rec()), summary: t.str({ minLength: 1, examples: ['Drafted the letter and checked the dates'] }) },
+      out: { task: taskRow, next: baton }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed'],
+      tool: 'tasks', mcpName: 'task_submit', offline: 'online', errors: ['validation.precondition_failed'],
+    }),
+    write('tasks.ask', 'Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you', {
+      in: { ...target, question: t.str({ minLength: 1, examples: ['Which of the two dates is right?'] }), to: t.opt(assignee) },
+      out: { task: taskRow, answerTaskId: id.task }, on: ['task', '/taskId'], level: 'use', emits: ['task.created', 'task.requested', 'task.assigned', 'task.link_changed'],
+      tool: 'tasks', mcpName: 'task_ask', offline: 'online', errors: ['validation.precondition_failed'],
+    }),
+    write('tasks.block', 'Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits', {
+      in: { ...target, reason: t.str({ minLength: 1, examples: ['I cannot open the client folder'] }) },
+      out: { task: taskRow, unblockTaskId: id.task }, on: ['task', '/taskId'], level: 'use', emits: ['task.created', 'task.requested', 'task.assigned', 'task.link_changed'],
+      tool: 'tasks', mcpName: 'task_block', offline: 'online', errors: ['validation.precondition_failed'],
+    }),
+    write('tasks.review', 'Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)', {
+      in: { ...target, verdict: t.enm('approve', 'send_back'), fixes: t.opt(t.arr(t.str({ minLength: 1 }))), note: t.opt(t.str()) },
+      out: { task: taskRow, next: t.enm('approval', 'done', 'fixes', 'person') }, on: ['task', '/taskId'], level: 'use',
+      emits: ['task.transitioned', 'task.completed', 'task.approved', 'task.sent_back', 'task.assigned'], tool: 'tasks', mcpName: 'task_review', offline: 'online',
+      errors: ['validation.precondition_failed'],
+    }),
+    write('tasks.decide', 'Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)', {
+      in: { ...target, verdict: t.enm('approve', 'reject'), reason: t.opt(t.str()) },
+      out: { task: taskRow, next: t.enm('done', 'fixes') }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed', 'task.approved', 'task.rejected'],
+      tool: 'tasks', mcpName: 'task_decide', offline: 'online', errors: ['validation.precondition_failed'],
     }),
     write('tasks.assign', 'Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)', {
       in: { ...target, slot, to: t.nullable(assignee) }, out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.assigned'], tool: 'tasks', offline: 'queue',
