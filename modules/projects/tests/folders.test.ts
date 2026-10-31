@@ -212,3 +212,72 @@ test("adopting a record that already has a project does nothing", async () => {
   assert.equal(await adoptRecord(h.ctx, "project", p.recordId), undefined);
   assert.equal(h.rows("SELECT * FROM projects_project").length, 1);
 });
+
+// ---- the files folder of any record
+
+import { fileIntoRecord, recordFilesFolder } from "../handlers/folders.ts";
+
+test("a record that is not a project gets its files folder under Record files on first use, and the same one after", async () => {
+  const h = harness();
+  const id = mkRecord(h, { name: "Elena Rivera" }, "contact");
+  const none = await recordFilesFolder(h.ctx, { type: "contact", recordId: id, create: false });
+  assert.equal(none.folderId, null, "nothing is made when only asking");
+  assert.equal(h.only("files.folder.create").length, 0);
+  const a = await recordFilesFolder(h.ctx, { type: "contact", recordId: id });
+  const b = await recordFilesFolder(h.ctx, { type: "contact", recordId: id });
+  assert.equal(a.folderId, b.folderId);
+  const made = [...h.world.folders.values()];
+  const folder = made.find((f) => f.folderId === a.folderId)!;
+  assert.equal(folder.name, `Elena Rivera · ${id.slice(-8)}`);
+  const home = made.find((f) => f.folderId === folder.parentId)!;
+  assert.equal(home.name, "Record files");
+  assert.equal(home.parentId, h.world.root.folderId, "under Projects");
+  assert.equal((await recordFilesFolder(h.ctx, { type: "contact", recordId: id, create: false })).folderId, a.folderId, "found again without making anything");
+});
+
+test("a record that has its own folder (a project) uses it, and two records share one Record files folder", async () => {
+  const h = harness();
+  const own = mkRecord(h, { title: "Plan", folder: "fld_theirs" });
+  assert.equal((await recordFilesFolder(h.ctx, { type: "project", recordId: own })).folderId, "fld_theirs");
+  assert.equal(h.only("files.folder.create").length, 0);
+  const x = mkRecord(h, { name: "A" }, "contact");
+  const y = mkRecord(h, { name: "B" }, "contact");
+  await recordFilesFolder(h.ctx, { type: "contact", recordId: x });
+  await recordFilesFolder(h.ctx, { type: "contact", recordId: y });
+  assert.equal([...h.world.folders.values()].filter((f) => f.name === "Record files").length, 1);
+});
+
+test("a file already in Files is moved into the record's folder, never copied; a missing record is refused", async () => {
+  const h = harness();
+  const id = mkRecord(h, { name: "Elena" }, "contact");
+  const folderId = await fileIntoRecord(h.ctx, { type: "contact", recordId: id, fileId: "fil_1" });
+  assert.equal(h.only("files.move").length, 1);
+  assert.deepEqual(h.only("files.move")[0]!.input, { fileId: "fil_1", toFolderId: folderId });
+  assert.equal(h.only("files.create").length, 0, "no second copy");
+  await assert.rejects(recordFilesFolder(h.ctx, { type: "contact", recordId: "rec_none" }), /no such record/);
+});
+
+// ---- a file put in a files field is filed in the record's folder
+
+test("a file that lands in a files field of any record is moved into the record's folder, by every path that sets the field", async () => {
+  const h = harness();
+  h.world.handlers["schema.types.get"] = () => ({ type: { key: "contact", fields: [{ key: "name", type: "text" }, { key: "id_doc", type: "files" }, { key: "photo", type: "file" }] } });
+  const id = mkRecord(h, { name: "Ada" }, "contact");
+  await onRecordEvent(h.ctx, { name: "record.updated", payload: { recordId: id, type: "contact", fields: { id_doc: [{ fileId: "fil_a" }, "fil_b"], photo: { fileId: "fil_c" }, name: "Ada" } }, actor: DANA });
+  const moves = h.only("files.move").map((m) => (m.input as { fileId: string }).fileId).sort();
+  assert.deepEqual(moves, ["fil_a", "fil_b", "fil_c"], "each file, once, moved not copied");
+  const folder = [...h.world.folders.values()].find((f) => f.name.startsWith("Ada ·"))!;
+  assert.ok(h.only("files.move").every((m) => (m.input as { toFolderId: string }).toFolderId === folder.folderId));
+  assert.equal(h.only("files.create").length, 0, "no second copy");
+  await onRecordEvent(h.ctx, { name: "record.created", payload: { recordId: id, type: "contact", fields: { name: "Ada" } }, actor: DANA });
+  assert.equal(h.only("files.move").length, 3, "a change to another field moves nothing");
+});
+
+test("a file that cannot be moved is left alone and the rest are still filed", async () => {
+  const h = harness();
+  h.world.handlers["schema.types.get"] = () => ({ type: { key: "contact", fields: [{ key: "docs", type: "files" }] } });
+  h.world.handlers["files.get"] = (i: { fileId: string }) => (i.fileId === "fil_gone" ? ((): never => { throw Object.assign(new Error("gone"), { code: "validation.not_found" }); })() : { file: { fileId: i.fileId } });
+  const id = mkRecord(h, { name: "Bo" }, "contact");
+  await onRecordEvent(h.ctx, { name: "record.updated", payload: { recordId: id, type: "contact", fields: { docs: ["fil_gone", "fil_ok"] } }, actor: DANA });
+  assert.deepEqual(h.only("files.move").map((m) => (m.input as { fileId: string }).fileId), ["fil_ok"]);
+});

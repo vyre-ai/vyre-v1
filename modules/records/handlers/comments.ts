@@ -140,8 +140,7 @@ export function createCommentsHandlers(deps: CommentsDeps): CommentsHandlers {
       const threadId = res?.thread?.threadId;
       if (!threadId) throw new Error("no pane");
       tx.run("UPDATE records_comment_agent SET thread_id = ? WHERE comment_id = ? AND agent_id = ?", threadId, c.id, agentId);
-      // headless means no one is there to say yes to each step: the pane runs on Auto. Anything that leaves Vyre is held for a yes in every mode.
-      await ctx.call("threads.set_mode" as never, { threadId, mode: "auto" });
+      // The pane keeps the person's own mode (Ask first by default): the agent's other writes wait for their yes. Its reply is a comment, which never waits (records.comments.add is allowed in every mode).
       await ctx.call("chat.post" as never, { threadId, body: promptFor(c, root, title, names), mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `rcm-post:${c.id}:${agentId}` });
     } catch (e) {
       tx.run("UPDATE records_comment_agent SET state = 'failed' WHERE comment_id = ? AND agent_id = ?", c.id, agentId);

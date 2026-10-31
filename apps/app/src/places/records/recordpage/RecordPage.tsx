@@ -23,6 +23,8 @@ import {
   PANE_TABS, RING_R, ago, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
   shownFields, sourceText, splitLinks, toggleFold, valueText,
 } from "./model.ts";
+import { TabMeasure, useFittedTabs, useTitleWidths } from "../../chats/rightpane/fit.tsx";
+import { PANE_CHROME, PANE_TAB_EXTRA } from "../../chats/rightpane/ChatRightPane.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { channelFieldToAdd, findContact } from "./askfor.ts";
 import { ActivityTab, ChatTab, CommentsTab, FilesTab } from "../recordpane/index.ts";
@@ -181,8 +183,22 @@ function chooseFrom(f: FieldDef, q: FieldProps, x: number, y: number): void {
 
 // ---------------------------------------------------------------- the right pane
 
-function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; def: TypeDef; tab: PaneKey; onTab: (k: PaneKey) => void }): ReactElement {
+const PANE_W = 340;
+const PINNED_TABS = PANE_TABS.map((t) => ({ ...t, pinned: true }));
+const withMore = (w: ReadonlyMap<string, number>): ReadonlyMap<string, number> => new Map(w).set("More", 14).set("More tabs", 14);
+
+function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row: RecordRow; def: TypeDef; tab: PaneKey; onTab: (k: PaneKey) => void; phone?: boolean }): ReactElement {
   const data = usePageData();
+  const menu = useMenu();
+  const win = useWindowDimensions();
+  const [paneW, setPaneW] = useState(PANE_W);
+  const titles = useTitleWidths();
+  const paneNow = phone ? win.width : paneW;
+  // the tabs that do not fit fold behind one More tab, as in the Chats pane
+  const { strip, select } = useFittedTabs(PINNED_TABS, tab, paneNow, {
+    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME + 28, ...(titles.widths.size > 0 ? { chevron: true } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
+    pick: (key) => onTab(key as PaneKey),
+  });
   const vq = useLive("records.versions", { type, recordId: row.id });
   const mq = useLive("memory.find_by_subject", { subject: row.id });
   const now = data.now();
@@ -202,9 +218,15 @@ function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; de
     <View testID="pane-history"><HistoryTab resourceType="record" resourceId={row.id} recordType={type} versions={historyVersions(vq.data.versions, data.nameOf)} selectedVersionId={null} density="compact" invoke={(cap, input) => data.call(cap, input).then(() => undefined)} /></View>
   ) : <Text style={p.paneEmpty}>Loading</Text>;
   return (
-    <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane" label="Record details">
-      <TabStrip tabs={each(PANE_TABS, (t) => ({ key: t.key, title: t.title }))} active={tab} onSelect={(k) => onTab(k as PaneKey)} />
+    <ResizableColumn
+      paneKey={phone ? "record-pane-phone" : "record-pane"} defaultWidth={phone ? win.width : PANE_W} grow="left" min={phone ? win.width : 280} {...(phone ? { maxFraction: 1 } : {})}
+      style={(phone ? [p.pane, p.panePhone] : p.pane) as never} testID="record-pane" label="Record details"
+      onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}
+    >
+      <TabMeasure titles={PANE_TABS.map((x) => x.title)} onWidth={titles.set} />
+      <TabStrip tabs={strip as never} active={tab} onSelect={select} />
       {fill ? <View style={p.paneFill}>{body}</View> : <ScrollView style={p.paneScroll}>{body}</ScrollView>}
+      {menu.element}
     </ResizableColumn>
   );
 }
@@ -244,6 +266,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const mq = useLive("records.relations_map", { type, recordId, hops: 2 }, late || map);
   const width = useWindowDimensions().width;
   const wide = width === 0 || width >= 900;
+  const phone = width > 0 && width < 640;
   const [editing, setEditing] = useState<{ key: string; text: string; error?: string } | null>(start.edit ?? null);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [all, setAll] = useState(start.all === true || start.edit !== undefined);
@@ -364,7 +387,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         </View>
       ) : null}
       <View style={wide ? p.split : p.stack}>
-        <ScrollView style={p.sheet} contentContainerStyle={p.sheetIn} testID="record-sheet">
+        <ScrollView style={[p.sheet, phone && paneOpen && p.hidden]} contentContainerStyle={p.sheetIn} testID="record-sheet">
           {isJourneyDef(def) || stagesOn(def) ? <JourneyStepper type={type} row={row} def={def} /> : null}
           <Pressable accessibilityRole="button" accessibilityLabel="Edit title" testID="title" onPress={() => fieldProps.onEdit(def.fields.find((f) => f.key === def.titleField)!)}>
             {editing?.key === def.titleField
@@ -386,7 +409,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
           {body}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
         </ScrollView>
-        {paneOpen ? (late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane-reserved" />) : null}
+        {paneOpen ? (late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} phone={phone} /> : <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane-reserved" />) : null}
       </View>
       {menu.element}
     </View>
@@ -470,6 +493,8 @@ const p = StyleSheet.create({
   flashLink: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   pane: { width: 340, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
   paneScroll: { flex: 1 },
+  hidden: { display: "none" },
+  panePhone: { width: "100%", borderLeftWidth: 0 },
   paneFill: { flex: 1, minHeight: 0 },
   paneBody: { padding: 16, gap: 10 },
   paneText: { fontSize: 13, color: "var(--ink-2)" as string, lineHeight: 19 },

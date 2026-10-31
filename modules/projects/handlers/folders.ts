@@ -167,10 +167,42 @@ export async function syncAccess(ctx: ProjectsCtx, type: string, recordId: strin
 }
 
 /** The consumer: record events for project types. */
+/** The Space file ids a value names: "fil_..", { fileId }, or a list of them. */
+export function fileIdsOf(v: unknown): string[] {
+  if (typeof v === "string") return v.startsWith("fil_") ? [v] : [];
+  if (Array.isArray(v)) return v.flatMap(fileIdsOf);
+  const id = obj(v)["fileId"];
+  return typeof id === "string" && id.startsWith("fil_") ? [id] : [];
+}
+
+/**
+ * A file that lands in a files field of a record, whichever way it got there (the record page, a form that fills the record, an intake or portal upload, an agent, the API), is filed in the record's
+ * files folder, so the Files tab shows it and the field still points at the same file: it is moved, never copied. A file that cannot be moved (gone, no access) is left where it is.
+ */
+export async function fileFieldUploads(ctx: ProjectsCtx, event: HookEvent): Promise<void> {
+  if (event.name !== "record.created" && event.name !== "record.updated") return;
+  const p = event.payload;
+  const type = p["type"], recordId = p["recordId"];
+  if (typeof type !== "string" || typeof recordId !== "string") return;
+  const changed = obj(p["fields"]);
+  const keys = Object.keys(changed);
+  if (keys.length === 0) return;
+  let def: { fields?: Array<{ key: string; type?: string; kind?: string }> } | undefined;
+  try { def = (await call<{ type?: typeof def }>(ctx, "schema.types.get", { type })).type; } catch { return; }
+  const fileKeys = new Set((def?.fields ?? []).filter((f) => (f.type ?? f.kind) === "files" || (f.type ?? f.kind) === "file").map((f) => f.key));
+  const ids = new Set<string>();
+  for (const k of keys) if (fileKeys.has(k)) for (const id of fileIdsOf(changed[k])) ids.add(id);
+  for (const fileId of ids) {
+    try { await fileIntoRecord(ctx, { type, recordId, fileId }, event.actor); }
+    catch (e) { ctx.log.warn("projects: a file on a record was not filed in its folder", { recordId, fileId, error: codeOf(e) }); }
+  }
+}
+
 export async function onRecordEvent(ctx: ProjectsCtx, event: HookEvent): Promise<void> {
   const p = event.payload;
   const type = p["type"], recordId = p["recordId"];
   if (typeof type !== "string" || typeof recordId !== "string") return;
+  await fileFieldUploads(ctx, event);
   if (!(await isProjectType(ctx, type))) return;
   switch (event.name) {
     case "record.created": await ensureFolder(ctx, type, recordId, event.actor); return;
@@ -213,4 +245,51 @@ export async function backfill(ctx: ProjectsCtx): Promise<number> {
     } while (cursor);
   }
   return made;
+}
+
+// ---- the files folder of any record -----------------------------------------------------------------------------------------------------------------------------------------------------
+// Files that belong to a record (attached on its page, uploaded through a form that fills it, a signed document) live in one folder, whatever the record's type. A project's folder is its own
+// (the `folder` field). Any other record gets Files > Projects > Record files > "<title> · <last 8 of its id>", made the first time something needs it and kept in projects_record_files, with
+// the record's own grants mirrored onto it (syncAccess), so whoever may see the record sees its files. One resolver for every path that puts a file on a record.
+const RECORD_FILES = "Record files";
+const TAIL = 8;
+const RECORD_FILES_TABLE = "CREATE TABLE IF NOT EXISTS projects_record_files (record_id TEXT PRIMARY KEY, folder_id TEXT NOT NULL)";
+
+/** The type a record id belongs to, when the caller (an e-sign envelope, an upload) only has the id: the first type that has it. */
+async function typeOfRecord(ctx: ProjectsCtx, recordId: string): Promise<string | undefined> {
+  const types = await call<{ types?: Array<{ key: string }> }>(ctx, "schema.types.list", {});
+  for (const t of types.types ?? []) if (await recordFields(ctx, t.key, recordId)) return t.key;
+  return undefined;
+}
+
+export async function recordFilesFolder(ctx: ProjectsCtx, given: { type?: string; recordId: string; create?: boolean }, by?: string): Promise<{ folderId: string | null }> {
+  ensure(ctx.db);
+  const type = given.type ?? await typeOfRecord(ctx, given.recordId);
+  const input = { type: type ?? "", recordId: given.recordId, ...(given.create !== undefined ? { create: given.create } : {}) };
+  const fields = input.type === "" ? undefined : await recordFields(ctx, input.type, input.recordId);
+  if (!fields) { const e = new Error("no such record") as Error & { code: string }; e.code = "validation.not_found"; throw e; }
+  const own = fstr(fields["folder"]);
+  if (own) return { folderId: own };
+  ctx.db.run(RECORD_FILES_TABLE);
+  const kept = ctx.db.all("SELECT folder_id FROM projects_record_files WHERE record_id = ?", input.recordId)[0] as { folder_id?: string } | undefined;
+  if (kept?.folder_id) return { folderId: kept.folder_id };
+  if (input.create === false) return { folderId: null };
+  const root = await projectsRoot(ctx);
+  const found = await call<{ folders?: Array<{ folderId: string; name: string; parentId?: string }> }>(ctx, "files.folder.search", { q: RECORD_FILES, scope: "folders", limit: 20 });
+  const home = (found.folders ?? []).find((f) => f.name === RECORD_FILES && f.parentId === root)?.folderId
+    ?? (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: root, name: RECORD_FILES, idempotencyKey: `record-files-home:${root}` }, { idempotencyKey: `record-files-home:${root}` })).folder.folderId;
+  const name = `${titleOf(fields)} · ${input.recordId.slice(-TAIL)}`;
+  const key = `record-files:${input.recordId}`;
+  const made = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: home, name, idempotencyKey: key }, { idempotencyKey: key })).folder.folderId;
+  ctx.db.run("INSERT OR REPLACE INTO projects_record_files (record_id, folder_id) VALUES (?, ?)", input.recordId, made);
+  await syncAccess(ctx, input.type, input.recordId, made, by, fields);
+  return { folderId: made };
+}
+
+/** Put a file that already exists into the record's folder (a move, never a copy), unless it is there already. Returns the folder's id. */
+export async function fileIntoRecord(ctx: ProjectsCtx, input: { type?: string; recordId: string; fileId: string }, by?: string): Promise<string> {
+  const { folderId } = await recordFilesFolder(ctx, { ...(input.type ? { type: input.type } : {}), recordId: input.recordId }, by);
+  const got = await call<{ file?: { folderId?: string } }>(ctx, "files.get", { fileId: input.fileId });
+  if (got.file?.folderId !== folderId) await call(ctx, "files.move", { fileId: input.fileId, toFolderId: folderId });
+  return folderId!;
 }

@@ -64,8 +64,8 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
     },
     renderChat: (type, id) => <RecordsAssistant rt={rt} about={{}} title={id} scope={{ type: "record", id, title: "Record", context: { title: `Record ${type}`, open: [{ type: "record", id }], actions: ["read the record and its history", "answer questions about it"], focus: "" } }} />,
     files: {
-      folderOf: (t) => findRecordFolder(rt.call, t.recordId),
-      attach: (files, t) => attachToRecord(rt.call, rt.putBlob, files, t, `record-attach:${t.recordId}:${Date.now().toString(36)}`),
+      folderOf: (t) => findRecordFolder(rt.call, t.type, t.recordId),
+      attach: (files, t) => attachToRecord(rt.call, rt.putBlob, files, { type: t.type, recordId: t.recordId }, `record-attach:${t.recordId}:${Date.now().toString(36)}`),
     },
     nav: {
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
