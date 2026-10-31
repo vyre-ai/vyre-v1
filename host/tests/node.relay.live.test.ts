@@ -109,3 +109,11 @@ test("a link is private when it is TLS, or from this machine and not forwarded a
   assert.equal(linkIsSecure(req("192.168.1.20")), false, "plain http from the network");
   assert.equal(linkIsSecure(req("192.168.1.20", { "x-forwarded-proto": "https" })), false, "a machine on the network cannot say it was https");
 });
+
+test("a job that gives a computer its Vault channel is pointed at the address the server joined by: only the origin changes", async () => {
+  const { withServerOrigin } = await import("../src/compute/node.ts");
+  assert.deepEqual(withServerOrigin({ computerId: "cmt_1", fillUrl: "http://host.docker.internal:8420/computers/fill", fillToken: "t" }, "https://home.example.com/"), { computerId: "cmt_1", fillUrl: "https://home.example.com/computers/fill", fillToken: "t" });
+  assert.deepEqual(withServerOrigin({ tabLimit: 3 }, "https://x.example"), { tabLimit: 3 });
+  assert.equal(withServerOrigin(null, "https://x.example"), null);
+  assert.deepEqual(withServerOrigin({ fillUrl: "not a url" }, "https://x.example"), { fillUrl: "not a url" });
+});

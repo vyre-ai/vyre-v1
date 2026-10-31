@@ -18,6 +18,8 @@ export interface ComputersFillHostDeps {
   baseUrl(): string;
   /** Where the module's request handler is mounted. */
   mount(handler: (req: IncomingMessage, res: ServerResponse) => void): void;
+  /** Is this server's link to the Space private (TLS, or this machine)? */
+  nodeSecure?(nodeId: string): boolean;
   log(use: FillUseRecord): void;
   now?: () => number;
 }
@@ -29,6 +31,7 @@ export function createComputersFillHost(d: ComputersFillHostDeps) {
     log: (u: FillUseRecord) => d.log(u),
     url: () => `${d.baseUrl().replace(/\/+$/, "")}${FILL_PATH}`,
     mount: d.mount,
+    ...(d.nodeSecure ? { nodeSecure: d.nodeSecure } : {}),
     ...(d.now ? { now: d.now } : {}),
   };
 }

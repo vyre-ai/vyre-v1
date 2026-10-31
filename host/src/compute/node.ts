@@ -47,6 +47,20 @@ export interface NodeLauncher { spawn(spec: { argv: readonly string[]; cwd?: str
 const LOOPBACK = /https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/g;
 const MAX_PROCS = 16;
 
+/**
+ * A job that gives an agent computer its Vault channel carries the address to ask, as the Space sees itself (its Docker gateway); from this computer the Space is at the address it joined by.
+ * Only the origin changes: the path, and the token, stay as the Space made them.
+ */
+export function withServerOrigin(input: unknown, server: string): unknown {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) return input;
+  const o = input as Record<string, unknown>;
+  if (typeof o["fillUrl"] !== "string") return input;
+  try {
+    const u = new URL(o["fillUrl"]);
+    return { ...o, fillUrl: `${server.replace(/\/+$/, "")}${u.pathname}${u.search}` };
+  } catch { return input; }
+}
+
 /** The part of a WebSocket the live view uses. */
 export interface NodeSocket {
   send(data: string | Uint8Array): void;
@@ -222,7 +236,7 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
   async function run(job: NodeJob): Promise<void> {
     try {
       if (!host) throw new Error("This computer does not take jobs yet.");
-      const result = await als.run({ token: job.token, computerId: job.computerId }, () => host.run(job.kind, job.input));
+      const result = await als.run({ token: job.token, computerId: job.computerId }, () => host.run(job.kind, withServerOrigin(job.input, server)));
       // The copy of an agent's home on this machine is a working mirror: Files holds the truth. It is wiped when the computer sleeps, but only after the sync that closed the session finished (a pass
       // that left anything undone keeps it, and the next wake syncs it), and always when the computer is removed.
       if ((job.kind === "stop" && (result as { homeSynced?: unknown } | null)?.homeSynced === true) || job.kind === "remove") wipeMirror(job.agentId);

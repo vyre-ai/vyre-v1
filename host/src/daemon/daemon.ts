@@ -1023,6 +1023,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setComputersFill: (d) => d.vault ? createComputersFillHost({
           space: spaceId, invoke, vault: d.vault, now,
           baseUrl: () => o.computersBaseUrl ?? `http://host.docker.internal:${boundPort}`,
+          nodeSecure: (n) => computeStream.secure(n),
           mount: (h) => fillRoute.mount(h),
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,

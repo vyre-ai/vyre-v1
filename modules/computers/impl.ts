@@ -346,13 +346,13 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
 }
 
 /** What the host hands the module for the Vault channel of agent computers (host/src/seams/computers.ts): the Vault source, a use log, the address agentd posts to and where to mount the route. */
-export interface ComputersFillSeam { source: FillSource; log(use: FillUse): void | Promise<void>; url(): string; mount(handler: (req: IncomingMessage, res: ServerResponse) => void): void; now?: () => number }
+export interface ComputersFillSeam { source: FillSource; log(use: FillUse): void | Promise<void>; url(): string; nodeSecure?(nodeId: string): boolean; mount(handler: (req: IncomingMessage, res: ServerResponse) => void): void; now?: () => number }
 
 export function setComputersFill(h: ComputersFillSeam | null): void {
   if (!h) { bindFill(null); return; }
   const service = createFillService({ source: h.source, log: h.log, ...(h.now ? { now: h.now } : {}) });
   h.mount(fillHttp(service));
-  bindFill({ issue: (x) => service.issue(x), url: h.url });
+  bindFill({ issue: (x) => service.issue(x), url: h.url, ...(h.nodeSecure ? { nodeSecure: h.nodeSecure } : {}) });
 }
 
 /** What the host hands over at boot (host/src/seams/computers-host.ts): the Docker socket, the image and the agents' Files folders. The module builds the Docker host from it and binds it. */

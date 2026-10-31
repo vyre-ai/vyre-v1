@@ -217,13 +217,15 @@ function storeSessions(ctx: CompCtx, computerId: string, sessions: readonly Sess
 async function connectFill(ctx: CompCtx, host: ComputerHost, c: ComputerRow): Promise<void> {
   const binding = boundFill();
   if (!binding) return;
-  if (nodeOf(ctx.db, c.computerId) !== null) return;   // the Vault channel reaches the Space from the computer; a computer on a node has none yet (BACKLOG)
+  // A computer on a server of the person's reaches the Space over a network link: it gets a Vault channel only when that link is private (the fill endpoint refuses a plain link too).
+  const node = nodeOf(ctx.db, c.computerId);
+  if (node !== null && binding.nodeSecure?.(node) !== true) { ctx.log.warn("the computer has no Vault channel: its server's link to the Space is not private", { computerId: c.computerId }); return; }
   let grant: { fillToken: string; revoke(): void } | null = null;
   try {
     const out = (await ctx.call("agents.get", { agentId: c.agentId })) as { agent?: { ownerId?: string } };
     const asker = out.agent?.ownerId;
     if (!asker) return;
-    grant = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker });
+    grant = await binding.issue({ computerId: c.computerId, agentId: c.agentId, asker, ...(node !== null ? { nodeId: node } : {}) });
     await host.configure({ computerId: c.computerId, tabLimit: c.tabLimit, fillUrl: binding.url(), fillToken: grant.fillToken });
     holdFill(c.computerId, grant);
   } catch {
