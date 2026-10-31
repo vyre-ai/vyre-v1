@@ -150,3 +150,21 @@ test("a lost approval reply heals itself: a fresh signed request after approval 
   assert.deepEqual(await nodeByCredential(h.ctx, second.credential), { serverId: asked.serverId });
   assert.equal(JSON.stringify(h.raw.rows("network_server")).includes(second.credential), false, "only a hash is stored");
 });
+
+test("your own server: a nickname on the code names it, it is listed for you with what it runs on, and you can take it out", async () => {
+  const h = harness();
+  const n = await node();
+  const made = await call("network.my_computer_code", h.ctx, { nickname: "  home-box " });
+  assert.match(made.code, /^VYRE-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  const asked = await call("network.enroll", h.ctx, { code: made.code, publicKey: n.publicKey, name: "ubuntu-8gb-fsn1", facts });
+  const mine = await call("network.my_computers", h.ctx, {});
+  assert.deepEqual(mine.computers.map((c: { name: string; enrollment: string; fingerprint: string; facts: { docker: boolean } }) => [c.name, c.enrollment, c.fingerprint, c.facts.docker]), [["home-box", "pending", asked.fingerprint, true]], "the nickname wins over the host name");
+  assert.deepEqual(await call("network.my_computer_approve", h.ctx, { serverId: asked.serverId }), { state: "approved" });
+  assert.equal((await call("network.my_computers", h.ctx, {})).computers[0].enrollment, "approved");
+  const other = { ...h.ctx, principal: { kind: "person", id: "usr_other" } };
+  assert.deepEqual((await call("network.my_computers", other, {})).computers, [], "someone else's server is not listed");
+  await assert.rejects(() => call("network.my_computer_remove", other, { serverId: asked.serverId }), (e) => codeOf(e) === "validation.not_found");
+  assert.deepEqual(await call("network.my_computer_remove", h.ctx, { serverId: asked.serverId }), { removed: true });
+  assert.deepEqual((await call("network.my_computers", h.ctx, {})).computers, []);
+  assert.equal(await nodeByCredential(h.ctx, "vcc_x"), null);
+});

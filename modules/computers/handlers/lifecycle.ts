@@ -4,7 +4,7 @@
 // DECISION: "Working" is the awake state; an awake computer with nothing to do is Working without a caption. Idle sleep is the job sleepIdle (the host schedules it), not a capability.
 // DECISION: Take over wakes a sleeping computer first, then pauses the agent's tools and hands the desktop to the person; a person must act (an agent cannot take over).
 import {
-  actorOf, addStep, boundFill, computerBy, computerOut, computerOf, DEFAULT_IDLE_MINUTES, DEFAULT_TAB_LIMIT, dropFill, ensure, holdFill, hostFor, hostOf, boundHost, mintId, nodeOf, mintTicket, needComputer, needTeam, raise, rowsOf, setComputer, setStepCaption,
+  actorOf, addStep, boundFill, computerBy, computerOut, computerOf, DEFAULT_IDLE_MINUTES, DEFAULT_TAB_LIMIT, dropFill, ensure, holdFill, hostFor, hostOf, boundHost, isTeam, mintId, nodeOf, mintTicket, needComputer, needTeam, raise, rowsOf, setComputer, setStepCaption,
 } from "../projections.ts";
 import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
@@ -83,6 +83,34 @@ export async function health(ctx: CompCtx, _input: Record<string, never>) {
   const state = !h.ok ? ("down" as const) : broken > 0 ? ("degraded" as const) : ("healthy" as const);
   const detail = !h.ok ? h.detail : broken > 0 ? `${broken} ${broken === 1 ? "computer is" : "computers are"} in an error state` : h.detail;
   return { state, ...(detail ? { detail } : {}), runtime: h.ok ? ("ready" as const) : ("missing" as const), latencyMs: h.latencyMs ?? Math.max(0, Date.now() - t0), awake, asleep };
+}
+
+// ---- where agent computers can run
+
+export interface HostRow { hostId: string; kind: "this" | "space" | "server"; name: string; online: boolean; canRun: boolean; runs: number; reason?: string }
+
+/**
+ * The machines an agent computer can live on, for the person asking: this computer (a Personal Space) or the Space server (a Team Space) when the container runtime answers, and every server they
+ * added that has joined and has Docker. `available` is whether any of them can run one: nothing about agent computers is shown or offered until it is true.
+ */
+export async function hosts(ctx: CompCtx, _input: Record<string, never>) {
+  ensure(ctx.db);
+  const placed = rowsOf(ctx.db, "SELECT node_id FROM computers_computers").map((r) => (r["node_id"] === null || r["node_id"] === undefined ? null : String(r["node_id"])));
+  const team = isTeam(ctx.space);
+  const out: HostRow[] = [];
+  const bound = boundHost();
+  let ready = false;
+  if (bound) { try { ready = (await bound.health()).ok; } catch { ready = false; } }
+  out.push({ hostId: team ? "space" : "this", kind: team ? "space" : "this", name: team ? "The Space" : "This computer", online: true, canRun: ready, runs: placed.filter((n) => n === null).length, ...(ready ? {} : { reason: "No Docker" }) });
+  let mine: Array<{ serverId: string; name: string; state: string; enrollment: string; facts?: { docker?: boolean } }> = [];
+  try { mine = ((await ctx.call("network.my_computers", {})) as { computers?: typeof mine }).computers ?? []; } catch { /* the network module is not running: no servers */ }
+  for (const m of mine) {
+    if (m.enrollment !== "approved") continue;
+    const online = m.state !== "down";
+    const docker = m.facts?.docker === true;
+    out.push({ hostId: m.serverId, kind: "server", name: m.name, online, canRun: online && docker, runs: placed.filter((n) => n === m.serverId).length, ...(!docker ? { reason: "No Docker" } : !online ? { reason: "Offline" } : {}) });
+  }
+  return { available: out.some((h) => h.canRun), hosts: out };
 }
 
 // ---- provision, configure, remove
