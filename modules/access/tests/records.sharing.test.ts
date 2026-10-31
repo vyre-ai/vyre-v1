@@ -57,7 +57,7 @@ test("Only people added cuts a type off from the Space: the others lose it, admi
   assert.ok(!r.can("usr_dee", one));
   const of = await sharesOf(r.ctx, { resource: deal });
   assert.equal(of.audience, "added");
-  assert.deepEqual(of.shares.filter((x) => x.through === "direct" && x.grant.source === undefined).map((x) => [x.grant.subject.id, x.grant.level]), [["usr_bea", "edit"], ["usr_cal", "view"]]);
+  assert.deepEqual(of.shares.filter((x) => x.through === "direct" && x.grant.source === undefined).map((x) => [x.grant.subject.id, x.grant.level]).sort(), [["usr_bea", "edit"], ["usr_cal", "view"]]);
   await audienceSet(r.ctx, { resource: deal, audience: "space" });
   assert.ok(r.can("usr_dee", one), "back to everyone: the Space reaches it again");
   assert.ok(!(await sharesOf(r.ctx, { resource: deal })).shares.some((x) => x.grant.source === "audience"), "the keepers' grants went with the choice");
