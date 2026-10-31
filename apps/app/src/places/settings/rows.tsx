@@ -106,7 +106,7 @@ export function SettingRowFor({ row, first, found = false }: { row: SettingRow; 
   const sub = row.key === "profile.timezone" && typeof row.value === "string" ? `It is ${timeIn(data.clock().now, row.value)} for you now` : subOf(row);
   return (
     <SettingsRow
-      id={row.key} label={rowLabel(row)} first={first} found={found} {...(sub ? { sub } : {})} {...(rowHelp(row) ? { help: rowHelp(row)! } : {})}
+      id={row.key} label={rowLabel(row)} first={first} found={found} inline={c.kind === "switch"} {...(sub ? { sub } : {})} {...(rowHelp(row) ? { help: rowHelp(row)! } : {})}
       control={<>{changed ? <SmallButton label="Reset" testID={`reset-${row.key}`} onPress={() => void reset()} /> : null}<SettingControl row={row} /></>}
     />
   );
