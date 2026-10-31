@@ -102,6 +102,12 @@ export async function retryTurn(data: ConversationData, turnId: string): Promise
   await data.call("engine.turn.retry", { turnId } satisfies CapMap["engine.turn.retry"]["in"]);
 }
 
+/** True when the person has an AI account that works (a connected, signed-in one): what "Connect your AI" is waiting for. */
+export async function hasWorkingAccount(data: ConversationData): Promise<boolean> {
+  const out = (await data.call("engine.accounts.list", {})) as CapMap["engine.accounts.list"]["out"];
+  return out.accounts.some((a) => a.status === "ok");
+}
+
 /** A private chat never gains people: @mentioning a person offers "Start a channel with them", a new channel linked back. */
 export async function startChannel(data: ConversationData, personId: string, key: string): Promise<void> {
   await data.call("threads.make_channel", { threadId: data.threadId, personId, idempotencyKey: key } satisfies CapMap["threads.make_channel"]["in"]);

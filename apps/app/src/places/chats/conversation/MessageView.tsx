@@ -1,7 +1,7 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
@@ -40,6 +40,8 @@ export interface MessageActions {
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
   errorNext(key: string): void;
+  /** True once the person has a working AI account (read after "Connect your AI"). Left out where the chat cannot tell. */
+  accountReady?(): Promise<boolean>;
   retrySend(messageId: string): void;
   discardSend(messageId: string): void;
   showMenu(items: readonly MenuEntry[], x: number, y: number, label: string): void;
@@ -348,17 +350,36 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
 function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; actions: MessageActions }): ReactElement {
   const e = errorRow(block);
   const [open, setOpen] = useState(false);
+  // A reply that could not start for lack of an AI account: once the person has used "Connect your AI" and an account works, a quiet line offers to send it again (one retry of that turn, the message is not posted twice).
+  const noAccount = e.code === "no_account" && e.turnId !== "" && actions.accountReady !== undefined;
+  const [asked, setAsked] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [resent, setResent] = useState(false);
+  useEffect(() => {
+    if (!noAccount || !asked || ready || resent) return;
+    let live = true;
+    const check = (): void => { void actions.accountReady!().then((ok) => { if (live && ok) setReady(true); }, () => undefined); };
+    check();
+    const timer = setInterval(check, 2500);
+    return () => { live = false; clearInterval(timer); };
+  }, [noAccount, asked, ready, resent, actions]);
   return (
     <View testID={`error-${block.id}`} accessibilityRole="alert" {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy Trace Id", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))} style={st.err}>
       <View style={st.errTop}><Glyph name="alert" size={15} color="var(--warn)" /><Text style={st.errMsg}>{e.message}</Text></View>
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>
-        {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => actions.errorNext(n.key)} />)}
+        {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key); }} />)}
         {e.retryable && e.turnId ? <TextButton link label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
         <TextButton link label="What happened?" testID="err-what" onPress={() => setOpen((o) => !o)} />
         <TextButton link label="Copy trace id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
         <TextButton link label="Report a problem" testID="err-report" onPress={() => reportProblem({ label: reportLabel(e.message, e.traceId) })} />
       </View>
+      {noAccount && ready && !resent ? (
+        <View testID="err-connected" style={st.errActions}>
+          <Text style={st.errCause}>Connected. Send it again?</Text>
+          <TextButton link label="Retry" testID="err-connected-retry" onPress={() => { setResent(true); actions.retryTurn(e.turnId); }} />
+        </View>
+      ) : null}
       {open ? (
         <View testID="err-steps" style={st.errSteps}>
           {collect(e.steps, ([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
