@@ -252,3 +252,10 @@ export function withFlags<T extends { key: string; secret: boolean }>(rows: read
 
 /** Just the three things the vault stores for a field. */
 export const plainFields = (rows: readonly Field[]): Field[] => rows.map((f) => ({ key: f.key, value: f.value, secret: f.secret }));
+
+/** "MY_SERVICE_KEY" as "My service key", "API_KEY" as "API key": a name for an item whose paste named none. */
+export function nameFromKey(key: string): string {
+  const words = key.toLowerCase().split("_").filter(Boolean).map((w) => (w === "api" || w === "url" || w === "id" ? w.toUpperCase() : w));
+  const text = words.join(" ");
+  return text === "" ? "" : text[0]!.toUpperCase() + text.slice(1);
+}

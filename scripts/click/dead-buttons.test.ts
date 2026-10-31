@@ -1,7 +1,7 @@
 // The no-dead-buttons gate (scripts/click/dead-buttons.mjs). The pure parts always run; the click-through needs the production web export (VYRE_APP_DIST) and WebKit, and runs in the shots workflow's release-evidence job.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { screenKey, tauriCsp, deadKey, main } from "./dead-buttons.mjs";
+import { screenKey, tauriCsp, untouchedDirectives, deadKey, main } from "./dead-buttons.mjs";
 
 test("dead-buttons: ids in a screen hash collapse, so one record stands for every record", () => {
   assert.equal(screenKey("http://x/records#subject=record:rec_ab12cd34&type=project"), "/records#subject=record:*&type=project");
@@ -9,12 +9,15 @@ test("dead-buttons: ids in a screen hash collapse, so one record stands for ever
   assert.equal(screenKey("http://x/home"), "/home");
 });
 
-test("dead-buttons: the CSP under test is the desktop app's, with Tauri's nonce and without the 'unsafe-inline' a nonce cancels", () => {
+test("dead-buttons: the CSP under test is the desktop app's: Tauri's nonce goes only into the directives tauri.conf.json does not exempt", () => {
   const csp = tauriCsp("abc123");
-  assert.match(csp, /style-src 'self' 'nonce-abc123'/);
-  assert.match(csp, /script-src 'self' 'wasm-unsafe-eval' 'nonce-abc123'/);
-  assert.ok(!/style-src[^;]*unsafe-inline/.test(csp));
+  const kept = untouchedDirectives();
   assert.match(csp, /default-src 'self' ipc:/);
+  for (const d of ["style-src", "script-src"]) {
+    const line = csp.split(";").map((x) => x.trim()).find((x) => x.startsWith(`${d} `)) ?? "";
+    if (kept.includes(d)) assert.ok(!line.includes("nonce-") && line.includes("'unsafe-inline'"), `${d} is left as written`);
+    else assert.ok(line.includes("'nonce-abc123'") && !line.includes("'unsafe-inline'"), `${d} gets the nonce and loses unsafe-inline`);
+  }
 });
 
 test("dead-buttons: a dead element has one baseline key per space, place, screen, path and selector", () => {

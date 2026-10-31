@@ -59,3 +59,29 @@ test("Report a problem raises the report event with the trace id, the code and t
     assert.deepEqual(seen[0]!.detail, { traceId: "tr_8f2a91", code: "files.list", message: "Could not load Files" });
   } finally { delete g.dispatchEvent; delete g.CustomEvent; restore(); }
 });
+
+test("with no trace id there is nothing to copy, so there is no Copy button; Report a problem is still there", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(createRoot, <ErrorState props={props({ traceId: undefined })} startOpen />);
+    assert.equal(find(root, "state-copy"), null);
+    assert.ok(find(root, "state-report"));
+  } finally { restore(); }
+});
+
+test("Copy falls back to a selection copy when the clipboard never answers, and still ends on Copied or Could not copy", async () => {
+  const restore = installDom();
+  const g = globalThis as { document?: unknown };
+  const hadNav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const hadDoc = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const copied: string[] = [];
+  Object.defineProperty(globalThis, "navigator", { value: { clipboard: { writeText: () => new Promise<void>(() => undefined) } }, configurable: true });
+  Object.defineProperty(globalThis, "document", { value: { body: { appendChild: () => undefined, removeChild: () => undefined }, createElement: () => ({ value: "", style: {}, setAttribute: () => undefined, select() { copied.push(this.value); } }), execCommand: () => true, documentElement: { getAttribute: () => null, setAttribute: () => undefined, style: {} }, getElementById: () => null, head: { appendChild: () => undefined }, addEventListener: () => undefined }, configurable: true });
+  try {
+    const root = await mount(createRoot, <ErrorState props={props()} startOpen />);
+    await press(find(root, "state-copy"));
+    await wait(1800); await flush();
+    assert.deepEqual(copied, ["tr_8f2a91"], "the selection copy ran with the trace id");
+    assert.match(textOf(find(root, "state-copy")), /Copied/);
+  } finally { if (hadNav) Object.defineProperty(globalThis, "navigator", hadNav); else delete (globalThis as { navigator?: unknown }).navigator; if (hadDoc) Object.defineProperty(globalThis, "document", hadDoc); else delete g.document; restore(); }
+});

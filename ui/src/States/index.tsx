@@ -54,11 +54,24 @@ function Button({ label, onPress, primary, testID, busy }: { label: string; onPr
   );
 }
 
-/** Copies the trace id; resolves true when the clipboard took it. */
+/** Copies the trace id; resolves true when it reached the clipboard. The async clipboard can refuse or never answer (no permission, an insecure page), so it gets a short deadline and a selection-copy fallback inside the click. */
 async function copyTrace(traceId?: string): Promise<boolean> {
-  const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard;
-  if (!traceId || !clip) return false;
-  try { await clip.writeText(traceId); return true; } catch { return false; }
+  if (!traceId) return false;
+  const g = globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } }; document?: { body?: { appendChild(n: unknown): void; removeChild(n: unknown): void }; createElement(t: string): { value: string; style: Record<string, string>; setAttribute(k: string, v: string): void; select(): void }; execCommand?(c: string): boolean } };
+  const clip = g.navigator?.clipboard;
+  if (clip) {
+    try { await Promise.race([clip.writeText(traceId), new Promise<never>((_, no) => setTimeout(() => no(new Error("clipboard timed out")), 1500))]); return true; } catch { /* try the selection copy below */ }
+  }
+  const doc = g.document;
+  if (!doc?.body || !doc.execCommand) return false;
+  try {
+    const t = doc.createElement("textarea");
+    t.value = traceId; t.setAttribute("readonly", ""); t.style["position"] = "fixed"; t.style["opacity"] = "0";
+    doc.body.appendChild(t); t.select();
+    const ok = doc.execCommand("copy");
+    doc.body.removeChild(t);
+    return ok;
+  } catch { return false; }
 }
 
 function reportProblem(detail: { traceId?: string; code?: string; message: string }): void {
@@ -97,7 +110,7 @@ export function ErrorState({ props, startOpen = false }: { props: ErrorProps; st
           {props.next && props.cause ? <Text style={styles.sub} testID="state-next">{props.next}</Text> : null}
           {props.code || props.traceId ? <Text style={styles.trace} testID="state-trace">{[props.code, props.traceId].filter(Boolean).join("  ")}</Text> : null}
           <View style={styles.actions}>
-            <Button label={copied === "yes" ? "Copied" : copied === "no" ? "Could not copy" : "Copy trace id"} onPress={copy} testID="state-copy" />
+            {props.traceId ? <Button label={copied === "yes" ? "Copied" : copied === "no" ? "Could not copy" : "Copy trace id"} onPress={copy} testID="state-copy" /> : null}
             <Button label="Report a problem" onPress={() => reportProblem({ traceId: props.traceId, code: props.code, message: props.message })} testID="state-report" />
           </View>
         </View>

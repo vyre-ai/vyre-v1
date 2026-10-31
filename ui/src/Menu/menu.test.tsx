@@ -197,3 +197,9 @@ test("a count sits in its own quiet right-aligned column, never in the label", (
   assert.ok(html.indexOf(">8<") < html.indexOf("✓"), "the count comes before the check");
   assert.ok(html.includes("background-color:var(--accent)"), "the lit row is filled with the prototype accent");
 });
+
+test("the checked item (the current Space, a chosen filter) says it is current for assistive tech and for a click gate", () => {
+  const html = renderToStaticMarkup(<Menu items={[{ label: "Fresh Co", checked: true }, { label: "Other" }]} x={0} y={0} />);
+  assert.equal((html.match(/aria-current="true"/g) ?? []).length, 1, "only the checked item");
+  assert.match(html, /aria-current="true"[^>]*data-testid="menu-item-Fresh Co"|data-testid="menu-item-Fresh Co"[^>]*aria-current="true"/);
+});

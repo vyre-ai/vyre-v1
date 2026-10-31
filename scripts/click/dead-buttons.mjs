@@ -22,13 +22,21 @@ const READ_CALL = /\/(list|list_by_contact|get|recent|learned|search|read|query|
 const CHROME = /^(title-|rail-|tab-|space-tile|tab-strip)/;
 const PLACES = ["home", "chat", "mail", "records", "files", "sites", "automations", "vault", "settings", "console"];
 
-/** The CSP the Mac app ships (tauri.conf.json app.security.csp) as the webview applies it: Tauri adds a nonce to script-src and style-src, and a nonce makes the browser ignore 'unsafe-inline'. */
+/** The directives Tauri leaves alone (tauri.conf.json app.security.dangerousDisableAssetCspModification); every other of style-src and script-src gets Tauri's nonce, which makes the browser ignore 'unsafe-inline' there. */
+export function untouchedDirectives() {
+  const conf = JSON.parse(fs.readFileSync(path.join(REPO, "apps/desktop/src-tauri/tauri.conf.json"), "utf8"));
+  const flag = conf.app.security.dangerousDisableAssetCspModification;
+  return flag === true ? ["style-src", "script-src"] : Array.isArray(flag) ? flag : [];
+}
+
+/** The CSP the Mac app ships (tauri.conf.json app.security.csp) as the webview applies it. */
 export function tauriCsp(nonce) {
   const conf = JSON.parse(fs.readFileSync(path.join(REPO, "apps/desktop/src-tauri/tauri.conf.json"), "utf8"));
   const csp = conf.app.security.csp;
+  const keep = untouchedDirectives();
   return csp.split(";").map((d) => d.trim()).filter(Boolean).map((d) => {
     const [name, ...vals] = d.split(/\s+/);
-    if (name === "style-src" || name === "script-src") return `${name} ${vals.filter((v) => v !== "'unsafe-inline'").join(" ")} 'nonce-${nonce}'`;
+    if ((name === "style-src" || name === "script-src") && !keep.includes(name)) return `${name} ${vals.filter((v) => v !== "'unsafe-inline'").join(" ")} 'nonce-${nonce}'`;
     return d;
   }).join("; ");
 }
@@ -46,20 +54,29 @@ export function screenKey(url) {
   return `${u.pathname.replace(/\/[a-z]{2,6}_[A-Za-z0-9]{4,}/g, "/*")}${h ? `#${h}` : ""}`;
 }
 
+class HarnessError extends Error {}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const slug = (s) => s.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 60).toLowerCase();
 
-async function newWorker(browser, origin, session, nonce, csp, shotDir, spaceName) {
+async function newWorker(browser, origin, session, nonce, csp, shotDir, spaceName, snapshot) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, reducedMotion: "reduce", storageState: { cookies: [], origins: [{ origin, localStorage: [{ name: "vyre.session.v1", value: session }] }] }, acceptDownloads: true });
   await ctx.addInitScript(P.install);
   // Every load starts from the same state: the app keeps its open tabs, last place and selections in localStorage, and a replay must not inherit what an earlier click left there.
-  await ctx.addInitScript(() => { try { for (const k of Object.keys(localStorage)) if (k !== "vyre.session.v1") localStorage.removeItem(k); sessionStorage.clear(); } catch { /* storage blocked */ } });
+  await ctx.addInitScript((snap) => {
+    try {
+      const first = location.search.includes("firstrun=1");   // the first-run state: the onboarding a new owner meets, before anything is dismissed
+      for (const k of Object.keys(localStorage)) if (k !== "vyre.session.v1") localStorage.removeItem(k);
+      sessionStorage.clear();
+      if (!first) for (const [k, v] of Object.entries(snap)) if (k !== "vyre.session.v1") localStorage.setItem(k, v);
+    } catch { /* storage blocked */ }
+  }, snapshot);
   if (csp === "tauri") {
     await ctx.route((u) => u.origin === origin && !/\.[a-z0-9]{2,5}$/i.test(u.pathname) && !u.pathname.startsWith("/v1/") && !u.pathname.startsWith("/sync/"), async (route) => {
       if (route.request().resourceType() !== "document") return route.continue();
       const res = await route.fetch();
       let body = await res.text();
-      body = body.replace(/<(script|style)(\s|>)/g, `<$1 nonce="${nonce}"$2`);
+      const keep = untouchedDirectives();
+      body = body.replace(/<(script|style)(\s|>)/g, (m, tag, rest) => (keep.includes(`${tag}-src`) ? m : `<${tag} nonce="${nonce}"${rest}`));
       await route.fulfill({ response: res, body, headers: { ...res.headers(), "content-security-policy": tauriCsp(nonce) } });
     });
   }
@@ -68,7 +85,7 @@ async function newWorker(browser, origin, session, nonce, csp, shotDir, spaceNam
   pg.setDefaultTimeout(10000);
   pg.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) { const e = { m: r.request().method(), p: u.pathname, s: r.status(), t: Date.now(), body: "" }; w.net.push(e); if (e.s >= 400) void r.text().then((b) => { e.body = b.slice(0, 160); }).catch(() => undefined); } });
   pg.on("requestfailed", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")) w.net.push({ m: r.method(), p: u.pathname, s: 0, t: Date.now(), body: `request failed: ${r.failure()?.errorText ?? ""}` }); });
-  pg.on("console", (m) => { if (m.type() === "error") w.logs.push({ t: Date.now(), text: m.text().slice(0, 240) }); });
+  pg.on("console", (m) => { if (m.type() === "error") { const t = m.text().slice(0, 240); w.logs.push({ t: Date.now(), text: t }); if (/Refused to|Content Security Policy/.test(t)) (w.cspMsgs ??= new Set()).add(t); } });
   pg.on("pageerror", (e) => w.logs.push({ t: Date.now(), text: `pageerror ${e.message.slice(0, 240)}` }));
   pg.on("dialog", (d) => { w.events.push({ t: Date.now(), k: "native-dialog" }); void d.dismiss().catch(() => undefined); });
   pg.on("filechooser", () => w.events.push({ t: Date.now(), k: "filechooser" }));
@@ -93,9 +110,14 @@ async function load(w, url) {
   const t0 = Date.now();
   await load1(w, url);
   const panel = await w.page.evaluate(P.errorPanel).catch(() => null);
+  if (panel) {
+    const up = await fetch(`${w.origin}/healthz`).then((r) => r.ok, () => false);
+    if (!up) throw new HarnessError(`the daemon is not answering /healthz (${w.spaceName} Space) while ${url} showed the failure panel: this run is invalid, not a product finding (the daemon was killed or crashed; check the Mac for a stray pkill and the daemon's stderr above)`);
+  }
   if (panel && w.onLoadError) { await sleep(300); w.onLoadError({ url, panel, calls: w.net.filter((n) => n.t >= t0 && (n.s >= 400 || n.s === 0)).map((n) => `${n.s} ${n.m} ${n.p} ${n.body}`), logs: w.logs.filter((l) => l.t >= t0).map((l) => l.text).slice(0, 4) }); }
 }
 async function load1(w, url) {
+  w.cspSeen ??= new Set();
   await w.page.goto("about:blank").catch(() => undefined);
     await w.page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => undefined);
   await settle(w);
@@ -181,10 +203,10 @@ const P_outline = (i) => { const e = document.querySelector(`[data-dbg-i="${i}"]
 export async function crawl({ browser, space, name, web, csp, workers, maxScreens, maxMinutes, places, out, log }) {
   const nonce = Buffer.from(String(Math.random())).toString("base64").replace(/[^a-z0-9]/gi, "").slice(0, 16);
   const ws = [];
-  for (let i = 0; i < workers; i++) ws.push(await newWorker(browser, web.origin, space.session, nonce, csp, path.join(out, "shots", name), name));
+  for (let i = 0; i < workers; i++) ws.push(await newWorker(browser, web.origin, space.session, nonce, csp, path.join(out, "shots", name), name, space.snapshot));
   for (const w of ws) w.onLoadError = (e) => loadErrors.push({ space: name, screen: screenKey(e.url), ...e, url: undefined });
-  const seedUrls = places.map((p) => `${web.origin}/${p}`);
-  const queue = seedUrls.map((url) => ({ url, steps: [], depth: 0, place: new URL(url).pathname.slice(1) }));
+  const seedUrls = [`${web.origin}/home?firstrun=1`, ...places.map((p) => `${web.origin}/${p}`)];
+  const queue = seedUrls.map((url) => ({ url, steps: [], depth: 0, place: new URL(url).search.includes("firstrun") ? "onboarding" : new URL(url).pathname.slice(1) }));
   const screens = new Map();   // screenKey -> true
   const perPlace = new Map();
   const dead = [], quiet = [], disabled = [], skipped = [], current = [], loadErrors = [], stats = { clicks: 0, screens: 0, units: 0, noop: 0, cspViolations: 0 };
@@ -192,6 +214,7 @@ export async function crawl({ browser, space, name, web, csp, workers, maxScreen
   const cspSeen = new Set();
   const chromeDone = new Set();
   let active = 0;
+  let harnessError = null;
   const deadline = Date.now() + maxMinutes * 60000;
   const stateUnits = new Map();
   const pending = [];
@@ -278,7 +301,8 @@ export async function crawl({ browser, space, name, web, csp, workers, maxScreen
       active++;
       const key = unit.steps.length ? null : screenKey(unit.url);
       if (key) { if (screens.get(key) === "done") { active--; continue; } screens.set(key, "done"); }
-      try { await runUnit(w, unit); } catch (e) { log(`unit failed ${screenKey(unit.url)} ${unit.steps.map((s) => s.label).join(">")}: ${String(e).slice(0, 160)}`); skipped.push({ space: name, place: unit.place, screen: screenKey(unit.url), path: unit.steps.map((s) => s.label), why: `crawl error: ${String(e).slice(0, 120)}` }); }
+      try { await runUnit(w, unit); } catch (e) {
+        if (e instanceof HarnessError) { harnessError = e; queue.length = 0; pending.length = 0; log(`HARNESS: ${e.message}`); active--; return; } log(`unit failed ${screenKey(unit.url)} ${unit.steps.map((s) => s.label).join(">")}: ${String(e).slice(0, 160)}`); skipped.push({ space: name, place: unit.place, screen: screenKey(unit.url), path: unit.steps.map((s) => s.label), why: `crawl error: ${String(e).slice(0, 120)}` }); }
       active--;
       try { fs.writeFileSync(path.join(out, `partial-${name}.json`), JSON.stringify({ dead, quiet, disabled, skipped, current, loadErrors, stats })); } catch { /* the crawl goes on */ }
       log(`${name} ${unit.place} ${screenKey(unit.url)}${unit.steps.length ? ` > ${unit.steps.map((s) => s.label).join(" > ")}` : ""}: ${stats.clicks} clicks, ${dead.length} dead`);
@@ -287,7 +311,10 @@ export async function crawl({ browser, space, name, web, csp, workers, maxScreen
   for (const u of queue) screens.set(screenKey(u.url), true);
   await Promise.all(ws.map((w) => runWorker(w)));
   for (const w of ws) await w.ctx.close().catch(() => undefined);
-  return { dead, quiet, disabled, skipped, current, loadErrors, stats };
+  if (harnessError) throw harnessError;
+  const cspList = [...new Set(ws.flatMap((w) => [...(w.cspMsgs ?? [])]))];
+  stats.cspViolations = cspList.length;
+  return { csp: cspList, dead, quiet, disabled, skipped, current, loadErrors, stats };
 }
 
 /** The baseline key of a dead element: the same element on the same screen is the same entry from run to run. */
@@ -304,6 +331,7 @@ export function reportMd(all, meta) {
   const cover = new Map();
   for (const d of all.dead) { const m = /lands on (\S+)/.exec(d.cause); const k = m ? m[1] : "not covered"; cover.set(k, (cover.get(k) ?? 0) + 1); }
   lines.push("", "## DEAD by covering element", "", ...[...cover].sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`));
+  lines.push("", "## CSP violations (the desktop app blocks these)", "", ...all.csp.map((c) => `- ${c}`));
   lines.push("", "## Screens that loaded into the failure panel", "");
   for (const e of all.loadErrors) lines.push(`- ${e.space} ${e.screen}: ${e.panel}\n  calls: ${e.calls.join(" | ") || "(none refused; look at the page errors)"}\n  page errors: ${e.logs.join(" | ") || "(none)"}`);
   lines.push("", "## Current (already the chosen option, not counted as dead)", "");
@@ -340,9 +368,16 @@ async function sessionFor(kind, web, space, browser) {
   await page.getByTestId("claim-saved").click();
   await page.getByTestId("claim-create").click();
   await page.getByTestId("shell").waitFor({ timeout: 30000 });
+  // A new owner meets the onboarding first. It is crawled once as its own first-run state (?firstrun=1); every other state starts with it dismissed, as it is for a person a day later.
+  await page.waitForTimeout(1500);
+  for (const name of ["Finish later", "Skip for now", "Skip"]) {
+    const b = page.getByText(name, { exact: true }).first();
+    if (await b.isVisible().catch(() => false)) { await b.click().catch(() => undefined); await page.waitForTimeout(800); }
+  }
+  const snapshot = await page.evaluate(() => Object.fromEntries(Object.keys(localStorage).map((k) => [k, localStorage.getItem(k)])));
   const s = await page.evaluate(() => localStorage.getItem("vyre.session.v1"));
   await ctx.close();
-  return s;
+  return { session: s, snapshot };
 }
 
 export async function main(argv) {
@@ -359,20 +394,24 @@ export async function main(argv) {
   const pw = await import("playwright-core");
   const launcher = (pw.default ?? pw)[engine];
   const browser = await launcher.launch(engine === "chromium" ? { args: ["--no-sandbox"] } : {});
-  const all = { dead: [], quiet: [], disabled: [], skipped: [], current: [], loadErrors: [], stats: { clicks: 0, units: 0, screens: 0, noop: 0, cspViolations: 0 } };
+  const all = { csp: [], dead: [], quiet: [], disabled: [], skipped: [], current: [], loadErrors: [], stats: { clicks: 0, units: 0, screens: 0, noop: 0, cspViolations: 0 } };
   const t0 = Date.now();
   try {
     for (const kind of kinds) {
       const space = await bootFreshSpace(kind === "team" ? undefined : "personal");
       const web = await edge(dist, space.url);
       try {
-        space.session = await sessionFor(kind, web, space, browser);
+        const made = await sessionFor(kind, web, space, browser);
+        space.session = made.session; space.snapshot = made.snapshot;
         await seed(web, space.session, (m) => console.log(m));
         const r = await crawl({ browser, space, name: kind, web, csp, workers, maxScreens, maxMinutes: Number(args["max-minutes"] || 12), places, out, log: (m) => console.log(m) });
-        for (const k of ["dead", "quiet", "disabled", "skipped", "current", "loadErrors"]) all[k].push(...r[k]);
+        for (const k of ["csp", "dead", "quiet", "disabled", "skipped", "current", "loadErrors"]) all[k].push(...r[k]);
         for (const k of Object.keys(all.stats)) all.stats[k] += r.stats[k];
       } finally { web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
     }
+  } catch (e) {
+    if (e instanceof HarnessError) { console.error(`INVALID RUN: ${e.message}`); return 2; }
+    throw e;
   } finally { await browser.close(); }
   fs.writeFileSync(path.join(out, "report.md"), reportMd(all, { browser: engine, csp }));
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(all, null, 1));
