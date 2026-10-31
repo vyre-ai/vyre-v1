@@ -23,17 +23,22 @@ import type { Daemon } from "../../host/src/daemon/daemon.ts";
 import { syncOpening } from "../../apps/app/src/places/records/sync/opening.ts";
 
 const HOST = "services.leadconnectorhq.com";
+// argv: [account] [mode]. account 1..4 reads GHL_TCPA_KEY_n / GHL_TCPA_LOC_n (set -a; source simba/secrets/ghl-tcpa-2026-11.env), account sales reads MLA_GHL_SALES_*.
+// mode run (default): the agent syncs it; mode discover: survey and a 5-row sample through the capabilities, no apply.
+const ACCOUNT = process.argv[2] ?? "sales";
+const MODE = process.argv[3] ?? "run";
 const TOKEN = process.env["VYRE_TEST_CLAUDE_SETUP_TOKEN"] ?? "";
-const KEY = process.env["MLA_GHL_SALES_API_KEY"] ?? "";
-const LOCATION = process.env["MLA_GHL_SALES_LOCATION_ID"] ?? "";
-if (!TOKEN || !KEY || !LOCATION) throw new Error("load the vault env first: VYRE_TEST_CLAUDE_SETUP_TOKEN, MLA_GHL_SALES_API_KEY and MLA_GHL_SALES_LOCATION_ID are required");
+const KEY = (ACCOUNT === "sales" ? process.env["MLA_GHL_SALES_API_KEY"] : process.env[`GHL_TCPA_KEY_${ACCOUNT}`]) ?? "";
+const LOCATION = (ACCOUNT === "sales" ? process.env["MLA_GHL_SALES_LOCATION_ID"] : process.env[`GHL_TCPA_LOC_${ACCOUNT}`]) ?? "";
+if (!TOKEN || !KEY || !LOCATION) throw new Error("load the vault env first: VYRE_TEST_CLAUDE_SETUP_TOKEN and the account's key and location id are required");
 const OUT = process.env["E2E_OUT"] ?? "/private/tmp/claude-501/-Users-irfad-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/e2e-crm";
+const note = (name: string): string => (MODE === "run" ? name : `${name}-${MODE}-${ACCOUNT}`);
 fs.mkdirSync(OUT, { recursive: true });
 
 const scrub = (s: string): string => [TOKEN, KEY, LOCATION].reduce((acc, v) => acc.split(v).join("[secret]"), s).replace(/sk-ant-[A-Za-z0-9_-]{6,}/g, "[token]").replace(/pit-[0-9a-f-]{12,}/gi, "[secret]").replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]").replace(/\+?\d[\d\s().-]{8,}\d/g, "[number]");
 const lines: string[] = [];
 const say = (who: string, text: string): void => { const l = `**${who}** ${scrub(text)}`; lines.push(l); console.log(l.slice(0, 400)); };
-const save = (): void => { fs.writeFileSync(path.join(OUT, "transcript.md"), `# Sync to Records, real run on GoHighLevel (read only)\n\n${lines.join("\n\n")}\n`); };
+const save = (): void => { fs.writeFileSync(path.join(OUT, note("transcript") + ".md"), `# Sync to Records, real run on GoHighLevel (read only)\n\n${lines.join("\n\n")}\n`); };
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const core = bootCore();
@@ -105,6 +110,23 @@ async function main(): Promise<void> {
     await ok("providers.set_space_use", { providerId: provider.id, allow: true });
     const keysFolder = (await ok("vault.folders.create", { name: "Keys", scope: "mine" })).folder.id as string;
     const item = (await ok("vault.item.put", { folderId: keysFolder, name: "GoHighLevel", kind: "api_key", fields: [{ key: "api_key", value: KEY, secret: true }] })).item;
+    if (MODE === "discover") {
+      // no agent: the discovery capabilities the agent uses, read-only, one small page each
+      const auth = { vaultHandle: item.handle, style: "bearer", headers: { Version: "2021-07-28" } };
+      const L = LOCATION;
+      const paths = [`/contacts/?locationId=${L}&limit=5`, `/opportunities/search?location_id=${L}&limit=5`, `/opportunities/pipelines?locationId=${L}`, `/locations/${L}/customFields`, `/users/?locationId=${L}`, `/calendars/?locationId=${L}`, `/conversations/search?locationId=${L}&limit=5`, `/forms/?locationId=${L}&limit=5`, `/payments/orders?altId=${L}&altType=location&limit=5`, `/invoices/?altId=${L}&altType=location&limit=5&offset=0`];
+      const survey = await ok("sync_specs.survey", { auth, domain: HOST, paths });
+      for (const r of survey.results) say("survey", `${r.path.split("?")[0]}: status ${r.status}${r.reason ? ` (${String(r.reason).slice(0, 80)})` : ""}; lists ${(r.lists ?? []).map((l: any) => `${l.itemsAt}=${l.count} items, ${l.fields} fields`).join("; ") || "none"}${r.total !== undefined ? `; total ${r.total}` : ""}`);   // eslint-disable-line @typescript-eslint/no-explicit-any
+      for (const p of [`/contacts/?locationId=${L}&limit=5`, `/opportunities/search?location_id=${L}&limit=5`]) {
+        const u = new URL(`https://${HOST}${p}`);
+        const sample = await ok("sync_specs.sample", { auth, domain: HOST, path: u.pathname, query: Object.fromEntries(u.searchParams), items: 5 });
+        const l = sample.shape?.lists?.[0];
+        say("sample", `${u.pathname}: status ${sample.status}; ${l ? `list at ${l.itemsAt}, ${l.count} items, id ${l.idAt}, changed-at ${l.updatedAtGuess ?? "none"}; fields ${l.fields.map((f: any) => `${f.path}:${f.type}`).join(" ")}` : "no list"}; total ${sample.estimate ? sample.estimate.count : "unknown"}; cursors ${(sample.shape?.cursors ?? []).map((c: any) => c.pointer).join(",") || "none"}`);   // eslint-disable-line @typescript-eslint/no-explicit-any
+      }
+      say("RESULT", `DISCOVERY done for account ${ACCOUNT}: ${requests.length} GET requests to ${HOST}, no other method`);
+      save();
+      return;
+    }
     say("setup", `Vault: AI account ${provider.providerKey} (${provider.state}); item ${item.name} handle ${item.handle}`);
     await ok("engine.pool.status");
 
@@ -119,6 +141,10 @@ async function main(): Promise<void> {
     await ok("access.roles.apply", { roleId: builder.id, permissions: wanted, previewHash: preview.previewHash });
     await ok("access.roles.assign", { subject: { kind: "agent", id: agentId }, roleId: builder.id });
     say("setup", "the assistant holds the CRM sync builder role (member plus connectors.manage and schema.manage)");
+
+    // the person gives the assistant Use access to the key (without it the Vault answers "not in this Vault, or you cannot use it")
+    await ok("vault.share", { resource: { type: "vault_item", id: item.id }, subject: { kind: "agent", id: agentId }, level: "use" });
+    say("setup", "the person gave the assistant Use access to the Vault item");
 
     // ---- the button path: an Ask on the Vault item with the opening message and its title; then what the person adds in their own words
     const first = `${syncOpening({ name: "GoHighLevel", handle: item.handle })} My GoHighLevel location id is ${LOCATION}. This is a read-only first look: bring in at most a handful of contacts.`;
@@ -144,8 +170,8 @@ async function main(): Promise<void> {
           const data = b.data ?? {};
           if (b.type === "checklist") say("agent card", `${data.title}: ${(data.items ?? []).length} rows`);
           else if (b.type === "question") say("agent options", `${String(data.prompt).slice(0, 400)} :: ${(data.options ?? []).map((o: { key: string; label: string }) => `${o.key}=${o.label}`).join(" | ")}`);
-          else if (b.type === "tool_call") say("agent tool", `${data.name ?? "?"} (${keyNames(data.input)})`);
-          else if (b.type === "tool_result") say("agent tool result", `${data.ok === false ? "failed" : "ok"}, ${JSON.stringify(data.content ?? data.result ?? data).length} characters (not saved)`);
+          else if (b.type === "tool_call") say("agent tool", `${data.name ?? "?"} (${keyNames(data.input ?? data.args ?? data.arguments)})`);
+          else if (b.type === "tool_result") { const txt = JSON.stringify(data.content ?? data.result ?? data); say("agent tool result", `${data.ok === false ? "failed" : "ok"}, ${txt.length} characters${txt.length < 260 ? `: ${txt}` : " (not saved)"}`); }
         }
       }
       for (const m of msgs) for (const b of m.blocks ?? []) {
@@ -205,7 +231,7 @@ async function main(): Promise<void> {
     const logs = JSON.stringify(new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT msg, attrs FROM logs").all());
     if (logs.includes(TOKEN) || logs.includes(KEY)) fail("a secret is in the host logs");
     save();
-    if (/sk-ant|pit-[0-9a-f-]{12,}/i.test(fs.readFileSync(path.join(OUT, "transcript.md"), "utf8")) || fs.readFileSync(path.join(OUT, "transcript.md"), "utf8").includes(LOCATION)) throw new Error("the transcript holds a secret");
+    if (/sk-ant|pit-[0-9a-f-]{12,}/i.test(fs.readFileSync(path.join(OUT, note("transcript") + ".md"), "utf8")) || fs.readFileSync(path.join(OUT, note("transcript") + ".md"), "utf8").includes(LOCATION)) throw new Error("the transcript holds a secret");
   } catch (e) {
     say("ERROR", e instanceof Error ? e.message : String(e));
     save();
