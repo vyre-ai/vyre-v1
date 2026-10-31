@@ -7,6 +7,8 @@ import { objectsOf } from "./get.ts";
 import type { ObjectActions } from "./get.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { generateMain } from "./source.ts";
+import { shapeCreated, shapeList, ShapeError } from "./shape.ts";
+import { unflatten } from "../syncspec.ts";
 import { oauthOf, refreshSlot } from "./oauth.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, scrubber, secretsIn, seedBuiltins, takeToken, checkEgress, fillString, fillValue, clone, PAGE } from "../projections.ts";
 import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsCtx, ConnectorsDeps, Mode, Scope, TestCase } from "../projections.ts";
@@ -107,15 +109,23 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   const scrub = scrubber(everySecret);
 
   // the request
-  const scope = { input: o.input ?? {}, secret: values, connection: { id: conn?.connection_id ?? "con_test" } };
+  let input: unknown = o.input ?? {};
+  if (a.shape?.unflatten && typeof input === "object" && input !== null && typeof (input as Record<string, unknown>)["properties"] === "object") {
+    input = { ...(input as Record<string, unknown>), properties: unflatten((input as { properties: Record<string, unknown> }).properties) };
+  }
+  const scope = { input, secret: values, connection: { id: conn?.connection_id ?? "con_test" } };
+  // the next page of a list: a link is the whole address (still checked against the domains below), any other cursor is one query parameter
+  const after = a.shape?.cursor && typeof (input as Record<string, unknown>)["after"] === "string" ? String((input as Record<string, unknown>)["after"]) : undefined;
+  const linked = a.shape?.cursor?.kind === "link" && after !== undefined;
   let method: string;
   let url: URL;
   let headers: Record<string, string>;
   let body: string | undefined;
   try {
     method = a.method ?? "GET";
-    const u = new URL(fillString(a.url, scope, true));
-    for (const [k, v] of Object.entries(a.query ?? {})) u.searchParams.set(k, fillString(v, scope));
+    const u = new URL(linked ? after! : fillString(a.url, scope, true));
+    if (!linked) for (const [k, v] of Object.entries(a.query ?? {})) u.searchParams.set(k, fillString(v, scope));
+    if (!linked && after !== undefined && a.shape?.cursor?.param) u.searchParams.set(a.shape.cursor.param, after);
     const egress = checkEgress(u.toString(), def.domains);
     if (!egress.ok) refuse(ctx, "permission.no_grant", `Egress refused: ${egress.reason}.`, { connector: def.key, action: actionName });
     url = (egress as { ok: true; url: URL }).url;
@@ -142,7 +152,7 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     deps.tx.run("INSERT INTO cn_log (at, connection_id, connector, action, method, host, path, status, ms, error, actor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       started, conn?.connection_id ?? null, def.key, actionName, method, url.hostname, url.pathname, status, nowOf(deps) - started, error === null ? null : scrub.text(error).slice(0, 300), actor);
   };
-  let res: { status: number; text(): Promise<string> };
+  let res: { status: number; text(): Promise<string>; link?: string };
   try {
     res = await http(url.toString(), { method, headers, ...(body !== undefined ? { body } : {}) });
   } catch (e) {
@@ -170,7 +180,15 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   }
   let parsed: unknown = text;
   try { parsed = text === "" ? null : (JSON.parse(text) as unknown); } catch { /* the output is the text */ }
-  const output = scrub.value(a.output !== undefined ? (pointerGet(parsed, a.output) ?? null) : parsed);
+  let output: unknown;
+  try {
+    output = a.shape?.items !== undefined ? shapeList(parsed, res.link, a.shape, after) : a.shape?.idAt !== undefined ? (shapeCreated(parsed, a.shape) ?? parsed) : a.output !== undefined ? (pointerGet(parsed, a.output) ?? null) : parsed;
+  } catch (e) {
+    if (!(e instanceof ShapeError)) throw e;
+    logRow(res.status, e.message);
+    return refuse(ctx, "provider.bad_response", scrub.text(`${actionName}: ${e.message}`));
+  }
+  output = scrub.value(output);
   logRow(res.status, null);
   return { output, dryRun: false, status: res.status, ms };
 }
@@ -216,7 +234,7 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
       const hit = t.responses.find((r) => (r.method ?? "GET").toUpperCase() === method && (r.url === url || r.url === bare));
       if (!hit) throw new Error(`no recorded response for ${method} ${bare}`);
       const text = hit.body === undefined ? "" : typeof hit.body === "string" ? (fill(hit.body) as string) : JSON.stringify(fill(hit.body));
-      return { status: hit.status ?? 200, text: async () => text };
+      return { status: hit.status ?? 200, text: async () => text, ...(hit.link ? { link: hit.link } : {}) };
     };
     try {
       const out = await executeAction(deps, ctx, def, t.action, { input: t.input ?? {}, secrets: synthetic, http, persist: false, actor: "harness" });

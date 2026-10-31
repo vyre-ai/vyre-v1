@@ -16,7 +16,7 @@ const dir = t.enm('pull', 'push', 'both', 'off');
 const deletes = t.enm('off', 'soft', 'travel');
 const conflictRule = t.enm('newest', 'source', 'vyre', 'ask');
 
-const fieldMap = t.obj({ key: fieldKey, remote: t.str(), dir, transform: t.opt(t.str({ description: 'Small expression over the value' })) });
+const fieldMap = t.obj({ key: fieldKey, remote: t.str(), dir, transform: t.opt(t.str({ description: 'Small expression over the value' })), relation: t.opt(id.recordType) });
 const polling = t.obj({ activeSec: t.int({ minimum: 30 }), idleSec: t.int({ minimum: 60 }), dormantSec: t.int({ minimum: 300 }) });
 
 /** The action names a connector uses to sync one object; a name left out keeps the convention list_<objects>, list_<objects>_after, create_<object>, update_<object>, delete_<object>. */
@@ -51,6 +51,45 @@ const bindingIn = {
   type: id.recordType, connectionId: id.connection, remote: t.str({ examples: ['contacts'] }),
   fields: t.arr(fieldMap), match: t.arr(fieldKey), createAtSource: t.opt(t.bool()), deletes: t.opt(deletes), conflict: t.opt(conflictRule),
   polling: t.opt(polling), nightlyReconcile: t.opt(t.bool()),
+};
+
+
+// ---- SyncSpec: the one document an agent fills to bring an app's records into Records
+const specPointer = t.str({ description: 'A JSON pointer: /id, /properties/email. / is the whole answer.', examples: ['/id'] });
+const specField = t.obj({
+  path: specPointer, label: t.str(), type: t.enm('text', 'number', 'money', 'date', 'bool', 'choice', 'multi', 'email', 'phone', 'url', 'relation', 'json'),
+  choices: t.opt(t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }))), relationTo: t.opt(t.str({ description: 'The remote object a relation points at' })), readOnly: t.opt(t.bool()),
+});
+const specCursor = t.obj({ kind: t.enm('none', 'page', 'cursor', 'offset', 'link'), param: t.opt(t.str()), next: t.opt(specPointer), size: t.opt(t.int({ minimum: 1 })), sizeParam: t.opt(t.str()), start: t.opt(t.int({ minimum: 0 })) });
+const specWrite = t.obj({ path: t.str({ examples: ['/contacts/{id}'] }), method: t.opt(t.enm('POST', 'PUT', 'PATCH', 'DELETE')), evidence: t.str({ description: 'The docs page or quote that shows this call. A write without it is refused.' }), bodyAt: t.opt(t.str({ description: 'Pointer in the body where the properties go; empty for the body itself' })), idAt: t.opt(specPointer) });
+const specObject = t.obj({
+  remote: t.str(), label: t.str(), count: t.opt(t.int({ minimum: 0 })),
+  list: t.obj({
+    path: t.str({ examples: ['/contacts'] }), query: t.opt(t.rec(t.str())), cursor: t.opt(specCursor),
+    updatedSince: t.opt(t.obj({ param: t.str(), format: t.opt(t.str()) })), filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
+  }),
+  get: t.opt(t.obj({ path: t.str() })), create: t.opt(specWrite), update: t.opt(specWrite), delete: t.opt(specWrite),
+  id: specPointer, updatedAt: t.opt(specPointer), itemsAt: specPointer, openUrl: t.opt(t.str({ description: 'Address of a record in the app; {id} is filled in. Shown as Open in the app.' })),
+  fields: t.arr(specField),
+  webhook: t.opt(t.obj({ events: t.arr(t.str()), subscribePath: t.opt(t.str()), manualUrl: t.opt(t.bool()), signature: t.opt(t.str()) })),
+});
+const specMapping = t.obj({
+  remote: t.str(), recordType: id.recordType, title: t.opt(t.str()),
+  fields: t.arr(t.obj({ path: specPointer, field: t.opt(fieldKey), direction: t.enm('both', 'pull', 'push', 'off') })),
+  match: t.opt(t.arr(specPointer)), stagesFrom: t.opt(specPointer), titleField: t.opt(specPointer),
+  deletes: t.opt(deletes), createAtSource: t.opt(t.bool()),
+});
+const syncSpec = t.obj({
+  app: t.obj({ name: t.str(), domain: t.str({ examples: ['api.example.com'] }), docsUrl: t.opt(t.str()), logoHint: t.opt(t.str()) }),
+  auth: t.obj({ vaultHandle: id.handle, style: t.enm('bearer', 'header', 'basic', 'query', 'oauth'), header: t.opt(t.str()), prefix: t.opt(t.str()), headers: t.opt(t.rec(t.str())) }),
+  objects: t.arr(specObject, { minItems: 1 }),
+  mapping: t.arr(specMapping, { minItems: 1 }),
+  plan: t.obj({ firstPull: t.obj({ words: t.str({ description: 'Plain words: what the first pull brings in' }) }), backfill: t.enm('later', 'now'), conflicts: t.lit('newest') }),
+});
+const specProblem = t.obj({ level: t.enm('error', 'warn'), at: t.str(), message: t.str() });
+const specChecks = {
+  ok: t.bool(), problems: t.arr(specProblem),
+  objects: t.arr(t.obj({ remote: t.str(), items: t.int(), hasNext: t.bool(), fieldsFound: t.int(), fieldsMissing: t.arr(t.str()), status: t.int() })),
 };
 
 const testResult = t.obj({ passed: t.int(), failed: t.int(), cases: t.arr(t.obj({ name: t.str(), ok: t.bool(), message: t.opt(t.str()) })) });
@@ -212,6 +251,34 @@ export default defineManifest({
     }),
     outward('sync_types.undo_push', 'Reverse one push using the stored replaced value', {
       in: { outboxId }, out: { ok: t.bool() }, perm: 'records.edit', emits: ['sync.push_undone'], gate: { act: 'send', when: "actor.kind != 'person'" }, tool: 'records',
+    }),
+    // ---- SyncSpec: bring an app's records into Records
+    read('sync_specs.validate', 'Check a SyncSpec against a real sampled page of the app (read-only GET with the Vault handle): the list, ids, next page, every mapped field path, value types and choices. Writes nothing', {
+      in: { spec: syncSpec }, out: specChecks, perm: 'connectors.manage', tool: 'records', cli: 'vyre sync-spec validate', errors: ['validation.bad_input', 'internal.unavailable'],
+    }),
+    read('sync_specs.preview', 'Dry run of a SyncSpec: the record types it would make, three sample records drawn from the real page, and what the first pull would bring in. Writes nothing to Vyre or to the app', {
+      in: { spec: syncSpec },
+      out: {
+        ...specChecks, summary: t.str(),
+        types: t.arr(t.obj({ type: id.recordType, remote: t.str(), isNew: t.bool(), title: t.str(), existing: t.int(), fields: t.arr(t.obj({ key: fieldKey, label: t.str(), type: t.str(), dir: t.str() })) })),
+        samples: t.arr(t.obj({ type: id.recordType, remote: t.str(), title: t.str(), fields: t.arr(t.obj({ key: fieldKey, label: t.str(), value: t.json() })) })),
+      },
+      perm: 'connectors.manage', tool: 'records', errors: ['validation.bad_input', 'internal.unavailable'],
+    }),
+    write('sync_specs.apply', 'Apply a validated SyncSpec: a live connector (with its own tests), a connection holding the Vault handle, the record types with fields, choices, relations and stages, the synced-type bindings, and the first pull', {
+      in: { spec: syncSpec },
+      out: { connector: id.connector, connectionId: id.connection, version: t.str(), types: t.arr(t.obj({ type: id.recordType, syncTypeId, runId: t.opt(id.run) })), live: t.lit('polling') },
+      perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.created', 'connector.published', 'connection.created', 'sync.type_bound', 'schema.changed'], tool: 'records', cli: 'vyre sync-spec apply',
+      agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.precondition_failed', 'validation.duplicate', 'internal.unavailable'],
+    }),
+    read('sync_specs.get', 'Read the SyncSpec a synced type was made from (so Edit mapping can open the agent with it)', {
+      in: { type: t.opt(id.recordType), connector: t.opt(id.connector) },
+      out: { spec: syncSpec, connector: id.connector, connectionId: id.connection, appliedAt: t.ts(), types: t.arr(t.obj({ type: id.recordType, remote: t.str() })) },
+      perm: 'connectors.manage', tool: 'records', errors: ['validation.not_found'],
+    }),
+    write('sync_specs.backfill', 'Bring in everything, not just the first-pull filter: re-applies the stored spec with the filter dropped and starts the pull', {
+      in: { type: id.recordType }, out: { runId: t.opt(id.run) },
+      perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.published'], tool: 'records', errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     // ---- sync engine
     write('connectors.sync_now', 'Start a sync Run for a synced type or a connection; modes: incremental, reconcile, backfill, dry_run', {

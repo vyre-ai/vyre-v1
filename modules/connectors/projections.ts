@@ -3,6 +3,7 @@
 // @reads /modules/connectors/migrations/0001_connectors.sql
 // @reads /modules/connectors/migrations/0002_source_folders.sql
 // @reads /modules/connectors/migrations/0003_oauth.sql
+// @reads /modules/connectors/migrations/0004_sync_specs.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -37,8 +38,16 @@ export interface ActionDef {
   output?: string;
   /** Changes something in the app: a dry run never sends it and the Gate treats it as outward. */
   write?: boolean;
+  /** How the sync engine reads or writes an app whose answers are not the engine's own shape (a SyncSpec compiles to these). */
+  shape?: ActionShape;
 }
-export interface RecordedResponse { method?: string; url: string; status?: number; body?: unknown }
+/** A list action: where the items are, how to read each one and how to ask for the next page. A write action: nest flat values (keyed by pointer) into the body, and read the new id from the answer. */
+export interface ActionShape {
+  items?: string; id?: string; updatedAt?: string; fields?: string[]; types?: Record<string, string>; choices?: Record<string, string[]>;
+  cursor?: { kind: string; param?: string; next?: string; size?: number; start?: number };
+  unflatten?: boolean; idAt?: string;
+}
+export interface RecordedResponse { method?: string; url: string; status?: number; body?: unknown; /** The Link response header, for link-header pagination. */ link?: string }
 export interface TestCase {
   name: string; action: string; input?: unknown; responses: RecordedResponse[];
   expect?: { output?: unknown; error?: string; requests?: number };
@@ -75,7 +84,12 @@ export interface ConnectorsDeps {
   /** Connectors with synced types bound to them (they block removal). */
   boundSyncedTypes?: (key: string) => Promise<string[]>;
   publicBase?: string;
+  /** One read-only GET of an app with a Vault handle as the key, for discovery and for checking a SyncSpec against a real page. The host fills the key at the last moment; it never comes back. */
+  probe?: Probe;
 }
+export interface ProbeRequest { handle: string; style: "bearer" | "header" | "basic"; header?: string; prefix?: string; headers?: Record<string, string>; domain: string; url: string }
+export interface ProbeReply { status: number; text: string; link?: string }
+export type Probe = (ctx: ConnectorsCtx, req: ProbeRequest) => Promise<ProbeReply>;
 
 export interface BuiltinRow {
   key: string; title: string; mode: Mode; scope: Scope; domains: string[]; secrets: { name: string; description: string }[]; actions: string[];
@@ -86,7 +100,7 @@ export interface ConnectorsCtx {
   trace: { traceId: string };
   emit(name: string, subject: string, payload: Record<string, unknown>, opts?: { afterFailure?: boolean }): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  http(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string> }>;
+  http(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string>; /** The Link response header, when the app sent one (link-header pagination). */ link?: string }>;
   log?: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void };
   actor?: string;
 }
@@ -105,6 +119,7 @@ export function ensureTables(tx: Tx): void {
   tx.exec(readFileSync(new URL("./migrations/0001_connectors.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0002_source_folders.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0003_oauth.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0004_sync_specs.sql", import.meta.url), "utf8"));
   ready.add(tx);
 }
 

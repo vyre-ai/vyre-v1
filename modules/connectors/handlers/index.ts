@@ -5,11 +5,13 @@ import { createRuntimeHandlers } from "./runtime.ts";
 import type { RuntimeHandlers } from "./runtime.ts";
 import { createSyncHandlers } from "./sync.ts";
 import type { SyncDeps, SyncHandlers } from "./sync.ts";
+import { createSpecHandlers } from "./syncspec.ts";
+import type { SpecHandlers } from "./syncspec.ts";
 
-export type ConnectorsHandlers = RuntimeHandlers & ConnectionsHandlers & SyncHandlers;
+export type ConnectorsHandlers = RuntimeHandlers & ConnectionsHandlers & SyncHandlers & SpecHandlers;
 
 export function createConnectorsHandlers(deps: SyncDeps): ConnectorsHandlers {
-  return { ...createRuntimeHandlers(deps), ...createConnectionsHandlers(deps), ...createSyncHandlers(deps) };
+  return { ...createRuntimeHandlers(deps), ...createConnectionsHandlers(deps), ...createSyncHandlers(deps), ...createSpecHandlers(deps) };
 }
 
 export { noteSchemaChanges, syncRequest, proposedKey, proposedType } from "./sync.ts";

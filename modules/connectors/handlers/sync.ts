@@ -19,7 +19,7 @@ export type SyncState = "initial" | "syncing" | "paused" | "needs_review" | "err
 export type SyncMode = "incremental" | "reconcile" | "backfill" | "dry_run";
 export type OutboxState = "pending" | "sent" | "failed" | "canceled" | "undone";
 
-export interface FieldMapRow { key: string; remote: string; dir: Dir; transform?: string }
+export interface FieldMapRow { key: string; remote: string; dir: Dir; transform?: string; /** The record type this field points at (a relation): the remote id is turned into a link to that type's record. */ relation?: string }
 export interface PollingRow { activeSec: number; idleSec: number; dormantSec: number }
 export interface SchemaChange { changeKey: string; kind: "field_added" | "field_removed" | "field_retyped" | "object_removed"; remote: string; summary: string; key?: string; fieldType?: string }
 

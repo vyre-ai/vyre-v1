@@ -12,7 +12,7 @@ import { readSource } from "./handlers/source.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
-import { refuse } from "./projections.ts";
+import { refuse, scrubber } from "./projections.ts";
 import type { BuiltinRow, ConnectorsCtx, ConnectionDb, ConnectorDef } from "./projections.ts";
 import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
 
@@ -93,6 +93,18 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       loadFolderDef: async (key: string) => { const folder = handle.tx.get<{ folder_id: string }>('SELECT folder_id FROM cn_source_folders WHERE key = ?', key)?.folder_id; return folder ? (await readSource(cc, key, folder)).def : undefined; },
       assertCanPublish: (key: string) => { if (ctx.authorize({ perm: 'connectors.manage', level: 'edit' }, { type: 'connector', id: key }).effect !== 'allow') refuse(cc, 'permission.no_grant', 'Your access to this connector changed while it was being tested. Nothing was published.'); }, ...(port?{
       publicBase:port.publicBase(),
+      probe:async(_cc,req)=>{
+        // one read-only GET with the Vault handle as the key; the host fills it at the last moment and it is scrubbed from the answer
+        const probeExec={...execution,assertAuthorized:()=>{for(const id of usedVaultItems)if(ctx.authorize({perm:null,level:'use'},{type:'vault_item',id}).effect!=='allow')return refuse(cc,'permission.no_grant','Vault access changed before this request.');}};
+        const value=await port.fill(probeExec,{connector:'sync_spec',connectionId:'probe',slot:'probe',handle:req.handle});
+        const headers:Record<string,string>={Accept:'application/json',...(req.headers??{})};
+        if(req.style==='bearer')headers['Authorization']=`Bearer ${value}`;
+        else if(req.style==='basic')headers['Authorization']=`Basic ${value}`;
+        else headers[req.header??'Authorization']=`${req.prefix??''}${value}`;
+        const res=await port.http(probeExec,[req.domain],req.url,{method:'GET',headers});
+        const text=scrubber([value]).text(await res.text());
+        return{status:res.status,text,...(res.link?{link:res.link}:{})};
+      },
       resolveSecret:async(secretHandle:string,binding?:{connector:string;connectionId:string;slot:string})=>{
         if(!binding) return refuse(cc,'permission.no_grant','Select an authorized connection before using a Vault item.');
         const selected=handle.tx.get<ConnectionDb>('SELECT * FROM cn_connections WHERE connection_id = ?',binding.connectionId);
@@ -116,6 +128,7 @@ const NAMES = [
   "sync_types.list", "sync_types.get", "sync_types.discover", "sync_types.create", "sync_types.update", "sync_types.preview", "sync_types.pause", "sync_types.resume", "sync_types.log",
   "sync_types.schema_changes", "sync_types.review_schema", "sync_types.confirm_deletes", "sync_types.make_native", "sync_types.resolve_conflict", "sync_types.replay_conflict", "sync_types.undo_push",
   "connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push",
+  "sync_specs.validate", "sync_specs.preview", "sync_specs.apply", "sync_specs.get", "sync_specs.backfill",
 ] as const satisfies readonly (keyof ConnectorsHandlers)[];
 
 export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as Record<(typeof NAMES)[number], (ctx: HostCtx, input: never) => Promise<unknown>>;
