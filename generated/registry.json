@@ -185264,6 +185264,7 @@
     {
       "effects": "write",
       "emits": [
+        "thread.updated",
         "thread.plan_mode_changed"
       ],
       "errors": [
