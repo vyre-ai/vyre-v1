@@ -214,6 +214,19 @@ export function addFieldOps(o: { type: string; name: string; fieldType: string; 
   return { key, ops: [{ op: "field.add", type: o.type, field: key, def: { title, type: o.fieldType, required: o.required, ...(options ? { options } : {}) } }] };
 }
 
+/** A link from this type to another: a pair of fields (one here, one on the other type) that relation.add makes together. `farKeys` are the field keys the other type already has. */
+export function linkFieldOps(o: { type: string; plural: string; name: string; to: ConnectType; takenKeys: readonly string[]; farKeys: readonly string[] }): { key: string; ops: SchemaOp[] } {
+  const title = o.name.trim() || o.to.title;
+  const key = freeKey(slugOf(title, "f"), o.takenKeys);
+  const back = freeKey(slugOf(o.plural, "f") || `${o.type}_links`, [...o.farKeys, ...(o.to.key === o.type ? [...o.takenKeys, key] : [])]);
+  return { key, ops: [{ op: "relation.add", type: o.type, field: key, def: { to: o.to.key, inverse: back, title, inverseTitle: o.plural } }] };
+}
+
+/** What a sensitivity suggestion found, said in a few words. */
+export function sensitiveKind(kind: string): string {
+  return kind === "id_number" ? "an ID number" : kind === "card" ? "a card number" : kind === "bank" ? "a bank number" : kind === "health" ? "health information" : "sensitive data";
+}
+
 /** Rename shows a new name; the key stays, so nothing that reads the field breaks. */
 export const renameFieldOps = (type: string, field: string, name: string): SchemaOp[] => [{ op: "field.update", type, field, def: { title: name.trim() } }];
 export const retypeFieldOps = (type: string, field: string, toType: string): SchemaOp[] => [{ op: "field.retype", type, field, toType }];
