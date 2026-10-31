@@ -26,7 +26,8 @@ export function SessionImport(): ReactElement | null {
     const out = await data.call("sessions.list", { ...(cursor ? { cursor } : {}) }) as { sessions: Archive[]; next?: string };
     setArchives((old) => cursor ? [...old, ...out.sessions] : out.sessions); setNext(out.next);
   };
-  useEffect(() => { if (personal) void run(() => load()); }, [personal, data.call]);
+  // The archive is optional on first paint: a server without it shows no rows, never a raw error.
+  useEffect(() => { if (personal) void load().catch(() => setArchives([])); }, [personal, data.call]);
   if (!personal) return null;
   const now = data.clock().now;
   const list: ReactElement[] = [];
