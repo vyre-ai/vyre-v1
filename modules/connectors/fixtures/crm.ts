@@ -1,6 +1,6 @@
 // Two made-up CRMs the SyncSpec tests read, shaped differently on purpose so nothing in the code can be tuned to one of them.
 //   Ledger  (crm-a.test)  header key, page-number pagination with no next pointer, records nested under attributes, a relation to organizations, pick-lists from a fields endpoint.
-//   Orbit   (crm-b.test)  bearer key, Link-header pagination, a custom object (matters) whose properties live under props, pick-lists from a schema endpoint, a link to a Ledger-like contact id.
+//   Orbit   (crm-b.test)  bearer key, Link-header pagination, a custom object (jobs) whose properties live under props, pick-lists from a schema endpoint, a link to a Ledger-like contact id.
 // A pure router: (request) -> reply. test/support/fake-crm-server.ts puts the same router behind a real HTTP server.
 export interface CrmRequest { method: string; url: string; headers: Record<string, string>; body?: unknown }
 export interface CrmReply { status: number; body?: unknown; headers?: Record<string, string> }
@@ -9,7 +9,7 @@ export const KEY_A = "ledger-key-0001";
 export const KEY_B = "orbit-key-0002";
 
 export interface Person { id: number; attributes: { full_name: string; email: string; phone: string; status: string; tier: string; note: string }; org_id: string | null; modified: string }
-export interface Matter { uid: string; props: { title: string; kind: string; amount: number; opened: string; contact_ref: string | null }; touched: string }
+export interface Job { uid: string; props: { title: string; kind: string; amount: number; opened: string; contact_ref: string | null }; touched: string }
 
 export function crm() {
   const state = {
@@ -22,11 +22,11 @@ export function crm() {
       { id: 105, attributes: { full_name: "Ed Park", email: "ed@example.test", phone: "+1 555 0105", status: "lead", tier: "silver", note: "" }, org_id: "o2", modified: "2026-10-05T10:00:00Z" },
     ] as Person[],
     orgs: [{ id: "o1", name: "North Works", modified: "2026-09-01T00:00:00Z" }, { id: "o2", name: "South Mill", modified: "2026-09-02T00:00:00Z" }],
-    matters: [
-      { uid: "m-1", props: { title: "Stone v. Ledger", kind: "injury", amount: 12000, opened: "2026-06-01", contact_ref: "101" }, touched: "2026-10-03T00:00:00Z" },
-      { uid: "m-2", props: { title: "Ford estate", kind: "probate", amount: 0, opened: "2026-07-15", contact_ref: "102" }, touched: "2026-10-04T00:00:00Z" },
-      { uid: "m-3", props: { title: "Moss lease", kind: "probate", amount: 500, opened: "2026-08-20", contact_ref: "104" }, touched: "2026-10-05T00:00:00Z" },
-    ] as Matter[],
+    jobs: [
+      { uid: "j-1", props: { title: "Stone install", kind: "install", amount: 12000, opened: "2026-06-01", contact_ref: "101" }, touched: "2026-10-03T00:00:00Z" },
+      { uid: "j-2", props: { title: "Ford repair", kind: "repair", amount: 0, opened: "2026-07-15", contact_ref: "102" }, touched: "2026-10-04T00:00:00Z" },
+      { uid: "j-3", props: { title: "Moss repair", kind: "repair", amount: 500, opened: "2026-08-20", contact_ref: "104" }, touched: "2026-10-05T00:00:00Z" },
+    ] as Job[],
     requests: [] as { method: string; host: string; path: string }[],
     rejectWrites: false,
   };
@@ -35,7 +35,7 @@ export function crm() {
     { key: "status", label: "Status", type: "select", options: [{ value: "lead", label: "Lead" }, { value: "client", label: "Client" }, { value: "closed", label: "Closed" }] },
     { key: "tier", label: "Tier", type: "select", options: [{ value: "gold" }, { value: "silver" }, { value: "bronze" }] },
   ];
-  const B_SCHEMA = { object: "matters", properties: [{ name: "kind", label: "Kind", options: ["injury", "probate"] }, { name: "amount", label: "Amount" }] };
+  const B_SCHEMA = { object: "jobs", properties: [{ name: "kind", label: "Kind", options: ["install", "repair"] }, { name: "amount", label: "Amount" }] };
 
   const page = <T>(all: T[], url: URL, per: number, pageParam: string): T[] => {
     const n = Math.max(1, Number(url.searchParams.get(pageParam) ?? "1"));
@@ -72,17 +72,17 @@ export function crm() {
     }
     if (url.hostname === "crm-b.test") {
       if (h["authorization"] !== `Bearer ${KEY_B}`) return { status: 401, body: { error: "unauthorized" } };
-      if (method === "GET" && url.pathname === "/v1/objects/matters") {
+      if (method === "GET" && url.pathname === "/v1/objects/jobs") {
         const per = Number(url.searchParams.get("limit") ?? "2");
         const after = Number(url.searchParams.get("after") ?? "0");
-        const items = state.matters.slice(after, after + per);
-        const next = after + per < state.matters.length ? `${url.origin}/v1/objects/matters?limit=${per}&after=${after + per}` : undefined;
-        return { status: 200, body: { items }, headers: next ? { link: `<${next}>; rel="next", <${url.origin}/v1/objects/matters?limit=${per}>; rel="first"` } : {} };
+        const items = state.jobs.slice(after, after + per);
+        const next = after + per < state.jobs.length ? `${url.origin}/v1/objects/jobs?limit=${per}&after=${after + per}` : undefined;
+        return { status: 200, body: { items }, headers: next ? { link: `<${next}>; rel="next", <${url.origin}/v1/objects/jobs?limit=${per}>; rel="first"` } : {} };
       }
-      if (method === "GET" && url.pathname === "/v1/schema/matters") return { status: 200, body: B_SCHEMA };
-      const m = /^\/v1\/objects\/matters\/([\w-]+)$/.exec(url.pathname);
+      if (method === "GET" && url.pathname === "/v1/schema/jobs") return { status: 200, body: B_SCHEMA };
+      const m = /^\/v1\/objects\/jobs\/([\w-]+)$/.exec(url.pathname);
       if (m && method === "PATCH") {
-        const x = state.matters.find((y) => y.uid === m[1]);
+        const x = state.jobs.find((y) => y.uid === m[1]);
         if (!x) return { status: 404 };
         Object.assign(x.props, (req.body as { props?: Record<string, unknown> } | undefined)?.props ?? {});
         x.touched = new Date(state.now).toISOString();
@@ -143,23 +143,23 @@ export function orbitSpec(handle = "#Orbit_Key"): Record<string, unknown> {
     app: { name: "Orbit", domain: "crm-b.test" },
     auth: { vaultHandle: handle, style: "bearer" },
     objects: [{
-      remote: "matters", label: "Matter", count: 3, id: "/uid", itemsAt: "/items", updatedAt: "/touched",
-      list: { path: "/v1/objects/matters", query: {}, cursor: { kind: "link", size: 2, sizeParam: "limit" } },
-      update: { path: "/v1/objects/matters/{id}", method: "PATCH", evidence: "https://docs.crm-b.test/matters#update" },
+      remote: "jobs", label: "Job", count: 3, id: "/uid", itemsAt: "/items", updatedAt: "/touched",
+      list: { path: "/v1/objects/jobs", query: {}, cursor: { kind: "link", size: 2, sizeParam: "limit" } },
+      update: { path: "/v1/objects/jobs/{id}", method: "PATCH", evidence: "https://docs.crm-b.test/jobs#update" },
       fields: [
         { path: "/props/title", label: "Title", type: "text" },
-        { path: "/props/kind", label: "Kind", type: "choice", choices: [{ value: "injury" }, { value: "probate" }] },
+        { path: "/props/kind", label: "Kind", type: "choice", choices: [{ value: "install" }, { value: "repair" }] },
         { path: "/props/amount", label: "Amount", type: "money" },
         { path: "/props/opened", label: "Opened", type: "date" },
       ],
     }],
     mapping: [{
-      remote: "matters", recordType: "matter", title: "Matter", titleField: "/props/title",
+      remote: "jobs", recordType: "job", title: "Job", titleField: "/props/title",
       fields: [
         { path: "/props/title", field: "title", direction: "both" }, { path: "/props/kind", field: "kind", direction: "both" },
         { path: "/props/amount", field: "amount", direction: "both" }, { path: "/props/opened", field: "opened", direction: "pull" },
       ],
     }],
-    plan: { firstPull: { words: "Every matter" }, backfill: "now", conflicts: "newest" },
+    plan: { firstPull: { words: "Every job" }, backfill: "now", conflicts: "newest" },
   };
 }

@@ -45,9 +45,9 @@ test("validate proves both CRMs on a real sampled page, second page included", a
   assert.deepEqual(a.objects.map((o) => [o.remote, o.items, o.hasNext]), [["organizations", 2, false], ["people", 2, true]]);
   const b = await validate(w, orbitSpec());
   assert.equal(b.ok, true, JSON.stringify(b.problems));
-  assert.deepEqual(b.objects.map((o) => [o.remote, o.items, o.hasNext, o.fieldsFound]), [["matters", 2, true, 4]]);
+  assert.deepEqual(b.objects.map((o) => [o.remote, o.items, o.hasNext, o.fieldsFound]), [["jobs", 2, true, 4]]);
   const paths = w.c.state.requests.map((r) => `${r.host}${r.path}`);
-  assert.ok(paths.filter((p) => p === "crm-b.test/v1/objects/matters").length >= 2, "the link page was fetched");
+  assert.ok(paths.filter((p) => p === "crm-b.test/v1/objects/jobs").length >= 2, "the link page was fetched");
 });
 
 test("validate names what is wrong against the real page", async () => {
@@ -127,17 +127,17 @@ test("a list action reads both shapes: page numbers and Link headers", async () 
   assert.deepEqual([p3.rows.length, p3.next], [0, undefined]);
 
   const orbit = compileSpec(parseSpec(orbitSpec()).spec!).connector;
-  const m1 = (await run(orbit, "list_matters", {}, KEY_B)).output as typeof p1;
-  assert.deepEqual(m1.rows.map((r) => r.id), ["m-1", "m-2"]);
-  assert.match(m1.next!, /^https:\/\/crm-b\.test\/v1\/objects\/matters\?limit=2&after=2$/);
+  const m1 = (await run(orbit, "list_jobs", {}, KEY_B)).output as typeof p1;
+  assert.deepEqual(m1.rows.map((r) => r.id), ["j-1", "j-2"]);
+  assert.match(m1.next!, /^https:\/\/crm-b\.test\/v1\/objects\/jobs\?limit=2&after=2$/);
   assert.equal(m1.rows[0]!.data["/props/amount"], 12000);
-  const m2 = (await run(orbit, "list_matters_after", { after: m1.next }, KEY_B)).output as typeof p1;
-  assert.deepEqual([m2.rows.map((r) => r.id), m2.next], [["m-3"], undefined]);
+  const m2 = (await run(orbit, "list_jobs_after", { after: m1.next }, KEY_B)).output as typeof p1;
+  assert.deepEqual([m2.rows.map((r) => r.id), m2.next], [["j-3"], undefined]);
   // a link to another host is refused by the connector's own domain list
-  await assert.rejects(run(orbit, "list_matters_after", { after: "https://evil.test/steal" }, KEY_B), code("permission.no_grant"));
+  await assert.rejects(run(orbit, "list_jobs_after", { after: "https://evil.test/steal" }, KEY_B), code("permission.no_grant"));
   // an update nests flat values back into the item's own shape
   const sent: unknown[] = [];
-  await executeAction(w.k.deps, w.ctx, orbit, "update_matters", { input: { id: "m-1", properties: { "/props/title": "New", "/props/amount": 1 } }, secrets: { Key: KEY_B }, persist: false, http: async (_u, init) => { sent.push(JSON.parse(init!.body!)); return { status: 200, text: async () => "{}" }; } });
+  await executeAction(w.k.deps, w.ctx, orbit, "update_jobs", { input: { id: "j-1", properties: { "/props/title": "New", "/props/amount": 1 } }, secrets: { Key: KEY_B }, persist: false, http: async (_u, init) => { sent.push(JSON.parse(init!.body!)); return { status: 200, text: async () => "{}" }; } });
   assert.deepEqual(sent, [{ props: { title: "New", amount: 1 } }]);
 });
 
@@ -205,10 +205,10 @@ test("apply again with the same document keeps the version; a changed one is a n
 test("the Orbit spec: a custom object, Link pagination and a backfill that drops the filter", async () => {
   const w = world();
   const out = await w.k.hs["sync_specs.apply"](w.ctx, { spec: orbitSpec(), idempotencyKey: "k6" });
-  assert.deepEqual(out.types.map((t) => t.type), ["matter"]);
-  const b = (await w.k.hs["sync_types.get"](w.ctx, { type: "matter" })).syncedType;
+  assert.deepEqual(out.types.map((t) => t.type), ["job"]);
+  const b = (await w.k.hs["sync_types.get"](w.ctx, { type: "job" })).syncedType;
   assert.deepEqual(b.fields.map((f) => [f.key, f.dir]), [["title", "both"], ["kind", "both"], ["amount", "both"], ["opened", "pull"]]);
-  const bf = await w.k.hs["sync_specs.backfill"](w.ctx, { type: "matter", idempotencyKey: "bf1" } as never);
+  const bf = await w.k.hs["sync_specs.backfill"](w.ctx, { type: "job", idempotencyKey: "bf1" } as never);
   assert.ok(bf.runId);
 });
 

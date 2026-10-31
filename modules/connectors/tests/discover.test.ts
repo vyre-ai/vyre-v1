@@ -26,8 +26,8 @@ test("sample reads a page of an unknown app: list, id, date, types, total and a 
 
 test("sample sees a Link header and a top-level shape it has not met before", async () => {
   const w = world();
-  const s = await w.k.hs["sync_specs.sample"](w.ctx, { auth: B, domain: "crm-b.test", path: "/v1/objects/matters", query: { limit: "2" } });
-  assert.equal(s.nextLink, "https://crm-b.test/v1/objects/matters?limit=2&after=2");
+  const s = await w.k.hs["sync_specs.sample"](w.ctx, { auth: B, domain: "crm-b.test", path: "/v1/objects/jobs", query: { limit: "2" } });
+  assert.equal(s.nextLink, "https://crm-b.test/v1/objects/jobs?limit=2&after=2");
   assert.equal(s.shape!.lists[0]!.itemsAt, "/items");
   assert.equal(s.shape!.lists[0]!.idAt, "/uid");
   assert.equal(s.shape!.lists[0]!.fields.find((f) => f.path === "/props/opened")!.type, "date");
@@ -40,8 +40,8 @@ test("sample reads a field-metadata endpoint so choices come from the app", asyn
   const f = await w.k.hs["sync_specs.sample"](w.ctx, { auth: A, domain: "crm-a.test", path: "/api/v2/fields/people" });
   assert.match(f.preview!, /"key":"status"/);
   assert.match(f.preview!, /"value":"client"/);
-  const schema = await w.k.hs["sync_specs.sample"](w.ctx, { auth: B, domain: "crm-b.test", path: "/v1/schema/matters" });
-  assert.match(schema.preview!, /"options":\["injury","probate"\]/);
+  const schema = await w.k.hs["sync_specs.sample"](w.ctx, { auth: B, domain: "crm-b.test", path: "/v1/schema/jobs" });
+  assert.match(schema.preview!, /"options":\["install","repair"\]/);
 });
 
 test("sample says what went wrong in plain words", async () => {
@@ -65,7 +65,7 @@ test("survey looks at several paths at once and keeps it short", async () => {
 test("discovery only ever sends GET, and refuses a key value or another host", async () => {
   const w = world();
   await w.k.hs["sync_specs.sample"](w.ctx, { auth: A, domain: "crm-a.test", path: "/api/v2/people" });
-  await w.k.hs["sync_specs.survey"](w.ctx, { auth: B, domain: "crm-b.test", paths: ["/v1/objects/matters"] });
+  await w.k.hs["sync_specs.survey"](w.ctx, { auth: B, domain: "crm-b.test", paths: ["/v1/objects/jobs"] });
   assert.ok(w.c.state.requests.length >= 2 && w.c.state.requests.every((r) => r.method === "GET"));
   await assert.rejects(w.k.hs["sync_specs.sample"](w.ctx, { auth: { ...A, vaultHandle: KEY_A }, domain: "crm-a.test", path: "/x" }), code("validation.bad_input"));
   await assert.rejects(w.k.hs["sync_specs.sample"](w.ctx, { auth: A, domain: "crm-a.test", path: "/x", url: "https://evil.test/x" }), code("validation.bad_input"));

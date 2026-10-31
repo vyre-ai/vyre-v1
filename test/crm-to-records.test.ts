@@ -27,8 +27,8 @@ const LEDGER: Know = {
 };
 const ORBIT: Know = {
   name: "Orbit", domain: "crm-b.test", auth: { vaultHandle: "#Orbit_Key", style: "bearer" },
-  objects: [{ remote: "matters", path: "/v1/objects/matters", label: "Matter", recordType: "matter", write: { path: "/v1/objects/matters/{id}", evidence: "https://docs.crm-b.test/matters#update" } }],
-  fieldsEndpoint: { path: "/v1/schema/matters", forRemote: "matters" }, backfill: "now",
+  objects: [{ remote: "jobs", path: "/v1/objects/jobs", label: "Job", recordType: "job", write: { path: "/v1/objects/jobs/{id}", evidence: "https://docs.crm-b.test/jobs#update" } }],
+  fieldsEndpoint: { path: "/v1/schema/jobs", forRemote: "jobs" }, backfill: "now",
 };
 
 async function boot() {
@@ -103,21 +103,21 @@ test("two unknown CRMs become record types and records, with nothing written to 
     assert.equal(person.fields.find((f: any) => f.key === "status").type, "status");
     assert.deepEqual(person.fields.find((f: any) => f.key === "status").options.stages.map((s: any) => s.key), ["lead", "client", "closed"]);
     assert.equal(person.fields.find((f: any) => f.key === "org").type, "relation");
-    assert.equal(described.find((t) => t.key === "matter").fields.find((f: any) => f.key === "kind").type, "choice");
+    assert.equal(described.find((t) => t.key === "job").fields.find((f: any) => f.key === "kind").type, "choice");
 
-    // records: the first-pull filter left Cy out of Ledger; Orbit's backfill brought all three matters over two Link pages
+    // records: the first-pull filter left Cy out of Ledger; Orbit's backfill brought all three jobs over two Link pages
     assert.deepEqual((await w.rows("org")).map((r) => r.data["name"]).sort(), ["North Works", "South Mill"]);
     assert.deepEqual((await w.rows("person")).map((r) => r.data["name"]).sort(), ["Ada Stone", "Ben Ford", "Di Moss", "Ed Park"]);
-    assert.deepEqual((await w.rows("matter")).map((r) => r.data["title"]).sort(), ["Ford estate", "Moss lease", "Stone v. Ledger"]);
+    assert.deepEqual((await w.rows("job")).map((r) => r.data["title"]).sort(), ["Ford repair", "Moss repair", "Stone install"]);
     const ada = await w.byName("person", "Ada Stone");
     const north = await w.byName("org", "North Works");
     assert.equal(ada.data["status"], "lead");
     assert.deepEqual(ada.data["org"], [{ urn: `vyre://sp_test/org/${north.id}` }], "the relation is a link to the pulled record");
     const back = ((await w.schema.store.get("org", north.id))!.data["persons"] as { urn: string }[]).map((x) => x.urn).sort();
     assert.deepEqual(back, [ada.id, (await w.byName("person", "Ben Ford")).id].map((id) => `vyre://sp_test/person/${id}`).sort(), "the other end of the two-way relation moved with it");
-    const matter = await w.byName("matter", "Stone v. Ledger");
-    assert.equal(matter.data["kind"], "injury");
-    assert.equal(matter.data["amount"], 12000);
+    const job = await w.byName("job", "Stone install");
+    assert.equal(job.data["kind"], "install");
+    assert.equal(job.data["amount"], 12000);
 
     // every Run finished
     assert.ok(w.runs.every((r) => r.status === "succeeded"), JSON.stringify(w.runs));
@@ -176,12 +176,12 @@ test("a person edit pushes, a conflict resolves newest-wins with the old value i
     assert.ok(w.crm.methods().every((m) => m === "GET" || m === "PATCH"), `methods: ${[...new Set(w.crm.methods())]}`);
     assert.deepEqual([...new Set(wrote().map((r) => r.path))].sort(), ["/api/v2/people/101", "/api/v2/people/105"]);
 
-    // 5. an Orbit matter edit pushes through the other shape (props nested, bearer key)
-    const m = await w.byName("matter", "Ford estate");
-    await w.schema.store.update("matter", m.id, { title: "Ford estate (open)" }, m.version);
-    await w.pass("matter");
-    assert.equal(w.crm.c.state.matters.find((x) => x.uid === "m-2")!.props.title, "Ford estate (open)");
-    assert.equal(w.crm.c.state.matters.find((x) => x.uid === "m-2")!.props.amount, 0, "only the changed field went");
+    // 5. an Orbit job edit pushes through the other shape (props nested, bearer key)
+    const m = await w.byName("job", "Ford repair");
+    await w.schema.store.update("job", m.id, { title: "Ford repair (open)" }, m.version);
+    await w.pass("job");
+    assert.equal(w.crm.c.state.jobs.find((x) => x.uid === "j-2")!.props.title, "Ford repair (open)");
+    assert.equal(w.crm.c.state.jobs.find((x) => x.uid === "j-2")!.props.amount, 0, "only the changed field went");
 
     // 6. no key value is anywhere in what Vyre stored
     const dump = JSON.stringify(["cn_connectors", "cn_connections", "cn_sync_specs", "cn_synced_types", "cn_log", "sy_log", "sy_outbox", "sy_links"].map((t) => w.schema.tx.all(`SELECT * FROM ${t}`))) + JSON.stringify(w.events);
