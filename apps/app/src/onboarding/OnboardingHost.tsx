@@ -105,7 +105,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (given) return given(ctx);
     if (card === "connect_ai" && call) return <ConnectAiCard call={call} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />;
     if (card === "bridge_team" && onAddSpace) return <TeamBridgeCard mac={mac} onCreate={() => { onAddSpace(); ctx.later(); }} />;
-    if (card === "phone" && call && address) return <PairPhoneCard call={call} address={address} onPaired={() => ctx.done()} />;
+    if (card === "phone" && call && address) return <PairPhoneCard call={call} address={address} onPaired={() => ctx.done()} {...(onAddSpace ? { onTeamSpace: () => { onAddSpace(); ctx.later(); } } : {})} />;
     if (card === "chrome" && call) return <ChromeCard call={call} device={ctx.device} onConnected={() => ctx.done()} gate={ctx.gate} />;
     if (card === "import_sessions" && call && desktopSessionImporter()) return <SessionsCard call={call} onDone={() => ctx.done()} />;
     if (card === "local_folders" && call && shellInvoke() && ctx.device !== "web" && ctx.device !== "phone") return <FoldersCard call={call} gate={ctx.gate} />;

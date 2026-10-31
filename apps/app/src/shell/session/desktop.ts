@@ -193,6 +193,16 @@ export async function consumeDesktopBootstrap(bridge: DesktopBootstrapBridge, on
   };
 }
 
+/** True when a phone elsewhere could open this Space address: not this computer (localhost, 127.x, ::1, 0.0.0.0) and not link-local (169.254.x, fe80::). Names and LAN addresses pass. */
+export function phoneCanReach(address: string): boolean {
+  let host: string;
+  try { host = new URL(address).hostname.toLowerCase().replace(/^\[|\]$/g, ""); } catch { return false; }
+  if (!host || host === "localhost" || host.endsWith(".localhost") || host === "::1" || host === "::" || host.startsWith("fe80:")) return false;
+  const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(host);
+  if (v4) { const a = Number(v4[1]); const b = Number(v4[2]); if (a === 127 || a === 0 || (a === 169 && b === 254)) return false; }
+  return true;
+}
+
 /** A pairing link opened in a phone's browser: `<Space address>/home?pair=<code>`. Only the code shape is accepted; the code itself is spent by the redeem, once. */
 export function pairLink(address: string, code: string): string {
   return `${address.replace(/\/+$/, "")}/home?pair=${encodeURIComponent(code)}`;
