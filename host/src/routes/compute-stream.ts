@@ -10,6 +10,12 @@
 //   node -> Space  {t:"opened", view}  {t:"failed", view, reason}  {t:"ended", view}  {t:"msg", view, data}  {t:"hb"}
 // Binary, node -> Space: one byte n, then n bytes of the view id, then a JPEG.
 //
+// The same socket carries one more thing: a CLI engine process of a turn pinned to this node (spawnProc below). The Space names the process, sends its argv, folder and environment, and then its input;
+// the node runs it on its own sandbox and sends its output and its end back. Text frames, tagged by `proc`:
+//   Space -> node  {t:"cli_spawn", proc, argv, cwd?, env}   {t:"cli_in", proc, data}   {t:"cli_end", proc}   {t:"cli_kill", proc, signal}      (data is base64)
+//   node -> Space  {t:"cli_started", proc, pid?}  {t:"cli_out", proc, data, err?}  {t:"cli_exit", proc, code, signal}  {t:"cli_failed", proc, code, reason}
+// A frame naming a process that is not one of this socket's is dropped, like a view. A node that goes away ends its processes.
+//
 // What keeps one node out of another's computers: the Space chooses the node from the register (computers.stream_open), mints the view id itself, and only sends `open` on that node's socket. A frame, a
 // message or an `ended` carrying a view id that is not one of this socket's views is dropped. Input is passed on only for a take-over ticket, and only while the person still holds the controls (asked of the
 // module again every half second), so nothing gets through before take-over or after a give-back; agentd's own check is the second lock. A node that is removed has its sockets closed the moment the Space
@@ -46,7 +52,29 @@ export interface ComputeStreamDeps {
   deadMs?: number;
 }
 
+/** How a relayed process ended (the same shape the local launcher reports). */
+export interface RelayExit { code: number | null; signal: string | null }
+
+/** A CLI process running on a node, as the engine's launcher wants it (agent/src/drivers/cli/types.ts CliProcess, structural here). */
+export interface RelayProc {
+  readonly pid: number | undefined;
+  readonly stdout: AsyncIterable<Uint8Array>;
+  write(data: string): Promise<void>;
+  endInput(): void;
+  readonly exited: Promise<RelayExit>;
+  stderrTail(): string;
+  kill(signal?: "SIGTERM" | "SIGKILL"): void;
+}
+
+/** Why a process could not be started on a node: the node is not connected, or it refused. `code` is an engine error code. */
+export class RelayError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string) { super(message); this.name = "RelayError"; this.code = code; }
+}
+
 export interface ComputeStream {
+  /** Start a process on a node, over its socket. Rejects with RelayError (engine.server_off) when the node is not connected, or with the node's own refusal. */
+  spawnProc(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<RelayProc>;
   /** Does this upgrade request belong here? The live hub leaves such a request alone. */
   claims(req: http.IncomingMessage): boolean;
   upgrade(req: http.IncomingMessage, socket: Duplex, head: Buffer): void;
@@ -58,7 +86,13 @@ export interface ComputeStream {
   close(): void;
 }
 
-interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; lastSeen: number }
+interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number }
+interface ProcState {
+  id: string; nodeId: string; started(pid: number | undefined): void; failed(e: RelayError): void; out(bytes: Buffer, err: boolean): void; exit(x: RelayExit): void;
+}
+const PROC_START_MS = 15_000;
+const MAX_PROCS_PER_NODE = 16;
+const STDERR_TAIL = 4096;
 interface View {
   id: string; nodeId: string; computerId: string; personId: string; input: boolean;
   frame(jpeg: Buffer): void;
@@ -73,6 +107,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
   const now = deps.now ?? Date.now;
   const nodes = new Map<string, NodeConn>();
   const views = new Map<string, View>();
+  const procs = new Map<string, ProcState>();
   const hits = new Map<string, number[]>();
   const limited = (key: string, max: number): boolean => {
     const at = now(), list = (hits.get(key) ?? []).filter((t) => at - t < 60_000);
@@ -97,9 +132,20 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
     if (tell && n?.peer.open) n.peer.send(JSON.stringify({ t: "close", view: id }));
     v.end();
   }
+  /** The node went away with processes running: each one ends as killed, so the turn fails and says so. */
+  function dropProcs(n: NodeConn): void {
+    for (const id of [...n.procs]) {
+      const p = procs.get(id);
+      procs.delete(id);
+      n.procs.delete(id);
+      p?.failed(new RelayError("engine.server_off", "The server went away."));
+      p?.exit({ code: null, signal: "SIGKILL" });
+    }
+  }
   function dropNode(n: NodeConn, code: number): void {
     if (nodes.get(n.nodeId) === n) nodes.delete(n.nodeId);
     for (const id of [...n.views]) dropView(id, false);
+    dropProcs(n);
     n.peer.close(code);
   }
 
@@ -114,12 +160,12 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       if (!who) { refuseUpgrade(socket, "401 Unauthorized"); return; }
       const peer = accept(req, socket, head, MAX_NODE_FRAME);
       if (!peer) return;
-      const conn: NodeConn = { nodeId: who.serverId, credential, peer, views: new Set(), lastSeen: now() };
+      const conn: NodeConn = { nodeId: who.serverId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now() };
       const old = nodes.get(conn.nodeId);
       if (old) dropNode(old, 4000);
       nodes.set(conn.nodeId, conn);
       peer.send(JSON.stringify({ t: "ready" }));
-      peer.onClose(() => { if (nodes.get(conn.nodeId) === conn) nodes.delete(conn.nodeId); for (const id of [...conn.views]) dropView(id, false); });
+      peer.onClose(() => { if (nodes.get(conn.nodeId) === conn) nodes.delete(conn.nodeId); for (const id of [...conn.views]) dropView(id, false); dropProcs(conn); });
       peer.onMessage((data, binary) => {
         conn.lastSeen = now();
         if (binary) {
@@ -129,9 +175,19 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
           if (v && v.nodeId === conn.nodeId && conn.views.has(id)) v.frame(data.subarray(1 + n));
           return;
         }
-        let m: { t?: unknown; view?: unknown; reason?: unknown; data?: unknown };
+        let m: { t?: unknown; view?: unknown; reason?: unknown; data?: unknown; proc?: unknown; pid?: unknown; err?: unknown; code?: unknown; signal?: unknown };
         try { m = JSON.parse(data.toString("utf8")) as typeof m; } catch { return; }
         if (m.t === "hb") return;
+        if (typeof m.t === "string" && m.t.startsWith("cli_")) {
+          const pid = typeof m.proc === "string" ? m.proc : "";
+          const p = procs.get(pid);
+          if (!p || p.nodeId !== conn.nodeId || !conn.procs.has(pid)) return;   // not one of this socket's processes: ignored
+          if (m.t === "cli_started") p.started(typeof m.pid === "number" ? m.pid : undefined);
+          else if (m.t === "cli_out" && typeof m.data === "string") p.out(Buffer.from(m.data, "base64"), m.err === true);
+          else if (m.t === "cli_failed") { procs.delete(pid); conn.procs.delete(pid); p.failed(new RelayError(typeof m.code === "string" ? m.code : "engine.cli_failed", typeof m.reason === "string" ? m.reason.slice(0, 300) : "The server could not start it.")); p.exit({ code: null, signal: null }); }
+          else if (m.t === "cli_exit") { procs.delete(pid); conn.procs.delete(pid); p.exit({ code: typeof m.code === "number" ? m.code : null, signal: typeof m.signal === "string" ? m.signal : null }); }
+          return;
+        }
         const id = typeof m.view === "string" ? m.view : "";
         const v = views.get(id);
         if (!v || v.nodeId !== conn.nodeId || !conn.views.has(id)) return;   // not one of this socket's views: ignored
@@ -247,7 +303,59 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
   }, deps.recheckMs ?? 2_000);
   timer.unref();
 
+  /** One process on one node. Output is queued until the engine reads it; the end waits until the output is drained. */
+  async function spawnProc(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<RelayProc> {
+    const node = nodes.get(nodeId);
+    if (!node?.peer.open) throw new RelayError("engine.server_off", "The server is not connected to the Space right now.");
+    if (node.procs.size >= MAX_PROCS_PER_NODE) throw new RelayError("engine.server_busy", "The server is already running as many engines as it can.");
+    const id = `prc_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(12)), (x) => x.toString(16).padStart(2, "0")).join("")}`;
+    const chunks: Buffer[] = [];
+    let wake: (() => void) | null = null;
+    let ended = false;
+    let tail = "";
+    let pidSeen: number | undefined;
+    let resolveExit: (x: RelayExit) => void = () => undefined;
+    const exited = new Promise<RelayExit>((r) => { resolveExit = r; });
+    let settleStart: { ok(): void; fail(e: RelayError): void } = { ok() {}, fail() {} };
+    const startup = new Promise<void>((ok, fail) => { settleStart = { ok, fail }; });
+    const state: ProcState = {
+      id, nodeId,
+      started(pid) { pidSeen = pid; settleStart.ok(); },
+      failed(e) { settleStart.fail(e); },
+      out(bytes, err) {
+        if (err) { tail = (tail + bytes.toString("utf8")).slice(-STDERR_TAIL); return; }
+        chunks.push(bytes); wake?.();
+      },
+      exit(x) { ended = true; wake?.(); resolveExit(x); },
+    };
+    procs.set(id, state);
+    node.procs.add(id);
+    const send = (m: Record<string, unknown>): void => { const n = nodes.get(nodeId); if (n?.peer.open) n.peer.send(JSON.stringify({ ...m, proc: id })); };
+    send({ t: "cli_spawn", argv: [...spec.argv], ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}), env: { ...spec.env } });
+    const timer = setTimeout(() => { settleStart.fail(new RelayError("engine.server_off", "The server did not start the engine in time.")); procs.delete(id); node.procs.delete(id); send({ t: "cli_kill", signal: "SIGKILL" }); }, PROC_START_MS);
+    try { await startup; } finally { clearTimeout(timer); }
+    async function* stdout(): AsyncGenerator<Uint8Array> {
+      for (;;) {
+        const next = chunks.shift();
+        if (next) { yield next; continue; }
+        if (ended) return;
+        await new Promise<void>((r) => { wake = r; });
+        wake = null;
+      }
+    }
+    return {
+      get pid() { return pidSeen; },
+      stdout: stdout(),
+      write: (data) => { if (ended) return Promise.reject(new Error("stdin is closed")); send({ t: "cli_in", data: Buffer.from(data, "utf8").toString("base64") }); return Promise.resolve(); },
+      endInput: () => send({ t: "cli_end" }),
+      exited,
+      stderrTail: () => tail,
+      kill: (signal = "SIGTERM") => send({ t: "cli_kill", signal }),
+    };
+  }
+
   return {
+    spawnProc,
     claims(req) {
       const path = new URL(req.url ?? "/", "http://x").pathname;
       if (path === NODE_PATH) return true;

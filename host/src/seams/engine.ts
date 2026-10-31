@@ -54,6 +54,17 @@ export interface EngineHostSeam {
   space?: string;
   /** True when the person is on their own computer: a local model or custom endpoint on loopback or the private network is then allowed (lib/net-guard.ts). */
   own?: (person: string) => boolean;
+  /** The computers that joined the Space, for a turn pinned to one of them: start the engine process there over its live socket. Absent: no turn runs on a node. */
+  nodes?: EngineNodes;
+}
+
+/** Start a process on a node (host/src/routes/compute-stream.ts spawnProc), structural here. A rejection carries an engine.* `code`. */
+export interface EngineNodes {
+  spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<{
+    readonly pid: number | undefined; readonly stdout: AsyncIterable<Uint8Array>; write(data: string): Promise<void>; endInput(): void;
+    readonly exited: Promise<{ code: number | null; signal: string | null }>; stderrTail(): string; kill(signal?: "SIGTERM" | "SIGKILL"): void;
+  }>;
+  connected(nodeId: string): boolean;
 }
 
 export interface EngineHostDeps {
@@ -72,6 +83,7 @@ export interface EngineHostDeps {
   publishTurn?: () => PublishTurn | null;
   own?: (person: string) => boolean;
   openSession?: unknown;
+  nodes?: EngineNodes;
   /** See EngineHostSeam.mcpFetch and pluginLaunch (modules/engine/runtime.ts). */
   mcpFetch?: unknown;
   pluginLaunch?: unknown;
@@ -118,5 +130,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => mayRead(e.threadId, person));
   };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
+  return { holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

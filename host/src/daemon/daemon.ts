@@ -88,6 +88,7 @@ import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
+import type { ComputeStream } from "../routes/compute-stream.ts";
 import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
@@ -293,6 +294,8 @@ export interface Daemon {
   pollCommands(): Promise<number>;
   /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
   chromeBridge: ChromeBridge;
+  /** Engine processes on computers that joined (a turn pinned to a server): start one on a node, over its live socket. */
+  nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean };
   stop(): Promise<void>;
 }
 
@@ -1022,7 +1025,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -1561,7 +1564,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   requestStop = () => { void stop(); };
 
   return {
-    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
+    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n) },
     runProbes, pollCommands: runCommands,
     stop,
   };
