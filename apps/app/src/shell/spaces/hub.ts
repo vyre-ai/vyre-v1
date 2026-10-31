@@ -3,7 +3,7 @@
 // subscriptions close, and nothing keyed by another Space is accepted afterwards. The previous replica stays open read-only so an Interrupt from that Space
 // can still reach you. Budget: space_switch 500 ms with the skeleton.
 import type { ThemeController } from "../../../../../ui/src/theme/index.ts";
-import { PLACE_TITLE, kitById, railFor } from "../rail/kits.ts";
+import { NO_SCREEN_PLACES, PLACE_TITLE, kitById, railFor } from "../rail/kits.ts";
 import type { KitDef, PlaceId, RailGroups } from "../rail/kits.ts";
 import { activeEntry, createTabsController } from "../tabs/store.ts";
 import type { TabEntry, TabsController, TabsStorage } from "../tabs/store.ts";
@@ -136,7 +136,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   const sessions = new Map<string, SpaceSession>();
 
   for (const def of defs) {
-    const tabs = createTabsController({ deviceId: options.deviceId, personId: options.personIds?.[def.spaceId] ?? options.personId, spaceId: def.spaceId, storage: options.storage, start: kitById(def.kit).start, ...(def.kind === "personal" ? { hidden: ["apps"] as const } : {}) });
+    const tabs = createTabsController({ deviceId: options.deviceId, personId: options.personIds?.[def.spaceId] ?? options.personId, spaceId: def.spaceId, storage: options.storage, start: kitById(def.kit).start, hidden: def.kind === "personal" ? (["apps", ...NO_SCREEN_PLACES] as const) : NO_SCREEN_PLACES });
     const first = activeEntry(tabs.state());
     sessions.set(def.spaceId, {
       def,
@@ -294,7 +294,10 @@ export function createShellHub(options: HubOptions): ShellHub {
       s.tabs.retitle(key, title);
       emit();
     },
-    go(place, hash, background = false) {
+    go(requested, hash, background = false) {
+      // a place with no screen (the old Join) opens Home instead of an empty page
+      const place = NO_SCREEN_PLACES.includes(requested) ? "home" : requested;
+      if (place !== requested) hash = undefined;
       const s = open();
       s.tabs.openPlace(place, hash, undefined, background);
       if (!background) {
