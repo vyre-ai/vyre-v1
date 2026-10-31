@@ -165,8 +165,8 @@ test("the gateway leaves every host no route holds alone: the request goes to it
   // a download bucket, a site, a tunnel: no HostSlot, so the origin answers, and the second look is the cache's
   for (const host of ["dl", "www", "prototype", "tracker", "nobody-here"]) assert.equal(await (await rt.fetch(`https://${host}.vyre.run/some/file?x=1`)).text(), `origin of ${host}.vyre.run`, host);
   assert.equal(await (await rt.fetch("https://dl.vyre.run/again")).text(), "origin of dl.vyre.run");
-  // the shell's paths are not an origin's
-  assert.equal((await rt.fetch("https://nobody-here.vyre.run/__vyre/boot.js")).status, 404);
+  // the shell's paths on a host nobody holds are the host's own too (another Worker's custom domain can have its own /__vyre/)
+  assert.equal(await (await rt.fetch("https://nobody-here.vyre.run/__vyre/boot.js")).text(), "origin of nobody-here.vyre.run");
   // a Cloudflare error from the origin is a name nobody holds
   assert.equal((await rt.fetch("https://down.vyre.run/")).status, 404);
   // a failing lookup never takes a host down: the origin answers

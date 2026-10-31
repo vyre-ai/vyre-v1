@@ -245,7 +245,7 @@ export async function onHost(request, env, name) {
       if (!info.route || info.released) unclaimed(url.hostname, true);
     }
   } catch { return passthrough(request, env); }
-  if (!info.route || info.released) return url.pathname.startsWith("/__vyre/") ? new Response(null, { status: 404, headers: { "x-vyre-gateway": "unclaimed" } }) : passthrough(request, env);
+  if (!info.route || info.released) return passthrough(request, env);
   const relayWss = String(env.RELAY_PUBLIC_URL || "wss://relay.vyre.run");
   const online = async () => {
     try { return Boolean(((await (await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/online")).json())).online); } catch { return false; }
