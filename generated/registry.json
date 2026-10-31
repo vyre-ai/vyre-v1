@@ -9395,17 +9395,6 @@
       ],
       "type": "object"
     },
-    "s_6b4cebc889": {
-      "properties": {
-        "connection": {
-          "$ref": "#/$defs/s_8433d319b6"
-        }
-      },
-      "required": [
-        "connection"
-      ],
-      "type": "object"
-    },
     "s_6b8ef74874": {
       "properties": {
         "costMicros": {
@@ -9631,6 +9620,17 @@
       },
       "required": [
         "run"
+      ],
+      "type": "object"
+    },
+    "s_6faf412f33": {
+      "properties": {
+        "connection": {
+          "$ref": "#/$defs/s_da8a87c2ab"
+        }
+      },
+      "required": [
+        "connection"
       ],
       "type": "object"
     },
@@ -11012,90 +11012,6 @@
       "required": [
         "fileId",
         "target"
-      ],
-      "type": "object"
-    },
-    "s_8433d319b6": {
-      "properties": {
-        "connectionId": {
-          "examples": [
-            "con_a1b2c3"
-          ],
-          "pattern": "^con_[a-z0-9]+$",
-          "type": "string"
-        },
-        "connector": {
-          "examples": [
-            "hubspot"
-          ],
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "lastSyncAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "owner": {
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "enum": [
-                "person",
-                "space"
-              ],
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "type": "object"
-        },
-        "pausedBy": {
-          "type": "string"
-        },
-        "scopes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "state": {
-          "enum": [
-            "pending",
-            "active",
-            "paused",
-            "needs_reconnect",
-            "failing"
-          ],
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "connectionId",
-        "connector",
-        "title",
-        "owner",
-        "state",
-        "scopes",
-        "createdAt"
       ],
       "type": "object"
     },
@@ -17601,6 +17517,102 @@
         "syncTypeId",
         "recordId",
         "outboxId"
+      ],
+      "type": "object"
+    },
+    "s_da8a87c2ab": {
+      "properties": {
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "connector": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "handles": {
+          "description": "The Vault handles this connection uses. Names only, never a value.",
+          "items": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lastSyncAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "owner": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "person",
+                "space"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        "pausedBy": {
+          "type": "string"
+        },
+        "scopes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "active",
+            "paused",
+            "needs_reconnect",
+            "failing"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "connector",
+        "title",
+        "owner",
+        "state",
+        "scopes",
+        "createdAt",
+        "handles"
       ],
       "type": "object"
     },
@@ -58697,6 +58709,9 @@
               "connectionId": "con_a1b2c3",
               "connector": "hubspot",
               "createdAt": 1760000000000,
+              "handles": [
+                "#Dana_Lawmatics"
+              ],
               "lastSyncAt": 1760000000000,
               "owner": {
                 "id": "example",
@@ -58772,7 +58787,7 @@
             "type": "string"
           },
           "connection": {
-            "$ref": "#/$defs/s_8433d319b6"
+            "$ref": "#/$defs/s_da8a87c2ab"
           }
         },
         "required": [
@@ -58888,6 +58903,9 @@
               "connectionId": "con_a1b2c3",
               "connector": "hubspot",
               "createdAt": 1760000000000,
+              "handles": [
+                "#Dana_Lawmatics"
+              ],
               "lastSyncAt": 1760000000000,
               "owner": {
                 "id": "example",
@@ -58923,7 +58941,7 @@
       "module": "connectors",
       "name": "connections.get",
       "output": {
-        "$ref": "#/$defs/s_6b4cebc889"
+        "$ref": "#/$defs/s_6faf412f33"
       },
       "permission": null,
       "resource": {
@@ -58965,6 +58983,9 @@
                 "connectionId": "con_a1b2c3",
                 "connector": "hubspot",
                 "createdAt": 1760000000000,
+                "handles": [
+                  "#Dana_Lawmatics"
+                ],
                 "lastSyncAt": 1760000000000,
                 "owner": {
                   "id": "example",
@@ -59019,7 +59040,7 @@
         "properties": {
           "connections": {
             "items": {
-              "$ref": "#/$defs/s_8433d319b6"
+              "$ref": "#/$defs/s_da8a87c2ab"
             },
             "type": "array"
           },
@@ -59341,6 +59362,9 @@
               "connectionId": "con_a1b2c3",
               "connector": "hubspot",
               "createdAt": 1760000000000,
+              "handles": [
+                "#Dana_Lawmatics"
+              ],
               "lastSyncAt": 1760000000000,
               "owner": {
                 "id": "example",
@@ -59385,7 +59409,7 @@
       "module": "connectors",
       "name": "connections.update",
       "output": {
-        "$ref": "#/$defs/s_6b4cebc889"
+        "$ref": "#/$defs/s_6faf412f33"
       },
       "permission": null,
       "resource": {
