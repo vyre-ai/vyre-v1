@@ -195,3 +195,30 @@ test("syncengine: a connector spec may name its own actions per object; names it
   await plain.create("contacts", "", { n: 3 });
   assert.deepEqual(seen, ["create_contact"], "a name the spec leaves out keeps the convention");
 });
+
+test("syncengine: a call the connection or the app rate limits is waited for and tried again, and one pass lists the app once", async () => {
+  let calls = 0;
+  const slept: number[] = [];
+  const ctx = {
+    call: async () => {
+      calls++;
+      if (calls <= 2) throw { error: { code: "rate_limit.exceeded", message: "slow down" } };
+      return { output: { results: [{ id: "1", properties: { a: 1 } }] } };
+    },
+  };
+  const store = remoteStore(ctx, { connector: "x", connectionId: "con_1", remote: "things" }, undefined, { sleep: async (ms) => { slept.push(ms); } });
+  assert.equal((await store.query("things", { page: { limit: 10 } })).rows.length, 1);
+  assert.deepEqual(slept, [250, 500]);
+  assert.ok(await store.get("things", "1"));
+  assert.equal(calls, 3, "a lookup after the listing does not page through the app again");
+  const broken = remoteStore({ call: async () => { throw { error: { code: "provider.auth_failed", message: "no" } }; } }, { connector: "x", connectionId: "con_1", remote: "things" }, undefined, { sleep: async () => { throw new Error("must not wait"); } });
+  await assert.rejects(broken.query("things", { page: { limit: 10 } }), (e: { error?: { code?: string } }) => e.error?.code === "provider.auth_failed");
+});
+
+test("syncengine: an app that ignores the page parameter and answers the same page again does not loop", async () => {
+  let calls = 0;
+  const ctx = { call: async () => { calls++; return { output: { rows: [{ id: "1", data: { a: 1 } }], next: "2" } }; } };
+  const store = remoteStore(ctx, { connector: "x", connectionId: "con_1", remote: "things" });
+  assert.equal((await store.query("things", { page: { limit: 10 } })).rows.length, 1);
+  assert.equal(calls, 2);
+});

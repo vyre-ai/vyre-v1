@@ -19,7 +19,7 @@ export type ConflictRule = "newest" | "source" | "vyre" | "ask";
 export interface SyncFieldMap {
   local: string; remote: string; direction: Direction; /** Small expression over `value`, applied to what is pulled. */ transform?: string;
   /** A relation: the remote value is the id of a record of another synced type, and the field holds a link to the record that id was pulled into (empty until that record has been pulled). */
-  relation?: { syncTypeId: string; type: string };
+  relation?: { syncTypeId: string; type: string; inverse?: string };
 }
 export interface SyncBinding {
   syncTypeId: string; type: string; remote: string; connector: string; label?: string;
@@ -88,6 +88,25 @@ const theirsOf = (d: SyncDeps, f: SyncFieldMap, rec: StoredRecord): unknown => {
 
 /** Compare as the field means it: a relation by the records it links, anything else by value. */
 const sameField = (f: SyncFieldMap, a: unknown, b: unknown): boolean => (f.relation ? canonical(urnsOf(a)) === canonical(urnsOf(b)) : same(a, b));
+
+/** A two-way relation moves at both ends: when a record's link changes here, the field that links back on the other record changes with it. */
+async function relinkFar(d: SyncDeps, b: SyncBinding, localId: string, fields: SyncFieldMap[], was: Record<string, unknown>, becomes: Record<string, unknown>): Promise<void> {
+  const self = `vyre://${d.space ?? "space"}/${b.type}/${localId}`;
+  for (const f of fields) {
+    const inverse = f.relation?.inverse;
+    if (!f.relation || !inverse || !(f.local in becomes)) continue;
+    const before = new Set(urnsOf(was[f.local])), after = new Set(urnsOf(becomes[f.local]));
+    const touch = async (urn: string, add: boolean): Promise<void> => {
+      const rec = await d.local.get(f.relation!.type, urn.split("/").pop() ?? "");
+      if (!rec) return;
+      const list = Array.isArray(rec.data[inverse]) ? (rec.data[inverse] as { urn?: string }[]) : [];
+      if (urnsOf(list).includes(self) === add) return;
+      await d.local.update(f.relation!.type, rec.id, { [inverse]: add ? [...list, { urn: self }] : list.filter((x) => x.urn !== self) }, rec.version);
+    };
+    for (const urn of before) if (!after.has(urn)) await touch(urn, false);
+    for (const urn of after) if (!before.has(urn)) await touch(urn, true);
+  }
+}
 
 const HISTORY_SQL = "CREATE TABLE IF NOT EXISTS records_field_history (type TEXT NOT NULL, id TEXT NOT NULL, field TEXT NOT NULL, value TEXT, hlc TEXT NOT NULL, actor TEXT NOT NULL, seq INTEGER NOT NULL, reason TEXT NOT NULL)";
 /** The value that lost a newest-wins settlement, kept in the field's history so a person can see it and restore it. */
@@ -288,6 +307,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
       const id = mintRecordId(now(d));
       const rec = await d.local.create(b.type, id, c.data);
       saveLink(d.tx, b.syncTypeId, { localId: id, remoteId: c.remote.id, base: c.base, removedAt: null });
+      await relinkFar(d, b, id, fields, {}, c.data);
       announce("record.created", id, { fields: { ...rec.data } });
     } catch (e) { skip(`${label} record ${c.remote.id}`, e); }
   }
@@ -299,6 +319,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
         const changed: Record<string, unknown> = {};
         for (const k of keys) changed[k] = Object.prototype.hasOwnProperty.call(rec.data, k) ? rec.data[k] : null;
         announce("record.updated", a.localId, { fields: changed, prev: a.prev, version: rec.version });
+        await relinkFar(d, b, a.localId, fields, a.prev, a.patch);
       }
       saveLink(d.tx, b.syncTypeId, a.link);
     } catch (e) { skip(`record ${a.localId}`, e); }

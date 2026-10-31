@@ -17,7 +17,7 @@ import type { Page, QuerySpec, Store, StoredRecord } from "../../../kernel/src/s
 
 export interface BindingRow {
   syncTypeId: string; type: string; connector: string; connectionId: string; remote: string;
-  fields: { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; transform?: string; relation?: string }[];
+  fields: { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; transform?: string; relation?: string; inverse?: string }[];
   match: string[]; createAtSource: boolean; deletes: "off" | "soft" | "travel"; conflict: "newest" | "source" | "vyre" | "ask";
 }
 export interface RunOut { summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean }
@@ -38,7 +38,7 @@ export interface SyncEngineLike {
 export interface SyncDepsLike { local: Store; remote: Store; tx: Tx; now?: () => number; space?: string; emit?: (name: string, subject: string, payload: Record<string, unknown>) => unknown }
 export interface SyncBindingLike {
   syncTypeId: string; type: string; remote: string; connector: string; label?: string;
-  fields: { local: string; remote: string; direction: "pull" | "push" | "both" | "off"; transform?: string; relation?: { syncTypeId: string; type: string } }[];
+  fields: { local: string; remote: string; direction: "pull" | "push" | "both" | "off"; transform?: string; relation?: { syncTypeId: string; type: string; inverse?: string } }[];
   match: string[]; createAtSource: boolean; deletes: boolean; conflict: BindingRow["conflict"];
 }
 export interface SyncReportLike {
@@ -105,23 +105,39 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
   return out;
 }
 
-export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown): Store & { updatedAtOf(id: string): number } {
+const RATE_CODES = new Set(["rate_limit.exceeded", "provider.rate_limited"]);
+const pause = (ms: number): Promise<void> => new Promise((ok) => { setTimeout(ok, ms); });
+
+export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown, opts: { sleep?: (ms: number) => Promise<void> } = {}): Store & { updatedAtOf(id: string): number } {
   const one = oneOf(b.remote);
   const names = namesFor(objects, b.remote);
   const nameList = names.list ?? `list_${b.remote}`, nameAfter = names.listAfter ?? `list_${b.remote}_after`;
   const nameCreate = names.create ?? `create_${one}`, nameUpdate = names.update ?? `update_${one}`, nameDelete = names.delete ?? `delete_${one}`;
   const stamps = new Map<string, number>();
+  const sleep = opts.sleep ?? pause;
+  // A pass over thousands of records is many calls. An app (or the connection's own limit) that says slow down is waited for, not failed: the call is tried again after a short pause.
   const run = async (action: string, input: unknown): Promise<unknown> => {
-    const out = (await ctx.call("connectors.run", {
-      key: b.connector, action, connectionId: b.connectionId, input, idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}`).slice(0, 32)}`,
-    })) as { output?: unknown };
-    return out.output;
+    for (let wait = 0; ; wait++) {
+      try {
+        const out = (await ctx.call("connectors.run", {
+          key: b.connector, action, connectionId: b.connectionId, input, idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}`).slice(0, 32)}`,
+        })) as { output?: unknown };
+        return out.output;
+      } catch (e) {
+        const code = isObj(e) && isObj(e["error"]) ? e["error"]["code"] : undefined;
+        if (typeof code !== "string" || !RATE_CODES.has(code) || wait >= 40) throw e;
+        await sleep(Math.min(1500, 250 * (wait + 1)));
+      }
+    }
   };
   const toRecord = (r: RemoteRow, version = 1): StoredRecord => ({
     type: b.remote, id: r.id, version, data: r.data as StoredRecord["data"], created_at: r.updatedAt, updated_at: r.updatedAt,
     ...(r.archived ? { deleted_at: r.updatedAt || 1 } : {}),
   });
+  // One pass reads the app's list once: a push that looks a record up uses that same listing instead of paging through the app again for every record.
+  let listed: RemoteRow[] | undefined;
   async function all(): Promise<RemoteRow[]> {
+    if (listed) return listed;
     const out: RemoteRow[] = [];
     let after: string | undefined;
     const seen = new Set<string>();
@@ -134,6 +150,7 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
       after = fresh.length === 0 ? undefined : page.next;
     } while (after !== undefined && out.length < 100_000);
     for (const r of out) stamps.set(r.id, r.updatedAt);
+    listed = out;
     return out;
   }
   const unsupported = (what: string) => (): never => { throw new StoreError("unsupported", `A connection does not support ${what}.`); };
@@ -182,12 +199,12 @@ const bindingOf = (b: BindingRow, relations: Map<string, string> = new Map()): S
   syncTypeId: b.syncTypeId, type: b.type, remote: b.remote, connector: b.connector, label: b.connector,
   fields: b.fields.map((f) => ({
     local: f.key, remote: f.remote, direction: f.dir, ...(f.transform !== undefined ? { transform: f.transform } : {}),
-    ...(f.relation !== undefined && relations.has(f.relation) ? { relation: { syncTypeId: relations.get(f.relation)!, type: f.relation } } : {}),
+    ...(f.relation !== undefined && relations.has(f.relation) ? { relation: { syncTypeId: relations.get(f.relation)!, type: f.relation, ...(f.inverse !== undefined ? { inverse: f.inverse } : {}) } } : {}),
   })),
   match: b.match, createAtSource: b.createAtSource, deletes: b.deletes !== "off", conflict: b.conflict,
 });
 
-export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: () => number }): SyncEngineLike {
+export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: () => number; sleep?: (ms: number) => Promise<void> }): SyncEngineLike {
   // the connector's own names for its objects, read once per connector (a connector row without them keeps the convention)
   const maps = new Map<string, Promise<unknown>>();
   const objectsOf = (ctx: EngineCtx, connector: string): Promise<unknown> => {
@@ -200,7 +217,7 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
   };
   const depsOf = async (ctx: EngineCtx, b: BindingRow): Promise<{ deps: SyncDepsLike; remote: ReturnType<typeof remoteStore>; tx: Tx; local: Store; binding: SyncBindingLike }> => {
     const { store, tx } = o.local.open();
-    const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector));
+    const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector), o.sleep ? { sleep: o.sleep } : {});
     // a relation names a record type; the engine needs the synced type that pulls it, to turn the app's id into a link
     const relations = new Map<string, string>();
     for (const f of b.fields) {

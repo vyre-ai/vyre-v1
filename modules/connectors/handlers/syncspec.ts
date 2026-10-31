@@ -296,7 +296,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     // 4. bindings: bind a new type, update one that is already synced
     const out: ApplyOut["types"] = [];
     for (const t of pullOrder(compiled.types)) {
-      const fields = t.fields.map((f) => ({ key: f.key, remote: f.remote, dir: f.dir, ...(f.relation ? { relation: compiled.types.find((x) => x.remote === f.relation)?.recordType ?? f.relation } : {}) }));
+      const fields = t.fields.map((f) => ({ key: f.key, remote: f.remote, dir: f.dir, ...(f.relation ? { relation: compiled.types.find((x) => x.remote === f.relation)?.recordType ?? f.relation } : {}), ...(f.inverse ? { inverse: f.inverse } : {}) }));
       const bound = tx.get<{ sync_type_id: string }>("SELECT sync_type_id FROM cn_synced_types WHERE type = ?", t.recordType);
       const rules = { createAtSource: t.createAtSource, deletes: t.deletes, conflict: "newest" as const };
       const row = bound

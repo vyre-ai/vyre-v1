@@ -16,7 +16,7 @@ const dir = t.enm('pull', 'push', 'both', 'off');
 const deletes = t.enm('off', 'soft', 'travel');
 const conflictRule = t.enm('newest', 'source', 'vyre', 'ask');
 
-const fieldMap = t.obj({ key: fieldKey, remote: t.str(), dir, transform: t.opt(t.str({ description: 'Small expression over the value' })), relation: t.opt(id.recordType) });
+const fieldMap = t.obj({ key: fieldKey, remote: t.str(), dir, transform: t.opt(t.str({ description: 'Small expression over the value' })), relation: t.opt(id.recordType), inverse: t.opt(fieldKey) });
 const polling = t.obj({ activeSec: t.int({ minimum: 30 }), idleSec: t.int({ minimum: 60 }), dormantSec: t.int({ minimum: 300 }) });
 
 /** The action names a connector uses to sync one object; a name left out keeps the convention list_<objects>, list_<objects>_after, create_<object>, update_<object>, delete_<object>. */

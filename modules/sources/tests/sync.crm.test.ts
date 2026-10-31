@@ -9,7 +9,7 @@ import { openSources } from "../impl.ts";
 import { runSync } from "../handlers/sync.ts";
 import type { SyncBinding, SyncDeps } from "../handlers/sync.ts";
 
-const ORG = { name: "org", label: "Org", fields: [{ name: "name", kind: "text", label: "Name" }] };
+const ORG = { name: "org", label: "Org", fields: [{ name: "name", kind: "text", label: "Name" }, { name: "persons", kind: "link", label: "Persons", to: "person", many: true }] };
 const PERSON = { name: "person", label: "Person", fields: [
   { name: "name", kind: "text", label: "Name" }, { name: "email", kind: "text", label: "Email" }, { name: "stage", kind: "stage", label: "Stage", options: ["lead", "client"] },
   { name: "org", kind: "link", label: "Org", to: "org", many: true },
@@ -22,7 +22,7 @@ const PERSON_B: SyncBinding = {
   syncTypeId: "syt_person", type: "person", remote: "r_person", connector: "app", label: "App",
   fields: [
     { local: "name", remote: "/name", direction: "both" }, { local: "email", remote: "/email", direction: "both" }, { local: "stage", remote: "/stage", direction: "both" },
-    { local: "org", remote: "/org", direction: "pull", relation: { syncTypeId: "syt_org", type: "org" } },
+    { local: "org", remote: "/org", direction: "pull", relation: { syncTypeId: "syt_org", type: "org", inverse: "persons" } },
   ],
   match: ["email"], createAtSource: false, deletes: false, conflict: "newest",
 };
@@ -59,6 +59,16 @@ test("a relation becomes a link to the record pulled for the app's id, and fills
   const org = (await local(k, "org"))[0]!;
   const linked = (await k.l.store.get("person", ada.id))!.data["org"] as { urn: string }[];
   assert.deepEqual(linked, [{ urn: `vyre://sp_local/org/${org.id}` }]);
+  assert.deepEqual((await k.l.store.get("org", org.id))!.data["persons"], [{ urn: `vyre://sp_local/person/${ada.id}` }], "the other end moved with it");
+  // the app moves Ada to another org: the old end lets go and the new one takes hold
+  const other = await mk(k, "r_org", { "/name": "South Mill" });
+  const adaRemote = (await k.r.store.query("r_person", { page: { limit: 10 } })).rows[0]!;
+  await k.r.store.update("r_person", adaRemote.id, { "/org": other }, adaRemote.version);
+  await k.run(ORG_B);
+  await k.run(PERSON_B);
+  const south = (await local(k, "org")).find((o) => o.data["name"] === "South Mill")!;
+  assert.deepEqual((await k.l.store.get("org", org.id))!.data["persons"] ?? [], []);
+  assert.deepEqual((await k.l.store.get("org", south.id))!.data["persons"], [{ urn: `vyre://sp_local/person/${ada.id}` }]);
   // a third pass is quiet
   assert.equal((await k.run(PERSON_B)).summary, "Nothing to change.");
 });

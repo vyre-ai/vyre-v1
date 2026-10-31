@@ -201,7 +201,7 @@ export function fieldKeys(obj: SpecObject, m: SpecMapping): Map<string, string> 
 
 // ---- compile ----
 
-export interface FieldMapOut { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; relation?: string }
+export interface FieldMapOut { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; relation?: string; inverse?: string }
 export interface CompiledType {
   remote: string; recordType: string; title: string; fields: FieldMapOut[]; match: string[]; createAtSource: boolean; deletes: "off" | "soft" | "travel";
   /** Field definitions for schema.apply; relations are made separately (relation.add) once both types exist. */
@@ -293,11 +293,12 @@ export function compileSpec(spec: SyncSpec): Compiled {
       const sf = o.fields.find((x) => x.path === f.path);
       const key = keys.get(f.path)!;
       const dir = directionOf(f, sf, writable.update);
-      fields.push({ key, remote: f.path, dir, ...(sf?.type === "relation" ? { relation: sf.relationTo! } : {}) });
+      const target = sf?.type === "relation" ? spec.mapping.find((x) => x.remote === sf.relationTo) : undefined;
+      const inverse = target ? `${m.recordType}s`.slice(0, 60) : undefined;
+      fields.push({ key, remote: f.path, dir, ...(sf?.type === "relation" ? { relation: sf.relationTo! } : {}), ...(inverse ? { inverse } : {}) });
       if (!sf) { defs.push({ key, type: "text", title: titleOf(key) }); continue; }
       if (sf.type === "relation") {
-        const target = spec.mapping.find((x) => x.remote === sf.relationTo);
-        if (target) relations.push({ field: key, title: sf.label, to: target.recordType, inverse: `${m.recordType}s`.slice(0, 60), inverseTitle: `${o.label}s` });
+        if (target) relations.push({ field: key, title: sf.label, to: target.recordType, inverse: inverse!, inverseTitle: `${o.label}s` });
         continue;
       }
       const options = sf.choices?.length ? sf.choices.map((c) => ({ key: c.value, title: c.label ?? c.value })) : undefined;
