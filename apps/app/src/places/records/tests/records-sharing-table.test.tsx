@@ -33,6 +33,13 @@ test("the Share button is drawn for someone who may share, and not for a viewer"
   assert.ok(!has(page({ team: true }), "records-share-btn"));
 });
 
+test("Export is drawn for someone who may export and is not there for anyone else, disabled or not", () => {
+  assert.ok(has(page({ team: true, marks: { typeShared: false, audience: "space", can: { manage: false, share: false, export: true }, rows: [] } }), 'data-testid="records-export-btn"'));
+  assert.ok(!has(page({ team: true, marks: { typeShared: true, audience: "added", can: NONE, rows: [] } }), "records-export-btn"));
+  assert.ok(!has(page({ team: true }), "records-export"));
+  assert.ok(!has(page({ team: false, marks: { typeShared: false, audience: "space", can: { manage: true, share: true, export: true }, rows: [] } }), "records-export-btn"), "a Personal Space keeps the menu entries it had");
+});
+
 test("Shared with me is offered to a viewer who was given the type or a row by name, and to no one else", () => {
   assert.ok(has(page({ team: true, marks: { typeShared: true, audience: "added", can: NONE, rows: [] } }), 'data-testid="records-shared"'));
   assert.ok(has(page({ team: true, marks: { typeShared: false, audience: "space", can: NONE, rows: [{ id: "cl_1", audience: "space", direct: 0, mine: true }] } }), 'data-testid="records-shared"'));

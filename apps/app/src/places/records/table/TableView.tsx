@@ -586,6 +586,12 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       setAdding({ name, busy: false, error: plainError(x?.error?.message ?? x?.message, def.title.toLowerCase()) });
     });
   };
+  /** Export the view's rows as a CSV file in Files. What the viewer cannot see is left out by the server. */
+  const [exporting, setExporting] = useState<"busy" | "done" | "failed" | null>(null);
+  const exportView = (): void => {
+    setExporting("busy");
+    data.call("records.export", { type, format: "csv", ...(viewFilter === undefined ? {} : { filter: viewFilter }), ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}) }).then(() => setExporting("done"), () => setExporting("failed"));
+  };
   const nPicked = pickCount(sel, count ?? 0);
   /** The bulk work in flight or just done: a confirm to answer, a progress line, then what was deleted with Undo. */
   const [work, setWork] = useState<{ kind: "confirm"; ids: readonly string[]; every: boolean; n: number } | { kind: "busy"; text: string } | { kind: "done"; ids: readonly string[]; failed: number } | null>(null);
@@ -614,7 +620,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     if ((every || ids.length === 0) && (!access.on || access.can.export)) {
       out.push({
         label: "Export as CSV",
-        onSelect: () => { void data.call("records.export", { type, format: "csv", ...(viewFilter === undefined ? {} : { filter: viewFilter }), ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}) }); },
+        onSelect: exportView,
       });
     }
     out.push({ separator: true });
@@ -742,6 +748,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
         <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} />
         {access.on && access.hasShared ? <HeadButton icon="people" label="Shared with me" bare={tight} on={lit(sharedOnly)} testID="records-shared" onPress={() => setSharedOnly(!sharedOnly)} /> : null}
         {access.on && (access.can.manage || access.can.share) ? <HeadButton icon="share" label="Share" bare={tight} testID="records-share-btn" onPress={() => data.share?.open({ type: "record_type", id: type, name: def.plural })} /> : null}
+        {access.on && access.can.export ? <HeadButton icon="download" label="Export" bare={tight} testID="records-export-btn" onPress={exportView} /> : null}
         {headerExtra}
         <HeadButton icon="plus" label="New" bare={tight} filled testID="records-new" onPress={startNew} />
       </View>
@@ -841,6 +848,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
       {count === null ? null : (
         <View style={styles.statusBar} testID="records-status">
           <Text style={styles.footText} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
+          {exporting === null ? null : <Text style={styles.footText} accessibilityRole="alert" testID="records-export-note">{exporting === "busy" ? "  Exporting…" : exporting === "done" ? "  Exported to Files" : "  The export did not go through"}</Text>}
           <View style={styles.grow} />
           {count === 0 ? null : jump === null ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
