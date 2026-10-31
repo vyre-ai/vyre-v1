@@ -181,3 +181,32 @@ test("a viewer's ticket opens the view of its own computer once, and input only 
   assert.equal(await nodeStreamInput(h.ctx, { computerId: "cmt_t", personId: "usr_omar" }), false);
   assert.equal(await nodeStreamInput(h.ctx, { computerId: "cmt_w", personId: "usr_dana" }), false, "not at the controls once given back");
 });
+
+test("a job's Vault channel token goes to the node in the delivery and is gone from the stored row: before, during and after, and when the job fails undelivered", async () => {
+  const h = withNode();
+  const TOKEN = "f".repeat(48);
+  const stored = (id: string): string => String((h.rows("SELECT input_json FROM computers_job WHERE job_id = ?", id)[0] as { input_json: string }).input_json);
+  const queue = (): string => enqueueJob(h.ctx.db, { nodeId: NODE, computerId: "cmt_x", agentId: INTAKE, kind: "configure", input: { computerId: "cmt_x", tabLimit: 4, fillUrl: "http://host.docker.internal:8420/computers/fill", fillToken: TOKEN }, timeoutMs: 60_000, now: NOW });
+  const id = queue();
+  assert.ok(stored(id).includes(TOKEN), "queued: the token waits for the node (the row is the only way to hand it over)");
+  const [job] = await claimJobs(h.ctx.db, NODE, NOW + 1);
+  assert.equal((job!.input as { fillToken?: string }).fillToken, TOKEN, "the delivery carries it, once");
+  assert.ok(!stored(id).includes(TOKEN), "delivered: the row holds no token");
+  assert.deepEqual(JSON.parse(stored(id)), { computerId: "cmt_x", tabLimit: 4, fillUrl: "http://host.docker.internal:8420/computers/fill" }, "the rest of the input is kept");
+  submitJob(h.ctx.db, NODE, id, { ok: true, result: {} }, NOW + 2);
+  assert.ok(!JSON.stringify(h.rows("SELECT * FROM computers_job")).includes(TOKEN), "answered: still none anywhere in the table");
+
+  // a job nobody collected before its deadline is failed, and its token goes with it
+  const late = queue();
+  assert.ok(stored(late).includes(TOKEN));
+  await claimJobs(h.ctx.db, "srv_other", NOW + 120_000);   // any poll sweeps
+  assert.ok(!stored(late).includes(TOKEN), "failed undelivered: the token is cleared");
+  assert.equal(String((h.rows("SELECT state FROM computers_job WHERE job_id = ?", late)[0] as { state: string }).state), "failed");
+
+  // a delivery repeated after a lost lease has no token: that computer has no Vault channel until it wakes again
+  const again = queue();
+  await claimJobs(h.ctx.db, NODE, NOW + 3);
+  await claimJobs(h.ctx.db, NODE, NOW + 3 + LEASE_MS + 1);
+  assert.ok(!stored(again).includes(TOKEN));
+  assert.ok(!JSON.stringify(h.rows("SELECT * FROM computers_job")).includes(TOKEN), "nothing in the table opens a channel");
+});

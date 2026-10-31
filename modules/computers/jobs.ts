@@ -31,8 +31,8 @@ export function enqueueJob(db: Db, a: { nodeId: string; computerId: string; agen
 
 /** Jobs whose time is up: a lease that ran out is tried once more, then failed; a deadline that passed fails the job. */
 export function sweepJobs(db: Db, now: number): void {
-  db.run("UPDATE computers_job SET state = 'failed', error = 'The computer did not answer in time.', done_at = ?, token_hash = NULL WHERE state IN ('queued', 'running') AND deadline < ?", now, now);
-  db.run("UPDATE computers_job SET state = 'failed', error = 'The computer stopped answering.', done_at = ?, token_hash = NULL WHERE state = 'running' AND lease_until < ? AND attempts >= ?", now, now, MAX_ATTEMPTS);
+  db.run("UPDATE computers_job SET state = 'failed', error = 'The computer did not answer in time.', done_at = ?, token_hash = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE state IN ('queued', 'running') AND deadline < ?", now, now);
+  db.run("UPDATE computers_job SET state = 'failed', error = 'The computer stopped answering.', done_at = ?, token_hash = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE state = 'running' AND lease_until < ? AND attempts >= ?", now, now, MAX_ATTEMPTS);
   db.run("UPDATE computers_job SET state = 'queued', lease_until = NULL, token_hash = NULL WHERE state = 'running' AND lease_until < ? AND attempts < ?", now, MAX_ATTEMPTS);
 }
 
@@ -52,7 +52,9 @@ export async function claimJobs(db: Db, nodeId: string, now: number, o: { leaseM
     if (str(r["state"]) !== "queued") continue;
     const token = `vcj_${hex(24)}`;
     const changed = db.run(
-      "UPDATE computers_job SET state = 'running', attempts = attempts + 1, lease_until = ?, token_hash = ? WHERE job_id = ? AND state = 'queued'",
+      // The job's input may carry a Vault channel token (a computer's fill token). It goes to the node in this delivery and is removed from the row at once: what is stored afterwards names the
+      // channel's address but holds nothing that opens it. A delivery repeated after a lost lease therefore has no token; that computer simply has no Vault channel until it wakes again.
+      "UPDATE computers_job SET state = 'running', attempts = attempts + 1, lease_until = ?, token_hash = ?, input_json = json_remove(input_json, '$.fillToken') WHERE job_id = ? AND state = 'queued'",
       now + (o.leaseMs ?? LEASE_MS), await sha256(token), str(r["job_id"]),
     ).changes;
     if (changed !== 1) continue;
@@ -71,7 +73,7 @@ export function submitJob(db: Db, nodeId: string, jobId: string, outcome: JobOut
   if (!r || str(r["node_id"]) !== nodeId) return "unknown";
   if (str(r["state"]) === "done" || str(r["state"]) === "failed") return "already";
   db.run(
-    "UPDATE computers_job SET state = ?, result_json = ?, error = ?, done_at = ?, token_hash = NULL, lease_until = NULL WHERE job_id = ? AND state IN ('queued', 'running')",
+    "UPDATE computers_job SET state = ?, result_json = ?, error = ?, done_at = ?, token_hash = NULL, lease_until = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE job_id = ? AND state IN ('queued', 'running')",
     outcome.ok ? "done" : "failed", outcome.ok ? JSON.stringify(outcome.result ?? null) : null, outcome.ok ? null : outcome.error.slice(0, 500), now, jobId,
   );
   return "stored";
