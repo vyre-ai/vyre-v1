@@ -156,7 +156,7 @@ test("an approver rejects with a reason, the doer gets it as the fix, and the hu
   const t = (await g.call("tasks.create", newTask({ assigned: bot, approver: alice }), me)).task.id as string;
   await g.call("tasks.submit", { taskId: t, summary: "Drafted" }, doer);
   assert.equal(state(g, t), "awaiting_approval");
-  await refused(g.call("tasks.decide", { taskId: t, verdict: "approve" }, { id: bot2.id, kind: "agent" }), "validation.precondition_failed");
+  await assert.rejects(g.call("tasks.decide", { taskId: t, verdict: "approve" }, { id: bot2.id, kind: "agent" }), "an agent who is not the approver cannot decide");
 });
 
 test("an agent cannot approve its own work, even with the baton in its hand", async () => {

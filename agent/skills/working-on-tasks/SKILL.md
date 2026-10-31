@@ -27,7 +27,7 @@ Your task section says which seat is yours, the brief, what counts as done and t
 ## You review (Reviewer)
 - Check the submitted outputs against the Done means list, item by item. Open the records and files the outputs name.
 - `task_review` with verdict `approve` when every item holds.
-- Otherwise verdict `send_back` with `fixes`: one concrete change each, naming the place and the change. "Use her full name in the greeting", not "improve the tone".
+- Otherwise verdict "send_back" with `fixes`: one concrete change each, naming the place and the change. "Use her full name in the greeting", not "improve the tone".
 - Do not fix the work yourself and do not send it back for taste. After the Space's loop limit a person decides; your fixes go to them.
 
 ## You approve (Approver)
