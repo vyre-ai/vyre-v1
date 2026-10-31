@@ -122062,6 +122062,9 @@
       "since": "1.0.0",
       "summary": "Remove facts from answers (closed off, kept in history), one at a time or all at once for a layer or agent",
       "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "memory"
@@ -122389,7 +122392,7 @@
       "summary": "Forget facts by id: they stop being recalled and stay in history",
       "surfaces": {
         "agent": {
-          "planMode": "blocked"
+          "planMode": "allowed"
         },
         "cli": "vyre memory forget",
         "http": "auto",
@@ -125805,7 +125808,7 @@
           "blocks": [
             "memory_saved"
           ],
-          "planMode": "blocked"
+          "planMode": "allowed"
         },
         "http": "auto",
         "mcp": {
@@ -126548,7 +126551,7 @@
           "blocks": [
             "memory_saved"
           ],
-          "planMode": "blocked"
+          "planMode": "allowed"
         },
         "cli": "vyre memory remember",
         "http": "auto",
@@ -126682,7 +126685,7 @@
       "summary": "Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact",
       "surfaces": {
         "agent": {
-          "planMode": "blocked"
+          "planMode": "allowed"
         },
         "http": "auto",
         "mcp": {
@@ -127500,6 +127503,9 @@
       "since": "1.0.0",
       "summary": "Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back",
       "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "memory"
@@ -190882,6 +190888,9 @@
       "since": "1.0.0",
       "summary": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
       "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "vault"
@@ -190949,6 +190958,9 @@
       "since": "1.0.0",
       "summary": "Withdraw my own key request",
       "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "vault"
@@ -191836,6 +191848,9 @@
       "since": "1.0.0",
       "summary": "Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values",
       "surfaces": {
+        "agent": {
+          "planMode": "allowed"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "vault"

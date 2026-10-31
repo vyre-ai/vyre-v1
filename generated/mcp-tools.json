@@ -32563,7 +32563,7 @@
         "type": "object"
       },
       "name": "memory_facts_remove",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -32593,7 +32593,7 @@
         "type": "object"
       },
       "name": "memory_forget",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -33610,7 +33610,7 @@
         "type": "object"
       },
       "name": "memory_propose",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -33814,7 +33814,7 @@
         "type": "object"
       },
       "name": "memory_remember",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -33840,7 +33840,7 @@
         "type": "object"
       },
       "name": "memory_restore",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -34066,7 +34066,7 @@
         "type": "object"
       },
       "name": "memory_undo",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -55126,7 +55126,7 @@
         "type": "object"
       },
       "name": "vault_request",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },
@@ -55152,7 +55152,7 @@
         "type": "object"
       },
       "name": "vault_requests_cancel",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },
@@ -55548,7 +55548,7 @@
         "type": "object"
       },
       "name": "vault_use",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },
