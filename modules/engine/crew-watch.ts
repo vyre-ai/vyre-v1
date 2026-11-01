@@ -42,12 +42,10 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     try { lead = ((await o.host.call("threads.get", { threadId: th.parentThreadId }, asker)) as { thread?: { agents?: Array<{ agentId: string; mode: string }> } }).thread?.agents?.find((a) => a.mode === "lead")?.agentId; } catch { /* nobody to wake */ }
     const title = str(th.title);
     const body = state === "failed" ? `Helper "${title}" could not finish.${text ? `\n\n${cut(text, 600)}` : ""}` : `Helper "${title}" found:\n\n${text ? cut(text, 1500) : "(it ended with no words)"}`;
-    // the lead often is the helper's own agent: an agent's own post never wakes itself, so the line goes in as the person it works for, as a wait does (crew-waits.ts), with a block that shows it as a card line
-    await o.host.call("chat.post", {
-      threadId: th.parentThreadId, body, mentions: lead ? [{ kind: "agent", id: lead }] : [],
-      blocks: [{ type: "crew_wait", v: 1, data: { waitId: `hlp${e.turnId.replace(/^trn_/, "")}`.slice(0, 40), label: `Helper "${title}"`, outcome: state === "failed" ? "failing" : "passing", done: 1, total: 1 } }],
-      idempotencyKey: `helper-result-${e.turnId}`,
-    }, asker);
+    // the result is the helper's own line (never the person's words); the lead is woken through the engine, not by a mention, because the lead is often the helper's own agent and an agent's post never wakes itself
+    const clientId = `msg_hlp${e.turnId.replace(/^trn_/, "")}`.replace(/[^a-z0-9_]/g, "");
+    await o.host.postAs(e.agentId, { actingFor: asker, threadId: th.parentThreadId, body, blocks: [], mentions: [], clientId });
+    if (lead) await o.host.call("engine.turn.enqueue", { threadId: th.parentThreadId, agentId: lead, kind: "wake", messageId: clientId, from: "helper-result" }, asker);
   }
 
   async function finish(job: Row, turnId: string, state: "done" | "failed", messageId: string | null): Promise<void> {

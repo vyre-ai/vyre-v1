@@ -146,7 +146,7 @@ async function main(): Promise<void> {
     await ok("threads.set_mode", { threadId: plain, mode: "auto" });
     chat = plain;
     await openPage(plain);
-    const ask = "Launch two subagents. One should open https://example.com and tell me its main heading. The other should open https://www.iana.org and tell me the title of that page. Then give me both facts.";
+    const ask = "Launch two subagents. One should search the web and tell me who is responsible for the example.com domain. The other should search the web and tell me which organisation runs the .org top-level domain registry. Then give me both facts.";
     await ok("chat.post", { threadId: plain, body: ask, mentions: [{ kind: "agent", id: lead }] });
     say("person", ask);
     await waitFor("both helper results and the lead's answer", async () => {
@@ -162,7 +162,9 @@ async function main(): Promise<void> {
     for (const h of helpers) say("HELPER", `${h.title}: ${JSON.stringify((await msgs(h.threadId)).map((m) => [m.author?.kind, String(m.body).slice(0, 300), (m.blocks ?? []).map((b) => `${b.type}:${b.state}`)]))}`);
     say("LOG", hostLines(25).replace(/\n/g, " || ").slice(0, 2500));
     say("RESULT1", `Vyre helpers started: ${helpers.length} (${helpers.map((h) => h.title).join("; ")}); tool calls in the chat: ${calls.join(" | ")}`);
-    say("RESULT2", `chat, in order: ${JSON.stringify(all.map((m) => [m.author?.kind === "agent" ? "agent" : "person", String(m.body).slice(0, 350)]))}`);
+    say("FINAL", JSON.stringify(all.filter((m) => m.author?.kind === "agent" && !/^Started a helper/.test(String(m.body))).at(-1)?.body));
+    say("RESULT2", `chat, in order: ${JSON.stringify(all.map((m) => [m.author?.kind === "agent" ? "agent" : "person", String(m.body).slice(0, 60)]))}`);
+    say("WARN", hostLines(200).split("\n").filter((l) => /followed|enqueue|wake|could not post/.test(l)).join(" || ").slice(0, 1200));
     if (page) { const t = await page.locator("body").innerText(); say("UI", `"Using agent" shown: ${/Using agent/.test(t)}; "Working with a helper" shown: ${/Working with a helper/.test(t)}`); try { await page.getByText(/steps?/).first().click({ timeout: 3000 }); } catch { /* none */ } await sleep(800); say("shot", await shot("subagents-chat")); }
     d.sink.flush();
     const logs = JSON.stringify(new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT msg, attrs FROM logs").all());
