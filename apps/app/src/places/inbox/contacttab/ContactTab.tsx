@@ -173,6 +173,11 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const unread = conv?.unreadCount ?? 0;
   useEffect(() => { if (unread > 0) void markRead(data, conversationId); }, [conversationId, unread > 0]);
 
+  // every hook above this line: the frame before the conversation arrives and the one after it must call the same hooks
+  const openConnect = useOpenConnect();
+  const [snippets, setSnippets] = useState<readonly { name: string; body: string }[]>([]);
+  useEffect(() => { let live = true; void listSnippets(data).then((x) => { if (live) setSnippets(x); }, () => undefined); return () => { live = false; }; }, [data]);
+
   if (!conv || !draft) return <TabLoading />;
 
   const patch = (p: Partial<ComposerDraft>): void => setOver((o) => ({ ...o, ...p }));
@@ -225,7 +230,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     const id = conv.contactId;
     menu.show(followMenuEntries(conv.followed, conv.alertOnReplies, { follow: (f) => void setFollow(data, id, f), alert: (a) => void setFollow(data, id, true, a) }), x, y);
   };
-  const openConnect = useOpenConnect();
   // the From list ends in Connect: a mailbox joins the list and is chosen; a Twilio account is added and its number is claimed from the Inbox
   const connectFrom = openConnect ? (c: OutChannel): void => {
     void openConnect(c === "email" ? { kind: "mailbox" } : { kind: "number" }).then((made) => {
@@ -236,8 +240,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   // the dock (when one is mounted, `dock`) places the call and saves it to this conversation; otherwise the app's own handler, else the shell opens the dialer
   const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else if (n && dock) dock.dial(n, conv.contactId); else data.nav.openDialer(); };
 
-  const [snippets, setSnippets] = useState<readonly { name: string; body: string }[]>([]);
-  useEffect(() => { let live = true; void listSnippets(data).then((x) => { if (live) setSnippets(x); }, () => undefined); return () => { live = false; }; }, [data]);
   const lists: ComposerLists = cannedLists(conv, snippets);
   const hdr = headerOf(items);
   const starred = starMine ?? conv.starred === true;

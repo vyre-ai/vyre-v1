@@ -142,15 +142,17 @@ test("an address-only delivery finds its mailbox by address and by inbound route
   await assert.rejects(() => ingest(h.ctx, letter("pat@acme.test", "<c@acme.test>", "rs-3", { source: "resend", envelopeTo: "nobody@vyre.test" })), (e) => codeOf(e) === "validation.not_found");
 });
 
-test("mail in a private mailbox is stored but never linked or announced to the Space", async () => {
+test("mail in a private mailbox is linked only into its owner's own conversation, never to a record, and announced to the owner alone", async () => {
   const h = harness({ contacts: LEE });
   const priv = await mailbox(h, "sam@vyre.test", "private");
   const out = await ingest(h.ctx, letter("lee@acme.test", "<priv@acme.test>", "g-priv", { mailboxId: priv }));
   assert.equal(out.linked, "none");
   assert.equal(out.contactId, undefined);
-  assert.equal(h.calls("inbox.link_message").length, 0);
+  const link = h.calls("inbox.link_message");
+  assert.equal(link.length, 1);
+  assert.deepEqual([link[0]!.input["private"], link[0]!.input["ownerId"]], [true, "usr_maya01"], "the linking step is told whose private mail it is");
   assert.equal(h.rows(`SELECT "isPrivate" FROM mail_message`)[0]?.isPrivate, 1);
-  assert.equal(h.rows(`SELECT "messageId" FROM mail_link`).length, 0);
+  assert.deepEqual(h.rows(`SELECT linked, "contactId" FROM mail_link`), [{ linked: "none", contactId: null }]);
   assert.equal(h.named("mail.received")[0]?.vis, "owner");
 });
 

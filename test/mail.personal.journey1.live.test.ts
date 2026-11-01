@@ -33,16 +33,18 @@ test("journey 1, Personal first hour: guided setup, connect, mail appears, reply
     await open(me, s, "/mail");
     await me.page.getByTestId("connect-gmail").click();
     await signInThroughSheet(me, "olivia@gmail.test", dir, "connect");
-    await me.page.getByText("Lunch on Friday").first().waitFor({ timeout: 30_000 });
+    await me.page.getByText("Are you free for lunch on Friday?").first().waitFor({ timeout: 30_000 });
     await shoot(me.page, dir, "mail-appears");
     const [box] = (await w.owner.ok("mail.mailbox.list", { scope: "mine" })).mailboxes as { id: string; address: string }[];
     assert.equal(box!.address, "olivia@gmail.test");
 
     // reply, in the Inbox, as a person does: open the conversation, write, send
-    await me.page.getByText("Lunch on Friday").first().click();
+    await me.page.locator("[data-testid^=\"row-line:\"]").first().dblclick();   // a click selects, a double click opens the conversation
+    await me.page.waitForTimeout(1500);
+    await shoot(me.page, dir, "opened");
     await me.page.getByTestId("contact-composer-field").waitFor({ timeout: 20_000 });
     await shoot(me.page, dir, "conversation");
-    await me.page.getByTestId("contact-composer-field").fill("Yes, noon works.");
+    await me.page.getByPlaceholder(/^Write a reply/).fill("Yes, noon works.");
     await shoot(me.page, dir, "reply-written");
     await me.page.getByTestId("composer-send").click();
     await until(async () => (w.fake.sent.length > 0 ? true : null), "the reply reaching Gmail");
@@ -61,11 +63,14 @@ test("journey 1, Personal first hour: guided setup, connect, mail appears, reply
     await unlockVault(w);
     const again = await seat(s, w.owner, "Owner");
     await open(again, s, "/mail");
-    await again.page.getByText("Sent while you were away").first().waitFor({ timeout: 45_000 });
+    await again.page.getByText("This arrived while Vyre was closed.").first().waitFor({ timeout: 45_000 });
     await shoot(again.page, dir, "caught-up");
     const mails = ((await w.owner.ok("mail.message.list", { mailboxId: box!.id })).messages as { subject: string }[]).map((m) => m.subject);
     assert.equal(mails.filter((x) => x === "Lunch on Friday").length, 1, "no mail doubled");
     await phonePass(again, s, dir, [{ name: "inbox", route: "/mail" }, { name: "home", route: "/home" }, { name: "settings", route: "/settings" }]);
     assert.deepEqual(me.errors.concat(again.errors), [], "no page errors");
+  } catch (e) {
+    await s.debug(dir);
+    throw e;
   } finally { await s.close(); }
 });

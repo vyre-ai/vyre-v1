@@ -8,7 +8,7 @@
 // contact reaches you through the other four reasons or through the record's own Conversation tab, which asks inbox.thread for one contact.
 // DECISION: recipient search returns contacts, companies, inboxes and groups. Space members have no list capability in the frozen contract, so kind member returns nothing.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { bad, codeOf, ensure, first, getConversation, getRecord, nameOf, jsonList, list, missing, num, obj, rowsOf, str, strOrNull, strings, text, toConversation } from "../projections.ts";
+import { bad, codeOf, ensure, first, getConversation, privateIds, getRecord, nameOf, jsonList, list, missing, num, obj, rowsOf, str, strOrNull, strings, text, toConversation } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, Row } from "../projections.ts";
 import { candidatesFor } from "./match.ts";
 
@@ -76,6 +76,24 @@ async function reasonsOf(ctx: InboxCtx, reach: Reach, row: Row): Promise<Reason[
   }
   if (jsonList(row.mailboxIds).some((id) => canSee(ctx, reach, "mailbox", id)) || jsonList(row.numberIds).some((id) => canSee(ctx, reach, "number", id))) out.push("shared_inbox");
   return out;
+}
+
+/**
+ * Whether the caller may open this conversation, by the rule the list uses: the access rules decide when they know the conversation, and when they know nothing of it (an unmatched sender has no
+ * record above it, and the manifest's conversation rows are not resources) the reasons decide: its owner, a follower, the campaign owner, someone who can see the inbox it arrived in.
+ */
+export async function mustSee(ctx: InboxCtx, conv: Row): Promise<void> {
+  const verdict = ctx.authorize({ perm: null, level: "view" }, { type: "conversation", id: str(conv, "id") });
+  if (verdict.effect === "allow") return;
+  if (verdict.reason === "not_found" && (await reasonsOf(ctx, reachOf(ctx), conv)).length > 0) return;
+  throw fail("permission.not_found", ctx.trace.traceId);
+}
+
+/** The guard the writes on a conversation (read, match, unmatch, make a record) run first: a conversation that is not there is the handler's own answer, one the caller may not see is not found. */
+export async function guardConversation(ctx: InboxCtx, conversationId: unknown): Promise<void> {
+  if (typeof conversationId !== "string") return;
+  const conv = getConversation(ctx, conversationId);
+  if (conv) await mustSee(ctx, conv);
 }
 
 /** The conversations the caller may see in the Inbox, each with why, newest first. */
@@ -274,7 +292,9 @@ export async function thread(
     : first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, input.contactId));
   if (!conv) missing(ctx, "There is no conversation with that person yet.");
   const id = str(conv, "id");
-  if (ctx.authorize({ perm: null, level: "view" }, { type: "conversation", id }).effect !== "allow") throw fail("permission.not_found", ctx.trace.traceId);
+  // the same rule as the list: a conversation the access rules know nothing of (an unmatched sender, so no record above it) is open to whoever the list shows it to (its owner, a follower, the
+  // inbox it arrived in); one they know and deny stays closed. Without this a person could see a line in the list and not open it.
+  await mustSee(ctx, conv);
 
   const all: TimelineItem[] = rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE "conversationId" = ?`, id)).map(timelineOf);
   const contactId = strOrNull(conv, "contactId");
@@ -310,7 +330,8 @@ export async function unmatched(ctx: InboxCtx, input: { query?: string; cursor?:
   ensure(ctx);
   const w = windowOf(ctx, input);
   const q = input.query?.trim() ?? "";
-  const found = (await mine(ctx, `deleted_at IS NULL AND "contactId" IS NULL AND "needsMatch" = ?`, [0])).filter(({ row }) => !q || has(str(row, "displayName"), q) || has(str(row, "address"), q));
+  const hidden = privateIds(ctx);   // a private mailbox's conversations are matched to nothing, so they are not waiting for a match
+  const found = (await mine(ctx, `deleted_at IS NULL AND "contactId" IS NULL AND "needsMatch" = ?`, [0])).filter(({ row }) => !hidden.has(str(row, "id"))).filter(({ row }) => !q || has(str(row, "displayName"), q) || has(str(row, "address"), q));
   const p = pageOf(found, w);
   return { rows: p.rows.map(({ row }) => toConversation(ctx, row)), total: p.total, ...(p.next ? { next: p.next } : {}) };
 }

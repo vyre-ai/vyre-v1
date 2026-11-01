@@ -66,6 +66,19 @@ test("Team: two members sign in to their own Gmail; each mailbox is private to i
     assert.notEqual((await bo.call("google.user.remove", { accountId: anaIn.accountId })).status, 200, "Bo cannot remove Ana's sign-in");
     assert.notEqual((await bo.call("mail.send_as", { mailboxId: anaIn.mailboxId, to: [{ address: "x@y.test" }], subject: "s", text: "t", idempotencyKey: "bo-as-ana" })).status, 200, "Bo cannot send as Ana");
 
+    // the Inbox: each person's own mail is in their own conversations, opens, and is read; nobody else's list or thread reaches it
+    const convsOf = async (who: Person) => (await who.ok("inbox.list_by_contact", {})).rows as { id: string; address: string; displayName: string }[];
+    const anaConvs = await convsOf(ana);
+    assert.deepEqual(anaConvs.map((c) => c.address).sort(), ["kim@acme.test", "pat@acme.test"], "Ana sees her own senders");
+    assert.deepEqual((await convsOf(bo)).map((c) => c.address), ["lee@acme.test"], "Bo sees his own");
+    assert.deepEqual((await convsOf(w.owner)).map((c) => c.address), ["kim@acme.test"], "the admin sees the admin's own mail and no member's");
+    const opened = await ana.ok("inbox.thread", { conversationId: anaConvs[0]!.id });
+    assert.ok(opened.items.length >= 1, "Ana opens her conversation");
+    await ana.ok("inbox.mark_read", { conversationId: anaConvs[0]!.id });
+    assert.notEqual((await bo.call("inbox.thread", { conversationId: anaConvs[0]!.id })).status, 200, "Bo cannot open Ana's conversation");
+    assert.notEqual((await w.owner.call("inbox.thread", { conversationId: anaConvs[0]!.id })).status, 200, "nor can the admin");
+    assert.notEqual((await bo.call("inbox.mark_read", { conversationId: anaConvs[0]!.id })).status, 200, "or touch it");
+
     // an assistant acts with the access of whoever asked: Ana's reads Ana's mailbox and never Bo's; the admin's reads the admin's and never a member's
     const list = (mailboxId: string | undefined) => `TOOL mail_message_list ${JSON.stringify({ mailboxId })}`;
     const anaHelper = await makeAgent(ana, "Ana helper", account);

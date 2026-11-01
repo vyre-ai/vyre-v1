@@ -6,6 +6,7 @@ import { Text, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { mailFixOf, useOpenConnect } from "../../../shell/connect/index.ts";
 import { useActions } from "./actions.ts";
 import { useHomeData, usePrincipals, useScreenQuery, useSelection } from "./data.tsx";
 import { needsRow, rowKeysBy, topNeeds } from "./model.ts";
@@ -32,6 +33,7 @@ export function NeedsYouTop3(): ReactElement {
   const actions = useActions();
   const q = useScreenQuery<Out>(NEEDS_SCREEN, "items", { limit: 3 });
   const menu = useMenu();
+  const openConnect = useOpenConnect();
   const items = q.status === "ready" ? topNeeds(q.data.items) : [];
   const total = q.status === "ready" ? q.data.total : 0;
   const keyList = rowKeysBy("need", items, (i) => i.task.id).join("|");
@@ -43,7 +45,9 @@ export function NeedsYouTop3(): ReactElement {
   for (const item of items) {
     const row = needsRow(item, name);
     const open = (): void => data.nav.openNeedsYou(item.task.id);
-    const onPrimary = (): void => (row.inline ? act(item, row.actionKey, row.actionLabel) : open());
+    // a lost mailbox sign-in is fixed where it is: the button opens Connect a mailbox on the right tab
+    const fix = mailFixOf(item.task);
+    const onPrimary = (): void => (fix && openConnect ? void openConnect({ kind: "mailbox", provider: fix }) : row.inline ? act(item, row.actionKey, row.actionLabel) : open());
     rows.push(
       <HRow
         key={row.id} rowKey={`need:${row.id}`} label={`${row.title}, ${row.kind}`} onOpen={open}

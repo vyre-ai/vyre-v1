@@ -15,13 +15,13 @@ test("journey 3, a revoked sign-in: Home shows one Fix item, Fix opens Connect a
   try {
     const w = s.world;
     await unlockVault(w);
-    w.fake.open("google", "olivia@gmail.test", [{ from: "pat@acme.test", subject: "Before the break", text: "Hello" }]);
+    w.fake.open("google", "olivia@gmail.test", [{ from: "pat@acme.test", subject: "Before the break", text: "Hello before the break" }]);
     const me = await seat(s, w.owner, "Owner");
     await guidedSetup(s, me, dir);
     await open(me, s, "/mail");
     await me.page.getByTestId("connect-gmail").click();
     await signInThroughSheet(me, "olivia@gmail.test", dir, "connect");
-    await me.page.getByText("Before the break").first().waitFor({ timeout: 30_000 });
+    await me.page.getByText("Hello before the break").first().waitFor({ timeout: 30_000 });
     const [box] = (await w.owner.ok("mail.mailbox.list", { scope: "mine" })).mailboxes as { id: string }[];
 
     // Olivia removes the app's access in her Google account
@@ -34,11 +34,9 @@ test("journey 3, a revoked sign-in: Home shows one Fix item, Fix opens Connect a
     await me.page.getByText(/Sign in to olivia@gmail.test again/).first().waitFor({ timeout: 30_000 });
     assert.equal(await me.page.getByText(/Sign in to olivia@gmail.test again/).count(), 1, "one item");
     await shoot(me.page, dir, "home-fix-item");
-    await me.page.getByText(/Sign in to olivia@gmail.test again/).first().click();
-    await me.page.getByTestId("needs-mailfix").waitFor({ timeout: 20_000 });
-    await shoot(me.page, dir, "needs-you-detail");
+    // the item's button repairs it where it is: Connect a mailbox opens on Gmail
     w.fake.restore("olivia@gmail.test");
-    await me.page.getByTestId("needs-mailfix").click();
+    await me.page.getByRole("button", { name: "Sign in again" }).first().click();
     await signInThroughSheet(me, "olivia@gmail.test", dir, "fix");
 
     await until(async () => (((await w.owner.ok("tasks.needs_you", {})).items as unknown[]).length === 0 ? true : null), "the item is cleared");
@@ -48,5 +46,8 @@ test("journey 3, a revoked sign-in: Home shows one Fix item, Fix opens Connect a
     await shoot(me.page, dir, "home-clear");
     await phonePass(me, s, dir, [{ name: "home", route: "/home" }, { name: "inbox", route: "/mail" }]);
     assert.deepEqual(me.errors, [], "no page errors");
+  } catch (e) {
+    await s.debug(dir);
+    throw e;
   } finally { await s.close(); }
 });

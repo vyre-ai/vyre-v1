@@ -106,7 +106,7 @@ export const kindOfAddress = (a: string): "email" | "phone" | "handle" => (EMAIL
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_inbox.sql", import.meta.url)), "utf8");
+const migrationSql = ["0001_inbox.sql", "0002_inbox_private.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -134,6 +134,7 @@ export function ensure(ctx: Pick<InboxCtx, "db">): void {
   try {
     ctx.db.all(`SELECT "conversationId" FROM inbox_match_task WHERE "conversationId" = ?`, "probe");
     ctx.db.all(`SELECT "id" FROM inbox_item WHERE "id" = ?`, "probe");
+    ctx.db.all(`SELECT "conversationId" FROM inbox_private WHERE "conversationId" = ?`, "probe");
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
@@ -162,6 +163,11 @@ export interface ConversationRow {
   bounced?: boolean;
   unmatched?: boolean;
   draftReady?: boolean;
+}
+
+/** The conversations made from private mailboxes, by id. */
+export function privateIds(ctx: Pick<InboxCtx, "db">): Set<string> {
+  return new Set(rowsOf(ctx.db.all(`SELECT "conversationId" FROM inbox_private`)).map((r) => str(r, "conversationId")));
 }
 
 export function getConversation(ctx: Pick<InboxCtx, "db">, id: string): Row | null {

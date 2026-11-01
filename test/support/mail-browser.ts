@@ -16,7 +16,7 @@ type Browser = import("playwright-core").Browser;
 type BrowserContext = import("playwright-core").BrowserContext;
 type Page = import("playwright-core").Page;
 
-export interface Screens { browser: Browser; web: Edge; world: MailWorld; close(): Promise<void> }
+export interface Screens { browser: Browser; web: Edge; world: MailWorld; seats: Seat[]; /** what every browser shows and what the app was refused, saved when a journey fails */ debug(dir: string): Promise<void>; close(): Promise<void> }
 
 const freePort = (): Promise<number> => new Promise((resolve, reject) => {
   const s = net.createServer();
@@ -43,7 +43,15 @@ export async function bootScreens(o: Omit<WorldOptions, "address">, env: { dist:
   const world = await bootMailWorld({ ...o, address: `http://127.0.0.1:${port}` });
   const web = await edge(env.dist, world.d.url, undefined, port);
   const browser = await env.chromium.launch({ executablePath: env.exe, args: ["--no-sandbox"] });
-  return { browser, web, world, async close() { await browser.close(); web.close(); await world.stop(); } };
+  const seats: Seat[] = [];
+  const debug = async (dir: string): Promise<void> => {
+    fs.mkdirSync(`${dir}/_failed`, { recursive: true });
+    for (const [i, st] of seats.entries()) {
+      await st.page.screenshot({ path: `${dir}/_failed/seat${i}-${st.who.username}.png` }).catch(() => undefined);
+      fs.writeFileSync(`${dir}/_failed/seat${i}-${st.who.username}.log`, `${st.page.url()}\nerrors: ${JSON.stringify(st.errors)}\n${st.logs.join("\n")}\n`);
+    }
+  };
+  return { browser, web, world, seats, debug, async close() { await browser.close(); web.close(); await world.stop(); } };
 }
 
 /** What the browser holds once signed in as this person. */
@@ -53,7 +61,7 @@ async function sessionFor(s: Screens, who: Person, role: string): Promise<string
   return JSON.stringify({ sessions: { [s.web.origin]: { baseUrl: s.web.origin, token: who.token, def, personId: who.id, marker } } });
 }
 
-export interface Seat { ctx: BrowserContext; page: Page; who: Person; errors: string[]; setEmail(email: string): void }
+export interface Seat { ctx: BrowserContext; page: Page; who: Person; errors: string[]; /** console errors and refused calls, for a failure to explain itself */ logs: string[]; setEmail(email: string): void }
 
 /**
  * A browser for one person. Opening a provider's sign-in page is answered the way the provider does after the person approves: a redirect back to the app with a code for the
@@ -74,7 +82,12 @@ export async function seat(s: Screens, who: Person, role: string): Promise<Seat>
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message.slice(0, 200)));
-  return { ctx, page, who, errors, setEmail: (e) => { email = e; } };
+  const logs: string[] = [];
+  page.on("console", (m) => { if (m.type() === "error") logs.push(`console ${m.text().slice(0, 300)}`); });
+  page.on("response", (r) => { if (r.status() >= 400) logs.push(`${r.status()} ${new URL(r.url()).pathname}`); });
+  const made: Seat = { ctx, page, who, errors, logs, setEmail: (e) => { email = e; } };
+  s.seats.push(made);
+  return made;
 }
 
 export async function open(seatOf: Seat, s: Screens, route: string): Promise<void> {
