@@ -473,17 +473,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   saveVersion(ctx, a, "Created");
   rememberAccountPicks(ctx.db, owner, def, now);
   emitAuto(ctx, "automation.created", a.id, { name: a.name, kind: a.kind });
-  await draftCard(ctx, a);
   return { automation: out(a) };
-}
-
-/**
- * A Flow an agent drafted in a chat leaves a card there. The card is the chat module's own (chat.flow_card), written by its host-side handler: it reads the draft itself and builds the words and the two
- * buttons, so an agent cannot dress a button up as something else. It never fails the create: a chat that cannot take the card still has the draft in Automations.
- */
-async function draftCard(ctx: AutoCtx, a: Automation): Promise<void> {
-  if (ctx.principal.kind !== "agent" || !ctx.thread || !ctx.call) return;
-  try { await ctx.call("chat.flow_card", { threadId: ctx.thread, automationId: a.id, idempotencyKey: `flow-card:${a.id}` }); } catch { /* the draft stands in Automations either way */ }
 }
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);

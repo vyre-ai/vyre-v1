@@ -1,3 +1,4 @@
+// @tsx
 import test from "node:test";
 import assert from "node:assert/strict";
 import { agoShort, brandOf, dotOf, dotTip, markOf, pageState, progressOf, recordsLine, replacedLine, savedTip } from "./model.ts";
