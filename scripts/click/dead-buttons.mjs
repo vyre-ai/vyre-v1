@@ -162,10 +162,10 @@ async function click(w, el, ovSel, closer) {
   const seen = new Set();
   for (;;) {
     res = await pg.evaluate(P.poll).catch(() => null);
-    if (!res) { fx.add("url"); break; }   // the page itself went away (a navigation): that is an effect
+    if (!res) { fx.add("nav"); break; }   // the page itself went away (a navigation): that is an effect
     for (const f of res.fx) fx.add(f);
     for (const e of w.events) fx.add(e.k);
-    const real = [...fx].filter((f) => f !== "ovclose" || closer);
+    const real = [...fx].filter((f) => f !== "url" && (f !== "ovclose" || closer));   // a changed address alone is not something a person sees: New folder wrote one that nothing read
     if (real.length) {
       if (!seen.size) { seen.add(1); await sleep(160); continue; }   // let a menu or dialog finish opening so its items can be read
       break;
@@ -179,7 +179,7 @@ async function click(w, el, ovSel, closer) {
   const ok = nets.find((n) => n.m !== "GET" && n.s < 400 && !READ_CALL.test(n.p));   // the app polls reads (chat/recent, connections/list) all the time; only a write the click could have caused counts
   const logs = w.logs.filter((l) => l.t >= t0).map((l) => l.text);
   const ev = res?.ev ?? [];
-  const effective = [...fx].filter((f) => !(f === "ovclose" && !closer));
+  const effective = [...fx].filter((f) => f !== "url" && !(f === "ovclose" && !closer));
   const alive = effective.length > 0;
   if (alive) {
     const opened = await pg.evaluate(P.markAdded).catch(() => 0);
