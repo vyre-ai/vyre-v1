@@ -1,1 +1,0 @@
-- Every AI provider shows its own logo in the Vault: Codex and ChatGPT (OpenAI), Grok, xAI, OpenRouter and Google Gemini. A local model shows a chip icon, not a letter.

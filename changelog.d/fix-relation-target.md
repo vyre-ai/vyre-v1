@@ -1,1 +1,0 @@
-- Relation fields on a record page now open the record they point to. The page read the target type under the wrong name, so relations made in Records or by a Journey did not resolve.

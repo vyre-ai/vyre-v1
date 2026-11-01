@@ -1,2 +1,0 @@
-- In "How you work", the common kinds of work and tools now show before you type. The lists are much longer: 334 kinds of work and 276 tools.
-- Every tool shows its own logo, including Google Ads, Meta Ads and GoHighLevel. A name you type yourself shows its first letter.

@@ -1,1 +1,0 @@
-- On the phone, Finish setup is a row at the top of the You page instead of a floating entry over the page.

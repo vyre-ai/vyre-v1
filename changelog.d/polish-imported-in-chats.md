@@ -1,3 +1,0 @@
-- Sessions you import from Claude Code or Codex now show in Chats, in an Imported group under your chats (newest first, folded when there are many), each with its title, source mark and date.
-- Opening one shows the saved transcript, read only, in the same look as a chat with tool calls folded, and one button, Continue here, that starts a real chat with your assistant carrying the transcript. A continued session also shows in your chats list, and its Imported row opens that chat.
-- After "Bring your sessions" finishes it says "Imported 3. They are in Chats." and the summary links to Chats.
