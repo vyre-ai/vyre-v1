@@ -192,15 +192,6 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     mdb.prepare("INSERT INTO computers_timeline (step_id, computer_id, idx, at, by_who, caption, tool, thread_id) VALUES (?, ?, 9000, ?, 'agent', 'Writing the report', 'screen', ?)").run("stp_madefiles1", computerId, Date.now(), threadId);
     mdb.close();
     assert.equal((await inBox(`printf report-body > ${HOME}/Q3-report.txt`)).code, 0);
-    const card = await until("a file card in the chat", async () => {
-      const page = (await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { fileId: string; name: string } }> }> };
-      return page.messages.flatMap((m) => m.blocks ?? []).find((b) => b.type === "file" && b.data.name === "Q3-report.txt");
-    }, 100_000);
-    const q3 = (await filesIn(folderId)).files.find((f) => f.name === "Q3-report.txt");
-    assert.equal(card.data.fileId, q3?.fileId, "the card points at the file in Files");
-    await new Promise<void>((r) => setTimeout(r, 8_000));
-    const cards = ((await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { name: string } }> }> }).messages.flatMap((m) => m.blocks ?? []).filter((b) => b.type === "file" && b.data.name === "Q3-report.txt");
-    assert.equal(cards.length, 1, "said once");
 
     // the first step the agent takes for the chat puts a live card in it, once (rc.9 flow 13): a screenshot block marked live, pointing at a frame in Files
     await call(d, "computers.screen.screenshot", { computerId });   // a person's own step posts no card: only an agent working for a chat does
@@ -223,6 +214,16 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     await inBox(`ln -s /etc/passwd ${HOME}/link.txt`);
     await new Promise<void>((r) => setTimeout(r, 45_000));
     assert.ok(!(await filesIn(folderId)).files.some((f) => f.name === "link.txt"), "a symlink did not reach Files");
+
+    // (set up above) the file the agent made is said in the chat once, as a file card pointing at Files; the 45 s wait above is longer than the two passes it takes
+    const card = await until("a file card in the chat", async () => {
+      const page = (await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { fileId: string; name: string } }> }> };
+      return page.messages.flatMap((m) => m.blocks ?? []).find((b) => b.type === "file" && b.data.name === "Q3-report.txt");
+    }, 30_000);
+    const q3 = (await filesIn(folderId)).files.find((f) => f.name === "Q3-report.txt");
+    assert.equal(card.data.fileId, q3?.fileId, "the card points at the file in Files");
+    const cards = ((await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { name: string } }> }> }).messages.flatMap((m) => m.blocks ?? []).filter((b) => b.type === "file" && b.data.name === "Q3-report.txt");
+    assert.equal(cards.length, 1, "said once");
 
     // a folder that is a link to the host: the daemon never follows it, down or up
     const hostTmp = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-escape-"));
@@ -280,9 +281,14 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     assert.equal(dlRow?.size, 2097152, "a 2 MB download went through the upload path whole");
 
     // take the wheel: a live view ticket, then the person's own click reaches the desktop, and giving back returns the controls to the agent with the time recorded in its steps (rc.9 flow 12)
-    const view = await call(d, "computers.stream", { computerId });
+    // the ticket behind the live view of the pane and the live card; a hang fails here, with this message, instead of using up the whole test
+    const view = await Promise.race([
+      call(d, "computers.stream", { computerId }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("computers.stream did not answer in 15 s: the live view of a working computer cannot open")), 15_000).unref()),
+    ]);
     assert.equal(view.status, 200, JSON.stringify(view.data));
     assert.ok(typeof view.data.ticket === "string" && view.data.ticket.length > 0, "a short-lived ticket for the live view");
+    assert.ok(view.data.transport === "mjpeg" || view.data.transport === "webrtc", `a transport: ${JSON.stringify(view.data)}`);
     const took = await call(d, "computers.take_over", { computerId });
     assert.equal(took.status, 200, JSON.stringify(took.data));
     assert.equal(took.data.computer.state, "takeover");

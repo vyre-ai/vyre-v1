@@ -359,6 +359,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (deps.resources && events.length) {
       for (const row of deps.resources.register({ cap: c, input, space: seed.space, owner: seed.actingFor ?? seed.principal.id, events })) {
         events.push(envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope);
+        // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
+        // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
+        if (row.type === "record_type" && seed.principal.kind === "agent" && seed.actingFor !== undefined && seed.actingFor.startsWith("usr_")) {
+          const id = `gnt_${hex(16)}`;
+          events.push(envelope("grant.created" as EventName, `grant/${id}`, { id, subject_kind: "actor", subject_id: seed.principal.id, resource_type: "record_type", resource_id: row.id, level: "manage", by: seed.actingFor }, seed, trace, depth) as EventEnvelope);
+        }
       }
     }
     if (deps.principals && events.length) {

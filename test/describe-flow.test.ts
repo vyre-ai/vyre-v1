@@ -1,7 +1,7 @@
 // A Flow in plain words: how it starts, each step in the order it runs, and a step that sends marked as held for a yes unless the definition turned asking off.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { describeFlow as words } from "./describe-flow.ts";
+import { describeFlow as words } from "../lib/describe-flow.ts";
 import { registry } from "../generated/registry.ts";
 
 const describeFlow = (d: Parameters<typeof words>[0]): string[] => words(d, registry);
