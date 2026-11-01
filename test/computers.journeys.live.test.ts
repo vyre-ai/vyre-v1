@@ -63,21 +63,38 @@ for (const kind of ["team", "personal"] as const) test(`computers journey, ${kin
     const w = s.world;
     await unlockVault(w);
     const fake = fakeHost();
-    bindComputers({ ...fake.host, async tool() { return { ok: true, frame: PNG }; } } as unknown as ComputerHost);
+    const machine = { ...fake.host, async tool() { return { ok: true, frame: PNG }; } } as unknown as ComputerHost;
     bindTerminal(scriptedTerminal());
     const agentId = await agentFor(w, kind);
-    const computerId = (await w.owner.ok("computers.provision", { agentId })).computer.computerId as string;
-    await w.owner.ok("computers.wake", { computerId });
     const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agentId], title: "Desk work" })).thread.threadId as string;
     const me = await seat(s, w.owner, "Owner");
     const reply = (re: RegExp) => until(async () => { await w.d.hooks?.pump?.(); const r = await w.owner.call("chat.messages.list", { threadId }); return (r.data.messages as Array<{ body?: string }>).find((m) => re.test(m.body ?? "")) ?? null; }, `a message matching ${re}`, 40_000);
+    const showChat = async (): Promise<void> => {
+      await open(me, s, "/chat");
+      await me.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
+      await me.page.getByText("Desk work", { exact: true }).first().click();
+      await me.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
+    };
+
+    // A Personal Space shows agent computers only once a capable server exists, and nothing about them before: no Computer tab at all. A Team Space always does.
+    if (kind === "personal") {
+      await showChat();
+      if (await me.page.getByTestId("pane-agent").count() === 0) await me.page.getByTestId("pane-toggle").click();
+      await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
+      await me.page.waitForTimeout(1500);   // the Space has been asked where a computer can run; the answer is no
+      assert.equal(await me.page.getByTestId("tab-computer").count(), 0, "no capable server, no Computer tab");
+      assert.equal((await w.owner.ok("computers.hosts", {})).available, false);
+      await shoot(me.page, dir, "no-computers");
+    }
+    bindComputers(machine);   // the capable host: a Team Space has one from the start, a Personal Space once a server is added
+    if (kind === "personal") assert.equal((await w.owner.ok("computers.hosts", {})).available, true, "now a host can run a computer");
+    const computerId = (await w.owner.ok("computers.provision", { agentId })).computer.computerId as string;
+    await w.owner.ok("computers.wake", { computerId });
 
     // 1 Run this
     await w.owner.ok("chat.post", { threadId, body: "show me the command", mentions: [{ kind: "agent", id: agentId }] });
     await reply(/ls -la/);
-    await open(me, s, "/chat");
-    await me.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
-    await me.page.getByText("Desk work", { exact: true }).first().click();
+    await showChat();
     await me.page.getByTestId("run-code").waitFor({ timeout: 30_000 });
     await shoot(me.page, dir, "run-bar");
     await me.page.getByTestId("run-code-run").click();
