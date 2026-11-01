@@ -149,6 +149,9 @@ test("journey 3, Team: an admin asks in chat, the app is told where to call, a c
       assert.deepEqual(await rows(s, "person").catch(() => []), [], "no person was imported");
       assert.equal(s.crm.c.state.requests.filter((r) => r.path.startsWith("/api/v2/people")).length > 0, true, "the agent only read to propose");
       assert.ok(!(await ok(s, "sync_types.list", {})).syncedTypes.some((t: { type: string }) => t.type === "person"), "nothing was bound");
+      assert.deepEqual(((await ok(s, "connectors.list", {})).connectors as { key: string }[]).filter((c) => c.key === "crm_ledger"), [], "no connector was left behind");
+      assert.deepEqual((await ok(s, "connections.list", {})).connections, [], "no connection was left behind");
+      assert.ok(!((await ok(s, "schema.describe", {})).types as { key: string }[]).some((t) => t.key === "person" || t.key === "org"), "no record type was left behind");
       // the person themself (an admin who can manage the types) brings it in with the same choice: the types are open to people added from the first moment, before anyone is imported
       const { ledgerSpec } = await import("../modules/connectors/fixtures/crm.ts");
       const spec = withHandle(ledgerSpec(), first.item.handle) as { objects: { remote: string; webhook?: unknown }[]; plan: Record<string, unknown> };

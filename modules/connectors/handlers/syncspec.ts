@@ -287,7 +287,26 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       if (diff.problems?.length) return refuse(ctx, "validation.precondition_failed", `The record types cannot be made: ${diff.problems.slice(0, 3).map((p) => p.message).join(" ")}`, { problems: diff.problems });
     }
 
-    // 1. the connector: tests first, then live (a failing test keeps the last good version)
+    // 1. record types (before anything else is made, so a refusal below leaves nothing behind): new ones whole, existing ones gain the fields they lack; relations once both ends exist
+    if (makes.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:type.create`, ops: makeOps, reason: `Bring in ${spec.app.name}` });
+    if (adds.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:field.add`, ops: adds, reason: `Fields from ${spec.app.name}` });
+    if (rels.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:relation.add`, ops: rels, reason: `Links from ${spec.app.name}` });
+    // who the types are open to, set before any record is imported. It is set on every type the spec maps (a retry after a refusal must not find them wider than chosen). If it cannot be set the apply stops here:
+    // no binding, no first pull, no record, and the reason is said in plain words. There is no fallback to the whole Space.
+    if (spec.plan.audience !== undefined) {
+      const words = { space: "everyone in the Space", added: "only the people added", me: "only you" }[spec.plan.audience];
+      for (const t of compiled.types) {
+        try { await ctx.call("access.audience_set", { idempotencyKey: `${idem}:audience:${t.recordType}`, resource: { type: "record_type", id: t.recordType }, audience: spec.plan.audience }); }
+        catch (e) {
+          const why = (e as { error?: { message?: string } }).error?.message ?? "the right to choose who it is open to is missing";
+          // nothing is left behind: the types this apply just made hold no records yet, so they go again (the connector and the connection are made after this step)
+          if (makes.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:undo`, ops: [...rels.filter((r) => makes.some((m) => m.recordType === r.type)).map((r) => ({ op: "relation.drop", type: r.type, field: r.field })), ...makes.map((m) => ({ op: "type.drop", type: m.recordType }))], confirm: [...rels.filter((r) => makes.some((m) => m.recordType === r.type)).map((r) => `relation.drop:${r.type}.${r.field}`), ...makes.map((m) => `type.drop:${m.recordType}`)], reason: `Undo: ${spec.app.name} was not brought in` }).catch(() => undefined);
+          refuse(ctx, "permission.no_grant", `Nothing was brought in. ${t.recordType} should be open to ${words}, and that could not be set (${why}). Ask an admin who can manage ${t.recordType} to run this, or to give the assistant that right, then try again.`);
+        }
+      }
+    }
+
+    // 2. the connector: tests first, then live (a failing test keeps the last good version)
     const test: TestResult = await runCases(deps, ctx, def);
     if (test.failed > 0) return refuse(ctx, "validation.precondition_failed", `The connector made from this spec failed its own tests: ${test.cases.filter((c) => !c.ok).slice(0, 2).map((c) => `${c.name}: ${c.message ?? "failed"}`).join("; ")}`, { cases: test.cases });
     const cur = tx.get<{ version: string; def: string; builtin: number }>("SELECT version, def, builtin FROM cn_connectors WHERE key = ?", key);
@@ -308,7 +327,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     }
     if (!same) ctx.emit("connector.published", `connector/${key}`, { key, version, tests: test.passed });
 
-    // 2. the connection: one per connector, holding the handle (never a value)
+    // 3. the connection: one per connector, holding the handle (never a value)
     const slot = compiled.secretSlot;
     let conn = tx.get<{ connection_id: string; secrets: string }>("SELECT connection_id, secrets FROM cn_connections WHERE connector = ? AND owner_kind = 'space' ORDER BY created_at LIMIT 1", key);
     if (conn && (JSON.parse(conn.secrets) as Record<string, string>)[slot] !== spec.auth.vaultHandle) {
@@ -316,23 +335,6 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       conn = tx.get<{ connection_id: string; secrets: string }>("SELECT connection_id, secrets FROM cn_connections WHERE connection_id = ?", conn.connection_id);
     }
     const connectionId = conn?.connection_id ?? (await connections["connections.create"](ctx, { connector: key, title: spec.app.name, ownerKind: "space", secrets: { [slot]: spec.auth.vaultHandle } })).connection.connectionId;
-
-    // 3. record types: new ones whole, existing ones gain the fields they lack; relations once both ends exist
-    if (makes.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:type.create`, ops: makeOps, reason: `Bring in ${spec.app.name}` });
-    if (adds.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:field.add`, ops: adds, reason: `Fields from ${spec.app.name}` });
-    if (rels.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:relation.add`, ops: rels, reason: `Links from ${spec.app.name}` });
-    // who the types are open to, set before any record is imported. It is set on every type the spec maps (a retry after a refusal must not find them wider than chosen). If it cannot be set the apply stops here:
-    // no binding, no first pull, no record, and the reason is said in plain words. There is no fallback to the whole Space.
-    if (spec.plan.audience !== undefined) {
-      const words = { space: "everyone in the Space", added: "only the people added", me: "only you" }[spec.plan.audience];
-      for (const t of compiled.types) {
-        try { await ctx.call("access.audience_set", { idempotencyKey: `${idem}:audience:${t.recordType}`, resource: { type: "record_type", id: t.recordType }, audience: spec.plan.audience }); }
-        catch (e) {
-          const why = (e as { error?: { message?: string } }).error?.message ?? "the right to choose who it is open to is missing";
-          refuse(ctx, "permission.no_grant", `Nothing was brought in. ${t.recordType} should be open to ${words}, and that could not be set (${why}). Ask an admin who can manage ${t.recordType} to run this, or to give the assistant that right, then try again.`);
-        }
-      }
-    }
 
     // 4. bindings: bind a new type, update one that is already synced
     const out: ApplyOut["types"] = [];
