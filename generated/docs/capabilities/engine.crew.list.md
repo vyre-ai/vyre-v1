@@ -48,6 +48,15 @@ type Out = {
       endedAt?: number;
       result?: Record<string, unknown>;
     }>;
+  waits: Array<{
+      waitId: string;
+      kind: "checks";
+      label: string;
+      state: "pending" | "passing" | "failing" | "none";
+      done: number;
+      total: number;
+      startedAt: number;
+    }>;
 };
 ```
 
@@ -83,6 +92,17 @@ type Out = {
         "state": "working",
         "threadId": "thr_a1b2c3",
         "title": "example"
+      }
+    ],
+    "waits": [
+      {
+        "done": 1,
+        "kind": "checks",
+        "label": "acme/site#12",
+        "startedAt": 1760000000000,
+        "state": "pending",
+        "total": 1,
+        "waitId": "example"
       }
     ]
   }

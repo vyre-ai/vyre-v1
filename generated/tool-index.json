@@ -2186,6 +2186,12 @@
     },
     {
       "deferred": false,
+      "name": "crew_push",
+      "summary": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person's approval",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "crew_start",
       "summary": "Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done",
       "toolset": "chats"
@@ -2194,6 +2200,12 @@
       "deferred": false,
       "name": "crew_stop",
       "summary": "Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "crew_wait",
+      "summary": "Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish",
       "toolset": "chats"
     },
     {

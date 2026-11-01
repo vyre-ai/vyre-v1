@@ -8365,6 +8365,58 @@
       ],
       "type": "object"
     },
+    "s_60f36091e3": {
+      "properties": {
+        "done": {
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "checks"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "examples": [
+            "acme/site#12"
+          ],
+          "type": "string"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "passing",
+            "failing",
+            "none"
+          ],
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "waitId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "waitId",
+        "kind",
+        "label",
+        "state",
+        "done",
+        "total",
+        "startedAt"
+      ],
+      "type": "object"
+    },
     "s_61ad3658fc": {
       "properties": {
         "person": {
@@ -21821,6 +21873,126 @@
       "fallback": "Checklist {{title}}",
       "module": "chat",
       "type": "checklist",
+      "v": 1
+    },
+    {
+      "actions": [
+        {
+          "cap": "engine.crew.merge",
+          "input": {
+            "jobId": "/jobId"
+          },
+          "key": "merge",
+          "label": "Merge"
+        }
+      ],
+      "component": "ui:BlockCrewResult",
+      "data": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ahead": {
+            "type": "integer"
+          },
+          "base": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "commits": {
+            "items": {
+              "properties": {
+                "sha": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sha",
+                "subject"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "files": {
+            "items": {
+              "properties": {
+                "added": {
+                  "type": "integer"
+                },
+                "deleted": {
+                  "type": "integer"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "added",
+                "deleted"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "threadId",
+          "agentId",
+          "name",
+          "title",
+          "branch",
+          "base",
+          "state"
+        ],
+        "type": "object"
+      },
+      "fallback": "{{name}} finished {{title}}",
+      "module": "chat",
+      "opens": {
+        "input": {
+          "threadId": "/threadId"
+        },
+        "tab": "thread"
+      },
+      "type": "crew_result",
       "v": 1
     },
     {
@@ -71675,6 +71847,17 @@
                 "threadId": "thr_a1b2c3",
                 "title": "example"
               }
+            ],
+            "waits": [
+              {
+                "done": 1,
+                "kind": "checks",
+                "label": "acme/site#12",
+                "startedAt": 1760000000000,
+                "state": "pending",
+                "total": 1,
+                "waitId": "example"
+              }
             ]
           }
         }
@@ -71705,10 +71888,17 @@
               "$ref": "#/$defs/s_dd966b6ddf"
             },
             "type": "array"
+          },
+          "waits": {
+            "items": {
+              "$ref": "#/$defs/s_60f36091e3"
+            },
+            "type": "array"
           }
         },
         "required": [
-          "jobs"
+          "jobs",
+          "waits"
         ],
         "type": "object"
       },
@@ -71907,6 +72097,97 @@
         "http": "auto",
         "mcp": {
           "name": "crew_message",
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "crew.job_pushed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_approval",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "jobId": "example"
+          },
+          "name": "example",
+          "output": {
+            "job": {
+              "agentId": "agt_a1b2c3",
+              "base": "main",
+              "branch": "crew/ember-1",
+              "endedAt": 1760000000000,
+              "jobId": "crw_01a1b2",
+              "leadThreadId": "thr_a1b2c3",
+              "name": "example",
+              "projectId": "prj_a1b2c3",
+              "result": {},
+              "startedAt": 1760000000000,
+              "state": "working",
+              "threadId": "thr_a1b2c3",
+              "title": "example"
+            },
+            "note": "example",
+            "pushed": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "push_protected"
+      },
+      "idempotency": "key",
+      "input": {
+        "$ref": "#/$defs/s_32fb9ae93d"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.crew.push",
+      "output": {
+        "properties": {
+          "job": {
+            "$ref": "#/$defs/s_dd966b6ddf"
+          },
+          "note": {
+            "type": "string"
+          },
+          "pushed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "job",
+          "pushed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person's approval",
+      "surfaces": {
+        "agent": {
+          "blocks": [],
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "crew_push",
           "toolset": "chats"
         }
       },
@@ -72280,6 +72561,110 @@
         "http": "auto",
         "mcp": {
           "name": "crew_stop",
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "number": 1,
+            "repo": "acme/site",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "wait": {
+              "done": 1,
+              "kind": "checks",
+              "label": "acme/site#12",
+              "startedAt": 1760000000000,
+              "state": "pending",
+              "total": 1,
+              "waitId": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "examples": [
+              "acme/site"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "repo",
+          "number",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.crew.wait",
+      "output": {
+        "properties": {
+          "wait": {
+            "$ref": "#/$defs/s_60f36091e3"
+          }
+        },
+        "required": [
+          "wait"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish",
+      "surfaces": {
+        "agent": {
+          "blocks": [],
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "crew_wait",
           "toolset": "chats"
         }
       },
@@ -206641,6 +207026,50 @@
     {
       "label": "subject",
       "module": "engine",
+      "name": "crew.job_pushed",
+      "payload": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "leadThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "threadId",
+          "leadThreadId",
+          "branch"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/leadThreadId",
+        "type": "thread"
+      },
+      "summary": "A crew's merged work was pushed to the project's remote",
+      "sv": 1,
+      "vis": "participants"
+    },
+    {
+      "label": "subject",
+      "module": "engine",
       "name": "crew.job_started",
       "payload": {
         "properties": {
@@ -233949,6 +234378,13 @@
       },
       "place": "chats",
       "queries": {
+        "crew": {
+          "cap": "engine.crew.list",
+          "input": {
+            "threadId": "/state/threadId"
+          },
+          "live": true
+        },
         "helpers": {
           "cap": "chat.helpers.list",
           "input": {
