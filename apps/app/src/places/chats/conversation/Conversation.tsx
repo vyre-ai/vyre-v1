@@ -357,7 +357,7 @@ function ConversationView(): ReactElement {
     makeTask: (id) => {
       const m = all.find((x) => x.messageId === id);
       if (!m) return;
-      void act.makeTask(data, thread, m, data.newKey()).then((taskId) => { say("Task made from this message"); data.nav.openBeside("task", taskId); }, fail("Could not make the task."));
+      void act.makeTask(data, thread, m, data.newKey()).then(() => undefined, fail("Could not make the task."));  // the card in the thread says it and opens it; the person stays where they are
     },
     files: data,
     nameOf,

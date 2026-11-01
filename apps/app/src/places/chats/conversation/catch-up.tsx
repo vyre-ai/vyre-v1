@@ -27,7 +27,8 @@ export function catchUpLine(c: CatchUp, nameOf: (id: string) => string, mine: nu
   if (c.decisions.length > 0) work.push(plural(c.decisions.length, "decision", "decisions"));
   if (c.tasks.length > 0) work.push(plural(c.tasks.length, "task", "tasks"));
   if (mine > 0) work.push("you're mentioned");
-  if (work.length > 0) parts.push(`${work.length > 1 ? `${work.slice(0, -1).join(", ")}${work.length > 2 ? "," : ""} and ${work[work.length - 1]}` : work[0]}.`.replace(/^(\d+ \w+), and /, "$1, and "));
+  const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+  if (work.length > 0) parts.push(cap(`${work.length > 1 ? `${work.slice(0, -1).join(", ")}${work.length > 2 ? "," : ""} and ${work[work.length - 1]}` : work[0]}.`));
   return parts.join(" ");
 }
 

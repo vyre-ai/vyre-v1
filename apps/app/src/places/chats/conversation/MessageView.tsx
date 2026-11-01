@@ -109,7 +109,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
       const b = item.message.blocks.find((x) => x.type === "link_card")!;
       return (
         <View testID={`event-${item.key}`} style={st.event}>
-          <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} />
+          <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
           <Text style={st.eventTime}>{item.time}</Text>
         </View>
       );
@@ -459,6 +459,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
 export const st = StyleSheet.create({
   replyActs: { flexDirection: "row", gap: 4, marginTop: 4, marginLeft: -6 },
   day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
+  eventCard: { flexShrink: 1, minWidth: 0 },
   event: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },

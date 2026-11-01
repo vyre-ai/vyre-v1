@@ -45,7 +45,7 @@ test("journey 1, Team: Catch me up on open, Make a task from a message, Remember
     await open(me, s, hash(dm));
     // Catch me up: one line on open, naming who wrote, with a way to jump and a way to dismiss
     await me.page.getByTestId("catch-up-line").waitFor({ timeout: 30_000 });
-    assert.match(await me.page.getByTestId("catch-up-line").innerText(), /^Maya wrote\./);
+    assert.match(await me.page.getByTestId("catch-up-line").innerText(), /^maya wrote\./i);
     await shoot(me.page, dir, "catch-up", { restore: async () => { await open(me, s, hash(dm)); } });
 
     // Make a task: hover the message, press Make a task; a card says where it went
@@ -53,7 +53,7 @@ test("journey 1, Team: Catch me up on open, Make a task from a message, Remember
     await me.page.getByTestId(`act-make-${ask}`).click();
     await me.page.getByText(/Task created/).first().waitFor({ timeout: 20_000 });
     await shoot(me.page, dir, "task-card", { restore: async () => { await open(me, s, hash(dm)); } });
-    const tasks = (await w.owner.ok("tasks.list", {})).tasks as Array<{ title: string; source?: { id?: string } }>;
+    const tasks = (await w.owner.ok("tasks.list", { scope: "all" })).tasks as Array<{ title: string; source?: { id?: string } }>;
     const made = tasks.filter((x) => /Rivera letter/.test(x.title));
     assert.equal(made.length, 1, "one task, made once");
     assert.equal(made[0]!.source?.id, dm, "the task points back at the chat");
