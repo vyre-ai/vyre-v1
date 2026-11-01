@@ -103,8 +103,9 @@ const manifest = defineManifest({
     write('inbox.unmatch', 'Undo a match; the sender goes back to Unmatched', {
       in: { conversationId: cnvId, undoToken: t.opt(t.str()) }, out: { conversation: conversationRow }, perm: 'records.edit', emits: ['conversation.unmatched'], tool: 'inbox', offline: 'queue',
     }),
+    // match_new extras: fileAttachments also copies the attachments of its mails into the record's folder; replyTask also puts a Reply task on my list, linked to the record
     write('inbox.match_new', 'Create a contact or company from an unmatched sender and match it', {
-      in: { conversationId: cnvId, type: contactOrCompany, name: t.opt(t.str()) }, out: { recordId: id.record, conversation: conversationRow },
+      in: { conversationId: cnvId, type: contactOrCompany, name: t.opt(t.str()), fileAttachments: t.opt(t.bool()), replyTask: t.opt(t.bool()) }, out: { recordId: id.record, conversation: conversationRow, filed: t.opt(t.int({ minimum: 0 })), skipped: t.opt(t.int({ minimum: 0 })), taskId: t.opt(id.task) },
       perm: 'records.create', emits: ['conversation.matched'], idem: 'key', tool: 'inbox',
     }),
     write('inbox.link_message', 'Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the campaign owner then the shared inbox', {
