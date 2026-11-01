@@ -236,7 +236,7 @@ function Layer({ shown, rt, go, nameOf, list, counter, terminal, window }: {
       return (
         <AllAgents
           screens={rt.screens} space={{ name: rt.space.name }} x={l.x} y={l.y} onChat={go.agentChat} onOpenPage={(id) => go.agent(id)}
-          onNewAgent={() => rt.open({ screen: "console.agents-register" })} onClose={go.closeLayer} {...(window ? { window } : {})}
+          onCreate={(name) => Promise.resolve(rt.call("agents.create", { name, idempotencyKey: newKey() })).then((o) => (o as { agent: { agentId: string } }).agent.agentId)} onClose={go.closeLayer} {...(window ? { window } : {})}
         />
       );
     case "terminals": return <TerminalList data={terminal} x={l.x} y={l.y} onClose={go.closeLayer} {...(window ? { window } : {})} />;

@@ -159,6 +159,8 @@ pub fn run() {
         )
         .on_page_load(|webview, payload| {
             if let tauri::webview::PageLoadEvent::Finished = payload.event() {
+                // The window starts hidden (tauri.conf.json): the page's head script has by now put the saved skin and mode on the root, so the first frame the person sees is already themed.
+                let _ = webview.window().show();
                 let _ = webview.eval(PAGE_PROBE);
                 let _ = webview.eval(EXTERNAL_LINKS);
                 if std::env::var("VYRE_SHELL_BANNER").is_ok() {
@@ -202,6 +204,19 @@ pub fn run() {
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
+
+            // The window starts hidden so it never shows an unthemed frame (see on_page_load). If the page never finishes loading, it still comes forward after a few seconds.
+            {
+                let late = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    if let Some(w) = late.get_webview_window("main") {
+                        if !w.is_visible().unwrap_or(true) {
+                            let _ = w.show();
+                        }
+                    }
+                });
+            }
 
             // A shortcut another program already holds must not stop the shell.
             if let Err(e) = app.global_shortcut().register(SHORTCUT) {

@@ -1,3 +1,4 @@
+import { View } from "react-native";
 import { Network } from '../../console/pages/InfrastructureNetwork.tsx';
 import { Speed, Usage } from '../../console/pages/InfrastructureMetrics.tsx';
 import {Updates,SpaceProfile} from '../../console/pages/InfrastructureSettings.tsx';
@@ -125,7 +126,8 @@ export default function ConsolePlace(): ReactElement {
     name: nameLookup(rt), clock: rt.clock,
     nav: { openApp: (target) => rt.open(target ?? { screen: "home.today-starred-ask" }), openPage: (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); } },
   } : null, [rt, allowed]);
-  if (rt?.space.kind === "personal") return <States kind="empty" title="Needs a Team Space" icon="search" />;
+  // no door leads here from a Personal Space; a stale link still gets a page that follows the theme
+  if (rt?.space.kind === "personal") return <View testID="console-needs-team" style={{ flex: 1, backgroundColor: "var(--win)" as string, color: "var(--ink)" as string }}><States kind="empty" title="Needs a Team Space" icon="search" /></View>;
   if (failed) return <States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} />;
   if (!rt || !data) return <States kind="empty" title="Opening the Console…" icon="search" />;
   const requestedPage = target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;

@@ -241,6 +241,21 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       assert.equal(await page.getByTestId("skin-preview").getAttribute("aria-label"), mode === "dark" ? "Preview of Graphite" : "Preview of Paper", `the System preview matches data-mode ${mode}`);
     });
 
+    await step("Chats: New agent works in a Personal Space", async () => {
+      await go("chat", "chats-place");
+      // the Agents header's All agents button
+      await page.getByTestId("all-agents").first().click({ timeout: 10_000 });
+      await page.getByTestId("all-agents-new").click({ timeout: 10_000 });
+      await page.getByTestId("all-agents-name").fill("Walk Agent");
+      await page.getByTestId("all-agents-create").click({ timeout: 10_000 });
+      // a real agent exists, and a chat with it is open
+      await page.getByText("Walk Agent", { exact: true }).first().waitFor({ timeout: 20_000 });
+      const agents = (await api("agents.list")).data.agents as { name: string }[];
+      assert.ok(agents.some((x) => x.name === "Walk Agent"), "the agent exists in the Space");
+      assert.equal(await page.getByText("Needs a Team Space").count(), 0, "no dead page");
+      await page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
+    });
+
     await step("Terminal: opens from the Space menu and from Search, and again", async () => {
       await go("chat", "chats-place");
       const list = page.getByTestId("terminal-list");

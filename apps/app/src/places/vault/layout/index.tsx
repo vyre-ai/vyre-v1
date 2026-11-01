@@ -354,9 +354,9 @@ function AdvancedView({ onClose }: { onClose(): void }): ReactElement {
   const { nav, browsers } = useVaultData();
   const [chrome, setChrome] = useState(false);
   const rows = [
-    ["Backups", "Verify, restore or run backups", nav.openBackups, "clock"],
+    ...(nav.openBackups ? [["Backups", "Verify, restore or run backups", nav.openBackups, "clock"] as const] : []),
     ["Devices", "Computers that can open the Vault", nav.openDevices, "lock"],
-    ["Outside agents", "Claude Code, Codex and other tools", nav.openOutsideActors, "braces"],
+    ...(nav.openOutsideActors ? [["Outside agents", "Claude Code, Codex and other tools", nav.openOutsideActors, "braces"] as const] : []),
     ["Policy", "Exports, link length, reveal reasons", nav.openPolicy, "health"],
     ...(browsers ? [["Browsers", "Fill logins in Chrome", () => setChrome(true), "globe"] as const] : []),
   ] as const;

@@ -22,7 +22,8 @@ export interface FieldsPaneProps {
   titleField?: string | undefined;
   onClose(): void;
   onOpen(): void;
-  onConsole(): void;
+  /** Left out where there is no Console (a Personal Space): the Add a field row goes with it. */
+  onConsole?(): void;
 }
 
 export function FieldsPane({ type, title, icon, syncedFrom, rowCount, rows, titleField, onClose, onOpen, onConsole }: FieldsPaneProps): ReactElement {
@@ -59,11 +60,15 @@ export function FieldsPane({ type, title, icon, syncedFrom, rowCount, rows, titl
         <ScrollView style={s.scroll} contentContainerStyle={s.body}>
           <Text accessibilityRole="header" aria-level={3} style={s.label}>Fields</Text>
           <View accessibilityRole="list" testID="pane-fields">{list}</View>
+          {onConsole ? (
+            <>
           <Text accessibilityRole="header" aria-level={3} style={[s.label, s.labelGap]}>Add a field</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Add a field in the Console" onPress={onConsole} testID="pane-add-field" style={({ hovered }: { hovered?: boolean }) => [s.add, hovered === true && s.openOver]}>
             <Glyph name="plus" size={14} color="var(--ink-2)" />
             <Text style={s.addText}>Add a field in the Console</Text>
           </Pressable>
+            </>
+          ) : null}
           <Text style={s.note}>New fields go straight in. Changing a type or deleting a field shows a diff first.</Text>
         </ScrollView>
       </View>
