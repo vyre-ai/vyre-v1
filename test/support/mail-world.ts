@@ -81,8 +81,9 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
   const clock = { t: Date.now() };
   const fake = fakeMailProviders(() => clock.t);
   const address = o.address ?? "http://space.test";
+  let port = 0;   // the first start picks one; a restart comes back on it, so a browser or an edge pointed at the daemon still reaches it
   const start = (): Promise<Daemon> => startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_pmail", "--space-name", o.kind === "personal" ? "Personal" : "Fresh Co", "--space-kind", o.kind, "--address", address], {}, "1.2.3"),
+    config: loadConfig(["--data-dir", dir, "--port", String(port), "--space", "spc_pmail", "--space-name", o.kind === "personal" ? "Personal" : "Fresh Co", "--space-kind", o.kind, "--address", address], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     now: () => clock.t,
     platform: fakePlatform({
@@ -96,6 +97,7 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
     ...(o.engineOpenSession ? { engineOpenSession: o.engineOpenSession } : {}),
   });
   let d = await start();
+  port = d.port;
   const post = async (cap: string, input: unknown, token?: string): Promise<{ status: number; body: any }> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
     const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(input) });
     return { status: r.status, body: await r.json() };

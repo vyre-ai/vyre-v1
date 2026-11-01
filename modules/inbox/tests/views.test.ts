@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  counts, followSet, following, linkMessage, listByContact, listByThread, needsMatch, recipientsSearch, sendOptions, thread, unmatched,
+  counts, followSet, guardConversation, following, linkMessage, listByContact, listByThread, needsMatch, recipientsSearch, sendOptions, thread, unmatched,
 } from "../handlers/index.ts";
 import { codeOf, contractErrors, DANA, harness, HOUR, LEE, link, NOW } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -318,3 +318,23 @@ test("list rows carry the organisation, Do not contact, bounced, unmatched and d
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
+
+test("thread opens what the list shows: a conversation the access rules know nothing of is open through its owner or the inbox it arrived in, and only then", async () => {
+  const { h, c2, c3, c5 } = await world();
+  h.state.conversationsUnknown = true;   // the real kernel: an unmatched sender has no record above it, so not_found
+  assert.equal((await thread(h.ctx, { conversationId: c2 })).conversation.id, c2, "an unmatched sender in a shared inbox the caller sees");
+  assert.equal((await thread(h.ctx, { conversationId: c3 })).conversation.id, c3, "an unmatched sender in the caller's own inbox");
+  await refused(thread(h.ctx, { conversationId: c5 }), "permission.not_found");   // an inbox the caller cannot see
+  h.state.conversationsUnknown = false;
+  h.denied.add(`conversation:${c2}`);
+  await refused(thread(h.ctx, { conversationId: c2 }), "permission.not_found");   // known and denied stays closed
+});
+
+test("the guard on a conversation's writes follows the same rule: the inbox it arrived in opens it, an inbox the caller cannot see does not, a missing one is the handler's own answer", async () => {
+  const { h, c2, c5 } = await world();
+  h.state.conversationsUnknown = true;
+  await guardConversation(h.ctx, c2);
+  await refused(guardConversation(h.ctx, c5), "permission.not_found");
+  await guardConversation(h.ctx, "cnv_missing1");
+  await guardConversation(h.ctx, undefined);
+});

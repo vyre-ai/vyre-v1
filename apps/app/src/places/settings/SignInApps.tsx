@@ -7,7 +7,7 @@ import { Linking } from "react-native";
 import { attemptKey } from "../../shell/providers/files-review.ts";
 import { useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
-import { Field, Glyph, Section, SettingsRow, SmallButton, Value } from "./ui.tsx";
+import { Field, Glyph, Section, SettingsRow, SmallButton } from "./ui.tsx";
 
 interface Guide { key: "google" | "microsoft"; label: string; prefix: string; item: string; steps: readonly { text: string; link?: string }[]; idLabel: string; tenant: boolean }
 
@@ -109,7 +109,8 @@ export function SignInApps(): ReactElement {
             {steps}
             <SettingsRow
               id={`signin.${g.key}.redirect`} label="Redirect address" indent
-              control={<><Value text={st?.redirectUri ?? "This server has no public address yet"} testID={`signin-${g.key}-redirect`} />{st?.redirectUri ? <SmallButton label="Copy" onPress={() => copy(st.redirectUri!)} testID={`signin-${g.key}-copy`} /> : null}</>}
+              sub={st?.redirectUri ?? "This server has no public address yet"}
+              control={st?.redirectUri ? <SmallButton label="Copy" onPress={() => copy(st.redirectUri!)} testID={`signin-${g.key}-copy`} /> : undefined}
             />
             <SettingsRow id={`signin.${g.key}.id`} label={g.idLabel} indent control={<Field value={form.id} label={`${g.label} ${g.idLabel}`} mono width={260} testID={`signin-${g.key}-id`} onCommit={(v) => setForm((f) => ({ ...f, id: v }))} />} />
             <SettingsRow id={`signin.${g.key}.secret`} label="Client secret" indent control={<Field value={form.secret} label={`${g.label} client secret`} mono secureTextEntry width={260} testID={`signin-${g.key}-secret`} onCommit={(v) => setForm((f) => ({ ...f, secret: v }))} />} />

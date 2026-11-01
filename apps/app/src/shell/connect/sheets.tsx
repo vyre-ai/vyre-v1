@@ -177,7 +177,9 @@ function MailboxSheet({ rt, first, onDone, onCancel }: { rt: FlowProps["rt"]; fi
   const [provider, setProvider] = useState<Provider>(first);
   const delegated = useDelegated(rt, provider);
   const own = useOwnApp(rt, provider);
-  const [known, setKnown] = useState<string[] | null>(null);   // the person's signed-in accounts before this sign-in started; set once the window opened
+  // the person's signed-in accounts before this sign-in started, and the mailboxes then needing a new sign-in (a repeat sign-in to the same address is no new account); set once the window opened
+  const [known, setKnown] = useState<string[] | null>(null);
+  const [broken, setBroken] = useState<string[]>([]);
   const [address, setAddress] = useState("");
   const [host, setHost] = useState(PRESET[first].host);
   const [port, setPort] = useState(PRESET[first].port);
@@ -219,6 +221,8 @@ function MailboxSheet({ rt, first, onDone, onCancel }: { rt: FlowProps["rt"]; fi
     setBusy(true); setLine(null);
     try {
       const before = (await accounts()).map((a) => a.accountId);
+      const owned = ((await rt.call("mail.mailbox.list", { scope: "mine" })) as { mailboxes: Array<{ id: string; state?: string }> }).mailboxes;
+      setBroken(owned.filter((b) => b.state === "error").map((b) => b.id));
       const out = (await rt.call(`${OWN[provider as "google" | "microsoft"]}.start`, emailOk ? { loginHint: address.trim() } : {})) as { authUrl: string };
       rt.openUrl(out.authUrl);
       setKnown(before);
@@ -230,11 +234,9 @@ function MailboxSheet({ rt, first, onDone, onCancel }: { rt: FlowProps["rt"]; fi
     try {
       const fresh = (await accounts()).filter((a) => !(known ?? []).includes(a.accountId));
       const mine = fresh.find((a) => emailOk && a.email === address.trim().toLowerCase()) ?? fresh.at(-1);
-      if (mine) {
-        const boxes = ((await rt.call("mail.mailbox.list", { scope: "mine" })) as { mailboxes: Array<{ id: string; address: string; title?: string }> }).mailboxes;
-        const box = boxes.find((b) => b.address.toLowerCase() === mine.email);
-        if (box) { onDone({ id: box.id, title: box.title || box.address, app: "mail" }); return; }
-      }
+      const boxes = ((await rt.call("mail.mailbox.list", { scope: "mine" })) as { mailboxes: Array<{ id: string; address: string; title?: string; state?: string }> }).mailboxes;
+      const box = mine ? boxes.find((b) => b.address.toLowerCase() === mine.email) : boxes.find((b) => broken.includes(b.id) && b.state !== "error");   // or the mailbox that needed the sign-in and is well again
+      if (box) { onDone({ id: box.id, title: box.title || box.address, app: "mail" }); return; }
       setLine("Not finished yet. Approve the sign-in, then try again.");
     } catch (e) { setLine(reason(e, "That did not check.")); }
     setBusy(false);

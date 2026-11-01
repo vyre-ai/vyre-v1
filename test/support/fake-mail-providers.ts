@@ -64,7 +64,8 @@ export function fakeMailProviders(now: () => number = Date.now) {
       if (p === "/messages/send" && method === "POST") {
         const raw = Buffer.from(String((JSON.parse(init.body ?? "{}") as { raw?: string }).raw), "base64url").toString("utf8");
         const header = (k: string): string => new RegExp(`^${k}: (.*)$`, "mi").exec(raw)?.[1]?.trim() ?? "";
-        const body = raw.split(/\r?\n\r?\n/).slice(1).join("\n").trim();
+        const rawBody = raw.split(/\r?\n\r?\n/).slice(1).join("\n").trim();
+        const body = /^content-transfer-encoding:\s*base64/mi.test(raw) ? Buffer.from(rawBody.replace(/\s+/g, ""), "base64").toString("utf8") : rawBody;
         const to = header("To").split(",").map((x) => (/<([^>]+)>/.exec(x)?.[1] ?? x).trim()).filter(Boolean);
         const m = make(a, "sent", a.email, to, header("Subject"), body);
         sent.push({ email: a.email, to, subject: m.subject, text: m.text });

@@ -6,7 +6,7 @@
 // the reasons a contact reaches your Inbox (owner, project, follow, campaign, shared inbox).
 // DECISION: inbox.thread takes a conversationId or a contactId (the record Conversation tab); the handler requires one of them.
 // An unmatched conversation has no contact: its ACL falls back to the mailbox it arrived in (acl.fallback).
-import { bindInputs, defineManifest, entity, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { defineManifest, entity, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
 const cnvId = t.id('cnv');
@@ -113,6 +113,8 @@ const manifest = defineManifest({
         mailboxId: t.opt(id.mailbox), numberId: t.opt(id.number), campaignId: t.opt(id.campaign), preview: t.opt(t.str()),
         // what mail already knows of an email, so the thread needs no read-back: its thread key, subject and the people on it
         threadId: t.opt(t.str()), subject: t.opt(t.str()), participants: t.opt(t.arr(t.str())),
+        // mail from a person's private mailbox gets a conversation of that person's own, matched to no record and merged with nothing
+        private: t.opt(t.bool()), ownerId: t.opt(id.user),
       },
       out: { conversationId: cnvId, contactId: t.opt(id.record), linked: t.enm('sure', 'unsure', 'none'), taskId: t.opt(id.task) },
       emits: ['conversation.created', 'conversation.matched', 'conversation.needs_match', 'conversation.reply_received', 'conversation.campaign_reply'], idem: 'natural',
@@ -121,7 +123,7 @@ const manifest = defineManifest({
       in: {}, out: { byInbox: t.arr(t.obj({ kind: t.enm('mailbox', 'number'), id: t.str(), name: t.opt(t.str({ description: 'What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id' })), unread: t.int() })), total: t.int(), needsMatch: t.int() }, tool: 'inbox',
     }),
     write('inbox.mark_read', 'Mark a conversation read or unread', {
-      in: { conversationId: cnvId, read: t.opt(t.bool()) }, out: { conversation: conversationRow }, tool: 'inbox', offline: 'queue',
+      in: { conversationId: cnvId, read: t.opt(t.bool()) }, out: { conversation: conversationRow }, level: 'view', tool: 'inbox', offline: 'queue',
     }),
     write('inbox.follow_set', 'Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)', {
       in: { contactId: id.record, follow: t.bool(), alertOnReplies: t.opt(t.bool()) }, out: { following: t.bool(), alertOnReplies: t.bool() },
@@ -199,4 +201,6 @@ const manifest = defineManifest({
   ],
 });
 
-export default { ...manifest, capabilities: bindInputs(manifest.capabilities ?? [], { conversationId: { row: 'conversation' } }) };
+// The conversation caps stay bound to the Space (not to an entity row): the access rules hold no row for a conversation, so a row binding refused every one of them with not found, an unmatched
+// sender above all. The handlers run guardConversation (the list's own rule: owner, follower, campaign owner, the inbox it arrived in) before they act.
+export default manifest;

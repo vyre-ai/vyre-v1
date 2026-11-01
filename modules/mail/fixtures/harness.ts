@@ -52,6 +52,7 @@ export function harness(opts: HarnessOptions = {}) {
       if (cap === "inbox.link_message") {
         if (linkFails) throw new Error("inbox is down");
         const address = String(body.address);
+        if (body.private === true) return { conversationId: `cnv_private${address.replace(/[^a-z0-9]/g, "")}`, linked: "none" };   // a private mailbox's mail never meets a record
         const found = contacts[address] ?? [];
         const sure = found.filter((c) => c.score >= 0.8);
         const conversationId = `cnv_${address.replace(/[^a-z0-9]/g, "")}`;

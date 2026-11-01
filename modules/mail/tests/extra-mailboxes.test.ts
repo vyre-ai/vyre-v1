@@ -142,14 +142,16 @@ test("set_privacy moves the mailbox and announces it to the participants; the sa
   conforms(h);
 });
 
-test("set_privacy to private stops filing for new mail; mail already stored keeps its mark", async () => {
+test("set_privacy to private links new mail only into its owner's own conversations; mail already stored keeps its mark", async () => {
   const h = setup();
   await mailboxSetPrivacy(h.ctx, { mailboxId: "mbx_maya", privacy: "space" });
   const before = await ingest(h.ctx, letter("pat@acme.test", "<a@x>", "p-1", { mailboxId: "mbx_maya" }));
   assert.equal(h.calls("inbox.link_message").length, 1);
   await mailboxSetPrivacy(h.ctx, { mailboxId: "mbx_maya", privacy: "private" });
   await ingest(h.ctx, letter("pat@acme.test", "<b@x>", "p-2", { mailboxId: "mbx_maya" }));
-  assert.equal(h.calls("inbox.link_message").length, 1);   // the second message was not offered to the linking step
+  const calls = h.calls("inbox.link_message");
+  assert.equal(calls.length, 2);
+  assert.deepEqual([calls[0]!.input["private"], calls[1]!.input["private"]], [undefined, true]);   // the second message went to the linking step as private mail
   assert.equal(h.rows(`SELECT "isPrivate" FROM mail_message WHERE id = ?`, before.messageId)[0]!.isPrivate, 0);
 });
 
