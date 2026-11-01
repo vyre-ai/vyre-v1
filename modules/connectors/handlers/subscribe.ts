@@ -6,6 +6,8 @@ export interface Pending { url: string; actions: string[] }
 
 /** Make the subscribe calls a connector still owes its app. Never throws: what fails stays pending. */
 export async function retrySubscriptions(deps: ConnectorsDeps, ctx: ConnectorsCtx): Promise<void> {
+  // telling the app is a write to it: a pass run by an agent or the host would only leave an approval task each time, so the first pass a person runs (Sync now, a Resync) makes the call
+  if (!/^usr_/.test(String(ctx.actor ?? ""))) return;
   const tx = deps.tx;
   let hooks: { token: string; connector: string; pending: string | null }[];
   try { hooks = tx.all<{ token: string; connector: string; pending: string | null }>("SELECT token, connector, pending FROM cn_sync_hooks WHERE pending IS NOT NULL"); } catch { return; }
