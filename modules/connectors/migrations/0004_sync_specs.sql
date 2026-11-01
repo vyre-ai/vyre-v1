@@ -1,0 +1,12 @@
+-- SyncSpecs: the document an agent filled to bring an app's records into Records, kept per connector so Edit mapping can open the agent with it. The spec holds a Vault handle, never a value.
+CREATE TABLE IF NOT EXISTS cn_sync_specs (
+  connector TEXT PRIMARY KEY, spec TEXT NOT NULL, connection_id TEXT NOT NULL, applied_by TEXT, applied_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cn_sync_spec_types (
+  type TEXT NOT NULL, connector TEXT NOT NULL, remote TEXT NOT NULL, PRIMARY KEY (type, connector)
+);
+-- the Home item raised when an app refuses the key, so it can close when the key works again
+CREATE TABLE IF NOT EXISTS cn_reconnect_tasks (connection_id TEXT PRIMARY KEY, task_id TEXT NOT NULL);
+-- the address a CRM calls when something changed: /hooks/connectors/<token>. The token is the secret in the address; it only ever starts a sync pass, it never carries data in.
+-- pending: the subscribe calls (action names) still to make and the address to give, as JSON; a call that could not be made while the connection was being created is made by the next sync pass.
+CREATE TABLE IF NOT EXISTS cn_sync_hooks (token TEXT PRIMARY KEY, connector TEXT NOT NULL, created_at INTEGER NOT NULL, pending TEXT, hit_at INTEGER);

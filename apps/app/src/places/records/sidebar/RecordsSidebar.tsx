@@ -11,6 +11,7 @@ import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { TypeSheet, connectChoices } from "../typeedit/index.ts";
 import { StarredGroup } from "../starred/index.ts";
 import type { StarsOut } from "../starred/index.ts";
+import { SyncDot, SyncLogo, useSyncedTypes } from "../sync/index.ts";
 import { useOptionalRecordsData, useRecordsData, useScreenQuery } from "./data.tsx";
 import { MANAGE_TYPE, SCREENS, compact, effectiveType, sortedViews, typeGroups, worthShowing } from "./model.ts";
 import { Glyph, TypeTile, typeHue, typeIcon, viewGlyph } from "./parts.tsx";
@@ -92,6 +93,7 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   const visible = groups.reduce((n, g) => n + g.items.length, 0);
   // A Space that holds only Contacts: the start is an invitation, not a bare list.
   const inviting = canEdit && types.status === "ready" && visible <= 1 && q === "";
+  const syncs = useSyncedTypes(data.call);
   const connectTo = connectChoices(types.status === "ready" ? types.data.types : [], worthShowing);
   const addType = canEdit ? (): void => setMaking(true) : undefined;
 
@@ -104,8 +106,8 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
     for (const t of items) {
       sections.push(
         <SideRow
-          key={t.key} id={`type:${t.key}`} title={t.label} glyph={typeIcon(t.icon)} tile={<TypeTile icon={typeIcon(t.icon)} hue={typeHue(t.key)} syncedFrom={t.syncedFrom} />} selected={open === t.key && state.viewId === null}
-          trailing={<>{t.synced ? <Glyph name="sync" size={12} /> : null}<Text style={styles.count} testID={`count-${t.key}`}>{compact(t.count)}</Text></>}
+          key={t.key} id={`type:${t.key}`} title={t.label} glyph={typeIcon(t.icon)} tile={syncs.get(t.key) ? <SyncLogo app={syncs.get(t.key)!.app} connector={syncs.get(t.key)!.connector} /> : <TypeTile icon={typeIcon(t.icon)} hue={typeHue(t.key)} syncedFrom={t.syncedFrom} />} selected={open === t.key && state.viewId === null}
+          trailing={<>{syncs.get(t.key) ? <SyncDot row={syncs.get(t.key)!} app={syncs.get(t.key)!.app?.title ?? "the app"} onPress={data.nav.openSync ? () => { data.nav.openSync!(t.key); choose(); } : undefined} /> : t.synced ? <Glyph name="sync" size={12} /> : null}<Text style={styles.count} testID={`count-${t.key}`}>{compact(t.count)}</Text></>}
           onPress={() => { dispatch({ type: "open", key: t.key }); choose(); }}
         />,
       );
@@ -128,6 +130,7 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   if (hit("Record types")) manage.push(<SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={data.screen === "records.types"} onPress={() => { data.nav.openRecordTypes(); choose(); }} />);
   if (data.askVyre && hit("Ask Vyre")) manage.push(<SideRow key="ask" id="manage:ask" title="Ask Vyre" glyph="spark" selected={false} onPress={() => data.askVyre?.(open ? { type: open } : {})} />);
   if (canEdit && !inviting && hit("New record type")) manage.push(<SideRow key="new-type" id="manage:new" title="New record type" glyph="plus" selected={false} onPress={() => setMaking(true)} />);
+  if (data.nav.bringInCrm && canEdit && hit("Bring in from your CRM")) manage.push(<SideRow key="bring" id="manage:bring" title="Bring in from your CRM" glyph="sync" selected={false} onPress={() => { data.nav.bringInCrm!(); choose(); }} />);
   if (hit("Schema map")) manage.push(<SideRow key="map" id="manage:map" title="Schema map" glyph="schema" selected={data.screen === "records.schema-map"} onPress={() => { data.nav.openSchemaMap(); choose(); }} />);
 
   return (

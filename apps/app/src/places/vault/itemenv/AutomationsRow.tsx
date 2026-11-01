@@ -71,6 +71,7 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
   if (!offers && used.length === 0) return null;
   const gate = gateFor({ online, yourLevel: item.yourLevel, accounts, builder, asked });
   const start = (): void => { if (gate.state === "ready") data.nav.addToAutomations?.({ id: item.id, name: item.name, handle: item.handle }); };
+  const toRecords = (): void => { if (gate.state === "ready") data.nav.syncToRecords?.({ id: item.id, name: item.name, handle: item.handle }); };
   const fix = (): void => {
     if (gate.state === "offline") setTick((n) => n + 1);
     else if (gate.state === "no_use") data.nav.ask?.("assistant", "chat", { kind: "vault_item", id: item.id, title: item.name });
@@ -85,6 +86,7 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
       <View style={s.head}>
         <Text accessibilityRole="header" aria-level={2} style={s.h2}>Automations</Text>
         <View style={{ flex: 1 }} />
+        {offers && data.nav.syncToRecords ? <Btn label="Sync to Records" icon="sync" disabled={gate.state !== "ready"} onPress={toRecords} testID="item-sync-records" /> : null}
         {offers && data.nav.addToAutomations ? <Btn label="Add to Automations" icon="wand" primary={gate.state === "ready"} disabled={gate.state !== "ready"} onPress={start} testID="item-add-automations" /> : null}
       </View>
       {offers && gate.state !== "ready" ? (

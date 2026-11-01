@@ -26,6 +26,7 @@ Sync log: runs, pulls and pushes under one trace id each
 ```ts
 type In = {
   type: string;
+  account?: string;
   cursor?: string;
   limit?: number;
 };
@@ -62,6 +63,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "cursor": "example",
     "limit": 1,
     "type": "contact"

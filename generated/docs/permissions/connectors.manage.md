@@ -26,6 +26,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - connectors.outbox.list
 - connectors.outbox.retry
 - connectors.publish
+- connectors.read
 - connectors.remove
 - connectors.rollback
 - connectors.run
@@ -83,6 +84,14 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - sources.resume
 - sources.set_secret
 - sources.update
+- sync_specs.apply
+- sync_specs.backfill
+- sync_specs.get
+- sync_specs.preview
+- sync_specs.remove
+- sync_specs.sample
+- sync_specs.survey
+- sync_specs.validate
 - sync_types.confirm_deletes
 - sync_types.create
 - sync_types.discover

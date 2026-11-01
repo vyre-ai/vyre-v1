@@ -33,6 +33,10 @@ export interface RecordsNav {
   /** The read-only list of record types (the screen records.types). */
   openRecordTypes(): void;
   openSchemaMap(): void;
+  /** Bring in from your CRM: the assistant opens to bring an app's records into Records. Left out, the row is not drawn. */
+  bringInCrm?(): void;
+  /** The Sync page of a synced type (its sync dot opens it). */
+  openSync?(type: string): void;
 }
 
 export interface RecordsData {

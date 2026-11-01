@@ -1220,7 +1220,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setCodeHost: () => ({ dataDir: paths.root }),
         setHttpStepHost: () => ({ fill: (ctx: unknown, handle: string) => connectorPort.fill(ctx as Parameters<typeof connectorPort.fill>[0], { connector: "http_request", connectionId: "step", slot: "auth", handle }) }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
-        setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open() }, now }),
+        setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open(), space: spaceStore.space }, now }),
         ...(o.seams?.drivers ?? {}),
       };
       const setters = o.seams?.setters ?? loaded.hostSeams;

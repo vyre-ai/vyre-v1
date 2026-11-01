@@ -22,9 +22,11 @@ CREATE TABLE IF NOT EXISTS sy_links (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS sy_links_remote ON sy_links (sync_type, remote_id);
 CREATE TABLE IF NOT EXISTS sy_state (sync_type TEXT PRIMARY KEY, cursor TEXT, last_run_at INTEGER, pending_deletes TEXT);
+-- The ids a deletion sweep has seen so far (the sweep reads the app a group of pages at a time); emptied when the sweep ends.
+CREATE TABLE IF NOT EXISTS sy_seen (sync_type TEXT NOT NULL, remote_id TEXT NOT NULL, PRIMARY KEY (sync_type, remote_id));
 CREATE TABLE IF NOT EXISTS sy_outbox (
   outbox_id TEXT PRIMARY KEY, sync_type TEXT NOT NULL, local_id TEXT NOT NULL, remote_id TEXT, op TEXT NOT NULL, fields TEXT NOT NULL, values_json TEXT NOT NULL, replaced TEXT,
-  idem_key TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0, error TEXT, trace_id TEXT, created_at INTEGER NOT NULL, done_at INTEGER, undone_at INTEGER
+  idem_key TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0, error TEXT, trace_id TEXT, created_at INTEGER NOT NULL, done_at INTEGER, undone_at INTEGER, by_actor TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS sy_outbox_idem ON sy_outbox (sync_type, idem_key);
 CREATE TABLE IF NOT EXISTS sy_conflicts (

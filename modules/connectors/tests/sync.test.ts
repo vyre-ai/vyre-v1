@@ -84,7 +84,7 @@ const seedConflict = (w: World, syncTypeId: string, id: string, status = "open")
 
 test("every capability this packet owns has a handler, here and in the loader entry", async () => {
   const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string }[] };
-  const want = reg.capabilities.map((c) => c.name).filter((n) => n.startsWith("sync_types.") || ["connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push"].includes(n));
+  const want = reg.capabilities.map((c) => c.name).filter((n) => (n.startsWith("sync_types.") && !["sync_types.record_state", "sync_types.field_history", "sync_types.restore_field", "sync_types.status"].includes(n)) || ["connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push"].includes(n));
   assert.equal(want.length, 21, `16 sync_types + sync_now + 3 outbox + push = 21, got ${want.length}`);
   const w = await world();
   for (const n of want) {
@@ -112,7 +112,7 @@ test("create binds a new record type: the type and its columns come from schema.
   assert.deepEqual({ type: s.type, connector: s.connector, remote: s.remote, state: s.state, match: s.match, createAtSource: s.createAtSource, deletes: s.deletes, conflict: s.conflict, nightlyReconcile: s.nightlyReconcile }, {
     type: "contact", connector: "acme", remote: "contacts", state: "initial", match: ["email"], createAtSource: false, deletes: "off", conflict: "newest", nightlyReconcile: true,
   });
-  assert.deepEqual(s.polling, { activeSec: 60, idleSec: 300, dormantSec: 3600 });
+  assert.deepEqual(s.polling, { activeSec: 120, idleSec: 900, dormantSec: 3600 });
   assert.deepEqual([s.pending, s.conflicts, s.schemaChanges], [0, 0, 0]);
   const apply = w.calls.find((c) => c.cap === "schema.apply")!;
   assert.equal(apply.input.ops.length, 1);
@@ -452,11 +452,11 @@ test("sync_now starts a Run for a type, a binding id or every type on a connecti
   assert.deepEqual(r1, { runId: "run_1" });
   const start = w.calls.find((c) => c.cap === "runs.start")!;
   assert.deepEqual({ kind: start.input.kind, owner: start.input.owner, subject: start.input.subject }, { kind: "connector_sync", owner: "usr_dana", subject: { type: "record_type", id: "contact" } });
-  assert.deepEqual(syncRequest(w.k.deps, "run_1"), { syncTypeIds: [a.syncTypeId], mode: "incremental", runAutomations: false });
-  await w.hs["connectors.sync_now"](w.ctx, { syncTypeId: b.syncTypeId, mode: "backfill", runAutomations: true });
-  assert.deepEqual(syncRequest(w.k.deps, "run_2"), { syncTypeIds: [b.syncTypeId], mode: "backfill", runAutomations: true });
+  assert.deepEqual(syncRequest(w.k.deps, "run_1"), { syncTypeIds: [a.syncTypeId], mode: "incremental", runAutomations: false, by: "usr_dana" });
+  await w.hs["connectors.sync_now"](w.ctx, { syncTypeId: b.syncTypeId, mode: "backfill", runAutomations: true, by: "usr_dana" });
+  assert.deepEqual(syncRequest(w.k.deps, "run_2"), { syncTypeIds: [b.syncTypeId], mode: "backfill", runAutomations: true, by: "usr_dana" });
   await w.hs["connectors.sync_now"](w.ctx, { connectionId: w.connectionId, mode: "reconcile" });
-  assert.deepEqual(syncRequest(w.k.deps, "run_3"), { syncTypeIds: [a.syncTypeId, b.syncTypeId], mode: "reconcile", runAutomations: false });
+  assert.deepEqual(syncRequest(w.k.deps, "run_3"), { syncTypeIds: [a.syncTypeId, b.syncTypeId], mode: "reconcile", runAutomations: false, by: "usr_dana" });
   assert.deepEqual(w.calls.filter((c) => c.cap === "runs.start")[2]!.input.subject, { type: "connection", id: w.connectionId });
   await w.hs["connectors.sync_now"](w.ctx, { type: "contact", mode: "dry_run" });
   assert.equal(syncRequest(w.k.deps, "run_4")!.mode, "dry_run");

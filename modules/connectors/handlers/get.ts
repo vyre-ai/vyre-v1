@@ -5,7 +5,7 @@
 import type { ConnectorDef } from "../projections.ts";
 
 export const OBJECT_ACTION_KEYS = ["list", "listAfter", "create", "update", "delete"] as const;
-export type ObjectActions = Partial<Record<(typeof OBJECT_ACTION_KEYS)[number], string>>;
+export type ObjectActions = Partial<Record<(typeof OBJECT_ACTION_KEYS)[number], string>> & { /** The list answers `{ since }` with only what changed. */ since?: boolean };
 
 /** The per-object action names of a definition, keeping only the five known keys with non-empty string values. Undefined when the connector names none. */
 export function objectsOf(def: Pick<ConnectorDef, "objects">): Record<string, ObjectActions> | undefined {
@@ -19,6 +19,7 @@ export function objectsOf(def: Pick<ConnectorDef, "objects">): Record<string, Ob
       const v = (names as ObjectActions)[k];
       if (typeof v === "string" && v !== "") kept[k] = v;
     }
+    if ((names as ObjectActions).since === true) kept.since = true;
     if (Object.keys(kept).length > 0) out[object] = kept;
   }
   return Object.keys(out).length > 0 ? out : undefined;

@@ -16,4 +16,5 @@ HTTP 422. Retryable: no.
 - records.update
 - settings.set
 - settings.set_space
+- sync_types.restore_field
 - tasks.transition

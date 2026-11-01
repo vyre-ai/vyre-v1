@@ -182,10 +182,11 @@ const withConnector: SkillsPort = {
     return [
       { name: "working-in-vyre", description: "How an agent works inside Vyre.", tier: "builtin" },
       { name: "focus-vault", description: "Work in the Vault.", tier: "builtin" },
+      { name: "crm-sync-builder", description: "Bring a CRM into Records.", tier: "builtin" },
       { name: "connector-builder", description: "Connect an app or API to Automations: hook up an app, use a key in a flow. Finds docs, offers actions, tests reads.", tier: "builtin" },
     ];
   },
-  async load(name) { return name === "connector-builder" ? { name, body: "# Connector builder\nFind the docs first." } : name === "focus-vault" ? { name, body: "Use a secret by handle." } : name === "working-in-vyre" ? { name, body: "# Working in Vyre\nThe manual." } : null; },
+  async load(name) { return name === "crm-sync-builder" ? { name, body: "# CRM sync builder\nDiscover first." } : name === "connector-builder" ? { name, body: "# Connector builder\nFind the docs first." } : name === "focus-vault" ? { name, body: "Use a secret by handle." } : name === "working-in-vyre" ? { name, body: "# Working in Vyre\nThe manual." } : null; },
 };
 const threadTitled = (title: string, screen?: boolean): Record<string, unknown> => ({ ...FULL, "threads.get": { thread: { kind: "ask", title, scopeType: "vault_item", scopeId: "vit_1", members: [], agents: [] } }, ...(screen ? { "chat.screen.get": { screen: { place: "vault", title: "Resend" } } } : {}) });
 
@@ -200,6 +201,13 @@ test("Build a connector is the same, and a Vault chat with any other title keeps
   assert.match(built.sections.find((s) => s.id === "focus")?.text ?? "", /^connector-builder\n/);
   const other = await createContextBuilder({ call: fake(threadTitled("Ask about Resend", true)).call, skills: withConnector, now: () => at }).build(input());
   assert.match(other.sections.find((s) => s.id === "focus")?.text ?? "", /^focus-vault\n/);
+});
+
+test("a chat that Sync to Records, Bring in from your CRM or Edit mapping started loads the crm-sync-builder skill", async () => {
+  for (const title of ["Sync HubSpot to Records", "Bring my CRM into Records", "Change how Ledger syncs to Records"]) {
+    const ctx = await createContextBuilder({ call: fake(threadTitled(title, true)).call, skills: withConnector, now: () => at }).build(input());
+    assert.match(ctx.sections.find((s) => s.id === "focus")?.text ?? "", /^crm-sync-builder\n# CRM sync builder/, title);
+  }
 });
 
 test("in any other chat the skill is in the index with a description that says what to ask for", async () => {

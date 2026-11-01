@@ -16,12 +16,12 @@ const dir = t.enm('pull', 'push', 'both', 'off');
 const deletes = t.enm('off', 'soft', 'travel');
 const conflictRule = t.enm('newest', 'source', 'vyre', 'ask');
 
-const fieldMap = t.obj({ key: fieldKey, remote: t.str(), dir, transform: t.opt(t.str({ description: 'Small expression over the value' })) });
+const fieldMap = t.obj({ key: fieldKey, remote: t.str(), dir, transform: t.opt(t.str({ description: 'Small expression over the value' })), relation: t.opt(id.recordType), inverse: t.opt(fieldKey), constant: t.opt(t.str({ description: 'A value stamped on every record this binding pulls (the From field)' })) });
 const polling = t.obj({ activeSec: t.int({ minimum: 30 }), idleSec: t.int({ minimum: 60 }), dormantSec: t.int({ minimum: 300 }) });
 
 /** The action names a connector uses to sync one object; a name left out keeps the convention list_<objects>, list_<objects>_after, create_<object>, update_<object>, delete_<object>. */
 const objectActions = t.obj({
-  list: t.opt(t.str()), listAfter: t.opt(t.str({ description: 'List the next page; takes { after }' })), create: t.opt(t.str()), update: t.opt(t.str()), delete: t.opt(t.str()),
+  list: t.opt(t.str()), listAfter: t.opt(t.str({ description: 'List the next page; takes { after }' })), create: t.opt(t.str()), update: t.opt(t.str()), delete: t.opt(t.str()), since: t.opt(t.bool()),
 });
 
 const connectorRow = t.obj({
@@ -42,16 +42,57 @@ const connectionRow = t.obj({
 });
 
 const syncedTypeRow = t.obj({
-  syncTypeId, type: id.recordType, connector: id.connector, connectionId: id.connection, remote: t.str(),
+  syncTypeId, type: id.recordType, account: t.opt(t.str()), connector: id.connector, connectionId: id.connection, remote: t.str(),
   state: t.enm('initial', 'syncing', 'paused', 'needs_review', 'error'),
   fields: t.arr(fieldMap), match: t.arr(fieldKey), createAtSource: t.bool(), deletes, conflict: conflictRule, polling, nightlyReconcile: t.bool(),
   lastSyncAt: t.opt(t.ts()), pending: t.int({ minimum: 0 }), conflicts: t.int({ minimum: 0 }), schemaChanges: t.int({ minimum: 0 }),
+  app: t.opt(t.obj({ title: t.str(), domain: t.opt(t.str()) })),
 });
 
 const bindingIn = {
-  type: id.recordType, connectionId: id.connection, remote: t.str({ examples: ['contacts'] }),
+  type: id.recordType, account: t.opt(t.str({ description: 'Which account of the app this binding reads; accounts of one app share the record type' })), connectionId: id.connection, remote: t.str({ examples: ['contacts'] }),
   fields: t.arr(fieldMap), match: t.arr(fieldKey), createAtSource: t.opt(t.bool()), deletes: t.opt(deletes), conflict: t.opt(conflictRule),
   polling: t.opt(polling), nightlyReconcile: t.opt(t.bool()),
+};
+
+
+// ---- SyncSpec: the one document an agent fills to bring an app's records into Records
+const specPointer = t.str({ description: 'A JSON pointer: /id, /properties/email. / is the whole answer.', examples: ['/id'] });
+const specField = t.obj({
+  path: specPointer, label: t.str(), type: t.enm('text', 'number', 'money', 'date', 'bool', 'choice', 'multi', 'email', 'phone', 'url', 'relation', 'json'),
+  choices: t.opt(t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }), { examples: [[{ value: 'lead', label: 'Lead' }]] })), relationTo: t.opt(t.str({ description: 'The remote object a relation points at' })), readOnly: t.opt(t.bool()),
+});
+const specCursor = t.obj({ kind: t.enm('none', 'page', 'cursor', 'offset', 'link'), param: t.opt(t.str()), next: t.opt(specPointer), size: t.opt(t.int({ minimum: 1 })), sizeParam: t.opt(t.str()), start: t.opt(t.int({ minimum: 0 })) });
+const specWrite = t.obj({ path: t.str({ examples: ['/contacts/{id}'] }), method: t.opt(t.enm('POST', 'PUT', 'PATCH', 'DELETE')), evidence: t.str({ description: 'The docs page or quote that shows this call. A write without it is refused.' }), bodyAt: t.opt(t.str({ description: 'Pointer in the body where the properties go; empty for the body itself' })), idAt: t.opt(specPointer) });
+const specObject = t.obj({
+  remote: t.str(), label: t.str(), count: t.opt(t.int({ minimum: 0 })),
+  list: t.obj({
+    path: t.str({ examples: ['/contacts'] }), query: t.opt(t.rec(t.str())), cursor: t.opt(specCursor),
+    updatedSince: t.opt(t.obj({ param: t.str(), format: t.opt(t.str()) })), filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
+  }),
+  get: t.opt(t.obj({ path: t.str() })), create: t.opt(specWrite), update: t.opt(specWrite), delete: t.opt(specWrite),
+  id: specPointer, updatedAt: t.opt(specPointer), itemsAt: specPointer, openUrl: t.opt(t.str({ description: 'Address of a record in the app; {id} is filled in. Shown as Open in the app.' })),
+  fields: t.arr(specField),
+  webhook: t.opt(t.obj({ events: t.arr(t.str()), subscribePath: t.opt(t.str()), evidence: t.opt(t.str()), manualUrl: t.opt(t.bool()), signature: t.opt(t.str()) })),
+});
+const specMapping = t.obj({
+  remote: t.str(), recordType: id.recordType, title: t.opt(t.str()),
+  fields: t.arr(t.obj({ path: specPointer, field: t.opt(fieldKey), direction: t.enm('both', 'pull', 'push', 'off') })),
+  match: t.opt(t.arr(specPointer)), stagesFrom: t.opt(specPointer), titleField: t.opt(specPointer),
+  deletes: t.opt(deletes), createAtSource: t.opt(t.bool()),
+});
+const syncSpec = t.obj({
+  app: t.obj({ name: t.str(), domain: t.str({ examples: ['api.example.com'] }), docsUrl: t.opt(t.str()), logoHint: t.opt(t.str()), account: t.opt(t.str({ description: 'Which account of the app this is (a location, a workspace); accounts share record types and each record says which it came from' })) }),
+  auth: t.obj({ vaultHandle: id.handle, style: t.enm('bearer', 'header', 'basic', 'query', 'oauth'), header: t.opt(t.str()), prefix: t.opt(t.str()), headers: t.opt(t.rec(t.str())) }),
+  objects: t.arr(specObject, { minItems: 1 }),
+  mapping: t.arr(specMapping, { minItems: 1 }),
+  plan: t.obj({ firstPull: t.obj({ words: t.str({ description: 'Plain words: what the first pull brings in' }) }), backfill: t.enm('later', 'now'), conflicts: t.lit('newest'), audience: t.opt(t.enm('space', 'added', 'me')) }),
+});
+const discoverAuth = t.obj({ vaultHandle: id.handle, style: t.enm('bearer', 'header', 'basic'), header: t.opt(t.str()), prefix: t.opt(t.str()), headers: t.opt(t.rec(t.str())) });
+const specProblem = t.obj({ level: t.enm('error', 'warn'), at: t.str(), message: t.str() });
+const specChecks = {
+  ok: t.bool(), problems: t.arr(specProblem),
+  objects: t.arr(t.obj({ remote: t.str(), items: t.int(), hasNext: t.bool(), fieldsFound: t.int(), fieldsMissing: t.arr(t.str()), status: t.int() })),
 };
 
 const testResult = t.obj({ passed: t.int(), failed: t.int(), cases: t.arr(t.obj({ name: t.str(), ok: t.bool(), message: t.opt(t.str()) })) });
@@ -143,6 +184,10 @@ export default defineManifest({
       in: { key: id.connector, action: t.str(), connectionId: id.connection, input: t.json(), dryRun: t.opt(t.bool()) }, out: { output: t.json(), dryRun: t.bool() },
       on: ['connector', '/key'], perm: 'connectors.manage', gate: { act: 'send', when: "actor.kind != 'person'" }, emits: ['connection.needs_reconnect'], tool: 'engineer', cli: 'vyre connector run',
     }),
+    outward('connectors.read', 'Run one read action (a GET) of a connector against the live app, for the sync engine: reads are not held at the Gate for the person or agent the pass runs as, writes never go through here', {
+      in: { key: id.connector, action: t.str(), connectionId: id.connection, input: t.json() }, out: { output: t.json() },
+      on: ['connector', '/key'], perm: 'connectors.manage', gate: { act: 'none', reason: 'Reads a list for a sync pass and refuses every write; the sync engine is its only caller, so it carries no tool.' }, emits: ['connection.needs_reconnect'], errors: ['validation.precondition_failed', 'permission.no_grant', 'provider.auth_failed'],
+    }),
     read('connectors.diff', 'Diff a draft against the live version of a connector', {
       in: { key: id.connector, draftId: t.opt(draftId) }, out: { files: t.arr(t.obj({ path: t.str(), added: t.int(), removed: t.int() })), breaking: t.bool() }, on: ['connector', '/key'], perm: 'connectors.manage', tool: 'engineer',
     }),
@@ -180,7 +225,7 @@ export default defineManifest({
     write('connections.delete', 'Remove a connection; synced types bound to it pause', { in: { connectionId: id.connection }, out: { deleted: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', audit: 'always', emits: ['connection.deleted'], tool: 'engineer' }),
     // ---- synced types
     read('sync_types.list', 'List synced types with state, pending pushes, conflicts and schema changes', { in: { connector: t.opt(id.connector), ...pageIn }, out: { syncedTypes: t.arr(syncedTypeRow), ...pageOut }, tool: 'records', label: 'filter' }),
-    read('sync_types.get', 'Read the sync binding of a record type (the header line, mapping and rules)', { in: { type: id.recordType }, out: { syncedType: syncedTypeRow }, on: ['record_type', '/type'], tool: 'records', label: 'check' }),
+    read('sync_types.get', 'Read the sync binding of a record type (the header line, mapping and rules)', { in: { type: id.recordType, account: t.opt(t.str()) }, out: { syncedType: syncedTypeRow }, on: ['record_type', '/type'], tool: 'records', label: 'check' }),
     read('sync_types.discover', 'List remote objects and their fields with a proposed record type and mapping', {
       in: { connectionId: id.connection, remote: t.opt(t.str()) },
       out: { objects: t.arr(t.obj({ remote: t.str(), title: t.str(), fields: t.arr(t.obj({ remote: t.str(), type: t.str(), proposedKey: fieldKey, proposedType: t.str(), sensitive: t.bool() })) })) },
@@ -190,31 +235,31 @@ export default defineManifest({
       in: bindingIn, out: { syncedType: syncedTypeRow }, perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['sync.type_bound', 'schema.changed'], tool: 'engineer', errors: ['validation.duplicate'],
     }),
     write('sync_types.update', 'Change field directions, transforms, match, create-at-source, deletes, conflict rule or polling', {
-      in: { type: id.recordType, fields: t.opt(t.arr(fieldMap)), match: t.opt(t.arr(fieldKey)), createAtSource: t.opt(t.bool()), deletes: t.opt(deletes), conflict: t.opt(conflictRule), polling: t.opt(polling), nightlyReconcile: t.opt(t.bool()) },
+      in: { type: id.recordType, account: t.opt(t.str()), fields: t.opt(t.arr(fieldMap)), match: t.opt(t.arr(fieldKey)), createAtSource: t.opt(t.bool()), deletes: t.opt(deletes), conflict: t.opt(conflictRule), polling: t.opt(polling), nightlyReconcile: t.opt(t.bool()) },
       out: { syncedType: syncedTypeRow }, on: ['record_type', '/type'], perm: 'connectors.manage', audit: 'always', emits: ['sync.type_updated'], tool: 'records',
     }),
     read('sync_types.preview', 'Dry run: what a sync would do, such as will update 34 records in HubSpot, and the first-sync match counts', {
-      in: { type: id.recordType, direction: t.opt(t.enm('pull', 'push', 'both')) }, out: previewOut, on: ['record_type', '/type'], perm: 'connectors.manage', tool: 'records',
+      in: { type: id.recordType, account: t.opt(t.str()), direction: t.opt(t.enm('pull', 'push', 'both')) }, out: previewOut, on: ['record_type', '/type'], perm: 'connectors.manage', tool: 'records',
     }),
-    write('sync_types.pause', 'Pause sync of a type', { in: { type: id.recordType }, out: { ok: t.bool() }, on: ['record_type', '/type'], perm: 'connectors.manage', emits: ['sync.type_paused'], tool: 'records' }),
-    write('sync_types.resume', 'Resume sync of a type', { in: { type: id.recordType }, out: { ok: t.bool() }, on: ['record_type', '/type'], perm: 'connectors.manage', emits: ['sync.type_resumed'], tool: 'records' }),
+    write('sync_types.pause', 'Pause sync of a type', { in: { type: id.recordType, account: t.opt(t.str()) }, out: { ok: t.bool() }, on: ['record_type', '/type'], perm: 'connectors.manage', emits: ['sync.type_paused'], tool: 'records' }),
+    write('sync_types.resume', 'Resume sync of a type', { in: { type: id.recordType, account: t.opt(t.str()) }, out: { ok: t.bool() }, on: ['record_type', '/type'], perm: 'connectors.manage', emits: ['sync.type_resumed'], tool: 'records' }),
     read('sync_types.log', 'Sync log: runs, pulls and pushes under one trace id each', {
-      in: { type: id.recordType, ...pageIn },
+      in: { type: id.recordType, account: t.opt(t.str()), ...pageIn },
       out: { entries: t.arr(t.obj({ at: t.ts(), kind: t.enm('pull', 'push', 'conflict', 'error', 'schema'), summary: t.str(), runId: t.opt(id.run), traceId: t.opt(id.trace) })), ...pageOut },
       on: ['record_type', '/type'], perm: 'connectors.manage', tool: 'records',
     }),
     read('sync_types.schema_changes', 'Remote schema changes waiting for review (for example 3 changes to review)', {
-      in: { type: id.recordType }, out: { changes: t.arr(t.obj({ changeKey: t.str(), kind: t.enm('field_added', 'field_removed', 'field_retyped', 'object_removed'), remote: t.str(), summary: t.str() })) },
+      in: { type: id.recordType, account: t.opt(t.str()) }, out: { changes: t.arr(t.obj({ changeKey: t.str(), kind: t.enm('field_added', 'field_removed', 'field_retyped', 'object_removed'), remote: t.str(), summary: t.str() })) },
       on: ['record_type', '/type'], perm: 'connectors.manage', tool: 'records',
     }),
     write('sync_types.review_schema', 'Accept or ignore remote schema changes; accepted ones go through schema.apply', {
-      in: { type: id.recordType, accept: t.arr(t.str()), ignore: t.arr(t.str()) }, out: { accepted: t.int(), ignored: t.int() }, on: ['record_type', '/type'], perm: 'connectors.manage', emits: ['sync.type_updated', 'schema.changed'], tool: 'records',
+      in: { type: id.recordType, account: t.opt(t.str()), accept: t.arr(t.str()), ignore: t.arr(t.str()) }, out: { accepted: t.int(), ignored: t.int() }, on: ['record_type', '/type'], perm: 'connectors.manage', emits: ['sync.type_updated', 'schema.changed'], tool: 'records',
     }),
     write('sync_types.confirm_deletes', 'Decide what happens when many records vanished at the source: mark them removed or keep them', {
-      in: { type: id.recordType, decision: t.enm('mark_removed', 'keep') }, out: { removed: t.int() }, on: ['record_type', '/type'], perm: 'connectors.manage', audit: 'always', emits: ['sync.type_updated'], tool: 'records',
+      in: { type: id.recordType, account: t.opt(t.str()), decision: t.enm('mark_removed', 'keep') }, out: { removed: t.int() }, on: ['record_type', '/type'], perm: 'connectors.manage', audit: 'always', emits: ['sync.type_updated'], tool: 'records',
     }),
     write('sync_types.make_native', 'Detach a synced type and keep it as a native type with its ids, history and attribution', {
-      in: { type: id.recordType }, out: { ok: t.bool() }, on: ['record_type', '/type'], perm: 'connectors.manage', audit: 'always', emits: ['sync.type_native'], tool: 'records', agent: { planMode: 'blocked' },
+      in: { type: id.recordType, account: t.opt(t.str()) }, out: { ok: t.bool() }, on: ['record_type', '/type'], perm: 'connectors.manage', audit: 'always', emits: ['sync.type_native'], tool: 'records', agent: { planMode: 'blocked' },
     }),
     write('sync_types.resolve_conflict', 'Settle a sync conflict: keep ours, take theirs, or enter a value', {
       in: { conflictId, resolution: t.enm('ours', 'theirs', 'value'), value: t.opt(t.json()) }, out: { recordId: id.record }, perm: 'records.edit', idem: 'key', emits: ['record.updated'], tool: 'records',
@@ -225,13 +270,98 @@ export default defineManifest({
     outward('sync_types.undo_push', 'Reverse one push using the stored replaced value', {
       in: { outboxId }, out: { ok: t.bool() }, perm: 'records.edit', emits: ['sync.push_undone'], gate: { act: 'send', when: "actor.kind != 'person'" }, tool: 'records',
     }),
+    // ---- SyncSpec: bring an app's records into Records
+    read('sync_specs.validate', 'Check a SyncSpec against a real sampled page of the app (read-only GET with the Vault handle): the list, ids, next page, every mapped field path, value types and choices. Writes nothing', {
+      in: { spec: syncSpec }, out: specChecks, perm: 'connectors.manage', tool: 'records', cli: 'vyre sync-spec validate', errors: ['validation.bad_input', 'internal.unavailable'],
+    }),
+    read('sync_specs.preview', 'Dry run of a SyncSpec: the record types it would make, three sample records drawn from the real page, and what the first pull would bring in. Writes nothing to Vyre or to the app', {
+      in: { spec: syncSpec },
+      out: {
+        ...specChecks, summary: t.str(), size: t.obj({ records: t.int({ minimum: 0 }), bytes: t.int({ minimum: 0 }), text: t.str({ examples: ['about 180 MB'] }) }),
+        types: t.arr(t.obj({ type: id.recordType, remote: t.str(), isNew: t.bool(), title: t.str(), existing: t.int(), fields: t.arr(t.obj({ key: fieldKey, label: t.str(), type: t.str(), dir: t.str() })) })),
+        samples: t.arr(t.obj({ type: id.recordType, remote: t.str(), title: t.str(), fields: t.arr(t.obj({ key: fieldKey, label: t.str(), value: t.json() })) })),
+      },
+      perm: 'connectors.manage', tool: 'records', errors: ['validation.bad_input', 'internal.unavailable'],
+    }),
+    read('sync_specs.sample', 'Read one page of an app, read-only (GET only), with a Vault handle as the key: where the lists are, what one item holds, how the next page is asked for, a total if there is one. Also reads field-metadata and schema endpoints', {
+      in: { auth: discoverAuth, domain: t.str({ examples: ['api.example.com'] }), path: t.str({ examples: ['/contacts'] }), query: t.opt(t.rec(t.str())), url: t.opt(t.str({ description: 'A full address on the same host, such as a next link' })), items: t.opt(t.int({ minimum: 1, maximum: 10 })) },
+      out: {
+        status: t.int(), ok: t.bool(), reason: t.opt(t.str()), nextLink: t.opt(t.str()), items: t.opt(t.arr(t.json())), preview: t.opt(t.str()),
+        shape: t.opt(t.obj({
+          kind: t.enm('object', 'array', 'empty', 'text'),
+          lists: t.arr(t.obj({ itemsAt: t.str(), count: t.int(), idAt: t.opt(t.str()), updatedAtGuess: t.opt(t.str()), fields: t.arr(t.obj({ path: t.str(), type: t.str(), seen: t.int(), example: t.opt(t.str()) })) })),
+          cursors: t.arr(t.obj({ pointer: t.str(), value: t.str() })), totals: t.arr(t.obj({ pointer: t.str(), value: t.int() })), keys: t.opt(t.arr(t.str())),
+        })),
+        estimate: t.opt(t.obj({ count: t.int(), source: t.str() })),
+      },
+      perm: 'connectors.manage', tool: 'records', cli: 'vyre sync-spec sample', errors: ['validation.bad_input', 'permission.no_grant', 'internal.unavailable'],
+    }),
+    read('sync_specs.survey', 'Read up to 12 paths of an app at once, read-only, and say for each what lists it holds, how many items, a total if given. Use it to see which objects an app has', {
+      in: { auth: discoverAuth, domain: t.str(), paths: t.arr(t.str(), { minItems: 1, maxItems: 12 }) },
+      out: { results: t.arr(t.obj({ path: t.str(), status: t.int(), reason: t.opt(t.str()), lists: t.arr(t.obj({ itemsAt: t.str(), count: t.int(), idAt: t.opt(t.str()), fields: t.int() })), total: t.opt(t.int()), nextLink: t.opt(t.bool()) })) },
+      perm: 'connectors.manage', tool: 'records', errors: ['validation.bad_input', 'permission.no_grant', 'internal.unavailable'],
+    }),
+    write('sync_specs.apply', 'Apply a validated SyncSpec: a live connector (with its own tests), a connection holding the Vault handle, the record types with fields, choices, relations and stages, the synced-type bindings, and the first pull', {
+      in: { spec: syncSpec },
+      out: { connector: id.connector, connectionId: id.connection, version: t.str(), types: t.arr(t.obj({ type: id.recordType, syncTypeId, runId: t.opt(id.run) })), live: t.enm('polling', 'webhook'), webhookUrl: t.opt(t.str({ description: 'The address to give the app by hand when its docs show no subscribe call' })) },
+      perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.created', 'connector.published', 'connection.created', 'sync.type_bound', 'schema.changed'], tool: 'records', cli: 'vyre sync-spec apply',
+      agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.precondition_failed', 'validation.duplicate', 'internal.unavailable'],
+    }),
+    read('sync_specs.get', 'Read the SyncSpec a synced type was made from (so Edit mapping can open the agent with it)', {
+      in: { type: t.opt(id.recordType), account: t.opt(t.str()), connector: t.opt(id.connector) },
+      out: { spec: syncSpec, connector: id.connector, connectionId: id.connection, appliedAt: t.ts(), types: t.arr(t.obj({ type: id.recordType, remote: t.str() })) },
+      perm: 'connectors.manage', tool: 'records', errors: ['validation.not_found'],
+    }),
+    write('sync_specs.backfill', 'Bring in everything, not just the first-pull filter: re-applies the stored spec with the filter dropped and starts the pull', {
+      in: { type: id.recordType, account: t.opt(t.str()) }, out: { runId: t.opt(id.run) },
+      perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.published'], tool: 'records', errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
+    read('sync_types.record_state', 'Where one record came from and how each of its synced fields is doing: saved, saving, failed or only here, with the address to open it in the app', {
+      in: { type: id.recordType, recordId: id.record },
+      out: {
+        synced: t.bool(), state: t.enm('synced', 'saving', 'failed', 'local'), lastSyncAt: t.opt(t.ts()), remoteId: t.opt(t.str()), openUrl: t.opt(t.str()),
+        app: t.opt(t.obj({ key: id.connector, title: t.str(), domain: t.opt(t.str()) })),
+        fields: t.arr(t.obj({ key: fieldKey, dir, state: t.enm('synced', 'saving', 'failed', 'local'), at: t.opt(t.ts()), error: t.opt(t.str()), outboxId: t.opt(outboxId), history: t.int({ minimum: 0 }) })),
+      },
+      on: ['record', '/recordId'], tool: 'records', label: 'check',
+    }),
+    read('sync_types.field_history', 'The earlier values of one field that a newest-wins settlement replaced: yours when the app was newer, the app\'s when you were', {
+      in: { type: id.recordType, recordId: id.record, field: fieldKey },
+      out: { entries: t.arr(t.obj({ historyId: t.str(), value: t.json(), at: t.opt(t.ts()), replacedBy: t.enm('app', 'you', 'push'), by: t.opt(t.str()), actor: t.str() })) },
+      on: ['record', '/recordId'], tool: 'records', label: 'check',
+    }),
+    write('sync_types.restore_field', 'Put an earlier value of a field back (an ordinary edit, newer than the app\'s value, so it is sent on the next pass) and start that pass', {
+      in: { type: id.recordType, recordId: id.record, field: fieldKey, historyId: t.str() }, out: { ok: t.bool(), runId: t.opt(id.run) },
+      on: ['record', '/recordId'], perm: 'records.edit', tool: 'records', emits: ['record.updated'], errors: ['validation.not_found', 'validation.bad_input', 'validation.field_locked'],
+    }),
+    read('sync_types.status', 'The Sync page of a synced type: last pass, counts, failures, pushes waiting, whether a first-pull filter still holds, and the next poll', {
+      in: { type: id.recordType, account: t.opt(t.str()) },
+      out: {
+        type: id.recordType, app: t.obj({ key: id.connector, title: t.str(), domain: t.opt(t.str()) }), state: t.enm('initial', 'syncing', 'paused', 'needs_review', 'error'), paused: t.bool(), deletes, conflict: conflictRule,
+        account: t.opt(t.str()), accounts: t.opt(t.arr(t.obj({ account: t.str(), state: t.str(), records: t.int({ minimum: 0 }), estimate: t.opt(t.int({ minimum: 0 })), pending: t.int({ minimum: 0 }) }))), polling, records: t.int({ minimum: 0 }), estimate: t.opt(t.int({ minimum: 0 })), filter: t.opt(t.str()), canBackfill: t.bool(), catchingUp: t.opt(t.bool()), lastRun: t.opt(t.obj({ at: t.ts(), summary: t.str() })),
+        pending: t.int({ minimum: 0 }), failedPushes: t.int({ minimum: 0 }), conflicts: t.int({ minimum: 0 }), schemaChanges: t.int({ minimum: 0 }),
+        failures: t.arr(t.obj({ at: t.ts(), summary: t.str() })), sentToday: t.int({ minimum: 0 }), nextPollAt: t.opt(t.ts()), spec: t.bool(),
+      },
+      on: ['record_type', '/type'], tool: 'records', label: 'check', errors: ['validation.not_found'],
+    }),
+    write('sync_specs.remove', 'Stop syncing an app into Records and remove its connector and connection; keep its records as plain records, or remove them with their types (a copy waits in Trash for 30 days)', {
+      in: { type: id.recordType, account: t.opt(t.str()), records: t.enm('keep', 'remove') }, out: { detached: t.arr(id.recordType), removed: t.arr(id.recordType) },
+      on: ['record_type', '/type'], perm: 'connectors.manage', audit: 'always', emits: ['sync.type_native', 'connection.deleted', 'connector.removed', 'schema.changed', 'schema.type_dropped'], tool: 'records',
+      agent: { planMode: 'blocked' }, errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
     // ---- sync engine
     write('connectors.sync_now', 'Start a sync Run for a synced type or a connection; modes: incremental, reconcile, backfill, dry_run', {
-      in: { syncTypeId: t.opt(syncTypeId), type: t.opt(id.recordType), connectionId: t.opt(id.connection), mode: t.opt(t.enm('incremental', 'reconcile', 'backfill', 'dry_run')), runAutomations: t.opt(t.bool()) },
+      in: { syncTypeId: t.opt(syncTypeId), type: t.opt(id.recordType), account: t.opt(t.str()), connectionId: t.opt(id.connection), mode: t.opt(t.enm('incremental', 'reconcile', 'backfill', 'dry_run')), runAutomations: t.opt(t.bool()) },
       out: runStarted, run: { kind: 'connector_sync', stoppable: true }, perm: null, idem: 'key', emits: ['sync.completed', 'sync.conflict', 'sync.deletes_paused', 'sync.schema_changed', 'record.updated'], tool: 'records', offline: 'online',
     }),
+    write('connectors.sync_run', 'Run the pass a sync_now asked for, in the background as the person who asked, and finish its Run (called by the scheduler)', {
+      in: { runId: id.run }, out: { ok: t.bool(), summary: t.str() }, perm: null, emits: ['sync.completed', 'sync.conflict', 'sync.deletes_paused', 'sync.pushed', 'sync.push_failed', 'record.created', 'record.updated'],
+    }),
+    write('connectors.sync_poll', 'Keep a synced type current when the app has no webhook: pull what changed, push what people changed here, and schedule the next poll (called by the scheduler)', {
+      in: { type: id.recordType }, out: { ran: t.bool(), summary: t.opt(t.str()) }, perm: null, emits: ['sync.completed', 'sync.conflict', 'sync.deletes_paused', 'sync.pushed', 'sync.push_failed', 'record.created', 'record.updated'],
+    }),
     read('connectors.outbox.list', 'Pending, failed and recent pushes with their idempotency keys', {
-      in: { type: t.opt(id.recordType), state: t.opt(t.enm('pending', 'sent', 'failed', 'canceled', 'undone')), ...pageIn }, out: { items: t.arr(outboxRow), ...pageOut }, perm: 'connectors.manage', tool: 'records',
+      in: { type: t.opt(id.recordType), account: t.opt(t.str()), state: t.opt(t.enm('pending', 'sent', 'failed', 'canceled', 'undone')), ...pageIn }, out: { items: t.arr(outboxRow), ...pageOut }, perm: 'connectors.manage', tool: 'records',
     }),
     write('connectors.outbox.retry', 'Retry a failed push now', { in: { outboxId }, out: { ok: t.bool() }, perm: 'connectors.manage', tool: 'records' }),
     write('connectors.outbox.cancel', 'Cancel a pending push (the local edit stays, marked not synced)', { in: { outboxId }, out: { ok: t.bool() }, perm: 'connectors.manage', tool: 'records' }),
