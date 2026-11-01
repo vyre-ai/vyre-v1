@@ -8,6 +8,7 @@
 // The daemon wraps this hook with withGateNesting, so one approval covers one send and not its provider call.
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
+import { OUTWARD_ACTS, targetsOf } from "../../../lib/grants.ts";
 import { fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
@@ -70,7 +71,15 @@ export function createGateHook(d: GateHookDeps): GateHook {
     async applies(cap, input, seed) {
       const act = cap.gate?.act;
       if (!act || act === "none") return null;
-      if (!(await appliesWhen(d, cap.gate?.when, input, seed))) return null;
+      // A step of an automation is the automation's act, not a person's, even when the Run runs as its owner: a condition that lets a person's own act through does not let a step through, and an outward
+      // act needs a grant. Only a person's press makes one, so an automation an agent made or edited stops here (chat design, hole 1).
+      const asked = seed.step ? { principal: { kind: "service" as const, id: seed.step.automationId } } : seed;
+      if (!(await appliesWhen(d, cap.gate?.when, input, asked))) return null;
+      if (seed.step && OUTWARD_ACTS.has(act)) {
+        if (seed.step.ask === true) return { act };
+        const g = (await d.call("gate.grants.take", { act, targets: targetsOf(input), step: seed.step })) as { granted?: unknown } | null;
+        if (g?.granted !== true) return { act };
+      }
       const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act, ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}) })) as { hold?: unknown } | null;
       return r?.hold === true ? { act } : null;
     },
@@ -82,6 +91,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
       if (a.seed.actingFor) input["actingFor"] = a.seed.actingFor;
       if (a.seed.run) input["runId"] = a.seed.run;
       if (a.seed.thread) input["threadId"] = a.seed.thread;
+      if (a.seed.step) input["step"] = a.seed.step;
       // the park runs in the held call's trace, so gate.requested sits in the asker's event chain
       const r = (await d.call("gate.park", input, { traceId: a.traceId, spanId: "0".repeat(16) })) as { taskId?: unknown; runId?: unknown } | null;
       if (typeof r?.taskId !== "string") throw fail("internal.unavailable", a.traceId, { message: "Approvals are not available right now.", details: { cap: a.cap.name } });

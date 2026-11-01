@@ -242,6 +242,9 @@ export default defineManifest({
       in: { ...target, enabled: t.bool() }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.enabled', 'automation.disabled'], tool: 'automations',
       errors: ['validation.precondition_failed'],
     }),
+    outward('automations.code_reach', 'System: a code step that names hosts asks the Gate before the sandbox opens to them. It does nothing itself', {
+      in: { hosts: t.arr(t.str(), { minItems: 1 }) }, out: { ok: t.bool() }, perm: null, level: 'view', risk: 'medium', idem: 'key', gate: { act: 'send' },
+    }),
     write('automations.schedule_choose', 'Apply one recovery choice to a schedule whose backlog is over its cap', {
       in: {
         ...target,

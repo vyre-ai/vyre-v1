@@ -3,6 +3,7 @@
 // A backlog over the cap starts nothing, pauses that Automation only, and opens one Needs You request.
 import { deliverScheduleNeedsYou, loadOpenScheduleKeys, resolveScheduleRequest } from "../../../host/src/seams/automation-schedule.ts";
 import type { ScheduleHostCall } from "../../../host/src/seams/automation-schedule.ts";
+import { regrant } from "../grants.ts";
 import { fire } from "../handlers/triggers.ts";
 import { allAutomations, emitAuto, saveVersion, touch } from "../projections.ts";
 import type { AutoCtx, Automation } from "../projections.ts";
@@ -266,6 +267,7 @@ export async function chooseScheduleRecovery(ctx: AutoCtx, input: ChoiceInput): 
     automation.version += 1;
     touch(ctx, automation);
     saveVersion(ctx, automation, "Schedule limits changed");
+    await regrant(ctx, automation, "save", automation.definition);
     emitAuto(ctx, "automation.updated", automation.id, { version: automation.version, fields: ["definition"] });
     savePaused(ctx.db, automation.id, true, "backfill_over_cap", ctx.now());
     return { ok: true, started: [], paused: true };

@@ -16,6 +16,7 @@ import { acceptHook, consumeEvent, loadRunPlan, startRun } from "./handlers/trig
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
+import { backfillGrants } from "./grants.ts";
 import { findAutomation, findRunLink, listChildLinks, listScopedChildren, saveRunLink } from "./projections.ts";
 import type { AutoCtx, RunScope } from "./projections.ts";
 
@@ -60,6 +61,7 @@ export const consumers = {
 };
 export const periodic = {
   "automations.schedule_tick": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => runDueSchedules(ctx as AutoCtx) },
+  "automations.grants_backfill": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => backfillGrants(ctx as unknown as AutoCtx) },
 };
 export const hostCalls = {
   /** The inbound webhook route asks this: does the URL belong to a live, turned-on automation, and if so start its Run. Null is the one answer to every refusal. */

@@ -215,6 +215,7 @@ function holdFrom(r: Raw): Hold {
     rule: parse<Effective>(r.rule, effectiveFallback()), createdAt: r.created_at as number, expiresAt: r.expires_at as number, possiblySent: num(r.possibly_sent) === 1,
   };
   const res = str(r.result); if (res) h.result = parse<unknown>(res, null);
+  const stp = str(r.step); if (stp) h.step = parse<StepRef>(stp, undefined as unknown as StepRef);
   const af = str(r.acting_for); if (af) h.actingFor = af;
   const run = str(r.run_id); if (run) h.runId = run;
   const th = str(r.thread_id); if (th) h.threadId = th;
@@ -245,10 +246,10 @@ export function holdsWhere(db: Db, where = "", ...args: unknown[]): Hold[] {
 const n = (v: unknown): unknown => (v === undefined ? null : v);
 export function insertHold(db: Db, h: Hold): void {
   db.run(
-    `INSERT INTO gate_holds (${HOLD_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO gate_holds (${HOLD_COLS}, step) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     h.id, h.act, h.capName, h.capVersion, JSON.stringify(h.input ?? null), h.inputHash, h.payloadHash, h.principal.kind, h.principal.id, n(h.actingFor), h.decisionId, n(h.runId), n(h.threadId),
     h.taskId, h.state, h.summary, JSON.stringify(h.approver), JSON.stringify(h.rule), h.createdAt, h.expiresAt, n(h.backstopAt), n(h.backstopSchedule), n(h.expireSchedule), n(h.escalatedAt),
-    n(h.sendingAt), n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error),
+    n(h.sendingAt), n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.step ? JSON.stringify(h.step) : null,
   );
 }
 /** Write the mutable columns of a hold. */

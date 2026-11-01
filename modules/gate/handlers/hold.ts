@@ -55,6 +55,7 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   if (input.actingFor) hold.actingFor = input.actingFor;
   if (input.runId) hold.runId = input.runId;
   if (input.threadId) hold.threadId = input.threadId;
+  if (input.step) hold.step = input.step;
   ctx.db.run("UPDATE gate_holds SET result = NULL WHERE result IS NOT NULL AND expires_at < ?", ctx.now());   // an answer nobody collected is not kept past its hold
   insertHold(ctx.db, hold);
 

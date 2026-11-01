@@ -7,6 +7,7 @@
 // and only for a listed error code when codes is set. Stop, a missing route, and a code that is not listed fail the run.
 // Parallel and Loop are coordinators. Each lane and each iteration is its own child Run. Inner nodes are not on the parent plan.
 import { registry } from "../../../generated/registry.ts";
+import { definitionHash } from "../../../lib/grants.ts";
 import { clampRetry, failureResult } from "../../../lib/step-failure.ts";
 import type { StepOnError } from "../../../lib/step-failure.ts";
 import { codeForReason } from "../routes/errors.ts";
@@ -306,6 +307,7 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
     const p = (await d.call("automations.run_plan", { runId: run.id })) as Plan | null;
     if (!p || p.definition.nodes.length === 0) return undefined;
     const nodes = p.definition.nodes;
+    const defHash = await definitionHash(p.definition);
     const by = new Map(nodes.map((n) => [n.id, n] as const));
     const scope = p.link.scope;
     const ordered = scope?.containerNodeId
@@ -324,7 +326,7 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
         ...(scope?.item !== undefined || scope?.iterationKey !== undefined ? { item: scope.item, index: scope.iterationIndex } : {}),
       };
       return (await d.call("steps-core.run_step", {
-        node, call: withItem, run: { id: run.id, automation: p.link.automationId, ...(typeof p.link.depth === "number" ? { depth: p.link.depth } : {}) },
+        node, call: withItem, run: { id: run.id, automation: p.link.automationId, defHash, ...(typeof p.link.depth === "number" ? { depth: p.link.depth } : {}) },
       }, { principal: p.link.principal, run: run.id })) as StepResult;
     };
     const finish = (node: GNode, r: StepResult): StepResult => {

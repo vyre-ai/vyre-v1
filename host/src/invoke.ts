@@ -10,7 +10,7 @@ import {isHostService} from "../../lib/trust.ts";
 import { mintEventId } from "./ids.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
-import type { CallOpts, Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/src/ctx.ts";
+import type { CallOpts, Ctx, Decision, EmitOpts, Logger, StepRef } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import { BindingError, resolveResource } from "./routes/resource.ts";
 import { auditTargets } from "./routes/audit-targets.ts";
@@ -66,6 +66,8 @@ export interface CtxSeed {
   preAuth?: boolean | undefined;
   /** set by a caller that wants the Gate to hold only on an explicit rule (a step with Ask before sending Off); it follows every nested call */
   gateMode?: "admin_only" | undefined;
+  /** the automation step this call is, set by steps-core through CallOpts: an outward act needs a grant for it, whoever the Run runs as; it follows every nested call */
+  step?: StepRef | undefined;
   /** Ask first (chat mode): a call that changes or sends something is parked for a yes before its handler runs. Set only by the tool session of a chat in Ask first mode; it follows no nested call. */
   askFirst?: boolean | undefined;
 }
@@ -435,7 +437,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         }
         // CallOpts.traceId: a call that continues earlier work (a provider's callback about a call a person placed) runs on that work's trace
         const nested: TraceContext = opts?.traceId !== undefined && /^[0-9a-f]{32}$/.test(opts.traceId) && !/^0+$/.test(opts.traceId) ? { ...trace, traceId: opts.traceId } : trace;
-        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace: nested, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared, gateMode: opts?.gate ?? seed.gateMode });
+        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace: nested, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared, gateMode: opts?.gate ?? seed.gateMode, step: opts?.step ?? base.step });
         if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
         return r.output;
       },

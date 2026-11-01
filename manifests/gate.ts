@@ -19,6 +19,8 @@ const holdRow = t.obj({
   actingFor: t.opt(t.str()), state: holdState, payloadHash: t.str(), createdAt: t.ts(), expiresAt: t.ts(),
 });
 const holdId = t.id('hld');
+const stepRef = t.obj({ automationId: id.automation, nodeId: t.str(), defHash: t.str(), ask: t.opt(t.bool()) });
+const grantRow = t.obj({ id: t.str(), act: actKey, target: t.str(), stepId: t.opt(t.str()) });
 
 export default defineManifest({
   id: 'gate',
@@ -51,8 +53,19 @@ export default defineManifest({
   ],
   capabilities: [
     write('gate.park', 'Park a call that authorize held: render the exact preview, create the Approve task, park the call (called by invoke)', {
-      in: { capName: t.str({ examples: ['mail.send'] }), capVersion: t.int({ minimum: 1 }), input: t.json(), payloadHash: t.str(), act: actKey, principal: principalRef, actingFor: t.opt(t.str()), decisionId: t.str(), runId: t.opt(id.run), threadId: t.opt(id.thread) },
+      in: { capName: t.str({ examples: ['mail.send'] }), capVersion: t.int({ minimum: 1 }), input: t.json(), payloadHash: t.str(), act: actKey, principal: principalRef, actingFor: t.opt(t.str()), decisionId: t.str(), runId: t.opt(id.run), threadId: t.opt(id.thread), step: t.opt(stepRef) },
       out: { holdId, taskId: id.task, runId: t.opt(id.run) }, emits: ['gate.requested'], idem: 'key', audit: 'always',
+    }),
+    write('gate.grants.set', 'Replace what an automation may send without a hold, for its definition as saved now. A person pressing Save or Turn on writes rows for the outward steps it names; anyone else leaves the automation with none', {
+      in: {
+        automationId: id.automation, defHash: t.str(), press: t.enm('save', 'on'),
+        steps: t.arr(t.obj({ stepId: t.str(), act: actKey, targets: t.arr(t.str()), computed: t.bool(), changed: t.bool() })),
+      },
+      out: { grants: t.arr(grantRow) }, on: ['automation', '/automationId'], level: 'use', audit: 'always', idem: 'natural', agent: false,
+    }),
+    write('gate.grants.take', 'System: does a grant cover this call? Asked by the Gate hook at act time; only the server may call it', {
+      in: { act: actKey, targets: t.arr(t.str()), step: stepRef },
+      out: { granted: t.bool() }, perm: null, level: 'view', idem: 'natural', agent: false,
     }),
     write('gate.release', 'Re-invoke the parked capability with an approval token bound to the payload hash, then resume the turn or step', {
       in: { holdId, taskId: id.task, approvalToken: t.str({ description: 'Approval token, valid 10 minutes, bound to the payload hash' }) },

@@ -81,6 +81,7 @@ export const handlers = {
   "automations.connector_levels": connectorLevels,
   "automations.read_docs": readDocs,
   "automations.connector_card": connectorCard,
+  "automations.code_reach": () => ({ ok: true }),
   "automations.validate": validate,
   "automations.versions": versions,
   "automations.webhook_url.get": webhookGet,
