@@ -88,6 +88,8 @@ export interface ConversationData {
   fill?: ComposerFill;
   /** A line above the composer for work that waits in the background ("Waiting on: build 42"); the shell draws it from the thread's runs (P-L9b_23). */
   waitingLine?: ReactElement;
+  /** The Space's own address, where relative stream addresses start (the live card in a message). */
+  spaceUrl?: string;
   /** The shell has a terminal: a Run this card can type a command into one. */
   terminal?: boolean;
   /** The mount sheet for a Mount card in the chat: connect a folder from the source the card named, then hand back what was mounted. The shell draws it over the page. Left out where the shell has no Files. */

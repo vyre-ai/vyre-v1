@@ -202,6 +202,11 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const cards = ((await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { name: string } }> }> }).messages.flatMap((m) => m.blocks ?? []).filter((b) => b.type === "file" && b.data.name === "Q3-report.txt");
     assert.equal(cards.length, 1, "said once");
 
+    // the first step the agent takes for the chat puts a live card in it, once (rc.9 flow 13): a screenshot block marked live, pointing at a frame in Files
+    await call(d, "computers.screen.screenshot", { computerId });   // a person's own step posts no card: only an agent working for a chat does
+    const liveCards = async () => ((await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { live?: boolean; computerId?: string } }> }> }).messages.flatMap((m) => m.blocks ?? []).filter((b) => b.type === "screenshot" && b.data.live === true);
+    assert.equal((await liveCards()).length, 0, "a person at the keyboard leaves no live card");
+
     // a file saved in Vyre shows on the computer
     const fromVyre = await call(d, "files.create", { folderId, name: "from-vyre.txt", content: { text: "from-vyre" }, idempotencyKey: "home-from-vyre" });
     assert.equal(fromVyre.status, 200, JSON.stringify(fromVyre.data));

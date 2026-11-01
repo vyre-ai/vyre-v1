@@ -25,6 +25,8 @@ import { ChecklistCard, isChecklist } from "./checklist.tsx";
 import { MountCard } from "./mountcard.tsx";
 import { TerminalCard } from "./TerminalCard.tsx";
 import { RunCode } from "./RunCode.tsx";
+import { LiveCard } from "./LiveCard.tsx";
+import type { LiveCardConfig } from "./LiveCard.tsx";
 import type { RunCodeConfig } from "./RunCode.tsx";
 import { commandOf } from "../terminal/runthis.ts";
 import { mountOffers } from "./mountcard.ts";
@@ -68,6 +70,8 @@ export interface MessageActions {
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
   mountCard?: { agents: readonly { id: string; name: string }[]; data: Pick<ConversationData, "call" | "mountSheet"> };
   /** What a Run this card needs: the capability door, a key for a new session, who asked, and how to show a session. Left out where the shell has no terminal. */
+  /** The live card for a screenshot block marked live. Absent: it is the plain card. */
+  liveCard?: LiveCardConfig;
   /** Run on a one-line shell block in a message. Absent: a code block is just the code. */
   runCode?: RunCodeConfig;
   terminalCard?: { deps: { call(cap: string, input: unknown): Promise<unknown>; newKey(): string }; agentId?: string; copy(text: string): void; openTerminal(terminalId: string): void };
@@ -335,6 +339,9 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
   const terminalAsk = line.type === "question" ? terminalAskOf(line.data) : null;
   const answered = line.type === "question" && line.data.answer !== undefined ? String(line.data.answer) : "";
   const steps = line.type === "plan" ? planSteps(line.data) : [];
+  if (line.type === "screenshot" && line.data.live === true && typeof line.data.computerId === "string" && typeof line.data.fileId === "string" && actions.liveCard) {
+    return <LiveCard id={line.id} computerId={line.data.computerId} fileId={line.data.fileId} caption={line.title} cfg={actions.liveCard} />;
+  }
   const head = (
     <>
       <Glyph name={icon} size={15} color={waiting ? "var(--accent)" : "var(--ink-3)"} />
