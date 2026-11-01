@@ -1,6 +1,7 @@
 // The real app, the agent's computer in a chat (rc.9 flows 11 to 13), in a real Chromium against a Team world with a scripted computer and a scripted terminal (no Docker: the Docker proof of the
 // same machine is host/tests/computers.live.test.ts in the heavy lane). Needs the production web export (VYRE_APP_DIST) and Chromium; without them it skips and says why, and with VYRE_REQUIRE_CHROME=1
 // (CI) it fails instead. Screenshots of every step, light and dark, desktop and phone, go to shots-evidence/computers/<journey>/.
+// Run in Team and in Personal (a Personal Space has the person's own key and no Shared folder).
 //   1 Run this: the agent shows a command, the bar offers Run on the agent's computer, a read-only command runs and its output is shown under the block.
 //   2 The computer in the pane: its live view, Take over in place, Give back, and the chat says "I took care of it. Carry on."
 //   3 The live card: the agent starts working on its computer for the chat, the message holds the live view, and it freezes to the last picture when the computer sleeps.
@@ -44,19 +45,27 @@ function scriptedTerminal(): TerminalHost {
   };
 }
 
-test("computers journey, Team: Run this on the agent's computer, the computer in the pane with Take over and Give back, and the live card", async (t) => {
+const KEY = "sk-ant-api03-JOURNEYkeyVALUE9876543210zyxwvuts"; // secret-scan: fake
+
+/** Team: the admin files the AI account in a Shared folder and the agent is pinned to it. Personal: the person's own key, and the agent answers on it as they ask. */
+async function agentFor(w: Awaited<ReturnType<typeof bootScreens>>["world"], kind: "personal" | "team"): Promise<string> {
+  if (kind === "team") return makeAgent(w.owner, "Desk", await connectClaude(w));
+  await w.owner.ok("providers.add", { providerKey: "anthropic", connection: "api_key", apiKey: KEY, name: "My Claude", scope: "mine" });
+  return (await w.owner.ok("agents.create", { name: "Desk", role: "You work at a computer." })).agent.agentId as string;
+}
+
+for (const kind of ["team", "personal"] as const) test(`computers journey, ${kind}: Run this on the agent's computer, the computer in the pane with Take over and Give back, and the live card`, async (t) => {
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return; }
-  const s = await bootScreens({ kind: "team", engineOpenSession: modelWithCommand }, env);
-  const dir = `${OUT}/team`;
+  const s = await bootScreens({ kind, engineOpenSession: modelWithCommand }, env);
+  const dir = `${OUT}/${kind}`;
   try {
     const w = s.world;
     await unlockVault(w);
-    const account = await connectClaude(w);
     const fake = fakeHost();
     bindComputers({ ...fake.host, async tool() { return { ok: true, frame: PNG }; } } as unknown as ComputerHost);
     bindTerminal(scriptedTerminal());
-    const agentId = await makeAgent(w.owner, "Desk", account);
+    const agentId = await agentFor(w, kind);
     const computerId = (await w.owner.ok("computers.provision", { agentId })).computer.computerId as string;
     await w.owner.ok("computers.wake", { computerId });
     const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agentId], title: "Desk work" })).thread.threadId as string;
