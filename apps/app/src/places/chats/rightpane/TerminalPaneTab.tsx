@@ -9,6 +9,7 @@ import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { loadHosts, openHostCall, thisDeviceId } from "../terminal/hosts.ts";
 import type { HostChoice } from "../terminal/hosts.ts";
 import { errorWords } from "../mounts/live.ts";
+import { collect } from "../conversation/model.ts";
 import { Icon } from "./parts.tsx";
 
 type Row = CapMap["terminal.list"]["out"]["terminals"][number];
@@ -80,7 +81,7 @@ export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement 
         {choices ? (
           <View testID="terminal-pane-hosts" style={st.hosts}>
             <Text style={st.hint}>Open it on</Text>
-            {choices.map((h) => (
+            {collect(choices, (h) => (
               <Pressable key={h.key} accessibilityRole="button" accessibilityLabel={`Open terminal on ${h.label}`} testID={`terminal-pane-host-${h.key}`} disabled={busy} onPress={() => pick(h)} style={[st.btn, busy && { opacity: 0.5 }]}>
                 <Text style={st.btnText}>{h.label}</Text>
               </Pressable>
