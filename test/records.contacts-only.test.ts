@@ -66,6 +66,6 @@ test("every starter chip makes its field with one apply", async () => {
   assert.ok(staged.ok, staged.ok ? "" : staged.error);
   assert.ok((await commitChange(call, (staged as { ok: true; staged: Parameters<typeof commitChange>[1] }).staged)).ok);
   const deal = ((await call("schema.types.get", { type: "deal" })) as { type: { fields: { key: string; type: string }[] } }).type;
-  assert.deepEqual(deal.fields.map((f) => [f.key, f.type]), [["name", "text"], ...STARTER_FIELDS.map((f) => [f.key, f.type === "multichoice" ? "multi_choice" : f.type])]);   // types.get names this one by the store kind
+  assert.deepEqual(deal.fields.map((f) => [f.key, f.type]), [["name", "text"], ...STARTER_FIELDS.map((f) => [f.key === "multichoice" ? "multi_choice" : f.key, f.type])]);   // the field key comes from its title, Multi choice
   schema.host?.close();
 });
