@@ -48,6 +48,7 @@ export function SinceLine({ onOpen }: { onOpen?: (key: PartKey) => void } = {}):
   return (
     <View style={s.line} testID="home-since" accessibilityRole="summary">
       <Text style={s.lead}>{lead(parts, sinceWord(since, clock))}</Text>
+      {/* ui-rows-lint: not a list (the parts of one sentence) */}
       {parts.map((p, i) => (
         <Text key={p.key} style={s.part} accessibilityRole={linked(p.key) ? "link" : "text"} testID={`since-${p.key}`} onPress={() => open(p.key)}>{`${p.text}${i < parts.length - 1 ? "," : "."}`}</Text>
       ))}
