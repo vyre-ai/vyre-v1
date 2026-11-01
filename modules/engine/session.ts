@@ -9,6 +9,7 @@ import { enginePath } from "./sandbox-default.ts";
 import { CLI_NAME, findProgram } from "./cli-programs.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
+import { ensureWorkspace } from "./handlers/crew.ts";
 import { placeCredentialFiles, takeCredentialFiles } from "./credential-files.ts";
 import type { Placed } from "./credential-files.ts";
 import type { CliProcess, LaunchSpec, Launcher } from "../../agent/src/drivers/cli/types.ts";
@@ -99,13 +100,44 @@ export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?
  * The memory guide of this agent as the person asking may read it (agent layer only), in the CLI's work folder as CLAUDE.md and AGENTS.md. A CLI engine reads one of them from its folder,
  * so it knows it has memory and which tools reach it before its first tool call. The work folder is per person and thread, so nothing here reaches another person.
  */
-export async function writeMemoryGuide(call: OpenerHost["call"], dir: string, spec: { agent: { id: string }; asker: string }): Promise<void> {
+export async function writeMemoryGuide(call: OpenerHost["call"], dir: string, spec: { agent: { id: string }; asker: string }, keepExisting = false): Promise<void> {
   let name: string = spec.agent.id;
   let body: string | undefined;
   try { name = ((await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string } }).agent?.name ?? name; } catch { /* the id names it */ }
   try { body = ((await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } }).map?.body; } catch { /* no map yet, or not this person's to read */ }
   const text = memoryGuide(name, body);
-  for (const f of GUIDE_FILES) fs.writeFileSync(path.join(dir, f), text, { mode: 0o644 });
+  for (const f of GUIDE_FILES) { if (keepExisting && fs.existsSync(path.join(dir, f))) continue; fs.writeFileSync(path.join(dir, f), text, { mode: 0o644 }); }
+}
+
+/**
+ * What a session's work folder needs before its first turn: a teammate thread of the crew gets its copy of the project repository on its own branch (made once, left alone after), then the memory guide.
+ * The guide never overwrites a file the repository already tracks: the copy would show as changed.
+ */
+export async function prepareWorkFolder(call: OpenerHost["call"], dataDir: string, spec: { agent: { id: string }; asker: string; threadId: string }): Promise<void> {
+  const dir = workFolder(dataDir, spec.asker, spec.threadId);
+  const crew = await crewWorkspaceOf(call, spec);
+  if (crew) await ensureWorkspace(dataDir, spec.asker, spec.threadId, crew);
+  await writeMemoryGuide(call, dir, spec, crew !== null);
+}
+
+type CrewWorkspace = { repo: string; base: string; branch: string; name: string };
+
+/** The crew copy this thread works in, or null for any other thread. A teammate thread whose job row is not there yet (the start call has not finished) is waited for a moment. */
+async function crewWorkspaceOf(call: OpenerHost["call"], spec: { asker: string; threadId: string }): Promise<CrewWorkspace | null> {
+  const ask = async (): Promise<CrewWorkspace | null> => {
+    try { return ((await call("engine.crew.workspace", { threadId: spec.threadId }, spec.asker)) as { workspace: CrewWorkspace | null }).workspace; } catch { return null; }
+  };
+  const found = await ask();
+  if (found) return found;
+  let helper = false;
+  try { helper = ((await call("threads.get", { threadId: spec.threadId }, spec.asker)) as { thread?: { kind?: string } }).thread?.kind === "helper"; } catch { /* not readable: not a crew thread */ }
+  if (!helper) return null;
+  for (let i = 0; i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 300));
+    const again = await ask();
+    if (again) return again;
+  }
+  return null;
 }
 
 /**
@@ -174,7 +206,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
     ...(dataDir && h.pluginsNative !== false ? { nativePlugins: (spec: SessionSpec, driver: "claude_code" | "codex") => nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, workFolder(dataDir, spec.asker, spec.threadId)) } : {}),
     ...(dataDir ? { cli: { workFolder: (spec) => workFolder(dataDir, spec.asker, spec.threadId) } } : {}),
-    ...(dataDir ? { prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) => writeMemoryGuide(h.call, workFolder(dataDir, spec.asker, spec.threadId), spec) } : {}),
+    ...(dataDir ? { prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) => prepareWorkFolder(h.call, dataDir, spec) } : {}),
     // A session with tools "none" (an automation's AI step) gets no tools and no agent role: its prompt carries everything it needs.
     apiContext: async (spec, input) => {
       if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };

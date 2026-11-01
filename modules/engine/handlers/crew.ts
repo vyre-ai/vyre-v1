@@ -1,0 +1,130 @@
+// The crew (DESIGN-crew.md, steps 1 and 2): a project's repository on this computer, and teammate jobs. A job is a teammate agent working in its own copy of that repository, on its own branch, in its own thread
+// under the lead's chat. Nothing new is made for it: the thread is a helper thread, the teammate is a project teammate, the work folder is the engine's per-thread folder with a clone in it (../crew-git.ts).
+import { engineHost } from "../runtime.ts";
+import { GitError, cleanBranch, git, prepareClone, repoHead } from "../crew-git.ts";
+import { ensure, actorOf, mintEngineId, raise } from "../projections.ts";
+import { workFolder } from "../sandbox.ts";
+import { GUIDE_FILES } from "../../../lib/memory-guide.ts";
+import fs from "node:fs";
+import path from "node:path";
+import type { EngineCtx } from "../projections.ts";
+
+type Row = Record<string, unknown>;
+const str = (v: unknown): string => (typeof v === "string" ? v : "");
+const num = (v: unknown): number => (typeof v === "number" ? v : Number(v) || 0);
+
+export interface CrewJob {
+  jobId: string; threadId: string; leadThreadId: string; projectId: string; agentId: string; name?: string; title: string; branch: string; base: string;
+  state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged"; startedAt: number; endedAt?: number; result?: Record<string, unknown>;
+}
+
+export function jobOut(r: Row, name?: string): CrewJob {
+  let result: Record<string, unknown> | undefined;
+  try { const j = r["result_json"] ? JSON.parse(String(r["result_json"])) : undefined; if (j && typeof j === "object") result = j as Record<string, unknown>; } catch { /* a result that is not JSON is no result */ }
+  return {
+    jobId: str(r["job_id"]), threadId: str(r["thread_id"]), leadThreadId: str(r["lead_thread_id"]), projectId: str(r["project_id"]), agentId: str(r["agent_id"]), ...(name ? { name } : {}),
+    title: str(r["title"]), branch: str(r["branch"]), base: str(r["base_branch"]), state: str(r["state"]) as CrewJob["state"], startedAt: num(r["started_at"]),
+    ...(r["ended_at"] !== null && r["ended_at"] !== undefined ? { endedAt: num(r["ended_at"]) } : {}), ...(result ? { result } : {}),
+  };
+}
+
+const slug = (s: string): string => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "teammate";
+
+function gitFailure(ctx: EngineCtx, e: unknown): never {
+  if (e instanceof GitError) return raise(ctx, e.code === "validation.bad_input" ? "validation.bad_input" : "internal.unavailable", e.message);
+  throw e;
+}
+
+export function repoRow(ctx: EngineCtx, projectId: string): { path: string; base: string } | null {
+  const r = ctx.db.all("SELECT path, base_branch FROM engine_crew_repo WHERE project_id = ?", projectId)[0] as Row | undefined;
+  return r ? { path: str(r["path"]), base: str(r["base_branch"]) } : null;
+}
+
+export async function repoSet(ctx: EngineCtx, input: { projectId: string; path: string; baseBranch?: string }) {
+  ensure(ctx.db);
+  try {
+    const head = await repoHead(input.path);
+    const base = cleanBranch(input.baseBranch ?? head.branch);
+    const has = await git(["rev-parse", "--verify", "--quiet", `refs/heads/${base}`], input.path);
+    if (has.code !== 0) raise(ctx, "validation.bad_input", `The repository has no branch called ${base}.`);
+    ctx.db.run(
+      "INSERT INTO engine_crew_repo (project_id, path, base_branch, set_by, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (project_id) DO UPDATE SET path = excluded.path, base_branch = excluded.base_branch, set_by = excluded.set_by, at = excluded.at",
+      input.projectId, input.path, base, actorOf(ctx), ctx.now(),
+    );
+    return { repo: { projectId: input.projectId, path: input.path, baseBranch: base, branch: head.branch } };
+  } catch (e) { return gitFailure(ctx, e); }
+}
+
+export async function repoGet(ctx: EngineCtx, input: { projectId: string }) {
+  ensure(ctx.db);
+  const r = repoRow(ctx, input.projectId);
+  if (!r) return { repo: null };
+  try { const head = await repoHead(r.path); return { repo: { projectId: input.projectId, path: r.path, baseBranch: r.base, branch: head.branch } }; } catch { return { repo: { projectId: input.projectId, path: r.path, baseBranch: r.base, branch: "" } }; }
+}
+
+/** The teammate's folder, made on the first call and left alone after. `dataDir` is the Space's; `asker` names the folder (it is per person and thread). */
+export async function ensureWorkspace(dataDir: string, asker: string, threadId: string, w: { repo: string; base: string; branch: string; name: string }): Promise<{ dir: string; created: boolean }> {
+  const dir = workFolder(dataDir, asker, threadId);
+  const made = await prepareClone({ repo: w.repo, dest: dir, branch: w.branch, base: w.base, ident: { name: w.name, email: `${slug(w.name)}@vyre.invalid` } });
+  // the memory guide the engine writes beside the code is not part of the work: it stays out of what the teammate commits
+  if (made.created) {
+    const file = path.join(dir, ".git", "info", "exclude");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${GUIDE_FILES.map((f) => `/${f}`).join("\n")}\n`);
+  }
+  return { dir, created: made.created };
+}
+
+export async function start(ctx: EngineCtx, input: { threadId: string; projectId: string; teammateId: string; title: string; brief: string; model?: string; provider?: string; effort?: string }) {
+  ensure(ctx.db);
+  const repo = repoRow(ctx, input.projectId);
+  if (!repo) raise(ctx, "validation.precondition_failed", "Say where the project's repository is first.");
+  const title = input.title.trim();
+  const brief = input.brief.trim();
+  if (title === "" || title.length > 120) raise(ctx, "validation.bad_input", "Give the job a title of up to 120 characters.");
+  if (brief === "") raise(ctx, "validation.bad_input", "Tell the teammate what to do.");
+  const team = (await ctx.call("projects.teammates.list", { projectId: input.projectId })) as { teammates: Array<{ agentId: string; name: string }> };
+  const mate = team.teammates.find((m) => m.agentId === input.teammateId);
+  if (!mate) raise(ctx, "validation.bad_input", "That agent is not a teammate of this project.");
+  const n = Number((ctx.db.all("SELECT COUNT(*) AS n FROM engine_crew_job WHERE project_id = ? AND agent_id = ?", input.projectId, mate.agentId)[0] as Row | undefined)?.["n"] ?? 0) + 1;
+  const branch = cleanBranch(`crew/${slug(mate.name)}-${n}`);
+  const asker = actorOf(ctx);
+  const started = (await ctx.call("chat.helper.start", {
+    threadId: input.threadId, title, instruction: brief, agentId: mate.agentId,
+    ...(input.model ? { model: input.model } : {}), ...(input.provider ? { provider: input.provider } : {}), ...(input.effort ? { effort: input.effort } : {}),
+  })) as { helper: { threadId: string } };
+  const jobId = mintEngineId("crw", ctx.now());
+  ctx.db.run(
+    "INSERT INTO engine_crew_job (job_id, thread_id, lead_thread_id, project_id, agent_id, asker, title, branch, base_branch, repo_path, state, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'working', ?)",
+    jobId, started.helper.threadId, input.threadId, input.projectId, mate.agentId, asker, title, branch, repo.base, repo.path, ctx.now(),
+  );
+  // made now so the folder exists before anything else looks at it; the session opener asks for the same thing before the first turn and finds it done
+  const dataDir = engineHost()?.dataDir;
+  if (dataDir) {
+    try { await ensureWorkspace(dataDir, asker, started.helper.threadId, { repo: repo.path, base: repo.base, branch, name: mate.name }); } catch (e) { ctx.log.warn("the teammate's repository copy could not be made at start", { jobId, error: e instanceof Error ? e.message : String(e) }); }
+  }
+  ctx.emit("crew.job_started", input.threadId, { jobId, threadId: started.helper.threadId, leadThreadId: input.threadId, projectId: input.projectId, agentId: mate.agentId, branch });
+  const row = ctx.db.all("SELECT * FROM engine_crew_job WHERE job_id = ?", jobId)[0] as Row;
+  return { job: jobOut(row, mate.name) };
+}
+
+export async function list(ctx: EngineCtx, input: { threadId: string }) {
+  ensure(ctx.db);
+  const rows = ctx.db.all("SELECT * FROM engine_crew_job WHERE lead_thread_id = ? ORDER BY started_at DESC, rowid DESC", input.threadId) as Row[];
+  const names = new Map<string, string>();
+  for (const r of rows) {
+    const id = str(r["agent_id"]);
+    if (names.has(id)) continue;
+    try { const a = (await ctx.call("agents.get", { agentId: id })) as { agent?: { name?: string } }; if (a.agent?.name) names.set(id, a.agent.name); } catch { /* the id stands */ }
+  }
+  return { jobs: rows.map((r) => jobOut(r, names.get(str(r["agent_id"])))) };
+}
+
+export async function workspace(ctx: EngineCtx, input: { threadId: string }) {
+  ensure(ctx.db);
+  const r = ctx.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", input.threadId)[0] as Row | undefined;
+  if (!r) return { workspace: null };
+  let name = str(r["agent_id"]);
+  try { const a = (await ctx.call("agents.get", { agentId: str(r["agent_id"]) })) as { agent?: { name?: string } }; if (a.agent?.name) name = a.agent.name; } catch { /* the id stands */ }
+  return { workspace: { jobId: str(r["job_id"]), repo: str(r["repo_path"]), base: str(r["base_branch"]), branch: str(r["branch"]), name } };
+}
