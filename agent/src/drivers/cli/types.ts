@@ -82,6 +82,8 @@ export type CliEvent =
   | { type: "usage"; inputTokens: number; outputTokens: number }
   /** What the engine reported about a subscription limit window: how much of it is used (0 to 100) and when it resets (epoch ms), as the engine said it. Never estimated. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
+  /** The engine took up a user message we wrote (its replay line): from here it is part of the turn it was read in, or the start of the next one. Only engines that replay report it. */
+  | { type: "read" }
   | { type: "end"; error?: { code?: string; message: string } };
 
 export interface CliDecoder {
@@ -96,6 +98,8 @@ export interface CliAdapter {
   readonly bin: string;
   /** True when one process serves many turns (messages on stdin); false when each turn is a process that resumes the engine's session. */
   readonly persistent: boolean;
+  /** True when a message written to stdin during a turn is read at the engine's next step and answered in that same turn, and the engine says when it read it (replay): steering reaches the agent mid-work. */
+  readonly steers?: boolean;
   readonly models: readonly ModelInfo[];
   command(o: CommandOptions): string[];
   /** Fixed environment of the engine (switches that stop it reading the person's other tool configs). */

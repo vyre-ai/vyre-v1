@@ -111,6 +111,8 @@ export function createClaudeDecoder(): CliDecoder {
   function onUser(j: Json): CliEvent[] {
     const m = obj(j["message"]);
     const out: CliEvent[] = [];
+    // With --replay-user-messages the engine echoes each message we wrote when it takes it up: that is when it was read, mid-turn at a step boundary or as the start of the next turn.
+    if (j["isReplay"] === true) out.push({ type: "read" });
     for (const raw of arr(m?.["content"])) {
       const b = obj(raw);
       if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") out.push({ type: "tool", phase: "result", id: str(b["tool_use_id"]), ok: b["is_error"] !== true });
@@ -191,6 +193,7 @@ export const claudeCode: CliAdapter = {
   id: "claude_code",
   bin: "claude",
   persistent: true,
+  steers: true,
   models: MODELS,
   systemFlag: true,
   env: () => ({}),
@@ -201,7 +204,7 @@ export const claudeCode: CliAdapter = {
     const allowed = tools ? ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? folderTools : [])] : [];
     const effort = claudeEffort(o.effort);
     return [
-      "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
+      "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",
       ...(tools ? ["--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins)] : []), "--strict-mcp-config",
       // installed plugins load natively: their commands, skills and agents come from the plugin folder in the work folder
       ...(tools ? (o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]) : []),

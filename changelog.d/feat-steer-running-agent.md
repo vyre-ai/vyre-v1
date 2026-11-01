@@ -1,0 +1,1 @@
+A message sent while Claude Code is working now reaches it mid-work: it is written to the engine at once and read at its next step, so the agent changes course without stopping, and the turn still ends once. The engine says when it read the message, so a turn is never left waiting for a result that will not come. Codex and Grok still take the message after the turn ends.
