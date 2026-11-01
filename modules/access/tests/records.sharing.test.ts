@@ -216,3 +216,20 @@ test("a record's Files folder follows its record: who cannot see the record cann
   assert.ok(!r.can("usr_cal", folder) && r.can("usr_ada", folder), "the record is Only me, so is its folder");
   assert.equal(await code(audienceSet(r.ctx, { resource: one, follows: "rec_two" })), "validation.bad_input");
 });
+
+test("an agent changes who a type is open to on behalf of an admin, and is refused on behalf of a member without manage; with no one behind it it is refused", async () => {
+  const r = rig();
+  putPrincipal(r.store, { id: "agt_helper", kind: "agent", name: "Helper", owner: "usr_ada" });
+  r.store.setRoles("agt_helper", ["rol_member"]);
+  r.store.grants.set("gnt_agent_manage", { id: "gnt_agent_manage", subject: { kind: "agent", id: "agt_helper" }, resource: { type: "record_type", id: "deal" }, level: "manage", conditions: {}, by: "usr_ada", createdAt: 1 });
+  r.store.bump();
+  // the host's ctx carries the person an agent acts for as a plain id string
+  const agentFor = (asker?: string): ShareCtx => ({ ...r.ctx, principal: { kind: "agent", id: "agt_helper" }, ...(asker ? { actingFor: asker as never } : {}) });
+  assert.equal(await code(audienceSet(agentFor(), { resource: deal, audience: "added" })), "permission.no_grant", "an agent with no one behind it acts for no one");
+  assert.equal(await code(audienceSet(agentFor("usr_dee"), { resource: deal, audience: "added" })), "permission.no_grant", "acting for a member without manage: refused, whatever the agent's own grant");
+  assert.equal((await audienceSet(agentFor("usr_ada"), { resource: deal, audience: "added" })).audience, "added", "acting for the owner: allowed");
+  // the narrowing holds the other way round: an agent without its own grant gets nothing from an admin asker beyond what the grants allow together
+  r.store.grants.delete("gnt_agent_manage");
+  r.store.bump();
+  assert.ok(!r.can("agt_helper", deal, "manage"), "the agent holds no manage of its own now");
+});
