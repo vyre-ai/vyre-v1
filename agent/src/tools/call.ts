@@ -145,6 +145,8 @@ export function createToolSession(deps: CallDeps): ToolSession {
       ...(ctx.thread.mode !== undefined ? { chatMode: ctx.thread.mode } : {}),
       // Ask first: a tool that changes or sends something is parked for a yes before it runs. Tools plan mode allows (reads, questions, plan proposals) never wait. Auto adds nothing and removes nothing: the Gate decides, as before.
       ...((ctx.thread.mode === "ask" && t.effects !== "read" && t.planMode === "blocked") || (localAsk && t.effects !== "read") ? { askFirst: true } : {}),
+      ...(localAsk && t.effects !== "read" ? { mustAsk: true } : {}),
+      ...(t.effects !== "read" && t.planMode === "blocked" ? { askable: true } : {}),
     };
     try {
       const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : input, seed);

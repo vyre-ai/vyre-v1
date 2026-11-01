@@ -38,6 +38,25 @@ export async function sendMessage(data: ConversationData, input: { text: string;
 }
 
 /** Stop one agent's work, or every agent's in the thread. The steps so far are kept. */
+/** /permissions: what goes without asking, numbered, and "remove 2" takes one back. It stops at the next act: the Gate reads the rule then. */
+export async function showPermissions(data: ConversationData, arg: string, say: (text: string) => void): Promise<void> {
+  const { rules } = (await data.call("gate.allow.list", {})) as CapMap["gate.allow.list"]["out"];
+  const pick = /^remove\s+(\d+)$/i.exec(arg.trim());
+  if (pick) {
+    const rule = rules[Number(pick[1]) - 1];
+    if (!rule) { say(`There is no rule ${pick[1]}. Say /permissions to see the list.`); return; }
+    await data.call("gate.allow.remove", { id: rule.id });
+    say(`Took back: ${permissionLine(rule)}`);
+    return;
+  }
+  say(rules.length === 0 ? "Nothing goes without asking here beyond what your chat mode allows." : rules.map((r, i) => `${i + 1}. ${permissionLine(r)}`).join("\n"));
+}
+
+function permissionLine(r: CapMap["gate.allow.list"]["out"]["rules"][number]): string {
+  if (r.kind === "standing") return `An automation may ${r.act === "approve" ? "act" : r.act} to ${r.target === "*" ? "whoever its step reaches" : r.target}`;
+  return `Always allow ${r.target}${r.expiresAt !== undefined ? `, until ${new Date(r.expiresAt).toLocaleDateString()}` : ""}`;
+}
+
 export async function stopAgent(data: ConversationData, agentId?: string): Promise<void> {
   await data.call("engine.stop", { threadId: data.threadId, ...(agentId === undefined ? {} : { agentId }) } satisfies CapMap["engine.stop"]["in"]);
 }

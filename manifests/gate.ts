@@ -20,6 +20,7 @@ const holdRow = t.obj({
 });
 const holdId = t.id('hld');
 const stepRef = t.obj({ automationId: id.automation, nodeId: t.str(), defHash: t.str(), ask: t.opt(t.bool()) });
+const allowRow = t.obj({ id: t.str(), kind: t.enm('standing', 'always'), act: actKey, target: t.str(), agentId: t.opt(id.agent), threadId: t.opt(id.thread), automationId: t.opt(id.automation), stepId: t.opt(t.str()), expiresAt: t.opt(t.ts()) });
 const grantRow = t.obj({ id: t.str(), act: actKey, target: t.str(), stepId: t.opt(t.str()) });
 
 export default defineManifest({
@@ -64,11 +65,28 @@ export default defineManifest({
       out: { grants: t.arr(grantRow) }, perm: null, level: 'view', audit: 'always', idem: 'natural', agent: false,
     }),
     write('gate.grants.take', 'System: does a grant cover this call? Asked by the Gate hook at act time, it spends a single-use grant; only the server may call it', {
-      in: { act: actKey, targets: t.arr(t.str()), step: t.opt(stepRef), turn: t.opt(t.obj({ person: t.str(), threads: t.arr(id.thread, { minItems: 1 }) })) },
+      in: { act: actKey, targets: t.arr(t.str()), step: t.opt(stepRef), turn: t.opt(t.obj({ person: t.str(), threads: t.arr(id.thread, { minItems: 1 }) })), always: t.opt(t.obj({ person: t.str(), agentId: t.str(), threads: t.arr(id.thread), cap: t.str() })) },
       out: { granted: t.bool() }, perm: null, level: 'view', idem: 'natural', agent: false,
     }),
+    write('gate.allow.set', 'Always allow: a rule the Gate reads, for one agent or one chat, one act and one target, with an expiry. Local changes are a person\'s to allow; an outward act needs an admin; money is never allowed this way', {
+      in: { act: actKey, target: t.str({ minLength: 1 }), agentId: t.opt(id.agent), threadId: t.opt(id.thread), days: t.opt(t.int({ minimum: 1, maximum: 90 })) },
+      out: { rule: allowRow }, perm: null, level: 'view', audit: 'always', agent: false, errors: ['validation.bad_input', 'permission.role_lacks_permission'],
+    }),
+    read('gate.allow.list', 'What may go without asking: your Always allow rules and the automations your press gave permission to', {
+      in: {}, out: { rules: t.arr(allowRow) }, perm: null, level: 'view', agent: false,
+    }),
+    write('gate.allow.remove', 'Take an Always allow rule or an automation\'s permission back. It stops at the next act', {
+      in: { id: t.str() }, out: { ok: t.bool() }, perm: null, level: 'view', audit: 'always', agent: false, errors: ['permission.not_found'],
+    }),
+    write('gate.taint.mark', 'System: outside words entered the turn in these threads, and the links a page gave are now known. Only the server may call it', {
+      in: { threads: t.arr(id.thread, { minItems: 1 }), source: t.str(), links: t.opt(t.arr(t.str())) },
+      out: { ok: t.bool() }, perm: null, level: 'view', idem: 'natural', agent: false,
+    }),
+    read('gate.links.known', 'System: did the person give this link, or did a page already read in this chat link to it', {
+      in: { url: t.str(), threads: t.arr(id.thread, { minItems: 1 }) }, out: { known: t.bool() }, perm: null, level: 'view', agent: false,
+    }),
     write('gate.grants.ask', 'What a person asks for in their own message: one single-use grant per act and target, read from their words by the server before the turn starts', {
-      in: { threadId: id.thread, messageId: id.message, asked: t.arr(t.obj({ act: actKey, target: t.str() })) },
+      in: { threadId: id.thread, messageId: id.message, asked: t.arr(t.obj({ act: actKey, target: t.str() })), links: t.opt(t.arr(t.str())) },
       out: { ok: t.bool() }, perm: null, level: 'view', idem: 'natural', agent: false,
     }),
     write('gate.release', 'Re-invoke the parked capability with an approval token bound to the payload hash, then resume the turn or step', {

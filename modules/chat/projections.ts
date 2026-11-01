@@ -196,9 +196,22 @@ export function addAgent(ctx: Pick<ChatCtx, "db" | "now">, thread: string, a: { 
 }
 
 /** The full thread row of the contract. */
+const MODE_RANK: Readonly<Record<ChatMode, number>> = { auto: 0, ask: 1, plan: 2 };
+/** A thread under another inherits its mode, never looser: a Job under an Ask first chat asks. The chain is read live, so a change of mode above reaches the Job's next turn and its next act. */
+function inheritedMode(db: Db, t: ThreadRec): ChatMode {
+  let mode = t.mode;
+  let cur: ThreadRec | null = t;
+  for (let i = 0; cur?.parentThreadId && i < 8; i++) {
+    cur = threadBy(db, cur.parentThreadId);
+    if (cur && MODE_RANK[cur.mode] > MODE_RANK[mode]) mode = cur.mode;
+  }
+  return mode;
+}
+
 export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
+  const mode = inheritedMode(db, t);
   const out: Record<string, unknown> = {
-    threadId: t.id, kind: t.kind, listed: t.listed, planMode: t.planMode, mode: t.mode,
+    threadId: t.id, kind: t.kind, listed: t.listed, planMode: t.planMode || mode === "plan", mode,
     members: membersOf(db, t.id).map(refOf),
     agents: agentsOf(db, t.id).map((a) => ({ agentId: a.agentId, mode: a.mode, ...(a.model !== undefined ? { model: a.model } : {}), ...(a.provider !== undefined ? { provider: a.provider } : {}), ...(a.effort !== undefined ? { effort: a.effort } : {}), ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watches: a.watches } : {}) })),
     createdAt: t.createdAt,

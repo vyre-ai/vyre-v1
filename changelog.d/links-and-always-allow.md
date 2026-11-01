@@ -1,0 +1,2 @@
+- Agents can open any link from the server. A link you gave or a page linked to is a read; one the agent put together waits for you, and after reading outside content a send stops even if you asked.
+- Always allow is a rule for one agent or chat with an expiry, listed and taken back with /permissions. A Job never runs looser than its chat, and a mode change counts at the next act.

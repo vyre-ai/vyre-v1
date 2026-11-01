@@ -8,6 +8,7 @@
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
 import { askedIn } from "../../../lib/asked.ts";
+import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
@@ -83,6 +84,7 @@ export const scrub = (text: string): string => redact(text.slice(0, 600)).text.s
 /** A message carries at most this many blocks (modules/chat/projections.ts MAX_BLOCKS); the bridge keeps to it so a long turn's reply is never refused. */
 const MAX_POST_BLOCKS = 20;
 const STEP_BLOCKS: ReadonlySet<string> = new Set(["tool_call", "tool_result"]);
+const NATIVE_OUTSIDE: ReadonlySet<string> = new Set(["WebSearch", "WebFetch", "web_search", "web_fetch"]);
 
 /**
  * The blocks of one reply, fitted under the limit without losing anything a person reads. Tool steps (a call and its result) are bookkeeping: past the limit they fold into one "tool_steps" block that
@@ -253,6 +255,8 @@ export function createBridge(o: BridgeOptions): Bridge {
           if (ev.kind === "tool_call" && id !== "") {
             const name = typeof p.name === "string" ? p.name : "";
             seg.calls?.set(id, { name, at: now });
+            // the engine's own web tools run on the vendor's side, so the Gate never sees them: the words they bring in stop outward acts all the same
+            if (NATIVE_OUTSIDE.has(name)) { try { await o.callAs?.("gate.taint.mark", { threads: [input.threadId], source: name }, input.asker); } catch (e) { warn("a web read was not marked", { threadId: input.threadId, error: e instanceof Error ? e.message : String(e) }); } }
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "call", id, ...(name ? { name } : {}) });
           } else if (ev.kind === "tool_result" && id !== "") {
             const call = seg.calls?.get(id);
@@ -377,7 +381,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const note = await pointers(reader(ctx, readAs, threadId), got.message);
     // The only door for "asked this turn": the words a person typed, read here before the turn starts. Never the pointers, never an agent's post, never a line the server posted in a person's name.
     if (a.kind === "person" && p["typed"] === true) {
-      try { await reader(ctx, authorId, threadId)("gate.grants.ask", { threadId, messageId, asked: askedIn(str(got.message.body)) }); }
+      try { await reader(ctx, authorId, threadId)("gate.grants.ask", { threadId, messageId, asked: askedIn(str(got.message.body)), links: linksIn(str(got.message.body)) }); }
       catch (e) { warn("the request in a message was not read, so outward acts will ask", { threadId, messageId, error: e instanceof Error ? e.message : String(e) }); }
     }
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));

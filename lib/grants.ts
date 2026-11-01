@@ -46,6 +46,39 @@ export function targetIsComputed(input: unknown): boolean {
   return isObj(input["input"]) && targetIsComputed(input["input"]);
 }
 
+/** A read that brings words from outside into the turn. They can hold instructions, so outward acts stop after one, even if asked. */
+const OUTSIDE_READS = /^(automations\.(read_docs|read_link|try_read)|engine\.mcp\.read|connectors\.(read|test)|computers\.chrome\.(snapshot|inspect|sources|console|net|state)|computers\.(screen\.)?screenshot|mail\.message\.|inbox\.(thread|list_by_thread|list_by_contact|unmatched)|google\.(gmail\.get_|gmail\.list_messages|docs\.get|drive\.(download|export)|sheets\.get|meet\.get)|ms\.(mail\.(get|list_messages)|drive\.download|workbook\.get|teams\.recordings\.get)|github\.(issue\.get|pull_request\.(get|diff))|dropbox\.files\.download|mounts\.(sheet_read|browse)|meetings\.transcript|zoom\.transcripts|telephony\.sms\.list)/;
+const OUTSIDE_CALLS: ReadonlySet<string> = new Set(["engine.mcp.call", "connectors.run"]);
+export const bringsOutside = (cap: string, effects: string): boolean => OUTSIDE_CALLS.has(cap) || (effects === "read" && OUTSIDE_READS.test(cap));
+
+/** One spelling of a link: no fragment, trailing punctuation gone. A bare "example.test/a" is https. Null when it is not a web address. */
+export function normalLink(raw: string): string | null {
+  const s = raw.trim().replace(/[)\]>.,;:!?'"]+$/, "");
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^https?:\/\//i.test(s)) return null;
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    u.hash = "";
+    return u.href;
+  } catch { return null; }
+}
+const LINK = /https?:\/\/[^\s<>"'`)\]]+|(?<![\w@.-])(?:[a-z0-9-]+\.)+[a-z]{2,}\/[^\s<>"'`)\]]*/gi;
+/** The web addresses in a piece of text, at most `max`. */
+export function linksIn(text: string, max = 200): string[] {
+  const out = new Set<string>();
+  for (const m of text.matchAll(LINK)) {
+    const l = normalLink(m[0]);
+    if (l !== null) out.add(l);
+    if (out.size >= max) break;
+  }
+  return [...out];
+}
+
+/** A link for a log line: never its query string, which is where a request carries data. */
+export function logLink(raw: string): string {
+  try { const u = new URL(raw); return `${u.origin}${u.pathname}`; } catch { return ""; }
+}
+
 /** The hash a grant is bound to: any edit of the definition, however small, changes it. Web Crypto, so a module can use it (the crypto imports stay in the kernel, boundary B3). */
 export async function definitionHash(definition: unknown): Promise<string> {
   const plain = JSON.parse(JSON.stringify(definition ?? null)) as unknown;

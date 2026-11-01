@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { harness, codeOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { HOUR, alice, as, bob, bot } from "../fixtures/seed.ts";
+import { rejectAllOf } from "../impl.ts";
 
 const gate = { id: alice.id, kind: "person" as const, origin: "gate", depth: 0 };
 const set = (h: Harness, who: unknown, over: Record<string, unknown> = {}) => h.call("gate.grants.set", {
@@ -112,4 +113,84 @@ test("a call that shows no target takes any ask for its act, once, in a clean th
   await ask(h, "msg_1", [{ act: "push_protected", target: "main" }]);
   assert.equal(await granted(take(h, [], ["thr_chat"], "push_protected")), true);
   assert.equal(await granted(take(h, [], ["thr_chat"], "push_protected")), false);
+});
+
+const mark = (h: Harness, threads: string[], links?: string[]) => h.call("gate.taint.mark", { threads, source: "automations.read_link", ...(links ? { links } : {}) }, gate);
+const known = async (h: Harness, url: string, threads = ["thr_chat"]): Promise<boolean> => (await h.call("gate.links.known", { url, threads }, gate)).known;
+
+test("after outside content an outward act stops even if asked; the person speaking again clears it", async () => {
+  const h = harness();
+  await ask(h, "msg_1", [{ act: "send", target: "lee@acme.test" }]);
+  await mark(h, ["thr_chat"]);
+  assert.equal(await granted(take(h, ["lee@acme.test"])), false, "tainted");
+  await ask(h, "msg_2", [{ act: "send", target: "lee@acme.test" }]);
+  assert.equal(await granted(take(h, ["lee@acme.test"])), true, "a named target in a new turn goes");
+});
+
+test("a request with no target stays stopped in a thread outside content reached, after the person speaks too", async () => {
+  const h = harness();
+  await mark(h, ["thr_chat"]);
+  await ask(h, "msg_1", [{ act: "send", target: "" }]);
+  assert.equal(await granted(take(h, ["evil@bad.test"])), false);
+  assert.equal(await granted(take(h, [])), false);
+});
+
+test("a taint in a Job's thread reaches the chat above, and taint is the server's to mark", async () => {
+  const h = harness();
+  await ask(h, "msg_1", [{ act: "send", target: "lee@acme.test" }]);
+  await mark(h, ["thr_job", "thr_chat"]);
+  assert.equal(await granted(take(h, ["lee@acme.test"])), false);
+  await assert.rejects(h.call("gate.taint.mark", { threads: ["thr_chat"], source: "x" }, as(bot)), (e) => codeOf(e) === "permission.role_lacks_permission");
+});
+
+test("a link the person gave or a page linked to is known; one put together is not; the table holds hashes", async () => {
+  const h = harness();
+  await h.call("gate.grants.ask", { threadId: "thr_chat", messageId: "msg_1", asked: [], links: ["https://acme.test/a?x=1#top"] }, alice as never);
+  assert.equal(await known(h, "https://acme.test/a?x=1"), true);
+  assert.equal(await known(h, "https://acme.test/a?x=2"), false, "a changed query is a new link");
+  assert.equal(await known(h, "https://acme.test/a?x=1", ["thr_other"]), false);
+  await mark(h, ["thr_chat"], ["https://acme.test/b"]);
+  assert.equal(await known(h, "https://acme.test/b"), true);
+  assert.equal(JSON.stringify(h.db.all("SELECT * FROM gate_links")).includes("acme.test"), false);
+});
+
+const allow = (h: Harness, who: unknown, over: Record<string, unknown> = {}) => h.call("gate.allow.set", { act: "approve", target: "files.write", threadId: "thr_chat", ...over }, who as never);
+const allowed = (h: Harness, act = "approve", cap = "files.write", agentId = bot.id, threads = ["thr_chat"]) => h.call("gate.grants.take", { act, targets: [], always: { person: alice.id, agentId, threads, cap } }, gate);
+
+test("Always allow is a row: scoped, with an expiry, read live, and taken back at the next act", async () => {
+  const h = harness();
+  const { rule } = await allow(h, alice, { agentId: bot.id });
+  assert.equal(rule.kind, "always");
+  assert.equal(rule.expiresAt, h.now() + 30 * 24 * HOUR);
+  assert.equal(await granted(allowed(h)), true);
+  assert.equal(await granted(allowed(h)), true, "a rule is not spent");
+  assert.equal(await granted(allowed(h, "approve", "files.delete")), false, "another capability");
+  assert.equal(await granted(allowed(h, "approve", "files.write", "agt_other")), false, "another agent");
+  assert.equal(await granted(allowed(h, "approve", "files.write", bot.id, ["thr_other"])), false, "another chat");
+  assert.deepEqual((await h.call("gate.allow.list", {}, alice as never)).rules.map((r: { id: string }) => r.id), [rule.id]);
+  await h.call("gate.allow.remove", { id: rule.id }, alice as never);
+  assert.equal(await granted(allowed(h)), false);
+  await allow(h, alice, { days: 1 });
+  h.advance(25 * HOUR);
+  assert.equal(await granted(allowed(h)), false, "expired");
+});
+
+test("Always allow: only a person, one agent or chat, an outward act needs an admin, money never", async () => {
+  const h = harness();
+  await assert.rejects(allow(h, as(bot, { actingFor: alice.id })), (e) => codeOf(e) === "permission.role_lacks_permission");
+  await assert.rejects(allow(h, alice, { threadId: undefined }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(allow(h, alice, { act: "send", target: "lee@acme.test" }), (e) => codeOf(e) === "permission.role_lacks_permission");
+  const admin = harness({ authorize: (_w, action) => action.perm === "policy.manage" });
+  assert.equal((await allow(admin, alice, { act: "send", target: "lee@acme.test" })).rule.act, "send");
+  await assert.rejects(allow(admin, alice, { act: "pay", target: "stripe" }), (e) => codeOf(e) === "permission.role_lacks_permission");
+});
+
+test("a rule is removed only by who wrote it or an admin; a person leaving takes their asks and rules with them", async () => {
+  const h = harness();
+  const { rule } = await allow(h, alice);
+  await assert.rejects(h.call("gate.allow.remove", { id: rule.id }, bob as never), (e) => codeOf(e) === "permission.not_found");
+  await ask(h, "msg_1", [{ act: "send", target: "lee@acme.test" }]);
+  await rejectAllOf(h.ctxFor(null, { id: "svc_host", kind: "service" }), alice.id, "left");
+  assert.equal(await granted(allowed(h)), false);
+  assert.equal(await granted(take(h, ["lee@acme.test"])), false);
 });

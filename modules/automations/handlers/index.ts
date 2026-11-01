@@ -80,6 +80,7 @@ export const handlers = {
   "automations.vault_usage": vaultUsage,
   "automations.connector_levels": connectorLevels,
   "automations.read_docs": readDocs,
+  "automations.read_link": readDocs,
   "automations.connector_card": connectorCard,
   "automations.code_reach": () => ({ ok: true }),
   "automations.validate": validate,

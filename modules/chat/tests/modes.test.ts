@@ -3,7 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { DANA, INTAKE, MAYA, assertEventsConform, codeOf, harness } from "../fixtures/harness.ts";
+import { DANA, DRAFTER, INTAKE, MAYA, assertEventsConform, codeOf, harness } from "../fixtures/harness.ts";
+import { threadBy, threadOut } from "../projections.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 type Fn = (ctx: Harness["ctx"], input: any) => Promise<any>;
@@ -124,4 +125,20 @@ test("scope agent also stores the model and the account as the agent's default t
   const id2 = await chatOf(denied);
   await failure(h["threads.agent.configure"]!(denied.ctx, { threadId: id2, agentId: INTAKE, model: "gpt-5", scope: "agent" }));
   assert.equal((await h["threads.get"]!(denied.ctx, { threadId: id2 })).thread.agents[0].model, undefined, "the chat is unchanged when the agent change is refused");
+});
+
+test("a thread under a chat is never looser than the chat, read live", async () => {
+  const hn = harness();
+  const id = await chatOf(hn);
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "auto" });
+  const job = String((await h["chat.helper.start"]!(hn.agent(), { threadId: id, title: "Dates", instruction: "List the dates.", agentId: DRAFTER })).helper.threadId);
+  const mode = async (): Promise<string> => threadOut(hn.db, threadBy(hn.db, job)!)["mode"] as string;
+  assert.equal(await mode(), "auto");
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "ask" });
+  assert.equal(await mode(), "ask", "the Job's own row says auto; it inherits ask");
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "plan" });
+  assert.equal(await mode(), "plan");
+  assert.equal(threadOut(hn.db, threadBy(hn.db, job)!)["planMode"], true);
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "auto" });
+  assert.equal(await mode(), "auto");
 });

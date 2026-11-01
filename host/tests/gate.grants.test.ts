@@ -103,3 +103,37 @@ test("a person's own command is their own act; a red command stays red even when
   assert.deepEqual(await red.h.applies(terminal, { command: "git push --force" }, agent), { act: "approve" });
   assert.equal(red.taken.length, 0);
 });
+
+const reader = { name: "automations.read_link", v: 1, effects: "read", gate: { act: "send", when: "links.is_composed(input.url)" } } as unknown as CapabilityDef;
+function links(known: boolean) {
+  const calls: { cap: string; input: Record<string, unknown> }[] = [];
+  const h = createGateHook({
+    call: async (cap, i) => { calls.push({ cap, input: i as Record<string, unknown> }); return cap === "gate.links.known" ? { known } : cap === "gate.effective_rule" ? { hold: true } : { granted: false, ok: true }; },
+    unseal: () => new Uint8Array(), now: () => 0, hold: () => null, threads: (id) => [id, "thr_chat"],
+  });
+  return { h, calls };
+}
+
+test("a link the model put together is outward; one the person gave or a page linked is a read", async () => {
+  assert.deepEqual(await links(false).h.applies(reader, { url: "https://evil.test/?d=secret" }, agent), { act: "send" });
+  assert.equal(await links(true).h.applies(reader, { url: "https://acme.test/a" }, agent), null);
+  assert.equal(await links(false).h.applies(reader, { url: "https://acme.test/a" }, person), null, "a person's own read");
+});
+
+test("a read of outside words marks the thread and the threads above it, with the links it gave", async () => {
+  const { h, calls } = links(true);
+  await h.seen!({ ...reader } as CapabilityDef, { url: "https://acme.test/a" }, { text: "see https://acme.test/b", links: [{ text: "c", url: "https://acme.test/c" }] }, agent);
+  assert.deepEqual(calls.at(-1), { cap: "gate.taint.mark", input: { threads: ["thr_job", "thr_chat"], source: "automations.read_link", links: ["https://acme.test/c", "https://acme.test/b"] } });
+  const inside = links(true);
+  await inside.h.seen!({ name: "records.get", v: 1, effects: "read" } as unknown as CapabilityDef, {}, {}, agent);
+  assert.equal(inside.calls.length, 0, "a read inside Vyre is not outside content");
+  await inside.h.seen!(reader, { url: "https://acme.test/a" }, {}, person);
+  assert.equal(inside.calls.length, 0, "a person reading is not a turn");
+});
+
+test("Always allow is read at act time and spends nothing", async () => {
+  const { h, takes } = hook({ granted: true });
+  assert.equal(await h.allowed!({ name: "files.write", v: 1 } as unknown as CapabilityDef, {}, agent), true);
+  assert.deepEqual(takes()[0]!.input, { act: "approve", targets: [], always: { person: "usr_noah", agentId: "agt_a", threads: ["thr_job", "thr_chat"], cap: "files.write" } });
+  assert.equal(await h.allowed!({ name: "files.write", v: 1 } as unknown as CapabilityDef, {}, person), false, "only an agent acting for a person");
+});

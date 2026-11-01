@@ -107,3 +107,13 @@ test("a name with no wording of its own never reaches the person as a raw capabi
   assert.doesNotMatch(wantsPhrase("engine.mcp.call"), /engine/);
   assert.doesNotMatch(wantsLine("Ops", "records.merge_duplicates"), /records\./);
 });
+
+test("Always allow keeps a rule for this agent in this chat, then allows; an act that needs an admin has no such button", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={{ ...data(calls), threadId: "thr_1" } as never} />);
+  await flush();
+  await press(find(root, "approval-always-tsk_1"));
+  await flush();
+  assert.deepEqual(calls.filter((c) => c.cap !== "tasks.get").map((c) => c.cap).slice(0, 2), ["gate.allow.set", "tasks.act"]);
+  assert.deepEqual(calls.find((c) => c.cap === "gate.allow.set")!.input, { act: "approve", target: "files.write", agentId: "agt_1", threadId: "thr_1" });
+});

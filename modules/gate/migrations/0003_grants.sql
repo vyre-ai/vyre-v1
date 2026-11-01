@@ -3,6 +3,7 @@
 --   whatever a step a person wrote reaches.
 -- kind turn: the person's own message asked for it. Single use (used_at). message_id is that message, thread_id its thread; target "" means the message named none. expires_at is set, and a new message
 --   from the same person in that thread ends what the last one left unused.
+-- kind always: Always allow. Who it lets through: agent_id, thread_id or both. target is a capability, a recipient, or *. expires_at always set.
 -- gate_taint: a thread where outside content entered the turn. Outward acts stop there even if asked until the person speaks again (cleared_at); a request that names no target stays stopped after that.
 -- gate_holds.step: the automation step a held call came from, so approving it can add the one target it reached.
 CREATE TABLE IF NOT EXISTS "gate_grants" (
@@ -14,6 +15,7 @@ CREATE TABLE IF NOT EXISTS "gate_grants" (
   "def_hash" TEXT,
   "subject_id" TEXT,
   "step_id" TEXT,
+  "agent_id" TEXT,
   "thread_id" TEXT,
   "message_id" TEXT,
   "expires_at" INTEGER,
@@ -28,5 +30,12 @@ CREATE TABLE IF NOT EXISTS "gate_taint" (
   "source" TEXT NOT NULL,
   "at" INTEGER NOT NULL,
   "cleared_at" INTEGER
+);
+-- gate_links: links this thread may open as a read: the person gave them, or a page already read links to them. Stored as hashes.
+CREATE TABLE IF NOT EXISTS "gate_links" (
+  "thread_id" TEXT NOT NULL,
+  "link" TEXT NOT NULL,
+  "at" INTEGER NOT NULL,
+  PRIMARY KEY ("thread_id", "link")
 );
 ALTER TABLE "gate_holds" ADD COLUMN "step" TEXT;

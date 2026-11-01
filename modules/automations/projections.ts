@@ -54,6 +54,7 @@ export interface AutoCtx {
   now(): number;
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: EmitOpts): { id: string };
+  log?: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
   call?(cap: string, input: unknown): Promise<unknown>;
   authorize?(action: { perm: string | null; level: string }, resource: { type: string; id: string | null }): { effect: string };
   /** https://<space address>, when the host knows it; webhook URLs are paths without it */

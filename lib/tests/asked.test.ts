@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { askedIn } from "../asked.ts";
-import { namedCovers } from "../grants.ts";
+import { bringsOutside, linksIn, logLink, namedCovers, normalLink } from "../grants.ts";
 
 const acts = (s: string): string[] => askedIn(s).map((a) => `${a.act}:${a.target}`).sort();
 
@@ -52,4 +52,20 @@ test("a name covers an address it is part of, and nothing wider", () => {
   assert.equal(namedCovers("site", "acme/site"), true);
   assert.equal(namedCovers("main", "origin/main"), true);
   assert.equal(namedCovers("origin", "origin/main"), true);
+});
+
+test("links: one spelling, found in text, and a log line never has the query", () => {
+  assert.equal(normalLink("https://acme.test/a?x=1#top."), "https://acme.test/a?x=1");
+  assert.equal(normalLink("acme.test/a"), "https://acme.test/a");
+  assert.equal(normalLink("ftp://acme.test"), null);
+  assert.deepEqual(linksIn("read https://acme.test/a?x=1, then acme.test/b and mail lee@acme.test"), ["https://acme.test/a?x=1", "https://acme.test/b"]);
+  assert.equal(logLink("https://acme.test/a?secret=1"), "https://acme.test/a");
+});
+
+test("what counts as outside words", () => {
+  assert.equal(bringsOutside("automations.read_link", "read"), true);
+  assert.equal(bringsOutside("mail.message.get", "read"), true);
+  assert.equal(bringsOutside("engine.mcp.call", "outward"), true);
+  assert.equal(bringsOutside("records.get", "read"), false);
+  assert.equal(bringsOutside("google.gmail.send_message", "outward"), false);
 });

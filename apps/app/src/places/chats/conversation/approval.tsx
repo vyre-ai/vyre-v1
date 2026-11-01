@@ -13,7 +13,7 @@ import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 
 type Task = CapMap["tasks.get"]["out"]["task"];
-type Data = Pick<ConversationData, "call" | "nav">;
+type Data = Pick<ConversationData, "call" | "nav" | "threadId">;
 
 /** The name of the file or record a step is about, for the line that says what it wants. Empty when it cannot be read. */
 async function subjectOf(data: Data, cap: string, input: Record<string, unknown>): Promise<string | undefined> {
@@ -58,6 +58,8 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
 
   if (task === undefined || task === null) return null;
   const held = heldOf(task.blocks);
+  // a change held only because the chat is in Ask first is a person's to always allow; any other act needs an admin, so the card does not offer it
+  const allowable = held.act === "approve";
   const ended = outcome ?? outcomeOf(task.state);
   if (ended) {
     return (
@@ -73,6 +75,14 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
       () => setOutcome(key === "approve" ? "allowed" : "denied"),
       () => setLine("Failed. Try again."),
     ).finally(() => setBusy(false));
+  };
+  /** Allow this and every call like it from this agent in this chat, for 30 days. The rule is the Gate's; /permissions lists it and takes it back. */
+  const always = (): void => {
+    setBusy(true); setLine(null);
+    void Promise.resolve(data.call("gate.allow.set", { act: "approve", target: held.cap, agentId, threadId: data.threadId })).then(
+      () => act("approve"),
+      () => { setBusy(false); setLine("Could not keep that rule. Try Allow."); },
+    );
   };
   const rows = excerptLines(held.input, 5, held.cap);
   return (
@@ -112,6 +122,7 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
       ) : (
         <View style={st.acts}>
           <TextButton label="Deny" onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
+          {allowable ? <TextButton label="Always allow" disabled={busy} onPress={always} testID={`approval-always-${taskId}`} /> : null}
           <TextButton label="Allow" primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />
         </View>
       )}

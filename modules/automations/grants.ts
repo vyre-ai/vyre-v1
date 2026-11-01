@@ -42,7 +42,7 @@ export async function regrant(ctx: AutoCtx, a: Automation, press: "save" | "on",
   if (!ctx.call) return;
   try {
     await ctx.call("gate.grants.set", { automationId: a.id, defHash: await definitionHash(a.definition), press, steps: outwardSteps(a.definition, press === "on" ? a.definition : before) });
-  } catch (e) { (ctx as { log?: { warn(m: string, a?: Record<string, unknown>): void } }).log?.warn("automation grants were not written", { automationId: a.id, error: e instanceof Error ? e.message : String(e) }); }
+  } catch (e) { ctx.log?.warn("automation grants were not written", { automationId: a.id, error: e instanceof Error ? e.message : String(e) }); }
 }
 
 const BACKFILLED = "automations.grants_backfilled";

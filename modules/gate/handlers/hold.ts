@@ -220,6 +220,7 @@ export async function recover(ctx: Pick<GateCtx, "db" | "now" | "call">): Promis
 
 /** A person was removed: everything they asked the Gate to send is dropped, never sent. */
 export async function rejectAllOf(ctx: GateCtx, person: string, reason: string): Promise<string[]> {
+  ctx.db.run("DELETE FROM gate_grants WHERE person = ? AND kind IN ('turn', 'always')", person);   // what they asked for and allowed goes with them; an automation's permission stays with the automation
   const mine = holdsWhere(ctx.db, "state = 'held' AND (principal_id = ? OR acting_for = ?)", person, person);
   const done: string[] = [];
   for (const h of mine) {
