@@ -25,7 +25,8 @@ export class ToolError extends Error {
 
 /** What the host binds on top of ComputerHost for the tools; the Docker host (impl.ts) has it. */
 export interface ToolHost {
-  tool(a: { computerId: string; tool: string; args: ToolArgs; timeoutMs: number }): Promise<ToolAnswer>;
+  /** `by: "person"` is the person at the controls acting through the live view: agentd lets it through a take-over that holds the agent's tools. */
+  tool(a: { computerId: string; tool: string; args: ToolArgs; timeoutMs: number; by?: "person" }): Promise<ToolAnswer>;
 }
 
 export const DEFAULT_TOOL_MS = 30_000;
@@ -156,7 +157,8 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   const c = r.computer;
   let raw: ToolAnswer;
   try {
-    raw = await r.host.tool({ computerId: c.computerId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS) });
+    const byPerson = c.state === "takeover" && ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
+    raw = await r.host.tool({ computerId: c.computerId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), ...(byPerson ? { by: "person" as const } : {}) });
   } catch (e) {
     return refuse(ctx, e);
   }

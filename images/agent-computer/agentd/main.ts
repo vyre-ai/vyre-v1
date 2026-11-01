@@ -108,8 +108,10 @@ async function runTool(args: Args): Promise<Args> {
   const isScreen = name.startsWith("screen_");
   const isFiles = name.startsWith("computer_files_");
   if (!isChrome && !isScreen && !isFiles) throw badInput(`${name} is not a tool of this computer.`);
-  // A person at the controls: the agent's tools wait, except the two that only look.
-  if (state.takeover && name !== "chrome_status" && name !== "chrome_stop") throw paused("A person has the controls. The tools wait until they give them back.");
+  // A person at the controls: the agent's tools wait, except the two that only look. The person's own click or key through the live view is not the agent's tool: the host says so (by: "person",
+  // only after checking they hold the controls) and it goes through.
+  const byPerson = args["by"] === "person" && state.takeover !== null;
+  if (state.takeover && !byPerson && name !== "chrome_status" && name !== "chrome_stop") throw paused("A person has the controls. The tools wait until they give them back.");
   // Only the tools that type or fill take #Handle.field: a CSS selector such as #main.content in a script is not one.
   const typing = name === "screen_type" || name === "chrome_type" || name === "chrome_fill" || name === "chrome_act";
   const filled = typing ? await fillArgs(a) : { args: a, used: [] };
@@ -122,7 +124,7 @@ async function runTool(args: Args): Promise<Args> {
     });
     const out = filled.used.length > 0 ? { ...scrubUsed(raw, filled.used), used: filled.used } : raw;
     state.caption = name.replace(/_/g, " ");
-    recorder.note({ by: "agent", type: "tool", tool: name });
+    recorder.note({ by: byPerson ? "person" : "agent", type: "tool", tool: name });
     // The picture after the step is the timeline's frame. A look at the screen is its own picture.
     if (name !== "screen_screenshot" && name !== "chrome_screenshot" && !isFiles && name !== "chrome_status" && name !== "screen_wait") {
       try { return { ...out, frame: (await screenshotPng(screen)).toString("base64") }; } catch { return out; }

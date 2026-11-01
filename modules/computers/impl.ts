@@ -344,7 +344,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     async sessions(computerId) { return (await ctl<{ sessions?: SessionInfo[] }>(computerId, "sessions")).sessions ?? []; },
     async signOut(a) { return (await ctl<{ ok?: boolean }>(a.computerId, "sign_out", { site: a.site })).ok === true; },
     async tool(a) {
-      const body = JSON.stringify({ tool: a.tool, args: a.args, timeoutMs: a.timeoutMs });
+      const body = JSON.stringify({ tool: a.tool, args: a.args, timeoutMs: a.timeoutMs, ...(a.by === "person" ? { by: "person" } : {}) });
       if (body.length > MAX_TOOL_ARG) throw new ToolError("bad_input", "That call is too large to send to the computer.");
       let timer: ReturnType<typeof setTimeout> | undefined;
       const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new ToolError("timeout", `The computer did not finish ${a.tool} in time.`)), a.timeoutMs + 5_000); });
