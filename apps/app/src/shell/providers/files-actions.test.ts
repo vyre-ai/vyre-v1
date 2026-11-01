@@ -1,3 +1,4 @@
+// @tsx
 // Files' New folder, Rename and Upload (the doors that used to open a screen nobody read): each is a capability call, a name is required, and the file chooser feeds the same store the chat uses.
 import test from "node:test";
 import assert from "node:assert/strict";
