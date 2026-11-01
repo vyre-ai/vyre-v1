@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { exportAs } from "./export.ts";
 import type { ExportFormat } from "./export.ts";
-import { postInput } from "./model.ts";
+import { mentionsIn, postInput } from "./model.ts";
 import { carriesScreen, currentScreen } from "../../../shell/ask/screen.ts";
 import type { AgentMode, Message, SendKind, Thread } from "./model.ts";
 
@@ -220,6 +220,15 @@ export async function forkChat(data: ConversationData, messageId: string | undef
 
 /** A task from a message: the task's title is the first line (or the words given), its summary the whole message, and a block links back to the message. */
 export async function makeTask(data: ConversationData, thread: Thread, message: Pick<Message, "messageId" | "body" | "author" | "createdAt">, key: string, title?: string): Promise<string> {
+  // a real message: the server makes the task, points it back at the message and leaves the "Task created" card in the thread. The first person @named in the message gets it (a name in the chat
+  // directory, not the asker), else the asker does.
+  if (message.messageId !== "") {
+    const named = mentionsIn(message.body, data.directory.filter((c) => c.id !== data.me.id && (c.kind === "person" || thread.agents.some((x) => x.agentId === c.id))))[0];
+    const out = (await data.call("chat.make_task", {
+      threadId: thread.threadId, messageId: message.messageId, ...(title?.trim() ? { title: title.trim() } : {}), ...(named ? { assigneeId: named.id } : {}), idempotencyKey: key,
+    } as CapMap["chat.make_task"]["in"])) as CapMap["chat.make_task"]["out"];
+    return out.taskId;
+  }
   const firstLine = message.body.trim().split(/\n/)[0] ?? "";
   const name = (title?.trim() || firstLine || "Follow up on this message").slice(0, 120);
   const out = (await data.call("tasks.create", {

@@ -228,6 +228,11 @@ export default defineManifest({
       in: { messageId: id.message, threadId: id.thread, emoji: t.str(), remove: t.opt(t.bool()) }, out: { reactions: t.arr(reaction) }, on: ['thread', '/threadId'], level: 'use',
       emits: ['message.reacted'], tool: 'chats', offline: 'patch', idem: 'natural', risk: 'low',
     }),
+    write('chat.make_task', 'Turn a message into a task: the title is its first line, the task points back at it and a "Task created" card in the thread links to the task. An agent may do it for the person it acts for', {
+      in: { ...threadT, messageId: id.message, title: t.opt(t.str()), assigneeId: t.opt(t.str({ description: 'A person or an agent in this chat; default the asker' })) },
+      out: { taskId: id.task, messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low',
+      agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found'],
+    }),
     write('chat.pin', 'Mark a message as pinned (a content marker, not a Star)', {
       in: { messageId: id.message, threadId: id.thread }, out: { pinned: t.bool() }, on: ['thread', '/threadId'], emits: ['message.pinned'], tool: 'chats', offline: 'patch', idem: 'natural',
     }),

@@ -1,0 +1,1 @@
+- Turn that into a task: a message becomes a task with no form. The title is the first line, an @named person gets it, the task points back at the message, and a 'Task created, assigned to Maya' card lands in the thread. The new chat.make_task does it for people and agents; the shared link card block (link_card) is the card every rc.9 flow uses.

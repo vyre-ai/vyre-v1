@@ -11,6 +11,8 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
+import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
+import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
 import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
@@ -97,6 +99,16 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
   const { item } = props;
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
   if (item.kind === "event") {
+    const link = linkCardOf(item.message.blocks.find((x) => x.type === "link_card") ?? { type: "", data: null });
+    if (link) {
+      const b = item.message.blocks.find((x) => x.type === "link_card")!;
+      return (
+        <View testID={`event-${item.key}`} style={st.event}>
+          <LinkCard id={String(b.id)} data={link} nameOf={props.actions.nameOf ?? ((id) => id)} icon={<Glyph name={linkGlyph(link.icon)} size={13} color="var(--ink-4)" />} onOpen={(t) => props.actions.openBeside(t.type, t.id)} />
+          <Text style={st.eventTime}>{item.time}</Text>
+        </View>
+      );
+    }
     const origin = forkOrigin(item.message);
     if (origin && props.actions.openMessage) {
       const go = props.actions.openMessage;
@@ -287,6 +299,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       {collect(cards, (b) => {
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
+        const lc = linkCardOf(b);
+        if (lc) return <LinkCard key={b.id} id={b.id} data={lc} nameOf={actions.nameOf ?? ((id) => id)} icon={<Glyph name={linkGlyph(lc.icon)} size={14} color="var(--ink-3)" />} onOpen={(t) => actions.openBeside(t.type, t.id)} />;
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
@@ -314,6 +328,9 @@ function Reactions({ m, a, mine }: { m: Message; a: MessageActions; mine: boolea
 }
 
 /* ---------- native cards ---------- */
+
+/** The glyph a link card's icon word asks for. */
+const linkGlyph = (icon: string): GlyphName => (icon === "task" ? "task" : icon === "file" ? "file" : icon === "fact" ? "spark" : "reply");
 
 const CARD_ICON: Record<string, GlyphName> = { terminal: "term", plan: "plan", file: "file", changeset: "file", diff: "file", screenshot: "file", record_card: "file", question: "spark" };
 const OPENS = new Set(["terminal", "changeset", "diff", "file", "record_card", "tab_opened", "screenshot", "deploy", "mount"]);
