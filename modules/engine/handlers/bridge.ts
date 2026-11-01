@@ -8,6 +8,7 @@
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
+import { workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -172,6 +173,8 @@ export function createBridge(o: BridgeOptions): Bridge {
         live.delete(e.turnId); turns.delete(e.turnId);
         writing.delete(e.turnId);
         emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: "done" });
+        // what the turn started (a task, a Run, a file...) goes under its reply as cards, one group
+        seg.blocks.push(...workBlocks(e.turnId));
         if (seg.text !== "" || seg.mentions > 0) {
           ready.set(`${e.threadId}:${e.agentId}`, { ...seg, routineOwner, turnId: e.turnId });   // the engine stores the reply right after this event; message.received below posts it
         } else if (seg.blocks.length > 0) {
@@ -188,7 +191,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         const seg = live.get(e.turnId);
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
-        const blocks = [...(seg?.blocks ?? []), status(e)];
+        const blocks = [...(seg?.blocks ?? []), ...workBlocks(e.turnId), status(e)];
         writing.delete(e.turnId);
         emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting" });
         enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) }, e.turnId);

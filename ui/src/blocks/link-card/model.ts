@@ -18,6 +18,8 @@ export interface LinkCardData {
   by?: string;
   to?: string;
   target?: LinkTarget;
+  /** For a record: its type, so the card can read it. */
+  via?: string;
   /** More than a line: an agent's summary. Cards with a body or actions draw as a card, the rest as one line. */
   body?: string;
   /** Buttons under the body; the host knows what each key does (make a task, remember). */
@@ -35,7 +37,7 @@ export function linkCardOf(b: { type: string; data: unknown }): LinkCardData | n
   if (!lead || !title) return null;
   const t = d["target"] as Record<string, unknown> | undefined;
   const type = str(t?.["type"]), id = str(t?.["id"]);
-  const who = str(d["who"]), body = str(d["body"]), by = str(d["by"]), to = str(d["to"]);
+  const who = str(d["who"]), body = str(d["body"]), by = str(d["by"]), to = str(d["to"]), via = str(d["via"]);
   const actions = Array.isArray(d["actions"])
     ? d["actions"].flatMap((a): NonNullable<LinkCardData["actions"]> => {
       const x = a as Record<string, unknown>; const key = str(x["key"]), label = str(x["label"]), cap = str(x["cap"]);
@@ -45,7 +47,7 @@ export function linkCardOf(b: { type: string; data: unknown }): LinkCardData | n
     : [];
   return {
     icon: str(d["icon"]) ?? "thread", lead, title,
-    ...(who ? { who } : {}), ...(by ? { by } : {}), ...(to ? { to } : {}), ...(type && id ? { target: { type, id } } : {}), ...(body ? { body: body.slice(0, 2000) } : {}), ...(actions.length ? { actions } : {}),
+    ...(who ? { who } : {}), ...(by ? { by } : {}), ...(to ? { to } : {}), ...(via ? { via } : {}), ...(type && id ? { target: { type, id } } : {}), ...(body ? { body: body.slice(0, 2000) } : {}), ...(actions.length ? { actions } : {}),
   };
 }
 
