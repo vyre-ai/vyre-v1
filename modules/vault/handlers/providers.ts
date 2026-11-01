@@ -4,7 +4,7 @@
 // ever sees the key for that one call.
 // DECISION: a Shared provider is an API key or a local model; a subscription sign-in is Mine for ever (the kind cannot be shared). The Space may use a Mine provider only when its owner says so.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { itemDelete, itemPut, openFields } from "./items.ts";
+import { itemDelete, itemPut, itemUpdate, openFields } from "./items.ts";
 import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
@@ -237,6 +237,16 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
     const step = await port.step({ id: input.flowId, person: me(ctx), ...(pasted ? { code: input.code as string } : {}) });
     if (step.state === "waiting") return { waiting: true };
     if (step.state === "failed") throw fail("provider.auth_failed", ctx.trace.traceId, { message: step.message });
+    // Signing in again to an account the person already has refreshes THAT item and keeps its provider: no second "Claude Code 2" beside it, and nothing the person set up on the old one (the chat's account,
+    // fallbacks, the Space's use) is left pointing at a dead copy. Their old duplicates are left alone; tidy them by deleting the extra items in the Vault.
+    const existing = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).find((p) => live(p) && str(p, "owner") === me(ctx) && str(p, "providerKey") === str(f, "providerKey") && str(p, "connection") === "subscription" && itemOf(ctx, str(p, "itemId")));
+    if (existing) {
+      await itemUpdate(ctx, { itemId: str(existing, "itemId"), fieldsSet: step.fields as unknown[] });
+      ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, "ok", str(existing, "id"));
+      ctx.db.run(`UPDATE vault_provider_flow SET "doneAt" = ? WHERE "id" = ?`, ctx.now(), input.flowId);
+      port.cancel(input.flowId);
+      return { provider: rowOut(ctx, providerById(ctx, str(existing, "id"))) };
+    }
     // the credential goes straight into the person's own Mine folder; it is not returned to anyone
     const c = entry(ctx, str(f, "providerKey"))!;
     const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
