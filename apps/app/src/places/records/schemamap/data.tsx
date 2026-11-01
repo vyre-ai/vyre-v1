@@ -13,7 +13,7 @@ export interface SchemaNav {
   /** Open a record type in the Records place. */
   openType(key: string): void;
   /** Structure is edited in the Console: open it at Data > Schema (a Team Space's console site). */
-  openConsole(type?: string): void;
+  openConsole?(type?: string): void;
 }
 
 export interface SchemaData {

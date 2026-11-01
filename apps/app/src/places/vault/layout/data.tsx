@@ -15,9 +15,10 @@ export interface VaultNav {
   /** The Advanced page: emergency access, recovery key, backups, devices, outside-agent passes. */
   openAdvanced(): void;
   /** Contract-backed security surfaces linked from Advanced. */
-  openBackups(): void;
+  /** Left out in a Personal Space: backups are a Team Space Console page. */
+  openBackups?(): void;
   openDevices(): void;
-  openOutsideActors(): void;
+  openOutsideActors?(): void;
   /** Who may export, the longest a download link lasts, and whether a reveal asks why. */
   openPolicy(): void;
   /** The Automation or agent that is asking for a key. */
