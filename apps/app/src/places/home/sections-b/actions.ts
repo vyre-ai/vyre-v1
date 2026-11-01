@@ -24,13 +24,26 @@ export function dismissChecklist(d: ActionDeps): Promise<boolean> {
 }
 
 let seq = 0;
-/** Start a chat with the assistant from the Ask box. Returns the thread to open, or null when it failed. */
-export async function startAsk(d: ActionDeps, assistantId: string, text: string, at: number): Promise<string | null> {
+export interface AskExtras { mentions?: readonly { kind: "person" | "agent"; id: string }[]; refs?: readonly { kind: string; id: string; title: string }[] }
+
+/**
+ * Start a chat with the assistant from the Ask box. Returns the thread to open, or null when it failed. A plain question is the first message of the new chat. When the person @mentioned someone or
+ * linked things with #, the message is posted the way the Chats composer posts it (mentions and the refs block), so an @agent answers and a linked record is seen, not flattened to text.
+ */
+export async function startAsk(d: ActionDeps, assistantId: string, text: string, at: number, extras: AskExtras = {}): Promise<string | null> {
   const key = `home-ask-${at}-${++seq}`;
+  const rich = (extras.mentions?.length ?? 0) > 0 || (extras.refs?.length ?? 0) > 0;
   let thread: string | null = null;
   const ok = await attempt(d, "start that chat", async () => {
-    const out = (await d.call("chat.start", { kind: "chat", agentIds: [assistantId], first: text, idempotencyKey: key })) as { thread: { threadId: string } };
+    const out = (await d.call("chat.start", { kind: "chat", agentIds: [assistantId], ...(rich ? {} : { first: text }), idempotencyKey: key })) as { thread: { threadId: string } };
     thread = out.thread.threadId;
+    if (rich) {
+      await d.call("chat.post", {
+        threadId: thread, body: text, idempotencyKey: `${key}-post`,
+        ...((extras.mentions?.length ?? 0) > 0 ? { mentions: extras.mentions!.map((m) => ({ kind: m.kind, id: m.id })) } : {}),
+        ...((extras.refs?.length ?? 0) > 0 ? { blocks: [{ type: "refs", v: 1, data: { refs: extras.refs!.map((r) => ({ kind: r.kind, id: r.id, title: r.title })) } }] } : {}),
+      });
+    }
   });
   return ok ? thread : null;
 }

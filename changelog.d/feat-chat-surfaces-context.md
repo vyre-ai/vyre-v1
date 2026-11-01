@@ -1,0 +1,1 @@
+- Chat: an Ask or comment thread about a record, file, folder, automation or agent tells the agent the object's name (a record by its type and title), not only its id, and the Home Ask box posts @mentions and # links the way Chats does and says when files were not sent.
