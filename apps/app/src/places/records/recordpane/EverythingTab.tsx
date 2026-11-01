@@ -26,7 +26,7 @@ export function EverythingTab({ type, recordId, def, onComments }: { type: strin
     if (it.kind === "comment" && onComments) return onComments;
     return undefined;
   };
-  // ui-rows-lint: not a list of Rows the person scrolls through item by item, a feed of at most a hundred lines
+  // ui-rows-lint: not a list (a capped feed of at most a hundred lines inside the record pane)
   const rows: ReactElement[] = items.map((it) => (
     <View key={it.id} style={s.row}>
       <Row

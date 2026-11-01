@@ -44,6 +44,7 @@ export function HeldMailCard({ mail, call, onOpenRecord }: { mail: HeldMail; cal
               <Text style={s.k}>{peek.type}</Text>
             </Pressable>
           )}
+          {/* ui-rows-lint: not a list (two or three labelled facts about one record) */}
           {peek?.lines.map(([k, v]) => <View key={k} style={s.meta}><Text style={s.k}>{k}</Text><Text style={s.v}>{v}</Text></View>)}
         </View>
       ) : null}
