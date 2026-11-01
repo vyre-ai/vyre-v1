@@ -76,6 +76,7 @@ for (const kind of ["team", "personal"] as const) test(`computers journey, ${kin
       await me.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
     };
 
+    bindComputers(null);   // a runner with Docker wires the real host at boot: start from a Space that has no capable host
     // A Personal Space shows agent computers only once a capable server exists, and nothing about them before: no Computer tab at all. A Team Space always does.
     if (kind === "personal") {
       await showChat();
