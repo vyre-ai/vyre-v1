@@ -57,3 +57,18 @@ test("a shared card reads \"Shared by Maya\" where it landed and \"Shared to #op
   const here = linkCardOf({ type: "link_card", data: { icon: "thread", lead: "Shared", to: "#ops", title: "We ship Friday", target: { type: "thread", id: "thr_b" } } })!;
   assert.equal(linkCardLine(here, name), "Shared to #ops");
 });
+
+test("a work card says what its thing is doing now, and hides the name from a reader who may not open it", async () => {
+  installDom();
+  const opened: string[] = [];
+  const live = await mount(createRoot, <LinkCard id="w1" data={{ icon: "run", lead: "Run started", title: "Lead sweep", target: { type: "run", id: "run_1" } }} nameOf={names} onOpen={(t) => opened.push(t.id)} state={{ text: "Waiting on you", tone: "warn", live: true }} />);
+  assert.match(textOf(find(live, "link-card-w1")), /Run started:\s+Lead sweep/);
+  assert.equal(textOf(find(live, "link-card-w1-state")), "Waiting on you");
+  await press(find(live, "link-card-w1-open"));
+  assert.deepEqual(opened, ["run_1"]);
+  const hidden = await mount(createRoot, <LinkCard id="w2" data={{ icon: "task", lead: "Task created", title: "Secret merger plan", target: { type: "task", id: "tsk_9" } }} nameOf={names} onOpen={(t) => opened.push(t.id)} hidden />);
+  assert.ok(!textOf(find(hidden, "link-card-w2")).includes("Secret merger plan"), "the name is not shown");
+  assert.match(textOf(find(hidden, "link-card-w2")), /Not shared with you/);
+  assert.equal(typeof find(hidden, "link-card-w2-open")!.props.onClick, "undefined", "and it is not a link: it opens nothing");
+  assert.deepEqual(opened, ["run_1"]);
+});

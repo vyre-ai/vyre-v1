@@ -85,7 +85,9 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
     const made = (await ctx.call("tasks.create", {
       kind: "unblock", title: `Your ${title} key stopped working`, summary: `${title} refused the key, so nothing syncs from it. Replace the key in the Vault; syncing resumes by itself and nothing was lost.`,
       why: "The app refused the key or sign-in.", assigned: { kind: "person", id: who }, source: { kind: "manual", id: c.connection_id },
-      actions: [{ key: "resolved", label: "Fix" }], idempotencyKey: `needs_reconnect:${c.connection_id}:${nowOf(deps)}`,
+      blocks: [{ type: "connection_fix", v: 1, data: { connectionId: c.connection_id, title } }],
+      // no bare resolve: the task closes when the connection works again (Reconnect, or a replaced key and Check again), never by pressing Done
+      actions: [{ key: "cannot", label: "Dismiss", note: "optional" }], idempotencyKey: `needs_reconnect:${c.connection_id}:${nowOf(deps)}`,
     })) as { task?: { id?: string } } | undefined;
     const taskId = made?.task?.id;
     if (taskId) deps.tx.run("INSERT OR REPLACE INTO cn_reconnect_tasks (connection_id, task_id) VALUES (?, ?)", c.connection_id, taskId);

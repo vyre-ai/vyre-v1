@@ -1,0 +1,3 @@
+Work an agent starts in a chat now appears under its reply as cards: a task, a Run, a record made or changed, a file, a Routine, a handoff, a computer, and a send or step waiting for your yes. Several from one turn are one group under the words. A card reads what its thing is doing now (running, done, failed, waiting on you) and opens it; a reader who may not open the thing sees 'Not shared with you' instead of its name.
+
+Cards say what a thing is and the state sits on the right ("Run: Nightly export  Failed"), so a card stays true as it ages. Each kind has its own glyph. A send waiting for your yes is named by its subject or recipient.

@@ -55,6 +55,8 @@ export interface WorldOptions {
   /** where the Space says people reach it (default http://space.test); the browser journey gives the edge's address */
   address?: string;
   engineOpenSession?: OpenSession;
+  /** the real driver around a CLI process (the fake claude of host/tests/fixtures/fake-cli-driver) instead of a model stand-in */
+  engineCli?: unknown;
   /** the clock the fake providers stamp mail with */
   now?: () => number;
 }
@@ -95,6 +97,7 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
     http: fake.http,
     seams: { fetch: fake.tokenFetch },
     ...(o.engineOpenSession ? { engineOpenSession: o.engineOpenSession } : {}),
+    ...(o.engineCli !== undefined ? { engineCli: o.engineCli as never } : {}),
   });
   let d = await start();
   port = d.port;

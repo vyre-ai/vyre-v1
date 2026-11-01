@@ -92317,6 +92317,10 @@ if (!("requestId" in o5843)) e.push(p + "/requestId" + ': required');
 if ("requestId" in o5843) lf(o5843["requestId"], p + "/requestId", e, L126);
 if ("forRun" in o5843) lf(o5843["forRun"], p + "/forRun", e, L28);
 if ("note" in o5843) lf(o5843["note"], p + "/note", e, L2);
+if ("name" in o5843) lf(o5843["name"], p + "/name", e, L2);
+if ("threadId" in o5843) lf(o5843["threadId"], p + "/threadId", e, L21);
+if ("agentId" in o5843) lf(o5843["agentId"], p + "/agentId", e, L4);
+if ("asker" in o5843) lf(o5843["asker"], p + "/asker", e, L2);
 }
 }
 }
@@ -92334,6 +92338,10 @@ if (!("itemId" in o5844)) e.push(p + "/itemId" + ': required');
 if ("requestId" in o5844) lf(o5844["requestId"], p + "/requestId", e, L126);
 if ("itemId" in o5844) lf(o5844["itemId"], p + "/itemId", e, L87);
 if ("forRun" in o5844) lf(o5844["forRun"], p + "/forRun", e, L28);
+if ("name" in o5844) lf(o5844["name"], p + "/name", e, L2);
+if ("threadId" in o5844) lf(o5844["threadId"], p + "/threadId", e, L21);
+if ("agentId" in o5844) lf(o5844["agentId"], p + "/agentId", e, L4);
+if ("asker" in o5844) lf(o5844["asker"], p + "/asker", e, L2);
 }
 }
 }

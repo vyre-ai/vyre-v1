@@ -6,6 +6,7 @@ import { createBridge } from "../handlers/bridge.ts";
 import type { AgentPost, Bridge, StreamEvent } from "../handlers/bridge.ts";
 import { harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
+import { recordWork, workCardOf } from "../../../agent/src/tools/work-cards.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 import type { DriverEvent, TurnInput } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -312,4 +313,19 @@ test("a post that is refused is never silent: the person gets the words and a fa
   assert.equal(posts.length, 1);
   assert.equal(posts[0]?.body, "The answer is 42.", "the words survive");
   assert.deepEqual(posts[0]?.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: (posts[0]!.blocks[0] as { data: { turnId: string } }).data.turnId, code: "engine.post_failed" } }]);
+});
+
+test("what a turn started comes under its reply as cards, in one message, in the order it was made", async () => {
+  const s = setup({
+    script: (i) => {
+      recordWork(i.turnId, workCardOf("records.create", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana Fox" } } }));
+      recordWork(i.turnId, workCardOf("tasks.create", {}, { task: { id: "tsk_1", title: "Call Dana" } }));
+      return [{ type: "text", text: "Done, I made both." }, { type: "done" }];
+    },
+  });
+  await s.say("Add Dana and a task to call her.");
+  const posts = s.chat.filter((r) => r.author.id === LEAD);
+  assert.equal(posts.length, 1, "one reply, not a pile");
+  assert.equal(posts[0]?.body, "Done, I made both.");
+  assert.deepEqual((posts[0]!.blocks as { type: string; data: { lead: string; title: string } }[]).map((b) => `${b.type}:${b.data.lead}:${b.data.title}`), ["link_card:Record:Dana Fox", "link_card:Task:Call Dana"]);
 });

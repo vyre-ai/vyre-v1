@@ -21,5 +21,9 @@ type Payload = {
   requestId: string;
   itemId: string;
   forRun?: string;
+  name?: string;
+  threadId?: string;
+  agentId?: string;
+  asker?: string;
 };
 ```

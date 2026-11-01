@@ -32,7 +32,7 @@ test("a reply being written is a row on the page with its words, before the mess
   const w = withLive();
   w.frame("trn_1", { kind: "start" });
   w.frame("trn_1", { kind: "delta", text: "Checking the calendar now." });
-  w.turns.streamOf("turn:trn_1")?.end();   // frames are drawn on the next animation frame; end shows what is waiting
+  w.frame("trn_1", { kind: "end", state: "done" });   // the words are released a few at a time; ending the turn shows what is waiting, and the next animation frame draws it
   const out = clean(renderToStaticMarkup(<Conversation data={w.data} />));
   assert.equal(count(out, 'data-testid="msg-turn:trn_1"'), 1);
   assert.ok(out.includes("Checking the calendar now."));

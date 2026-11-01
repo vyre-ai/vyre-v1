@@ -14,6 +14,8 @@ import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
 import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
 import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
+import { probeOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
+import type { CardState } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import { useThreadMemory } from "../memory/thread.tsx";
 import { rememberMessage } from "../memory/actions.ts";
 import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
@@ -28,6 +30,7 @@ import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { ApprovalCard } from "./approval.tsx";
 import { CrewResultCard, isCrewResult } from "./crew-card.tsx";
 import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
+import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
 import { MountCard } from "./mountcard.tsx";
 import { TerminalCard } from "./TerminalCard.tsx";
@@ -325,6 +328,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         const lc = linkCardOf(b);
         if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
+        if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
         if (isKeyRequest(b.type) && actions.files) return <KeyRequestCard key={b.id} requestId={String((b.data as { requestId?: unknown }).requestId ?? "")} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
@@ -379,12 +383,36 @@ function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: 
     if (!trusted || !a?.cap) return;
     void Promise.resolve(actions.host.invoke(a.cap, a.input ?? {})).then(() => setDone((d) => new Set(d).add(key)), () => undefined);
   };
+  const seen = useCardState(data, actions);
   const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={done} />;
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={done} state={seen.state} hidden={seen.hidden} />;
+}
+
+/** What a work card says now, read as this reader: its state while it is live (read again every few seconds), and whether they may open it at all. */
+function useCardState(data: LinkCardData, actions: MessageActions): { state: CardState | null; hidden: boolean } {
+  const [seen, setSeen] = useState<{ state: CardState | null; hidden: boolean }>({ state: null, hidden: false });
+  const probe = probeOf(data);
+  const key = probe ? `${probe.cap}:${JSON.stringify(probe.input)}` : "";
+  useEffect(() => {
+    if (!probe) return;
+    let live = true, timer: ReturnType<typeof setTimeout> | undefined, tries = 0;
+    const read = (): void => {
+      Promise.resolve(actions.host.invoke(probe.cap, probe.input)).then((out) => {
+        if (!live) return;
+        const state = stateOf(data, out);
+        setSeen({ state, hidden: false });
+        if (state?.live && ++tries < 60) timer = setTimeout(read, 4000);
+      }, () => { if (live) setSeen({ state: null, hidden: true }); });
+    };
+    read();
+    return () => { live = false; if (timer) clearTimeout(timer); };
+  }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read loop per card
+  return seen;
 }
 
 /** The glyph a link card's icon word asks for. */
-const linkGlyph = (icon: string): GlyphName => (icon === "task" ? "task" : icon === "file" ? "file" : icon === "fact" ? "spark" : "reply");
+const LINK_GLYPH: Record<string, GlyphName> = { task: "task", file: "file", fact: "spark", record: "people", run: "term", routine: "spark", computer: "monitor", approval: "alert", thread: "reply" };
+export const linkGlyph = (icon: string): GlyphName => LINK_GLYPH[icon] ?? "reply";
 
 const CARD_ICON: Record<string, GlyphName> = { terminal: "term", plan: "plan", file: "file", changeset: "file", diff: "file", screenshot: "file", record_card: "file", question: "spark" };
 const OPENS = new Set(["terminal", "changeset", "diff", "file", "record_card", "tab_opened", "screenshot", "deploy", "mount"]);

@@ -12,7 +12,6 @@ const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => {
 });
 
 const REVIEWED: Record<string, string> = {
-  "modules/connectors/handlers/runtime.ts": "Fix: UNREVIEWED GAP, the task closes without reconnecting; needs a Reconnect button in Needs you",
   "modules/google/handlers/personal.ts": "Sign in again: Needs you shows its own Sign in again button (mailFix)",
   "modules/microsoft/handlers/personal.ts": "Sign in again: Needs you shows its own Sign in again button (mailFix)",
   "modules/engine/handlers/spend.ts": "Raise once: handled by the spend flow when the task resolves",
