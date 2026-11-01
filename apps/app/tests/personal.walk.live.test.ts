@@ -231,10 +231,15 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
 
     await step("Terminal: opens", async () => {
       await go("chat", "chats-place");
-      // a person opens it from the Space menu (the Space tile at the top of the rail)
-      await page.getByTestId("space-tile").click({ timeout: 10_000 });
-      await page.getByRole("menuitem", { name: "Open Terminal", exact: true }).click({ timeout: 10_000 });
-      await page.getByTestId("chats-terminal").or(page.getByTestId("terminal-list")).or(page.getByTestId("terminal-new")).or(page.getByTestId("terminal-pane-open")).or(page.getByTestId("terminal-pane-empty")).or(page.getByTestId("terminal-pane-hosts")).or(page.getByTestId("terminal-tab")).first().waitFor({ timeout: 20_000 });
+      // the Terminal is a tab in the chat's right pane; open the pane if it is shut, then press the tab
+      const tab = page.getByTestId("tab-terminal").or(page.getByTestId("tab-terminal-selected")).first();
+      if (!(await tab.isVisible().catch(() => false))) {
+        await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
+      }
+      await tab.waitFor({ timeout: 15_000 });
+      await tab.click({ timeout: 10_000 });
+      await page.getByTestId("pane-body-terminal").waitFor({ timeout: 15_000 });
+      await page.getByTestId("terminal-pane-open").or(page.getByTestId("terminal-pane-hosts")).or(page.getByTestId("terminal-pane-empty")).or(page.getByTestId("terminal-tab")).first().waitFor({ timeout: 20_000 });
     });
   } finally {
     if (failures.length) {
