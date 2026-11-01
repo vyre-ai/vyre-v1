@@ -1,6 +1,8 @@
 // Records > list (spec 3.4, 2.9): a type's records as plain rows, the way a mailbox reads: a face or an icon, the title, one line of the fields that matter, and the tag at the right. Every row is
 // the shared ui/Row with its leading and trailing slots, drawn by ui/VirtualList, so 100,000 records scroll like ten. The list asks the local copy for 200 at a time and for more at the end;
 // the cached count sits under it.
+import { useRecordAccess } from "../sharing/useRecordAccess.ts";
+import { Glyph } from "../sidebar/parts.tsx";
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -18,8 +20,8 @@ import { ViewHead, useViewState } from "./view.tsx";
 import type { ViewCtx } from "./view.tsx";
 
 /** One record as the shared ui/Row: a face leading (the lead's, else the record's own seeded by its id), the status tag trailing, a menu on right-click. It is named Row because the rows lint reads a list item by that name. */
-function Row({ r, title, note, selected, person, badge, names, onOpen, onMenu }: {
-  r: RecordRow; title: string; note: string; selected: boolean; person: unknown; badge: FieldDef | undefined; names: (id: string) => string; onOpen: () => void; onMenu: (x: number, y: number) => void;
+function Row({ r, title, note, selected, person, badge, names, mark, onOpen, onMenu }: {
+  r: RecordRow; title: string; note: string; selected: boolean; person: unknown; badge: FieldDef | undefined; names: (id: string) => string; mark: "private" | "shared" | null; onOpen: () => void; onMenu: (x: number, y: number) => void;
 }): ReactElement {
   const bv = badge ? r.fields[badge.key] : undefined;
   const trig = menuTrigger(onMenu);
@@ -28,7 +30,7 @@ function Row({ r, title, note, selected, person, badge, names, onOpen, onMenu }:
       <UiRow
         id={`rec-${r.id}`} title={title} note={note} selected={selected}
         leading={<View style={l.face}>{typeof person === "string" && person !== "" ? <Avatar name={names(person)} seedId={person} kind="person" size={24} testID={`face-${names(person)}`} /> : <Avatar name={title} seedId={r.id} kind="person" size={24} testID={`face-${title}`} />}</View>}
-        {...(badge && typeof bv === "string" && bv !== "" ? { trailing: <Tag field={badge} value={bv} /> } : {})}
+        {...((badge && typeof bv === "string" && bv !== "") || mark ? { trailing: <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>{badge && typeof bv === "string" && bv !== "" ? <Tag field={badge} value={bv} /> : null}{mark ? <View testID={`mark-${r.id}`} accessibilityLabel={mark === "private" ? "Set apart from its type" : "Shared with people"}><Glyph name={mark === "private" ? "lock" : "people"} size={13} color="var(--ink-3)" /></View> : null}</View> } : {})}
         onPress={onOpen}
       />
     </View>
@@ -42,6 +44,7 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const [limit, setLimit] = useState(LIST_PAGE);
   const [selected, setSelected] = useState<string | null>(null);
   const { def } = ctx;
+  const access = useRecordAccess(ctx.type);
   const q = useLive("records.query", pageSpec(ctx.type, st.v, def.titleField, limit));
   const n = useLive("records.counts", countSpec(ctx.type, st.v, def.titleField));
   const kept = useRef<RecordRow[]>([]);
@@ -65,7 +68,7 @@ export function ListView({ ctx }: { ctx: ViewCtx }): ReactElement {
             data={rows} rowHeight={44} keyOf={(r) => r.id} renderItem={(r) => (
               <Row
                 r={r} title={(tf ? cellText(tf, r.fields[tf.key], names) : "") || "Untitled"} note={noteOf(each(note, (f) => valueText(f, r, names))) || def.title} selected={selected === r.id}
-                person={who ? r.fields[who.key] : undefined} badge={badge} names={names}
+                person={who ? r.fields[who.key] : undefined} badge={badge} names={names} mark={access.marks.get(r.id) ?? null}
                 onOpen={() => { setSelected(r.id); data.nav.openRecord(r.id); }}
                 onMenu={(x, y) => { setSelected(r.id); menu.show([{ label: "Open", onSelect: () => data.nav.openRecord(r.id) }], x, y); }}
               />
