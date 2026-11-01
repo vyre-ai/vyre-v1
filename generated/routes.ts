@@ -9235,6 +9235,24 @@ const routes1: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/engine/crew/push",
+    "cap": "engine.crew.push",
+    "v": 1,
+    "module": "engine",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "push_protected"
+  },
+  {
+    "method": "POST",
     "path": "/v1/engine/crew/repo/get",
     "cap": "engine.crew.repo.get",
     "v": 1,
@@ -9301,6 +9319,25 @@ const routes1: Route[] = [
     "level": "use",
     "resource": {
       "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/engine/crew/wait",
+    "cap": "engine.crew.wait",
+    "v": 1,
+    "module": "engine",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -11056,7 +11093,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/files/health",
@@ -11092,10 +11132,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/files/lint",
@@ -16594,7 +16631,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/journeys/stage_counts",
@@ -16631,10 +16671,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/journeys/tasks",
@@ -22103,7 +22140,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/notifications/away/set",
@@ -22139,10 +22179,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/notifications/delegate/get",
@@ -27636,7 +27673,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/spaces/leave",
@@ -27672,10 +27712,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/spaces/onboarding/complete",

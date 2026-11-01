@@ -9171,6 +9171,15 @@ export type EngineCrewListOut = {
       endedAt?: number;
       result?: Record<string, unknown>;
     }>;
+  waits: Array<{
+      waitId: string;
+      kind: "checks";
+      label: string;
+      state: "pending" | "passing" | "failing" | "none";
+      done: number;
+      total: number;
+      startedAt: number;
+    }>;
 };
 export type EngineCrewMergeIn = {
   jobId: string;
@@ -9203,6 +9212,29 @@ export type EngineCrewMessageIn = {
 };
 export type EngineCrewMessageOut = {
   sent: boolean;
+};
+export type EngineCrewPushIn = {
+  jobId: string;
+  idempotencyKey: string;
+};
+export type EngineCrewPushOut = {
+  job: {
+    jobId: string;
+    threadId: string;
+    leadThreadId: string;
+    projectId: string;
+    agentId: string;
+    name?: string;
+    title: string;
+    branch: string;
+    base: string;
+    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    startedAt: number;
+    endedAt?: number;
+    result?: Record<string, unknown>;
+  };
+  pushed: boolean;
+  note?: string;
 };
 export type EngineCrewRepoGetIn = {
   projectId: string;
@@ -9275,6 +9307,23 @@ export type EngineCrewStopOut = {
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
+  };
+};
+export type EngineCrewWaitIn = {
+  threadId: string;
+  repo: string;
+  number: number;
+  idempotencyKey: string;
+};
+export type EngineCrewWaitOut = {
+  wait: {
+    waitId: string;
+    kind: "checks";
+    label: string;
+    state: "pending" | "passing" | "failing" | "none";
+    done: number;
+    total: number;
+    startedAt: number;
   };
 };
 export type EngineCrewWorkspaceIn = {
@@ -32258,10 +32307,12 @@ export interface CapMap {
   "engine.crew.list": { in: EngineCrewListIn; out: EngineCrewListOut };
   "engine.crew.merge": { in: EngineCrewMergeIn; out: EngineCrewMergeOut };
   "engine.crew.message": { in: EngineCrewMessageIn; out: EngineCrewMessageOut };
+  "engine.crew.push": { in: EngineCrewPushIn; out: EngineCrewPushOut };
   "engine.crew.repo.get": { in: EngineCrewRepoGetIn; out: EngineCrewRepoGetOut };
   "engine.crew.repo.set": { in: EngineCrewRepoSetIn; out: EngineCrewRepoSetOut };
   "engine.crew.start": { in: EngineCrewStartIn; out: EngineCrewStartOut };
   "engine.crew.stop": { in: EngineCrewStopIn; out: EngineCrewStopOut };
+  "engine.crew.wait": { in: EngineCrewWaitIn; out: EngineCrewWaitOut };
   "engine.crew.workspace": { in: EngineCrewWorkspaceIn; out: EngineCrewWorkspaceOut };
   "engine.defaults.get": { in: EngineDefaultsGetIn; out: EngineDefaultsGetOut };
   "engine.defaults.set": { in: EngineDefaultsSetIn; out: EngineDefaultsSetOut };
@@ -34321,6 +34372,12 @@ export type CrewJobMergedPayload = {
   leadThreadId: string;
   branch: string;
   landed: boolean;
+};
+export type CrewJobPushedPayload = {
+  jobId: string;
+  threadId: string;
+  leadThreadId: string;
+  branch: string;
 };
 export type CrewJobStartedPayload = {
   jobId: string;
@@ -37270,6 +37327,7 @@ export interface EventMap {
   "conversation.reply_received": ConversationReplyReceivedPayload;
   "conversation.unmatched": ConversationUnmatchedPayload;
   "crew.job_merged": CrewJobMergedPayload;
+  "crew.job_pushed": CrewJobPushedPayload;
   "crew.job_started": CrewJobStartedPayload;
   "device.purged": DevicePurgedPayload;
   "device.registered": DeviceRegisteredPayload;

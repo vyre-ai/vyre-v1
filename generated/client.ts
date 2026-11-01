@@ -700,12 +700,14 @@ export function createClient(transport: Transport) {
         list: call("engine.crew.list", 1),
         merge: call("engine.crew.merge", 1),
         message: call("engine.crew.message", 1),
+        push: call("engine.crew.push", 1),
         repo: {
           get: call("engine.crew.repo.get", 1),
           set: call("engine.crew.repo.set", 1),
         },
         start: call("engine.crew.start", 1),
         stop: call("engine.crew.stop", 1),
+        wait: call("engine.crew.wait", 1),
         workspace: call("engine.crew.workspace", 1),
       },
       defaults: {

@@ -15252,6 +15252,36 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "engine.crew.push",
+      "deferred": false,
+      "description": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person's approval",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "crew_push",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
       "blocks": [
         "helper"
       ],
@@ -15352,6 +15382,52 @@
         "type": "object"
       },
       "name": "crew_stop",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.wait",
+      "deferred": false,
+      "description": "Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "examples": [
+              "acme/site"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "repo",
+          "number",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "crew_wait",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
