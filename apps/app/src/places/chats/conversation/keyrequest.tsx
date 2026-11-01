@@ -90,6 +90,7 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
         </View>
       ) : (
         <View style={st.col}>
+          {/* ui-rows-lint: not a list (one secure field per field of the key) */}
           {req.fields.map((k) => (
             <TextInput key={k} accessibilityLabel={req.fields.length === 1 ? `${words} value` : `${words}, ${k}`} testID={`keyreq-field-${requestId}-${k}`} value={values[k] ?? ""} onChangeText={(v) => setValues({ ...values, [k]: v })}
               placeholder={req.fields.length === 1 ? "Paste the key" : k} placeholderTextColor="var(--ink-4)" secureTextEntry autoCapitalize="none" autoCorrect={false} style={st.input} />
