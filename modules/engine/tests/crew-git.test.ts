@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { GitError, cleanBranch, commitLeftovers, git, landBranch, prepareClone, pushBase, repoHead, summarize } from "../crew-git.ts";
+import { GitError, branchFacts, cleanBranch, commitLeftovers, git, landBranch, prepareClone, pushBase, repoHead, summarize } from "../crew-git.ts";
 
 const tmp = (): string => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-git-")));
 const ID = { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
@@ -112,4 +112,26 @@ test("pushing sends the base branch to the origin from the host, and a repositor
   assert.match((await git(["log", "--oneline", "main"], bare)).out, /first/);
   const refused = await pushBase({ repo: r, base: "nope" });
   assert.equal(refused.pushed, false);
+});
+
+test("the repository says whether a branch is merged and pushed, however it got there: the button, a person in a terminal, or a push", async () => {
+  const r = await repo();
+  const dest = path.join(tmp(), "work");
+  await prepareClone({ repo: r, dest, branch: "crew/ember-1", base: "main", ident: { name: "Ember", email: "ember@vyre.invalid" } });
+  const o = { repo: r, clone: dest, branch: "crew/ember-1", base: "main" };
+  assert.deepEqual(await branchFacts(o), { ahead: 0, merged: false, pushed: false }, "no work yet is not merged");
+  fs.writeFileSync(path.join(dest, "a.txt"), "a\n");
+  await commitLeftovers(dest, "add a");
+  assert.deepEqual(await branchFacts(o), { ahead: 1, merged: false, pushed: false }, "committed, not in the base");
+  // a person merges it in a terminal, with no Merge button involved
+  await git(["fetch", "--quiet", dest, "+crew/ember-1:refs/heads/crew/ember-1"], r);
+  assert.equal((await git(["merge", "--no-ff", "--no-edit", "crew/ember-1"], r, ID)).code, 0);
+  assert.deepEqual(await branchFacts(o), { ahead: 1, merged: true, pushed: false }, "merged by hand reads as merged");
+  // a remote that has the base reads as pushed
+  const remote = tmp();
+  await git(["init", "--bare", "--quiet", "-b", "main"], remote);
+  await git(["remote", "add", "origin", remote], r);
+  assert.equal((await pushBase({ repo: r, base: "main" })).pushed, true);
+  assert.deepEqual(await branchFacts(o), { ahead: 1, merged: true, pushed: true });
+  assert.equal(await branchFacts({ ...o, clone: path.join(tmp(), "gone") }), null, "a copy that is gone says nothing");
 });

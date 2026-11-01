@@ -12,6 +12,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
 import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { sweepWaits } from "./crew-waits.ts";
+import { reconcileAll } from "./handlers/crew.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { closeNoAccountTasks, engineHost, ensureRuntime, recoverStale, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
@@ -45,7 +46,9 @@ export const periodic = {
     run: async (ctx: EngineCtx): Promise<string[]> => {
       const host = engineHost();
       if (!host) return [];
-      return sweepWaits({ db: ctx.db, host, now: () => ctx.now() });
+      const ended = await sweepWaits({ db: ctx.db, host, now: () => ctx.now() });
+      await reconcileAll(ctx).catch(() => []);   // a branch merged or pushed any other way flips its card and its Crew row
+      return ended;
     },
   },
   ...capturePeriodic,
