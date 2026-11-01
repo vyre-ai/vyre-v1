@@ -405,3 +405,10 @@ test("a link from memory opens the chat at one message: the route carries it, th
   const missing = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, focus: "msg_nowhere" }} />));
   assert.equal(missing, plain, "a message that is not in the chat marks nothing");
 });
+
+test("a message the engine has handed to the agent is no longer shown as waiting; one it still holds is", async () => {
+  const { stillWaiting } = await import("./QueueWaiting.tsx");
+  const items = [{ messageId: "m1", state: "consumed" }, { messageId: "m2", state: "queued" }, { state: "queued" }];
+  assert.deepEqual(stillWaiting(["m1", "m2", "m3"], items), ["m2"]);
+  assert.deepEqual(stillWaiting(["m1"], []), [], "the engine holds nothing: nothing is waiting");
+});

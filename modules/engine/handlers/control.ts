@@ -84,12 +84,6 @@ export async function dropQueued(ctx: EngineCtx, input: { threadId: string; mess
   return { dropped: n > 0 };
 }
 
-/** engine.steer: a message waiting behind a running turn is handed to the agent now, without stopping it. An engine that steers (Claude Code, the API drivers at a step) reads it at its next step; one that does not (Codex, Grok) keeps it waiting for the turn's end. */
-export async function steer(ctx: EngineCtx, input: { threadId: string; messageId: string }): Promise<{ steered: boolean }> {
-  const engine = await open(ctx, input.threadId);
-  return { steered: engine.steer(input.threadId, input.messageId) > 0 };
-}
-
 // ---- interrupt, stop, stop_all
 
 export async function interrupt(ctx: EngineCtx, input: { threadId: string; messageId?: string }): Promise<{ queued: boolean }> {

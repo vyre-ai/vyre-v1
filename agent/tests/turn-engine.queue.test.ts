@@ -97,30 +97,6 @@ test("steering: a message during a turn is injected at the next step boundary, n
   assert.ok(engine.events("T").some((e) => e.type === "queue.consumed"));
 });
 
-test("steer: a waiting message is handed to the running agent now, without waiting for a step boundary and without stopping the turn; a message not waiting, or nothing running, hands over nothing", async () => {
-  const hold = gate();
-  const p = scriptedProvider({
-    script: [{ type: "tool_call", id: "c1", name: "files.read", input: {} }, { type: "text", text: "done" }, { type: "done" }],
-    beforeEvent: async (i) => { if (i === 0) await hold.wait; },
-  });
-  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, callTool: async () => ({ ok: true, content: "x" }) });
-  engine.openThread(thread("T"));
-  assert.equal(engine.steer("T", "none"), 0, "nothing is running");
-  engine.receive({ threadId: "T", author: person("dana"), body: "start" });
-  await until(() => p.sessions.length === 1);
-  const second = engine.receive({ threadId: "T", author: person("dana"), body: "change course" });
-  const id = engine.messages("T").find((m) => m.body === "change course")!.id;
-  assert.equal(engine.steer("T", id), 1, "handed over now");
-  assert.deepEqual(p.sessions[0]?.injected.map((m) => m.body), ["change course"], "the session has it before any step boundary");
-  assert.equal(engine.queue("T").find((r) => r.qseq === second.qseqs[0])?.state, "consumed");
-  assert.equal(engine.steer("T", id), 0, "only once");
-  hold.open();
-  await engine.idle("T");
-  assert.equal(engine.turns("T").length, 1, "the turn was not stopped or doubled");
-  assert.equal(p.sends(), 1);
-  assert.deepEqual(p.sessions[0]?.injected.map((m) => m.body), ["change course"], "and it is not injected again at the boundary");
-});
-
 test("a waiting message that no step boundary reached runs as its own turn afterwards", async () => {
   const hold = gate();
   const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
