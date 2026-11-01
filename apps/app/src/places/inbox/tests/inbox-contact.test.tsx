@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
-import { ContactTab, TabLoading, followMenuEntries, fromMenuEntries } from "../contacttab/index.ts";
+import { ContactTab, TabLoading, followMenuEntries, fromMenuEntries, headSub } from "../contacttab/index.ts";
 import { quickEntries, templateEntries } from "../contacttab/menus.ts";
 import { listSnippets, listTemplates, templateContent } from "../contacttab/actions.ts";
 import { cannedLists } from "../contacttab/model.ts";
@@ -384,4 +384,11 @@ test("the composer's / menu lists the person's snippets, and no templates are in
   assert.deepEqual(cannedLists(conv).templates, []);
   assert.deepEqual(cannedLists(conv).snippets, []);
   assert.deepEqual(cannedLists(conv, [{ name: "Thanks", body: "Thank you." }]).snippets, [{ t: "Thanks", body: "Thank you.", kind: "Snippet" }]);
+});
+
+test("a contact with no name is called by its address, and the header's quiet line then says nothing instead of repeating it", () => {
+  assert.equal(headSub("pat@acme.test", "pat@acme.test", undefined), null, "the address once");
+  assert.equal(headSub("Pat@Acme.test", "pat@acme.test ", undefined), null, "case and spaces do not make it a different label");
+  assert.equal(headSub("Pat Lee", "pat@acme.test", undefined), "pat@acme.test", "a named contact keeps its address beside the name");
+  assert.equal(headSub("pat@acme.test", "pat@acme.test", "Acme"), "Acme", "a company still shows");
 });

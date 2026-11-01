@@ -126,13 +126,17 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
   }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName]);
 
   const info = !shown && flow ? resumeInfo(flow, progress, detectDevice()) : null;
-  const resume = useMemo(() => (info ? { handled: info.handled, total: info.total, open: () => { setStep(info.step); setShown(true); } } : null), [info?.handled, info?.total, info?.step]);
+  const device = detectDevice();
+  const resume = useMemo(() => (info && flow ? {
+    handled: info.handled, total: info.total, open: () => { setStep(info.step); setShown(true); },
+    // the entry itself, for the title bar to draw: it is never a floating pill over the rail or the page
+    pill: <ResumeChip flow={flow} progress={progress} device={device} onOpen={(k) => { setStep(k); setShown(true); }} />,
+  } : null), [info?.handled, info?.total, info?.step, flow, progress, device]);
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was
   return (
     <>
       <ResumeContext.Provider value={resume}>{children}</ResumeContext.Provider>
-      {!shown && flow ? <ResumeChip flow={flow} progress={progress} device={detectDevice()} onOpen={(k) => { setStep(k); setShown(true); }} /> : null}
       {shown && flow ? (
         <View style={s.fill}>
           <OnboardingScreen flow={flow} spaceName={space.kind === "personal" ? (personName ?? space.name) : space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} {...(onGo ? { onOpenChats: () => { setShown(false); setStep(null); onGo("chats"); } } : {})} onClose={() => { setShown(false); setStep(null); if (call) void markSeen(call, flow).catch(() => undefined); }} renderCard={renderCard} renderPreview={(card) => scriptFor(card, flow).preview === "" ? null : <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
