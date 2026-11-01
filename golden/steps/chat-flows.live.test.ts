@@ -67,3 +67,48 @@ test("flow 2, remember that decision: a message becomes a fact (in the project's
     assert.ok(JSON.stringify(pointer.lines).includes("Tuesday launch is final"), `recall brings it back: ${JSON.stringify(pointer)}`);
   } finally { await s.stop(); }
 });
+
+test("flow 4, @agent in a chat between people: the agent joins when mentioned, the person who mentioned it pays on their own key, and both people see the answer", async () => {
+  const { vendor } = await import("../../fixtures/model-vendor.ts");
+  const v = await vendor();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = ((u: unknown, i?: RequestInit) => { const url = String((u as { url?: string })?.url ?? u); return realFetch(url.startsWith("https://api.openai.com") ? url.replace("https://api.openai.com", v.base) : (u as string), i); }) as typeof fetch;
+  const s = await bootFlowSpace(LIVE);
+  try {
+    const olivia = s.d.token;
+    const noah = s.signedIn("usr_noah");
+    // each person unlocks their own person key on this node and connects their own OpenAI key
+    for (const token of [olivia, noah]) {
+      const unlock = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
+      assert.equal(unlock.status, 204);
+    }
+    const keys = { [olivia]: "sk-test-OLIVIA0123456789abcdef", [noah]: "sk-test-NOAH00123456789abcdef" };   // secret-scan: fake
+    for (const token of [olivia, noah]) {
+      const added = expectStatus(await s.call("providers.add", token, { idempotencyKey: `f4-key-${token.slice(-6)}`, providerKey: "openai", connection: "api_key", apiKey: keys[token], scope: "mine" }), 200, "providers.add").provider as { id: string };
+      expectStatus(await s.call("providers.set_space_use", token, { idempotencyKey: `f4-use-${token.slice(-6)}`, providerId: added.id, allow: true }), 200, "providers.set_space_use");
+    }
+    const agent = expectStatus(await s.call("agents.create", olivia, { idempotencyKey: "f4-agent", name: "Billing", role: "Sums up invoices", model: "gpt-4o-mini" }), 200, "agents.create").agent.agentId as string;
+    const dm = expectStatus(await s.call("chat.start", olivia, { idempotencyKey: "f4-dm", kind: "chat", agentIds: [], personId: "usr_noah" }), 200, "chat.start").thread.threadId as string;
+    expectStatus(await s.call("chat.post", olivia, { idempotencyKey: "f4-hi", threadId: dm, body: "Noah, how are the invoices?" }), 200, "chat.post hi");
+
+    // Noah brings Billing in with an @mention
+    v.script.push({ text: "Three invoices are paid, two are open." });
+    expectStatus(await s.call("chat.post", noah, { idempotencyKey: "f4-ask", threadId: dm, body: "@Billing sum this up for us", mentions: [{ kind: "agent", id: agent }] }), 200, "chat.post mention");
+    const end = Date.now() + 40_000;
+    let answer: { author?: { kind?: string }; body?: string } | undefined;
+    for (;;) {
+      await s.d.hooks?.pump?.();
+      const msgs = expectStatus(await s.call("chat.messages.list", olivia, { threadId: dm }), 200, "chat.messages.list").messages as Array<{ author?: { kind?: string }; body?: string }>;
+      answer = msgs.find((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Three invoices are paid"));
+      if (answer || Date.now() > end) break;
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    assert.ok(answer, "the answer lands in the chat for Olivia");
+    const seen = expectStatus(await s.call("chat.messages.list", noah, { threadId: dm }), 200, "chat.messages.list noah").messages as Array<{ body?: string }>;
+    assert.ok(seen.some((m) => (m.body ?? "").includes("Three invoices are paid")), "and for Noah");
+    assert.equal(v.requests.length, 1, "one turn reached the vendor");
+    assert.equal(v.auth[0], `Bearer ${keys[noah]}`, "on Noah's key: the person who mentioned it pays");
+    const thread = expectStatus(await s.call("threads.get", olivia, { threadId: dm }), 200, "threads.get").thread as { agents: Array<{ agentId: string; mode: string }> };
+    assert.deepEqual(thread.agents.map((a) => [a.agentId, a.mode]), [[agent, "listen"]], "it joined as a listener");
+  } finally { globalThis.fetch = realFetch; v.close(); await s.stop(); }
+});

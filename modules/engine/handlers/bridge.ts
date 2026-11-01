@@ -284,6 +284,18 @@ export function createBridge(o: BridgeOptions): Bridge {
     const note = await pointers(reader(ctx, authorId), got.message);
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
     const eng = engine;
+    // an agent added to the chat after it was opened here (a Space agent @mentioned in a chat between people joins as a listener) is not yet known to the engine: read the chat's line-up once and let
+    // the engine know the ones this message names, so the mention reaches them
+    const named = mentions.filter((m) => m.kind === "agent").map((m) => m.id);
+    if (named.length > 0) {
+      const known = new Set(eng.agents(threadId).map((a) => a.id));
+      if (named.some((id) => !known.has(id))) {
+        try {
+          const now = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet;
+          for (const a of now.thread.agents) if (named.includes(a.agentId) && !known.has(a.agentId)) eng.engage(threadId, { id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}) });
+        } catch (e) { ctx.log.warn("the bridge could not read who joined the chat", { traceId: ctx.trace.traceId, threadId, error: e instanceof Error ? e.message : String(e) }); }
+      }
+    }
     const res = withMessageId(messageId, () => eng.receive({
       threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note,
     }));

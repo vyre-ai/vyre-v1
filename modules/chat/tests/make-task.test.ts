@@ -77,3 +77,18 @@ test("a link card that arrives by chat.post, from an agent or a person, loses wh
     assert.equal(JSON.stringify(block).includes("threads.delete"), false, "the destructive call is nowhere in the stored card");
   }
 });
+
+test("@mentioning an agent that is not in a chat of the person's own brings it in as a listener; a channel's agents are not added this way", async () => {
+  const hn = harness({ calls: { "agents.get": () => ({ agent: {} }) } });
+  const dm = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId as string;
+  assert.deepEqual(hn.rows(`SELECT agentId FROM chat_thread_agent WHERE thread = ? AND deleted_at IS NULL`, dm), []);
+  await h["chat.post"]!(hn.person(MAYA), { threadId: dm, body: "@Intake sum this up for us", mentions: [{ kind: "agent", id: INTAKE }], idempotencyKey: key() });
+  const joined = hn.rows(`SELECT agentId, mode FROM chat_thread_agent WHERE thread = ? AND deleted_at IS NULL`, dm);
+  assert.deepEqual(joined, [{ agentId: INTAKE, mode: "listen" }]);
+  assert.deepEqual(hn.named("agent.engaged").map((e) => e.payload["by"]), [MAYA], "engaged by the person who mentioned it");
+  await h["chat.post"]!(hn.ctx, { threadId: dm, body: "@Intake again", mentions: [{ kind: "agent", id: INTAKE }], idempotencyKey: key() });
+  assert.equal(hn.named("agent.engaged").length, 1, "once");
+  const ch = (await h["channels.create"]!(hn.ctx, { name: "ops", visibility: "public", idempotencyKey: key() })).channel;
+  await h["chat.post"]!(hn.ctx, { threadId: ch.mainThreadId, body: "@Intake hi", mentions: [{ kind: "agent", id: INTAKE }], idempotencyKey: key() });
+  assert.deepEqual(hn.rows(`SELECT agentId FROM chat_thread_agent WHERE thread = ? AND deleted_at IS NULL`, ch.mainThreadId), [], "a channel's agents are its managers' to add");
+});

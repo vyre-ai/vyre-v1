@@ -244,3 +244,14 @@ test("a chat that pins no model runs on the agent's own model, so the turn and i
   await none.say("Hello");
   assert.equal(none.engine.turns(T)[0]?.model ?? null, null, "an agent with no model of its own leaves the turn unpinned");
 });
+
+test("an agent that joined the chat after it was opened here hears a message that @mentions it", async () => {
+  const agents: Array<{ agentId: string; mode: "lead" | "listen" }> = [{ agentId: LEAD, mode: "lead" }];
+  const s = setup({ script: reply("Here you go."), agents });
+  await s.say("Morning.");
+  assert.equal(s.engine.agents(T).some((a) => a.id === WATCHER), false, "not in the engine yet");
+  agents.push({ agentId: WATCHER, mode: "listen" });
+  const { result } = await s.say("@Watch sum this up", [{ kind: "agent", id: WATCHER }]);
+  assert.deepEqual(result, { receivedAs: [WATCHER] }, "the mention reaches the agent that joined later");
+  assert.equal(s.engine.agents(T).some((a) => a.id === WATCHER), true);
+});

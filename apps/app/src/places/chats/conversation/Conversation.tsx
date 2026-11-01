@@ -342,6 +342,7 @@ function ConversationView(): ReactElement {
     ...(data.mountSheet ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } } : {}),
     ...(memoryEntries ? { memoryEntries } : {}),
     fork: (id) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")),
+    withPeople: thread.members.filter((p) => p.kind === "person").length >= 2,
     makeTask: (id) => {
       const m = all.find((x) => x.messageId === id);
       if (!m) return;

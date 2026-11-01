@@ -534,3 +534,17 @@ test("a plugin command with a colon in its name is a command, and its prompt is 
   assert.deepEqual(asked, ["Dana"]);
   assert.deepEqual(r.flags.sent, ["Say hello to Dana"]);
 });
+
+test("an agent's answer in a chat of people carries Make task and Remember; in a chat of one person it does not, and a person's own message never does", async () => {
+  const r = rig();
+  const reply: Message = { messageId: "m_ans", threadId: r.data.threadId, threadSeq: 2, author: { kind: "agent", id: "agt_billing" }, kind: "agent", body: "Three invoices are paid, two are open.", blocks: [], createdAt: 2, reactions: [], pinned: false, attachments: [] } as unknown as Message;
+  const own: Message = { ...reply, messageId: "m_own", author: { kind: "person", id: r.data.me.id }, kind: "text" } as Message;
+  const render = (withPeople: boolean): string => {
+    const items = timeline([reply, own], { meId: r.data.me.id, nameOf: r.data.nameOf, kindOf: r.data.kindOf, clock: r.data.clock() });
+    return clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, withPeople } as never} meId={r.data.me.id} />)).join(""));
+  };
+  const many = render(true);
+  assert.ok(many.includes('data-testid="reply-task-m_ans"'), "Make task under the agent's answer");
+  assert.ok(!many.includes('data-testid="reply-actions-m_own"'), "none under a person's own message");
+  assert.ok(!render(false).includes('data-testid="reply-actions-m_ans"'), "a chat of one person has the message menu only");
+});

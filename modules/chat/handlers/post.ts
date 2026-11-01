@@ -2,7 +2,7 @@
 //   One message in a thread or channel, numbered by the thread (gap-free), with its hop depth, its blocks and its mentions. The turn engine reads message.received (ids and counts only, never the
 //   text) and routes to the lead agent or the @mentioned agents; this module does not start turns. People get message.mentioned, message.direct and thread.replied.
 import {
-  MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy,
+  MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, addAgent, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy,
 } from "../projections.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { unarchiveForMention } from "./archive-state.ts";
@@ -158,6 +158,18 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     if (depth >= 1) {
       const limit = await hopLimit(ctx);
       if (depth > limit) raise(ctx, "permission.limit", `The agents have handed this back and forth ${limit} times. A person has to reply before they go on.`, { limit, depth });
+    }
+  }
+
+  // "@Billing, sum this up" in a chat of their own: a person who @mentions an agent that is not in the chat brings it in as a listener (it answers when mentioned, and the person who mentioned it pays for
+  // the turn it causes). Only for a person's own chat and only for an agent they may see (refused above); a channel's agents are its managers' to add.
+  if (author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) {
+    const here = new Set(agentsOf(ctx.db, thread.id).map((a) => a.agentId));
+    for (const mention of mentions) {
+      if (mention.kind !== "agent" || here.has(mention.id)) continue;
+      addAgent(ctx, thread.id, { agentId: mention.id, mode: "listen", addedBy: author.id });
+      ctx.emit("agent.engaged", thread.id, { threadId: thread.id, agentId: mention.id, mode: "listen", by: author.id });
+      here.add(mention.id);
     }
   }
 
