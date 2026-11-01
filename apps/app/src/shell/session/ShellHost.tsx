@@ -7,6 +7,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useS
 import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
+import { forgetKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
@@ -174,14 +175,14 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
   const signOut = (): void => {
-    void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
+    forgetKey(); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };
   const lock=():void=>{
     const identity=lockedIdentity({...stored,name:session?.me.name??stored.def.name});
     storeLock(identity);clearStored();
-    void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);
+    forgetKey();void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);
     void session?.call("identity.sign_out",{}).catch(()=>undefined);
     if(onLocked)onLocked(identity);else onSignedOut("manual");
   };

@@ -32,3 +32,13 @@ export async function dropKeyOnOwnNode(baseUrl: string, token: string, f: Fetch 
   if (!isLoopbackUrl(baseUrl)) return;
   await f(`${baseUrl.replace(/\/+$/, "")}/local/vault/key/lock`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
 }
+
+/** Whether the daemon on this computer holds the person's key right now. False for an address that is not this computer, and when the daemon does not answer. */
+export async function keyHeldOnOwnNode(baseUrl: string, token: string, f: Fetch = (...a) => fetch(...a)): Promise<boolean> {
+  if (!isLoopbackUrl(baseUrl)) return false;
+  try {
+    const res = await f(`${baseUrl.replace(/\/+$/, "")}/local/vault/key/status`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    if (res.status !== 200) return false;
+    return ((await res.json()) as { held?: unknown }).held === true;
+  } catch { return false; }
+}
