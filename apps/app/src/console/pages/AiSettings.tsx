@@ -9,16 +9,8 @@ import { useConsoleData } from "../shell/data.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
-import { Choice, Tick } from "./ai-controls.tsx";
+import { Tick } from "./ai-controls.tsx";
 import { reviewSampling } from "./ai-data-values.ts";
-
-export function Logging(): ReactElement {
-  const setting = useRead<CapMap["settings.get"]["out"]>("settings.get", { key: "engine.logging" });
-  const action = useAction(setting.refresh);
-  if (!setting.data) return <ReadState error={setting.error} retry={setting.refresh} />;
-  const current = setting.data.row.value === "steps_and_tool_io" ? "steps_and_tool_io" : "steps";
-  return <View testID="console-ai-logging"><Section title="Turn logging"><Group><Choice label="Detail kept for each turn" value={current} options={[{ key: "steps", title: "Steps only" }, { key: "steps_and_tool_io", title: "Steps and tool input/output" }]} onChange={(value) => void action.run("settings.set_space", { key: "engine.logging", value }, "Logging policy updated")} /><Row title="Steps only" note="Keeps timing, outcome and capability names without tool payloads." /><Row title="Steps and tool input/output" note="Keeps tool payloads under the Space retention and sensitivity rules." /><Button label="Reset to shipped default" disabled={action.busy || setting.data.row.source === "default"} onPress={() => void action.run("settings.reset_space", { key: "engine.logging" }, "Logging policy reset")} /></Group></Section>{action.note ? <Note>{action.note}</Note> : null}</View>;
-}
 
 type ReviewItem = CapMap["engine.review.list"]["out"]["items"][number];
 export function mergeReviewPages(first: readonly ReviewItem[], second: readonly ReviewItem[]): ReviewItem[] {

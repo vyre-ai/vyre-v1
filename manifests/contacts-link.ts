@@ -155,7 +155,6 @@ export default defineManifest({
     }),
   ],
   settings: [
-    setting('contacts.dnd_screening', 'space', 'comms', 'Screen new adds against Do-not-contact', t.bool(), true),
     setting('contacts.sms_requires_consent', 'space', 'comms', 'Require SMS consent before texting', t.bool(), true),
     setting('contacts.optout_keywords', 'space', 'comms', 'Words that opt a contact out', t.arr(t.str()), ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT']),
   ],

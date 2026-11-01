@@ -141,7 +141,6 @@ export default defineManifest({
     }),
   ],
   settings: [
-    setting('notifications.working_hours', 'person', 'Notifications', 'Working hours (outside them only calls, urgent approvals and incidents interrupt)', hours, { days: [1, 2, 3, 4, 5], from: '09:00', to: '18:00', tz: 'UTC' }),
     setting('notifications.email_backstop', 'person', 'Notifications', 'Email me once if an approval waits 4 hours', t.bool(), true),
     setting('notifications.alert_replies', 'person', 'Notifications', 'Alert me on replies', t.bool(), false),
     setting('notifications.routines_all', 'person', 'Notifications', 'Also tell me when routines succeed (failures always)', t.bool(), false),
@@ -149,7 +148,6 @@ export default defineManifest({
     setting('notifications.quiet_hours', 'person', 'Notifications', 'Quiet hours: no sounds or pushes between the two times; Needs you may come through', t.obj({
       on: t.bool(), from: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$', examples: ['22:00'] }), to: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$', examples: ['07:00'] }), needs: t.bool(),
     }), { on: false, from: '22:00', to: '07:00', needs: true }),
-    setting('notifications.push_idle_minutes', 'space', 'Notifications', 'Minutes idle on the computer before pushes go to the phone', t.int({ minimum: 1, maximum: 60 }), 5),
   ],
   screens: [
     screen('notifications.banner', 'shell', 'ui:NotificationBanner', {

@@ -1,4 +1,4 @@
-// Settings projections (spec 3.9, ARCH 7.9): the registry of SettingDefs (generated from every module's settings[]), which of the ten pages a row belongs to, the value that applies to
+// Settings projections (spec 3.9, ARCH 7.9): the registry of SettingDefs (generated from every module's settings[]), which page of You a row belongs to, the value that applies to
 // one person (their own, else the Space's, else the shipped default), the owner floor, and the search index. Handlers reach the tables only through ctx.db.
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import { validate } from "../../packages/contracts/src/jsonschema.ts";
@@ -13,25 +13,23 @@ export function raise(ctx: Pick<SettingsCtx, "trace">, code: Code, message?: str
   throw fail(code, ctx.trace.traceId, message ? { message } : {});
 }
 
-// ---------------------------------------------------------------- the ten pages
+// ---------------------------------------------------------------- the pages
 
-export type PageKey = "profile" | "notifications" | "models" | "connections" | "privacy" | "signin" | "appearance" | "keyboard" | "computer" | "spaces";
-export const PAGES: readonly { key: PageKey; title: string; group: "space" | "everywhere"; from: readonly string[] }[] = [
-  { key: "profile", title: "Profile", group: "space", from: ["profile", "Home"] },
-  { key: "notifications", title: "Notifications", group: "space", from: ["Notifications"] },
-  { key: "models", title: "Models and usage", group: "space", from: ["Models and usage"] },
-  { key: "connections", title: "Connections", group: "space", from: ["Connections"] },
-  { key: "privacy", title: "Memory and privacy", group: "space", from: ["Memory and privacy"] },
-  { key: "signin", title: "Sign-in and devices", group: "everywhere", from: ["Sign-in and devices"] },
-  { key: "appearance", title: "Appearance", group: "everywhere", from: ["appearance", "kit"] },
-  { key: "keyboard", title: "Keyboard", group: "everywhere", from: ["keyboard", "Chats"] },
-  { key: "computer", title: "This computer", group: "everywhere", from: ["This computer"] },
-  { key: "spaces", title: "Spaces", group: "everywhere", from: [] },
+export type PageKey = "profile" | "notifications" | "appearance" | "ai" | "connected" | "signin" | "computer";
+/** The pages of You: what follows the person. Space-wide rows are drawn by the Space pages of Settings, which ask for them by scope. */
+export const PAGES: readonly { key: PageKey; title: string; group: "you"; from: readonly string[] }[] = [
+  { key: "profile", title: "Profile", group: "you", from: ["profile"] },
+  { key: "notifications", title: "Notifications", group: "you", from: ["Notifications"] },
+  { key: "appearance", title: "Appearance", group: "you", from: ["appearance"] },
+  { key: "ai", title: "AI", group: "you", from: ["Models and usage", "Chats", "Memory and privacy"] },
+  { key: "connected", title: "Connected", group: "you", from: ["Connections"] },
+  { key: "signin", title: "Sign-in and devices", group: "you", from: ["Sign-in and devices"] },
+  { key: "computer", title: "This computer", group: "you", from: ["This computer"] },
 ];
 
-/** The ten-page key for a definition, or null when it belongs to a Console page: Space-wide values are set in the Console, except the one idle-minutes row Notifications shows. */
+/** The page key for a definition, or null for a Space-wide row. */
 export function pageOf(def: SettingDef): PageKey | null {
-  if (def.scope === "space" && def.page !== "Notifications") return null;
+  if (def.scope === "space") return null;
   return PAGES.find((p) => p.from.includes(def.page))?.key ?? null;
 }
 
@@ -96,21 +94,15 @@ export function effective(ctx: SettingsCtx, def: SettingDef, person: string): { 
 
 /** Strictest first. A floor is the least strict value anyone may choose, so a value must sit at or before it in this order. Settings with no order here cannot have a floor. */
 export const STRICTNESS: Readonly<Record<string, readonly unknown[]>> = {
-  "security.level": ["strict", "standard", "relaxed"],
   "security.chrome_mode": ["ask", "allow", "auto"],
   "security.terminal_mode": ["ask", "allow", "auto"],
   "engine.allowed_accounts": ["company", "any"],
-  "space.allowed_ai_accounts": ["company", "any"],
-  "sharing.public_links": ["off", "admins", "members"],
-  "signin.second_factor": ["required", "off"],
-  "sync.phone_label_ceiling": ["public", "internal", "confidential"],
   "vault.export_expiry_max": ["1h", "1d", "7d"],
   "changesets.different_person": [true, false],
-  "signin.require_sso": [true, false],
   "tasks.require_human_approver": [true, false],
 };
 /** Whole numbers where a smaller one is stricter. */
-export const LOWER_IS_STRICTER: ReadonlySet<string> = new Set(["engine.agent_hops", "engine.ci_fix_loops", "engine.review_loops", "gate.email_backstop_hours"]);
+export const LOWER_IS_STRICTER: ReadonlySet<string> = new Set(["engine.agent_hops", "gate.email_backstop_hours"]);
 
 export function comparable(key: string): boolean {
   return key in STRICTNESS || LOWER_IS_STRICTER.has(key);

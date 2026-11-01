@@ -89,6 +89,7 @@ export function newSecret(): string {
 export interface Policy { maxChainDepth: number; defaultAlert: { when: "every" | "after_n"; n?: number; where: "needs_you" | "dm" }; runOnImport: boolean; personalSpace: boolean }
 export const POLICY_DEFAULTS: Policy = { maxChainDepth: 8, defaultAlert: { when: "every", where: "needs_you" }, runOnImport: false, personalSpace: false };
 
+const POLICY_KEYS: ReadonlySet<string> = new Set(["automations.default_error_alert", "automations.max_chain_depth", "automations.run_automations_on_import"]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
   for (const r of db.all("SELECT policy_key, policy_value FROM automations_policy") as { policy_key: string; policy_value: string }[]) {
@@ -102,6 +103,17 @@ export function readPolicy(db: Db): Policy {
     if (r.policy_key === "space.personal" && typeof v === "boolean") p.personalSpace = v;
   }
   return p;
+}
+
+/**
+ * The automations.* settings live in the settings module and a module reads only its own tables, so this keeps the copy `readPolicy` reads, from settings.changed. A reset announces the
+ * shipped default as `after`, which reads the same as no row.
+ */
+export function syncPolicy(db: Db, p: Record<string, unknown>): boolean {
+  const key = String(p["key"] ?? "");
+  if (!POLICY_KEYS.has(key) || p["scope"] !== "space" || p["after"] === undefined) return false;
+  db.run("INSERT OR REPLACE INTO automations_policy (policy_key, policy_value) VALUES (?, ?)", key, JSON.stringify(p["after"]));
+  return true;
 }
 
 export function defaultAlerts(policy: Policy, ownerId: string): Alerts {

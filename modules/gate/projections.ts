@@ -99,6 +99,7 @@ export async function sha(v: unknown): Promise<string> {
 
 export interface Policy { timeoutHours: number; emailBackstopHours: number; draftedByLabel: boolean }
 export const POLICY_DEFAULTS: Policy = { timeoutHours: 24, emailBackstopHours: 4, draftedByLabel: true };
+const POLICY_KEYS: ReadonlySet<string> = new Set(["gate.timeout_hours", "gate.email_backstop_hours", "gate.drafted_by_label"]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
   for (const r of db.all("SELECT policy_key, policy_value FROM gate_policy") as { policy_key: string; policy_value: string }[]) {
@@ -109,6 +110,17 @@ export function readPolicy(db: Db): Policy {
     if (r.policy_key === "gate.drafted_by_label" && typeof v === "boolean") p.draftedByLabel = v;
   }
   return p;
+}
+
+/**
+ * The gate.* settings live in the settings module and a module reads only its own tables, so this keeps the copy `readPolicy` reads, from settings.changed. A reset announces the
+ * shipped default as `after`, which reads the same as no row.
+ */
+export function syncPolicy(db: Db, p: Record<string, unknown>): boolean {
+  const key = String(p["key"] ?? "");
+  if (!POLICY_KEYS.has(key) || p["scope"] !== "space" || p["after"] === undefined) return false;
+  db.run("INSERT OR REPLACE INTO gate_policy (policy_key, policy_value) VALUES (?, ?)", key, JSON.stringify(p["after"]));
+  return true;
 }
 
 // ---- rules ----

@@ -1,13 +1,14 @@
 // The notification settings that change delivery (P-CC_22b): Alerts (alert me on replies, routines also when they succeed), While you are away (hand Needs you to), Quiet hours.
 // The settings module owns the values; it announces each change as settings.changed and this module keeps its own copy (notifications_setting) because a module may read only its own
 // tables and settings.get answers for the caller, not for the person a notification is for. send() reads the copy through these functions.
-import { clean, localClock } from "../projections.ts";
+import { clean, localClock, readRules, writeRules } from "../projections.ts";
 import type { Db, KindDef, Level, NotifCtx } from "../projections.ts";
 
 export interface Quiet { on: boolean; from: string; to: string; needs: boolean }
 export interface NotifSettings { alertReplies: boolean; routinesAll: boolean; handTo: string | null; quiet: Quiet }
 const QUIET_DEFAULT: Quiet = { on: false, from: "22:00", to: "07:00", needs: true };
 const KEYS = new Set(["notifications.alert_replies", "notifications.routines_all", "notifications.hand_needs_you_to", "notifications.quiet_hours"]);
+const RULE_KEYS = new Set(["notifications.email_backstop", "profile.working_hours", "profile.timezone"]);
 const HHMM = /^[0-2][0-9]:[0-5][0-9]$/;
 
 export function readSettings(db: Db, person: string): NotifSettings {
@@ -22,11 +23,27 @@ export function readSettings(db: Db, person: string): NotifSettings {
   return { alertReplies: v.get("notifications.alert_replies") === true, routinesAll: v.get("notifications.routines_all") === true, handTo: typeof hand === "string" && hand ? hand : null, quiet };
 }
 
+/** Working hours and the email backstop are read from notifications_rules by every send. Profile holds the one working-hours setting; this keeps the rule in step with it and with the person's time zone. */
+function syncRule(db: Db, person: string, key: string, after: unknown): boolean {
+  const rules = readRules(db, person);
+  if (key === "notifications.email_backstop") { writeRules(db, person, { ...rules, emailBackstop: after !== false }); return true; }
+  if (key === "profile.working_hours") {
+    const h = after as { days?: number[]; from?: string; to?: string } | undefined;
+    if (!h || !Array.isArray(h.days) || !h.from || !h.to) return false;
+    writeRules(db, person, { ...rules, workingHours: { days: h.days, from: h.from, to: h.to, tz: rules.workingHours?.tz ?? "UTC" } });
+    return true;
+  }
+  if (key === "profile.timezone" && typeof after === "string" && after && rules.workingHours) { writeRules(db, person, { ...rules, workingHours: { ...rules.workingHours, tz: after } }); return true; }
+  return false;
+}
+
 /** The consumer of settings.changed: keep a copy of a person's notification settings. A reset to the default drops the row. */
 export function syncSetting(db: Db, p: Record<string, unknown>): boolean {
   const key = String(p.key ?? "");
   const person = typeof p.person === "string" ? p.person : "";
-  if (!KEYS.has(key) || !person || p.scope !== "person") return false;
+  if (!person || p.scope !== "person") return false;
+  if (RULE_KEYS.has(key)) return syncRule(db, person, key, p.after);
+  if (!KEYS.has(key)) return false;
   if (p.after === undefined) { db.run("DELETE FROM notifications_setting WHERE person = ? AND key = ?", person, key); return true; }
   db.run(
     `INSERT INTO notifications_setting (person, key, value) VALUES (?, ?, ?) ON CONFLICT(person, key) DO UPDATE SET value = excluded.value`, person, key, JSON.stringify(p.after),

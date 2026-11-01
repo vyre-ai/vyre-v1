@@ -16,7 +16,7 @@ import { acceptHook, consumeEvent, loadRunPlan, startRun } from "./handlers/trig
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
-import { findAutomation, findRunLink, listChildLinks, listScopedChildren, saveRunLink } from "./projections.ts";
+import { findAutomation, findRunLink, listChildLinks, listScopedChildren, saveRunLink, syncPolicy } from "./projections.ts";
 import type { AutoCtx, RunScope } from "./projections.ts";
 
 /**
@@ -31,6 +31,11 @@ const CONNECTOR_KINDS: ReadonlySet<string> = new Set(["api_key", "env", "login",
 const TRIGGER_EVENTS: readonly string[] = [...new Set(registry.triggers.flatMap((t) => { const src = t.source as { event?: string; events?: string[] } | undefined; return src?.events ?? (src?.event ? [src.event] : []); }))];
 
 export const consumers = {
+  /** The Space's automations.* settings, copied here from settings.changed: a module reads only its own tables. */
+  "automations.settings_sync": {
+    on: ["settings.changed"],
+    async run(ctx: AutoCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+  },
   /**
    * Events in, Runs out: the host runs this once per event a trigger listens for, after it is committed. An event a Run's own step made carries that Run's id, and from it the Automation and the chain depth
    * (the Run's depth plus one), so an Automation that makes the record it listens for is dropped as a self-trigger and a chain of them stops at the depth limit.

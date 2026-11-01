@@ -29,7 +29,7 @@ import { GoogleWorkspacePage } from "../../console/pages/suite/GoogleWorkspace.t
 import { Microsoft365Page } from "../../console/pages/suite/Microsoft365.tsx";
 import { Models } from "../../console/pages/Models.tsx";
 import { Spend } from "../../console/pages/Spend.tsx";
-import { Logging, ReviewSampling } from "../../console/pages/AiSettings.tsx";
+import { ReviewSampling } from "../../console/pages/AiSettings.tsx";
 import { Incidents } from "../../console/pages/Incidents.tsx";
 import { AiPolicy } from "../../console/pages/AiPolicy.tsx";
 import { GateRules } from "../../console/pages/GateRules.tsx";
@@ -90,7 +90,6 @@ export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "models") return <Models />;
   if (id === "spend") return <Spend />;
   if (id === "usage") return <Usage />;
-  if (id === "logging") return <Logging />;
   if (id === "review") return <ReviewSampling />;
   if (id === "incidents") return <Incidents />;
   if (id === "aipolicy") return <AiPolicy />;

@@ -1,5 +1,5 @@
 // kits (lane L8): the one installable package format, install sheet, preview, rollback, publish with tests (spec 2.21, ARCH 7.6, 10.4).
-import { create, defineManifest, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
 const channel = t.enm('stable', 'beta');
@@ -20,10 +20,6 @@ export default defineManifest({
     ev('kit.published', 'A Kit version passed its tests on the seeded fixture Space and went live', { p: { kitId: id.kit, version: t.str() }, subject: ['kit', '/kitId'] }),
     ev('kit.publish_blocked', 'A Kit publish failed its tests; the last good version stays live', { p: { kitId: id.kit, version: t.str(), failures: t.int() }, subject: ['kit', '/kitId'] }),
     ev('sandbox.denied', 'A Kit script or connector call was denied in the sandbox', { p: { kitId: id.kit, what: t.str(), traceId: id.trace }, subject: ['kit', '/kitId'], notify: 'health.degraded' }),
-  ],
-  settings: [
-    setting('kit.choice', 'space', 'kit', 'Kit for this Space', t.obj({ kitId: t.opt(id.kit) }), {}),
-    setting('kit.choice_person', 'person', 'kit', 'My Kit in this Space', t.obj({ kitId: t.opt(id.kit) }), {}),
   ],
   capabilities: [
     read('kits.list', 'List Kits with channel and install state', { in: pageIn, out: { kits: t.arr(kitRow), ...pageOut }, tool: 'sites' }),

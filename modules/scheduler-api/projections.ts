@@ -70,6 +70,7 @@ export function durationMs(s: string): number | undefined {
   return m ? Number(m[1]) * UNIT[m[2]!]! : undefined;
 }
 
+const POLICY_KEYS: ReadonlySet<string> = new Set(["scheduler.missed_window_minutes", "scheduler.default_wait_timeout"]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
   for (const r of db.all("SELECT policy_key, policy_value FROM scheduler_api_policy") as { policy_key: string; policy_value: string }[]) {
@@ -78,6 +79,17 @@ export function readPolicy(db: Db): Policy {
     if (r.policy_key === "scheduler.default_wait_timeout" && typeof v === "string") { const d = durationMs(v); if (d !== undefined && d > 0) p.defaultWaitMs = d; }
   }
   return p;
+}
+
+/**
+ * The scheduler.* settings live in the settings module and a module reads only its own tables, so this keeps the copy `readPolicy` reads, from settings.changed. A reset announces the
+ * shipped default as `after`, which reads the same as no row.
+ */
+export function syncPolicy(db: Db, p: Record<string, unknown>): boolean {
+  const key = String(p["key"] ?? "");
+  if (!POLICY_KEYS.has(key) || p["scope"] !== "space" || p["after"] === undefined) return false;
+  db.run("INSERT OR REPLACE INTO scheduler_api_policy (policy_key, policy_value) VALUES (?, ?)", key, JSON.stringify(p["after"]));
+  return true;
 }
 
 // ---- cron ----

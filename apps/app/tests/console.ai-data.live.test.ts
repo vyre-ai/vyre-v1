@@ -56,11 +56,6 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     assert.equal((await api("gate.rules.list", { scope: "space" }) as { rules: { act: string; mode: string }[] }).rules.find((rule) => rule.act === "send")?.mode, "hold");
     t.diagnostic("PASS Gate mutation and readback");
 
-    await open("console.logging", '[data-testid="console-ai-logging"]');
-    await page.getByRole("button", { name: "Detail kept for each turn", exact: true }).click(); await page.getByRole("menuitem", { name: "Steps and tool input/output", exact: true }).click(); await page.getByText("Logging policy updated", { exact: true }).waitFor();
-    assert.equal((await api("settings.get", { key: "engine.logging" }) as { row: { value: string } }).row.value, "steps_and_tool_io");
-    t.diagnostic("PASS Logging mutation and readback");
-
     await open("console.ai-review", '[data-testid="console-ai-review"]');
     await page.getByLabel("Percent of turns", { exact: true }).fill("25"); await page.getByRole("button", { name: "Review sampling change", exact: true }).click(); await page.getByRole("button", { name: "Apply sampling", exact: true }).click(); await page.getByText("Review sampling updated", { exact: true }).waitFor();
     assert.equal((await api("settings.get", { key: "engine.review_sampling" }) as { row: { value: { percent: number } } }).row.value.percent, 25);

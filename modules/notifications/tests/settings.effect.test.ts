@@ -20,8 +20,8 @@ async function setting(h: Harness, person: string, key: string, after: unknown):
 test("settings.changed is kept for notification keys of a person only; a reset drops the copy", async () => {
   const h = harness();
   const run = (payload: Record<string, unknown>) => consumers["notifications.settings_sync"].run(h.ctxFor("notifications.send", sender), { name: "settings.changed", payload });
-  assert.deepEqual(await run({ key: "appearance.mode", scope: "person", person: alice.id, after: "dark" }), [], "another page's key is not ours");
-  assert.deepEqual(await run({ key: "notifications.push_idle_minutes", scope: "space", after: 9 }), [], "a Space-wide key is not a person's");
+  assert.deepEqual(await run({ key: "appearance.skin", scope: "person", person: alice.id, after: "paper" }), [], "another page's key is not ours");
+  assert.deepEqual(await run({ key: "notifications.alert_replies", scope: "space", after: true }), [], "a Space-wide key is not a person's");
   await setting(h, alice.id, "notifications.alert_replies", true);
   assert.equal((await send(h, { kind: "reply.followed", collapseKey: "a" })).outcome, "interrupt");
   await run({ key: "notifications.alert_replies", scope: "person", person: alice.id });
@@ -104,4 +104,15 @@ test("routines also when they succeed: a routine success reaches only an owner w
   const failed = await fan.run(ctx, { name: "run.failed", payload: { runId: "run_3", kind: "routine", code: "x", message: "boom", owner: bob.id } });
   assert.equal(failed.length, 1, "a failure is always told, whatever the setting");
   void MIN;
+});
+
+test("the email backstop and the working hours from Settings are the ones delivery reads, in the person's time zone", async () => {
+  const h = harness();
+  const rules = async (): Promise<any> => (await h.call("notifications.rules.get", {}, as(alice))).rules;   // eslint-disable-line @typescript-eslint/no-explicit-any
+  await setting(h, alice.id, "notifications.email_backstop", false);
+  assert.equal((await rules()).emailBackstop, false);
+  await setting(h, alice.id, "profile.working_hours", { days: [1, 2], from: "10:00", to: "12:00" });
+  assert.deepEqual((await rules()).workingHours, { days: [1, 2], from: "10:00", to: "12:00", tz: "UTC" });
+  await setting(h, alice.id, "profile.timezone", "Asia/Karachi");
+  assert.equal((await rules()).workingHours.tz, "Asia/Karachi");
 });

@@ -4,7 +4,7 @@
 // through home.write_digest; it resets once seen. "See all" opens home.activity.
 // DECISION: the Ask box on Home is a plain composer owned by the chats module, so this module declares no screen for it.
 // DECISION: Projects at risk rule = overdue, blocked or slipped; the rule text is returned by home.at_risk so the section menu can show it.
-import { defineManifest, entity, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { defineManifest, entity, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, resourceRef } from './_common.ts';
 
 const itemKind = t.enm('decision', 'finished', 'record_change', 'routine', 'waiting');
@@ -64,9 +64,6 @@ export default defineManifest({
       in: {}, out: { visible: t.bool(), items: t.arr(t.obj({ key: checklistItem, title: t.str(), done: t.bool() })) }, tool: 'meta',
     }),
     write('home.dismiss_checklist', 'Dismiss the first-run checklist', { in: {}, out: { ok: t.bool() }, level: 'use', emits: ['checklist.dismissed'], tool: 'meta', offline: 'queue' }),
-  ],
-  settings: [
-    setting('home.digest_schedule', 'person', 'Home', 'When the assistant writes the While you were away digest', t.obj({ at: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$', examples: ['07:30'] }), tz: t.str() }), { at: '07:30', tz: 'UTC' }),
   ],
   screens: [
     screen('home.needs-you-top3', 'home', 'ui:NeedsYouTop3', {

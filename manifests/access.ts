@@ -242,6 +242,5 @@ export default defineManifest({
 
   settings: [
     setting('access.review_every_days', 'space', 'console.access', 'Run an access review every', t.int({ minimum: 7, maximum: 365 }), 90),
-    setting('sharing.public_links', 'space', 'console.access', 'Who may make public read-only links', t.enm('off', 'admins', 'members'), 'admins', { floorable: true }),
   ],
 });

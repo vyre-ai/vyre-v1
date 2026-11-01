@@ -447,14 +447,9 @@ export default defineManifest({
   ],
   settings: [
     setting('engine.agent_hops', 'space', 'Policies', 'Agent-to-agent hops before a person must reply', t.int({ minimum: 1, maximum: 20 }), 4, { floorable: true }),
-    setting('engine.review_loops', 'space', 'Policies', 'Review send-backs before a person decides', t.int({ minimum: 0, maximum: 10 }), 2, { floorable: true }),
-    setting('engine.ci_fix_loops', 'space', 'Policies', 'CI fix attempts before a person decides', t.int({ minimum: 0, maximum: 10 }), 3, { floorable: true }),
     setting('engine.allowed_accounts', 'space', 'Models and providers', 'Allowed AI accounts', t.enm('any', 'company'), 'any', { floorable: true }),
-    setting('engine.logging', 'space', 'Logging', 'Detail kept for each turn', t.enm('steps', 'steps_and_tool_io'), 'steps'),
     setting('engine.review_sampling', 'space', 'Review sampling', 'Share of turns sampled for human review', t.obj({ percent: t.int({ minimum: 0, maximum: 100 }), labels: t.arr(label) }), { percent: 5, labels: ['confidential', 'restricted'] }),
     setting('engine.local_runs', 'person', 'This computer', 'Run my private chats on this computer', t.bool(), true),
-    setting('engine.subscription_share', 'person', 'Models and usage', 'Let the Space run work on my subscription', t.bool(), true),
-    setting('engine.runtime_opt_in', 'person', 'Memory and privacy', 'Let the Space continue my chats when my computer is off', t.bool(), true),
   ],
   screens: [
     screen('settings.models-usage', 'settings', 'ui:ModelsUsage', {

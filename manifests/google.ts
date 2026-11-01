@@ -289,6 +289,5 @@ export default defineManifest({
   ],
   settings: [
     setting('google.auto_connect', 'space', 'integrations', 'Connect members mail and calendar when delegation is set', t.bool(), true),
-    setting('google.excluded_members', 'space', 'integrations', 'Members excluded from Google delegation', t.arr(email), []),
   ],
 });

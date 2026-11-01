@@ -15,15 +15,15 @@ const names = (h: Harness) => h.events.map((e) => e.name);
 const asMaya = (h: Harness) => h.as(MAYA);
 const adminOmar = (h: Harness) => h.as(OMAR, { admin: true });
 
-test("the registry has a SettingDef for every row the ten pages show, and pages counts them", async () => {
+test("the registry has a SettingDef for every row the pages of You show, and pages counts them", async () => {
   const h = harness();
   const out = await handlers["settings.pages"](asMaya(h), {});
-  assert.deepEqual(out.pages.map((p) => p.title), ["Profile", "Notifications", "Models and usage", "Connections", "Memory and privacy", "Sign-in and devices", "Appearance", "Keyboard", "This computer", "Spaces"]);
-  assert.deepEqual(out.pages.map((p) => p.group), ["space", "space", "space", "space", "space", "everywhere", "everywhere", "everywhere", "everywhere", "everywhere"]);
+  assert.deepEqual(out.pages.map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Connected", "Sign-in and devices", "This computer"]);
+  assert.deepEqual(out.pages.map((p) => p.group), ["you", "you", "you", "you", "you", "you", "you"]);
   const total = out.pages.reduce((n, p) => n + p.rows, 0);
   assert.equal(total, defs.filter((d) => pageOf(d) !== null).length);
   assert.ok(out.pages.find((p) => p.key === "profile")!.rows >= 7);
-  assert.equal(out.pages.find((p) => p.key === "computer")!.rows, 7);
+  assert.equal(out.pages.find((p) => p.key === "computer")!.rows, 5);
 });
 
 test("every SettingDef that has a Settings page is listed under it and is found by Cmd-F", async () => {
@@ -39,7 +39,7 @@ test("every SettingDef that has a Settings page is listed under it and is found 
   }
 });
 
-test("Space settings that belong to the Console are not on the ten pages but can be listed by name", async () => {
+test("Space settings are not on the pages of You but can be listed by name", async () => {
   const h = harness();
   const some = defs.find((d) => d.scope === "space" && pageOf(d) === null)!;
   assert.ok(some, "the registry has Console rows");
@@ -63,11 +63,11 @@ test("search takes words in any order, ranks a title that starts with the first 
 
 test("a setting nobody changed reads as its shipped default", async () => {
   const h = harness();
-  const r = (await handlers["settings.get"](asMaya(h), { key: "memory.weekly_nudge" })).row;
+  const r = (await handlers["settings.get"](asMaya(h), { key: "chat.agent_tabs" })).row;
   assert.equal(r.value, true);
   assert.equal(r.default, true);
   assert.equal(r.source, "default");
-  assert.equal(r.page, "privacy");
+  assert.equal(r.page, "ai");
   assert.equal(r.scope, "person");
   assert.equal(r.floorable, false);
   await assert.rejects(handlers["settings.get"](asMaya(h), { key: "no.such" }), (e) => codeOf(e) === "validation.not_found");
@@ -92,8 +92,8 @@ test("each person's value is their own: Omar's change does not move Maya's", asy
   const omar = (await handlers["settings.get"](h.as(OMAR), { key: "chat.agent_tabs" })).row;
   assert.equal(omar.value, true);
   assert.equal((await handlers["settings.get"](asMaya(h), { key: "chat.agent_tabs" })).row.value, false);
-  const lists = (await handlers["settings.list"](asMaya(h), { page: "keyboard" })).rows;
-  assert.deepEqual(lists.map((r) => r.key).sort(), ["chat.agent_tabs", "keyboard.overrides"]);
+  const lists = (await handlers["settings.list"](asMaya(h), { page: "ai" })).rows;
+  assert.deepEqual(lists.map((r) => r.key).sort(), ["chat.agent_tabs", "chat.ask_agent"]);
 });
 
 test("a value the schema refuses is refused with a sentence and nothing is written", async () => {
@@ -104,10 +104,10 @@ test("a value the schema refuses is refused with a sentence and nothing is writt
     assert.deepEqual(h.events, []);
   };
   await bad("profile.handle", "A B", "validation.bad_input");
-  await bad("sync.blob_cache_mb", 5, "validation.bad_input");
-  await bad("appearance.mode", "sepia", "validation.bad_input");
-  await bad("memory.weekly_nudge", "yes", "validation.bad_input");
-  await bad("notifications.push_idle_minutes", 5, "validation.bad_input");
+  await bad("appearance.skin", 5, "validation.bad_input");
+  await bad("security.terminal_mode", "sepia", "validation.bad_input");
+  await bad("chat.agent_tabs", "yes", "validation.bad_input");
+  await bad("access.review_every_days", 30, "validation.bad_input");
   assert.equal(h.raw.rows("settings_value").length, 0);
   try { await handlers["settings.set"](asMaya(h), { key: "profile.handle", value: "A B" }); } catch (e) { assert.match(JSON.stringify(e), /Handle/); }
 });
@@ -120,30 +120,30 @@ test("a call that is not a person is refused", async () => {
 
 test("reset puts the Space default back, says so, and says nothing when nothing changed", async () => {
   const h = harness();
-  await handlers["settings.set"](asMaya(h), { key: "memory.weekly_nudge", value: false });
+  await handlers["settings.set"](asMaya(h), { key: "chat.agent_tabs", value: false });
   h.events.length = 0;
-  const out = await handlers["settings.reset"](asMaya(h), { key: "memory.weekly_nudge" });
+  const out = await handlers["settings.reset"](asMaya(h), { key: "chat.agent_tabs" });
   assert.equal(out.row.value, true);
   assert.equal(out.row.source, "default");
   assert.deepEqual(h.events.map((e) => (e.payload as { after: unknown }).after), [true]);
   h.events.length = 0;
-  await handlers["settings.reset"](asMaya(h), { key: "memory.weekly_nudge" });
+  await handlers["settings.reset"](asMaya(h), { key: "chat.agent_tabs" });
   assert.deepEqual(h.events, [], "already at the default");
 });
 
 test("a Space value is the default everyone gets until they choose their own, and reset goes back to it", async () => {
   const h = harness();
-  const sp = await handlers["settings.set_space"](adminOmar(h), { key: "memory.weekly_nudge", value: false });
+  const sp = await handlers["settings.set_space"](adminOmar(h), { key: "chat.agent_tabs", value: false });
   assert.equal(sp.previous, true);
   assert.equal(sp.row.source, "space");
-  const maya = (await handlers["settings.get"](asMaya(h), { key: "memory.weekly_nudge" })).row;
+  const maya = (await handlers["settings.get"](asMaya(h), { key: "chat.agent_tabs" })).row;
   assert.deepEqual([maya.value, maya.source], [false, "space"]);
-  await handlers["settings.set"](asMaya(h), { key: "memory.weekly_nudge", value: true });
-  assert.equal((await handlers["settings.get"](asMaya(h), { key: "memory.weekly_nudge" })).row.source, "person");
-  await handlers["settings.reset"](asMaya(h), { key: "memory.weekly_nudge" });
-  const back = (await handlers["settings.get"](asMaya(h), { key: "memory.weekly_nudge" })).row;
+  await handlers["settings.set"](asMaya(h), { key: "chat.agent_tabs", value: true });
+  assert.equal((await handlers["settings.get"](asMaya(h), { key: "chat.agent_tabs" })).row.source, "person");
+  await handlers["settings.reset"](asMaya(h), { key: "chat.agent_tabs" });
+  const back = (await handlers["settings.get"](asMaya(h), { key: "chat.agent_tabs" })).row;
   assert.deepEqual([back.value, back.source], [false, "space"], "reset goes to the Space's value, not the shipped one");
-  const gone = await handlers["settings.reset_space"](adminOmar(h), { key: "memory.weekly_nudge" });
+  const gone = await handlers["settings.reset_space"](adminOmar(h), { key: "chat.agent_tabs" });
   assert.deepEqual([gone.row.value, gone.row.source], [true, "default"]);
   const event = h.events.filter((e) => e.name === "settings.changed")[0]!.payload as { scope: string; person?: string };
   assert.equal(event.scope, "space");
@@ -152,26 +152,27 @@ test("a Space value is the default everyone gets until they choose their own, an
 
 test("a person cannot change a Space-wide row through set, and the Space row is refused for a wrong value", async () => {
   const h = harness();
-  await assert.rejects(handlers["settings.set"](asMaya(h), { key: "notifications.push_idle_minutes", value: 10 }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["settings.reset"](asMaya(h), { key: "notifications.push_idle_minutes" }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["settings.set_space"](adminOmar(h), { key: "notifications.push_idle_minutes", value: 900 }), (e) => codeOf(e) === "validation.bad_input");
-  const ok = await handlers["settings.set_space"](adminOmar(h), { key: "notifications.push_idle_minutes", value: 10 });
+  await assert.rejects(handlers["settings.set"](asMaya(h), { key: "access.review_every_days", value: 10 }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(handlers["settings.reset"](asMaya(h), { key: "access.review_every_days" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(handlers["settings.set_space"](adminOmar(h), { key: "access.review_every_days", value: 900 }), (e) => codeOf(e) === "validation.bad_input");
+  const ok = await handlers["settings.set_space"](adminOmar(h), { key: "access.review_every_days", value: 10 });
   assert.equal(ok.row.value, 10);
 });
 
 test("the owner floor: nobody may choose a value less strict than it, and the row says what the floor is", async () => {
   const h = harness();
   await assert.rejects(handlers["settings.floor_set"](adminOmar(h), { key: "profile.title", floor: "x" }), (e) => codeOf(e) === "validation.bad_input", "a setting that is not floorable");
-  await assert.rejects(handlers["settings.floor_set"](adminOmar(h), { key: "security.level", floor: "paranoid" }), (e) => codeOf(e) === "validation.bad_input");
-  const set = await handlers["settings.floor_set"](adminOmar(h), { key: "security.level", floor: "standard" });
+  await assert.rejects(handlers["settings.floor_set"](adminOmar(h), { key: "security.chrome_mode", floor: "paranoid" }), (e) => codeOf(e) === "validation.bad_input");
+  const allow = { base: "allow", spaces: {} };
+  const set = await handlers["settings.floor_set"](adminOmar(h), { key: "security.chrome_mode", floor: allow });
   assert.equal(set.row.floorable, true);
-  assert.equal(set.row.floor, "standard");
+  assert.deepEqual(set.row.floor, allow);
   assert.deepEqual(names(h), ["settings.floor_changed"]);
-  await assert.rejects(handlers["settings.set"](asMaya(h), { key: "security.level", value: "relaxed" }), (e) => codeOf(e) === "validation.field_locked");
-  assert.equal((await handlers["settings.set"](asMaya(h), { key: "security.level", value: "strict" })).row.value, "strict");
-  assert.equal((await handlers["settings.set"](asMaya(h), { key: "security.level", value: "standard" })).row.value, "standard");
-  const row = (await handlers["settings.get"](asMaya(h), { key: "security.level" })).row;
-  assert.equal(row.floor, "standard");
+  await assert.rejects(handlers["settings.set"](asMaya(h), { key: "security.chrome_mode", value: { base: "auto", spaces: {} } }), (e) => codeOf(e) === "validation.field_locked");
+  assert.deepEqual((await handlers["settings.set"](asMaya(h), { key: "security.chrome_mode", value: { base: "ask", spaces: {} } })).row.value, { base: "ask", spaces: {} });
+  assert.deepEqual((await handlers["settings.set"](asMaya(h), { key: "security.chrome_mode", value: allow })).row.value, allow);
+  const row = (await handlers["settings.get"](asMaya(h), { key: "security.chrome_mode" })).row;
+  assert.deepEqual(row.floor, allow);
 });
 
 test("a floor holds for a mode's per-Space values too, and a number floor counts a smaller value as stricter", async () => {
@@ -244,10 +245,10 @@ test("the Kit: the Space's choice, mine, and the one in effect, with null follow
 test("every statement the module sends is one the host's table guard allows", async () => {
   const h = harness();
   await handlers["settings.set"](asMaya(h), { key: "profile.title", value: "Partner" });
-  await handlers["settings.set_space"](adminOmar(h), { key: "memory.weekly_nudge", value: false });
-  await handlers["settings.floor_set"](adminOmar(h), { key: "security.level", floor: "standard" });
+  await handlers["settings.set_space"](adminOmar(h), { key: "chat.agent_tabs", value: false });
+  await handlers["settings.floor_set"](adminOmar(h), { key: "security.chrome_mode", floor: { base: "allow", spaces: {} } });
   for (const sql of h.raw.log) assert.match(sql, /settings_(value|floor)/);
-  assert.ok(PAGES.length === 10);
+  assert.ok(PAGES.length === 7);
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.

@@ -3,7 +3,7 @@
 // DECISION: the built-in HubSpot connector is a connector.toml compiled by the generator (connectors/hubspot), not declared in this file.
 // DECISION: sync_types.create needs connectors.manage; making the local record type is done through schema.apply by the same call and also needs schema.manage (checked in the handler).
 // DECISION: sync.conflict is declared here because the sync engine emits it; the conflicts module reads it into its conflict entity and must not declare it again.
-import { create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, health, outward, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, runStarted } from './_common.ts';
 
 const syncTypeId = t.id('syt');
@@ -113,11 +113,6 @@ export default defineManifest({
   id: 'connectors',
   title: 'Connectors and synced types',
   owner: 'L3',
-  settings: [
-    setting('connectors.delete_guard', 'space', 'integrations', 'Pause and ask when records vanish at the source', t.obj({ percent: t.int({ minimum: 1, maximum: 100 }), count: t.int({ minimum: 1 }) }), { percent: 10, count: 50 }),
-    setting('connectors.polling', 'space', 'integrations', 'Polling intervals when webhooks are not available', polling, { activeSec: 120, idleSec: 900, dormantSec: 3600 }),
-    setting('connectors.conflict_default', 'space', 'integrations', 'Default conflict rule for two-way fields', conflictRule, 'newest'),
-  ],
   events: [
     ev('sync.completed', 'A sync run finished', {
       p: { runId: id.run, syncTypeId, type: id.recordType, connector: id.connector, mode: t.str(), pulled: t.int(), pushed: t.int(), created: t.int(), updated: t.int(), removed: t.int() },

@@ -18,7 +18,7 @@ export async function list(ctx: SettingsCtx, input: { page?: string; scope?: "sp
   for (const d of defs) {
     if (input.scope && d.scope !== input.scope) continue;
     if (input.page && (pageOf(d) ?? d.page) !== input.page) continue;
-    // with no page named, a person reads the rows of the ten pages; the Console's Space rows are asked for by name
+    // with no page named, a person reads the rows of their own pages; Space rows are asked for by scope or by name
     if (!input.page && !input.scope && pageOf(d) === null) continue;
     rows.push(rowOut(ctx, d, person));
   }

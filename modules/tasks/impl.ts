@@ -4,6 +4,7 @@ import { handlers } from "./handlers/index.ts";
 export { handlers };
 import { countNeedsYou } from "./handlers/state.ts";
 import { resumeRunOf } from "./handlers/resume.ts";
+import { syncPolicy } from "./projections.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
 export { applyMove, checkMove, commitMove, planMove, submitTarget, afterReview } from "./handlers/state.ts";
@@ -17,5 +18,10 @@ export const hostCalls = {
 
 /** A Run waiting on a task goes on when the task is Done or Canceled, whichever way it got there (handlers/resume.ts). */
 export const consumers = {
+  /** The Space's tasks.* settings, copied here from settings.changed: a module reads only its own tables. */
+  "tasks.settings_sync": {
+    on: ["settings.changed"],
+    async run(ctx: TasksCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+  },
   "tasks.run_resume": { on: ["task.transitioned"], run: (ctx: TasksCtx, event: Parameters<typeof resumeRunOf>[1]) => resumeRunOf(ctx, event) },
 };

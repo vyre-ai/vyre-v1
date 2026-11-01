@@ -251,6 +251,5 @@ export default defineManifest({
   ],
   settings: [
     setting('microsoft.auto_connect', 'space', 'integrations', 'Connect members mail and calendar when consent is given', t.bool(), true),
-    setting('microsoft.excluded_members', 'space', 'integrations', 'Members excluded from the Microsoft connection', t.arr(email), []),
   ],
 });

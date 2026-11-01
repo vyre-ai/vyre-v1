@@ -35,7 +35,7 @@ const INPUTS: Record<string, unknown> = {
   "settings.set_space": { key: "profile.timezone", value: "Asia/Karachi" },
   "settings.reset": { key: "profile.timezone" },
   "settings.reset_space": { key: "profile.timezone" },
-  "settings.floor_set": { key: "security.level", floor: "standard" },
+  "settings.floor_set": { key: "security.chrome_mode", floor: { base: "ask", spaces: {} } },
   "settings.copy_profile": { fields: ["photo"], values: { photo: "fil_a1b2c3" } },
   "settings.search": { q: "time zone" },
   "settings.list": { page: "profile", scope: "person" },

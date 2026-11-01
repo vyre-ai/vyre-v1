@@ -243,6 +243,5 @@ export default defineManifest({
   ],
   settings: [
     setting('telephony.recording_default', 'space', 'comms', 'Default recording policy for new numbers', recordingPolicy, 'off'),
-    setting('telephony.voicemail_transcript', 'space', 'comms', 'Transcribe voicemails', t.bool(), true),
   ],
 });
