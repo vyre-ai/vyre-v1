@@ -21,6 +21,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.lease.acquire": async (ctx) => { throw new VyreErr(notImplemented("engine.lease.acquire", ctx.trace)); },
   "engine.lease.heartbeat": async (ctx) => { throw new VyreErr(notImplemented("engine.lease.heartbeat", ctx.trace)); },
   "engine.lease.release": async (ctx) => { throw new VyreErr(notImplemented("engine.lease.release", ctx.trace)); },
+  "engine.live_turns": async (ctx) => { throw new VyreErr(notImplemented("engine.live_turns", ctx.trace)); },
   "engine.mcp.call": async (ctx) => { throw new VyreErr(notImplemented("engine.mcp.call", ctx.trace)); },
   "engine.mcp.oauth_complete": async (ctx) => { throw new VyreErr(notImplemented("engine.mcp.oauth_complete", ctx.trace)); },
   "engine.mcp.oauth_start": async (ctx) => { throw new VyreErr(notImplemented("engine.mcp.oauth_start", ctx.trace)); },

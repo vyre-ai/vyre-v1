@@ -28,6 +28,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.ask_level": Handler<"chat.ask_level", X>;
   "chat.ask_suggest": Handler<"chat.ask_suggest", X>;
   "chat.asks_of": Handler<"chat.asks_of", X>;
+  "chat.catch_up": Handler<"chat.catch_up", X>;
   "chat.composer.suggest": Handler<"chat.composer.suggest", X>;
   "chat.delete_message": Handler<"chat.delete_message", X>;
   "chat.edit": Handler<"chat.edit", X>;
@@ -36,6 +37,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.helper.start": Handler<"chat.helper.start", X>;
   "chat.helpers.list": Handler<"chat.helpers.list", X>;
   "chat.history.search": Handler<"chat.history.search", X>;
+  "chat.make_task": Handler<"chat.make_task", X>;
   "chat.message.get": Handler<"chat.message.get", X>;
   "chat.messages.list": Handler<"chat.messages.list", X>;
   "chat.open_as_chat": Handler<"chat.open_as_chat", X>;
@@ -49,6 +51,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.question.ask": Handler<"chat.question.ask", X>;
   "chat.react": Handler<"chat.react", X>;
   "chat.recent": Handler<"chat.recent", X>;
+  "chat.remember": Handler<"chat.remember", X>;
   "chat.screen.get": Handler<"chat.screen.get", X>;
   "chat.search": Handler<"chat.search", X>;
   "chat.start": Handler<"chat.start", X>;

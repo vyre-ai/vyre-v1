@@ -19,7 +19,7 @@ Post a message in a thread or channel; routes to the lead agent or @mentioned ag
 | HTTP | POST /v1/chat/post |
 | MCP tool | chat_post (chats) |
 | CLI | vyre chat post |
-| Emits | message.received, message.mentioned, message.direct, thread.replied, thread.unarchived |
+| Emits | message.received, message.mentioned, message.direct, thread.replied, thread.unarchived, agent.engaged |
 
 ## Input
 
