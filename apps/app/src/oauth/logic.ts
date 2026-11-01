@@ -38,11 +38,12 @@ export function describeFailure(e: unknown): Outcome {
   return failed("Couldn’t reach the Space", "The connection to the Space dropped, so it is not known whether the sign-in finished.", "Try again; if it says the link was already used, check Connections.", { retryable: true });
 }
 
-/** Dropbox, Google mail and Microsoft mail keep their own sign-ins (the state starts dbs_, gos_, mos_): the module that started one finishes it, everything else is the connectors module. */
+/** Dropbox, Google mail, Microsoft mail and remote outside-tool servers (mcs_) keep their own sign-ins (the state starts dbs_, gos_, mos_): the module that started one finishes it, everything else is the connectors module. */
 const finishing = (state: string): string => {
   if (state.startsWith("dbs_")) return "dropbox.connect.complete";
   if (state.startsWith("gos_")) return "google.user.complete";   // a person's own Google or Microsoft mailbox
   if (state.startsWith("mos_")) return "ms.user.complete";
+  if (state.startsWith("mcs_")) return "engine.mcp.oauth_complete";   // a remote outside-tool server, finished in the engine
   return "connections.complete_auth";
 };
 

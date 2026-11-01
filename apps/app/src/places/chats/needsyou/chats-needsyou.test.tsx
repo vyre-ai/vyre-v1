@@ -9,7 +9,7 @@ import { act, snooze, take } from "./actions.ts";
 import type { NeedsDeps } from "./actions.ts";
 import {
   FILTERS, SEND_BACK, agoLabel, arrivedLabel, blockView, doneLine, dueLabel, filterCounts, holder, isSendBack, matchesFilter, needsNote, needsTake, nextSelection, notePrompt, rowNote, snoozeUntil,
-  sortItems, splitActions, stepSelection,
+  sortItems, splitActions, stepSelection, footerHint,
 } from "./model.ts";
 import type { Item } from "./model.ts";
 import { NO_ACCOUNT_TITLE, isNoAccount, mailFix } from "./account.ts";
@@ -304,4 +304,70 @@ test("Harbor Studio has the prototype's two: Send the Moreno gallery (Proofer) a
 test("variants exist for the screenshots", () => {
   const variants: Variant[] = ["northwind", "harbor"];
   for (const v of variants) assert.ok(createSample(v).data.space.name.length > 0, v);
+});
+
+// ---- requests Vyre itself makes (a connection that stopped working) ----
+const connectionTask = (over: Record<string, unknown> = {}) => ({
+  id: "tsk_k", kind: "unblock", title: "Replace the Composio key", summary: "Stopped accepting the key. Apps through it are paused until it is replaced.", state: "todo", blocked: true, blocks: [],
+  actions: [{ key: "resolved", label: "Done, continue" }, { key: "cannot", label: "Can't do this", note: "required" }],
+  assigned: { kind: "role", id: "admin" }, fileIds: [], source: { kind: "manual", id: "connection:mcs_1" }, dependsOn: [], followers: [],
+  workingNotes: { origin: "Composio", connection: "mcs_1", fix: "replace_key", hub: "composio" }, reviewLoops: 0, createdBy: "svc_host", createdAt: SAMPLE_NOW - 600_000, updatedAt: SAMPLE_NOW - 600_000, ...over,
+});
+function withConnectionTask(over: Record<string, unknown> = {}): Sample {
+  const s = createSample("northwind");
+  for (const r of s.replica.rows("needs")) s.replica.remove("needs", [r.id]);
+  s.replica.put("needs", [{ id: "tsk_k", reason: "blocking", task: connectionTask(over) }]);
+  return s;
+}
+
+test("a request Vyre made reads From the app or Vyre, never from a person, and is assigned to a role by its name", () => {
+  const out = html(withConnectionTask());
+  assert.ok(has(out, "From ") && has(out, "Composio"));
+  assert.ok(!has(out, "a person") && !has(out, "Someone") && !has(out, "Unknown"));
+  assert.ok(has(out, "Assigned to Admins"));
+  const plain = html(withConnectionTask({ workingNotes: {}, createdBy: "svc_host" }));
+  assert.ok(has(plain, "From </span>") || has(plain, "Vyre"));
+  assert.ok(!has(plain, "Someone"));
+});
+
+test("Open its computer shows only for a request an agent made in a run or chat", () => {
+  assert.ok(!has(html(withConnectionTask()), "Open its computer"));
+  assert.ok(!has(html(withConnectionTask({ workingNotes: {}, source: { kind: "manual", id: "x" }, createdBy: "usr_maya" })), "Open its computer"));
+  assert.ok(has(html(createSample("northwind"), "n3"), "Open its computer"), "an agent's blocked run keeps it");
+});
+
+test("a connection request's main button is the fix itself; Take is gone and its own actions wait in the menu", () => {
+  const out = html(withConnectionTask());
+  assert.ok(has(out, 'data-testid="needs-replace-key"') && has(out, "Replace key"));
+  assert.ok(!has(out, 'data-testid="needs-take"') && !has(out, ">Take<"));
+  assert.ok(!has(out, 'data-testid="needs-primary"') && !has(out, "Done, continue") && !has(out, 'data-testid="needs-action-cannot"'));
+});
+
+test("the list row says who and what: Unblock, the app, then what happened", () => {
+  const out = html(withConnectionTask());
+  assert.ok(has(out, "Composio") && has(out, "Stopped accepting the key"));
+  assert.ok(!has(out, "Someone"));
+  const s = withConnectionTask();
+  assert.equal(rowNote(item(s, "tsk_k"), "Composio", s.data.clock()), "Unblock \u00b7 Composio \u00b7 Stopped accepting the key. Apps through it are paused until it is replaced.");
+});
+
+test("the participants button hides when no person is on the request, never reads 0", () => {
+  assert.ok(!has(html(withConnectionTask()), 'data-testid="needs-participants"'));
+  assert.ok(has(html(createSample("northwind")), 'data-testid="needs-participants"'));
+});
+
+test("the footer names only the keys that work for the open request", () => {
+  const s = withConnectionTask();
+  assert.equal(footerHint(item(s, "tsk_k").task), "\u2191 \u2193 to move \u00b7 Enter to open");
+  assert.equal(footerHint(item(createSample("northwind"), "n1").task), "\u2191 \u2193 to move \u00b7 A approve \u00b7 B send back");
+  assert.equal(footerHint(undefined), "\u2191 \u2193 to move");
+  assert.ok(has(html(s), "Enter to open"));
+});
+
+test("a request Vyre made carries the origin's mark, not a person's face", () => {
+  const out = html(withConnectionTask());
+  assert.ok(has(out, 'data-testid="origin-Composio"') && !has(out, 'data-testid="face-Composio"'));
+  const plain = html(withConnectionTask({ workingNotes: {}, createdBy: "svc_host" }));
+  assert.ok(has(plain, 'data-testid="origin-Vyre"'));
+  assert.ok(has(html(createSample("northwind")), 'data-testid="face-'), "an agent's request keeps its face");
 });

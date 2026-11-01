@@ -4,6 +4,7 @@ import { createElement, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { AppIcon } from "../../../../../../ui/src/AppIcon/index.tsx";
 
 const PATHS = {
   check: ["M3 8.500l3 3 7-7"],
@@ -36,6 +37,15 @@ export function Face({ name, seedId, kind = "agent", size = 18 }: { name: string
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
       <Avatar name={name} seedId={seedId} kind={kind} size={size} />
+    </View>
+  );
+}
+
+/** The mark of a request Vyre made: the Vyre mark, or the app it is about (a letter tile where the app has no mark of its own), never a person's face. */
+export function OriginMark({ name, size = 18 }: { name: string; size?: number }): ReactElement {
+  return (
+    <View aria-hidden testID={`origin-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
+      <AppIcon brand={name === "Vyre" ? "vyre" : name.toLowerCase()} name={name} size={size} />
     </View>
   );
 }

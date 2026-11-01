@@ -4,7 +4,7 @@ import { complete } from "./complete.ts";
 import { accountProbe, accountResolve, accountsList } from "./accounts.ts";
 import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolve, incidentsList, interrupt, setMode, setModel, stop, stopAll, switchEngine } from "./control.ts";
 import { extraHandlers } from "./extra/index.ts";
-import { mcpCall, mcpTools } from "./mcp.ts";
+import { mcpCall, mcpTools, mcpOauthComplete, mcpOauthStart, mcpOauthStatus } from "./mcp.ts";
 import { stepTurn } from "../step-turn.ts";
 import { usageGet } from "./usage.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
@@ -38,6 +38,9 @@ export const handlers = {
   "engine.mcp.tools": mcpTools,
   "engine.mcp.read": mcpCall,
   "engine.mcp.call": mcpCall,
+  "engine.mcp.oauth_start": mcpOauthStart,
+  "engine.mcp.oauth_complete": mcpOauthComplete,
+  "engine.mcp.oauth_status": mcpOauthStatus,
   ...extraHandlers,
 };
 

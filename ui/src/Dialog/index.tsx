@@ -104,7 +104,7 @@ const s = StyleSheet.create({
   bodyFull: { flex: 1, minHeight: 0, marginTop: 12 },
   title: { fontSize: 16, lineHeight: 22, fontWeight: "600", color: "var(--ink)" as string, letterSpacing: -0.2 },
   body: { marginTop: 12, gap: 12 },
-  actions: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 22 },
+  actions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", columnGap: 8, rowGap: 8, marginTop: 22 },
   btn: { height: 32, paddingHorizontal: 14, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   btnQuiet: { backgroundColor: "transparent" },
   btnText: { fontSize: 13, fontWeight: "500", color: "var(--ink-2)" as string },

@@ -32,3 +32,9 @@ test("a fill dialog keeps its centred card on a wide window", () => {
   assert.match(html, /role="dialog"/);
   assert.ok(html.includes("Body"));
 });
+
+test("the action row wraps inside the card's padding instead of running past its left edge (a phone, three actions)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.match(src, /actions: \{[^}]*flexWrap: "wrap"/);
+});

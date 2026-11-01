@@ -5,6 +5,7 @@
 import { expandVars, inside, parseMarketplace, readPlugin } from "../../../lib/plugin-format.ts";
 import type { MarketplaceEntry, PluginContents } from "../../../lib/plugin-format.ts";
 import { parseSkill, withSkillName } from "../../../lib/skill-md.ts";
+import { hubById } from "../../../lib/mcp-hubs.ts";
 import { agentBy, askerOf, canSee, ensure, mintId, raise } from "../projections.ts";
 import type { AgentsCtx } from "../projections.ts";
 import { create as createAgent } from "./crud.ts";
@@ -374,6 +375,8 @@ export async function agentTemplateUse(ctx: AgentsCtx, input: { pluginId: string
 export interface McpSpecOut {
   key: string; name: string; from: "plugin" | "connection"; pluginId?: string; transport: "stdio" | "http" | "sse" | "ws"; command?: string; args: string[]; env: Record<string, string>; url?: string; headers: Record<string, string>;
   files?: string; needs: string[];
+  /** The app hub this connection is (composio, pipedream) and whether it signs in with OAuth; the id of the connection, for the token the engine holds. */
+  hub?: string; oauth?: boolean; connectionId?: string;
 }
 
 export async function mcpServers(ctx: AgentsCtx, input: { agentId?: string }) {
@@ -397,6 +400,7 @@ export async function mcpServers(ctx: AgentsCtx, input: { agentId?: string }) {
     out.push({
       key: str(r["name"]), name: str(r["name"]), from: "connection", transport: str(r["transport"]) as McpSpecOut["transport"], args: parse<string[]>(r["args_json"], []), env: parse<Record<string, string>>(r["env_json"], {}), headers: parse<Record<string, string>>(r["headers_json"], {}), needs: [],
       ...(str(r["command"]) !== "" ? { command: str(r["command"]) } : {}), ...(str(r["url"]) !== "" ? { url: str(r["url"]) } : {}),
+      connectionId: str(r["id"]), ...(str(r["hub"] ?? "") !== "" ? { hub: str(r["hub"]) } : {}), ...(str(r["auth"] ?? "") === "oauth" ? { oauth: true } : {}),
     });
   }
   return { servers: out };
@@ -420,13 +424,14 @@ function connectionOut(r: Row) {
     connectionId: str(r["id"]), name: str(r["name"]), scope: str(r["scope"]) as "space" | "agent", ...(str(r["agent_id"]) !== "" ? { agentId: str(r["agent_id"]) } : {}), transport: str(r["transport"]) as "stdio" | "http",
     ...(str(r["url"]) !== "" ? { url: str(r["url"]) } : {}), ...(str(r["command"]) !== "" ? { command: str(r["command"]) } : {}), args: parse<string[]>(r["args_json"], []),
     env: parse<Record<string, string>>(r["env_json"], {}), headers: parse<Record<string, string>>(r["headers_json"], {}), enabled: Number(r["enabled"]) === 1, createdAt: Number(r["at"]),
+    ...(str(r["hub"] ?? "") !== "" ? { hub: str(r["hub"]) as "composio" | "pipedream" } : {}), ...(str(r["auth"] ?? "") === "oauth" ? { auth: "oauth" as const } : {}),
   };
 }
 export async function connectionsList(ctx: AgentsCtx, input: { agentId?: string }) {
   ensure(ctx.db);
   return { connections: (ctx.db.all("SELECT * FROM agents_mcp_connections ORDER BY name") as Row[]).filter((r) => str(r["scope"]) === "space" || input.agentId === undefined || str(r["agent_id"]) === input.agentId).map(connectionOut) };
 }
-export async function connectionAdd(ctx: AgentsCtx, input: { name: string; scope: "space" | "agent"; agentId?: string; url?: string; command?: string; args?: string[]; env?: Record<string, string>; headers?: Record<string, string>; idempotencyKey: string }) {
+export async function connectionAdd(ctx: AgentsCtx, input: { name: string; scope: "space" | "agent"; agentId?: string; url?: string; command?: string; args?: string[]; env?: Record<string, string>; headers?: Record<string, string>; hub?: "composio" | "pipedream"; auth?: "oauth"; idempotencyKey: string }) {
   ensure(ctx.db);
   const name = input.name.trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,40}$/.test(name)) raise(ctx, "validation.bad_input", "Name the connection with letters, digits, dash and underscore.");
@@ -436,6 +441,15 @@ export async function connectionAdd(ctx: AgentsCtx, input: { name: string; scope
     try { u = new URL(input.url); } catch { return raise(ctx, "validation.bad_input", "That is not a URL."); }
     if (u.protocol !== "https:" && u.protocol !== "http:") raise(ctx, "validation.bad_input", "A remote MCP server is reached over https.");
   }
+  // an app hub is a remote server at the hub's own address, with its key in the header the hub names, as a Vault handle
+  const hub = input.hub === undefined ? undefined : hubById(input.hub);
+  if (input.hub !== undefined) {
+    if (!hub) raise(ctx, "validation.bad_input", `${input.hub} is not an app hub this server knows.`);
+    if (!input.url || !hub.urlPattern.test(input.url)) raise(ctx, "validation.bad_input", `A ${hub.name} connection uses ${hub.name}'s own address, such as ${hub.urlExample}.`);
+    const key = Object.entries(input.headers ?? {}).find(([k]) => k.toLowerCase() === hub.header.toLowerCase())?.[1] ?? "";
+    if (!HANDLE.test(key.replace(/^Bearer\s+/, ""))) raise(ctx, "validation.bad_input", `Put the ${hub.name} key in the Vault and give its handle in the ${hub.header} header, such as #${hub.name}.api_key.`);
+  }
+  if (input.auth === "oauth" && (!input.url || Object.keys(input.headers ?? {}).length > 0)) raise(ctx, "validation.bad_input", "A connection that signs in with OAuth is a remote address and holds no key of its own.");
   const agentId = input.scope === "agent" ? input.agentId ?? "" : "";
   if (input.scope === "agent") { const a = agentId === "" ? null : agentBy(ctx.db, agentId); if (!a || !canSee(ctx, a)) raise(ctx, "validation.bad_input", "Pick the agent to connect it to."); }
   // a secret is a handle: a value that is not one goes in as a plain value only for env and headers that are not credentials; a header named like a credential must be a handle
@@ -445,8 +459,8 @@ export async function connectionAdd(ctx: AgentsCtx, input: { name: string; scope
   if ((ctx.db.all("SELECT id FROM agents_mcp_connections WHERE name = ? AND scope = ? AND agent_id = ?", name, input.scope, agentId) as Row[]).length > 0) raise(ctx, "validation.duplicate", `A connection called ${name} already exists here.`);
   const now = ctx.now();
   const id = mintId("mcs", now);
-  ctx.db.run("INSERT INTO agents_mcp_connections (id, name, scope, agent_id, transport, url, command, args_json, env_json, headers_json, enabled, author, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
-    id, name, input.scope, agentId, input.url ? "http" : "stdio", input.url ?? "", input.command ?? "", JSON.stringify(input.args ?? []), JSON.stringify(input.env ?? {}), JSON.stringify(input.headers ?? {}), by(ctx), now);
+  ctx.db.run("INSERT INTO agents_mcp_connections (id, name, scope, agent_id, transport, url, command, args_json, env_json, headers_json, enabled, author, at, hub, auth) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+    id, name, input.scope, agentId, input.url ? "http" : "stdio", input.url ?? "", input.command ?? "", JSON.stringify(input.args ?? []), JSON.stringify(input.env ?? {}), JSON.stringify(input.headers ?? {}), by(ctx), now, hub?.id ?? "", input.auth === "oauth" ? "oauth" : "");
   ctx.emit("plugin.connection_added", id, { connectionId: id, name, scope: input.scope, ...(agentId !== "" ? { agentId } : {}), by: by(ctx) });
   return { connection: connectionOut((ctx.db.all("SELECT * FROM agents_mcp_connections WHERE id = ?", id) as Row[])[0]!) };
 }
