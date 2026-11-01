@@ -37961,11 +37961,19 @@ export type VaultRequestDeclinedPayload = {
   requestId: string;
   forRun?: string;
   note?: string;
+  name?: string;
+  threadId?: string;
+  agentId?: string;
+  asker?: string;
 };
 export type VaultRequestFulfilledPayload = {
   requestId: string;
   itemId: string;
   forRun?: string;
+  name?: string;
+  threadId?: string;
+  agentId?: string;
+  asker?: string;
 };
 export type VaultRequestedPayload = {
   requestId: string;
