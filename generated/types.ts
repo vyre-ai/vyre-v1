@@ -6466,6 +6466,17 @@ export type ChatSearchOut = {
   sealedChats: number;
   tookMs: number;
 };
+export type ChatShareIn = {
+  threadId: string;
+  messageId: string;
+  toThreadId: string;
+  to?: string;
+  idempotencyKey: string;
+};
+export type ChatShareOut = {
+  messageId: string;
+  toThreadId: string;
+};
 export type ChatStartIn = {
   kind: "chat" | "ask";
   agentIds: Array<string>;
@@ -31966,6 +31977,7 @@ export interface CapMap {
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
+  "chat.share": { in: ChatShareIn; out: ChatShareOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };
   "chat.thread": { in: ChatThreadIn; out: ChatThreadOut };
   "chat.transcript.append": { in: ChatTranscriptAppendIn; out: ChatTranscriptAppendOut };

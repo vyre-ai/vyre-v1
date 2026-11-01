@@ -11076,6 +11076,60 @@
     },
     {
       "blocks": [],
+      "cap": "chat.share",
+      "deferred": false,
+      "description": "Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "description": "A name for the place it went (a channel name); default the chat itself",
+            "type": "string"
+          },
+          "toThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "toThreadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_share",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.start",
       "deferred": false,
       "description": "Start a chat or an Ask pane with one or more agents, or a direct message with one person (a third person means a channel)",

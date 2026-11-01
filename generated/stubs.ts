@@ -406,6 +406,7 @@ export function stubs(ctx: CallCtx) {
         get: call("chat.screen.get"),
       },
       search: call("chat.search"),
+      share: call("chat.share"),
       start: call("chat.start"),
       thread: call("chat.thread"),
       transcript: {

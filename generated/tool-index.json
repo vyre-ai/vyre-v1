@@ -1478,6 +1478,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_share",
+      "summary": "Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_start",
       "summary": "Start a chat or an Ask pane with one or more agents, or a direct message with one person (a third person means a channel)",
       "toolset": "chats"

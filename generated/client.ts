@@ -406,6 +406,7 @@ export function createClient(transport: Transport) {
         get: call("chat.screen.get", 1),
       },
       search: call("chat.search", 1),
+      share: call("chat.share", 1),
       start: call("chat.start", 1),
       thread: call("chat.thread", 1),
       transcript: {

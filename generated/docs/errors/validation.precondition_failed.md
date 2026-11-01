@@ -28,6 +28,6 @@ HTTP 422. Retryable: no.
 - chat.approve_plan
 - chat.fork
 - chat.handoff
+- chat.share
 - comms.senders.set_default
 - computers.record_start
-- computers.sleep
