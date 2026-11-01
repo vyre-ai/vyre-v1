@@ -29,7 +29,8 @@ export interface AccessRow { person: string; type: string; id: string; level: Le
 
 /** Starred and Following belong to the spaces module. The host may hand the marks in; without them both lists are empty. */
 export interface ShareCtx extends AccessCtx {
-  actingFor?: Ref;
+  /** The person an agent acts for. The host hands the id as a string; a hand-built test context may give a Ref. */
+  actingFor?: Ref | string;
   marks?: (person: string, type: string) => { starred: ReadonlySet<string>; following: ReadonlySet<string> };
 }
 
@@ -178,8 +179,14 @@ export function levelFor(store: AccessStore, principal: string, res: ResourceRec
   return level;
 }
 
+/** The id of the person the caller acts for. The host's ctx carries it as a string (reading `.id` of that was undefined, so an agent acting for a person was judged as an agent with no one behind it). */
+export function actingId(ctx: { actingFor?: Ref | string | undefined }): string | undefined {
+  const a = ctx.actingFor;
+  return typeof a === "string" ? a : a?.id;
+}
+
 function callerLevel(ctx: ShareCtx, store: AccessStore, res: ResourceRec): Level | null {
-  return levelFor(store, ctx.principal.id, res, ctx.now(), ctx.actingFor?.id);
+  return levelFor(store, ctx.principal.id, res, ctx.now(), actingId(ctx));
 }
 
 function must(ctx: ShareCtx, store: AccessStore, res: ResourceRec, need: Level, what: string): Level {
@@ -374,7 +381,7 @@ const RECORDS = new Set(["record_type", "record"]);
 /** May this caller (and the person they act for) export what this resource holds: the role permission, or a grant that carries it. */
 function mayExport(ctx: AccessCtx, store: AccessStore, res: ResourceRec): boolean {
   const d = authorize(store.snapshot(), {
-    principal: ctx.principal.id, ...(ctx.actingFor && ctx.actingFor !== ctx.principal.id ? { actingFor: ctx.actingFor } : {}),
+    principal: ctx.principal.id, ...(actingId(ctx) && actingId(ctx) !== ctx.principal.id ? { actingFor: actingId(ctx)! } : {}),
     action: { perm: "records.export", level: "view" }, resource: { type: res.type, id: res.id }, now: ctx.now(),
   });
   return d.effect === "allow";
@@ -392,7 +399,8 @@ function assertFlags(ctx: ShareCtx, store: AccessStore, res: ResourceRec, next: 
 function mayShareOn(ctx: ShareCtx, store: AccessStore, res: ResourceRec, have: Level): boolean {
   if (!RECORDS.has(res.type) || atLeast(res.type, have, "manage")) return true;
   const snap = store.snapshot();
-  const who = [ctx.principal.id, ...(ctx.actingFor?.id ? [ctx.actingFor.id] : [])];
+  const acting = actingId(ctx);
+  const who = [ctx.principal.id, ...(acting ? [acting] : [])];
   return who.every((id) => { const i = snap.info(id); return i !== null && matched(snap, store, i, res, ctx.now()).some((g) => g.row.conditions?.reshare === true); });
 }
 
@@ -428,7 +436,7 @@ function hasOwnerPredicate(value:unknown):boolean {if(!value||typeof value!=="ob
 function assertDelegation(ctx:ShareCtx,store:AccessStore,res:ResourceRec,subject:SubjectRef,level:Level,conditions:Cond,exclude?:string):void {
  const have=must(ctx,store,res,"edit","sharing");if(!mayShareOn(ctx,store,res,have))raise(ctx.trace.traceId,"permission.no_grant","sharing this needs Manage, or the right to share it on");if(rank(res.type,level)>rank(res.type,have))raise(ctx.trace.traceId,"permission.not_contained",`you hold ${have} here and cannot give ${level}`);
  const snap=store.snapshot(),me=snap.info(ctx.principal.id);if(!me)raise(ctx.trace.traceId,"permission.no_grant");const subjects:Info[]=[me];
- const add=(id:string|null|undefined)=>{const who=id?snap.info(id):null;if(who&&!subjects.includes(who))subjects.push(who);};if(me.p.kind==="svc")add(me.p.owner);if(ctx.actingFor)add(ctx.actingFor.id);
+ const add=(id:string|null|undefined)=>{const who=id?snap.info(id):null;if(who&&!subjects.includes(who))subjects.push(who);};if(me.p.kind==="svc")add(me.p.owner);add(actingId(ctx));
  for(const who of subjects){if(res.ownerId===who.p.id)continue;
   const contained=matched(snap,store,who,res,ctx.now()).some(parent=>{
    if(parent.row.id===exclude||rank(res.type,parent.row.level)<rank(res.type,level)||!atLeast(res.type,parent.row.level,"edit"))return false;
