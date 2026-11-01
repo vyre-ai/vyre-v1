@@ -69,9 +69,9 @@ export async function session<T>(s: Space, kind: "personal" | "team", fn: (page:
     });
   } finally { await browser.close(); }
 }
-export const openSync = async (s: Space, page: Pg): Promise<void> => {
+export const openSync = async (s: Space, page: Pg, type = "person"): Promise<void> => {
   await page.goto(`${s.web!.origin}/records`);
-  await page.getByTestId("sync-dot").first().click();
+  await page.getByTestId(`row-nav:type:${type}-trailing`).getByTestId("sync-dot").click();
   await page.getByTestId("sync-page").waitFor().catch(async (e: Error) => { throw new Error(`${e.message} :: ${await seen(page)}`); });
 };
 /** The Looks good tap on the question card in the chat, in the browser. */
