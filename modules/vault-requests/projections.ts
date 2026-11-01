@@ -17,6 +17,8 @@ export interface VaultReqCtx {
   principal: { kind: string; id: string };
   /** The person an agent acts for. */
   actingFor?: string;
+  /** The chat the call was made from, when an agent asked in one. */
+  thread?: string;
   trace: { traceId: string };
   now(): number;
   db: Db;
