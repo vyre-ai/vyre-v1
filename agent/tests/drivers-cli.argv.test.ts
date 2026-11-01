@@ -31,7 +31,7 @@ test("claude: a granted work folder turns the file and shell tools on inside it;
   assert.equal(argv.includes("--tools"), false);
   assert.equal(after(argv, "--add-dir"), "/work/acme");
   const allowed = argv.slice(argv.indexOf("--allowedTools") + 1, argv.indexOf("--add-dir"));
-  assert.deepEqual(allowed, ["mcp__vyre__*", "Read", "Edit", "Write", "Glob", "Grep", "Bash"]);
+  assert.deepEqual(allowed, ["mcp__vyre__*", "WebSearch", "Read", "Edit", "Write", "Glob", "Grep", "Bash"]);
   assert.equal(after(argv, "--permission-mode"), "plan");
   assert.equal(after(argv, "--model"), "sonnet");
   assert.equal(after(argv, "--resume"), "sess-9");

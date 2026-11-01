@@ -233,8 +233,10 @@ export function buildEntries(i: SidebarInput): Entry[] {
       if (i.needsLimit !== undefined && shown.length < all) out.push({ key: "m:needs", type: "more", label: `Show all ${all}`, to: "needs" });
     }
   }
-  out.push({ key: "h:faces", type: "head", section: "faces", label: "Agents", open: open("faces") });
-  if (open("faces")) {
+  // a head with nothing under it says nothing: no agents to show, no Agents head
+  const showFaces = i.faces.length > 0 || (i.facesMore ?? 0) > 0 || i.errors?.faces !== undefined;
+  if (showFaces) out.push({ key: "h:faces", type: "head", section: "faces", label: "Agents", open: open("faces") });
+  if (showFaces && open("faces")) {
     out.push(...err("faces"));
     const digits = faceDigits(i.faces);
     for (const a of i.faces) {
