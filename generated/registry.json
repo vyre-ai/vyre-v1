@@ -177372,7 +177372,8 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "connector.published"
+        "connector.published",
+        "connector.created"
       ],
       "errors": [
         "internal.unexpected",

@@ -19,7 +19,7 @@ Bring in everything, not just the first-pull filter: re-applies the stored spec 
 | HTTP | POST /v1/sync_specs/backfill |
 | MCP tool | sync_specs_backfill (records) |
 | CLI | none |
-| Emits | connector.published |
+| Emits | connector.published, connector.created |
 
 ## Input
 

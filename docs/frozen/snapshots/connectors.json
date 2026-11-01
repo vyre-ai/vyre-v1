@@ -35,7 +35,7 @@
     "connectors.test@1": "b60f4ba28cb5fd1389f1eb24410f5549cac31ed312748371e8eccaffadabb416",
     "connectors.versions@1": "2b4b5fdd9404bb1827b2f7e2c225f2ab94da8597e73ccec0c41de48757c2adce",
     "sync_specs.apply@1": "f7723187c7d719ceed242a400eb7f1efdc47eddf1bc890639021f1d21f8ecebf",
-    "sync_specs.backfill@1": "aad16361e78f3f09b79c4b5e8c3d447ee13ce0f393f06edc3035214a97f1911b",
+    "sync_specs.backfill@1": "1bd139d754f12366a8bb694dfc4e6d365073524dc03994072972292c70dd72c6",
     "sync_specs.get@1": "aee38de43e5a291d33e9a13fa761ff21312f8b6309fb338185e03e65df7e6704",
     "sync_specs.preview@1": "cec5d72cd6c03e90f8c8f4bc36d3b47614894610be1aeeab61dc93a1e18b2cdd",
     "sync_specs.remove@1": "b3f0bfa3016d4ea02d30dc4e23f555a77702ac144e2dc17eab9b38ae671bbe81",
