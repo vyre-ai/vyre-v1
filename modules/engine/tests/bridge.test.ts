@@ -16,7 +16,7 @@ const WATCHER = "agt_watch";
 
 interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number; attachments?: string[] }
 
-function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
@@ -35,7 +35,9 @@ function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; a
   };
   let bridge: Bridge;
   const postAs = async (agentId: string, p: AgentPost): Promise<void> => {
-    // chat.post as the agent: stored under the clientId, then message.received like any message
+    // chat.post as the agent: stored under the clientId, then message.received like any message. Chat refuses a message with more than 20 blocks, as the real chat.post does.
+    if (p.blocks.length > 20) throw new Error("A message can carry at most 20 blocks.");
+    if (opts.refuse?.(p)) throw new Error("chat.post refused");
     const row: ChatRow = { messageId: p.clientId, threadId: p.threadId, threadSeq: chat.length + 1, author: { kind: "agent", id: agentId }, body: p.body, blocks: p.blocks, mentions: p.mentions, depth: 1, ...(p.via ? { via: p.via } : {}) };
     chat.push(row);
     const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: agentId }, mentions: p.mentions, depth: 1 } });
@@ -273,4 +275,40 @@ test("a message that arrives while the thread is being opened for an earlier one
   await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_early", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 } });
   const late = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_late", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [{ kind: "agent", id: LEAD }], depth: 0 } });
   assert.deepEqual(late, { receivedAs: [LEAD] });
+
+const steps = (n: number): DriverEvent[] => Array.from({ length: n }, (_, i): DriverEvent[] => [
+  { type: "block", kind: "tool_call", payload: { id: `c${i}`, name: "records_query" } }, { type: "block", kind: "tool_result", payload: { id: `c${i}`, ok: i !== 7 } },
+]).flat();
+
+test("a turn of 30 tool calls posts its reply: the steps fold into one summary, the text and the cards stay", async () => {
+  const s = setup({ script: [...steps(30), { type: "block", kind: "chart", payload: { n: 1 } }, { type: "text", text: "Here is what I found." }, { type: "done" }] });
+  await s.say("Check everything.");
+  const posts = s.chat.filter((r) => r.author.id === LEAD);
+  assert.equal(posts.length, 1, "one reply");
+  assert.equal(posts[0]?.body, "Here is what I found.");
+  const blocks = posts[0]!.blocks as { type: string; data: Record<string, unknown> }[];
+  assert.ok(blocks.length <= 20);
+  assert.deepEqual(blocks.map((b) => b.type), ["tool_steps", "chart"]);
+  assert.deepEqual(blocks[0]!.data, { calls: 30, results: 30, failed: 1 });
+});
+
+test("cards past the limit are not dropped: they follow in messages of their own, in order", async () => {
+  const cards = Array.from({ length: 45 }, (_, i): DriverEvent => ({ type: "block", kind: "card", payload: { n: i } }));
+  const s = setup({ script: [...cards, { type: "text", text: "Done." }, { type: "done" }] });
+  await s.say("Make cards.");
+  const posts = s.chat.filter((r) => r.author.id === LEAD);
+  assert.equal(posts[0]?.body, "Done.");
+  assert.deepEqual(posts.map((p) => p.blocks.length), [20, 20, 5]);
+  assert.deepEqual(posts.flatMap((p) => (p.blocks as { data: { n: number } }[]).map((b) => b.data.n)), cards.map((_, i) => i));
+});
+
+test("a post that is refused is never silent: the person gets the words and a failed turn they can retry", async () => {
+  let refused = 0;
+  const s = setup({ refuse: (p) => p.blocks.some((b) => b.type === "chart") && ++refused > 0, script: [{ type: "block", kind: "chart", payload: {} }, { type: "text", text: "The answer is 42." }, { type: "done" }] });
+  await s.say("What is it?");
+  const posts = s.chat.filter((r) => r.author.id === LEAD);
+  assert.equal(refused, 1);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0]?.body, "The answer is 42.", "the words survive");
+  assert.deepEqual(posts[0]?.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: (posts[0]!.blocks[0] as { data: { turnId: string } }).data.turnId, code: "engine.post_failed" } }]);
 });
