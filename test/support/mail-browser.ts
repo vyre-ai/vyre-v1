@@ -94,6 +94,48 @@ export async function open(seatOf: Seat, s: Screens, route: string): Promise<voi
 }
 
 let shotCount = 0;
+const darkByContext = new WeakMap<object, Promise<{ css: string; mode: string; skin: string }>>();
+
+/** The graphite skin's variables as the app's own head script sets them at load, read once from a page opened with ?skin=graphite. */
+function darkTokens(p: Page): Promise<{ css: string; mode: string; skin: string }> {
+  const ctx = p.context();
+  let t = darkByContext.get(ctx);
+  if (!t) {
+    t = (async () => {
+      const q = await ctx.newPage();
+      try {
+        await q.goto(`${new URL(p.url()).origin}/home?skin=graphite`, { waitUntil: "domcontentloaded" });
+        return await q.evaluate(() => { const r = document.documentElement; return { css: r.getAttribute("style") ?? "", mode: r.getAttribute("data-mode") ?? "dark", skin: r.getAttribute("data-skin") ?? "graphite" }; });
+      } finally { await q.close(); }
+    })();
+    darkByContext.set(ctx, t);
+  }
+  return t;
+}
+
+/**
+ * The app takes its skin when a page loads, so emulating a dark computer does not repaint an open page. A dark picture applies the graphite variables to the page as they are, and the light one puts
+ * the page's own back. Nothing reloads or resizes, so a sheet or a panel stays open.
+ */
+async function setScheme(p: Page, scheme: "light" | "dark"): Promise<void> {
+  if (scheme === "dark") {
+    const dark = await darkTokens(p);
+    await p.evaluate((d) => {
+      const r = document.documentElement;
+      if (r.getAttribute("data-shot-orig") === null) r.setAttribute("data-shot-orig", JSON.stringify({ style: r.getAttribute("style") ?? "", mode: r.getAttribute("data-mode") ?? "", skin: r.getAttribute("data-skin") ?? "" }));
+      r.setAttribute("style", d.css); r.setAttribute("data-mode", d.mode); r.setAttribute("data-skin", d.skin);
+    }, dark);
+  } else {
+    await p.evaluate(() => {
+      const r = document.documentElement;
+      const o = r.getAttribute("data-shot-orig");
+      if (o === null) return;
+      const v = JSON.parse(o) as { style: string; mode: string; skin: string };
+      r.setAttribute("style", v.style); r.setAttribute("data-mode", v.mode); r.setAttribute("data-skin", v.skin); r.removeAttribute("data-shot-orig");
+    });
+  }
+}
+
 /**
  * One step, up to four pictures: light and dark, desktop and phone. The phone width draws another shell, so what was open (a sheet, a panel) is gone when the page comes back to desktop:
  * `restore` puts it back. A step with typed text but no way to restore it passes `phone: false` and is shot at desktop width only.
@@ -105,7 +147,7 @@ export async function shoot(p: Page, dir: string, step: string, o: { phone?: boo
   const sizes = Object.entries(SIZES).filter(([size]) => o.phone !== false || size === "desktop");
   for (const [size, vp] of sizes) {
     for (const scheme of SCHEMES) {
-      await p.emulateMedia({ colorScheme: scheme });
+      await setScheme(p, scheme);
       if (p.viewportSize()?.width !== vp.width) { await p.setViewportSize(vp); await p.waitForTimeout(500); }
       await p.waitForTimeout(250);
       const file = path.join(dir, `${n}-${step}-${scheme}-${size}.png`);
@@ -118,6 +160,6 @@ export async function shoot(p: Page, dir: string, step: string, o: { phone?: boo
       if (o.restore) await o.restore();
     }
   }
-  await p.emulateMedia({ colorScheme: "light" });
+  await setScheme(p, "light");
   return out;
 }
