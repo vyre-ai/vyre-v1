@@ -180,6 +180,15 @@ export async function markSeen(ctx: NotifCtx, input: { notificationIds?: string[
   return { marked: ids.length };
 }
 
+/** The subject of these notifications closed: they stop counting for everyone they went to. The rows stay, so the person can still read what happened. */
+export function clearForSubject(ctx: NotifCtx, type: string, id: string): string[] {
+  const rows = ctx.db.all("SELECT id, person FROM notifications_items WHERE subject_type = ? AND subject_id = ? AND seen_at IS NULL AND deleted_at IS NULL", type, id) as { id: string; person: string }[];
+  if (rows.length === 0) return [];
+  ctx.db.run("UPDATE notifications_items SET seen_at = ?, updated_at = ?, version = version + 1 WHERE subject_type = ? AND subject_id = ? AND seen_at IS NULL AND deleted_at IS NULL", ctx.now(), ctx.now(), type, id);
+  for (const person of new Set(rows.map((r) => r.person))) ctx.emit("notification.seen", `entity/${person}`, clean({ person, notificationIds: rows.filter((r) => r.person === person).map((r) => r.id).slice(0, 500) }), { vis: "owner" });
+  return rows.map((r) => r.id);
+}
+
 export async function kindsList(ctx: NotifCtx): Promise<{ kinds: Record<string, unknown>[] }> {
   const me = meOf(ctx);
   return {

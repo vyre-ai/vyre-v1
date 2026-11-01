@@ -10,7 +10,7 @@ import { id, pageIn, pageOut, resourceRef } from './_common.ts';
 const level = t.enm('interrupt', 'badge', 'digest');
 const place = t.enm('home', 'chats', 'inbox', 'records', 'files', 'apps', 'automations', 'vault', 'settings', 'console');
 const kindKey = t.enm(
-  'approval.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
+  'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'campaign.reply', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
   'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due',
 );
@@ -43,6 +43,8 @@ export default defineManifest({
     notif('approval.requested', 'interrupt', 'chats', 'Approval needed: {{title}}', {
       pushTitle: '{{space}} needs you', actions: [{ label: 'Approve', cap: 'tasks.act' }, { label: 'Send back', cap: 'tasks.act' }], agentRateKey: 'agent_interrupt', backstopEmailAfterHours: 4,
     }),
+    notif('answer.requested', 'interrupt', 'chats', 'Needs your answer: {{title}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Answer', cap: 'tasks.act' }], backstopEmailAfterHours: 4 }),
+    notif('unblock.requested', 'interrupt', 'chats', 'Needs you: {{title}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Open', cap: 'tasks.act' }], backstopEmailAfterHours: 4 }),
     notif('approval.backstop', 'interrupt', 'chats', 'Still waiting on you: {{title}}', { pushTitle: '{{space}} needs you', actions: [{ label: 'Open', cap: 'tasks.act' }], respectHours: false }),
     notif('dm', 'interrupt', 'chats', 'Message from {{from}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Reply', cap: 'chat.post' }] }),
     notif('mention', 'interrupt', 'chats', '{{from}} mentioned you in {{where}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Reply', cap: 'chat.post' }] }),

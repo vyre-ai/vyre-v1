@@ -96,6 +96,20 @@ export const consumers = {
       return [p.requestId];
     },
   },
+  /** Access an agent asked for in a chat was approved or declined: the agent is told in that chat, as the person it asked for, and carries on. */
+  "engine.access_answered": {
+    on: ["access.granted", "access.declined"],
+    run: async (ctx: EngineCtx, event: { name: string; payload: { requestId: string; requester: string; note?: string; threadId?: string; agentId?: string } }): Promise<string[]> => {
+      const p = event.payload;
+      const host = engineHost();
+      if (!host || !p.threadId || !p.agentId) return [];
+      await ensureRuntime(ctx);
+      const text = event.name === "access.granted" ? "My access came through. Carry on." : `My access was declined${p.note ? `: ${p.note}` : "."}`;
+      try { await host.call("chat.post", { threadId: p.threadId, body: text, mentions: [{ kind: "agent", id: p.agentId }], idempotencyKey: `${p.requestId}:carry` }, p.requester); }
+      catch (e) { host.log?.("the agent was not told its access was answered", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
+      return [p.requestId];
+    },
+  },
   "engine.unblock": {
     on: ["task.completed"],
     run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),

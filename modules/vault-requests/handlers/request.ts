@@ -44,15 +44,17 @@ export function neededTitle(name: string): string {
 
 /** The chat the agent asked in and the agent's id, read back from the request's own card (no column holds them). */
 async function chatOf(ctx: VaultReqCtx, row: RequestRow): Promise<{ threadId: string; agentId?: string; asker?: string } | null> {
-  const taskId = idsOf(row.task_ids_json)[0];
-  if (!taskId) return null;
-  try {
-    const t = asRow(asRow(await ctx.call("tasks.get", { taskId }))?.["task"]);
-    const blocks = Array.isArray(t?.["blocks"]) ? (t!["blocks"] as unknown[]) : [];
-    const d = asRow(asRow(blocks[0])?.["data"]);
-    const threadId = strOf(d?.["threadId"]);
-    return threadId ? { threadId, ...(strOf(d?.["agentId"]) ? { agentId: strOf(d?.["agentId"])! } : {}), ...(strOf(d?.["asker"]) ? { asker: strOf(d?.["asker"])! } : {}) } : null;
-  } catch { return null; }
+  // the caller holds one of the cards, not necessarily the first: another manager's card is not theirs to read
+  for (const taskId of idsOf(row.task_ids_json)) {
+    try {
+      const t = asRow(asRow(await ctx.call("tasks.get", { taskId }))?.["task"]);
+      const blocks = Array.isArray(t?.["blocks"]) ? (t!["blocks"] as unknown[]) : [];
+      const d = asRow(asRow(blocks[0])?.["data"]);
+      const threadId = strOf(d?.["threadId"]);
+      return threadId ? { threadId, ...(strOf(d?.["agentId"]) ? { agentId: strOf(d?.["agentId"])! } : {}), ...(strOf(d?.["asker"]) ? { asker: strOf(d?.["asker"])! } : {}) } : null;
+    } catch { /* the next card */ }
+  }
+  return null;
 }
 
 export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fields?: string[]; reason: string; forRun?: string; folderId?: string; idempotencyKey: string }) {
@@ -148,7 +150,7 @@ function decidable(ctx: VaultReqCtx, requestId: string): { row: RequestRow; me: 
   const { row, asManager } = visible(ctx, requestId);
   const me = personOf(ctx);
   if (!asManager || !me) return raise(ctx.trace.traceId, "permission.no_grant", "Only a manager of this Vault can decide this request.");
-  if (row.state !== "waiting") return raise(ctx.trace.traceId, "validation.precondition_failed", `This request was already ${row.state}.`);
+  if (row.state !== "waiting") return raise(ctx.trace.traceId, "validation.precondition_failed", "Already decided.");
   return { row, me };
 }
 

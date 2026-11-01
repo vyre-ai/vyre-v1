@@ -101,6 +101,14 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   const to = asked?.planId !== undefined && key === "reject" ? "canceled" : targetFor(t, key);
   if (to === null) raise(ctx, "validation.precondition_failed", `That cannot be done while the task is ${t.state}.`, { reason: "illegal_transition", state: t.state, action: key });
 
+  // a bare Decline from a list decides the request itself: the request, every approver's task, the requester and the agent all follow from its own capability
+  const request = key === "cannot" ? requestOf(t) : undefined;
+  if (request) {
+    if (!ctx.call) raise(ctx, "internal.unavailable", "Requests are not available right now.", { service: "call" });
+    await ctx.call(request.cap, clean({ requestId: request.id, note: note || undefined }));
+    return { task: out(ctx, getTask(ctx, t.id)), result: { action: key, declined: true } };
+  }
+
   const gate = t.source?.kind === "gate" ? t.source : undefined;
   const edits = input.edits as Record<string, unknown> | undefined;
   if (gate && edits && Object.keys(edits).length > 0) raise(ctx, "validation.field_locked", "A held act is approved exactly as it was shown.", { field: "edits" });
@@ -144,6 +152,19 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
     catch (e) { result.resumed = false; result.resumeError = (e as { error?: { code?: string } }).error?.code ?? "internal.unexpected"; }
   }
   return { task: out(ctx, t), result };
+}
+
+// ---- a request another module owns ----
+
+/** The access or key request a task stands for: it is decided by its own capability, never by closing one approver's copy. */
+function requestOf(t: Task): { cap: "access.requests.decline" | "vault.requests.decline"; id: string } | undefined {
+  for (const b of t.blocks) {
+    const id = (b.data as { requestId?: unknown } | null)?.requestId;
+    if (typeof id !== "string") continue;
+    if (b.type === "access_request") return { cap: "access.requests.decline", id };
+    if (b.type === "vault_request") return { cap: "vault.requests.decline", id };
+  }
+  return undefined;
 }
 
 // ---- a question or a plan from a chat ----

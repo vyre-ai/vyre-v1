@@ -269,7 +269,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     console: who.roles.some((r) => r === "owner" || r === "admin"),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
     terminal: space.kind === "personal" || who.roles.some((r) => r === "owner" || r === "developer"),
-    counts: switcher && switcher.unread > 0 ? { chats: switcher.unread } : {},
+    counts: {},   // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you
     dots: {},
   };
 
