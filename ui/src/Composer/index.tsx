@@ -23,7 +23,7 @@ import { answering, contextRing, deleteToken, modeInfo, nextMode, sendControl, s
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
 import { BrandMark, ContextRing, EffortBars, GroupHead, I, IconTile, Kbd, Pop, STOP, WorkingLight, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
-import { findEmoji } from "./emoji.ts";
+import { closeEmoji, findEmoji } from "./emoji.ts";
 import type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
 import { Glyph, plainText } from "./shared.tsx";
 
@@ -905,9 +905,12 @@ export function Composer(props: ComposerProps): ReactElement {
   };
 
   const onChange = (event: ChangeLike): void => {
-    const text = event.nativeEvent.text ?? stateRef.current.text;
+    const typed = event.nativeEvent.text ?? stateRef.current.text;
     const at = event.nativeEvent.target?.selectionStart;
-    const cursor = typeof at === "number" ? at : text.length;
+    const typedAt = typeof at === "number" ? at : typed.length;
+    const closed = closeEmoji(typed, typedAt);
+    const text = closed?.text ?? typed;
+    const cursor = closed?.cursor ?? typedAt;
     setState((s) => ({ ...s, text, cursor, active: -1, dismissedAt: -1 }));
     props.onChange?.(text);
   };
