@@ -15,8 +15,8 @@ const rail = (space: typeof NORTHWIND, active: "home" | "chats" = "chats") => ra
 const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string => renderToStaticMarkup(node).replaceAll("<!-- -->", "");
 const labels = (entries: readonly MenuEntry[]): string[] => entries.filter(isItem).map((e) => e.label);
 
-test("each Space's Kit draws its own rail and the Console shows only with access", () => {
-  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"]);
+test("each Space's Kit draws its own rail, and the Console has no button: its pages are in Settings", () => {
+  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings"]);
   assert.deepEqual(railPlaces(rail(HARBOR)), ["home", "chats", "inbox", "files", "apps", "vault", "settings"]);
   assert.ok(!railPlaces(rail(PERSONAL)).includes("console"));
   assert.ok(!railPlaces(rail(PERSONAL)).includes("apps"), "a Personal Space hides Apps: forms, campaigns and sending domains are for a team");

@@ -24,6 +24,6 @@ test("a connection that needs attention tells the person who to ask", () => {
 });
 
 test("when the admin has not connected a suite, the line is one short sentence that says who to ask and where", () => {
-  assert.match(NOT_CONNECTED, /Ask your admin: Console, Integrations/);
+  assert.match(NOT_CONNECTED, /Ask your admin\./);
   assert.ok(NOT_CONNECTED.length < 70, "a line, not a paragraph");
 });

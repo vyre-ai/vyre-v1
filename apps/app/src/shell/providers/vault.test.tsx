@@ -32,7 +32,7 @@ test("a click that leaves the Vault goes out through the shell's door", () => {
   d.nav.openDevices();
   d.nav.openOutsideActors();
   d.nav.openAgent("agt_intake");
-  assert.deepEqual(opened, ["vault.layout", "console.backups", "devices.mine", "console.outside-actors", "chats.agent-page"]);
+  assert.deepEqual(opened, ["vault.layout", "settings.page", "devices.mine", "settings.page", "chats.agent-page"]);
 });
 
 test("Vault hashes route share, export, Advanced, and requests into their real surfaces", () => {

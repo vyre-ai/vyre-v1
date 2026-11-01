@@ -219,6 +219,8 @@ export const ROW_LABELS: Readonly<Record<string, string>> = {
   "notifications.email_backstop": "Email me if an approval waits",
   "notifications.routines_all": "Tell me when routines succeed",
   "notifications.alert_replies": "Alert me on replies",
+  "notifications.hand_needs_you_to": "Hand Needs you to",
+  "notifications.quiet_hours": "Quiet hours",
   "engine.local_runs": "Run my chats on this computer",
   "chat.agent_tabs": "Agents can open side tabs",
 };
@@ -327,7 +329,7 @@ export function searchRows(rows: readonly SettingRow[], q: string, scope: Search
     if (!page || (scope.personal && TEAM_ONLY_ROWS.includes(r.key))) continue;
     const help = HIT_HELP[r.key];
     const label = rowLabel(r);
-    if (!matches(words, `${label} ${r.key.replace(/[._]/g, " ")} ${page.title} ${help?.sub ?? ""} ${help?.words ?? ""} ${rowHelp(r) ?? ""}`)) continue;
+    if (!matches(words, `${label} ${r.key.replace(/[._]/g, " ")} ${page.title} ${help?.sub ?? ""} ${help?.words ?? ""}`)) continue;
     out.push({ key: r.key, page: page.key, title: label, score: scored(label, words), ...(help?.sub ? { sub: help.sub } : {}) });
   }
   for (const d of DRAWN_ROWS) {
