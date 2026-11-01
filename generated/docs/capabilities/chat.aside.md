@@ -19,7 +19,7 @@ Ask a side question (/btw) while an agent works: it runs as a separate short rea
 | HTTP | POST /v1/chat/aside |
 | MCP tool | chat_aside (chats) |
 | CLI | none |
-| Emits | thread.started, message.received |
+| Emits | thread.started, message.received, message.direct, message.mentioned, thread.replied, thread.unarchived |
 
 ## Input
 
