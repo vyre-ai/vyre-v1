@@ -118,9 +118,7 @@ export async function list(ctx: EngineCtx, input: { threadId: string }) {
     try { const a = (await ctx.call("agents.get", { agentId: id })) as { agent?: { name?: string } }; if (a.agent?.name) names.set(id, a.agent.name); } catch { /* the id stands */ }
   }
   const waits = ctx.db.all("SELECT * FROM engine_crew_wait WHERE lead_thread_id = ? AND state = 'pending' ORDER BY started_at DESC, rowid DESC", input.threadId) as Row[];
-  const fresh: Row[] = [];
-  for (const r of rows) fresh.push(await reconcile(ctx, r));
-  return { jobs: fresh.map((r) => jobOut(r, names.get(str(r["agent_id"])))), waits: waits.map(waitOut) };
+  return { jobs: rows.map((r) => jobOut(r, names.get(str(r["agent_id"])))), waits: waits.map(waitOut) };
 }
 
 export function waitOut(r: Row) {

@@ -84,7 +84,7 @@ export default defineManifest({
     }),
     write('engine.crew.merge', 'Land a teammate\'s branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate', {
       in: { jobId: t.str() }, out: { job: crewJob, landed: t.bool(), ref: t.str(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high',
-      gate: { act: 'push_protected', when: "actor.kind != 'person'" }, emits: ['crew.job_merged'], tool: 'chats', mcpName: 'crew_merge', agent: { planMode: 'blocked', blocks: [] },
+      gate: { act: 'push_protected', when: "actor.kind != 'person'" }, emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_merge', agent: { planMode: 'blocked', blocks: [] },
       errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
     }),
     write('engine.crew.wait', 'Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish', {
@@ -93,7 +93,7 @@ export default defineManifest({
     }),
     write('engine.crew.push', 'Push the project repository\'s base branch, with a teammate\'s merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person\'s approval', {
       in: { jobId: t.str() }, out: { job: crewJob, pushed: t.bool(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high', gate: { act: 'push_protected' },
-      emits: ['crew.job_pushed'], tool: 'chats', mcpName: 'crew_push', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
+      emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_push', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
     }),
     read('engine.crew.workspace', 'System: the repository copy a teammate thread works in, so the engine can make it before the first turn', {
       in: { ...threadT }, out: { workspace: t.nullable(t.obj({ jobId: t.str(), repo: t.str(), base: t.str(), branch: t.str(), name: t.str() })) }, on: ['thread', '/threadId'],
