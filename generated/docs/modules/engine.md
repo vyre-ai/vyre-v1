@@ -4,11 +4,19 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (66)
+## Capabilities (74)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
 - [engine.complete](../capabilities/engine.complete.md): One request and one answer on an account the caller can run on, for work that is not a chat (memory upkeep); returns the text and the token counts and posts nothing
+- [engine.crew.list](../capabilities/engine.crew.list.md): The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands
+- [engine.crew.merge](../capabilities/engine.crew.merge.md): Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate
+- [engine.crew.message](../capabilities/engine.crew.message.md): Send a message to a teammate in its own thread; a teammate that stopped picks up where it left off
+- [engine.crew.repo.get](../capabilities/engine.crew.repo.get.md): The project's repository for the crew, or nothing when none is set
+- [engine.crew.repo.set](../capabilities/engine.crew.repo.set.md): Say which folder on this computer holds the project's repository, and the branch teammates start from; the folder must be a git repository
+- [engine.crew.start](../capabilities/engine.crew.start.md): Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done
+- [engine.crew.stop](../capabilities/engine.crew.stop.md): Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch
+- [engine.crew.workspace](../capabilities/engine.crew.workspace.md): System: the repository copy a teammate thread works in, so the engine can make it before the first turn
 - [engine.defaults.get](../capabilities/engine.defaults.get.md): The caller default model, provider, effort and fallback order in this Space
 - [engine.defaults.set](../capabilities/engine.defaults.set.md): Set the caller default model, provider, effort and fallback order (the chat default)
 - [engine.health](../capabilities/engine.health.md): Engine health: queue age, lease holders, provider reachability
@@ -73,13 +81,15 @@ Requires: nothing.
 - [engine.use_policy.export](../capabilities/engine.use_policy.export.md): Export the AI use policy (models, providers, label rules, limits, accounts) as a file
 - [engine.warm](../capabilities/engine.warm.md): Hint that a thread was opened or the composer got focus: warm the engine session (drivers pool, prefix cache)
 
-## Events (26)
+## Events (28)
 
 - [agent.blocked](../events/agent.blocked.md): An agent is blocked (login, key, site down) and asks for what would unblock it
 - [agent.limit_hit](../events/agent.limit_hit.md): An agent hit a limit from agent.toml or a Space cap; the turn stopped
 - [agent.mode_changed](../events/agent.mode_changed.md): An agent switched between Leading and Listening in a thread
 - [agent.model_changed](../events/agent.model_changed.md): The model, provider, effort or account of an agent in a thread changed
 - [agent.task_finished](../events/agent.task_finished.md): A long agent task finished
+- [crew.job_merged](../events/crew.job_merged.md): A teammate's branch was landed in the project repository
+- [crew.job_started](../events/crew.job_started.md): A teammate started on a brief in its own thread and its own branch
 - [engine.policy_changed](../events/engine.policy_changed.md): AI policies changed
 - [engine.runtime_opt_in_changed](../events/engine.runtime_opt_in_changed.md): A person changed whether the Space may continue their chats when their computer is off
 - [engine.subscription_share_changed](../events/engine.subscription_share_changed.md): A person changed whether the Space may run work on their subscription

@@ -8,6 +8,7 @@ HTTP 403. Retryable: no.
 
 - automations.http_send
 - changesets.approve
+- engine.crew.merge
 - git.push
 - git.sync
 - mail.send
