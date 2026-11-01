@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Network } from '../../console/pages/InfrastructureNetwork.tsx';
 import { Speed, Usage } from '../../console/pages/InfrastructureMetrics.tsx';
 import {Updates,SpaceProfile} from '../../console/pages/InfrastructureSettings.tsx';
@@ -126,8 +126,15 @@ export default function ConsolePlace(): ReactElement {
     name: nameLookup(rt), clock: rt.clock,
     nav: { openApp: (target) => rt.open(target ?? { screen: "home.today-starred-ask" }), openPage: (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); } },
   } : null, [rt, allowed]);
-  // no door leads here from a Personal Space; a stale link still gets a page that follows the theme
-  if (rt?.space.kind === "personal") return <View testID="console-needs-team" style={{ flex: 1, backgroundColor: "var(--win)" as string, color: "var(--ink)" as string }}><States kind="empty" title="Needs a Team Space" icon="search" /></View>;
+  // no door leads here from a Personal Space and the shell sends a stale address Home; if this page is ever shown it follows the theme and has a way back
+  if (rt?.space.kind === "personal") return (
+    <View testID="console-needs-team" style={{ flex: 1, backgroundColor: "var(--win)" as string, alignItems: "center", justifyContent: "center", gap: 12 }}>
+      <States kind="empty" title="Needs a Team Space" icon="search" />
+      <Pressable accessibilityRole="button" accessibilityLabel="Back to Vyre" testID="console-back-home" onPress={() => rt.open({ screen: "home.today-starred-ask" })} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string }}>
+        <Text style={{ color: "var(--ink)" as string, fontSize: 13 }}>Back to Vyre</Text>
+      </Pressable>
+    </View>
+  );
   if (failed) return <States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} />;
   if (!rt || !data) return <States kind="empty" title="Opening the Console…" icon="search" />;
   const requestedPage = target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;
