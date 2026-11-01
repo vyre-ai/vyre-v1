@@ -15,6 +15,8 @@ export interface LiveTurn {
   /** The chat message this turn became, once the host has saved it. null: nothing was saved (the turn made no message). */
   messageId?: string | null;
   startedAt: number;
+  /** The message that started the turn (the host says so with the first frame): the reply is placed after it. */
+  triggerId?: string;
 }
 
 export interface TurnStreams {
@@ -148,6 +150,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       if (kind === "start" || kind === "delta") {
         const fresh = !turns.has(turnId);
         const t = ensure(turnId, threadId, agentId);
+        if (kind === "start" && typeof d["triggerId"] === "string" && t.triggerId === undefined) t.triggerId = d["triggerId"];
         if (kind === "delta") {
           const text = str(d["text"]);
           const at = typeof d["at"] === "number" ? (d["at"] as number) : undefined;

@@ -35,7 +35,7 @@ export type CallAs = (cap: string, input: unknown, personId: string) => Promise<
 
 /** What a reader of a live turn is told (the host turns each into one `turn` frame to the people who may read the thread): the turn opened, a piece of its text, the turn ended, and which chat message the finished turn became. */
 export type StreamEvent =
-  | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string }
+  | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string; /** the message that started the turn, so a screen puts the reply after it and before what is sent meanwhile */ triggerId?: string }
   | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number }
   | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
   | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
@@ -164,7 +164,8 @@ export function createBridge(o: BridgeOptions): Bridge {
         turns.set(e.turnId, { routineOwner: routine ? e.asker : null });
         askerOf.set(e.threadId, e.asker);
         writing.set(e.turnId, { threadId: e.threadId, agentId: e.agentId });
-        emit({ kind: "start", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, asker: e.asker });
+        const triggerId = engine?.queue(e.threadId).find((q) => q.qseq === e.qseq)?.messageId ?? undefined;
+        emit({ kind: "start", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, asker: e.asker, ...(triggerId ? { triggerId } : {}) });
         return;
       }
       case "turn.completed": {
