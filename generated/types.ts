@@ -5726,6 +5726,32 @@ export type ChatAsksOfOut = {
   next?: string;
   total?: number;
 };
+export type ChatCatchUpIn = {
+  threadId: string;
+};
+export type ChatCatchUpOut = {
+  unread: number;
+  since: number;
+  top: number;
+  firstMessageId?: string;
+  people: Array<{
+      id: string;
+      count: number;
+    }>;
+  tasks: Array<{
+      messageId: string;
+      title: string;
+    }>;
+  decisions: Array<{
+      messageId: string;
+      text: string;
+    }>;
+  at: Array<{
+      messageId: string;
+      author: string;
+      text: string;
+    }>;
+};
 export type ChatComposerSuggestIn = {
   symbol: "@" | "#" | "/";
   q: string;
@@ -5968,6 +5994,17 @@ export type ChatHistorySearchOut = {
       link: string;
       score: number;
     }>;
+};
+export type ChatMakeTaskIn = {
+  threadId: string;
+  messageId: string;
+  title?: string;
+  assigneeId?: string;
+  idempotencyKey: string;
+};
+export type ChatMakeTaskOut = {
+  taskId: string;
+  messageId: string;
 };
 export type ChatMessageGetIn = {
   threadId: string;
@@ -6354,6 +6391,20 @@ export type ChatRecentOut = {
       preview?: string;
     }>;
   nextUnread: string | null;
+};
+export type ChatRememberIn = {
+  threadId: string;
+  messageId: string;
+  text?: string;
+  idempotencyKey: string;
+};
+export type ChatRememberOut = {
+  factId: string;
+  layer: "project" | "person";
+  merged: boolean;
+  projectId?: string;
+  projectTitle?: string;
+  by: string;
 };
 export type ChatScreenGetIn = {
   threadId: string;
@@ -31879,6 +31930,7 @@ export interface CapMap {
   "chat.ask_level": { in: ChatAskLevelIn; out: ChatAskLevelOut };
   "chat.ask_suggest": { in: ChatAskSuggestIn; out: ChatAskSuggestOut };
   "chat.asks_of": { in: ChatAsksOfIn; out: ChatAsksOfOut };
+  "chat.catch_up": { in: ChatCatchUpIn; out: ChatCatchUpOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
@@ -31887,6 +31939,7 @@ export interface CapMap {
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
+  "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
@@ -31900,6 +31953,7 @@ export interface CapMap {
   "chat.question.ask": { in: ChatQuestionAskIn; out: ChatQuestionAskOut };
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
+  "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };

@@ -1358,6 +1358,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_catch_up",
+      "summary": "What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_composer_suggest",
       "summary": "Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates",
       "toolset": "chats"
@@ -1384,6 +1390,12 @@
       "deferred": false,
       "name": "chat_helpers_list",
       "summary": "Helpers running under a chat, with status",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_make_task",
+      "summary": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
       "toolset": "chats"
     },
     {
@@ -1444,6 +1456,12 @@
       "deferred": false,
       "name": "chat_recent",
       "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_remember",
+      "summary": "Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a \"Remembered for ...\" card in the thread links to the fact. A shared layer keeps its review rule",
       "toolset": "chats"
     },
     {

@@ -49205,6 +49205,209 @@
         "internal.unexpected",
         "permission.above_clearance",
         "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "at": [
+              {
+                "author": "example",
+                "messageId": "msg_a1b2c3",
+                "text": "example"
+              }
+            ],
+            "decisions": [
+              {
+                "messageId": "msg_a1b2c3",
+                "text": "example"
+              }
+            ],
+            "firstMessageId": "msg_a1b2c3",
+            "people": [
+              {
+                "count": 1,
+                "id": "example"
+              }
+            ],
+            "since": 1,
+            "tasks": [
+              {
+                "messageId": "msg_a1b2c3",
+                "title": "example"
+              }
+            ],
+            "top": 1,
+            "unread": 1
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "label": "check",
+      "level": "view",
+      "module": "chat",
+      "name": "chat.catch_up",
+      "output": {
+        "properties": {
+          "at": {
+            "items": {
+              "properties": {
+                "author": {
+                  "type": "string"
+                },
+                "messageId": {
+                  "examples": [
+                    "msg_a1b2c3"
+                  ],
+                  "pattern": "^msg_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "messageId",
+                "author",
+                "text"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "decisions": {
+            "items": {
+              "properties": {
+                "messageId": {
+                  "examples": [
+                    "msg_a1b2c3"
+                  ],
+                  "pattern": "^msg_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "messageId",
+                "text"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "firstMessageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "people": {
+            "items": {
+              "properties": {
+                "count": {
+                  "type": "integer"
+                },
+                "id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "count"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "since": {
+            "type": "integer"
+          },
+          "tasks": {
+            "items": {
+              "properties": {
+                "messageId": {
+                  "examples": [
+                    "msg_a1b2c3"
+                  ],
+                  "pattern": "^msg_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "messageId",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "top": {
+            "type": "integer"
+          },
+          "unread": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unread",
+          "since",
+          "top",
+          "people",
+          "tasks",
+          "decisions",
+          "at"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
         "validation.bad_input"
       ],
       "examples": [
@@ -50258,6 +50461,117 @@
       "v": 1
     },
     {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "assigneeId": "example",
+            "idempotencyKey": "idem_1",
+            "messageId": "msg_a1b2c3",
+            "threadId": "thr_a1b2c3",
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "messageId": "msg_a1b2c3",
+            "taskId": "tsk_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "assigneeId": {
+            "description": "A person or an agent in this chat; default the asker",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "chat",
+      "name": "chat.make_task",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -51165,7 +51479,8 @@
         "message.mentioned",
         "message.direct",
         "thread.replied",
-        "thread.unarchived"
+        "thread.unarchived",
+        "agent.engaged"
       ],
       "errors": [
         "internal.unexpected",
@@ -51805,6 +52120,136 @@
       "since": "1.0.0",
       "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)",
       "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.provider_label",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "idempotencyKey": "idem_1",
+            "messageId": "msg_a1b2c3",
+            "text": "example",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "by": "example",
+            "factId": "fct_a1b2c3",
+            "layer": "project",
+            "merged": true,
+            "projectId": "prj_a1b2c3",
+            "projectTitle": "example"
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "description": "The words to keep; default the message",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "chat",
+      "name": "chat.remember",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "by": {
+            "type": "string"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "project",
+              "person"
+            ],
+            "type": "string"
+          },
+          "merged": {
+            "type": "boolean"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "projectTitle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId",
+          "layer",
+          "merged",
+          "by"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a \"Remembered for ...\" card in the thread links to the fact. A shared layer keeps its review rule",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "chats"

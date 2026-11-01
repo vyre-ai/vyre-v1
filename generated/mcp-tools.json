@@ -10165,6 +10165,32 @@
     },
     {
       "blocks": [],
+      "cap": "chat.catch_up",
+      "deferred": false,
+      "description": "What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_catch_up",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.composer.suggest",
       "deferred": false,
       "description": "Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates",
@@ -10340,6 +10366,55 @@
       },
       "name": "chat_helpers_list",
       "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.make_task",
+      "deferred": false,
+      "description": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "assigneeId": {
+            "description": "A person or an agent in this chat; default the asker",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_make_task",
+      "planMode": "blocked",
       "toolset": "chats",
       "v": 1
     },
@@ -10875,6 +10950,52 @@
       },
       "name": "chat_recent",
       "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.remember",
+      "deferred": false,
+      "description": "Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a \"Remembered for ...\" card in the thread links to the fact. A shared layer keeps its review rule",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "description": "The words to keep; default the message",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_remember",
+      "planMode": "blocked",
       "toolset": "chats",
       "v": 1
     },

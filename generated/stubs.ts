@@ -360,6 +360,7 @@ export function stubs(ctx: CallCtx) {
       ask_level: call("chat.ask_level"),
       ask_suggest: call("chat.ask_suggest"),
       asks_of: call("chat.asks_of"),
+      catch_up: call("chat.catch_up"),
       composer: {
         suggest: call("chat.composer.suggest"),
       },
@@ -376,6 +377,7 @@ export function stubs(ctx: CallCtx) {
       history: {
         search: call("chat.history.search"),
       },
+      make_task: call("chat.make_task"),
       message: {
         get: call("chat.message.get"),
       },
@@ -399,6 +401,7 @@ export function stubs(ctx: CallCtx) {
       },
       react: call("chat.react"),
       recent: call("chat.recent"),
+      remember: call("chat.remember"),
       screen: {
         get: call("chat.screen.get"),
       },
