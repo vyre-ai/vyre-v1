@@ -72,8 +72,7 @@ test('compiled validators reject bad input and accept the example', () => {
 
 test('registry.json shares schemas instead of inlining them', () => {
   assert.ok(registry.$defs && Object.keys(registry.$defs).length > 50);
-  // the file is pretty printed and grows with every capability (5.88 MB at rc.8, 6.02 MB with the rc.9 lanes); inlining the shared schemas would take it to tens of MB, which is what this bound guards
-  assert.ok(readFileSync(new URL('../../../generated/registry.json', import.meta.url)).length < 6_800_000);
+  assert.ok(readFileSync(new URL('../../../generated/registry.json', import.meta.url)).length < 6_000_000);
 });
 
 test('screen index and probes agree; every screen with perf has a probe', () => {

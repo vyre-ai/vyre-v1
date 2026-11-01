@@ -1,7 +1,7 @@
 // Emit every generated file as path -> content (paths relative to generated/). Pure and deterministic.
 import type { CapabilityDef, EventDef, Owned, Registry } from '../../../packages/contracts/src/index.ts';
 import { agentVisible, autoRoute, mcpToolName } from './validate.ts';
-import { canonical } from './canonical.ts';
+import { canonical, canonicalCompact } from './canonical.ts';
 import { dedupeRegistry } from './dedupe.ts';
 import { emitExtras } from './emit2.ts';
 import { pascal, tsType } from './schema-ts.ts';
@@ -53,7 +53,8 @@ export function emitAll(reg: Registry): Files {
   const caps = latest(reg.capabilities);
   const allCaps = reg.capabilities;
   const shared = dedupeRegistry(reg);
-  const registryJson = json(shared);
+  // registry.json is read by programs only (the host, tests, the hash): one line, no indent
+  const registryJson = canonicalCompact(shared);
 
   put('README.md', '# generated\n\nEverything here is written by `tools/gen` from `manifests/`. Never edit by hand; run `node tools/gen/src/cli.ts` and commit the result. CI runs `--check` and fails on drift.\n');
   put('registry.json', registryJson);
