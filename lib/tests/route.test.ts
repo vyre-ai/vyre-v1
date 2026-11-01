@@ -97,3 +97,14 @@ test("listener never infers: 50 scripted messages give turns only to the lead an
   }
   assert.ok(leadTurns > 0 && mentionTurns > 0);
 });
+
+test("the lone-agent rule is for a person's message in a person's chat: not the host's, an agent's, a run's or a watcher's", () => {
+  const lone = { agents: [{ id: "docs", mode: "listen" as const }] };
+  assert.deepEqual(route({ ...lone, kind: "chat" }, say()).responders, ["docs"]);
+  assert.deepEqual(route({ ...lone, kind: "run" }, say()).responders, [], "a run's thread");
+  assert.deepEqual(route({ ...lone, kind: "channel" }, say()).responders, [], "a channel");
+  assert.deepEqual(route({ ...lone, kind: "thread" }, say()).responders, [], "a task or message thread");
+  assert.deepEqual(route(lone, { author: { kind: "person", id: "svc_host" }, mentions: [] }).responders, [], "a line the host posts");
+  assert.deepEqual(route(lone, { author: { kind: "agent", id: "ops" }, mentions: [] }).responders, [], "an agent's message");
+  assert.deepEqual(route({ agents: [{ id: "docs", mode: "listen", watching: true }] }, say()).responders, [], "a watcher");
+});

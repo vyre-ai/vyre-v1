@@ -8,7 +8,7 @@
 // at the agent_hops limit (default 4) nothing runs until a person replies.
 
 export interface RouteAgent { id: string; mode: "lead" | "listen"; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean }
-export interface RouteThread { agents: readonly RouteAgent[] }
+export interface RouteThread { agents: readonly RouteAgent[]; /** the thread kind when known: only a person's chat has a lone agent that answers whatever its mode says */ kind?: string }
 export interface RouteMention { kind: "agent" | "person"; id: string }
 export interface RouteMessage {
   author: { kind: "person" | "agent"; id: string };
@@ -26,6 +26,7 @@ export interface RouteResult {
 }
 
 export const DEFAULT_AGENT_HOPS = 4;
+const PERSON_CHATS: ReadonlySet<string> = new Set(["chat", "ask"]);
 
 export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy = {}): RouteResult {
   const limit = policy.agentHops ?? DEFAULT_AGENT_HOPS;
@@ -41,8 +42,10 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
 
   if (m.mentions.some((x) => x.kind === "person")) return done([], "person_addressed");
 
-  // the only agent in a chat answers whatever its mode says: listening means nothing with no one else to lead
-  const lead = thread.agents.find((a) => a.mode === "lead") ?? (thread.agents.length === 1 && thread.agents[0]!.watching !== true ? thread.agents[0] : undefined);
+  // the only agent in a person's chat answers that person whatever its mode says: listening means nothing with no one else to lead. Not a message the host posts (a nudge, a baton line, svc_...),
+  // not an agent's, not a run, helper, channel or console thread, and never a watcher.
+  const solo = thread.agents.length === 1 && thread.agents[0]!.watching !== true && !fromAgent && !m.author.id.startsWith("svc_") && (thread.kind === undefined || PERSON_CHATS.has(thread.kind));
+  const lead = thread.agents.find((a) => a.mode === "lead") ?? (solo ? thread.agents[0] : undefined);
   if (!lead || (fromAgent && lead.id === m.author.id)) return done([], "no_lead");
   return done([lead.id], "lead");
 }
