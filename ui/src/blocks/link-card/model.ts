@@ -14,6 +14,9 @@ export interface LinkCardData {
   title: string;
   /** A person or agent id the card names ("assigned to Maya"); the host turns it into a name. */
   who?: string;
+  /** Who shared it ("Shared by Maya") and where it went ("Shared to #ops"): an id or a plain word, which the host turns into a name. */
+  by?: string;
+  to?: string;
   target?: LinkTarget;
   /** More than a line: an agent's summary. Cards with a body or actions draw as a card, the rest as one line. */
   body?: string;
@@ -32,7 +35,7 @@ export function linkCardOf(b: { type: string; data: unknown }): LinkCardData | n
   if (!lead || !title) return null;
   const t = d["target"] as Record<string, unknown> | undefined;
   const type = str(t?.["type"]), id = str(t?.["id"]);
-  const who = str(d["who"]), body = str(d["body"]);
+  const who = str(d["who"]), body = str(d["body"]), by = str(d["by"]), to = str(d["to"]);
   const actions = Array.isArray(d["actions"])
     ? d["actions"].flatMap((a): NonNullable<LinkCardData["actions"]> => {
       const x = a as Record<string, unknown>; const key = str(x["key"]), label = str(x["label"]), cap = str(x["cap"]);
@@ -42,7 +45,7 @@ export function linkCardOf(b: { type: string; data: unknown }): LinkCardData | n
     : [];
   return {
     icon: str(d["icon"]) ?? "thread", lead, title,
-    ...(who ? { who } : {}), ...(type && id ? { target: { type, id } } : {}), ...(body ? { body: body.slice(0, 2000) } : {}), ...(actions.length ? { actions } : {}),
+    ...(who ? { who } : {}), ...(by ? { by } : {}), ...(to ? { to } : {}), ...(type && id ? { target: { type, id } } : {}), ...(body ? { body: body.slice(0, 2000) } : {}), ...(actions.length ? { actions } : {}),
   };
 }
 
@@ -50,7 +53,9 @@ export const isLinkCard = (b: { type: string; data: unknown }): boolean => linkC
 
 /** The one line: "Task created, assigned to Maya". `nameOf` turns the id into a name. */
 export function linkCardLine(d: LinkCardData, nameOf: (id: string) => string): string {
-  return d.who ? `${d.lead}, assigned to ${nameOf(d.who)}` : d.lead;
+  if (d.who) return `${d.lead}, assigned to ${nameOf(d.who)}`;
+  if (d.by) return `${d.lead} by ${nameOf(d.by)}`;
+  return d.to ? `${d.lead} to ${nameOf(d.to)}` : d.lead;
 }
 
 /** A card that is more than a line: it has words under it or buttons. */

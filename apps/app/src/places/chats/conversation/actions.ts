@@ -317,3 +317,28 @@ export async function continueElsewhere(data: ConversationData, thread: Thread, 
   const out = (await data.elsewhere.call(space.id, "chat.start", { kind: "chat", agentIds: [agent.agentId], title: `${title} (from ${fromName})`, first, idempotencyKey: key })) as CapMap["chat.start"]["out"];
   return out.thread.threadId;
 }
+
+/** A place a message can be shared to: a channel (its main chat) or a person (the chat with them, made when there is none). */
+export interface ShareTarget { label: string; threadId?: string; personId?: string }
+
+const MAX_TARGETS = 12;
+
+/** The channels the person is in and the people they can write to, except where they already are. */
+export async function shareTargets(data: ConversationData, here: string): Promise<ShareTarget[]> {
+  const out: ShareTarget[] = [];
+  const list = (await data.call("channels.list", {} as CapMap["channels.list"]["in"])) as CapMap["channels.list"]["out"];
+  for (const c of list.channels) if (!c.archived && c.mainThreadId !== here) out.push({ label: `#${c.name}`, threadId: c.mainThreadId });
+  for (const p of data.directory) if (p.kind === "person" && p.id !== data.me.id) out.push({ label: p.name, personId: p.id });
+  return out.slice(0, MAX_TARGETS);
+}
+
+/** Share a message: to a person it first makes sure there is a chat with them (the same call a new chat makes; an existing one is returned). */
+export async function shareTo(data: ConversationData, threadId: string, messageId: string, to: ShareTarget, key: string): Promise<void> {
+  let target = to.threadId;
+  if (!target && to.personId) {
+    const started = (await data.call("chat.start", { kind: "chat", agentIds: [], personId: to.personId, idempotencyKey: `${key}:chat` } as CapMap["chat.start"]["in"])) as CapMap["chat.start"]["out"];
+    target = started.thread.threadId;
+  }
+  if (!target) return;
+  await data.call("chat.share", { threadId, messageId, toThreadId: target, ...(to.threadId ? { to: to.label } : {}), idempotencyKey: key } as CapMap["chat.share"]["in"]);
+}

@@ -49,3 +49,11 @@ test("a button may carry a capability and its input; anything else about it is d
   const d = linkCardOf({ type: "link_card", data: { lead: "Flow", title: "Weekly report", actions: [{ key: "on", label: "Turn on", cap: "automations.enable", input: { automationId: "aut_1" } }, { key: "x", label: "Skip", input: { a: 1 } }, { key: "y", label: "Bad", cap: "c", input: [1] }] } })!;
   assert.deepEqual(d.actions, [{ key: "on", label: "Turn on", cap: "automations.enable", input: { automationId: "aut_1" } }, { key: "x", label: "Skip" }, { key: "y", label: "Bad", cap: "c" }]);
 });
+
+test("a shared card reads \"Shared by Maya\" where it landed and \"Shared to #ops\" where it came from", () => {
+  const name = (id: string): string => ({ usr_maya: "Maya" })[id] ?? id;
+  const there = linkCardOf({ type: "link_card", data: { icon: "thread", lead: "Shared", by: "usr_maya", title: "We ship Friday", target: { type: "thread", id: "thr_a" } } })!;
+  assert.equal(linkCardLine(there, name), "Shared by Maya");
+  const here = linkCardOf({ type: "link_card", data: { icon: "thread", lead: "Shared", to: "#ops", title: "We ship Friday", target: { type: "thread", id: "thr_b" } } })!;
+  assert.equal(linkCardLine(here, name), "Shared to #ops");
+});

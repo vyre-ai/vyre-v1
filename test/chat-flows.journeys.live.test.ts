@@ -173,3 +173,29 @@ test("journey 4, Personal: an assistant's answer becomes a task for yourself and
     assert.deepEqual(me.errors, [], "no page errors");
   } finally { await s.close(); }
 });
+
+test("journey 5, Team: Share to a channel from the message menu; a card lands there and a line says where it went", async (t) => {
+  const env = await browserOrSkip();
+  if (typeof env === "string") { t.skip(env); return; }
+  const s = await bootScreens({ kind: "team", engineOpenSession: model }, env);
+  const dir = `${OUT}/5-share`;
+  try {
+    const w = s.world;
+    const maya = await w.join("maya");
+    const ch = (await w.owner.ok("channels.create", { name: "ops", visibility: "public", idempotencyKey: "j5-ch" })).channel as { mainThreadId: string };
+    const dm = (await maya.ok("chat.start", { kind: "chat", agentIds: [], personId: w.owner.id, idempotencyKey: "j5-dm" })).thread.threadId as string;
+    const said = (await maya.ok("chat.post", { threadId: dm, body: "We ship on Friday", idempotencyKey: "j5-say" })).message.messageId as string;
+    const me = await seat(s, w.owner, "Owner");
+    await open(me, s, hash(dm));
+    await me.page.getByTestId(`msg-${said}`).hover();
+    await me.page.getByTestId(`act-more-${said}`).click();
+    await me.page.getByText("Share to...").click();
+    await me.page.getByText("#ops").click();
+    await me.page.getByText(/Shared to #ops/).first().waitFor({ timeout: 20_000 });
+    await shoot(me.page, dir, "shared-line", { restore: async () => { await open(me, s, hash(dm)); } });
+    await open(me, s, hash(ch.mainThreadId));
+    await me.page.getByText(/Shared by Olivia/).first().waitFor({ timeout: 20_000 });
+    await shoot(me.page, dir, "shared-card", { restore: async () => { await open(me, s, hash(ch.mainThreadId)); } });
+    assert.deepEqual(me.errors, [], "no page errors");
+  } finally { await s.close(); }
+});

@@ -61,6 +61,8 @@ export interface MessageActions {
   fork?(messageId: string): void;
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
+  /** Share this message to a channel or a person: opens the list of places at the point given. */
+  share?(messageId: string, x: number, y: number): void;
   /** The chat has two or more people in it: an agent's answer is for all of them, and carries the buttons that turn it into work (Make task, Remember). */
   withPeople?: boolean;
   /** A person's or agent's name for an id; a plain word where there is none. */
@@ -146,6 +148,7 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   if (mine && m.kind === "text") items.push({ label: "Edit", onSelect: onEdit });
   items.push({ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) });
   if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
+  if (a.share && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
   items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
   items.push({ label: "Add Reaction", onSelect: () => a.react(m.messageId, "👍", false) });
@@ -359,7 +362,7 @@ function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: 
     if (!trusted || !a?.cap) return;
     void Promise.resolve(actions.host.invoke(a.cap, a.input ?? {})).then(() => setDone((d) => new Set(d).add(key)), () => undefined);
   };
-  const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
+  const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
   return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={done} />;
 }
 

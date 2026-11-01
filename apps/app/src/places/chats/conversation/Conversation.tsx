@@ -361,7 +361,13 @@ function ConversationView(): ReactElement {
     },
     files: data,
     nameOf,
-    openMessage: (threadId, messageId) => data.nav.openThread(threadId, messageId),
+    openMessage: (threadId, messageId) => (messageId === "" ? data.nav.openThread(threadId) : data.nav.openThread(threadId, messageId)),
+    share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
+      const entries: MenuEntry[] = [];
+      for (const to of targets) entries.push({ label: to.label, onSelect: () => void act.shareTo(data, thread.threadId, id, to, data.newKey()).catch(fail("Could not share it.")) });
+      if (entries.length === 0) entries.push({ label: "No one to share with", disabled: true, onSelect: () => undefined } as MenuEntry);
+      menu.show(entries, x, y, "context", { label: "Share to" });
+    }, fail("Could not list where to share it.")),
   };
 
   const inThread = new Map(thread.agents.map((a) => [a.agentId, a.mode] as const));
