@@ -2,6 +2,7 @@
 // It turns native links into the same URL-backed flows used by the browser.
 import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
 import type { DesktopDeepLink, DesktopLinkBridge, Unlisten } from "../../../../../client/src/connection/desktop-link.ts";
+import { keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
@@ -164,7 +165,7 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
     const accepted = object(answer);
     const stored = await verifyAndPersist(join.route.address, { status: "ok", session: { token: accepted?.["token"] } }, join.preview.spaceId, deps);
     // This helper sends nothing to a remote Space. Only the person's own loopback node may hold their Mine key.
-    try { await holdKeyOnOwnNode(join.route.address, stored.token, made.personKey); } catch { /* setup reports a locked Vault if the own node is unavailable */ }
+    try { if (await holdKeyOnOwnNode(join.route.address, stored.token, made.personKey)) keepKey(made.personKey); } catch { /* setup reports a locked Vault if the own node is unavailable */ }
     return stored;
   } finally {
     wipe(made.personKey);

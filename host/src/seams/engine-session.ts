@@ -11,7 +11,7 @@ import type { VaultPort } from "./ports.ts";
 
 export type VaultLookup =
   | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
-  | { kind: "unknown" }
+  | { kind: "unknown"; /** In plain words: why the Vault could not give it (the item is gone, or it has no such field). */ why?: string }
   | { kind: "denied"; reason: "no_access" | "provider_label" | "other" };
 
 export interface EngineSessionHost {
@@ -24,10 +24,19 @@ export interface EngineSessionHost {
 }
 
 export interface EngineSessionHostDeps {
+  /** Where a failure is explained: the handle and the field NAME it asked for and the code, never a value. */
+  log?(msg: string, attrs?: Record<string, unknown>): void;
   invoke: Invoke;
   vault: VaultPort;
   /** The Space the Vault is read for. */
   space: string;
+  /** How long a turn waits for a locked Vault key to arrive (the person unlocks in place, or the app is still handing it over after a start) before it reports the Vault as locked. Default 45 s. */
+  lockedWaitMs?: number;
+  /** How often it looks again while waiting. Default 2 s. */
+  lockedPollMs?: number;
+  /** For tests. */
+  sleep?(ms: number): Promise<void>;
+  now?(): number;
 }
 
 /** The agent id of an automation AI step that runs as no agent in particular (the same word as modules/engine/step-turn.ts STEP_AGENT; host never imports a module). */
@@ -50,6 +59,15 @@ function vaultLocked(e: unknown): boolean {
   return reason === "vault_locked" || (typeof message === "string" && /vault key is locked/i.test(message));
 }
 
+/** Plain words for a Vault refusal that is not about access: what is wrong with the item or the field the turn asked for. */
+function whyUnusable(e: unknown, code: string | null): string {
+  const x = e as { message?: unknown; error?: { message?: unknown } } | null;
+  const m = String(x?.error?.message ?? x?.message ?? "");
+  const field = /no field (\w+)/i.exec(m)?.[1];
+  if (field) return `That account's Vault item has no ${field} field. Sign in to it again.`;
+  return code === "validation.not_found" ? "The Vault item for that account is gone or not shared with you. Sign in to it again." : "The Vault could not use that account's item. Sign in to it again.";
+}
+
 /** An error the turn engine reads the code of (agent/src/turn-engine/engine.ts), so the failure reaches the chat under that code. */
 function coded(code: string, message: string): Error & { code: string } {
   return Object.assign(new Error(message), { code });
@@ -59,9 +77,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
   /** An engine trace id is 32 hex; one that is not (a test double) is left out and the pipeline starts its own. */
   const traceOf = (id: string): Pick<CtxSeed, "trace"> => (TRACE_ID.test(id) ? { trace: { traceId: id, spanId: "0".repeat(16) } } : {});
 
-  return {
-    source: {
-      async lookup(handle, who) {
+  const lookupOnce = async (handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<VaultLookup> => {
         // Only a Vault handle is looked up; a sealed record field or a hashtag the model wrote is not one.
         if (!HANDLE.test(handle)) return { kind: "unknown" };
         const [item = "", field] = handle.slice(1).split(".");
@@ -86,10 +102,28 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
           const code = codeOf(e);
           if (code === "permission.provider_label") return { kind: "denied", reason: "provider_label" };
           if (code !== null && code.startsWith("permission.")) return { kind: "denied", reason: "no_access" };
-          if (code === "validation.not_found" || code === "validation.bad_input") return { kind: "unknown" };
+          // Not the same as "no account": the item is gone, or it has no such field. Say which, in plain words, and log the field NAME (never a value) so the next one explains itself.
+          if (code === "validation.not_found" || code === "validation.bad_input") {
+            d.log?.("the vault could not give the account its key", { code, handle: item, field: field ?? null, why: whyUnusable(e, code) });
+            return { kind: "unknown", why: whyUnusable(e, code) };
+          }
           // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
           if (vaultLocked(e)) throw coded("engine.vault_locked", "Your Vault is locked on this computer.");
           throw coded("engine.vault_unreadable", code !== null ? `The Vault could not be read (${code}).` : "The Vault could not be read.");
+        }
+  };
+
+  return {
+    source: {
+      async lookup(handle, who) {
+        // A locked key is waited for, not failed on: right after a start the app is still handing the key over, and a person who sees Unlock can do it in place. The turn goes on by itself the moment the key is there.
+        const deadline = (d.now ?? Date.now)() + (d.lockedWaitMs ?? 45_000);
+        for (;;) {
+          try { return await lookupOnce(handle, who); }
+          catch (e) {
+            if (codeOf(e) !== "engine.vault_locked" || (d.now ?? Date.now)() >= deadline) throw e;
+            await (d.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms))))(d.lockedPollMs ?? 2_000);
+          }
         }
       },
     },
