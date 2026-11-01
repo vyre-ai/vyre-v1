@@ -307,7 +307,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const quiet = new Promise<never>((_, reject) => { hush = reject; });
     quiet.catch(() => undefined);
     const stopBeat = schedule(() => {
-      if (!leases.renew(st.thread.id, opts.holder, now())) { run.lostLease = true; void cancelRunning(st); }
+      // a store that is gone (the host shut down under a running turn) ends the beat quietly: a throw out of a timer would take the whole process with it
+      let held: boolean;
+      try { held = leases.renew(st.thread.id, opts.holder, now()); } catch { stopBeat(); return; }
+      if (!held) { run.lostLease = true; void cancelRunning(st); }
       else if (!inTool && hr() - lastSeen > idleMs) hush(Object.assign(new Error("the session went quiet"), { code: "turn_timeout" }));
     }, HEARTBEAT_MS);
 

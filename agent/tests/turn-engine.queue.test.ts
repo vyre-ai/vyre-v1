@@ -281,6 +281,27 @@ test("crash: after the lease expires another host requeues what the dead one ran
   assert.equal(queue.list("T").filter((r) => r.state === "done").length, 1);
 });
 
+test("heartbeat: a lease store that is gone ends the beat quietly instead of throwing out of the timer", async () => {
+  const clock = manualClock();
+  const real = createMemoryLeases();
+  let closed = false;
+  const leases = { ...real, renew: (...a: Parameters<typeof real.renew>) => { if (closed) throw new Error("database is not open"); return real.renew(...a); } };
+  const beats: Array<() => void> = [];
+  const stopped: number[] = [];
+  const hold = gate();
+  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const engine = createTurnEngine({ holder: "host:a", openSession: p.openSession, leases, now: clock.now, schedule: (fn) => { beats.push(fn); return () => { stopped.push(1); }; } });
+  engine.openThread(thread("T"));
+  engine.receive({ threadId: "T", author: person("dana") });
+  await until(() => p.sessions.length === 1 && beats.length === 1);
+  closed = true;
+  assert.doesNotThrow(() => beats[0]?.(), "the host shut down under a running turn");
+  assert.equal(stopped.length, 1, "the beat stopped");
+  closed = false;
+  hold.open();
+  await engine.stop("T");
+});
+
 test("crash after the reply: a turn that posted its answer and died before the row closed is not run again", async () => {
   const clock = manualClock();
   const queue = createMemoryQueue();
