@@ -1,1 +1,0 @@
-Asking for subagents in a chat starts them the Vyre way (visible helper threads, or crew teammates for code); a built-in Agent call shows as a named row with its description, never a bare Using agent.

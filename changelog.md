@@ -1,5 +1,6 @@
 # Changelog
 
+- The Mac app gets its live connection: replies stream, and the Working line and animated mark show. Release builds were missing the build hash, so the server refused the live socket.
 - Turn that into a task: a message becomes a task with no form. The title is the first line, an @named person gets it, the task points back at the message, and a 'Task created, assigned to Maya' card lands in the thread. The new chat.make_task does it for people and agents; the shared link card block (link_card) is the card every rc.9 flow uses.
 - Make a task no longer jumps to the task: the card in the chat says it and opens it. Cards wrap on a phone.
 - Crew, step 1: a teammate can be started on a brief from a chat (`engine.crew.start`). It gets its own thread under the lead's chat and its own copy of the project's repository, on its own branch (`crew/<name>-<n>`), with no remote to push to. The project's repository is set with `engine.crew.repo.set`, which refuses a folder that is not a git repository. `engine.crew.list` lists the jobs of a chat. The copy is made once and left alone after, so a restart changes nothing, and the memory guide the engine writes beside the code stays out of the teammate's commits.
