@@ -21,7 +21,7 @@ function kit(actor = "usr_dana") {
   const clock = { t: NOW };
   const s = openSchema({ now: () => clock.t, publicBase: "https://acme.vyre.run", readFile: async (id) => (id === "fil_csv" ? "a,b\n1,2\n" : "") });
   const seen: { name: string; subject: string; payload: Record<string, unknown> }[] = [];
-  const mk = (who: string) => ({ trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: (name: string, subject: string, payload: Record<string, unknown>) => { seen.push({ name, subject, payload }); }, actor: who });
+  const mk = (who: string) => ({ trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: (name: string, subject: string, payload: Record<string, unknown>) => { seen.push({ name, subject, payload }); }, actor: who, call: async () => ({ outside: true }) });   // the type's Share sheet has turned links outside the Space on
   return { s, h: s.handlers, ctx: mk(actor), as: mk, seen, clock };
 }
 type Kit = ReturnType<typeof kit>;
@@ -474,4 +474,14 @@ test("convertValue: what carries over and what does not", () => {
   assert.equal(convertValue(f("text"), f("rating"), "6").ok, false);
   assert.deepEqual(convertValue(f("text"), f("address"), "1 Main St"), { ok: true, value: { line1: "1 Main St" } });
   assert.deepEqual(convertValue(f("text"), f("text"), null), { ok: true, value: null });
+});
+
+test("views: a link outside the Space is refused when the type does not say it is allowed, or cannot be asked (fails closed)", async () => {
+  const k = kit();
+  await k.h["schema.apply"](k.ctx, { ops: [{ op: "type.create", type: "lead", def: { title: "Lead", plural: "Leads", icon: "table", titleField: "name", fields: [{ key: "name", type: "text", title: "Name" }] } }], idempotencyKey: "t-lead" });
+  const v = (await k.h["views.save"](k.ctx, { type: "lead", kind: "table", title: "All", idempotencyKey: "v-lead" })).view;
+  for (const call of [undefined, async () => ({ outside: false }), async () => ({}), async () => { throw new Error("down"); }]) {
+    await assert.rejects(k.h["views.share_external"]({ ...k.ctx, call } as never, { viewId: v.viewId }), code("validation.precondition_failed"));
+  }
+  assert.ok((await k.h["views.share_external"](k.ctx, { viewId: v.viewId })).url);
 });
