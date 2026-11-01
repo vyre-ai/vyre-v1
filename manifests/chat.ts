@@ -246,7 +246,7 @@ export default defineManifest({
     }),
     write('chat.aside', 'Ask a side question (/btw) while an agent works: it runs as a separate short read-only turn on your own account with what this chat knows, in a hidden thread; nothing is written into this chat and the agent working here does not see it', {
       in: { ...threadT, question: t.str({ description: 'The question, up to 2000 characters' }) }, out: { asideThreadId: id.thread, messageId: id.message },
-      on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low', emits: ['thread.started', 'message.received'],
+      on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low', emits: ['thread.started', 'message.received', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'],
       agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found'],
     }),
     write('chat.aside_keep', 'Keep the answer of an aside: it is posted into the chat it came from as one card from you', {
