@@ -18,7 +18,8 @@ export interface LinkCardData {
   /** More than a line: an agent's summary. Cards with a body or actions draw as a card, the rest as one line. */
   body?: string;
   /** Buttons under the body; the host knows what each key does (make a task, remember). */
-  actions?: { key: string; label: string }[];
+  /** `cap` and `input` make a button do something by itself: the host calls that capability as the person (the Gate still holds what leaves Vyre). A button with no `cap` only reports its key. */
+  actions?: { key: string; label: string; cap?: string; input?: Record<string, unknown> }[];
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() !== "" ? v : undefined);
@@ -33,7 +34,11 @@ export function linkCardOf(b: { type: string; data: unknown }): LinkCardData | n
   const type = str(t?.["type"]), id = str(t?.["id"]);
   const who = str(d["who"]), body = str(d["body"]);
   const actions = Array.isArray(d["actions"])
-    ? d["actions"].flatMap((a): { key: string; label: string }[] => { const x = a as Record<string, unknown>; const key = str(x["key"]), label = str(x["label"]); return key && label ? [{ key, label }] : []; }).slice(0, 4)
+    ? d["actions"].flatMap((a): NonNullable<LinkCardData["actions"]> => {
+      const x = a as Record<string, unknown>; const key = str(x["key"]), label = str(x["label"]), cap = str(x["cap"]);
+      const input = typeof x["input"] === "object" && x["input"] !== null && !Array.isArray(x["input"]) ? (x["input"] as Record<string, unknown>) : undefined;
+      return key && label ? [{ key, label, ...(cap ? { cap } : {}), ...(cap && input ? { input } : {}) }] : [];
+    }).slice(0, 4)
     : [];
   return {
     icon: str(d["icon"]) ?? "thread", lead, title,

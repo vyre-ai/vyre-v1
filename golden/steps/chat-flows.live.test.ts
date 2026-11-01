@@ -37,3 +37,33 @@ test("flow 1, turn that into a task: a message becomes a task for the person it 
     assert.equal(refused.status, 422);
   } finally { await s.stop(); }
 });
+
+test("flow 2, remember that decision: a message becomes a fact (in the project's memory when the chat has one), a card links to it, and a later chat recalls it with the link", async () => {
+  const s = await bootFlowSpace(LIVE);
+  try {
+    const olivia = s.d.token;
+    const agent = expectStatus(await s.call("agents.create", olivia, { idempotencyKey: "f2-agent", name: "Archivist", role: "Keeps notes" }), 200, "agents.create").agent.agentId as string;
+    const a = expectStatus(await s.call("chat.start", olivia, { idempotencyKey: "f2-a", kind: "chat", agentIds: [agent] }), 200, "chat.start a").thread.threadId as string;
+    const said = expectStatus(await s.call("chat.post", olivia, { idempotencyKey: "f2-say", threadId: a, body: "Decision: the Tuesday launch is final, no Friday fallback." }), 200, "chat.post").message.messageId as string;
+
+    const out = expectStatus(await s.call("chat.remember", olivia, { idempotencyKey: "f2-rem", threadId: a, messageId: said }), 200, "chat.remember");
+    assert.ok(["person", "project"].includes(out.layer));
+    const fact = expectStatus(await s.call("memory.fact.get", olivia, { factId: out.factId }), 200, "memory.fact.get").fact;
+    assert.equal(fact.sourceRef, said, "the message is the source");
+    assert.match(fact.text, /Tuesday launch is final/);
+
+    const msgs = expectStatus(await s.call("chat.messages.list", olivia, { threadId: a }), 200, "chat.messages.list").messages as Array<{ blocks: Array<{ type: string; data: any }> }>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+    const cards = msgs.flatMap((m) => m.blocks).filter((b) => b.type === "link_card");
+    assert.equal(cards.length, 1);
+    assert.deepEqual(cards[0]!.data.target, { type: "fact", id: out.factId });
+
+    // what the person asked to keep is current at once and readable by them
+    const facts = expectStatus(await s.call("memory.facts.list", olivia, { status: ["current"] }), 200, "memory.facts.list").facts as Array<{ factId: string }>;
+    assert.ok(facts.some((f) => f.factId === out.factId), "the fact is current");
+
+    // a later chat: recall brings the decision back, with where it came from
+    const b = expectStatus(await s.call("chat.start", olivia, { idempotencyKey: "f2-b", kind: "chat", agentIds: [agent] }), 200, "chat.start b").thread.threadId as string;
+    const pointer = expectStatus(await s.call("memory.pointer", olivia, { threadId: b, agentId: agent, text: "when is the launch, is there a Friday fallback" }), 200, "memory.pointer");
+    assert.ok(JSON.stringify(pointer.lines).includes("Tuesday launch is final"), `recall brings it back: ${JSON.stringify(pointer)}`);
+  } finally { await s.stop(); }
+});

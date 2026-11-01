@@ -1,0 +1,1 @@
+- Remember that decision: a message action keeps the message as a fact in the memory of the project the chat belongs to (else your own), with a 'Remembered for the Rivera matter' card in the thread. New chat.remember. Link card buttons can carry a capability and its input.

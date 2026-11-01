@@ -13,6 +13,8 @@ import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/inde
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
 import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
+import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
+import { useThreadMemory } from "../memory/thread.tsx";
 import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
@@ -104,7 +106,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
       const b = item.message.blocks.find((x) => x.type === "link_card")!;
       return (
         <View testID={`event-${item.key}`} style={st.event}>
-          <LinkCard id={String(b.id)} data={link} nameOf={props.actions.nameOf ?? ((id) => id)} icon={<Glyph name={linkGlyph(link.icon)} size={13} color="var(--ink-4)" />} onOpen={(t) => props.actions.openBeside(t.type, t.id)} />
+          <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} />
           <Text style={st.eventTime}>{item.time}</Text>
         </View>
       );
@@ -300,7 +302,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         const lc = linkCardOf(b);
-        if (lc) return <LinkCard key={b.id} id={b.id} data={lc} nameOf={actions.nameOf ?? ((id) => id)} icon={<Glyph name={linkGlyph(lc.icon)} size={14} color="var(--ink-3)" />} onOpen={(t) => actions.openBeside(t.type, t.id)} />;
+        if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} />;
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
@@ -328,6 +330,20 @@ function Reactions({ m, a, mine }: { m: Message; a: MessageActions; mine: boolea
 }
 
 /* ---------- native cards ---------- */
+
+/** A link card in the conversation: names by the chat's own lookup, a fact opens the Knows tab of the pane (where the chat has memory), anything else opens beside the chat. */
+function LinkCardView({ id, data, actions, size }: { id: string; data: LinkCardData; actions: MessageActions; size: number }): ReactElement {
+  const memory = useThreadMemory();
+  const [done, setDone] = useState<ReadonlySet<string>>(new Set());
+  // a button with a capability calls it as the person and reads as done; one that fails says nothing is done (the button stays)
+  const act = (key: string): void => {
+    const a = data.actions?.find((x) => x.key === key);
+    if (!a?.cap) return;
+    void Promise.resolve(actions.host.invoke(a.cap, a.input ?? {})).then(() => setDone((d) => new Set(d).add(key)), () => undefined);
+  };
+  const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={done} />;
+}
 
 /** The glyph a link card's icon word asks for. */
 const linkGlyph = (icon: string): GlyphName => (icon === "task" ? "task" : icon === "file" ? "file" : icon === "fact" ? "spark" : "reply");

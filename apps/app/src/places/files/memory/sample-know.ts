@@ -484,6 +484,11 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
       save(s);
       return { fact: strip(f), merged: false };
     },
+    // chat.remember: the chat's own layer here (the sample has no project chats); the same fact, with the answer the chat module gives
+    "chat.remember": (i: { threadId: string; messageId: string; text?: string }) => {
+      const made = (writes["memory.remember"] as (x: unknown) => { fact: { factId: string } })({ text: i.text ?? "", threadId: i.threadId, sourceRef: i.messageId });
+      return { factId: made.fact.factId, layer: "person", merged: true, by: ME };
+    },
     "memory.forget": (i: { factIds: string[] }) => {
       const s = st();
       for (const id of i.factIds) { const f = find(s, id); f.status = "removed"; f.trashedAt = now; f.trashReason = "removed"; log(s, "delete", ME, label(f), "Forgotten by you", id); }

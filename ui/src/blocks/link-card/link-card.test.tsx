@@ -44,3 +44,8 @@ test("a press on the name opens the target; a button runs its action and reads a
   const was = find(root, "link-card-b1-remember")!;
   assert.equal(was.props.disabled === true || was.props["aria-disabled"] === true, true, "a done button is disabled");
 });
+
+test("a button may carry a capability and its input; anything else about it is dropped", () => {
+  const d = linkCardOf({ type: "link_card", data: { lead: "Flow", title: "Weekly report", actions: [{ key: "on", label: "Turn on", cap: "automations.enable", input: { automationId: "aut_1" } }, { key: "x", label: "Skip", input: { a: 1 } }, { key: "y", label: "Bad", cap: "c", input: [1] }] } })!;
+  assert.deepEqual(d.actions, [{ key: "on", label: "Turn on", cap: "automations.enable", input: { automationId: "aut_1" } }, { key: "x", label: "Skip" }, { key: "y", label: "Bad", cap: "c" }]);
+});

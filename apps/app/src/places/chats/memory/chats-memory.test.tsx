@@ -266,12 +266,12 @@ test("the message menu keeps every item it had and adds Remember This, Add to a 
   assert.deepEqual(shown[0], ["# Add to a page", "Ian Brooks · Client", "Elena Rivera · Client", "Maya Chen · Person", "Brooks onboarding · Project", "@5,6"], "the picker lists the pages, never an agent, under the menu that asked");
 });
 
-test("Remember This writes a fact from the message with its thread and message, flashes 'Remembered.' with Undo, and Learned shows it", async () => {
+test("Remember This asks chat.remember (the chat module picks the layer and leaves the card), flashes 'Remembered.' with Undo, and Learned shows it", async () => {
   const s = await withWarm();
   const { say, lines } = says();
   await rememberMessage(s.memory, "c1", { messageId: MESSAGE_IDS.reply, body: "The Growth plan is unchanged this month." }, say);
-  const call = s.calls.find((c) => c.cap === "memory.remember")!;
-  assert.deepEqual(call.input, { text: "The Growth plan is unchanged this month.", threadId: "c1", sourceRef: MESSAGE_IDS.reply });
+  const call = s.calls.find((c) => c.cap === "chat.remember")!;
+  assert.deepEqual({ ...(call.input as Record<string, unknown>), idempotencyKey: "k" }, { threadId: "c1", messageId: MESSAGE_IDS.reply, text: "The Growth plan is unchanged this month.", idempotencyKey: "k" }, "the server picks the layer and keeps the message as the source");
   assert.equal(lines[0]!.text, FLASH.remembered);
   const items = await learned(s);
   const made = items.find((i) => i.fact.text === "The Growth plan is unchanged this month.");

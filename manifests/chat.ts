@@ -233,6 +233,11 @@ export default defineManifest({
       out: { taskId: id.task, messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low',
       agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found'],
     }),
+    write('chat.remember', 'Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule', {
+      in: { ...threadT, messageId: id.message, text: t.opt(t.str({ description: 'The words to keep; default the message' })) },
+      out: { factId: id.fact, layer: t.enm('project', 'person'), merged: t.bool(), projectId: t.opt(id.project), projectTitle: t.opt(t.str()), by: t.str() },
+      on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low', agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found', 'permission.provider_label'],
+    }),
     write('chat.pin', 'Mark a message as pinned (a content marker, not a Star)', {
       in: { messageId: id.message, threadId: id.thread }, out: { pinned: t.bool() }, on: ['thread', '/threadId'], emits: ['message.pinned'], tool: 'chats', offline: 'patch', idem: 'natural',
     }),

@@ -2,6 +2,7 @@
 // (P-L2_11, with the three Ask capabilities). P-L2_24a to d wrote the other 51: threads (g24a), channels (g24b), messages and pins (g24c), transcript, plans and helpers (g24d).
 import { archiveHandlers } from "./archive.ts";
 import { makeTask } from "./make-task.ts";
+import { remember } from "./remember.ts";
 import { askLevel, askSuggest, asksOf, openAsChat } from "./ask.ts";
 import { g24aHandlers } from "./g24a.ts";
 import { g24bHandlers } from "./g24b.ts";
@@ -29,6 +30,7 @@ export const handlers = {
   "chat.post": guardPrivate(post),
   "chat.start": start,
   "chat.make_task": makeTask,
+  "chat.remember": remember,
   "chat.thread": thread,
   "chat.answer_block": answerBlock,
   "chat.approve_plan": approvePlan,
