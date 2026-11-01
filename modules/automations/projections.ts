@@ -48,6 +48,8 @@ export interface AutoCtx {
   space: string;
   principal: { kind: string; id: string };
   actingFor?: string;
+  /** the thread a tool call came from, when an agent made it in one */
+  thread?: string;
   trace: { traceId: string };
   now(): number;
   db: Db;

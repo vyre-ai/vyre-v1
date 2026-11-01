@@ -12,6 +12,7 @@ import {
   raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
+import { describeFlow } from "../describe.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
@@ -473,7 +474,32 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   saveVersion(ctx, a, "Created");
   rememberAccountPicks(ctx.db, owner, def, now);
   emitAuto(ctx, "automation.created", a.id, { name: a.name, kind: a.kind });
+  await draftCard(ctx, a);
   return { automation: out(a) };
+}
+
+/**
+ * A Flow an agent drafted in a chat leaves a card there: its name, what it does in plain words, and two buttons that run as the person who presses them (Turn on, Test). The card is written after the work it
+ * names and never fails the create: a chat that cannot take it still has the draft in Automations.
+ */
+async function draftCard(ctx: AutoCtx, a: Automation): Promise<void> {
+  if (ctx.principal.kind !== "agent" || !ctx.thread || !ctx.call) return;
+  try {
+    const body = describeFlow(a.definition).join("\n");
+    await ctx.call("chat.post", {
+      threadId: ctx.thread, body: `Flow drafted: ${a.name}`, idempotencyKey: `flow-draft:${a.id}`,
+      blocks: [{
+        type: "link_card", v: 1,
+        data: {
+          icon: "flow", lead: "Flow drafted", title: a.name, body, target: { type: "automation", id: a.id },
+          actions: [
+            { key: "on", label: "Turn on", cap: "automations.set_enabled", input: { automationId: a.id, enabled: true } },
+            { key: "test", label: "Test", cap: "automations.test", input: { automationId: a.id } },
+          ],
+        },
+      }],
+    });
+  } catch { /* the draft stands in Automations either way */ }
 }
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
