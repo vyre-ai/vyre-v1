@@ -327,6 +327,8 @@ export function beforeFirstRender(input: ThemeInput): NativeTheme {
 /** Write a resolved theme onto the root. Tokens a skin does not set (System sets fewer) are removed, so a switch never leaves the last skin's values behind. */
 export function applyToRoot(applied: AppliedTheme, root: ThemeRoot): void {
   root.setAttribute("data-theme", applied.mode);
+  // the startup script writes data-mode and the Appearance preview reads it, so it follows every change of skin or mode too (it stayed at the first paint's value)
+  root.setAttribute("data-mode", applied.mode);
   root.setAttribute("data-skin", applied.skin);
   root.setAttribute("data-space", applied.spaceId);
   root.setProperty("color-scheme", applied.mode);
