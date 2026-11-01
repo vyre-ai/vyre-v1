@@ -23,6 +23,7 @@ import { answering, contextRing, deleteToken, modeInfo, nextMode, sendControl, s
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
 import { BrandMark, ContextRing, EffortBars, GroupHead, I, IconTile, Kbd, Pop, STOP, WorkingLight, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
+import { findEmoji } from "./emoji.ts";
 import type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
 import { Glyph, plainText } from "./shared.tsx";
 
@@ -113,7 +114,7 @@ export interface ComposerLists {
   snippets?: readonly ListItem[];
 }
 
-export type TriggerChar = "@" | "#" | "/" | "[[";
+export type TriggerChar = "@" | "#" | "/" | "[[" | ":";
 
 export interface Trigger {
   ch: TriggerChar;
@@ -132,6 +133,9 @@ export function detectTrigger(text: string, cursor: number, allowed: readonly Co
   const before = text.slice(0, end);
   const link = /\[\[([^\]\n]*)$/.exec(before);
   if (link) return { ch: "[[", start: end - link[0].length, end, query: link[1] ?? "" };
+  // :name asks for an emoji: after a space or at the start, two letters in, so a time like 10:30 or a url never opens it. Every composer has it.
+  const colon = /(^|\s):([a-zA-Z][a-zA-Z0-9_+-]+)$/.exec(before);
+  if (colon) return { ch: ":", start: end - (colon[2] ?? "").length - 1, end, query: colon[2] ?? "" };
   const m = /(^|\s)([@#/])([^\s@#/]*)$/.exec(before);
   if (!m) return null;
   const ch = m[2] as "@" | "#" | "/";
@@ -230,6 +234,9 @@ export function popupFor(trigger: Trigger, lists: ComposerLists, _agentChat = tr
       if (found.length) out.push({ head: name }, ...found);
     }
     return out;
+  }
+  if (trigger.ch === ":") {
+    return findEmoji(q).map((e): PopupItem => ({ group: "Emoji", label: e.char, note: e.name.replace(/_/g, " "), kind: "Emoji", body: e.char }));
   }
   if (trigger.ch === "[[") {
     const found = ranked(lists.records, q, "Records", "Record", MENTION_LIMIT);
@@ -408,6 +415,10 @@ export function applyPick(state: ComposerState, trigger: Trigger, item: PopupIte
   if (trigger.ch === "@") {
     const insert = `@${firstWord(item.label)} `;
     return { next: place(before + insert + after, before.length + insert.length), effect: { kind: "none" } };
+  }
+  if (trigger.ch === ":") {
+    const insert = `${item.body ?? item.label} `;
+    return { next: place(before + insert + after.replace(/^ /, ""), before.length + insert.length), effect: { kind: "none" } };
   }
   if (trigger.ch === "[[") {
     const insert = `[[${item.label}]] `;
@@ -967,6 +978,9 @@ export function Composer(props: ComposerProps): ReactElement {
         const agent = entry.kind === "Agent";
         listNodes.push(<Row key={`${entry.group}:${entry.label}`} id={`pop-${i}`} title={entry.label} {...(entry.note === undefined ? {} : { note: entry.note })} selected={i === active} onPress={() => pick(entry)}
           leading={<View style={styles.lead}><Avatar {...avatarOf({ ...(entry.ref === undefined ? {} : { id: entry.ref }), name: entry.label, kind: agent ? "agent" : "person" })} size={24} /></View>} domProps={hover} />);
+      } else if (trigger?.ch === ":") {
+        listNodes.push(<Row key={`emoji:${entry.label}`} id={`pop-${i}`} title={`:${entry.note?.replace(/ /g, "_") ?? ""}`} selected={i === active} onPress={() => pick(entry)} {...hover}
+          leading={<View style={styles.lead}><Text style={{ fontSize: 20 }}>{entry.label}</Text></View>} />);
       } else if (trigger?.ch === "/") {
         const icon = entry.kind === "Template" || entry.kind === "Snippet" ? I.template : entry.group === "Skills" ? I.skill : I.cmd;
         const title = entry.kind === "Template" || entry.kind === "Snippet" ? entry.label : `/${entry.label}`;
@@ -1023,7 +1037,7 @@ export function Composer(props: ComposerProps): ReactElement {
     </Pop>
   ) : null;
   const listPop = open && !hashLike ? (
-    <Pop testID="composer-popup" label={trigger?.ch === "@" ? "Mention" : "Commands"} style={[popLeft, { width: trigger?.ch === "@" ? 300 : 340, maxWidth: "100%" } as ViewStyle]}>
+    <Pop testID="composer-popup" label={trigger?.ch === "@" ? "Mention" : trigger?.ch === ":" ? "Emoji" : "Commands"} style={[popLeft, { width: trigger?.ch === "@" ? 300 : 340, maxWidth: "100%" } as ViewStyle]}>
       <View style={styles.scr} accessibilityRole="menu" {...webProps({ role: "listbox" })}>{listNodes}</View>
     </Pop>
   ) : null;

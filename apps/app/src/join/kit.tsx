@@ -1,8 +1,9 @@
 // Auth building blocks follow the reference FlowStep: content-height reading surface, small brand, top Back,
 // progress before the fields and the primary below them. Flat: no gradients, blurs or decorative splits.
+import { AppIcon as UiAppIcon } from "../../../../ui/src/AppIcon/index.tsx";
 import { Children, cloneElement, createContext, createElement, isValidElement, useContext, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { HalftoneField } from "./HalftoneField.tsx";
@@ -93,7 +94,7 @@ export function Panel({ children, bar, center }: { children: ReactNode; bar?: Re
         style={{ width: "100%", maxWidth: 600, backgroundColor: p.panel, borderWidth: 1, borderColor: p.hair, borderRadius: phone ? 16 : 20, padding: phone ? 20 : 28, gap: 22, ...shadow(mode === "light" ? "0 1px 2px rgba(24,24,26,.05), 0 12px 40px rgba(24,24,26,.08)" : "0 12px 48px rgba(0,0,0,.45)") }}
       >
         <View testID="auth-form-header" style={{ minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Image testID="auth-form-mark" source={{ uri: "/vyre-mark.png" }} accessible={false} style={{ width: 32, height: 32, borderRadius: 8 }} /><Text style={[base(p), { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 }]}>Vyre</Text></View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><View testID="auth-form-mark" accessible={false}><UiAppIcon brand="vyre" size={32} /></View><Text style={[base(p), { fontSize: 15, fontWeight: "600", letterSpacing: -0.1 }]}>Vyre</Text></View>
           {back?.onBack && !back.hideBack ? (
             <Pressable
               accessibilityRole="button" accessibilityLabel="Back" onPress={back.onBack} testID="back" {...backRing.handlers}

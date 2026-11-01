@@ -46,11 +46,13 @@ export function setupFromIssue(issue: SetupIssue): SetupResult {
 }
 
 /** The connection screen for that service. Mail stays on mail connections. Everything else uses the integrations screen. Keys open the provider screen. */
-export function connectionRoute(target: ConnectTarget): { screen: string; args: Record<string, unknown> } {
+export function connectionRoute(target: ConnectTarget, personal = false): { screen: string; args: Record<string, unknown> } {
   if (target.kind === "key") return { screen: "vault.providers", args: { service: target.service } };
   const args: Record<string, unknown> = { service: target.service };
   if (target.connectionId) args["connectionId"] = target.connectionId;
   if (target.connectionState) args["connectionState"] = target.connectionState;
   if (/^(mail|email|gmail|mailbox)$/i.test(target.service)) return { screen: "mail.connections", args };
+  // a Personal Space has no Console: its apps and keys are connected in the Vault
+  if (personal) return { screen: "vault.providers", args: { service: target.service } };
   return { screen: "console.integrations", args: { ...args, connector: target.service } };
 }

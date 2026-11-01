@@ -115,7 +115,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       rt.open({ screen: "chats.conversation", args: { with: "assistant", about: id, context: bundle } });
     },
     connect: (target) => {
-      const route = connectionRoute(target);
+      const route = connectionRoute(target, rt.space.kind === "personal");
       rt.open({ screen: route.screen, args: route.args });
     },
     openKeys: () => rt.open({ screen: "vault.providers" }),

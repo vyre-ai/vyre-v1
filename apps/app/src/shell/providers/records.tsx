@@ -81,7 +81,7 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
     nav: {
       openType: (key) => { dispatch({ type: "open", key }); opened({}); },
       // structure is edited in the Console, at Data > Schema
-      openConsole: (type) => rt.open({ screen: "console.schema", ...(type ? { args: { type } } : {}) }),
+      ...(rt.space.kind !== "personal" ? { openConsole: (type?: string) => rt.open({ screen: "console.schema", ...(type ? { args: { type } } : {}) }) } : {}),
     },
     canEdit,
     askVyre: makeAskVyre(ask, { screen: target.screen }),

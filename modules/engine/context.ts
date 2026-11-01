@@ -12,6 +12,9 @@ type Obj = Record<string, unknown>;
 import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
+/** How to name a record, file, task or chat in a reply: by link, never by id. */
+export const NAMING = "Name a record, file, task or chat as [[Name|id]], the name, a bar and its id, like [[Rivera Holdings|rec_01...]]. Never write a bare id (rec_..., file_..., task_...) in a reply; the reader sees the name as a link that opens it.";
+
 export { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL };
 
 /** The skills a turn can see: an index line each, and the body of one by name. The loader is the skills module's; this is the port the context binds to. */
@@ -280,7 +283,7 @@ export function createContextBuilder(d: ContextDeps) {
     const role = str(agent?.["role"]) ?? input.agent.role;
     const md = agent ? await agentMd(agent, asker) : undefined;
     add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}`);
-    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do.");
+    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING);
 
     // where
     const people = arr(th?.["members"]).filter((m) => m["kind"] === "person").map((m) => String(m["id"]));

@@ -247,6 +247,7 @@ async function run(raw) {
   if (first === "think") { await think(prompt.trim()); return; }
   switch (first) {
     case "hello": reply(["Hello", " from the fake engine."]); break;
+    case "say": reply([prompt.trim().split("\n")[0].replace(/^say\s+/, "")]); break;
     case "envcheck": {
       const mcp = flag("--mcp-config") ?? "";
       const token = process.env.VYRE_MCP_TOKEN ?? "";

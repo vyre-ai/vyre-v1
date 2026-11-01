@@ -265,7 +265,7 @@ export function faces(t: Thread, nameOf: (id: string) => string, working: readon
 }
 
 export function modeTitle(f: Face): string {
-  return `${f.name} ${f.mode === "lead" ? "leads: replies to every message" : "is listening: replies when @mentioned"}`;
+  return `${f.name}: ${f.mode === "lead" ? "replies to everything" : "replies only when @mentioned"}`;
 }
 
 /** Making another agent the lead asks first: one lead per thread, and the old lead keeps listening. */
@@ -454,7 +454,7 @@ export function participants(t: Thread, nameOf: (id: string) => string): Partici
   for (const m of t.members) {
     if (m.kind === "person") out.push({ id: m.id, name: nameOf(m.id), kind: "person", role: "Person" });
   }
-  for (const a of t.agents) out.push({ id: a.agentId, name: nameOf(a.agentId), kind: "agent", role: a.mode === "lead" ? "Leads" : "Listening" });
+  for (const a of t.agents) out.push({ id: a.agentId, name: nameOf(a.agentId), kind: "agent", role: t.agents.length === 1 ? "Agent" : a.mode === "lead" ? "Replies to everything" : "Only when @mentioned" });
   return out;
 }
 
