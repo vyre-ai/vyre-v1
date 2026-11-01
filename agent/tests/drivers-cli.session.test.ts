@@ -1,5 +1,5 @@
 // @nocache  (these tests start real processes and read fixture files that are not imports, so a pass is never reused from the cache)
-// A persistent CLI session (Claude Code): the same process answers every turn, a dead process is replaced by one that resumes the engine's session, steering waits for the running turn and is the next turn of the same send, and every way a turn can fail is an event with a code, never a hang. Real processes (agent/fixtures/golden-streams/fake-cli.mjs), no mocks of the driver.
+// A persistent CLI session (Claude Code): the same process answers every turn, a dead process is replaced by one that resumes the engine's session, steering is written at once and read at the engine's next step, and is the next turn of the same send, and every way a turn can fail is an event with a code, never a hang. Real processes (agent/fixtures/golden-streams/fake-cli.mjs), no mocks of the driver.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CLI_ADAPTERS, LaunchError, createCliDriver } from "../src/drivers/cli/index.ts";
@@ -80,19 +80,32 @@ test("a process that died between turns is replaced by one started with --resume
   await session.close();
 });
 
-test("steering: a message injected during a turn waits for it to end (the CLI may fold a mid-turn message into the turn it is running, so it is never written early) and earns its own reply in the same send", async () => {
+test("steering: a message injected during a turn is written at once, and the turn ends at the engine's result for it: here the engine answers it as a turn of its own after the first, and the send stays open for that one result and ends once", async () => {
   const spy = newSpy();
   const session = await claude(spy).open(specOf());
   const turn = collect(session.send(turnOf("slow 300")));
   await until(() => spy.writes.length === 1);
   session.inject(message("text", "m2"));
-  assert.equal(spy.writes.length, 1, "nothing is written while the turn runs");
+  assert.equal(spy.writes.length, 2, "written to the engine at once, to be read at its next step");
   const events = await turn;
-  assert.equal(spy.writes.length, 2);
   assert.equal(JSON.parse(spy.writes[1] ?? "{}").message.content[0].text, "text");
   assert.deepEqual(texts(events), ["Hello", " from Claude.", "Hello", " from Claude."]);
   assert.equal(events.filter((e) => e.type === "done").length, 1);
   assert.equal(events.at(-1)?.type, "done");
+  await session.close();
+});
+
+test("steering: a message the engine reads inside the running turn (it replays it before the result) is part of that turn: one result ends the send, and the session is not left waiting for a second", async () => {
+  const spy = newSpy();
+  const session = await claude(spy).open(specOf());
+  const turn = collect(session.send(turnOf("fold 400")));
+  await until(() => spy.writes.length === 1);
+  session.inject(message("text", "m2"));
+  const events = await turn;
+  assert.equal(events.filter((e) => e.type === "done").length, 1);
+  assert.deepEqual(texts(events), ["Hello", " from Claude."], "answered once: the second message was folded into the first turn");
+  const again = await collect(session.send(turnOf("text")));
+  assert.equal(again.at(-1)?.type, "done", "the session is usable after a folded steer");
   await session.close();
 });
 

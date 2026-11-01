@@ -37,7 +37,9 @@ test("a message queued behind a running agent shows as queued; Edit takes it bac
     await field.fill("tell me the plan after this");
     await me.page.getByTestId("composer-send").click();
     await me.page.getByTestId("queue-note").waitFor({ timeout: 10_000 });
-    assert.ok(await me.page.getByTestId("queue-edit").isVisible() && await me.page.getByTestId("queue-send-now").isVisible());
+    await me.page.getByTestId("queue-edit").waitFor({ state: "visible", timeout: 10_000 });
+    await me.page.getByTestId("queue-send-now").waitFor({ state: "visible", timeout: 10_000 });
+    assert.equal(await me.page.getByTestId("queue-note").innerText(), "Goes in at the next step", "a steering engine takes the message at its next step");
     await shoot(me.page, dir, "queued", { phone: false });
 
     // Edit: it leaves the queue and the chat, and its words are back in the composer

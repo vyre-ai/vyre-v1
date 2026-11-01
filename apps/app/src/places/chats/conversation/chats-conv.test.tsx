@@ -89,6 +89,7 @@ test("while an agent works a plain send queues; Interrupt sends it now with the 
   assert.deepEqual(s.calls[2]!.input, { threadId: "c1", messageId: sentId });
   assert.equal(queuedCount(msgs(s), "usr_irfad", true), 2);
   assert.equal(queueNote(2, "Intake"), "2 messages queued for Intake's next step");
+  assert.equal(queueNote(2, "Intake", true), "Goes in at the next step", "an engine that steers takes it at its next step");
 });
 
 test("one chat.post gives one message and one bubble on the page, never two", async () => {
@@ -297,6 +298,7 @@ test("the composer's agent strip names who answers and on what model (Opus), wit
   assert.ok(has(out, "Message Intake…"));
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
+  assert.equal(placeholderFor(thread(s), s.data.nameOf, true, true), "Steer Intake…", "a message sent while a steering engine works is steering");
   assert.ok(!has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned: no strip");
 });
 
@@ -402,4 +404,11 @@ test("a link from memory opens the chat at one message: the route carries it, th
   assert.notEqual(marked, plain, "the focused message is drawn marked");
   const missing = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, focus: "msg_nowhere" }} />));
   assert.equal(missing, plain, "a message that is not in the chat marks nothing");
+});
+
+test("a message the engine has handed to the agent is no longer shown as waiting; one it still holds is", async () => {
+  const { stillWaiting } = await import("./QueueWaiting.tsx");
+  const items = [{ messageId: "m1", state: "consumed" }, { messageId: "m2", state: "queued" }, { state: "queued" }];
+  assert.deepEqual(stillWaiting(["m1", "m2", "m3"], items), ["m2"]);
+  assert.deepEqual(stillWaiting(["m1"], []), [], "the engine holds nothing: nothing is waiting");
 });
