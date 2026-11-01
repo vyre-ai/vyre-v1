@@ -24,6 +24,7 @@ const crewJob = t.obj({
   jobId: t.str({ examples: ['crw_01a1b2'] }), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, name: t.opt(t.str()), title: t.str(), branch: t.str({ examples: ['crew/ember-1'] }),
   base: t.str({ examples: ['main'] }), state: crewState, startedAt: t.ts(), endedAt: t.opt(t.ts()), result: t.opt(t.rec()),
 });
+const crewWait = t.obj({ waitId: t.str(), kind: t.enm('checks'), label: t.str({ examples: ['acme/site#12'] }), state: t.enm('pending', 'passing', 'failing', 'none'), done: t.int(), total: t.int(), startedAt: t.ts() });
 const crewRepo = t.obj({ projectId: id.project, path: t.str(), baseBranch: t.str(), branch: t.str({ description: 'The branch the repository is on now' }) });
 const turnState = t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled');
 const driverId = t.enm('anthropic', 'openai', 'openrouter', 'google', 'xai', 'opencode_go', 'local', 'custom', 'claude_code', 'codex', 'grok');
@@ -72,7 +73,7 @@ export default defineManifest({
       errors: ['validation.bad_input', 'validation.precondition_failed'],
     }),
     read('engine.crew.list', 'The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands', {
-      in: { ...threadT }, out: { jobs: t.arr(crewJob) }, on: ['thread', '/threadId'], tool: 'chats', mcpName: 'crew_list', agent: { planMode: 'allowed', blocks: [] },
+      in: { ...threadT }, out: { jobs: t.arr(crewJob), waits: t.arr(crewWait) }, on: ['thread', '/threadId'], tool: 'chats', mcpName: 'crew_list', agent: { planMode: 'allowed', blocks: [] },
     }),
     write('engine.crew.message', 'Send a message to a teammate in its own thread; a teammate that stopped picks up where it left off', {
       in: { jobId: t.str(), body: t.str() }, out: { sent: t.bool() }, level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_message', agent: { planMode: 'blocked', blocks: [] },
@@ -85,6 +86,14 @@ export default defineManifest({
       in: { jobId: t.str() }, out: { job: crewJob, landed: t.bool(), ref: t.str(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high',
       gate: { act: 'push_protected', when: "actor.kind != 'person'" }, emits: ['crew.job_merged'], tool: 'chats', mcpName: 'crew_merge', agent: { planMode: 'blocked', blocks: [] },
       errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
+    }),
+    write('engine.crew.wait', 'Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish', {
+      in: { ...threadT, repo: t.str({ examples: ['acme/site'] }), number: t.int({ minimum: 1 }) }, out: { wait: crewWait }, on: ['thread', '/threadId'], level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_wait',
+      agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.bad_input'],
+    }),
+    write('engine.crew.push', 'Push the project repository\'s base branch, with a teammate\'s merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person\'s approval', {
+      in: { jobId: t.str() }, out: { job: crewJob, pushed: t.bool(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high', gate: { act: 'push_protected' },
+      emits: ['crew.job_pushed'], tool: 'chats', mcpName: 'crew_push', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
     }),
     read('engine.crew.workspace', 'System: the repository copy a teammate thread works in, so the engine can make it before the first turn', {
       in: { ...threadT }, out: { workspace: t.nullable(t.obj({ jobId: t.str(), repo: t.str(), base: t.str(), branch: t.str(), name: t.str() })) }, on: ['thread', '/threadId'],
@@ -358,6 +367,9 @@ export default defineManifest({
   events: [
     ev('crew.job_merged', 'A teammate\'s branch was landed in the project repository', {
       p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, branch: t.str(), landed: t.bool() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
+    }),
+    ev('crew.job_pushed', 'A crew\'s merged work was pushed to the project\'s remote', {
+      p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
     }),
     ev('crew.job_started', 'A teammate started on a brief in its own thread and its own branch', {
       p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',

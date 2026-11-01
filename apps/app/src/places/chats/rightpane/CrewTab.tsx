@@ -24,7 +24,12 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
   const clock = data.clock();
   const jobs = q.status === "ready" ? q.data.jobs : [];
   const entries: Entry[] = [];
-  if (jobs.length === 0) entries.push({ key: "none", type: "empty", text: "No teammates working for this chat.", testID: "crew-empty" });
+  // a Personal Space has no server: its crew works while this computer is on, and says so
+  if (data.space.personal && (jobs.length > 0 || waits.length > 0)) entries.push({ key: "runs-here", type: "label", text: "Runs while this computer is on" });
+  const waits = q.status === "ready" ? q.data.waits : [];
+  // what the lead waits on besides teammates: a live row, "Waiting on checks, 12 of 40", until the host sees them end and wakes the lead
+  for (const w of waits) entries.push({ key: `w-${w.waitId}`, type: "row", title: `Checks of ${w.label}`, note: w.total > 0 ? `Waiting · ${w.done} of ${w.total} done` : "Waiting for the first check", leading: <LeadIcon name="clock" color="var(--accent)" />, testID: `crew-wait-${w.waitId}` });
+  if (jobs.length === 0 && waits.length === 0) entries.push({ key: "none", type: "empty", text: "No teammates working for this chat.", testID: "crew-empty" });
   for (const j of jobs) {
     const name = j.name ?? "Teammate";
     entries.push({

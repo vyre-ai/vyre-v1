@@ -114,3 +114,10 @@ test("a chat pinned to this computer waits for it, even when the Space may conti
   assert.equal(placeTurn(input({ item: { kind: "message", origin: "routine" }, asker: { chosen: { target: "device" } } })).reason, "routine");
   assert.equal(placeTurn(input({ thread: { persons: 2 }, asker: { chosen: { target: "device" } } })).reason, "shared_thread");
 });
+
+test("a crew teammate's thread runs on the host, whatever device is online and wherever the chat was pinned", () => {
+  const device = { id: "dev_a", role: "daemon" as const, online: true, engines: ["claude_code"], lastSeen: 1 };
+  const base = input({ asker: { devices: [device], runtimeOptIn: false, chosen: { target: "device" } } });
+  assert.equal(placeTurn(base).placement, "device", "an ordinary private chat runs on the device");
+  assert.deepEqual(placeTurn({ ...base, thread: { ...base.thread, crew: true } }), { placement: "host", reason: "crew" });
+});

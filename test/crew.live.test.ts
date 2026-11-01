@@ -7,7 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { workFolder } from "../modules/engine/sandbox.ts";
-import { boot, connect, hostLog, makeAgent, ok, scriptedModel, seededDir, startChat, stop, waitFor } from "./support/eco-live.ts";
+import { boot, call, connect, hostLog, makeAgent, ok, scriptedModel, seededDir, startChat, stop, waitFor } from "./support/eco-live.ts";
 
 const git = (cwd: string, ...args: string[]): string => {
   const r = spawnSync("git", args, { cwd, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } });
@@ -183,7 +183,77 @@ test("the lead starts a teammate with a tool, the teammate finishes and one resu
       const ms = (await ok(d, "chat.messages.list", { threadId: chat })).messages as Array<{ blocks: Array<{ type: string }> }>;
       return ms.filter((m) => m.blocks.some((b) => b.type === "crew_result")).length >= 3 ? true : null;
     }, 40_000, () => hostLog(d));
+    // the lead can wait on the checks of a pull request: the host watches, the Crew tab shows the wait
+    const wait = (await ok(d, "engine.crew.wait", { threadId: chat, repo: "acme/site", number: 12, idempotencyKey: "crew2-wait" })).wait;
+    assert.deepEqual([wait.label, wait.state], ["acme/site#12", "pending"]);
+    assert.deepEqual((await ok(d, "engine.crew.list", { threadId: chat })).waits.map((w: { label: string }) => w.label), ["acme/site#12"]);
+    // pushing the merged work to the remote is an outward act: it holds at the Gate and nothing leaves until a person approves
+    const remote = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-remote-")));
+    git(remote, "init", "--quiet", "--bare", "-b", "main");
+    git(repo, "remote", "add", "origin", remote);
+    const pushed = await call(d, "engine.crew.push", { jobId, idempotencyKey: "crew2-push" });
+    assert.equal(pushed.status, 202, JSON.stringify(pushed.data));
+    assert.equal(pushed.data.status, "held");
+    assert.notEqual(spawnSync("git", ["rev-parse", "--verify", "main"], { cwd: remote }).status, 0, "nothing reached the remote");
     // stopping a teammate that is idle leaves the job as it was; stopping is for a running one
     assert.equal((await ok(d, "engine.crew.stop", { jobId, idempotencyKey: "crew2-stop" })).job.jobId, jobId);
   } finally { await stop(d); }
+});
+
+test("a restart mid-work loses nothing: the job is still there, the teammate's copy is as it was, the work finishes once and one card arrives", async () => {
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-repo-")));
+  git(repo, "init", "--quiet", "-b", "main");
+  fs.writeFileSync(path.join(repo, "README.md"), "a small site\n");
+  git(repo, "add", "-A"); git(repo, "commit", "--quiet", "-m", "first");
+
+  const dirData = seededDir();
+  let owner = ""; let teammate = ""; let project = ""; let chat = ""; let jobThread = "";
+  let running = false;
+  // the first daemon's teammate starts its work and never finishes: the daemon is stopped under it
+  const hang = scriptedModel(async function* (input) {
+    if (input.agent.id !== teammate) return;
+    const work = workFolder(dirData, owner, input.threadId);
+    await waitFor(async () => (fs.existsSync(path.join(work, "README.md")) ? true : null), 20_000);
+    fs.writeFileSync(path.join(work, "half-done.txt"), "started\n");
+    running = true;
+    await new Promise<void>(() => undefined);
+  });
+  const first = await boot(dirData, hang);
+  let jobId = "";
+  try {
+    await connect(first);
+    const lead = await makeAgent(first, "Lead");
+    owner = (await ok(first, "agents.get", { agentId: lead })).agent.ownerId as string;
+    project = (await ok(first, "projects.create", { type: "project", title: "Small site", idempotencyKey: "crew3-project" })).projectId as string;
+    teammate = (await ok(first, "projects.teammates.create", { projectId: project, name: "Ember", role: "member", idempotencyKey: "crew3-ember" })).teammate.agentId as string;
+    await ok(first, "engine.crew.repo.set", { projectId: project, path: repo });
+    chat = await startChat(first, lead, "crew3");
+    const job = (await ok(first, "engine.crew.start", { threadId: chat, projectId: project, teammateId: teammate, title: "Dark mode", brief: "Add a dark mode toggle.", idempotencyKey: "crew3-start" })).job;
+    jobId = job.jobId; jobThread = job.threadId;
+    await waitFor(async () => (running ? true : null), 30_000, () => hostLog(first));
+  } finally { await stop(first); }
+
+  // the same data directory, a new daemon, a teammate that can finish
+  const model = scriptedModel(async function* (input) {
+    if (input.agent.id !== teammate) return;
+    const work = workFolder(dirData, owner, input.threadId);
+    assert.equal(fs.readFileSync(path.join(work, "half-done.txt"), "utf8"), "started\n", "the copy is as the first daemon left it");
+    fs.writeFileSync(path.join(work, "dark-mode.txt"), "toggle: on\n");
+    yield { type: "text", text: "Finished after the restart." };
+  });
+  const second = await boot(dirData, model);
+  try {
+    await connect(second);
+    const before = (await ok(second, "engine.crew.list", { threadId: chat })).jobs as Array<{ jobId: string; state: string; branch: string }>;
+    assert.deepEqual(before.map((j) => [j.jobId, j.branch]), [[jobId, "crew/ember-1"]], "the crew is still there");
+    const card = await waitFor(async () => {
+      const ms = (await ok(second, "chat.messages.list", { threadId: chat })).messages as Array<{ blocks: Array<{ type: string; data: Record<string, unknown> }> }>;
+      const cards = ms.flatMap((m) => m.blocks).filter((b) => b.type === "crew_result");
+      return cards.length > 0 ? cards : null;
+    }, 90_000, () => hostLog(second));
+    assert.equal(card.length, 1, "one card, not two");
+    assert.deepEqual((card[0]!.data["files"] as Array<{ path: string }>).map((f) => f.path).sort(), ["dark-mode.txt", "half-done.txt"]);
+    assert.equal(jobThread, (await ok(second, "engine.crew.list", { threadId: chat })).jobs[0].threadId);
+    assert.equal((await ok(second, "engine.crew.list", { threadId: chat })).jobs[0].state, "done");
+  } finally { await stop(second); }
 });

@@ -35,6 +35,12 @@ test("one row per teammate: its name and job, how it stands, and Merge or Stop w
   assert.ok(out.includes('data-testid="crew-stop-crw_1"') && !out.includes('data-testid="crew-stop-crw_2"'), "only a running one offers Stop");
 });
 
+test("a wait on checks is a live row with its progress", () => {
+  const out = html(createSample("northwind", { crew: true }), "crew");
+  assert.ok(out.includes("Checks of acme/site#12") && out.includes("Waiting · 12 of 40 done"));
+  assert.ok(!html(createSample(), "crew").includes("Checks of"), "no wait, no row");
+});
+
 test("an empty crew says so in a few words", () => {
   assert.ok(html(createSample(), "crew").includes("No teammates working for this chat."));
 });
@@ -62,4 +68,9 @@ test("Merge and Stop write through one capability each, change what the next ren
   assert.equal(await crewMerge(d, "crw_3", "Quill", "crew/quill-1"), false);
   assert.equal(notes.at(-1), "Could not merge Quill's work. Try again.");
   assert.ok(s.calls.some((c) => c.cap === "engine.crew.merge" && (c.input as { idempotencyKey?: string }).idempotencyKey?.startsWith("rp-merge-")));
+});
+
+test("a Personal Space says its crew works while this computer is on; a team Space does not", () => {
+  assert.ok(html(createSample("personal", { crew: true }), "crew").includes("Runs while this computer is on"));
+  assert.ok(!html(createSample("northwind", { crew: true }), "crew").includes("Runs while this computer is on"));
 });

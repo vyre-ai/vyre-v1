@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { GitError, cleanBranch, commitLeftovers, git, landBranch, prepareClone, repoHead, summarize } from "../crew-git.ts";
+import { GitError, cleanBranch, commitLeftovers, git, landBranch, prepareClone, pushBase, repoHead, summarize } from "../crew-git.ts";
 
 const tmp = (): string => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-git-")));
 const ID = { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
@@ -98,4 +98,18 @@ test("a branch that conflicts with the base is undone, not left half merged", as
   assert.match(String(out.note), /does not merge cleanly/);
   assert.equal(fs.readFileSync(path.join(r, "README.md"), "utf8"), "ours\n");
   assert.equal((await git(["status", "--porcelain"], r)).out.trim(), "", "the repository is clean again");
+});
+
+test("pushing sends the base branch to the origin from the host, and a repository with no origin says so", async () => {
+  const r = await repo();
+  const none = await pushBase({ repo: r, base: "main" });
+  assert.deepEqual([none.pushed, /no remote/.test(String(none.note))], [false, true]);
+  const bare = tmp();
+  await git(["init", "--quiet", "--bare", "-b", "main"], bare);
+  await git(["remote", "add", "origin", bare], r);
+  const sent = await pushBase({ repo: r, base: "main" });
+  assert.equal(sent.pushed, true);
+  assert.match((await git(["log", "--oneline", "main"], bare)).out, /first/);
+  const refused = await pushBase({ repo: r, base: "nope" });
+  assert.equal(refused.pushed, false);
 });

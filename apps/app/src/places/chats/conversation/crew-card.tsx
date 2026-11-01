@@ -65,8 +65,24 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
     try { await data.call("engine.crew.message", { jobId: c.jobId, body: words.trim(), idempotencyKey: `card-back-${c.jobId}-${++seq}` }); setLine(`Sent back to ${c.name}`); setBack(false); setWords(""); } catch { setLine("Could not send that. Try again."); } finally { setBusy(false); }
   };
 
+  const pushed = Boolean((job?.result as { pushed?: unknown } | undefined)?.pushed) || line?.startsWith("Pushed") === true;
+  // Push sends the merged work to the project's remote from the host. It is an outward act: it holds for approval, and the card says so
+  const push = async (): Promise<void> => {
+    setBusy(true);
+    try {
+      const out = (await data.call("engine.crew.push", { jobId: c.jobId, idempotencyKey: `card-push-${c.jobId}-${++seq}` })) as { status?: string; pushed?: boolean; note?: string; job?: Job };
+      if (out.status === "held") setLine("Waiting for approval. It is in Needs you.");
+      else { if (out.job) setJob(out.job); setLine(out.pushed ? "Pushed to the remote" : out.note ?? "Nothing was pushed"); }
+    } catch { setLine("Could not push. Try again."); } finally { setBusy(false); }
+  };
   if (merged) {
-    return <View testID={`crew-card-${c.jobId}`} style={st.done}><Glyph name="check" size={13} /><Text style={st.doneText}>{`Merged · ${c.name}: ${c.title}`}</Text></View>;
+    return (
+      <View testID={`crew-card-${c.jobId}`} style={st.doneBox}>
+        <View style={st.done}><Glyph name="check" size={13} /><Text style={st.doneText}>{`Merged · ${c.name}: ${c.title}`}</Text>{pushed ? <Text style={st.doneText}>· pushed</Text> : null}</View>
+        {pushed ? null : <View style={st.row}><TextButton label="Push" onPress={() => { void push(); }} disabled={busy} testID={`crew-push-${c.jobId}`} /></View>}
+        {line && !line.startsWith("Merged") ? <Text testID={`crew-line-${c.jobId}`} style={st.line}>{line}</Text> : null}
+      </View>
+    );
   }
   return (
     <View testID={`crew-card-${c.jobId}`} style={st.card}>
@@ -116,6 +132,7 @@ const st = StyleSheet.create({
   backBox: { gap: 6 },
   input: { minHeight: 56, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 8, padding: 8, fontSize: 13, color: "var(--ink)" as string },
   line: { fontSize: 12, color: "var(--ink-3)" as string },
+  doneBox: { gap: 4 },
   done: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
   doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

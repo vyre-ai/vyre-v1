@@ -1,7 +1,7 @@
 // The crew (DESIGN-crew.md, steps 1 and 2): a project's repository on this computer, and teammate jobs. A job is a teammate agent working in its own copy of that repository, on its own branch, in its own thread
 // under the lead's chat. Nothing new is made for it: the thread is a helper thread, the teammate is a project teammate, the work folder is the engine's per-thread folder with a clone in it (../crew-git.ts).
 import { engineHost } from "../runtime.ts";
-import { GitError, cleanBranch, commitLeftovers, git, landBranch, prepareClone, repoHead } from "../crew-git.ts";
+import { GitError, cleanBranch, commitLeftovers, git, landBranch, prepareClone, pushBase, repoHead } from "../crew-git.ts";
 import { ensure, actorOf, mintEngineId, raise } from "../projections.ts";
 import { workFolder } from "../sandbox.ts";
 import { GUIDE_FILES } from "../../../lib/memory-guide.ts";
@@ -117,7 +117,24 @@ export async function list(ctx: EngineCtx, input: { threadId: string }) {
     if (names.has(id)) continue;
     try { const a = (await ctx.call("agents.get", { agentId: id })) as { agent?: { name?: string } }; if (a.agent?.name) names.set(id, a.agent.name); } catch { /* the id stands */ }
   }
-  return { jobs: rows.map((r) => jobOut(r, names.get(str(r["agent_id"])))) };
+  const waits = ctx.db.all("SELECT * FROM engine_crew_wait WHERE lead_thread_id = ? AND state = 'pending' ORDER BY started_at DESC, rowid DESC", input.threadId) as Row[];
+  return { jobs: rows.map((r) => jobOut(r, names.get(str(r["agent_id"])))), waits: waits.map(waitOut) };
+}
+
+export function waitOut(r: Row) {
+  return { waitId: str(r["wait_id"]), kind: "checks" as const, label: str(r["label"]), state: "pending" as const, done: num(r["done"]), total: num(r["total"]), startedAt: num(r["started_at"]) };
+}
+
+export async function wait(ctx: EngineCtx, input: { threadId: string; repo: string; number: number }) {
+  ensure(ctx.db);
+  if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(input.repo)) raise(ctx, "validation.bad_input", "Name the repository as owner/name.");
+  const t = (await ctx.call("threads.get", { threadId: input.threadId })) as { thread: { agents: Array<{ agentId: string; mode: string }> } };
+  const lead = t.thread.agents.find((a) => a.mode === "lead")?.agentId;
+  if (!lead) raise(ctx, "validation.precondition_failed", "This chat has no lead to wake.");
+  const waitId = mintEngineId("cwt", ctx.now());
+  const label = `${input.repo}#${input.number}`;
+  ctx.db.run("INSERT INTO engine_crew_wait (wait_id, lead_thread_id, agent_id, asker, kind, repo, number, label, state, started_at) VALUES (?, ?, ?, ?, 'checks', ?, ?, ?, 'pending', ?)", waitId, input.threadId, lead, actorOf(ctx), input.repo, input.number, label, ctx.now());
+  return { wait: waitOut(ctx.db.all("SELECT * FROM engine_crew_wait WHERE wait_id = ?", waitId)[0] as Row) };
 }
 
 export async function workspace(ctx: EngineCtx, input: { threadId: string }) {
@@ -166,5 +183,20 @@ export async function merge(ctx: EngineCtx, input: { jobId: string }) {
       ctx.emit("crew.job_merged", str(r["lead_thread_id"]), { jobId: input.jobId, threadId: str(r["thread_id"]), leadThreadId: str(r["lead_thread_id"]), branch: str(r["branch"]), landed: true });
     }
     return { job: jobOut(jobRow(ctx, input.jobId)), landed: landed.landed, ref: landed.ref, ...(landed.note ? { note: landed.note } : {}) };
+  } catch (e) { return gitFailure(ctx, e); }
+}
+
+export async function push(ctx: EngineCtx, input: { jobId: string }) {
+  ensure(ctx.db);
+  const r = jobRow(ctx, input.jobId);
+  if (str(r["state"]) !== "merged") raise(ctx, "validation.precondition_failed", "Merge the teammate's work first, then push.");
+  try {
+    const out = await pushBase({ repo: str(r["repo_path"]), base: str(r["base_branch"]) });
+    if (out.pushed) {
+      const prior = jobOut(r).result ?? {};
+      ctx.db.run("UPDATE engine_crew_job SET result_json = ? WHERE job_id = ?", JSON.stringify({ ...prior, pushed: { at: ctx.now(), ...(out.remote ? { remote: out.remote } : {}) } }), input.jobId);
+      ctx.emit("crew.job_pushed", str(r["lead_thread_id"]), { jobId: input.jobId, threadId: str(r["thread_id"]), leadThreadId: str(r["lead_thread_id"]), branch: str(r["base_branch"]) });
+    }
+    return { job: jobOut(jobRow(ctx, input.jobId)), pushed: out.pushed, ...(out.note ? { note: out.note } : {}) };
   } catch (e) { return gitFailure(ctx, e); }
 }

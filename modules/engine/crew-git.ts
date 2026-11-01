@@ -139,3 +139,13 @@ export async function landBranch(o: { repo: string; clone: string; branch: strin
   await git(["merge", "--abort"], o.repo);
   return { landed: false, ref, note: `The branch does not merge cleanly into ${o.base}. The work is on ${ref}.` };
 }
+
+/** Pushes the base branch of the project repository to its origin, from the host, with the person's own git setup. A repository with no origin says so and changes nothing. */
+export async function pushBase(o: { repo: string; base: string }): Promise<{ pushed: boolean; remote?: string; note?: string }> {
+  const base = cleanBranch(o.base);
+  const url = await git(["remote", "get-url", "origin"], o.repo);
+  if (url.code !== 0 || url.out.trim() === "") return { pushed: false, note: "The project repository has no remote called origin." };
+  const out = await git(["push", "--quiet", "origin", base], o.repo);
+  if (out.code !== 0) return { pushed: false, remote: url.out.trim(), note: `The remote did not take it: ${(out.err || out.out).trim().split("\n").slice(-2).join(" ").slice(0, 240)}` };
+  return { pushed: true, remote: url.out.trim() };
+}

@@ -16,7 +16,7 @@ const block = (over: Record<string, unknown> = {}) => ({
 
 const job = (state: string) => ({ jobId: "crw_1", threadId: "thr_mate", leadThreadId: "thr_lead", projectId: "p", agentId: "agt_ember", title: "Dark mode", branch: "crew/ember-1", base: "main", state, startedAt: 1 });
 
-function data(calls: { cap: string; input: unknown }[], o: { state?: string; fail?: string; landed?: boolean } = {}) {
+function data(calls: { cap: string; input: unknown }[], o: { state?: string; fail?: string; landed?: boolean; held?: boolean; pushNote?: string } = {}) {
   const opened: string[] = [];
   return {
     opened,
@@ -27,6 +27,7 @@ function data(calls: { cap: string; input: unknown }[], o: { state?: string; fai
         if (cap === "engine.crew.list") return { jobs: [job(o.state ?? "done")] };
         if (cap === "engine.crew.merge") return { job: job(o.landed === false ? "done" : "merged"), landed: o.landed !== false, ref: "crew/ember-1", ...(o.landed === false ? { note: "The repository has uncommitted changes. The work is on crew/ember-1." } : {}) };
         if (cap === "engine.crew.message") return { sent: true };
+        if (cap === "engine.crew.push") return o.held ? { status: "held", taskId: "tsk_1" } : { job: job("merged"), pushed: o.pushNote === undefined, ...(o.pushNote ? { note: o.pushNote } : {}) };
         return {};
       },
       nav: { openThread: (id: string) => opened.push(id) },
@@ -106,4 +107,29 @@ test("after a reload the card reads the job and shows a merged one as one line",
   const root = await mount(createRoot, <CrewResultCard block={block()} leadThreadId="thr_lead" data={d} />);
   await flush();
   assert.match(textOf(find(root, "crew-card-crw_1")), /Merged · Ember: Dark mode/);
+});
+
+test("a merged card offers Push, which holds for approval and says so", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const { d } = data(calls, { state: "merged", held: true });
+  const root = await mount(createRoot, <CrewResultCard block={block()} leadThreadId="thr_lead" data={d} />);
+  await flush();
+  assert.ok(find(root, "crew-push-crw_1"), "a merged card offers Push");
+  await press(find(root, "crew-push-crw_1"));
+  await flush();
+  assert.equal((calls.find((c) => c.cap === "engine.crew.push")!.input as { jobId: string }).jobId, "crw_1");
+  assert.match(textOf(find(root, "crew-line-crw_1")), /Waiting for approval\. It is in Needs you\./);
+});
+
+test("a push that lands says so, one that cannot says why", async () => {
+  const ok = await mount(createRoot, <CrewResultCard block={block()} leadThreadId="thr_lead" data={data([], { state: "merged" }).d} />);
+  await flush();
+  await press(find(ok, "crew-push-crw_1"));
+  await flush();
+  assert.match(textOf(find(ok, "crew-card-crw_1")), /Merged · Ember: Dark mode/);
+  const no = await mount(createRoot, <CrewResultCard block={block()} leadThreadId="thr_lead" data={data([], { state: "merged", pushNote: "The project repository has no remote called origin." }).d} />);
+  await flush();
+  await press(find(no, "crew-push-crw_1"));
+  await flush();
+  assert.match(textOf(find(no, "crew-line-crw_1")), /no remote called origin/);
 });

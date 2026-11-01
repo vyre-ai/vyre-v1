@@ -173,7 +173,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     { id: "crw_2", ...jobBase, jobId: "crw_2", threadId: "thr_crew2", agentId: "agt_rowan", name: "Rowan", title: "Footer links", branch: "crew/rowan-1", state: "done", startedAt: SAMPLE_NOW - 40 * MIN, endedAt: SAMPLE_NOW - 5 * MIN, result: { text: "Done.", summary: { files: [{ path: "footer.tsx", added: 12, deleted: 2 }, { path: "footer.test.ts", added: 20, deleted: 0 }] } } },
     { id: "crw_3", ...jobBase, jobId: "crw_3", threadId: "thr_crew3", agentId: "agt_quill", name: "Quill", title: "Docs", branch: "crew/quill-1", state: "merged", startedAt: SAMPLE_NOW - 3 * 60 * MIN, endedAt: SAMPLE_NOW - 2 * 60 * MIN },
   ]);
-  replica.resolve("engine.crew.list", () => ({ jobs: rowsOf<Row>("crew").map((x) => strip(x, [])) as never }));
+  replica.resolve("engine.crew.list", () => ({ jobs: rowsOf<Row>("crew").map((x) => strip(x, [])) as never, waits: (o.crew ? [{ waitId: "cwt_1", kind: "checks", label: "acme/site#12", state: "pending", done: 12, total: 40, startedAt: SAMPLE_NOW - 4 * MIN }] : []) as never }));
   replica.resolve("chat.helpers.list", () => ({ helpers: rowsOf<Helper & Row>("helpers").map((x) => strip(x, [])) }));
   replica.resolve("memory.facts.list", (_t, input) => {
     const status = input.status ?? ["current"];
