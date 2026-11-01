@@ -21,12 +21,17 @@ export async function share(ctx: ChatCtx, input: { threadId: string; messageId: 
   if (!m || m.thread !== from.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   if (m.kind === "system" || m.kind === "quiet") raise(ctx, "validation.bad_input", "Share something someone said, not a notice.");
   if (input.toThreadId === from.id) raise(ctx, "validation.bad_input", "Pick another chat to share it to.");
-  const to = load(ctx, input.toThreadId);   // refused unless the sharer may write there
+  const to = load(ctx, input.toThreadId);   // a private chat answers to its members
+  // The pipeline checked the chat the message is in (the manifest's `on`); the chat it goes to gets the same check chat.post makes there: write ("use") on that thread, which a channel's grants decide.
+  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+  if (typeof host.authorize === "function" && host.authorize({ perm: null, level: "use" }, { type: "thread", id: to.id }).effect !== "allow") {
+    raise(ctx, "permission.no_grant", "You cannot write in that chat, so you cannot share there.", { toThreadId: to.id });
+  }
   if (to.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "That chat is closed.");
   const asker = askerOf(ctx);
   const title = firstLine(m.body);
   const multi = m.body.trim().length > title.length;
   const sent = postLinkCard(ctx, to.id, { icon: "thread", lead: "Shared", by: asker, title, target: { type: "thread", id: from.id }, ...(multi ? { body: m.body.trim().slice(0, QUOTE) } : {}) }, `Shared: ${title}`);
-  postLinkCard(ctx, from.id, { icon: "thread", lead: "Shared", to: input.to ?? to.id, title, target: { type: "thread", id: to.id } }, `Shared: ${title}`);
+  postLinkCard(ctx, from.id, { icon: "thread", lead: "Shared", ...(input.to ? { to: input.to } : {}), title, target: { type: "thread", id: to.id } }, `Shared: ${title}`);
   return { messageId: sent.id, toThreadId: to.id };
 }

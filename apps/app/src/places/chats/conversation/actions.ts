@@ -340,5 +340,5 @@ export async function shareTo(data: ConversationData, threadId: string, messageI
     target = started.thread.threadId;
   }
   if (!target) return;
-  await data.call("chat.share", { threadId, messageId, toThreadId: target, ...(to.threadId ? { to: to.label } : {}), idempotencyKey: key } as CapMap["chat.share"]["in"]);
+  await data.call("chat.share", { threadId, messageId, toThreadId: target, to: to.threadId ? to.label : to.personId, idempotencyKey: key } as CapMap["chat.share"]["in"]);
 }

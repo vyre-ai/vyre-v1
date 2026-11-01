@@ -193,9 +193,13 @@ test("journey 5, Team: Share to a channel from the message menu; a card lands th
     await me.page.getByText("#ops").click();
     await me.page.getByText(/Shared to #ops/).first().waitFor({ timeout: 20_000 });
     await shoot(me.page, dir, "shared-line", { restore: async () => { await open(me, s, hash(dm)); } });
-    await open(me, s, hash(ch.mainThreadId));
+    // the line opens the channel; the card there says who shared it and opens the chat it came from
+    await me.page.getByText(/Shared to #ops/).first().locator("..").getByText("We ship on Friday").click();
     await me.page.getByText(/Shared by Olivia/).first().waitFor({ timeout: 20_000 });
-    await shoot(me.page, dir, "shared-card", { restore: async () => { await open(me, s, hash(ch.mainThreadId)); } });
+    await shoot(me.page, dir, "shared-card", { phone: false, restore: async () => { await open(me, s, hash(dm)); await me.page.getByText(/Shared to #ops/).first().locator("..").getByText("We ship on Friday").click(); await me.page.getByText(/Shared by Olivia/).first().waitFor({ timeout: 20_000 }); } });
+    await me.page.getByText(/Shared by Olivia/).first().locator("..").getByText("We ship on Friday").click();
+    await me.page.getByText(/Shared to #ops/).first().waitFor({ timeout: 20_000 });
+    void ch;
     assert.deepEqual(me.errors, [], "no page errors");
   } finally { await s.close(); }
 });

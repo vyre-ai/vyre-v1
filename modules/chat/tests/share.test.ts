@@ -32,6 +32,7 @@ test("a message is shared to a channel: a card there carries it and links back, 
   assert.deepEqual(t.target, { type: "thread", id: dm });
   const here = JSON.parse(String(cards(hn, dm)[0]!["blocks"]))[0].data;
   assert.equal(here.to, "#ops");
+  assert.equal(JSON.parse(String(cards(hn, ch.mainThreadId)[0]!["blocks"]))[0].data.to, undefined);
   assert.deepEqual(here.target, { type: "thread", id: ch.mainThreadId });
   assert.equal(here.body, undefined, "one line here");
 });

@@ -141,11 +141,15 @@ test("flow 5, Share this: a message goes from a chat between people to a channel
     const noah = s.signedIn("usr_noah");
     const dm = expectStatus(await s.call("chat.start", olivia, { idempotencyKey: "f5-dm", kind: "chat", agentIds: [], personId: "usr_noah" }), 200, "chat.start").thread.threadId as string;
     const said = expectStatus(await s.call("chat.post", noah, { idempotencyKey: "f5-say", threadId: dm, body: "We ship on Friday\nThe letter goes out with it." }), 200, "chat.post").message.messageId as string;
-    const ch = expectStatus(await s.call("channels.create", olivia, { idempotencyKey: "f5-ch", name: "ops", visibility: "invite" }), 200, "channels.create").channel as { mainThreadId: string };
+    const ch = expectStatus(await s.call("channels.create", olivia, { idempotencyKey: "f5-ch", name: "ops", visibility: "public" }), 200, "channels.create").channel as { mainThreadId: string };
 
-    // Noah is not in the invite-only channel: he cannot share there
-    const refused = await s.call("chat.share", noah, { idempotencyKey: "f5-no", threadId: dm, messageId: said, toThreadId: ch.mainThreadId });
-    assert.ok(refused.status >= 400, "no write access there, no share");
+    // a chat that is Olivia's alone: Noah cannot share into it
+    const helper = expectStatus(await s.call("agents.create", olivia, { idempotencyKey: "f5-agent", name: "Scribe", role: "Takes notes" }), 200, "agents.create").agent.agentId as string;
+    const mine = expectStatus(await s.call("chat.start", olivia, { idempotencyKey: "f5-mine", kind: "chat", agentIds: [helper] }), 200, "chat.start mine").thread.threadId as string;
+    const refused = await s.call("chat.share", noah, { idempotencyKey: "f5-no", threadId: dm, messageId: said, toThreadId: mine });
+    assert.ok(refused.status >= 400, "a chat he is not in takes no share from him");
+    const none = expectStatus(await s.call("chat.messages.list", olivia, { threadId: mine }), 200, "list mine").messages as unknown[];
+    assert.equal(none.length, 0, "and nothing was left there");
 
     expectStatus(await s.call("chat.share", olivia, { idempotencyKey: "f5-share", threadId: dm, messageId: said, toThreadId: ch.mainThreadId, to: "#ops" }), 200, "chat.share");
     const there = expectStatus(await s.call("chat.messages.list", olivia, { threadId: ch.mainThreadId }), 200, "list ops").messages as Array<{ kind: string; blocks: Array<{ data: any }> }>;

@@ -55,7 +55,7 @@ export const isLinkCard = (b: { type: string; data: unknown }): boolean => linkC
 export function linkCardLine(d: LinkCardData, nameOf: (id: string) => string): string {
   if (d.who) return `${d.lead}, assigned to ${nameOf(d.who)}`;
   if (d.by) return `${d.lead} by ${nameOf(d.by)}`;
-  return d.to ? `${d.lead} to ${nameOf(d.to)}` : d.lead;
+  return d.to ? `${d.lead} to ${/^(usr|agt)_/.test(d.to) ? nameOf(d.to) : d.to}` : d.lead;
 }
 
 /** A card that is more than a line: it has words under it or buttons. */

@@ -29,5 +29,5 @@ test("sharing to a channel calls chat.share with its main chat; to a person it f
   assert.deepEqual(calls.at(-1), ["chat.share", { threadId: "thr_a", messageId: "msg_1", toThreadId: "thr_ops", to: "#ops", idempotencyKey: "k1" }]);
   await shareTo(d, "thr_a", "msg_1", { label: "Maya Chen", personId: "usr_maya" }, "k2");
   assert.equal(calls.at(-2)![0], "chat.start");
-  assert.deepEqual(calls.at(-1), ["chat.share", { threadId: "thr_a", messageId: "msg_1", toThreadId: "thr_maya", idempotencyKey: "k2" }]);
+  assert.deepEqual(calls.at(-1), ["chat.share", { threadId: "thr_a", messageId: "msg_1", toThreadId: "thr_maya", to: "usr_maya", idempotencyKey: "k2" }]);
 });
