@@ -163,7 +163,12 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
         await page.getByTestId("files-name-go").click();
         await page.getByText(name, { exact: true }).first().waitFor({ timeout: 15_000 });
       };
-      await make("Walk folder 1", async () => { await page.getByText("New folder", { exact: true }).first().click({ timeout: 10_000 }); });
+      // the empty state offers Add files (upload); folders come from the New menu and the sidebar +
+      const emptyChooser = page.waitForEvent("filechooser", { timeout: 10_000 });
+      await page.getByText("Add files", { exact: true }).first().click({ timeout: 10_000 });
+      await (await emptyChooser).setFiles({ name: "first.txt", mimeType: "text/plain", buffer: Buffer.from("first") });
+      await page.getByText("first.txt", { exact: true }).first().waitFor({ timeout: 20_000 });
+      await make("Walk folder 1", async () => { await page.getByText("New", { exact: true }).first().click(); await page.getByText("New Folder", { exact: true }).first().click({ timeout: 10_000 }); });
       await make("Walk folder 2", async () => { await page.getByText("New", { exact: true }).first().click(); await page.getByText("New Folder", { exact: true }).first().click({ timeout: 10_000 }); });
       await make("Walk folder 3", async () => { await page.getByRole("button", { name: /new folder|add a folder|^\+$/i }).or(page.locator('[aria-label="New folder"]')).first().click({ timeout: 10_000 }); });
       const folders = (await api("files.list")).data.folders as { name: string }[];
@@ -186,10 +191,10 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await adding.press("Enter");
       // the new record opens in its own tab, with its history beside it
       await page.getByText("Vyre created it").first().waitFor({ timeout: 15_000 });
-      await page.getByText("Activity", { exact: true }).first().click({ timeout: 10_000 });
+      await page.getByText("Activity", { exact: true }).first().click({ timeout: 10_000 }).catch(() => { throw new Error("could not press the Activity tab of the record"); });
       await page.getByText("Vyre created it").first().waitFor({ timeout: 10_000 });
       // edit a field: show the empty ones, give the contact a job title, and see it saved
-      await page.getByText(/^Show \d+ empty fields/).first().click({ timeout: 10_000 });
+      await page.getByText(/Show \d+ empty fields/).first().click({ timeout: 10_000 }).catch(() => { throw new Error("could not press Show empty fields"); });
       const title = page.getByLabel(/job title/i).first();
       await title.fill("Counsel", { timeout: 10_000 });
       await title.press("Enter");
@@ -213,7 +218,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await go("settings", "settings-place");
       await page.getByText("Appearance", { exact: true }).first().click({ timeout: 15_000 });
       await page.getByText("Graphite", { exact: true }).first().click({ timeout: 15_000 });
-      await page.waitForFunction(() => document.documentElement.getAttribute("data-mode") === "dark", null, { timeout: 10_000 });
+      const marks = async (): Promise<string> => page.evaluate(() => `data-mode=${document.documentElement.getAttribute("data-mode")} data-theme=${document.documentElement.getAttribute("data-theme")}`);
+      await page.waitForFunction(() => document.documentElement.getAttribute("data-mode") === "dark", null, { timeout: 10_000 }).catch(async () => { throw new Error(`picked Graphite, the preview went dark but the app did not: ${await marks()}`); });
       assert.equal(await page.evaluate(() => document.documentElement.getAttribute("data-mode")), "dark", "data-mode follows the chosen skin (the preview reads it)");
       assert.notEqual(await page.evaluate(() => document.documentElement.getAttribute("data-theme")), null, "data-theme is set");
       // choosing System again: the preview follows the mode the document is in, not the one it was in
@@ -224,9 +230,9 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
 
     await step("Terminal: opens", async () => {
       await go("chat", "chats-place");
-      await page.keyboard.press("Meta+K");
-      await page.keyboard.type("terminal");
-      await page.getByText("Open terminal", { exact: true }).first().click({ timeout: 10_000 });
+      // a person opens it from the Space menu (the Space tile at the top of the rail)
+      await page.getByTestId("space-tile").click({ timeout: 10_000 });
+      await page.getByRole("menuitem", { name: "Open Terminal", exact: true }).click({ timeout: 10_000 });
       await page.getByTestId("chats-terminal").or(page.getByTestId("terminal-pane-open")).or(page.getByTestId("terminal-pane-empty")).or(page.getByTestId("terminal-pane-hosts")).or(page.getByTestId("terminal-tab")).first().waitFor({ timeout: 20_000 });
     });
   } finally {
