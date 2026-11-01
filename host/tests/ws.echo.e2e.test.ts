@@ -259,9 +259,15 @@ test("the socket, trace and sink code and this test typecheck under tsconfig.bas
   assert.ok(cache, "a writable cache directory");
   const tsc = path.join(cache, "node_modules/typescript/bin/tsc");
   if (!fs.existsSync(tsc)) {
-    fs.writeFileSync(path.join(cache, "package.json"), '{"private":true}');
-    const r = spawnSync("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts", "typescript@5.9.3", "@types/node@24"], { cwd: cache, encoding: "utf8" });
+    // Eight runners of a host share this cache and a cold one used to be filled by all of them at once, each running npm in the same folder (slow, and a half-written cache fails the others). Each makes
+    // its own folder and moves it into place with one rename; the one that loses the race uses the winner's.
+    const mine = fs.mkdtempSync(path.join(cache, "fill-"));
+    fs.writeFileSync(path.join(mine, "package.json"), '{"private":true}');
+    const r = spawnSync("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts", "typescript@5.9.3", "@types/node@24"], { cwd: mine, encoding: "utf8" });
     assert.equal(r.status, 0, `npm install failed: ${r.stderr}`);
+    try { fs.renameSync(path.join(mine, "node_modules"), path.join(cache, "node_modules")); } catch { /* another runner's finished first: use theirs */ }
+    fs.rmSync(mine, { recursive: true, force: true });
+    assert.ok(fs.existsSync(tsc), "the type checker is in the cache");
   }
   const cfg = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tsc-")), "tsconfig.json");
   fs.writeFileSync(cfg, JSON.stringify({ extends: path.join(REPO, "tsconfig.base.json"), compilerOptions: { typeRoots: [path.join(cache, "node_modules/@types")], types: ["node"], noEmit: true }, files: files.map((f) => path.join(REPO, f)) }));
