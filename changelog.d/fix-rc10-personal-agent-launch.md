@@ -5,3 +5,5 @@ Personal Spaces no longer show doors that lead to that page: the Vault Advanced 
 Launch: the first frame follows the saved skin and mode. The startup script read only the address, so a reopened app painted Paper and then flipped. It now reads the saved choice (and System follows the device) before anything paints. The desktop window starts hidden and comes forward when the page has loaded, with a 5 second fallback.
 
 A saved or stale address that names the Console in a Personal Space (which has none) now goes Home instead of a page with no shell and no way back, so a quit and reopen cannot trap the person there. If that page is ever shown it has a Back to Vyre button.
+
+Standalone pages: the OAuth callback's Back goes Home in a Personal Space (it went to the Console, which has none); the Console's loading and error pages keep the theme and have Back to Vyre; a failed desktop pairing offers Retry back to the start; and a crash outside any place shows one themed page with Retry instead of a blank window.

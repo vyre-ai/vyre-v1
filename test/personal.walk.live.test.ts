@@ -279,6 +279,14 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await go("chat", "chats-place");
     });
 
+    await step("OAuth callback in a Personal Space: Back goes to the app, not the Console", async () => {
+      await page.goto(`${web.origin}/oauth/callback?error=access_denied&state=walk`, { waitUntil: "load" });
+      await page.getByTestId("oauth-callback").waitFor({ timeout: 20_000 });
+      await page.getByTestId("oauth-back").click({ timeout: 10_000 });
+      await page.getByTestId("space-tile").waitFor({ timeout: 20_000 });
+      assert.equal(await page.getByText("Needs a Team Space").count(), 0, "Back does not end on the dead page");
+    });
+
     await step("Terminal: opens from the Space menu and from Search, and again", async () => {
       await go("chat", "chats-place");
       const list = page.getByTestId("terminal-list");
