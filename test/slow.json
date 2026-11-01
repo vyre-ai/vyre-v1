@@ -4,6 +4,7 @@
   {"file":"test/crm.journey3.live.test.ts","capSec":120,"owner":"crm-records","reason":"CRM to Records as a person lives it (a revoked key, a Team member, a second app): a booted daemon, a fake CRM over HTTP, an agent stand-in in chat, and the production export in Chromium","heavy":true},
   {"file":"test/terminal.pane.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon and actual Chromium: the chat pane opens a terminal in Personal and Team"},
   {"file":"test/chat.streaming.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon, real CLI driver and actual Chromium: the working sign before the first word, words arriving in steps, no stray memory cards"},
+  {"file":"test/chat.no-recall.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon, real CLI driver and actual Chromium: a greeting raises no memory cards"},
   {"file":"test/work-cards.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon and actual Chromium: work an agent does leaves live cards under its reply"},
   {"file":"apps/app/tests/chat.surfaces.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon and actual Chromium: the record Chat tab and Chats stream a reply, know the record, and Stop works, Personal and Team"},
   {"file":"test/mail.personal.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemons (Team with two members, Personal) and fake Google and Microsoft: sign-in, private mailboxes, assistants, locked-vault polls, send, revoke, restart","heavy":true},
