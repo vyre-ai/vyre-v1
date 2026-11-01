@@ -134,9 +134,18 @@ export function takeOver(d: PaneDeps, computerId: string, name: string): Promise
   return attempt(d, "take over", async () => { await d.call("computers.take_over", { computerId }); d.note(`You're in control. ${name} waits.`); });
 }
 
-/** Give control back to the agent. */
-export function giveBack(d: PaneDeps, computerId: string, name: string): Promise<boolean> {
-  return attempt(d, "give control back", async () => { await d.call("computers.give_back", { computerId }); d.note(`Control given back to ${name}`); });
+/**
+ * Give control back to the agent. When the chat the work was for is known, the person says so there ("I took care of it. Carry on."): the message is theirs, so the agent answers on the person's own
+ * account and picks the work up again; nothing is posted if giving back failed.
+ */
+export async function giveBack(d: PaneDeps, computerId: string, name: string, back?: { threadId: string; agentId: string }): Promise<boolean> {
+  const ok = await attempt(d, "give control back", async () => { await d.call("computers.give_back", { computerId }); d.note(`Control given back to ${name}`); });
+  if (ok && back) {
+    await attempt(d, "tell it to carry on", async () => {
+      await d.call("chat.post", { threadId: back.threadId, body: "I took care of it. Carry on.", mentions: [{ kind: "agent", id: back.agentId }], clientId: key("handback", computerId), idempotencyKey: key("handback", computerId) });
+    });
+  }
+  return ok;
 }
 
 /** Put the computer to sleep. Undo wakes it. */

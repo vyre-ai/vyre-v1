@@ -274,6 +274,21 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const dlRow = (await filesIn((await filesIn(folderId)).folders.find((f) => f.name === "downloads")!.folderId)).files.find((f) => f.name === "dl.bin") as { size?: number } | undefined;
     assert.equal(dlRow?.size, 2097152, "a 2 MB download went through the upload path whole");
 
+    // take the wheel: a live view ticket, then the person's own click reaches the desktop, and giving back returns the controls to the agent with the time recorded in its steps (rc.9 flow 12)
+    const view = await call(d, "computers.stream", { computerId });
+    assert.equal(view.status, 200, JSON.stringify(view.data));
+    assert.ok(typeof view.data.ticket === "string" && view.data.ticket.length > 0, "a short-lived ticket for the live view");
+    const took = await call(d, "computers.take_over", { computerId });
+    assert.equal(took.status, 200, JSON.stringify(took.data));
+    assert.equal(took.data.computer.state, "takeover");
+    const clicked = await call(d, "computers.screen.click", { computerId, x: 640, y: 400 });
+    assert.equal(clicked.status, 200, `the person's click reached the desktop: ${JSON.stringify(clicked.data)}`);
+    const gave = await call(d, "computers.give_back", { computerId });
+    assert.equal(gave.status, 200, JSON.stringify(gave.data));
+    assert.equal(gave.data.computer.state, "working", "the controls are the agent's again");
+    const steps = (await call(d, "computers.timeline", { computerId })).data.steps as Array<{ caption: string; by: string }>;
+    assert.ok(steps.some((x) => x.by === "person" && /^You took over/.test(x.caption)), `the take-over is a step: ${JSON.stringify(steps).slice(0, 300)}`);
+
     const slept = await call(d, "computers.sleep", { computerId });
     assert.equal(slept.status, 200, JSON.stringify(slept.data));
     assert.equal(slept.data.computer.state, "asleep");

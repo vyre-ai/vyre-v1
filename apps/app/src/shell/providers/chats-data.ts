@@ -189,5 +189,6 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
     nav, clock: rt.clock,
     memory: chatMemory(rt, a),
+    ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
   };
 }

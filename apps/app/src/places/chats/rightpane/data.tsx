@@ -52,6 +52,8 @@ export interface ChatRightPaneData {
   space: { name: string; personal: boolean; computers?: boolean };
   nav: RightPaneNav;
   clock(): Clock;
+  /** Where relative stream addresses start (the Space's own address), for the live view in the Computer tab. */
+  spaceUrl?: string;
   /** The Space's people, for "Delegate" on a routine (the shared people picker draws them). Absent while the directory has not loaded: the picker then says so. */
   people?: readonly DirectoryEntry[];
   /** What the Knows tab reads and writes (facts in scope for this chat and this asker, live and editable). Left out where the shell has none: the tab then shows the agent's own facts as it always did. */
