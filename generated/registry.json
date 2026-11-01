@@ -22576,6 +22576,9 @@
             "pattern": "^fil_[a-z0-9]+$",
             "type": "string"
           },
+          "live": {
+            "type": "boolean"
+          },
           "stepId": {
             "examples": [
               "stp_a1b2c3"

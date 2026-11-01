@@ -180,6 +180,7 @@ export type ScreenshotBlockData = {
   stepId?: string;
   stepIndex?: number;
   at: number;
+  live?: boolean;
 };
 export type SecretInputBlockData = {
   name: string;
