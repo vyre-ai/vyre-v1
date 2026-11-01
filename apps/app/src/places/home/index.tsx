@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
-  AwayDigest, HomeDataProvider, HomeLineProvider, MyWork, NEEDS_SCREEN, NeedsYouTop3, ProjectsAtRisk, RoutinesToday, SelectionProvider, WORK_SCREEN,
+  AwayDigest, HomeDataProvider, HomeLineProvider, MyWork, SinceLine, NEEDS_SCREEN, NeedsYouTop3, ProjectsAtRisk, RoutinesToday, SelectionProvider, WORK_SCREEN,
   dateLine, dayNumber, firstName, greeting, summaryBits, useHomeData, useHomeLine, useOnline, useOptionalHomeData, useScreenQuery, useSelection,
 } from "./sections-a/index.ts";
 import type { HomeData } from "./sections-a/index.ts";
@@ -95,6 +95,7 @@ function Page({ top, bottom, personal }: { top?: ReactNode; bottom?: ReactNode; 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
         <View {...clearOnClick(() => sel.select(null))} style={styles.col}>
           <PersonalGreeting />
+          <SinceLine />
           {top}
           {bottom}
         </View>
@@ -105,6 +106,7 @@ function Page({ top, bottom, personal }: { top?: ReactNode; bottom?: ReactNode; 
     <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
       <View {...clearOnClick(() => sel.select(null))} style={styles.col}>
         <Greeting />
+        <SinceLine />
         {top}
         <AllClear />
         <NeedsYouTop3 />
