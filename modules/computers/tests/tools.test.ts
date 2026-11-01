@@ -104,6 +104,8 @@ test("while a person has the controls the agent's tools wait, and give back lets
   // the person at the controls is not held back by their own take-over: their click through the live view reaches the desktop; another person's does not
   assert.equal((await tool["computers.screen.click"]!(w.h.ctx, { computerId: w.id, x: 5, y: 5 })).ok, true);
   assert.equal(w.d.calls.filter((c) => c.tool === "screen_click").length, 1);
+  assert.equal((w.d.calls.find((c) => c.tool === "screen_click") as { by?: string }).by, "person", "agentd is told it is the person, or its take-over wait would stop them too");
+  assert.equal((w.d.calls.filter((c) => c.tool === "chrome_status")[0] as { by?: string } | undefined)?.by, undefined, "the agent's own calls carry no such mark");
   const other = asPerson(w.h, { kind: "person", id: "usr_other" });
   await refused("computers.screen.click", () => tool["computers.screen.click"]!(other.ctx, { computerId: w.id, x: 1, y: 1 }), "validation.bad_input", "someone else's click during a take-over");
   await giveBack(w.h.ctx, { computerId: w.id });
