@@ -1,6 +1,5 @@
 // @nocache  (these tests start real processes and read fixture files that are not imports, so a pass is never reused from the cache)
-// A persistent CLI session (Claude Code): the same process answers every turn, a dead process is replaced by one that resumes the engine's session, steering goes straight to the running
-// process, and every way a turn can fail is an event with a code, never a hang. Real processes (agent/fixtures/golden-streams/fake-cli.mjs), no mocks of the driver.
+// A persistent CLI session (Claude Code): the same process answers every turn, a dead process is replaced by one that resumes the engine's session, steering waits for the running turn and is the next turn of the same send, and every way a turn can fail is an event with a code, never a hang. Real processes (agent/fixtures/golden-streams/fake-cli.mjs), no mocks of the driver.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CLI_ADAPTERS, LaunchError, createCliDriver } from "../src/drivers/cli/index.ts";
@@ -81,12 +80,13 @@ test("a process that died between turns is replaced by one started with --resume
   await session.close();
 });
 
-test("steering: a message injected during a turn goes to the running process and earns its own reply in the same send", async () => {
+test("steering: a message injected during a turn waits for it to end (the CLI may fold a mid-turn message into the turn it is running, so it is never written early) and earns its own reply in the same send", async () => {
   const spy = newSpy();
   const session = await claude(spy).open(specOf());
   const turn = collect(session.send(turnOf("slow 300")));
   await until(() => spy.writes.length === 1);
   session.inject(message("text", "m2"));
+  assert.equal(spy.writes.length, 1, "nothing is written while the turn runs");
   const events = await turn;
   assert.equal(spy.writes.length, 2);
   assert.equal(JSON.parse(spy.writes[1] ?? "{}").message.content[0].text, "text");

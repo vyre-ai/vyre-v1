@@ -13,7 +13,7 @@ const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any
 const OURS = ["chat.post", "chat.start", "chat.thread", "chat.answer_block", "chat.approve_plan", "threads.make_channel", "channels.create", "channels.connect_outside_agent"];
 
 test("the handler table is exactly the 62 frozen chat capabilities (P-L2_LIVE), and the eight of P-L2_10 are among them", () => {
-  assert.equal(mine.length, 81);   // 62 plus the two chat-mode capabilities (threads.set_mode, threads.agent.configure) and the erase and purge capabilities of P-CC_39, the five per-person list verbs of rc.8 (threads.archive, unarchive, delete, restore, leave), chat.screen.get, chat.history.search (memory exact recall), chat.fork and chat.search, and the four of rc.9 (chat.make_task, chat.remember, chat.share, chat.catch_up)
+  assert.equal(mine.length, 82);   // 62 plus the two chat-mode capabilities (threads.set_mode, threads.agent.configure) and the erase and purge capabilities of P-CC_39, the five per-person list verbs of rc.8 (threads.archive, unarchive, delete, restore, leave), chat.screen.get, chat.history.search (memory exact recall), chat.fork and chat.search, and the five of rc.9 (chat.make_task, chat.remember, chat.share, chat.catch_up, chat.flow_card)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const name of OURS) assert.ok(mine.some((c) => c.name === name), name);
 });

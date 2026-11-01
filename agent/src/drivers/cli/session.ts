@@ -5,7 +5,7 @@
 //   tools      Vyre's tools reach the CLI over MCP and are run by the MCP server (access, Gate and audit happen there). The driver only shows the activity as blocks and never runs a tool
 //              itself, so `sendToolResult` has nothing to do.
 //   resume     the engine's session id is learned from its first event and kept; a process that died between turns, or a cancelled one, is replaced by one started with that id.
-//   steering   a message injected during a turn goes to a persistent engine's stdin at once; for a one-shot engine it becomes the next turn of the same send.
+//   steering   a message injected during a turn waits for it to end and becomes the next turn of the same send (persistent and one-shot engines alike).
 //   cancel     the process is stopped (TERM, then KILL after the grace time). A cancelled session is dirty: the pool closes it instead of reusing it, and the next one resumes by id.
 import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
@@ -215,8 +215,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
       for (;;) {
         const outcome = yield* turn(prompt, input.asker, ac.signal);
         if (outcome === "stop") return;
-        // One-shot engines take steering as the next turn of this send.
-        if (a.persistent || steer.length === 0) break;
+        // Steering takes the next turn of this send.
+        if (steer.length === 0) break;
         prompt = steer.splice(0, steer.length).map((m) => label(m, input.asker)).join("\n\n");
       }
       yield { type: "done" };
@@ -231,15 +231,10 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     get pid() { return run?.proc.pid; },
     send: (input) => send(input),
     sendToolResult(_callId: string, _result: ToolResult) { /* tools run through MCP, not here */ },
-    inject(msg) {
-      const r = run;
-      if (running && a.persistent && r !== null && r.alive) {
-        outstanding += 1;
-        r.proc.write(a.encode(label(msg, spec.asker))).catch(() => { outstanding -= 1; steer.push(msg); });
-        return;
-      }
-      steer.push(msg);
-    },
+    // A message that arrives while a turn is running waits for that turn to end and is then sent as the next turn of this same send, for a persistent engine as for a one-shot one. Writing it to the
+    // process at once made the turn's end depend on whether the CLI answers it as a turn of its own or folds it into the one it is running (the real claude folds it in: one result for both), and the
+    // wrong guess left the engine waiting for a result that never came: the agent went quiet with no error.
+    inject(msg) { steer.push(msg); },
     async cancel() {
       abort?.abort();
       const r = run;
