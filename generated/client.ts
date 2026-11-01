@@ -178,6 +178,7 @@ export function createClient(transport: Transport) {
         set: call("automations.alerts.set", 1),
       },
       analytics: call("automations.analytics", 1),
+      code_reach: call("automations.code_reach", 1),
       connector_card: call("automations.connector_card", 1),
       connector_levels: call("automations.connector_levels", 1),
       connector_offer: {
@@ -947,6 +948,10 @@ export function createClient(transport: Transport) {
       deny: call("gate.deny", 1),
       effective_rule: call("gate.effective_rule", 1),
       expire: call("gate.expire", 1),
+      grants: {
+        set: call("gate.grants.set", 1),
+        take: call("gate.grants.take", 1),
+      },
       holds: {
         get: call("gate.holds.get", 1),
         list: call("gate.holds.list", 1),

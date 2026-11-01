@@ -8,6 +8,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.alerts.get": async () => ({"alerts":{"escalation":[{"afterHours":1,"to":{"id":"usr_a1b2c3","kind":"person"}}],"when":{"mode":"every","n":2},"where":{"channelId":"chn_a1b2c3","dm":true,"needsYou":true},"who":[{"id":"usr_a1b2c3","kind":"person"}]}} as unknown) as never,
   "automations.alerts.set": async () => ({"alerts":{"escalation":[{"afterHours":1,"to":{"id":"usr_a1b2c3","kind":"person"}}],"when":{"mode":"every","n":2},"where":{"channelId":"chn_a1b2c3","dm":true,"needsYou":true},"who":[{"id":"usr_a1b2c3","kind":"person"}]}} as unknown) as never,
   "automations.analytics": async () => ({"automations":[{"automationId":"aut_a1b2c3","failed":1,"lastRunAt":1760000000000,"name":"example","runs":1,"succeeded":1}],"daily":[{"day":"example","failed":1,"other":1,"succeeded":1}],"failures":[{"automationId":"aut_a1b2c3","code":"example","count":1,"step":"example"}],"totals":{"active":1,"costMicros":1,"failed":1,"medianMs":1,"runs":1,"stopped":1,"succeeded":1,"successRate":1},"windowDays":1} as unknown) as never,
+  "automations.code_reach": async () => ({"ok":true} as unknown) as never,
   "automations.connector_card": async () => ({"messageId":"example"} as unknown) as never,
   "automations.connector_levels": async () => ({"levels":[{"actionKey":"example","level":"draft"}]} as unknown) as never,
   "automations.connector_offer.accept": async () => ({"decision":"accepted"} as unknown) as never,
