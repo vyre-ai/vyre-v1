@@ -5,7 +5,7 @@
 // proposing, and the person tapping Looks good (on the question card in the browser; through the capability the card calls when there is no browser).
 import path from "node:path";
 import { claimOnEdge, dismissOnboarding } from "../../apps/app/tests/real-app-harness.test.ts";
-import { ok, shots } from "./crm-journey-kit.ts";
+import { MEMBER_PASSWORD, ok, shots } from "./crm-journey-kit.ts";
 import type { Space } from "./crm-journey-kit.ts";
 import type { Know } from "./agent-standin.ts";
 
@@ -28,7 +28,7 @@ export const OUT = path.join(process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join(p
 type Pg = any;
 export const rows = async (s: Space, type: string): Promise<any[]> => (await ok(s, "records.query", { type, limit: 200 })).rows as any[];
 export const nameOf = (r: any): string => String(r.data?.name ?? r.fields?.name ?? "");
-export interface Ctl { member(who: { personId: string; token: string }): Promise<Pg> }
+export interface Ctl { member(who: { personId: string; token: string; username: string }): Promise<Pg> }
 
 /** What the page shows, for a failure message: the address and the test ids on screen. */
 export async function seen(page: Pg): Promise<string> {
@@ -60,10 +60,12 @@ export async function session<T>(s: Space, kind: "personal" | "team", fn: (page:
         const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
         const p = await ctx.newPage();
         p.setDefaultTimeout(15_000);
-        await p.goto(`${origin}/healthz`).catch(() => undefined);
-        await p.evaluate(([o, token, person]) => {
-          localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [o!]: { baseUrl: o, token, personId: person, marker: "m", def: { spaceId: "spc_crm_team", name: "Firm", kind: "team", address: o, role: "Member", tint: ["#6E5CF0", "#9B6BE8"], kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: false, terminal: false, counts: {}, dots: {} } } } }));
-        }, [origin, who.token, who.personId] as [string, string, string]);
+        await p.goto(`${origin}/home`, { waitUntil: "load" });
+        await p.getByTestId("si-user").waitFor({ timeout: 20_000 });
+        await p.getByTestId("si-user").fill(who.username);
+        await p.getByTestId("si-password").fill(MEMBER_PASSWORD);
+        await p.getByTestId("next").click();
+        await dismissOnboarding(p);
         return p;
       },
     });

@@ -42,11 +42,21 @@ test("journey 6, Team member: another person's own browser sees the records and 
       assert.equal(await mayaCall("records.query", { type: "person", limit: 5 }), 200);
       assert.notEqual(await mayaCall("sync_types.pause", { type: "person" }), 200, "a member cannot pause the sync");
       assert.notEqual(await mayaCall("sync_specs.remove", { type: "person" }), 200, "a member cannot remove it");
-      // the member's own browser needs a real sign-in (their keys come from the invite, which this fixture fakes), so what a member's screen hides is proven by the Sync page's own tests (canManage off);
-      // here the owner's browser shows the controls a member lacks, and the member's token above is refused them by the server.
-      void ctl; void maya;
       if (page) {
+        // the member in their own browser, signed in through the sign-in screen: the records and the dot, none of the buttons that change the sync
+        const mp = await ctl.member(maya);
         const pics = shots(OUT, "6-team-member");
+        await mp.goto(`${s.web!.origin}/records`);
+        await mp.getByTestId("records-sidebar").waitFor().catch(async (e: Error) => { throw new Error(`${e.message} :: ${await seen(mp)}`); });
+        await pics.take(mp, "member-records");
+        // a member sees the dot and the records, and nothing that opens or changes the sync
+        assert.equal(await mp.getByTestId("row-nav:type:person-trailing").getByTestId("sync-dot").count(), 1, "the member sees the dot");
+        await mp.getByTestId("row-nav:type:person-trailing").getByTestId("sync-dot").click({ force: true, timeout: 3000 }).catch(() => undefined);
+        await mp.waitForTimeout(1500);
+        assert.equal(await mp.getByTestId("sync-page").count(), 0, "the dot does not open the Sync page for a member");
+        for (const id of ["sync-pause", "sync-resume", "sync-remove", "sync-edit", "sync-resync", "sync-backfill"]) assert.equal(await mp.getByTestId(id).count(), 0, `${id} is not shown to a member`);
+        await pics.take(mp, "member-after-dot");
+        // the owner's browser still has them
         await openSync(s, page);
         assert.ok((await page.getByTestId("sync-pause").count()) + (await page.getByTestId("sync-resume").count()) > 0, "the owner sees Pause");
         await pics.take(page, "owner-sync-page");

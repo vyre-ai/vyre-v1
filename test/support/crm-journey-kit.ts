@@ -16,6 +16,7 @@ import { makeUse } from "./bench.ts";
 import { fillSpec } from "./agent-standin.ts";
 import type { Know } from "./agent-standin.ts";
 import type { DriverEvent } from "../../agent/src/turn-engine/types.ts";
+import { makeBundle, wipe } from "../../client/src/crypto/keys.ts";
 import { KEY_A, KEY_B } from "../../modules/connectors/fixtures/crm.ts";
 import { startFakeCrm } from "./fake-crm-server.ts";
 import type { FakeCrm } from "./fake-crm-server.ts";
@@ -235,15 +236,20 @@ export async function chatSetup(s: Space, know: (handle: string) => Know, app: "
 }
 
 /** A person invited to the Space, as the Console's invite makes them. Returns their id and the token their browser holds. */
-export async function joinMember(s: Space, username: string, displayName: string): Promise<{ personId: string; token: string }> {
+export const MEMBER_PASSWORD = "correct horse battery staple 9";
+export async function joinMember(s: Space, username: string, displayName: string): Promise<{ personId: string; token: string; username: string }> {
   const roles = (await ok(s, "access.roles.list", {})).roles as { id: string; name: string }[];
   const member = roles.find((r) => r.name === "Member")!;
   const inv = await ok(s, "members.invites.create", { role: member.id });
   const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
-  const keys = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
-  const r = await fetch(`${s.d.url}/v1/members/accept`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, username, displayName, password: "fixture password 123", deviceName: `${displayName}'s laptop`, deviceClass: "desktop", keys }) });
+  // real key bundles, as the apps make them, so the person can sign in through the sign-in screen
+  const made = await makeBundle(MEMBER_PASSWORD, "recovery-code-for-the-test", { spaceId: `spc_crm_${s.kind}` });
+  const { personKey, ...rest } = made;
+  wipe(personKey);
+  const keys = { personKeyByPassword: rest.personKeyByPassword, personKeyByRecovery: rest.personKeyByRecovery, publicKey: rest.publicKey, privateKeyWrapped: rest.privateKeyWrapped, spaceKeys: rest.spaceKeys };
+  const r = await fetch(`${s.d.url}/v1/members/accept`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, username, displayName, password: MEMBER_PASSWORD, deviceName: `${displayName}'s laptop`, deviceClass: "desktop", keys }) });
   if (r.status !== 200) throw new Error(`accept ${r.status}: ${(await r.text()).slice(0, 300)}`);
-  return ((await r.json()) as { data: { personId: string; token: string } }).data;
+  return { ...((await r.json()) as { data: { personId: string; token: string } }).data, username };
 }
 
 /** An admin gives the assistant the right to manage these record types, so it can choose who they are open to. */

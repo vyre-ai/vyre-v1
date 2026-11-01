@@ -224,7 +224,7 @@ async function main(): Promise<void> {
       const types = ((await ok("sync_types.list", {})).syncedTypes as { type: string; connector: string }[]);
       if (types.length > 0 && !applied) { applied = true; say("note", `the agent applied the sync: record types ${types.map((t) => t.type).join(", ")}`); }
       if (applied) {
-        const runs = ((await ok("runs.list", { scope: "all", kinds: ["connector_sync"] })).runs ?? []) as { status: string }[];
+        const runs = ((await ok("runs.list", { scope: "mine", kinds: ["connector_sync"] })).runs ?? []) as { status: string }[];
         if (runs.length > 0 && runs.every((r) => r.status === "succeeded" || r.status === "failed")) done = true;
       }
       if (!done && Date.now() - lastNew > 150_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 150 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
