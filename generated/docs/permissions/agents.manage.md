@@ -15,6 +15,7 @@ Area: agents. Risk: medium. Applies to: agent.
 ## Capabilities that need it
 
 - agents.template.apply
+- engine.mcp.oauth_start
 - plugins.agent_template.use
 - plugins.config.set
 - plugins.connection.add
