@@ -2516,6 +2516,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_drop_queued",
+      "summary": "Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_incident_assign",
       "summary": "Assign an incident to an owner",
       "toolset": "meta"

@@ -9491,6 +9491,13 @@ export type EngineDefaultsSetIn = {
 export type EngineDefaultsSetOut = {
   ok: boolean;
 };
+export type EngineDropQueuedIn = {
+  threadId: string;
+  messageId: string;
+};
+export type EngineDropQueuedOut = {
+  dropped: boolean;
+};
 export type EngineHealthIn = Record<string, unknown>;
 export type EngineHealthOut = {
   state: "healthy" | "degraded" | "down";
@@ -33248,6 +33255,7 @@ export interface CapMap {
   "engine.crew.workspace": { in: EngineCrewWorkspaceIn; out: EngineCrewWorkspaceOut };
   "engine.defaults.get": { in: EngineDefaultsGetIn; out: EngineDefaultsGetOut };
   "engine.defaults.set": { in: EngineDefaultsSetIn; out: EngineDefaultsSetOut };
+  "engine.drop_queued": { in: EngineDropQueuedIn; out: EngineDropQueuedOut };
   "engine.health": { in: EngineHealthIn; out: EngineHealthOut };
   "engine.incident.assign": { in: EngineIncidentAssignIn; out: EngineIncidentAssignOut };
   "engine.incident.get": { in: EngineIncidentGetIn; out: EngineIncidentGetOut };

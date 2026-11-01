@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (77)
+## Capabilities (78)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
@@ -21,6 +21,7 @@ Requires: nothing.
 - [engine.crew.workspace](../capabilities/engine.crew.workspace.md): System: the repository copy a teammate thread works in, so the engine can make it before the first turn
 - [engine.defaults.get](../capabilities/engine.defaults.get.md): The caller default model, provider, effort and fallback order in this Space
 - [engine.defaults.set](../capabilities/engine.defaults.set.md): Set the caller default model, provider, effort and fallback order (the chat default)
+- [engine.drop_queued](../capabilities/engine.drop_queued.md): Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it
 - [engine.health](../capabilities/engine.health.md): Engine health: queue age, lease holders, provider reachability
 - [engine.incident.assign](../capabilities/engine.incident.assign.md): Assign an incident to an owner
 - [engine.incident.get](../capabilities/engine.incident.get.md): Read one AI incident with its notes

@@ -724,6 +724,7 @@ export function createClient(transport: Transport) {
         get: call("engine.defaults.get", 1),
         set: call("engine.defaults.set", 1),
       },
+      drop_queued: call("engine.drop_queued", 1),
       health: call("engine.health", 1),
       incident: {
         assign: call("engine.incident.assign", 1),

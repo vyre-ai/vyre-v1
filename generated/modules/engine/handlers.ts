@@ -20,6 +20,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.crew.workspace": Handler<"engine.crew.workspace", X>;
   "engine.defaults.get": Handler<"engine.defaults.get", X>;
   "engine.defaults.set": Handler<"engine.defaults.set", X>;
+  "engine.drop_queued": Handler<"engine.drop_queued", X>;
   "engine.health": Handler<"engine.health", X>;
   "engine.incident.assign": Handler<"engine.incident.assign", X>;
   "engine.incident.get": Handler<"engine.incident.get", X>;

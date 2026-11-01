@@ -20,6 +20,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.crew.workspace": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.workspace", ctx.trace)); },
   "engine.defaults.get": async (ctx) => { throw new VyreErr(notImplemented("engine.defaults.get", ctx.trace)); },
   "engine.defaults.set": async (ctx) => { throw new VyreErr(notImplemented("engine.defaults.set", ctx.trace)); },
+  "engine.drop_queued": async (ctx) => { throw new VyreErr(notImplemented("engine.drop_queued", ctx.trace)); },
   "engine.health": async (ctx) => { throw new VyreErr(notImplemented("engine.health", ctx.trace)); },
   "engine.incident.assign": async (ctx) => { throw new VyreErr(notImplemented("engine.incident.assign", ctx.trace)); },
   "engine.incident.get": async (ctx) => { throw new VyreErr(notImplemented("engine.incident.get", ctx.trace)); },

@@ -724,6 +724,7 @@ export function stubs(ctx: CallCtx) {
         get: call("engine.defaults.get"),
         set: call("engine.defaults.set"),
       },
+      drop_queued: call("engine.drop_queued"),
       health: call("engine.health"),
       incident: {
         assign: call("engine.incident.assign"),

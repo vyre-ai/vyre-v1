@@ -19,6 +19,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.crew.workspace": async () => ({"workspace":{"base":"example","branch":"example","jobId":"example","name":"example","repo":"example"}} as unknown) as never,
   "engine.defaults.get": async () => ({"effort":"low","fallback":[{"accountRef":"#Team_Anthropic_Key","model":"example","provider":"example"}],"model":"example","provider":"example"} as unknown) as never,
   "engine.defaults.set": async () => ({"ok":true} as unknown) as never,
+  "engine.drop_queued": async () => ({"dropped":true} as unknown) as never,
   "engine.health": async () => ({"detail":"example","latencyMs":1,"oldestQueuedMs":1,"state":"healthy"} as unknown) as never,
   "engine.incident.assign": async () => ({"incident":{"agentId":"agt_a1b2c3","incidentId":"inc_a1b2c3","kind":"label_denied","notes":[{"at":1760000000000,"by":"example","text":"example"}],"openedAt":1760000000000,"ownerId":"usr_a1b2c3","resolvedAt":1760000000000,"state":"open","title":"example","turnId":"trn_a1b2c3"}} as unknown) as never,
   "engine.incident.get": async () => ({"incident":{"agentId":"agt_a1b2c3","incidentId":"inc_a1b2c3","kind":"label_denied","notes":[{"at":1760000000000,"by":"example","text":"example"}],"openedAt":1760000000000,"ownerId":"usr_a1b2c3","resolvedAt":1760000000000,"state":"open","title":"example","turnId":"trn_a1b2c3"}} as unknown) as never,
