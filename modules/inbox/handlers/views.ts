@@ -84,8 +84,10 @@ async function reasonsOf(ctx: InboxCtx, reach: Reach, row: Row): Promise<Reason[
  */
 export async function mustSee(ctx: InboxCtx, conv: Row): Promise<void> {
   const verdict = ctx.authorize({ perm: null, level: "view" }, { type: "conversation", id: str(conv, "id") });
-  if (verdict.effect === "allow") return;
-  if (verdict.reason === "not_found" && (await reasonsOf(ctx, reachOf(ctx), conv)).length > 0) return;
+  // a conversation from a private mailbox belongs to its owner whatever the Space's role grants say (they name every conversation as the Space's): only the reasons open it
+  const own = privateIds(ctx).has(str(conv, "id"));
+  if (verdict.effect === "allow" && !own) return;
+  if ((verdict.effect === "allow" || verdict.reason === "not_found") && (await reasonsOf(ctx, reachOf(ctx), conv)).length > 0) return;
   throw fail("permission.not_found", ctx.trace.traceId);
 }
 

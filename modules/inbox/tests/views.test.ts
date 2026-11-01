@@ -338,3 +338,13 @@ test("the guard on a conversation's writes follows the same rule: the inbox it a
   await guardConversation(h.ctx, "cnv_missing1");
   await guardConversation(h.ctx, undefined);
 });
+
+test("a private conversation opens only through its reasons even when the Space's grants allow every conversation", async () => {
+  const { h, c1, c2 } = await world();
+  h.ctx.db.run(`INSERT INTO inbox_private ("conversationId") VALUES (?)`, c2);   // c2 is in a shared inbox the caller sees, but as a private conversation it is not theirs unless owner or inbox reaches
+  h.ctx.db.run(`UPDATE inbox_conversation SET "mailboxIds" = ?, "ownerId" = ? WHERE id = ?`, "[]", "usr_omar01", c2);
+  assert.equal((await thread(h.ctx, { conversationId: c1 })).conversation.id, c1, "a shared conversation is as before");
+  await refused(thread(h.ctx, { conversationId: c2 }), "permission.not_found");
+  h.ctx.db.run(`UPDATE inbox_conversation SET "ownerId" = ? WHERE id = ?`, "usr_maya01", c2);
+  assert.equal((await thread(h.ctx, { conversationId: c2 })).conversation.id, c2, "its owner opens it");
+});
