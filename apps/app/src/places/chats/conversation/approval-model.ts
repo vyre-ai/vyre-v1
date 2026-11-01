@@ -19,7 +19,7 @@ const WANTS: Record<string, string> = {
   "records.update": "change", "records.create": "add a record", "records.delete": "delete",
   "mail.send": "send an email", "inbox.reply": "send a reply", "twilio.send": "send a text", "telephony.sms.send": "send a text",
   "stripe.refund.create": "refund a payment", "calendar.create_event": "put an event on the calendar", "calendar.update_event": "change an event", "calendar.delete_event": "delete an event",
-  "git.push": "push your changes", "git.commit": "save your changes to the repository", "sites.promote": "put the site live",
+  "git.push": "push your changes", "git.commit": "save your changes to the repository", "sites.promote": "put the site live", "engine.crew.merge": "merge a teammate's branch", "engine.crew.push": "push a teammate's branch",
 };
 
 /** A step with no entry of its own, in plain words: "tasks.create" is "create a task", "calendar.add_guest" is "add a guest on calendar", never the capability's own name. */
@@ -106,7 +106,7 @@ export function doneLine(outcome: "allowed" | "denied", cap: string, subject?: s
 export const denyNote = (reason: string): string => (reason.trim() === "" ? "Not allowed." : reason.trim());
 
 /** The outcome of a task that has already ended, read from its state. */
-export const outcomeOf = (state: string): "allowed" | "denied" | null => (state === "done" ? "allowed" : state === "canceled" ? "denied" : null);
+export const outcomeOf = (state: string): "allowed" | "denied" | null => (state === "done" ? "allowed" : state === "canceled" || state === "doing" ? "denied" : null);   // a held call sent back rests in doing
 
 export interface DiffLine { kind: "add" | "del"; text: string }
 

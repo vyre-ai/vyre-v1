@@ -1,7 +1,7 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
@@ -16,7 +16,7 @@ import { KeptAside } from "./KeptAside.tsx";
 import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
 import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
 import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
-import { probeOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
+import { doneByState, heldTaskOf, probeOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import type { CardState } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import { useThreadMemory } from "../memory/thread.tsx";
 import { rememberMessage } from "../memory/actions.ts";
@@ -30,6 +30,7 @@ import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { ApprovalCard } from "./approval.tsx";
+import { useFollow } from "./use-follow.ts";
 import { CrewResultCard, CrewStartLine, isCrewResult, isCrewStart } from "./crew-card.tsx";
 import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
@@ -85,7 +86,7 @@ export interface MessageActions {
   /** Open another chat on a message (the line a fork starts with). */
   openMessage?(threadId: string, messageId: string): void;
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
-  files?: Pick<ConversationData, "call" | "nav" | "copy">;
+  files?: Pick<ConversationData, "call" | "nav" | "copy" | "changes">;
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
   mountCard?: { agents: readonly { id: string; name: string }[]; data: Pick<ConversationData, "call" | "mountSheet"> };
   /** What a Run this card needs: the capability door, a key for a new session, who asked, and how to show a session. Left out where the shell has no terminal. */
@@ -293,6 +294,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const crewStart = m.blocks.find(isCrewStart);
   const cards = m.blocks.filter((b) => isCard(b) && !isCrewStart(b));
   const statuses = m.blocks.filter(isTurnStatus).map(statusView);
+  // a held call has one card, however many ways the turn named it: the approval card
+  const parked = new Set(statuses.flatMap((x) => (x.kind === "approval" ? [x.taskId] : [])));
   const errors = [...m.blocks.filter(isErrorBlock), ...statuses.flatMap((x) => (x.kind === "error" ? [x.block] : []))];
   const person = item.who.kind === "person";
   // a crew result card says it all (who, what changed, the teammate's words): the message's own text is for the lead agent that wakes on it, so the card stands alone
@@ -335,9 +338,11 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
       {collect(cards, (b) => {
         if (isCrewResult(b) && actions.files) return <CrewResultCard key={b.id} block={b} leadThreadId={m.threadId} data={actions.files} />;
-        if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
+        if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} changes={actions.files?.changes} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         const lc = linkCardOf(b);
+        const held = lc && actions.files ? heldTaskOf(lc) : null;
+        if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} data={actions.files!} />;
         if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
         if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
         if (isKeyRequest(b.type) && actions.files) return <KeyRequestCard key={b.id} requestId={String((b.data as { requestId?: unknown }).requestId ?? "")} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
@@ -396,28 +401,21 @@ function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: 
   };
   const seen = useCardState(data, actions);
   const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={done} state={seen.state} hidden={seen.hidden} />;
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={seen.hidden} />;
 }
 
-/** What a work card says now, read as this reader: its state while it is live (read again every few seconds), and whether they may open it at all. */
+/** What a work card says now, read as this reader: its state while it is live (read again on every change in the Space), and whether they may open it at all. */
 function useCardState(data: LinkCardData, actions: MessageActions): { state: CardState | null; hidden: boolean } {
   const [seen, setSeen] = useState<{ state: CardState | null; hidden: boolean }>({ state: null, hidden: false });
   const probe = probeOf(data);
   const key = probe ? `${probe.cap}:${JSON.stringify(probe.input)}` : "";
-  useEffect(() => {
+  const read = useCallback(async (): Promise<void> => {
     if (!probe) return;
-    let live = true, timer: ReturnType<typeof setTimeout> | undefined, tries = 0;
-    const read = (): void => {
-      Promise.resolve(actions.host.invoke(probe.cap, probe.input)).then((out) => {
-        if (!live) return;
-        const state = stateOf(data, out);
-        setSeen({ state, hidden: false });
-        if (state?.live && ++tries < 60) timer = setTimeout(read, 4000);
-      }, () => { if (live) setSeen({ state: null, hidden: true }); });
-    };
-    read();
-    return () => { live = false; if (timer) clearTimeout(timer); };
-  }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read loop per card
+    try { setSeen({ state: stateOf(data, await actions.host.invoke(probe.cap, probe.input)), hidden: false }); }
+    catch { setSeen({ state: null, hidden: true }); }
+  }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read per card and target
+  useEffect(() => { void read(); }, [read]);
+  useFollow(actions.files?.changes, read, probe !== null && (seen.state === null ? !seen.hidden : seen.state.live));
   return seen;
 }
 

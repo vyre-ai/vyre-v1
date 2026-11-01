@@ -59,3 +59,25 @@ test("the same card in an agent's message or a person's message calls nothing, w
   assert.equal(find(mine, "link-card-blk_c-on"), null, "a person's own message draws no card at all");
   assert.equal(n, 0);
 });
+
+const heldBlock = { id: "blk_h", type: "link_card", v: 1, state: "done", data: { icon: "approval", lead: "Message", title: "Your engagement letter", target: { type: "task", id: "tsk_h" } } };
+const parkedBlock = { id: "blk_s", type: "turn_status", v: 1, state: "done", data: { state: "waiting", turnId: "trn_1", taskId: "tsk_h" } };
+
+function heldView(blocks: unknown[]) {
+  const r = createSample("idle");
+  const m = { messageId: "m_h", threadId: r.data.threadId, threadSeq: 1, author: { kind: "agent", id: "agt_billing" }, kind: "agent", body: "", blocks, createdAt: 1, reactions: [], pinned: false, attachments: [] } as unknown as Message;
+  const it = timeline([m], { meId: r.data.me.id, nameOf: r.data.nameOf, kindOf: r.data.kindOf, clock: r.data.clock() }).find((x) => x.kind !== "day")!;
+  const task = { task: { id: "tsk_h", kind: "approve", title: "Approve", state: "awaiting_approval", blocks: [{ type: "doc_excerpt", v: 1, data: { act: "send", cap: "mail.send", input: { subject: "Your engagement letter" } } }], actions: [] } };
+  const actions = { openBeside: () => undefined, nameOf: r.data.nameOf, host: { invoke: async () => ({}), open: () => undefined }, files: { call: async () => task, nav: {}, copy: () => undefined } } as never;
+  return <MessageView item={it} actions={actions} meId={r.data.me.id} />;
+}
+
+test("a held call has one card: the approval card, whether the turn parked on it, named it, or both", async () => {
+  installDom();
+  const both = await mount(createRoot, heldView([heldBlock, parkedBlock]));
+  assert.equal(find(both, "link-card-blk_h"), null, "the work card is not drawn beside it");
+  assert.equal(JSON.stringify(both.toJSON()).match(/"data-testid":"approval-tsk_h"|"testID":"approval-tsk_h"/g)?.length, 1, "one approval card");
+  const named = await mount(createRoot, heldView([heldBlock]));
+  assert.ok(find(named, "approval-allow-tsk_h"), "a call only named, with no parked turn, still gets its card with Allow");
+  assert.equal(find(named, "link-card-blk_h"), null);
+});

@@ -2,7 +2,7 @@
 // words, and two actions: Merge, which lands the branch in the project, and Send back, which tells the teammate what to change in its own thread. A merged card collapses to one line. The card reads the job's
 // state from the crew list, so it is right after a reload and for someone who opens the chat later.
 import { useCallback, useEffect, useState } from "react";
-import { usePoll } from "./use-poll.ts";
+import { useFollow } from "./use-follow.ts";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -11,7 +11,7 @@ import { Glyph, TextButton } from "./parts.tsx";
 import { collect } from "./model.ts";
 import type { MessageBlock } from "./model.ts";
 
-type Data = Pick<ConversationData, "call" | "nav">;
+type Data = Pick<ConversationData, "call" | "nav" | "changes">;
 type Job = CapMap["engine.crew.list"]["out"]["jobs"][number];
 
 /** The line a lead's chat shows when a teammate starts: a helper block that says `crew`. */
@@ -59,28 +59,12 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
   const [back, setBack] = useState(false);
   const [words, setWords] = useState("");
 
-  const [heldTask, setHeldTask] = useState<string | null>(null);
-  // the card follows the repository, not its own buttons: it reads the job when it shows and every few seconds after, so a branch merged or pushed any other way flips it without a refresh.
-  // A merge the lead asked for waits for a person: the approval shows here, not only in Needs you.
+  // the card follows the repository, not its own buttons: it reads the job when it shows and on every change in the Space, so a branch merged or pushed any other way flips it without a refresh. A merge the lead
+  // asked for is a held call, and a held call has one card: the approval card under the lead's message (conversation/approval.tsx).
   const look = useCallback(async (): Promise<void> => {
     try { const out = (await data.call("engine.crew.list", { threadId: leadThreadId })) as CapMap["engine.crew.list"]["out"]; setJob(out.jobs.find((j) => j.jobId === c.jobId) ?? null); } catch { /* the card still works from its own words */ }
-    try {
-      const holds = ((await data.call("gate.holds.list", { states: ["held"] })) as { holds?: Array<{ capName: string; taskId: string }> }).holds ?? [];
-      let found: string | null = null;
-      for (const h of holds.filter((x) => x.capName === "engine.crew.merge")) {
-        const t = ((await data.call("tasks.get", { taskId: h.taskId })) as { task?: { blocks?: Array<{ data?: { input?: { jobId?: string } } }> } }).task;
-        if (t?.blocks?.[0]?.data?.input?.jobId === c.jobId) { found = h.taskId; break; }
-      }
-      setHeldTask(found);
-    } catch { /* no holds to read: nothing is shown */ }
   }, [data, leadThreadId, c.jobId]);
   useEffect(() => { void look(); }, [look]);
-  usePoll(look, true);
-  const approve = async (): Promise<void> => {
-    if (!heldTask) return;
-    setBusy(true);
-    try { await data.call("tasks.act", { taskId: heldTask, action: "approve" }); setLine("Approved. Merging."); } catch { setLine("Could not approve. Try again."); } finally { setBusy(false); void look(); }
-  };
 
   const merged = job?.state === "merged" || line?.startsWith("Merged") === true;
   const merge = async (): Promise<void> => {
@@ -98,6 +82,8 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
   };
 
   const pushed = Boolean((job?.result as { pushed?: unknown } | undefined)?.pushed) || line?.startsWith("Pushed") === true;
+  // nothing more can happen to a card that is stopped, or merged and pushed
+  useFollow(data.changes, look, job?.state !== "stopped" && !(merged && pushed));
   // Push sends the merged work to the project's remote from the host. It is an outward act: it holds for approval, and the card says so
   const push = async (): Promise<void> => {
     setBusy(true);
@@ -146,12 +132,6 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
           <TextButton label="Open thread" onPress={() => data.nav.openThread(c.threadId)} testID={`crew-open-${c.jobId}`} />
         </View>
       )}
-      {heldTask ? (
-        <View style={st.row}>
-          <Text testID={`crew-held-${c.jobId}`} style={st.line}>The lead wants to merge this.</Text>
-          <TextButton label="Approve" primary onPress={() => { void approve(); }} disabled={busy} testID={`crew-approve-${c.jobId}`} />
-        </View>
-      ) : null}
       {line ? <Text testID={`crew-line-${c.jobId}`} style={st.line}>{line}</Text> : null}
     </View>
   );

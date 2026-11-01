@@ -276,6 +276,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const runtime: ShellRuntime = {
     createRecordsPreview: ticket => createRecordsPreview({...ticket,baseUrl:o.baseUrl,...(o.fetch?{fetch:o.fetch}:{}),...(o.routes?{routes:o.routes}:{}),now:o.now??Date.now}),
     screens: hooks,
+    changes: { subscribe: (l) => hooks.onInvalidate(l) },
     turns,
     call: (cap, input) => call(cap, input),
     callIn: async (spaceId, cap, input) => {

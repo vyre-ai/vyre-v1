@@ -1,7 +1,8 @@
 // The approval card of a chat (rc.8). A turn that parks on a hold (Ask mode before a change, or any mode before something leaves Vyre) leaves a turn_status "waiting" block with the hold's task.
 // The card reads that task and answers it here: what the agent wants to do, a short excerpt, Allow and Deny. Deny asks for an optional reason that goes back to the agent. An answered card
-// collapses to one line ("Allowed · edit Q4 pricing.docx"). The same task is in Needs you; answering in either place answers both.
-import { useEffect, useState } from "react";
+// collapses to one line ("Allowed · edit Q4 pricing.docx"). The same task is in Needs you; answering in either place answers both: the card reads the task on every change in the Space, so it never offers a
+// choice that is gone, and a press that was too late hears "Already decided.".
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -11,9 +12,11 @@ import { collect } from "./model.ts";
 import { denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, wantsLine } from "./approval-model.ts";
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
+import { useFollow } from "./use-follow.ts";
+import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 
 type Task = CapMap["tasks.get"]["out"]["task"];
-type Data = Pick<ConversationData, "call" | "nav">;
+type Data = Pick<ConversationData, "call" | "nav" | "changes">;
 
 /** The name of the file or record a step is about, for the line that says what it wants. Empty when it cannot be read. */
 async function subjectOf(data: Data, cap: string, input: Record<string, unknown>): Promise<string | undefined> {
@@ -34,27 +37,32 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<"allowed" | "denied" | null>(null);
+  const mounted = useRef(true);
+  const described = useRef(false);
 
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const t = ((await data.call("tasks.get", { taskId })) as CapMap["tasks.get"]["out"]).task;
-        const h = heldOf(t.blocks);
-        const s = await subjectOf(data, h.cap, h.input);
-        let d: { lines: DiffLine[]; more: number } | null = null;
-        const next = (h.input["content"] as { text?: unknown } | undefined)?.text;
-        if (h.cap === "files.write" && typeof next === "string" && typeof h.input["fileId"] === "string") {
-          try {
-            const cur = ((await data.call("files.read", { fileId: h.input["fileId"], as: "text" })) as { text?: string }).text;
-            if (typeof cur === "string") d = diffLines(cur, next);
-          } catch { /* no current text: the new text is shown */ }
-        }
-        if (live) { setTask(t); setSubject(s); setDiff(d); }
-      } catch { if (live) setTask(null); }
-    })();
-    return () => { live = false; };
+  // the task on every change; what the held call touches only once, because it does not change
+  const load = useCallback(async (): Promise<void> => {
+    try {
+      const t = ((await data.call("tasks.get", { taskId })) as CapMap["tasks.get"]["out"]).task;
+      if (!mounted.current) return;
+      setTask(t);
+      if (described.current) return;
+      described.current = true;
+      const h = heldOf(t.blocks);
+      const s = await subjectOf(data, h.cap, h.input);
+      let d: { lines: DiffLine[]; more: number } | null = null;
+      const next = (h.input["content"] as { text?: unknown } | undefined)?.text;
+      if (h.cap === "files.write" && typeof next === "string" && typeof h.input["fileId"] === "string") {
+        try {
+          const cur = ((await data.call("files.read", { fileId: h.input["fileId"], as: "text" })) as { text?: string }).text;
+          if (typeof cur === "string") d = diffLines(cur, next);
+        } catch { /* no current text: the new text is shown */ }
+      }
+      if (mounted.current) { setSubject(s); setDiff(d); }
+    } catch { if (mounted.current) setTask((was) => was ?? null); }
   }, [data, taskId]);
+  useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; }; }, [load]);
+  useFollow(data.changes, load, task === undefined || (task !== null && outcomeOf(task.state) === null && outcome === null));
 
   if (task === undefined || task === null) return null;
   const held = heldOf(task.blocks);
@@ -71,7 +79,7 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
     setBusy(true); setLine(null);
     void Promise.resolve(data.call("tasks.act", { taskId, action: key, ...(note !== undefined ? { note } : {}) })).then(
       () => setOutcome(key === "approve" ? "allowed" : "denied"),
-      () => setLine("Failed. Try again."),
+      (e: unknown) => { setLine(isDecided(e) ? DECIDED_LINE : "Failed. Try again."); if (isDecided(e)) void load(); },
     ).finally(() => setBusy(false));
   };
   const rows = excerptLines(held.input, 5, held.cap);

@@ -27,6 +27,8 @@ export interface RemoteHooks extends ScreenHooks {
   capQuery<T>(cap: string, input?: Record<string, unknown>): LiveQuery<T>;
   /** Re-read every query that is being watched. */
   invalidate(): void;
+  /** Hear each invalidate: what a card that reads by capability follows, on the same tick as the queries. */
+  onInvalidate(listener: () => void): () => void;
   /** Warm a screen query: read it now with nobody watching, so the first draw of the place finds the answer. */
   prefetch(screenId: string, name: string, state?: Record<string, unknown>): void;
   /** How many queries are being watched right now. */
@@ -65,6 +67,7 @@ export function stableJson(v: unknown): string {
 
 export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
   const entries = new Map<string, Entry>();
+  const followers = new Set<() => void>();
   let closed = false;
 
   const notify = (e: Entry): void => { for (const l of [...e.listeners]) l(); };
@@ -137,6 +140,11 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
         if (e.listeners.size > 0) fetchEntry(e);
         else e.stale = true;
       }
+      for (const l of [...followers]) l();
+    },
+    onInvalidate(listener) {
+      followers.add(listener);
+      return () => { followers.delete(listener); };
     },
     prefetch(screenId, name, state = {}) {
       const screen = opts.screens.get(screenId);
@@ -152,6 +160,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     },
     close() {
       closed = true;
+      followers.clear();
       for (const e of entries.values()) e.listeners.clear();
       entries.clear();
     },
