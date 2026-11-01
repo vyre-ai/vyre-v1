@@ -25,8 +25,8 @@ export interface AllAgentsProps {
   /** Start (or return to) a chat with this agent. */
   onChat(agentId: string): void;
   onOpenPage(agentId: string): void;
-  /** Where agents are made; the button is left out when the shell has no such place. */
-  onNewAgent?: () => void;
+  /** Make an agent by name and answer its id; the New agent form is left out when the shell cannot. A Personal Space makes agents too. */
+  onCreate?: (name: string) => Promise<string>;
   onClose: () => void;
   window?: VirtualWindow;
 }
@@ -41,9 +41,17 @@ export function pickAgents(list: readonly AgentRow[], query: string): AgentRow[]
   return list.filter(hit).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
-export function AllAgents({ screens, space, x, y, onChat, onOpenPage, onNewAgent, onClose, window }: AllAgentsProps): ReactElement {
+export function AllAgents({ screens, space, x, y, onChat, onOpenPage, onCreate, onClose, window }: AllAgentsProps): ReactElement {
   const q = useLive<AgentsOut>(screens, ALL_AGENTS_SCREEN, "agents", {});
   const [find, setFind] = useState("");
+  const [making, setMaking] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const make = (): void => {
+    const name = (making ?? "").trim();
+    if (name === "" || !onCreate) return;
+    setFailed(null);
+    void onCreate(name).then((id) => { onChat(id); onClose(); }, () => setFailed("Could not make the agent."));
+  };
   const all = q.status === "ready" ? q.data.agents : [];
   const shown = pickAgents(all, find);
 
@@ -74,9 +82,20 @@ export function AllAgents({ screens, space, x, y, onChat, onOpenPage, onNewAgent
         />
       </View>
       <View style={st.list}><PaneList entries={entries} testID="all-agents-rows" {...(window ? { window } : {})} /></View>
-      {onNewAgent ? (
-        <View style={st.foot}><TextButton label="New agent" onPress={() => { onNewAgent(); onClose(); }} testID="all-agents-new" /></View>
+      {onCreate ? (
+        <View style={st.foot}>
+          {making === null ? <TextButton label="New agent" onPress={() => setMaking("")} testID="all-agents-new" /> : (
+            <>
+              <TextInput
+                testID="all-agents-name" accessibilityLabel="Name the new agent" autoFocus value={making} onChangeText={setMaking} onSubmitEditing={make} placeholder="Agent name" placeholderTextColor="var(--ink-4)"
+                autoCapitalize="words" autoCorrect={false} style={[st.find, { flex: 1 }]}
+              />
+              <TextButton label="Create" onPress={make} testID="all-agents-create" />
+            </>
+          )}
+        </View>
       ) : null}
+      {failed ? <Text testID="all-agents-line" accessibilityRole="alert" style={st.line}>{failed}</Text> : null}
     </Popover>
   );
 }
@@ -86,5 +105,6 @@ const st = StyleSheet.create({
   find: { height: 30, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string, color: "var(--ink)" as string, fontSize: 13 },
   list: { height: 280, paddingHorizontal: 4 },
   status: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  foot: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  line: { fontSize: 12.5, color: "var(--danger)" as string, paddingHorizontal: 14, paddingBottom: 8 },
+  foot: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "flex-end", paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
 });

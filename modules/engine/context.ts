@@ -12,6 +12,9 @@ type Obj = Record<string, unknown>;
 import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
+/** How to name a record, file, task or chat in a reply: by link, never by id. */
+export const NAMING = "Name a record, file, task or chat as [[Name|id]], the name, a bar and its id, like [[Rivera Holdings|rec_01...]]. Never write a bare id (rec_..., file_..., task_...) in a reply; the reader sees the name as a link that opens it.";
+
 export { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL };
 
 /** The skills a turn can see: an index line each, and the body of one by name. The loader is the skills module's; this is the port the context binds to. */
@@ -280,7 +283,7 @@ export function createContextBuilder(d: ContextDeps) {
     const role = str(agent?.["role"]) ?? input.agent.role;
     const md = agent ? await agentMd(agent, asker) : undefined;
     add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}`);
-    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do.");
+    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING);
 
     // where
     const people = arr(th?.["members"]).filter((m) => m["kind"] === "person").map((m) => String(m["id"]));
@@ -320,6 +323,7 @@ export function createContextBuilder(d: ContextDeps) {
     if (kind === "chat" && str(th?.["scopeType"]) !== "project") {
       where.push("If the person asks you to hand work to a teammate and this chat is not in a project: call projects_list, then projects_teammates_list for the likely project, look for one they can see that has teammates and a code repository, and use it (crew_start says when a project has no repository). If there is exactly one, start the teammate there and say which project. If there are several, name them in one line and ask which. If none fits, say in one line that you can set up a project with a repository for this, or move this chat into one. Never answer with a bare question about who.");
     }
+    where.push("For research or a side task you may use your own built-in Agent tool for subagents: their results come back to you in the same turn, so wait for them and answer with what each one found, naming each. Use crew_start, not the Agent tool, when a teammate should change code in a project with a repository.");
     add("where", true, where.join("\n"));
 
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it

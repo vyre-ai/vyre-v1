@@ -203,7 +203,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean): ReceiveResult {
-    const r = route({ agents: st.thread.agents }, { author: msg.author, mentions: msg.mentions, depth: msg.depth }, opts.policy);
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth }, opts.policy);
     let responders = r.responders;
     let routine = false;
     if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });

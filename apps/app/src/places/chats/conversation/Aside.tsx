@@ -1,12 +1,16 @@
-// /btw: a side question and its answer, as a small card above the composer. It is marked as an aside, the answer streams as the agent writes it, and it is dismissible. It is not part of the conversation:
-// the agent working in the chat does not see it unless the person presses Keep, which posts the answer into the chat as one card. The same card draws on a phone.
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+// /btw: a side question and its answer, as a quiet card that floats just above the composer. One header line (a lock for "only you see this", the question, Keep, close), the answer a step smaller
+// below it. It is not part of the conversation: the agent working in the chat does not see it unless the person presses Keep, which posts the answer into the chat as one card and takes the card away.
+// It floats over the foot of the transcript (zero height in the layout), so it never moves the conversation. Esc closes it and the cursor goes back to the composer. On a phone it is a bottom sheet.
+import { createElement, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { StreamText, createStreamStore } from "../../../../../../ui/src/stream/index.ts";
+import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
-import { TextButton } from "./parts.tsx";
+import { Glyph, IconButton } from "./parts.tsx";
+import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
+import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { ActivityLine } from "./ActivityLine.tsx";
+import { RefStreamText } from "./ref-chips.tsx";
 import { useConversationData } from "./data.tsx";
 import * as act from "./actions.ts";
 
@@ -37,7 +41,30 @@ function useAnswer(threadId: string): string | null {
   return text;
 }
 
-export function AsideCard({ item, onDismiss }: { item: AsideItem; onDismiss: (id: string) => void }): ReactElement {
+const CSS = [
+  "@keyframes vyre-aside-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}",
+  "@keyframes vyre-aside-out{to{opacity:0;transform:translateY(6px)}}",
+  "[data-vyre-aside]{animation:vyre-aside-in 180ms cubic-bezier(.2,.8,.2,1) both}",
+  "[data-vyre-aside=out]{animation:vyre-aside-out 140ms ease-in both}",
+  "@media (prefers-reduced-motion:reduce){[data-vyre-aside]{animation:none!important}}",
+].join("\n");
+const web = Platform.OS === "web";
+const ensureCss = (): void => { if (web) injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-aside", CSS); };
+
+/** The lock: one glyph whose tooltip says who sees this. A plain element on the web so the browser's own tooltip shows; elsewhere the glyph with its label. */
+function Lock({ id }: { id: string }): ReactElement {
+  if (web) return createElement("span", { "data-testid": `aside-lock-${id}`, title: "Only you see this", "aria-label": "Only you see this", role: "img", style: { width: 20, height: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "default" } }, createElement("svg", { viewBox: "0 0 16 16", width: 13, height: 13, "aria-hidden": true, style: { display: "block", fill: "none", stroke: "var(--ink-3)", strokeWidth: 1.4, strokeLinecap: "round", strokeLinejoin: "round" } }, createElement("path", { d: "M4.5 7.5h7v5.5h-7z" }), createElement("path", { d: "M6 7.5V5.8a2 2 0 014 0v1.7" })));
+  return <View testID={`aside-lock-${id}`} accessible accessibilityLabel="Only you see this" style={st.lock}><Glyph name="lock" size={13} color="var(--ink-3)" /></View>;
+}
+
+/** The composer's field, so closing the card hands the cursor back to where the person was typing. */
+function focusComposer(): void {
+  const doc = (globalThis as { document?: { querySelector(q: string): { focus?: () => void } | null } }).document;
+  doc?.querySelector('[data-testid="composer-field"]')?.focus?.();
+}
+
+export function AsideCard({ item, onDismiss, sheet = false }: { item: AsideItem; onDismiss: (id: string) => void; sheet?: boolean }): ReactElement {
+  ensureCss();
   const data = useConversationData();
   const live = data.live;
   const turns = useSyncExternalStore(live ? live.subscribe : noSub, () => (live ? live.turnsOf(item.id) : NO_TURNS), () => (live ? live.turnsOf(item.id) : NO_TURNS));
@@ -52,52 +79,91 @@ export function AsideCard({ item, onDismiss }: { item: AsideItem; onDismiss: (id
     return s;
   }, [saved]);
   const [kept, setKept] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [problem, setProblem] = useState("");
+  const [overflow, setOverflow] = useState(false);
   const store = writing && !(writing.getSnapshot().done && done) ? writing : done;
   const answered = saved !== null;
+  const height = useWindowDimensions().height;
+  const maxAnswer = Math.max(120, Math.min(360, Math.round(height * 0.4)));
+  const leave = (then: () => void): void => { setLeaving(true); setTimeout(then, web ? 140 : 0); };
   const keep = (): void => {
     if (kept) return;
     setKept(true);
-    void act.keepAside(data, item.id, data.newKey()).catch(() => { setKept(false); setProblem("Could not keep it."); });
+    void act.keepAside(data, item.id, data.newKey()).then(
+      () => { setTimeout(() => leave(() => onDismiss(item.id)), 900); },
+      () => { setKept(false); setProblem("Could not keep it."); },
+    );
   };
-  const dismiss = (): void => { void act.dismissAside(data, item.id); onDismiss(item.id); };
+  const dismiss = (): void => { void act.dismissAside(data, item.id); leave(() => onDismiss(item.id)); focusComposer(); };
+  // Esc closes the card and the cursor goes back to the composer
+  const dismissRef = useRef(dismiss); dismissRef.current = dismiss;
+  useEffect(() => {
+    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: { key: string; defaultPrevented?: boolean }) => void): void; removeEventListener(t: string, f: (e: { key: string; defaultPrevented?: boolean }) => void): void } }).document;
+    if (!doc) return undefined;
+    const on = (e: { key: string; defaultPrevented?: boolean }): void => { if (e.key === "Escape" && !e.defaultPrevented) dismissRef.current(); };
+    doc.addEventListener("keydown", on);
+    return () => doc.removeEventListener("keydown", on);
+  }, []);
+  const activity = !answered && turn ? data.activityOf?.(turn.messageId ?? `turn:${turn.turnId}`) : undefined;
   return (
-    <View testID={`aside-${item.id}`} accessibilityRole="summary" style={st.card}>
+    <View testID={`aside-${item.id}`} accessibilityRole="summary" accessibilityLabel="Side question" style={[st.card, sheet && st.sheet]} {...(web ? { dataSet: { vyreAside: leaving ? "out" : "in" } } : {})}>
+      {sheet ? <View style={st.grab} /> : null}
       <View style={st.head}>
-        <Text style={st.tag}>Aside</Text>
-        <Text numberOfLines={1} style={st.hint}>Only you see this. The agent in this chat does not.</Text>
-        <View style={st.flex} />
-        <TextButton link label="Dismiss" testID={`aside-dismiss-${item.id}`} onPress={dismiss} />
+        <Lock id={item.id} />
+        <Text numberOfLines={1} testID={`aside-question-${item.id}`} style={st.question}>{item.question}</Text>
+        {kept ? <View testID={`aside-kept-${item.id}`} style={st.keptNote}><Glyph name="check" size={13} color="var(--ok)" /><Text style={st.keptText}>Kept</Text></View> : null}
+        {answered && !kept ? <IconButton icon="pin" label="Keep in this chat" size={sheet ? 34 : 26} testID={`aside-keep-${item.id}`} onPress={keep} /> : null}
+        <IconButton icon="x" label="Close" size={sheet ? 34 : 26} testID={`aside-dismiss-${item.id}`} onPress={dismiss} />
       </View>
-      <Text numberOfLines={2} testID={`aside-question-${item.id}`} style={st.question}>{item.question}</Text>
       <View testID={`aside-answer-${item.id}`} style={st.answer}>
-        {store ? <StreamText store={store} /> : null}
-        {!answered && turn && data.activityOf?.(turn.messageId ?? `turn:${turn.turnId}`) ? <ActivityLine store={data.activityOf(turn.messageId ?? `turn:${turn.turnId}`)!} /> : !store ? <Text style={st.thinking}>Thinking</Text> : null}
+        {activity ? <ActivityLine store={activity} /> : !store ? <View style={st.thinkingRow}><WorkingMark state="thinking" size={16} /><Text style={st.thinking}>Thinking</Text></View> : null}
+        {store ? (
+          <ScrollView style={[{ maxHeight: maxAnswer }, web && overflow ? ({ maskImage: "linear-gradient(to bottom,#000 calc(100% - 22px),transparent)", WebkitMaskImage: "linear-gradient(to bottom,#000 calc(100% - 22px),transparent)" } as object) : null]}
+            onContentSizeChange={(_w, h) => setOverflow(h > maxAnswer + 2)} showsVerticalScrollIndicator={false}>
+            <View style={web ? ({ zoom: 0.92 } as object) : undefined}><RefStreamText store={store} data={data} /></View>
+          </ScrollView>
+        ) : null}
       </View>
       {problem !== "" ? <Text style={st.problem}>{problem}</Text> : null}
-      {answered ? <View style={st.foot}><TextButton link label={kept ? "Kept" : "Keep"} testID={`aside-keep-${item.id}`} onPress={keep} disabled={kept} /></View> : null}
     </View>
   );
 }
 
-/** The asides of this chat, newest last, above the composer. */
+/** The aside of this chat, above the composer. A new /btw replaces the one before it. */
 export function AsideList({ items, onDismiss }: { items: readonly AsideItem[]; onDismiss: (id: string) => void }): ReactElement | null {
-  if (items.length === 0) return null;
-  const rows: ReactElement[] = [];
-  for (const it of items) rows.push(<AsideCard key={it.id} item={it} onDismiss={onDismiss} />);
-  return <View testID="asides" style={st.list}>{rows}</View>;
+  const data = useConversationData();
+  const { width } = useWindowDimensions();
+  const newest = items[items.length - 1];
+  const stale = items.slice(0, -1).map((x) => x.id).join(",");
+  useEffect(() => {
+    if (stale === "") return;
+    for (const id of stale.split(",")) { void act.dismissAside(data, id); onDismiss(id); }
+  }, [stale]);   // eslint-disable-line react-hooks/exhaustive-deps
+  if (!newest) return null;
+  const phone = width <= 520;
+  // zero height in the layout: the card floats up from the composer over the foot of the transcript, so the conversation never moves
+  return (
+    <View testID="asides" style={st.anchor} pointerEvents="box-none">
+      <View style={[st.float, phone ? st.floatPhone : null]} pointerEvents="box-none"><AsideCard key={newest.id} item={newest} onDismiss={onDismiss} sheet={phone} /></View>
+    </View>
+  );
 }
 
 const st = StyleSheet.create({
-  list: { paddingHorizontal: 16, paddingBottom: 6, gap: 8 },
-  card: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, gap: 6, backgroundColor: "var(--panel)" as string, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
-  head: { flexDirection: "row", alignItems: "center", gap: 8 },
-  tag: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--accent)" as string },
-  hint: { flexShrink: 1, fontSize: 12, color: "var(--ink-3)" as string },
-  flex: { flex: 1 },
-  question: { fontSize: 13, color: "var(--ink-3)" as string },
-  answer: { minHeight: 22 },
-  thinking: { fontSize: 13.5, color: "var(--ink-3)" as string },
-  problem: { fontSize: 12, color: "var(--danger)" as string },
-  foot: { flexDirection: "row", gap: 12 },
+  anchor: { height: 0, position: "relative", zIndex: 5, overflow: "visible" },
+  float: { position: "absolute", left: 0, right: 0, bottom: 6, alignItems: "center", paddingHorizontal: 24 },
+  floatPhone: { bottom: 0, paddingHorizontal: 0 },
+  card: { width: "100%", maxWidth: 760, borderRadius: 16, paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10, gap: 4, backgroundColor: "var(--raised)" as string, boxShadow: "inset 0 0 0 1px var(--line-2), 0 1px 2px rgba(0,0,0,.06), 0 12px 32px -12px rgba(0,0,0,.28)", backgroundImage: "linear-gradient(var(--accent-wash), var(--accent-wash))" } as object,
+  sheet: { maxWidth: 9999, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingBottom: 14 },
+  grab: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string, marginTop: 2, marginBottom: 4 },
+  head: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 30 },
+  lock: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
+  question: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-3)" as string },
+  keptNote: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6 },
+  keptText: { fontSize: 12, color: "var(--ink-2)" as string },
+  answer: { minHeight: 22, paddingHorizontal: 4, paddingTop: 2 },
+  thinkingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  thinking: { fontSize: 13, color: "var(--ink-3)" as string },
+  problem: { fontSize: 12, color: "var(--danger)" as string, paddingHorizontal: 4 },
 });

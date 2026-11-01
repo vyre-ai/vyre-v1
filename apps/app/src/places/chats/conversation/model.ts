@@ -1,7 +1,7 @@
 // The conversation's logic, with no renderer (spec 3.2 Chats, 2.5 Chat, 4.13 Agents lead and listen): which messages are on the page (the last 50, older ones stream in),
 // how they group into a timeline, how an agent's work folds into "Worked for 14s, 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
 // interrupt), and the optimistic message that shows in the same frame as the send.
-import { stepWords } from "./activity.ts";
+import { stepLabel } from "./activity.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blocks/registry.ts";
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
@@ -117,7 +117,7 @@ export function workOf(m: Message): Work | null {
   const tools = m.blocks.filter(isToolStep);
   const steps = [...m.blocks.filter(isStep), ...tools.filter((b) => b.type === "tool_call" || b.type === "tool_steps")];
   if (steps.length === 0) return null;
-  const lines = steps.map((b) => (b.type === "tool_call" ? { id: b.id, title: stepWords(str(dataOf(b).name)), sub: "", state: "done" as const } : b.type === "tool_steps" ? { id: b.id, title: `${num(dataOf(b).calls)} steps`, sub: "", state: "done" as const } : stepLine(b)));
+  const lines = steps.map((b) => (b.type === "tool_call" ? { id: b.id, title: stepLabel(str(dataOf(b).name), str(dataOf(b).detail) || undefined), sub: "", state: "done" as const } : b.type === "tool_steps" ? { id: b.id, title: `${num(dataOf(b).calls)} steps`, sub: "", state: "done" as const } : stepLine(b)));
   steps.push(...tools.filter((b) => b.type === "tool_result"));   // their times count, they are not lines of their own
   const live = lines.some((l) => l.state === "live");
   // the whole turn when the host said how long it took (thinking and writing too), else the time of the steps
@@ -265,7 +265,7 @@ export function faces(t: Thread, nameOf: (id: string) => string, working: readon
 }
 
 export function modeTitle(f: Face): string {
-  return `${f.name} ${f.mode === "lead" ? "leads: replies to every message" : "is listening: replies when @mentioned"}`;
+  return `${f.name}: ${f.mode === "lead" ? "replies to everything" : "replies only when @mentioned"}`;
 }
 
 /** Making another agent the lead asks first: one lead per thread, and the old lead keeps listening. */
@@ -454,7 +454,7 @@ export function participants(t: Thread, nameOf: (id: string) => string): Partici
   for (const m of t.members) {
     if (m.kind === "person") out.push({ id: m.id, name: nameOf(m.id), kind: "person", role: "Person" });
   }
-  for (const a of t.agents) out.push({ id: a.agentId, name: nameOf(a.agentId), kind: "agent", role: a.mode === "lead" ? "Leads" : "Listening" });
+  for (const a of t.agents) out.push({ id: a.agentId, name: nameOf(a.agentId), kind: "agent", role: t.agents.length === 1 ? "Agent" : a.mode === "lead" ? "Replies to everything" : "Only when @mentioned" });
   return out;
 }
 

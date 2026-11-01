@@ -124,12 +124,17 @@ test("words and small rules: Used N memories, quote dates, the three keys, what 
 
 test("a reply that used memory shows 'Used 3 memories' (closed) and a card for the exact quote; a reply that used nothing shows neither", async () => {
   const out = html(await withWarm());
-  assert.ok(has(out, 'data-testid="mused-msg_k2_1"') && has(out, "Used 3 memories"));
-  assert.ok(has(out, 'aria-expanded="false"') && !has(out, 'data-testid="mused-list-msg_k2_1"'), "the list opens on a press");
-  inOrder(out, ["I have two addresses for", "Used 3 memories", 'data-testid="qcard-quote_ian_updates"', "told me today he prefers updates on Fridays"]);
+  // the reply has a Worked row, so the memory line is folded into it (shut by default) and not a line of its own; the card of the exact quote stays on the face
+  assert.ok(has(out, "Worked for") && !has(out, 'data-testid="mused-msg_k2_1"'), "no Used line of its own under a reply that has a Worked row");
+  inOrder(out, ["I have two addresses for", 'data-testid="qcard-quote_ian_updates"', "told me today he prefers updates on Fridays"]);
+  const alone = clean(renderToStaticMarkup(<ChatMemoryProvider memory={(await withWarm()).memory} threadId="c1"><ReplyMemory messageId={MESSAGE_IDS.reply} threadId="c1" reply={"Here is the update for Ian Brooks. The logistics dashboard is on track and the Growth plan is unchanged."} /></ChatMemoryProvider>));
+  assert.ok(has(alone, 'data-testid="mused-msg_k2_1"') && has(alone, "Used 3 memories"), "a reply with no Worked row keeps the closed line when memories shaped it");
+  assert.ok(has(alone, 'aria-expanded="false"') && !has(alone, 'data-testid="mused-list-msg_k2_1"'), "the list opens on a press");
+  const unrelated = clean(renderToStaticMarkup(<ChatMemoryProvider memory={(await withWarm()).memory} threadId="c1"><ReplyMemory messageId={MESSAGE_IDS.reply} threadId="c1" reply={"Sure, done."} /></ChatMemoryProvider>));
+  assert.ok(!has(unrelated, "Used 2 memories") && !has(unrelated, "Used 3 memories"), "a reply no memory shaped shows no fact line");
   assert.ok(has(out, "Irfad Imtiaz") && has(out, "Oct 12 · Brooks kickoff") && has(out, "“Ian was clear about updates."));
   assert.ok(has(out, "Jump to the message") && has(out, "Exact words, recalled from the chat"));
-  assert.equal(count(out, 'data-testid="mused-toggle-'), 1, "the Held reply used nothing, so it has no line");
+  assert.equal(count(out, 'data-testid="mused-toggle-'), 0, "the line is folded into the Worked row; the Held reply used nothing and has none");
   assert.ok(!has(out, 'data-testid="mused-msg_k2_3"') && !has(out, 'data-testid="mused-msg_k2_0"'), "your own message has no line");
 });
 
@@ -326,7 +331,7 @@ test("Forget in the Used list takes the fact out of what the reply used", async 
   const { say } = says();
   await forgetFacts(s.memory, [used.facts[0]!.factId], say);
   await s.warm();
-  const out = html(s);
+  const out = clean(renderToStaticMarkup(<ChatMemoryProvider memory={s.memory} threadId="c1"><ReplyMemory messageId={MESSAGE_IDS.reply} threadId="c1" reply={"Here is the update for Ian Brooks. The logistics dashboard is on track and the Growth plan is unchanged."} /></ChatMemoryProvider>));
   assert.ok(has(out, "Used 2 memories") && !has(out, "Used 3 memories"));
 });
 

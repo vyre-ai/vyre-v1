@@ -1,12 +1,12 @@
 {
   "name": "@vyre/desktop",
-  "version": "1.0.0-rc.9",
+  "version": "1.0.0-rc.10",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24 <25" },
   "description": "The Vyre desktop shell (Tauri 2). The system webview loads the Expo web build; the vyred device daemon runs beside it as a sidecar (ARCH 5.10, 7.13, R13).",
   "scripts": {
-    "web": "cd ../app && npx expo export --platform web --output-dir dist",
+    "web": "node ../../scripts/app-export.mjs",
     "stage": "node src-tauri/stage-runtime.ts",
     "tauri": "npx --yes @tauri-apps/cli@2",
     "build": "npm run web && npm run stage && npm run tauri -- build --ci",

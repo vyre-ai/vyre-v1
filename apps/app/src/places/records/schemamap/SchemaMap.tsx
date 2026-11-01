@@ -154,7 +154,7 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
   };
 
   const cardMenu = (type: string, x: number, y: number): void => {
-    menu.show([{ label: "Open", onSelect: () => open(type) }, { label: "Open in the Console", onSelect: () => data.nav.openConsole(type) }], x, y, "context", { label: titleOf(type) });
+    menu.show([{ label: "Open", onSelect: () => open(type) }, ...(data.nav.openConsole ? [{ label: "Open in the Console", onSelect: () => data.nav.openConsole?.(type) }] : [])], x, y, "context", { label: titleOf(type) });
   };
 
   // curves
@@ -201,10 +201,12 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
         <Text style={st.sl}>/</Text>
         <Text style={st.dimText} testID="schema-map-summary">{summary(nodes.length, fieldTotal)}</Text>
         <View style={st.grow} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Structure is edited in the Console" onPress={() => data.nav.openConsole()} testID="schema-map-console" style={st.consoleBtn}>
+        {data.nav.openConsole ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Structure is edited in the Console" onPress={() => data.nav.openConsole?.()} testID="schema-map-console" style={st.consoleBtn}>
           <Glyph name="lock" size={12} />
           <Text style={st.consoleText}>Edit in the Console</Text>
         </Pressable>
+        ) : null}
       </View>
       <View style={st.body}>
       <View
@@ -241,7 +243,7 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
           titleField={details.get(sel)?.titleField}
           onClose={() => setSel(null)}
           onOpen={() => open(sel)}
-          onConsole={() => data.nav.openConsole(sel)}
+          {...(data.nav.openConsole ? { onConsole: () => data.nav.openConsole?.(sel) } : {})}
         />
       ) : null}
       </View>

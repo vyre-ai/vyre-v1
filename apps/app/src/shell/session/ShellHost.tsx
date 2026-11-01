@@ -7,6 +7,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useS
 import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
+import { forgetKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
@@ -170,18 +171,21 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     subscribe: (l) => session.onPurge(l),
   } : undefined), [session, onSignedOut]);
   useEffect(() => location.place === "console" && purge ? watchPurge(purge, (e) => hub.flash(`Couldn't remove this device's data: ${e instanceof Error ? e.message : "try again"}`)) : undefined, [location.place, purge, hub]);
+  // The Console is a Team Space place with a shell of its own. A Personal Space has none, so a saved or stale address that names it goes Home, never to a page with no way back.
+  const deadConsole = location.place === "console" && stored.def.kind === "personal";
+  useEffect(() => { if (deadConsole) hub.go("home"); }, [deadConsole, hub]);
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
   const signOut = (): void => {
-    void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
+    forgetKey(); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };
   const lock=():void=>{
     const identity=lockedIdentity({...stored,name:session?.me.name??stored.def.name});
     storeLock(identity);clearStored();
-    void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);
+    forgetKey();void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);
     void session?.call("identity.sign_out",{}).catch(()=>undefined);
     if(onLocked)onLocked(identity);else onSignedOut("manual");
   };
@@ -191,6 +195,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
   const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
+  if (deadConsole) return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   if (location.place === "console") return wrap(<HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider>);
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(

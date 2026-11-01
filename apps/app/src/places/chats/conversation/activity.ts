@@ -7,7 +7,7 @@ export function stepWords(name: string): string {
   const key = n.toLowerCase();
   const table: Record<string, string> = {
     read: "Reading", glob: "Looking for files", grep: "Searching", bash: "Running a command", edit: "Editing", multiedit: "Editing", write: "Writing a file", notebookedit: "Editing a notebook",
-    websearch: "Searching the web", toolsearch: "Looking for tools", webfetch: "Reading a page", task: "Working with a helper", todowrite: "Planning", exitplanmode: "Planning", askuserquestion: "Asking you",
+    websearch: "Searching the web", toolsearch: "Looking for tools", webfetch: "Reading a page", task: "Working with a helper", agent: "Working with a helper", sub_task_model: "Starting a helper", crew_start: "Starting a teammate", crew_merge: "Asking to merge", crew_push: "Asking to push", todowrite: "Planning", exitplanmode: "Planning", askuserquestion: "Asking you",
   };
   if (table[key]) return table[key]!;
   const words = n.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[_\s-]+/).filter(Boolean);

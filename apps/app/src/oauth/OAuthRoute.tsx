@@ -13,5 +13,5 @@ export function OAuthRoute(): ReactElement {
   const stored = useMemo(() => (baseUrl ? readStored(undefined, baseUrl) : null), [baseUrl]);
   const call = useMemo(() => (stored && baseUrl ? createCapCaller({ baseUrl, token: () => stored.token }) : null), [stored, baseUrl]);
   const scrub = useCallback(() => { try { globalThis.history?.replaceState(null, "", "/oauth/callback"); } catch { /* the address stays as it is */ } }, []);
-  return <OAuthCallback call={call} search={search} scrub={scrub} go={(path) => location?.assign(path)} />;
+  return <OAuthCallback call={call} search={search} scrub={scrub} go={(path) => location?.assign(path)} {...(stored?.def.kind === "personal" ? { back: { path: "/home", label: "Back to Vyre" } } : {})} />;
 }

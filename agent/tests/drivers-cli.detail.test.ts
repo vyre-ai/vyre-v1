@@ -31,3 +31,9 @@ test("the decoder passes the detail with the whole message, after the call, and 
   ];
   assert.deepEqual(out, [{ type: "tool", phase: "call", id: "t1", name: "Read" }, { type: "tool", phase: "input", id: "t1", detail: "model.ts" }]);
 });
+
+test("a subagent call is named by the description the model gave it, so the trail never says a bare \"Using agent\"", () => {
+  assert.equal(toolDetail("Agent", { description: "Check the pricing page", prompt: "long private prompt", subagent_type: "general-purpose" }), "Check the pricing page");
+  assert.equal(toolDetail("Task", { description: "Find the logo" }), "Find the logo");
+  assert.equal(toolDetail("Agent", { prompt: "no description" }), "");
+});

@@ -154,7 +154,7 @@ export interface LinkRef { kind: string; id: string; title: string }
 const kindName: Record<string, string> = { record: "Record", file: "File", folder: "Folder", channel: "Channel" };
 
 const previews = new WeakMap<object, Map<string, Promise<{ title: string; line: string } | null>>>();
-function preview(data: Pick<ConversationData, "call">, r: LinkRef): Promise<{ title: string; line: string } | null> {
+export function preview(data: Pick<ConversationData, "call">, r: LinkRef): Promise<{ title: string; line: string } | null> {
   let m = previews.get(data.call);
   if (!m) { m = new Map(); previews.set(data.call, m); }
   const key = `${r.kind}:${r.id}`;
@@ -216,7 +216,7 @@ export const LinkedText = memo(function LinkedText({ body, refs, data, textStyle
   );
 });
 
-function LinkPiece({ r, data }: { r: LinkRef; data: Pick<ConversationData, "call" | "nav"> }): ReactElement {
+export function LinkPiece({ r, data }: { r: LinkRef; data: Pick<ConversationData, "call" | "nav"> }): ReactElement {
   const [card, setCard] = useState<{ title: string; line: string } | null | undefined>(undefined);
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const web = Platform.OS === "web";

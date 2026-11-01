@@ -81,9 +81,9 @@ test("an agent mention beats a person mention in the same message", () => {
   assert.equal(w.line, "Docs will reply");
 });
 
-test("no lead: an unaddressed message has no reply and the line says how to ask one", () => {
-  const w = whoAnswers("hello", { listening: ["Docs"], agents: ["Docs"], people: [] });
-  const r = route({ agents: [{ id: "Docs", mode: "listen" }] }, { author: person("me"), mentions: [] } satisfies RouteMessage);
+test("no lead: with several agents that only listen, an unaddressed message has no reply and the line says how to ask one", () => {
+  const w = whoAnswers("hello", { listening: ["Docs", "Ops"], agents: ["Docs", "Ops"], people: [] });
+  const r = route({ agents: [{ id: "Docs", mode: "listen" }, { id: "Ops", mode: "listen" }] }, { author: person("me"), mentions: [] } satisfies RouteMessage);
   assert.deepEqual(w.responders, r.responders);
   assert.equal(w.line, "No agent will reply · type @ to ask one");
   assert.equal(w.dim, true);
@@ -269,4 +269,24 @@ test("the right-click menu ends with Report a problem, after a separator, and ev
 
 test("plain-text paste keeps line breaks and drops control characters", () => {
   assert.equal(plainText("a\r\nb\u0007\tc"), "a\nb c");
+});
+
+test(":name offers emoji in every composer and inserts the character; times and urls never open it", () => {
+  const t = detectTrigger("nice :smi", 9);
+  assert.deepEqual(t, { ch: ":", start: 5, end: 9, query: "smi" });
+  assert.equal(detectTrigger("at 10:30", 8), null);
+  assert.equal(detectTrigger("see https://x.com", 17), null);
+  assert.equal(detectTrigger("hi :s", 5), null, "one letter is too early");
+  const entries = popupFor(t!, {} as ComposerLists);
+  const first = entries[0] as PopupItem;
+  assert.equal(first.label, "😄", ":smile comes first for :smi");
+  assert.ok(entries.some((e) => (e as PopupItem).label === "😀"), "other smiles are offered too");
+  const done = applyPick({ ...initialState("nice :smi"), cursor: 9 }, t!, first);
+  assert.equal(done.next.text, "nice 😄 ");
+  assert.equal(done.next.cursor, done.next.text.length);
+});
+
+test("one agent that is set to listen still answers, and the line says so", () => {
+  const w = whoAnswers("hello", { listening: ["Docs"], agents: ["Docs"], people: [] });
+  assert.equal(w.line, "Docs will reply");
 });

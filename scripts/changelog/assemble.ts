@@ -8,6 +8,7 @@ export function assemble(root: string, order: (file: string) => number = () => 0
   const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "README.md") : [];
   if (files.length === 0) return { added: 0 };
   const sorted = files.map((f) => path.join(dir, f)).sort((a, b) => order(a) - order(b) || a.localeCompare(b));
+  for (const f of sorted) if (!fs.readFileSync(f, "utf8").split("\n").some((l) => l.startsWith("- "))) throw new Error(`${f} has no "- " line: its entry would be lost`);
   const lines = sorted.flatMap((f) => fs.readFileSync(f, "utf8").split("\n").filter((l) => l.startsWith("- ")));
   const file = path.join(root, "changelog.md");
   const text = fs.readFileSync(file, "utf8");

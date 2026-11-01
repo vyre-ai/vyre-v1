@@ -207,7 +207,8 @@ export const claudeCode: CliAdapter = {
     const tools = o.noTools !== true;
     // Only a chat mode narrows the folder tools; the older planMode flag alone changes the permission mode and nothing else, as before.
     const folderTools = o.mode === "ask" || o.mode === "plan" ? READ_ONLY_FOLDER_TOOLS : WORK_FOLDER_TOOLS;
-    const allowed = tools ? ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? folderTools : [])] : [];
+    // WebSearch runs on the vendor's side, through the API host the sandbox already allows, so a lead and its helpers can research on the web; WebFetch would open the sandbox to any host and stays off.
+    const allowed = tools ? ["mcp__vyre__*", "WebSearch", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? folderTools : [])] : [];
     const effort = claudeEffort(o.effort);
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",

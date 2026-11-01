@@ -276,7 +276,7 @@ test("the header has the agent chip with a face and mode mark, the participants 
   const out = html(s);
   inOrder(out, ['data-testid="conversation-title"', 'data-testid="face-agt_intake"', ">Intake<", 'data-testid="participants-button"', 'data-testid="find-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
   assert.ok(has(out, "3 in this thread"));
-  assert.deepEqual(participants(thread(s), s.data.nameOf).map((p) => [p.name, p.role]), [["You", "Person"], ["Intake", "Leads"], ["Docs", "Listening"]]);
+  assert.deepEqual(participants(thread(s), s.data.nameOf).map((p) => [p.name, p.role]), [["You", "Person"], ["Intake", "Replies to everything"], ["Docs", "Only when @mentioned"]]);
 });
 
 test("find in chat: matches are ignoring case and accents, counted, and stepped", () => {

@@ -296,3 +296,21 @@ test("the person's client saved the sign-in in Mine while the flow was still ope
     assert.deepEqual(seen.codes, [], "the provider was not asked for a step");
   } finally { u.configureVault(null); h.cleanup(); }
 });
+
+test("signing in again to an account the person already has refreshes that item and keeps its provider: no 'Claude Code 2' beside it", async () => {
+  const h = harness();
+  const OLD = "sk-ant-oat01-first-TOKEN-0123456789", NEW = "sk-ant-oat01-second-TOKEN-0123456789"; // secret-scan: fake
+  const { port } = fakeSignin([{ state: "done", fields: [{ key: "setup_token", value: OLD, secret: true }] }, { state: "done", fields: [{ key: "setup_token", value: NEW, secret: true }] }]);
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const first = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    const one = out(out(await p.subscriptionComplete(h.ctx, { flowId: String(first.flowId), code: "A#B" })).provider);
+    const second = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    const two = out(out(await p.subscriptionComplete(h.ctx, { flowId: String(second.flowId), code: "C#D" })).provider);
+    assert.equal(two.id, one.id, "the same provider");
+    assert.equal(two.itemId, one.itemId, "the same item");
+    assert.equal(h.rows(`SELECT * FROM vault_meta`).filter((r) => r["kind"] === "ai_subscription" && r["deleted_at"] == null).length, 1, "one item, not two");
+    assert.equal(h.rows(`SELECT * FROM vault_provider`).length, 1);
+    assert.equal(h.everything().includes(NEW) || h.everything().includes(OLD), false, "no token in a row, event or answer");
+  } finally { u.configureVault(null); h.cleanup(); }
+});

@@ -17,7 +17,7 @@ const TRACE = "0".repeat(32);
 const LOOPBACK_ADDR = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const LOOPBACK_HOST = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const PROXY_HEADERS = ["x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "forwarded", "x-real-ip", "via"];
-const PATH = /^\/local\/vault\/key\/(unlock|lock)$/;
+const PATH = /^\/local\/vault\/key\/(unlock|lock|status)$/;
 
 function send(res: http.ServerResponse, status: number, body?: unknown): void {
   if (body === undefined) { res.writeHead(status, { "cache-control": "no-store" }); res.end(); return; }
@@ -43,12 +43,14 @@ async function bodyOf(req: http.IncomingMessage): Promise<unknown> {
 }
 
 export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
-  async function serve(req: http.IncomingMessage, res: http.ServerResponse, op: "unlock" | "lock"): Promise<void> {
+  async function serve(req: http.IncomingMessage, res: http.ServerResponse, op: "unlock" | "lock" | "status"): Promise<void> {
     if (!isLocal(req)) return refuse(res, "permission.no_grant", "This only works on your own computer.");
     const caller = await deps.caller(req.headers);
     const person = caller?.person;
     if (!person || !caller) return refuse(res, "auth.unauthenticated", "Sign in first.");
     if (!deps.allowed(person)) return refuse(res, "permission.no_grant", "This computer is not yours, so it does not hold your key.");
+    // whether this node holds the person's key (a yes or no; the key never leaves). The app asks at launch, to show its lock screen only when it is needed, and while it runs, to hand the key over again after a restart.
+    if (op === "status") { const k = deps.keyring.get(person); const held = k !== null; k?.fill(0); return send(res, 200, { held }); }
     if (op === "lock") { deps.keyring.clear(person); return send(res, 204); }
     let key: Buffer;
     try {
@@ -65,7 +67,7 @@ export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.Inco
       const m = PATH.exec(new URL(req.url ?? "/", "http://vyred").pathname);
       if (!m) return false;
       if ((req.method ?? "GET").toUpperCase() !== "POST") { send(res, 405, { error: makeError("validation.bad_input", TRACE, { message: "POST only." }) }); return true; }
-      void serve(req, res, m[1] as "unlock" | "lock").catch(() => { if (!res.headersSent) refuse(res, "validation.bad_input", "That did not work."); else res.end(); });
+      void serve(req, res, m[1] as "unlock" | "lock" | "status").catch(() => { if (!res.headersSent) refuse(res, "validation.bad_input", "That did not work."); else res.end(); });
       return true;
     },
   };
