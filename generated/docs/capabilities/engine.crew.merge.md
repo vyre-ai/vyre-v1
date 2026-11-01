@@ -19,7 +19,7 @@ Land a teammate's branch in the project repository: it is merged into the base b
 | HTTP | POST /v1/engine/crew/merge |
 | MCP tool | crew_merge (chats) |
 | CLI | none |
-| Emits | crew.job_merged |
+| Emits | crew.job_merged, crew.job_pushed |
 
 ## Input
 

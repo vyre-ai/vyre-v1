@@ -213,6 +213,9 @@ async function askHold(prompt) {
     }
     holding = false;
     const merged = absorbed.splice(0, absorbed.length);
+    // The real engine reads a mid-turn message at its next step and acts on it inside the turn it is running: one that carries a new instruction (askhold ...) is carried out here, before the turn's one result.
+    const next = merged.flatMap((p) => p.split("\n")).reverse().find((l) => /^askhold\s+\d+/.test(l.trim()));
+    if (next) { mcp?.close(); mcp = undefined; await askHold(next.trim()); return; }
     reply([r?.error || r?.result?.isError ? `ask_question refused: ${JSON.stringify(r)}` : `I have asked; waiting for your answer.${merged.length ? ` Merged: ${merged.join(" | ")}` : ""}`]);
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
@@ -279,6 +282,9 @@ async function run(raw) {
   }
 }
 
+// With --replay-user-messages the real engine echoes each user message when it takes it up: at the start of its turn, or, for one that arrives mid-turn, when it folds it in at a step boundary.
+const replay = (text) => { if (argv.includes("--replay-user-messages")) out({ type: "user", isReplay: true, message: { role: "user", content: [{ type: "text", text }] } }); };
+
 // Persistent engine: one JSON user message per line on stdin, answered in order.
 let buf = "";
 let queue = Promise.resolve();
@@ -291,8 +297,8 @@ process.stdin.on("data", (d) => {
     if (line.trim() === "") continue;
     let prompt = "";
     try { prompt = JSON.parse(line).message.content.map((c) => c.text ?? "").join("\n"); } catch { continue; }
-    if (holding) { absorbed.push(withoutContext(prompt)); continue; }
-    queue = queue.then(() => run(prompt));
+    if (holding) { absorbed.push(withoutContext(prompt)); replay(prompt); continue; }
+    queue = queue.then(() => { replay(prompt); return run(prompt); });
   }
 });
 process.stdin.on("end", () => { queue.then(() => process.exit(0)); });

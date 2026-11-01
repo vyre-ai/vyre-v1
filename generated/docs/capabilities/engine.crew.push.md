@@ -19,7 +19,7 @@ Push the project repository's base branch, with a teammate's merged work in it, 
 | HTTP | POST /v1/engine/crew/push |
 | MCP tool | crew_push (chats) |
 | CLI | none |
-| Emits | crew.job_pushed |
+| Emits | crew.job_merged, crew.job_pushed |
 
 ## Input
 

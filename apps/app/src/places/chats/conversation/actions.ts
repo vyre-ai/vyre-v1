@@ -360,6 +360,9 @@ export async function dismissAside(data: ConversationData, asideThreadId: string
 }
 
 /** Send a queued message now: the running turn is cut and the message goes first (the same call as the composer's Now). */
+/** Engines that cannot take a message mid-turn: a chat on them keeps the queued wording: the message waits until the turn ends. */
+export const CANNOT_STEER = new Set(["codex", "grok"]);
+
 export async function sendQueuedNow(data: ConversationData, threadId: string, messageId: string): Promise<void> {
   await data.call("engine.interrupt", { threadId, messageId } as CapMap["engine.interrupt"]["in"]);
 }
