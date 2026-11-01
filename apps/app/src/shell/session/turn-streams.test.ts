@@ -93,3 +93,27 @@ test("a chat with no live turn reads the very same list every time, so a store s
   s.reset();
   assert.equal(s.turnsOf("thr_a"), s.turnsOf("thr_b"), "empty is one list");
 });
+
+test("a chat opened mid-turn takes the text so far and follows from there, with no piece doubled or lost", () => {
+  const t = timers();
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear });
+  const gaps: string[] = [];
+  s.onGap((th) => gaps.push(th));
+  // a piece arrives for a turn whose start this device never saw: held, and the host is asked
+  s.onFrame(f("trn_1", { kind: "delta", text: "lo, ", at: 3 }));
+  assert.deepEqual(gaps, ["thr_a"]);
+  assert.equal(s.turnsOf("thr_a").length, 1);
+  s.onFrame(f("trn_1", { kind: "delta", text: "wor", at: 7 }));
+  // the host answers with what it has: "Hello, " (7 characters), which already holds the first held piece
+  s.seed("thr_a", [{ turnId: "trn_1", agentId: "agt_x", text: "Hello, " }]);
+  s.onFrame(f("trn_1", { kind: "delta", text: "ld.", at: 10 }));
+  s.onFrame(f("trn_1", { kind: "delta", text: "wor", at: 7 }));   // a repeat adds nothing
+  // a second seed of the same text changes nothing
+  s.seed("thr_a", [{ turnId: "trn_1", agentId: "agt_x", text: "Hello, world." }]);
+  s.onFrame(f("trn_1", { kind: "end", state: "done" }));   // the store shows its text once flushed
+  assert.match(text(s.streamOf(turnRowId("trn_1"))), /Hello, world\./);
+  assert.doesNotMatch(text(s.streamOf(turnRowId("trn_1"))), /worwor|lolo|world\.world|Hello, Hello/);
+  // a turn this device never heard of is created by the seed alone
+  s.seed("thr_a", [{ turnId: "trn_2", agentId: "agt_x", text: "Already writing" }]);
+  assert.equal(s.turnsOf("thr_a").length, 2);
+});

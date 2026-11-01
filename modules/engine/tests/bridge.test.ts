@@ -255,3 +255,13 @@ test("an agent that joined the chat after it was opened here hears a message tha
   assert.deepEqual(result, { receivedAs: [WATCHER] }, "the mention reaches the agent that joined later");
   assert.equal(s.engine.agents(T).some((a) => a.id === WATCHER), true);
 });
+
+test("the turns being written are listed with their text so far, and each piece carries where it starts", async () => {
+  const seen: StreamEvent[] = [];
+  const s = setup({ script: reply("Hello there."), stream: (e) => seen.push(e) });
+  await s.say("Hi");
+  const at = seen.filter((e) => e.kind === "delta").map((e) => (e as { at: number }).at);
+  assert.equal(at[0], 0);
+  assert.ok(at.every((x, i) => i === 0 || x > at[i - 1]!), "each piece starts after the one before");
+  assert.deepEqual(s.bridge.liveTurns(T), [], "an ended turn is not listed");
+});

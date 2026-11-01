@@ -15,18 +15,19 @@ export interface CatchUp {
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
-/** The one line: "3 new from Maya. 1 decision, 1 task. 1 mentions you." Empty when there is nothing to catch up on. */
+/** The one line: "Maya and 1 other wrote. 2 decisions, 1 task, and you're mentioned." Message counts only when there is nothing else to say. Empty when there is nothing to catch up on. */
 export function catchUpLine(c: CatchUp, nameOf: (id: string) => string, mine: number): string {
   if (c.unread < 2) return "";
-  const parts: string[] = [];
   const first = c.people[0];
-  const who = c.people.length === 0 ? "" : c.people.length === 1 ? ` from ${nameOf(first!.id).split(" ")[0]}` : ` from ${nameOf(first!.id).split(" ")[0]} and ${plural(c.people.length - 1, "other", "others")}`;
-  parts.push(`${c.unread} new${who}.`);
+  if (!first) return `${c.unread} new messages.`;
+  const rest = c.people.length - 1;
+  const who = nameOf(first.id).split(" ")[0]!;
+  const parts = [`${rest === 0 ? who : `${who} and ${plural(rest, "other", "others")}`} wrote.`];
   const work: string[] = [];
   if (c.decisions.length > 0) work.push(plural(c.decisions.length, "decision", "decisions"));
   if (c.tasks.length > 0) work.push(plural(c.tasks.length, "task", "tasks"));
-  if (work.length > 0) parts.push(`${work.join(", ")}.`);
-  if (mine > 0) parts.push(mine === 1 ? "1 message names you." : `${mine} messages name you.`);
+  if (mine > 0) work.push("you're mentioned");
+  if (work.length > 0) parts.push(`${work.length > 1 ? `${work.slice(0, -1).join(", ")}${work.length > 2 ? "," : ""} and ${work[work.length - 1]}` : work[0]}.`.replace(/^(\d+ \w+), and /, "$1, and "));
   return parts.join(" ");
 }
 

@@ -316,6 +316,9 @@ export default defineManifest({
     read('engine.pool.status', 'Warm engine pool: sessions per driver, warm hits, evictions', {
       out: { sessions: t.arr(t.obj({ driver: driverId, warm: t.int(), max: t.int(), hits: t.int(), misses: t.int() })), totalWarm: t.int() }, perm: null, level: 'manage', tool: 'engineer',
     }),
+    read('engine.live_turns', 'The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream', {
+      in: { threadId: id.thread }, out: { turns: t.arr(t.obj({ turnId: t.str(), agentId: id.agent, text: t.str() })) }, on: ['thread', '/threadId'], perm: null, tool: 'chats',
+    }),
     read('engine.health', 'Engine health: queue age, lease holders, provider reachability', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), oldestQueuedMs: t.int() },
     }),

@@ -95,6 +95,16 @@ function ConversationView(): ReactElement {
   const compact = useContext(CompactContext);
   const liveTurns = useLiveTurns(data);
   const online = useOnline();
+  // A chat opened mid-turn, on any device, or after a reconnect, shows the running turn at once: ask what it has written so far, then the live pieces carry on from there.
+  useEffect(() => {
+    const live = data.live;
+    if (!live || !online) return;
+    let gone = false;
+    const fetchNow = (): void => { void data.call("engine.live_turns", { threadId: data.threadId }).then((r) => { if (!gone) live.seed(data.threadId, (r as { turns?: { turnId: string; agentId: string; text: string }[] }).turns ?? []); }, () => undefined); };
+    fetchNow();
+    const off = live.onGap((th) => { if (th === data.threadId) fetchNow(); });
+    return () => { gone = true; off(); };
+  }, [data, data.threadId, online]);
   const menu = useMenu();
   const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });

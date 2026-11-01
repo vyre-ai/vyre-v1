@@ -35,7 +35,7 @@ export type CallAs = (cap: string, input: unknown, personId: string) => Promise<
 /** What a reader of a live turn is told (the host turns each into one `turn` frame to the people who may read the thread): the turn opened, a piece of its text, the turn ended, and which chat message the finished turn became. */
 export type StreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string }
-  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string }
+  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number }
   | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
   | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
 
@@ -62,6 +62,8 @@ export interface Bridge {
   onEvent(ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }>;
   /** Resolves when every chat post queued so far is done (tests, shutdown). */
   flush(): Promise<void>;
+  /** The turns being written in a thread right now, with the text so far (a chat opened or reconnected mid-turn). */
+  liveTurns(threadId: string): Array<{ turnId: string; agentId: string; text: string }>;
 }
 
 interface Segment { blocks: PostBlock[]; text: string; mentions: number }
@@ -75,6 +77,7 @@ export const scrub = (text: string): string => redact(text.slice(0, 600)).text.s
 export function createBridge(o: BridgeOptions): Bridge {
   let engine: TurnEngine | null = null;
   const opened = new Set<string>();
+  const writing = new Map<string, { threadId: string; agentId: string }>();   // turnId -> a turn that has started and not ended
   const live = new Map<string, Segment>();              // turnId -> what the driver streamed so far
   const ready = new Map<string, Ready>();                // `${thread}:${agent}` -> a completed turn waiting for the engine to store its reply
   const queuedRoutine = new Map<string, boolean>();      // `${thread}:${qseq}` -> routine
@@ -121,6 +124,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         queuedRoutine.delete(`${e.threadId}:${e.qseq}`);
         turns.set(e.turnId, { routineOwner: routine ? e.asker : null });
         askerOf.set(e.threadId, e.asker);
+        writing.set(e.turnId, { threadId: e.threadId, agentId: e.agentId });
         emit({ kind: "start", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, asker: e.asker });
         return;
       }
@@ -128,6 +132,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         const seg = live.get(e.turnId) ?? { blocks: [], text: "", mentions: 0 };
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         live.delete(e.turnId); turns.delete(e.turnId);
+        writing.delete(e.turnId);
         emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: "done" });
         if (seg.text !== "" || seg.mentions > 0) {
           ready.set(`${e.threadId}:${e.agentId}`, { ...seg, routineOwner, turnId: e.turnId });   // the engine stores the reply right after this event; message.received below posts it
@@ -146,6 +151,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
         const blocks = [...(seg?.blocks ?? []), status(e)];
+        writing.delete(e.turnId);
         emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting" });
         enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) }, e.turnId);
         return;
@@ -170,7 +176,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       const seg: Segment = { blocks: [], text: "", mentions: 0 };
       live.set(input.turnId, seg);
       for await (const ev of s.send(input)) {
-        if (ev.type === "text") { seg.text += ev.text; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text }); }
+        if (ev.type === "text") { const at = seg.text.length; seg.text += ev.text; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text, at }); }
         else if (ev.type === "block") seg.blocks.push({ type: ev.kind, v: 1, data: ev.payload ?? {} });
         else if (ev.type === "done") {
           // The engine routes the reply with the mentions the driver ends on: a reply addressed to the asker (a reviewer's verdict) names them, so it reaches them and no agent answers it.
@@ -318,6 +324,11 @@ export function createBridge(o: BridgeOptions): Bridge {
     },
     tap: (openSession) => async (spec) => wrap(await openSession(spec)),
     onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload)),
+    liveTurns(threadId) {
+      const out: Array<{ turnId: string; agentId: string; text: string }> = [];
+      for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.text ?? "" });
+      return out;
+    },
     async flush() {
       let snap: Array<Promise<void>>;
       do { snap = [...chains.values()]; await Promise.all(snap); } while (snap.length !== chains.size || [...chains.values()].some((p, i) => p !== snap[i]));
@@ -328,6 +339,12 @@ export function createBridge(o: BridgeOptions): Bridge {
 // The bridge that runs on this host, bound at boot like the engine (projections.bindEngine).
 let bound: Bridge | null = null;
 export function bindBridge(b: Bridge | null): void { bound = b; }
+
+/** engine.live_turns: the turns being written in a thread the caller can read, with their text so far. */
+export async function liveTurns(ctx: EngineCtx, input: { threadId: string }): Promise<{ turns: Array<{ turnId: string; agentId: string; text: string }> }> {
+  await ctx.call("threads.get", { threadId: input.threadId });   // the caller's own access to the thread decides, as for any read of it
+  return { turns: bound ? bound.liveTurns(input.threadId) : [] };
+}
 
 /** The consumer the engine module exports from impl.ts. A host without a running engine skips the event (nothing reads it later; the chat itself is untouched). */
 export const bridgeConsumers = {

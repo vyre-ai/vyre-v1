@@ -158,7 +158,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     directory: candidates(principals, rt.me.id),
     newKey,
     streamOf: (id) => rt.turns?.streamOf(id),
-    ...(rt.turns ? { live: { turnsOf: (t: string) => rt.turns!.turnsOf(t), subscribe: (l: () => void) => rt.turns!.subscribe(l), settle: (id: string) => rt.turns!.settle(id) } } : {}),
+    ...(rt.turns ? { live: { turnsOf: (t: string) => rt.turns!.turnsOf(t), subscribe: (l: () => void) => rt.turns!.subscribe(l), settle: (id: string) => rt.turns!.settle(id), seed: (t: string, l: readonly { turnId: string; agentId: string; text: string }[]) => rt.turns!.seed(t, l), onGap: (l: (t: string) => void) => rt.turns!.onGap(l) } } : {}),
     copy,
     toast: () => undefined,
     ...(rt.callIn && rt.knownSpaces && rt.knownSpaces.some((x) => x.spaceId !== rt.space.id)
