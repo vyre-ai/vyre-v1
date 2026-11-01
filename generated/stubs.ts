@@ -700,6 +700,20 @@ export function stubs(ctx: CallCtx) {
         list: call("engine.accounts.list"),
       },
       complete: call("engine.complete"),
+      crew: {
+        list: call("engine.crew.list"),
+        merge: call("engine.crew.merge"),
+        message: call("engine.crew.message"),
+        push: call("engine.crew.push"),
+        repo: {
+          get: call("engine.crew.repo.get"),
+          set: call("engine.crew.repo.set"),
+        },
+        start: call("engine.crew.start"),
+        stop: call("engine.crew.stop"),
+        wait: call("engine.crew.wait"),
+        workspace: call("engine.crew.workspace"),
+      },
       defaults: {
         get: call("engine.defaults.get"),
         set: call("engine.defaults.set"),

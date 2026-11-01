@@ -137,3 +137,10 @@ for (const [name, bin, key, args] of [
     assert.doesNotMatch(r.err, /sandbox|Operation not permitted|EPERM|SIGABRT/i, `${name} hit the sandbox: ${r.err.slice(-600)}`);
   });
 }
+
+test("git works under the profile: a crew teammate can init, add and commit in its work folder (Apple's git shim needs the developer folders open)", { skip }, async () => {
+  const r = await run(["/bin/sh", "-c", "git init -q . && echo hi > a.txt && git add a.txt && git -c user.name=t -c user.email=t@t commit -q -m first && git log --oneline"], { PATH: "/usr/bin:/bin" }, undefined, "thr_git");
+  assert.equal(r.signal, null, r.err);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /first/);
+});

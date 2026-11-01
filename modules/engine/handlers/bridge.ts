@@ -285,11 +285,13 @@ export function createBridge(o: BridgeOptions): Bridge {
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.get(messageId)) return { skipped: "known" };            // the engine stored it: its own reply echoing back, or a replay
     const a = (p["author"] ?? {}) as { kind?: string; id?: string };
-    if (!(await open(ctx, threadId, messageId, str(a.id)))) return { skipped: "no_agents" };
+    // an agent's message is read as the person it speaks for when the event says so (the first brief of a crew teammate: nobody has spoken in its thread yet)
+    const readAs = str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : str(a.id);
+    if (!(await open(ctx, threadId, messageId, readAs))) return { skipped: "no_agents" };
     if (store.get(messageId)) return { skipped: "known" };
-    const got = (await reader(ctx, str(a.id), threadId)("chat.message.get", { threadId, messageId })) as { message: Row };
+    const got = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;
-    const note = await pointers(reader(ctx, authorId), got.message);
+    const note = await pointers(reader(ctx, readAs, threadId), got.message);
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
     const eng = engine;
     // an agent added to the chat after it was opened here (a Space agent @mentioned in a chat between people joins as a listener) is not yet known to the engine: read the chat's line-up once and let

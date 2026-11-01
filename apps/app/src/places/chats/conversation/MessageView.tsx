@@ -26,6 +26,7 @@ import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { ApprovalCard } from "./approval.tsx";
+import { CrewResultCard, isCrewResult } from "./crew-card.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
 import { MountCard } from "./mountcard.tsx";
 import { TerminalCard } from "./TerminalCard.tsx";
@@ -283,7 +284,9 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const statuses = m.blocks.filter(isTurnStatus).map(statusView);
   const errors = [...m.blocks.filter(isErrorBlock), ...statuses.flatMap((x) => (x.kind === "error" ? [x.block] : []))];
   const person = item.who.kind === "person";
-  const blocks = stream ? null : bodyBlocks(m.messageId, m.body);
+  // a crew result card says it all (who, what changed, the teammate's words): the message's own text is for the lead agent that wakes on it, so the card stands alone
+  const crewCard = m.blocks.some(isCrewResult);
+  const blocks = stream || crewCard ? null : bodyBlocks(m.messageId, m.body);
   const runCfg = actions.runCode;
   const renderCode = useMemo(() => (runCfg ? (b: { lang: string; text: string; closed: boolean }) => { const c = commandOf(b.lang, b.text, b.closed); return c ? <RunCode command={c} cfg={runCfg} /> : null; } : undefined), [runCfg]);
   const subjects = useSubjectBlocks(blocks);
@@ -311,11 +314,12 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
           ))}
         </Fold>
       ) : null}
-      {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink ? { renderLink: subjects.renderLink } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
+      {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink ? { renderLink: subjects.renderLink } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} />}
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
       {collect(cards, (b) => {
+        if (isCrewResult(b) && actions.files) return <CrewResultCard key={b.id} block={b} leadThreadId={m.threadId} data={actions.files} />;
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         const lc = linkCardOf(b);

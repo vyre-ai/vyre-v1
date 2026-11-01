@@ -11,8 +11,9 @@ import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
 import { gateResumeConsumers } from "./handlers/gate-resume.ts";
+import { sweepWaits } from "./crew-waits.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
-import { closeNoAccountTasks, engineHost, ensureRuntime, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
+import { closeNoAccountTasks, engineHost, ensureRuntime, recoverStale, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
 import type { EngineCtx } from "./projections.ts";
 
@@ -28,7 +29,7 @@ export const hostSeams = { setEngineHost };
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {
-  "engine.runtime": { everyMs: 5_000, run: async (ctx: EngineCtx): Promise<void> => { await ensureRuntime(ctx); } },
+  "engine.runtime": { everyMs: 5_000, run: async (ctx: EngineCtx): Promise<void> => { const engine = await ensureRuntime(ctx); if (engine) await recoverStale(ctx, engine); } },
   /** A baton an agent stopped on goes to a person after nudgeMinutes (handlers/task-baton.ts). */
   "engine.task_baton_sweep": {
     everyMs: 60_000,
@@ -36,6 +37,15 @@ export const periodic = {
       const host = engineHost();
       if (!host) return [];
       return sweepBaton(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, await ensureRuntime(ctx));
+    },
+  },
+  /** The checks a crew's lead is waiting on, looked at by the host every 15 s (crew-waits.ts). */
+  "engine.crew_waits": {
+    everyMs: 15_000,
+    run: async (ctx: EngineCtx): Promise<string[]> => {
+      const host = engineHost();
+      if (!host) return [];
+      return sweepWaits({ db: ctx.db, host, now: () => ctx.now() });
     },
   },
   ...capturePeriodic,

@@ -53,6 +53,11 @@ export function askerOf(ctx: EngineCtx): string {
   return raise(ctx, "permission.no_grant", "Only a person's turn has a place.");
 }
 
+/** A crew teammate's thread: its job row says so. */
+function isCrewJob(ctx: EngineCtx, threadId: string): boolean {
+  try { return ctx.db.all("SELECT 1 AS x FROM engine_crew_job WHERE thread_id = ?", threadId).length > 0; } catch { return false; }
+}
+
 export async function placementDecide(ctx: CallCtx, input: { threadId: string; agentId: string; kind: "message" | "interrupt" | "wake" | "handoff" }) {
   const asker = askerOf(ctx);
   const [t, a, d] = await Promise.all([
@@ -67,7 +72,7 @@ export async function placementDecide(ctx: CallCtx, input: { threadId: string; a
   let localRuns = true;
   try { localRuns = ((await ctx.call("settings.get", { key: "engine.local_runs" })) as { row?: { value?: unknown } }).row?.value !== false; } catch { /* the default stands */ }
   const place: PlaceInput = {
-    thread: { kind, persons, onSharedRecord: kind === "ask" && t.thread.scopeType === "record" && persons > 1 },
+    thread: { kind, persons, onSharedRecord: kind === "ask" && t.thread.scopeType === "record" && persons > 1, ...(isCrewJob(ctx, input.threadId) ? { crew: true } : {}) },
     item: { kind: input.kind === "message" ? "message" : input.kind },
     agent: { hasComputer: a.agent.hasComputer === true },
     engine: engineOf(ctx, input.threadId, input.agentId),

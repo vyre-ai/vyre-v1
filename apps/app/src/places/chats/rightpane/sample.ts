@@ -58,7 +58,7 @@ const file = (fileId: string, folderId: string, name: string, size: number, upda
   fileId, folderId, name, kind, mime: kind === "markdown" ? "text/markdown" : "text/plain", size, version: 1, label: 0, ownerId: "usr_omar", createdAt: at(10, 2, 9), updatedAt, updatedBy: "usr_omar", thumb: false, holds: 0,
 });
 
-export function createSample(variant: Variant = "northwind", o: { online?: boolean } = {}): Sample {
+export function createSample(variant: Variant = "northwind", o: { online?: boolean; crew?: boolean } = {}): Sample {
   const personal = variant === "personal";
   const replica = createFakeReplica(personal ? "personal" : "northwind");
   const calls: { cap: string; input: unknown }[] = [];
@@ -166,6 +166,14 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     if (kinds) list = list.filter((x) => kinds.includes(x.kind));
     return { threads: list, total: list.length };
   });
+  // the crew of the open chat: one teammate at work, one with work to merge, one already merged
+  const jobBase = { threadId: "thr_crew", leadThreadId: "thr_open", projectId: "prj_site", base: "main" };
+  if (o.crew) replica.put("crew", [
+    { id: "crw_1", ...jobBase, jobId: "crw_1", threadId: "thr_crew1", agentId: "agt_ember", name: "Ember", title: "Dark mode", branch: "crew/ember-1", state: "working", startedAt: SAMPLE_NOW - 12 * MIN },
+    { id: "crw_2", ...jobBase, jobId: "crw_2", threadId: "thr_crew2", agentId: "agt_rowan", name: "Rowan", title: "Footer links", branch: "crew/rowan-1", state: "done", startedAt: SAMPLE_NOW - 40 * MIN, endedAt: SAMPLE_NOW - 5 * MIN, result: { text: "Done.", summary: { files: [{ path: "footer.tsx", added: 12, deleted: 2 }, { path: "footer.test.ts", added: 20, deleted: 0 }] } } },
+    { id: "crw_3", ...jobBase, jobId: "crw_3", threadId: "thr_crew3", agentId: "agt_quill", name: "Quill", title: "Docs", branch: "crew/quill-1", state: "merged", startedAt: SAMPLE_NOW - 3 * 60 * MIN, endedAt: SAMPLE_NOW - 2 * 60 * MIN },
+  ]);
+  replica.resolve("engine.crew.list", () => ({ jobs: rowsOf<Row>("crew").map((x) => strip(x, [])) as never, waits: (o.crew ? [{ waitId: "cwt_1", kind: "checks", label: "acme/site#12", state: "pending", done: 12, total: 40, startedAt: SAMPLE_NOW - 4 * MIN }] : []) as never }));
   replica.resolve("chat.helpers.list", () => ({ helpers: rowsOf<Helper & Row>("helpers").map((x) => strip(x, [])) }));
   replica.resolve("memory.facts.list", (_t, input) => {
     const status = input.status ?? ["current"];
@@ -212,6 +220,18 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     // reads the pane makes with a plain call (not a live query)
     "memory.map.get": () => mapOut(),
     "memory.counts": () => countsOut(),
+    "engine.crew.merge": (i: { jobId: string }) => {
+      const cur = rowsOf<Row>("crew").find((x) => x["jobId"] === i.jobId);
+      if (!cur) throw new Error("no such job");
+      replica.put("crew", [{ ...cur, state: "merged", endedAt: SAMPLE_NOW }]);
+      return { job: strip(cur, []), landed: true, ref: String(cur["branch"]) };
+    },
+    "engine.crew.stop": (i: { jobId: string }) => {
+      const cur = rowsOf<Row>("crew").find((x) => x["jobId"] === i.jobId);
+      if (!cur) throw new Error("no such job");
+      replica.put("crew", [{ ...cur, state: "stopped", endedAt: SAMPLE_NOW }]);
+      return { job: strip(cur, []) };
+    },
     "computers.wake": () => ({ computer: patchComputer({ state: "working", caption: "Waking up" }) }),
     "computers.sleep": () => ({ computer: patchComputer({ state: "asleep" }) }),
     "computers.take_over": () => ({ computer: patchComputer({ state: "takeover", takeoverBy: "usr_irfad" }) }),

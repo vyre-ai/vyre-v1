@@ -398,7 +398,7 @@ function workerFor(ctx: ChatCtx, parent: ThreadRec, named: string | undefined): 
 
 export async function helperStart(
   ctx: ChatCtx,
-  input: { threadId: string; title: string; instruction: string; agentId?: string; model?: string; provider?: string; effort?: string; idempotencyKey?: string },
+  input: { threadId: string; title: string; instruction: string; agentId?: string; model?: string; provider?: string; effort?: string; crew?: boolean; idempotencyKey?: string },
 ) {
   ensure(ctx.db);
   const parent = open(ctx, input.threadId);
@@ -415,7 +415,7 @@ export async function helperStart(
   const blockId = mintId("blk", ctx.now());
   const line = insertMessage(ctx, parent.id, {
     author: ctx.principal.id, kind: authorKind(ctx), body: `Started a helper: ${title}`,
-    blocks: [{ type: "helper", v: 1, id: blockId, data: { title, agentId, ...(input.model !== undefined ? { model: input.model } : {}) }, state: "live", traceId: ctx.trace.traceId }],
+    blocks: [{ type: "helper", v: 1, id: blockId, data: { title, agentId, ...(input.model !== undefined ? { model: input.model } : {}), ...(input.crew === true ? { crew: true } : {}) }, state: "live", traceId: ctx.trace.traceId }],
   });
   const helper = insertThread(ctx, { kind: "helper", title, starter: asker, parentThreadId: parent.id, parentMessageId: line.id, listed: false });
   patchBlockInMessage(ctx.db, line.id, blockId, (b) => ({ ...b, data: { ...(b["data"] as Record<string, unknown>), helperThreadId: helper.id } }));
@@ -426,7 +426,9 @@ export async function helperStart(
   ctx.emit("helper.started", helper.id, { helperThreadId: helper.id, parentThreadId: parent.id, agentId, ...(input.model !== undefined ? { model: input.model } : {}) });
   emitStarted(ctx, helper);
   deliver(ctx, parent, messageBy(ctx.db, line.id)!, [], by, { notify: false });
-  deliver(ctx, helper, first, [], by, { notify: false });
+  // a brief from one agent to another is addressed to it: an agent's message reaches another agent only when it names it
+  const addressed = ctx.principal.kind === "agent" && agentId !== ctx.principal.id ? [{ kind: "agent" as const, id: agentId }] : [];
+  deliver(ctx, helper, first, addressed, by, { notify: false });
   return { helper: threadOut(ctx.db, threadBy(ctx.db, helper.id)!), blockId };
 }
 

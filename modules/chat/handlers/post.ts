@@ -112,6 +112,8 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
   ctx.emit("message.received", thread.id, {
     messageId: m.id, threadId: thread.id, threadSeq: m.seq, author, kind: m.kind, depth: m.depth, mentions, hasBlocks: m.blocks.length > 0,
     ...(m.via ? { via: m.via.routineOwner } : {}),
+    // an agent speaks for the person it works for: the engine reads a private thread as that person when nobody has spoken in it yet
+    ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { actingFor: ctx.actingFor } : {}),
   });
   if (opts.notify === false) return;
   const root = rootOf(ctx, thread);
@@ -140,12 +142,32 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
   }
 }
 
+/** A crew teammate's thread: a helper thread whose line in the chat that started it says `crew`. People and the lead steer it directly; a plain helper thread takes no messages. */
+function isCrewThread(ctx: ChatCtx, thread: ThreadRec): boolean {
+  const line = thread.parentMessageId ? messageBy(ctx.db, thread.parentMessageId) : null;
+  return line?.blocks.some((b) => b["type"] === "helper" && (b["data"] as Record<string, unknown> | undefined)?.["crew"] === true && (b["data"] as Record<string, unknown>)["helperThreadId"] === thread.id) ?? false;
+}
+
+/**
+ * A finished crew job reports to the chat that started it with one message carrying a `crew_result` block. That is work coming back, not agents answering each other, so it does not count as a hop: a crew that
+ * runs while nobody is at the keyboard would otherwise stop after a few results. Only the real thing counts: the block names a crew teammate thread under this chat, and the poster is that teammate.
+ */
+function isCrewResult(ctx: ChatCtx, thread: ThreadRec, authorId: string, blocks: Array<Record<string, unknown>>): boolean {
+  for (const b of blocks) {
+    if (b["type"] !== "crew_result") continue;
+    const helperId = (b["data"] as Record<string, unknown> | undefined)?.["threadId"];
+    const helper = typeof helperId === "string" ? threadBy(ctx.db, helperId) : null;
+    if (helper && helper.kind === "helper" && helper.parentThreadId === thread.id && isCrewThread(ctx, helper) && agentsOf(ctx.db, helper.id).some((a) => a.agentId === authorId)) return true;
+  }
+  return false;
+}
+
 export async function post(ctx: ChatCtx, input: PostInput) {
   ensure(ctx.db);
   const thread = threadBy(ctx.db, input.threadId);
   if (!thread || !canSpeak(ctx, thread)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours to write in.");
   const author = ctx.principal;
-  if (thread.kind === "helper" && !(author.kind === "agent" && agentsOf(ctx.db, thread.id).some((a) => a.agentId === author.id))) {
+  if (thread.kind === "helper" && !isCrewThread(ctx, thread) && !(author.kind === "agent" && agentsOf(ctx.db, thread.id).some((a) => a.agentId === author.id))) {
     raise(ctx, "validation.bad_input", "A helper chat takes no messages. Steer the helper from the chat that started it.");
   }
   if (thread.closedAt !== undefined) raise(ctx, "validation.bad_input", "This thread is closed. Reopen it to write in it.");
@@ -175,7 +197,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
 
   // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0.
   let depth = 0;
-  if (author.kind === "agent") {
+  if (author.kind === "agent" && !isCrewResult(ctx, thread, author.id, blocks)) {
     const prev = replyTo ?? lastMessage(ctx.db, thread.id);
     if (prev && refOf(prev.author).kind === "agent") depth = prev.author === author.id ? prev.depth : prev.depth + 1;
     if (depth >= 1) {
