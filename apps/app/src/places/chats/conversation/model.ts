@@ -397,8 +397,9 @@ export function postInput(threadId: string, body: string, mentions: readonly { k
 }
 
 /** The line under the header while a send waits for the agent's next step. */
-export function queueNote(n: number, leadName: string): string {
+export function queueNote(n: number, leadName: string, steers = false): string {
   if (n <= 0) return "";
+  if (steers) return "Goes in at the next step";
   return `${n} ${n === 1 ? "message" : "messages"} queued for ${leadName || "the agent"}'s next step`;
 }
 
@@ -410,8 +411,9 @@ export function whoLine(t: Thread, nameOf: (id: string) => string): string {
   return lead ? `${nameOf(lead.agentId)} will reply` : "No agent will reply · type @ to ask one";
 }
 
-export function placeholderFor(t: Thread, nameOf: (id: string) => string, working = false): string {
+export function placeholderFor(t: Thread, nameOf: (id: string) => string, working = false, steers = false): string {
   const lead = leadOf(t);
+  if (lead && working && steers) return `Steer ${nameOf(lead.agentId)}…`;
   if (lead && working) return `Queue a message for when ${nameOf(lead.agentId)} finishes…`;
   if (lead) return `Message ${nameOf(lead.agentId)}…`;
   return t.kind === "channel" ? `Message ${titleOf(t, nameOf)}…` : "Message…";

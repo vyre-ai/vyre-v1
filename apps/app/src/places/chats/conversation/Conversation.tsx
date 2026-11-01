@@ -410,7 +410,7 @@ function ConversationView(): ReactElement {
   const closed = isClosed(thread);
   const note = threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf);
-  const q = queueNote(queued, lead ? nameOf(lead.agentId) : "");
+  const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
   const dropShare = (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }): void => {
@@ -506,7 +506,7 @@ function ConversationView(): ReactElement {
 
       {data.waitingLine ?? null}
       <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
-      {q ? <View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text>{queuedIdsNow.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = queuedIdsNow[queuedIdsNow.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It has already started, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{queuedIdsNow.length > 0 && canSteer ? <TextButton link label="Steer" testID="queue-steer" onPress={() => void act.steerQueued(data, thread.threadId, queuedIdsNow[0]!).then((ok) => { if (!ok) say("It has already been read."); }, fail("Could not steer it."))} /> : null}{queuedIdsNow.length > 0 ? <TextButton link label="Stop and send" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, queuedIdsNow[0]!).catch(fail("Could not send it now."))} /> : null}</View> : null}
+      {q ? <View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text>{queuedIdsNow.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = queuedIdsNow[queuedIdsNow.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It was already read, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{queuedIdsNow.length > 0 && canSteer ? <TextButton link label="Steer" testID="queue-steer" onPress={() => void act.steerQueued(data, thread.threadId, queuedIdsNow[0]!).then((ok) => { if (!ok) say("It has already been read."); }, fail("Could not steer it."))} /> : null}{queuedIdsNow.length > 0 ? <TextButton link label="Stop and send" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, queuedIdsNow[0]!).catch(fail("Could not send it now."))} /> : null}</View> : null}
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
@@ -521,7 +521,7 @@ function ConversationView(): ReactElement {
         <View style={st.composerBox}>
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
-            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking)} working={isWorking}
+            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
             {...(lead && !data.personal ? { barExtra: <IconButton icon="monitor" label={`${nameOf(lead.agentId)}'s computer`} size={26} testID="computer-button" onPress={() => data.nav.openBeside("computer", lead.agentId)} /> } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}

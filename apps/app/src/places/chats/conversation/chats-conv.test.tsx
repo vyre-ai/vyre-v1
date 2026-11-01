@@ -89,6 +89,7 @@ test("while an agent works a plain send queues; Interrupt sends it now with the 
   assert.deepEqual(s.calls[2]!.input, { threadId: "c1", messageId: sentId });
   assert.equal(queuedCount(msgs(s), "usr_irfad", true), 2);
   assert.equal(queueNote(2, "Intake"), "2 messages queued for Intake's next step");
+  assert.equal(queueNote(2, "Intake", true), "Goes in at the next step", "an engine that steers takes it at its next step");
 });
 
 test("one chat.post gives one message and one bubble on the page, never two", async () => {
@@ -297,6 +298,7 @@ test("the composer's agent strip names who answers and on what model (Opus), wit
   assert.ok(has(out, "Message Intake…"));
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
+  assert.equal(placeholderFor(thread(s), s.data.nameOf, true, true), "Steer Intake…", "a message sent while a steering engine works is steering");
   assert.ok(!has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned: no strip");
 });
 
