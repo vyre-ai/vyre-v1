@@ -487,6 +487,13 @@ export default defineManifest({
       threadId: id.thread, parentThreadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()),
       path: t.arr(t.obj({ title: t.str(), threadId: id.thread })),
     }, 'Helper {{title}}: {{status}}', { opens: { tab: 'thread', input: { threadId: '/threadId' } }, actions: [{ key: 'stop', label: 'Stop', cap: 'engine.stop', input: { threadId: '/threadId' } }] }),
+    block('crew_result', {
+      jobId: t.str(), threadId: id.thread, agentId: id.agent, name: t.str(), title: t.str(), branch: t.str(), base: t.str(), state: t.enm('done', 'failed'),
+      commits: t.opt(t.arr(t.obj({ sha: t.str(), subject: t.str() }))), files: t.opt(t.arr(t.obj({ path: t.str(), added: t.int(), deleted: t.int() }))), ahead: t.opt(t.int()), text: t.opt(t.str()),
+    }, '{{name}} finished {{title}}', {
+      opens: { tab: 'thread', input: { threadId: '/threadId' } },
+      actions: [{ key: 'merge', label: 'Merge', cap: 'engine.crew.merge', input: { jobId: '/jobId' } }],
+    }),
     block('model_switch', {
       threadId: id.thread, agentId: id.agent, scope: t.enm('sub_task', 'thread'),
       from: t.obj({ provider: t.str(), model: t.str(), effort: t.opt(t.str()) }), to: t.obj({ provider: t.str(), model: t.str(), effort: t.opt(t.str()) }), reason: t.opt(t.str()),
@@ -533,7 +540,7 @@ export default defineManifest({
       empty: 'The helper has not said anything yet', primary: 'Back to the chat',
     }),
     screen('chats.right-pane', 'chats', 'ui:ChatRightPane', {
-      slot: 'side', q: { threads: ['threads.list', { parentThreadId: '/state/threadId' }, true], helpers: ['chat.helpers.list', { threadId: '/state/threadId' }, true] },
+      slot: 'side', q: { threads: ['threads.list', { parentThreadId: '/state/threadId' }, true], helpers: ['chat.helpers.list', { threadId: '/state/threadId' }, true], crew: ['engine.crew.list', { threadId: '/state/threadId' }, true] },
       a: { openThread: ['chat.thread', { threadId: '/state/threadId' }] }, empty: 'No threads yet',
     }),
     screen('chats.connect-outside-agent', 'chats', 'ui:ConnectOutsideAgent', {

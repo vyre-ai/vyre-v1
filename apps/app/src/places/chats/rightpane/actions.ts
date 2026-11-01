@@ -163,3 +163,16 @@ export function saveInstructions(d: PaneDeps, r: Routine, prompt: string): Promi
     d.note("Saved as a new version. The old one is kept.", () => attempt(d, "undo that", async () => { await d.call("agents.routine.save", { ...routineInput(r, r.enabled), idempotencyKey: key("routine", r.routineId) }); }).then(() => undefined));
   });
 }
+
+/* ---------- crew ---------- */
+
+export function crewMerge(d: PaneDeps, jobId: string, name: string, branch: string): Promise<boolean> {
+  return attempt(d, `merge ${name}'s work`, async () => {
+    const out = (await d.call("engine.crew.merge", { jobId, idempotencyKey: key("merge", jobId) })) as { landed: boolean; note?: string };
+    d.note(out.landed ? `Merged ${branch}` : out.note ?? `${branch} is waiting to be merged`);
+  });
+}
+
+export function crewStop(d: PaneDeps, jobId: string, name: string): Promise<boolean> {
+  return attempt(d, `stop ${name}`, async () => { await d.call("engine.crew.stop", { jobId, idempotencyKey: key("stop", jobId) }); d.note(`Stopped ${name}`); });
+}
