@@ -7,11 +7,12 @@ import { setConnectorReadSender } from "./handlers/try-read.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import { chooseScheduleRecovery, runDueSchedules, SCHEDULE_EVERY_MS } from "./schedule/live.ts";
 import type { ChoiceLimits, ScheduleChoiceKey } from "./schedule/schedule.ts";
+import { registry } from "../../generated/registry.ts";
 
 export { handlers };
 export const hostSeams = { setDocumentNetwork, setConnectorReadSender, setHttpStepHost };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
-import { acceptHook, loadRunPlan, startRun } from "./handlers/triggers.ts";
+import { acceptHook, consumeEvent, loadRunPlan, startRun } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
@@ -26,7 +27,24 @@ type Row = Record<string, unknown>;
 const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => { try { return ctx.db.all(sql, ...a) as Row[]; } catch { return []; } };
 const kept = (r: Row[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
 const CONNECTOR_KINDS: ReadonlySet<string> = new Set(["api_key", "env", "login", "other"]);
+/** Every event name an Automation trigger can listen for: the events the trigger catalogue names as the source of a trigger. */
+const TRIGGER_EVENTS: readonly string[] = [...new Set(registry.triggers.flatMap((t) => { const src = t.source as { event?: string; events?: string[] } | undefined; return src?.events ?? (src?.event ? [src.event] : []); }))];
+
 export const consumers = {
+  /**
+   * Events in, Runs out: the host runs this once per event a trigger listens for, after it is committed. An event a Run's own step made carries that Run's id, and from it the Automation and the chain depth
+   * (the Run's depth plus one), so an Automation that makes the record it listens for is dropped as a self-trigger and a chain of them stops at the depth limit.
+   */
+  "automations.triggers": {
+    on: TRIGGER_EVENTS,
+    async run(ctx: Ctx, event: { id: string; name: string; payload: Record<string, unknown>; runId?: string }): Promise<void> {
+      const parent = event.runId ? loadRunPlan(ctx as unknown as AutoCtx, event.runId) : undefined;
+      await consumeEvent(ctx as unknown as AutoCtx, {
+        id: event.id, type: event.name, payload: event.payload,
+        ...(parent ? { origin: `automation:${parent.link.automationId}`, depth: (parent.link.depth ?? 0) + 1 } : {}),
+      });
+    },
+  },
   "automations.connector_offer": {
     on: ["vault.item_created"],
     run(ctx: Ctx, event: { payload?: Record<string, unknown>; actor?: string }): void {

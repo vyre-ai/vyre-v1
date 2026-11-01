@@ -317,6 +317,34 @@ export function matches(ref: TriggerRef, ev: LoggedEvent): boolean | "filter_err
   return shallowMatch(f, ev.payload);
 }
 
+// A bulk import or a runaway chain must not start thousands of Runs: past BURST_LIMIT event starts of one Flow in BURST_WINDOW_MS the Flow is paused, and its owner gets a Needs you note saying so and how to go on.
+export const BURST_LIMIT = 100;
+export const BURST_WINDOW_MS = 60_000;
+const STARTS = new Map<string, number[]>();
+/** Count this start for the Automation; true once it is past the limit. */
+export function overBurst(automationId: string, now: number): boolean {
+  const recent = (STARTS.get(automationId) ?? []).filter((t) => now - t < BURST_WINDOW_MS);
+  recent.push(now);
+  STARTS.set(automationId, recent);
+  return recent.length > BURST_LIMIT;
+}
+export const resetBursts = (): void => STARTS.clear();
+
+async function pauseForBurst(ctx: AutoCtx, a: Automation): Promise<void> {
+  if (a.status !== "on") return;
+  a.status = "paused";
+  a.pausedReason = `Paused: more than ${BURST_LIMIT} starts in a minute, as a bulk import would cause. Check it, then turn it back on.`;
+  touch(ctx, a);
+  emitAuto(ctx, "automation.disabled", a.id, { reason: a.pausedReason });
+  if (!ctx.call) return;
+  try {
+    await ctx.call("tasks.create", {
+      kind: "unblock", title: `${a.name} was paused`, summary: a.pausedReason, why: "Too many things started it at once, so it stopped before starting thousands of Runs.",
+      assigned: { kind: "person", id: a.ownerId }, source: { kind: "manual", id: `flow:${a.id}` }, idempotencyKey: `flow-burst:${a.id}:${ctx.now()}`,
+    });
+  } catch { /* the pause stands and shows on the Flow even if the note could not be made */ }
+}
+
 /** One event from the log: start a Run of every enabled Automation it triggers. Importers and sync backfill are skipped unless the Space turned that on. */
 export async function consumeEvent(ctx: AutoCtx, ev: LoggedEvent): Promise<{ automationId: string; result: { runId: string } | { dropped: DropReason } }[]> {
   const policy = readPolicy(ctx.db);
@@ -328,6 +356,7 @@ export async function consumeEvent(ctx: AutoCtx, ev: LoggedEvent): Promise<{ aut
       const m = matches(ref, ev);
       if (m === false) continue;
       if (m === "filter_error") { out.push({ automationId: a.id, result: dropped(ctx, a, "filter_error", ev.id) }); continue; }
+      if (a.status === "on" && overBurst(a.id, ctx.now())) { await pauseForBurst(ctx, a); out.push({ automationId: a.id, result: dropped(ctx, a, "paused", ev.id) }); continue; }
       const f: Firing = { trigger: ref.key, eventId: ev.id, payload: triggerPayload(ref.key, ev), origin: ev.origin, depth: ev.depth ?? 0, key: `fire:${a.id}:${ev.id}:${ref.key}` };
       out.push({ automationId: a.id, result: await fireOne(ctx, a, f) });
     }
