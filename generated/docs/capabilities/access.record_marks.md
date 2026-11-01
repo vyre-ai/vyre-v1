@@ -37,6 +37,7 @@ type Out = {
   audience: "space" | "added" | "me";
   can: {
     manage: boolean;
+    edit?: boolean;
     share: boolean;
     export: boolean;
   };
@@ -67,6 +68,7 @@ type Out = {
   "output": {
     "audience": "space",
     "can": {
+      "edit": true,
       "export": true,
       "manage": true,
       "share": true

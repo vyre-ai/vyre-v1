@@ -15439,6 +15439,28 @@
       },
       "type": "object"
     },
+    "s_b8cd73e979": {
+      "properties": {
+        "edit": {
+          "type": "boolean"
+        },
+        "export": {
+          "type": "boolean"
+        },
+        "manage": {
+          "type": "boolean"
+        },
+        "share": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "manage",
+        "share",
+        "export"
+      ],
+      "type": "object"
+    },
     "s_b92225d0bc": {
       "properties": {
         "follower": {
@@ -26154,6 +26176,7 @@
           "output": {
             "audience": "space",
             "can": {
+              "edit": true,
               "export": true,
               "manage": true,
               "share": true
@@ -26200,23 +26223,7 @@
             "type": "string"
           },
           "can": {
-            "properties": {
-              "export": {
-                "type": "boolean"
-              },
-              "manage": {
-                "type": "boolean"
-              },
-              "share": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "manage",
-              "share",
-              "export"
-            ],
-            "type": "object"
+            "$ref": "#/$defs/s_b8cd73e979"
           },
           "rows": {
             "items": {
@@ -28149,6 +28156,7 @@
           "output": {
             "audience": "space",
             "can": {
+              "edit": true,
               "export": true,
               "manage": true,
               "share": true
@@ -28211,23 +28219,7 @@
             "type": "string"
           },
           "can": {
-            "properties": {
-              "export": {
-                "type": "boolean"
-              },
-              "manage": {
-                "type": "boolean"
-              },
-              "share": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "manage",
-              "share",
-              "export"
-            ],
-            "type": "object"
+            "$ref": "#/$defs/s_b8cd73e979"
           },
           "exporters": {
             "enum": [
