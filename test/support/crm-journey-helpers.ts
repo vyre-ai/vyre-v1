@@ -30,6 +30,12 @@ export const rows = async (s: Space, type: string): Promise<any[]> => (await ok(
 export const nameOf = (r: any): string => String(r.data?.name ?? r.fields?.name ?? "");
 export interface Ctl { member(who: { personId: string; token: string }): Promise<Pg> }
 
+/** What the page shows, for a failure message: the address and the test ids on screen. */
+export async function seen(page: Pg): Promise<string> {
+  const ids = await page.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((e) => e.getAttribute("data-testid")).slice(0, 60).join(","));
+  return `${page.url()} :: ${ids}`;
+}
+
 /** The journey, with a signed-in browser when CI has built the app (null otherwise: the host parts still run). The owner claims the Space first, as a person does. */
 export async function session<T>(s: Space, kind: "personal" | "team", fn: (page: Pg | null, ctl: Ctl) => Promise<T>): Promise<T> {
   if (!s.web) return fn(null, { member: async () => null });
@@ -66,12 +72,14 @@ export async function session<T>(s: Space, kind: "personal" | "team", fn: (page:
 export const openSync = async (s: Space, page: Pg): Promise<void> => {
   await page.goto(`${s.web!.origin}/records`);
   await page.getByTestId("sync-dot").first().click();
-  await page.getByTestId("sync-page").waitFor();
+  await page.getByTestId("sync-page").waitFor().catch(async (e: Error) => { throw new Error(`${e.message} :: ${await seen(page)}`); });
 };
 /** The Looks good tap on the question card in the chat, in the browser. */
 export const tapIn = (page: Pg | null, s: Space, pics: ReturnType<typeof shots> | null) => page === null ? undefined : async (threadId: string): Promise<void> => {
-  await page.goto(`${s.web!.origin}/chats#thread=${threadId}`);
-  await page.getByTestId("chats-place").waitFor();
+  // the chat the person asked in is the one Chats opens on (the newest); the card is under the agent's message
+  void threadId;
+  await page.getByTestId("rail-chats").first().click();
+  await page.getByTestId("chats-place").waitFor().catch(async (e: Error) => { throw new Error(`${e.message} :: ${await seen(page)}`); });
   const looksGood = page.getByRole("button", { name: "Looks good" }).first();
   await looksGood.waitFor({ timeout: 30_000 });
   if (pics) await pics.take(page, "the-proposal");

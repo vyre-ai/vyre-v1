@@ -386,6 +386,9 @@ export default defineManifest({
       },
       empty: 'This type is not synced',
     }),
+    screen('records.sync', 'records', 'ui:SyncPage', {
+      q: { status: ['sync_types.status', { type: '/state/type' }] }, empty: 'This type is not synced',
+    }),
     screen('records.sync-mapping', 'records', 'ui:SyncMapping', {
       slot: 'sheet',
       q: { sync: ['sync_types.get', { type: '/state/type' }], preview: ['sync_types.preview', { type: '/state/type' }, false] },
