@@ -248,7 +248,9 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
 /** Agents that have a live step, or a message still being written (`writing` holds those message ids): the ones the Stop buttons act on. */
 export function workingAgents(messages: readonly Message[], writing: ReadonlySet<string> = new Set()): string[] {
   const ids = new Set<string>();
-  for (const m of messages) if (m.author.kind === "agent" && (writing.has(m.messageId) || m.blocks.some((b) => b.state === "live"))) ids.add(m.author.id);
+  // a crew teammate's line stays "live" in the chat that started it for as long as the job exists (nothing closes it): the Crew tab and the result card carry that state, so it is not the lead working
+  const liveWork = (b: Message["blocks"][number]): boolean => b.state === "live" && !(b.type === "helper" && (b.data as { crew?: unknown } | null)?.crew === true);
+  for (const m of messages) if (m.author.kind === "agent" && (writing.has(m.messageId) || m.blocks.some(liveWork))) ids.add(m.author.id);
   return [...ids];
 }
 

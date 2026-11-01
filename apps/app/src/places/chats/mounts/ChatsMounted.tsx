@@ -6,7 +6,7 @@
 import { useComputersAvailable } from "../../../shell/computers-available.ts";
 import { ImportedSession } from "../imported/ImportedSession.tsx";
 import type { ImportedData } from "../imported/ImportedSession.tsx";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
@@ -92,6 +92,13 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   }, [line]);
 
   const act = useCallback((a: Act): void => setShown((s) => step(s, a)), []);
+  // a link from another place, a notification or the Space menu while Chats is already open
+  const linked = useRef(hash);
+  useEffect(() => {
+    if (hash === linked.current) return;
+    linked.current = hash;
+    if (hash !== "") setShown(fromHash(hash));
+  }, [hash]);
   // An Ask link names an agent and an object; the thread it opens is found or made, then shown as a chat.
   const asking = shown.route.view === "ask" ? shown.route : null;
   useEffect(() => {

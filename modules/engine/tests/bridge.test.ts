@@ -355,3 +355,15 @@ test("steps and thinking go to the live link as they happen, names only, and the
   assert.equal(post?.blocks[1]?.data["name"], "Read");
   assert.equal(typeof post?.blocks[1]?.data["turnSecs"], "number", "how long the whole turn took rides on the last step");
 });
+
+test("an agent message chat already holds (a crew card posted by the host) is not posted a second time", async () => {
+  const s = setup({ script: reply("Done.") });
+  await s.say("Please draft the closing letter.");
+  const before = s.echoes.length;
+  const row: ChatRow = { messageId: "msg_crwcard1", threadId: T, threadSeq: s.chat.length + 1, author: { kind: "agent", id: LEAD }, body: "Ember finished it.", blocks: [{ type: "crew_result", v: 1, data: { jobId: "crw_1" } }], mentions: [], depth: 1 };
+  s.chat.push(row);
+  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: LEAD }, mentions: [], depth: 1 } });
+  await s.bridge.flush();
+  assert.equal(s.echoes.length, before, "no second post of a message chat already has");
+  assert.equal(s.chat.filter((r) => r.messageId === "msg_crwcard1").length, 1);
+});

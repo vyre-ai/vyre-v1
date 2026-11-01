@@ -1,0 +1,2 @@
+- Open Terminal works from the Space menu and Search.
+- A link into Chats works while Chats is already open.

@@ -152,6 +152,11 @@ test("the lead starts a teammate with a tool, the teammate finishes and one resu
     assert.match(card.body, /the test passes/);
     const cards = ((await ok(d, "chat.messages.list", { threadId: chat })).messages as Array<{ author: { id: string }; blocks: Array<{ type: string }> }>).filter((m) => m.blocks.some((b) => b.type === "crew_result"));
     assert.equal(cards.length, 1, "one card, not a stream");
+    // the result is posted exactly once: no second copy of it, no "reply could not be shown" on a healthy turn, nothing refused in the log
+    const lines = ((await ok(d, "chat.messages.list", { threadId: chat })).messages as Array<{ author: { id: string }; body: string; blocks: Array<{ type: string; data?: { code?: string } }> }>);
+    assert.equal(lines.filter((m) => m.author.id === teammate).length, 1, "the teammate has one message in the lead's chat");
+    assert.equal(lines.filter((m) => m.blocks.some((b) => b.type === "turn_status" && b.data?.code === "engine.post_failed")).length, 0, "no lost-reply notice");
+    assert.doesNotMatch(hostLog(d), /could not post an agent reply|could not even say/);
 
     // the card woke the lead, which listed the crew and asked to merge: that is held at the Gate for a person, and nothing landed
     const hold = await waitFor(async () => {

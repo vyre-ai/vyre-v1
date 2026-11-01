@@ -185,7 +185,7 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
     return (
       <Pressable
         key={id} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={`${name}. ${note}`} testID={`skin-${id}`}
-        onPress={() => { if (skinRow) void change(skinRow, id); }}
+        onPress={() => { if (skinRow) { data.nav.applySkin?.(id); void change(skinRow, id); } }}
         onHoverIn={() => { setHover(id); data.nav.previewSkin?.(id); }} onHoverOut={() => { setHover(null); data.nav.previewSkin?.(null); }}
         style={[a.tile, on && a.tileOn, pointer]}
       >
