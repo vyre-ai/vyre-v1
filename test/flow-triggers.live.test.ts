@@ -61,8 +61,10 @@ test("a bulk import cannot start thousands of Runs: past a burst the Flow pauses
     const a = (await ok(d, "automations.get", { automationId: id })).automation;
     assert.equal(a.status, "paused", "the Flow paused itself");
     assert.match(a.pausedReason, /more than 100 starts in a minute/);
-    const tasks = (await call(d, "tasks.list", { scope: "all" })).data.tasks as Array<{ title: string }>;
-    assert.ok(tasks.filter((t) => t.title === "Call the lead").length <= 101, "at most a burst of Runs started");
-    assert.ok(tasks.some((t) => t.title === "Call every lead was paused"), "the owner has a note saying so");
+    // asked for by kind and with room for every task, because the 100 tasks the Runs made would otherwise fill the first page
+    const calls = (await call(d, "tasks.list", { scope: "all", kinds: ["work"], limit: 500 })).data.tasks as Array<{ title: string }>;
+    assert.ok(calls.filter((t) => t.title === "Call the lead").length <= 101, "at most a burst of Runs started");
+    const notes = (await call(d, "tasks.list", { scope: "all", kinds: ["unblock"], limit: 500 })).data.tasks as Array<{ title: string }>;
+    assert.ok(notes.some((t) => t.title === "Call every lead was paused"), "the owner has a note saying so");
   } finally { await d.stop(); }
 });

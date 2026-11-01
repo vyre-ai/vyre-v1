@@ -1,3 +1,4 @@
+// @tsx
 // The Everything feed: each source becomes lines, they merge newest first, and a source the person may not read adds nothing.
 import test from "node:test";
 import assert from "node:assert/strict";

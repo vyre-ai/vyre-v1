@@ -152,6 +152,12 @@ export function createToolSession(deps: CallDeps): ToolSession {
           result: { ok: false, content: { held: true, taskId: res.taskId, message: "Waiting for approval." } },
         };
       }
+      // A Flow the agent drafted in a chat leaves its card there. Done here, after the call returned, because only now is the new draft registered in access, so the card's handler (chat.flow_card) can read it
+      // as the agent; the card itself is written by that server handler, so the agent cannot dress up a button.
+      if (t.cap === "automations.create" && ctx.thread.threadId) {
+        const made = (res.output as { automation?: { id?: unknown } } | null)?.automation?.id;
+        if (typeof made === "string") await deps.invoke("chat.flow_card", { threadId: ctx.thread.threadId, automationId: made, idempotencyKey: `flow-card:${made}` }, seed).catch(() => undefined);
+      }
       const content: { data: unknown; blocks?: string[] } = { data: res.output };
       if (t.blocks.length > 0) content.blocks = t.blocks;
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
