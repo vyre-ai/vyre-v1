@@ -47488,6 +47488,8 @@ if (!("idempotencyKey" in o2990)) e.push(p + "/idempotencyKey" + ': required');
 if ("conversationId" in o2990) lf(o2990["conversationId"], p + "/conversationId", e, L120);
 if ("type" in o2990) lf(o2990["type"], p + "/type", e, L59);
 if ("name" in o2990) lf(o2990["name"], p + "/name", e, L2);
+if ("fileAttachments" in o2990) lf(o2990["fileAttachments"], p + "/fileAttachments", e, L7);
+if ("replyTask" in o2990) lf(o2990["replyTask"], p + "/replyTask", e, L7);
 if ("idempotencyKey" in o2990) lf(o2990["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }
 }
@@ -47505,6 +47507,9 @@ if (!("recordId" in o2991)) e.push(p + "/recordId" + ': required');
 if (!("conversation" in o2991)) e.push(p + "/conversation" + ': required');
 if ("recordId" in o2991) lf(o2991["recordId"], p + "/recordId", e, L36);
 if ("conversation" in o2991) d_s_323acdeb06(o2991["conversation"], p + "/conversation", e);
+if ("filed" in o2991) lf(o2991["filed"], p + "/filed", e, L8);
+if ("skipped" in o2991) lf(o2991["skipped"], p + "/skipped", e, L8);
+if ("taskId" in o2991) lf(o2991["taskId"], p + "/taskId", e, L33);
 }
 }
 }

@@ -27370,6 +27370,9 @@
             "pattern": "^cnv_[a-z0-9]+$",
             "type": "string"
           },
+          "fileAttachments": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -27379,6 +27382,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "replyTask": {
+            "type": "boolean"
           },
           "type": {
             "enum": [

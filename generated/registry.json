@@ -107106,8 +107106,10 @@
         {
           "input": {
             "conversationId": "cnv_a1b2c3",
+            "fileAttachments": true,
             "idempotencyKey": "idem_1",
             "name": "example",
+            "replyTask": true,
             "type": "contact"
           },
           "name": "example",
@@ -107136,7 +107138,10 @@
               "unmatched": true,
               "unreadCount": 1
             },
-            "recordId": "rec_a1b2c3"
+            "filed": 1,
+            "recordId": "rec_a1b2c3",
+            "skipped": 1,
+            "taskId": "tsk_a1b2c3"
           }
         }
       ],
@@ -107150,6 +107155,9 @@
             "pattern": "^cnv_[a-z0-9]+$",
             "type": "string"
           },
+          "fileAttachments": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -107160,20 +107168,15 @@
           "name": {
             "type": "string"
           },
+          "replyTask": {
+            "type": "boolean"
+          },
           "type": {
             "enum": [
               "contact",
               "company"
             ],
             "type": "string"
-          },
-          "fileAttachments": {
-            "description": "Also copy the attachments of its mails into the record's folder",
-            "type": "boolean"
-          },
-          "replyTask": {
-            "description": "Also put a Reply task on my list, linked to the record",
-            "type": "boolean"
           }
         },
         "required": [
@@ -107191,16 +107194,16 @@
           "conversation": {
             "$ref": "#/$defs/s_323acdeb06"
           },
+          "filed": {
+            "minimum": 0,
+            "type": "integer"
+          },
           "recordId": {
             "examples": [
               "rec_a1b2c3"
             ],
             "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
-          },
-          "filed": {
-            "minimum": 0,
-            "type": "integer"
           },
           "skipped": {
             "minimum": 0,
