@@ -20,6 +20,8 @@ import type { FetchFn } from "../../host/src/platform/probes.ts";
 import { loadConfig } from "../../host/src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../host/src/daemon/daemon.ts";
+import { edge } from "../../apps/app/tests/real-app-harness.test.ts";
+import { CORE_SPACE } from "../../fixtures/seed/core/recipe.ts";
 import { syncOpening } from "../../apps/app/src/places/records/sync/opening.ts";
 
 const HOST = "services.leadconnectorhq.com";
@@ -154,6 +156,37 @@ async function main(): Promise<void> {
     say("person", first);
     await ok("threads.set_mode", { threadId: thread, mode: "auto" });
 
+    // Optional: a real Chrome watches the thread the way the person does (VYRE_APP_DIST = the app's export, CHROME_BIN = Chrome). It records, with times, when the Working sign (stop button) appears,
+    // when words first show, how many steps the agent's text grows in, and whether any memory card or "Used N memories" line shows; one picture mid-reply goes to the scratchpad.
+    const seenUi: { t: number; stop: number; len: number; cards: number }[] = [];
+    let watching = true, uiShot = "";
+    const watcher = (async (): Promise<void> => {
+      const dist = process.env["VYRE_APP_DIST"], chrome = process.env["CHROME_BIN"];
+      if (!dist || !chrome) return;
+      const { chromium } = await import("playwright-core");
+      const web = await edge(dist, d.url);
+      const browser = await chromium.launch({ executablePath: chrome });
+      try {
+        const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+        await page.goto(`${web.origin}/healthz`).catch(() => undefined);
+        await page.evaluate(([o, token, person, space]) => {
+          localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [o!]: { baseUrl: o, token, personId: person, marker: "m", def: { spaceId: space, name: "Space", kind: "team", address: o, role: "Owner", tint: ["#6E5CF0", "#9B6BE8"], kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: true, counts: {}, dots: {} } } } }));
+        }, [web.origin, d.token, "usr_olivia", CORE_SPACE] as [string, string, string, string]);
+        await page.goto(`${web.origin}/chat#screen=chats.conversation&threadId=${thread}`);
+        const t0 = Date.now();
+        let lastLen = 0;
+        while (watching) {
+          const stop = await page.getByTestId("stop-button").count().catch(() => 0);
+          const feed = await page.getByTestId("conversation-feed").innerText({ timeout: 800 }).catch(() => "");
+          const cards = await page.locator('[data-testid^="mused-"], [data-testid^="used-"], [data-testid^="qcard-"], [data-testid^="memory-flash"]').count().catch(() => 0);
+          seenUi.push({ t: Date.now() - t0, stop, len: feed.length, cards });
+          if (!uiShot && stop > 0 && feed.length > lastLen && lastLen > 0) { uiShot = path.join(OUT, "streaming-mid-reply.png"); await page.screenshot({ path: uiShot }); }
+          lastLen = feed.length;
+          await sleep(500);
+        }
+      } finally { await browser.close(); web.close(); }
+    })().catch((e) => { say("note", `the browser watcher stopped: ${scrub(String(e)).slice(0, 160)}`); });
+
     // ---- the person's side: read what the agent says, answer its questions like a person
     const seen = new Set<string>();
     const answered = new Set<string>();
@@ -205,6 +238,12 @@ async function main(): Promise<void> {
       await sleep(1500);
     }
     if (!done) throw new Error("the sync was not applied and pulled before the deadline");
+    watching = false; await watcher;
+    if (seenUi.length) {
+      const firstStop = seenUi.find((x) => x.stop > 0), firstWords = seenUi.find((x, i) => i > 0 && x.len > seenUi[0]!.len + 40);
+      const steps = seenUi.filter((x, i) => i > 0 && x.len > seenUi[i - 1]!.len).length;
+      say("ui", `Working sign first seen at +${firstStop ? (firstStop.t / 1000).toFixed(1) : "never"} s; first words at +${firstWords ? (firstWords.t / 1000).toFixed(1) : "never"} s; the feed grew in ${steps} steps over ${seenUi.length} looks; memory or quote cards seen: ${Math.max(...seenUi.map((x) => x.cards))}; mid-reply picture: ${uiShot ? "saved" : "not caught"}`);
+    }
     for (let i = 0; i < 20; i++) { await d.hooks?.pump?.(); await sleep(1000); }
 
     // ---- assertions through the API (counts and field names only)
