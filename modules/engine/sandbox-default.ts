@@ -66,6 +66,14 @@ export function cliInstallRoots(env: { PATH?: string | undefined }, home: string
   return [...out];
 }
 
+/**
+ * What Apple's `git` needs to run under Seatbelt. /usr/bin/git is a shim that asks xcrun where the real git is, and xcrun loads a library from the developer folder: with that folder closed, git answers
+ * "unable to load libxcrun (file system sandbox blocked open())" and every `git add` a crew teammate runs fails. The folder holds Apple's public tools, so it is opened for reading only.
+ */
+export function appleDeveloperRoots(exists: (p: string) => boolean = fs.existsSync): string[] {
+  return ["/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist"].filter((p) => exists(p));
+}
+
 export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultSandbox> {
   const platform = o.platform ?? process.platform;
   const hosts = o.egressHosts ?? ENGINE_EGRESS_HOSTS;
@@ -82,7 +90,7 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     const { port } = await proxy.listen();
     // Seatbelt denies reads by default: the program being run (this Node, and the CLI's install folders) must be readable.
     const home = process.env["HOME"] ?? "/";
-    const programRead = [...(o.programRead ?? []), path.dirname(path.dirname(node)), path.join(home, ".local"), "/opt/homebrew", "/usr/local", ...cliInstallRoots({ PATH: enginePath(process.env, home) }, home)].filter((p) => p !== "/");
+    const programRead = [...(o.programRead ?? []), ...appleDeveloperRoots(), path.dirname(path.dirname(node)), path.join(home, ".local"), "/opt/homebrew", "/usr/local", ...cliInstallRoots({ PATH: enginePath(process.env, home) }, home)].filter((p) => p !== "/");
     return done({ kind: "seatbelt", proxyPort: port, programRead }, () => proxy.close());
   }
   return unavailable(`CLI engines cannot be sandboxed on ${platform}`);
