@@ -255,14 +255,15 @@ export async function retry(ctx: RunsCtx, input: In): Promise<unknown> {
   const old = manageRun(ctx, input.runId);
   if (old.status !== "failed" && old.status !== "stopped") raise(ctx, "validation.precondition_failed", "Only a failed or stopped run can be retried.", { reason: "not_retryable", status: old.status });
   const steps = latestSteps(ctx.db, old.id);
-  const from = input.fromStep as string | undefined;
+  // A retry goes on from the step that did not finish: what already ran has already happened, and running a send again is a separate, confirmed act (automations.replay).
+  const from = (input.fromStep as string | undefined) ?? steps.find((s) => s.state !== "succeeded" && s.state !== "skipped")?.step;
   const at = from === undefined ? undefined : steps.find((s) => s.step === from);
   if (from !== undefined && !at) raise(ctx, "validation.precondition_failed", "That run has no such step.", { reason: "unknown_step", step: from });
   const run = newRun(ctx, { kind: old.kind, name: old.name, owner: old.owner, subject: old.subject, definitionVersion: old.definitionVersion, parentRun: old.id });
   patchExtra(ctx.db, run.id, clean({ retryOf: old.id, fromStep: from }));
-  // from a step: the steps before it keep their results, so the engine resumes at that step
-  if (at) for (const s of steps) if (s.ord < at.ord && s.state === "succeeded") saveStep(ctx.db, { ...s, runId: run.id, attempt: 1, idemKey: idemKeyFor(run.id, s.step, 1) });
-  // the new run's start event came first; the retry link follows it
+  // the steps before it keep their results, so the engine resumes at that step
+  if (at) for (const s of steps) if (s.ord < at.ord && (s.state === "succeeded" || s.state === "skipped")) saveStep(ctx.db, { ...s, runId: run.id, attempt: 1, idemKey: idemKeyFor(run.id, s.step, 1) });
+  // the new run's start event came first; the retry link follows it, and whoever owns the plan picks it up from there (automations.run_retried)
   emitRun(ctx, "run.retried", old.id, { newRunId: run.id, fromStep: from });
   return { runId: run.id };
 }
@@ -433,6 +434,10 @@ export async function sweepWaits(ctx: RunsCtx): Promise<string[]> {
 
 // ---- the engine ----
 
+/** An outward step the server stopped under. The Run fails into Needs you, and retrying it is the person's call. */
+export const LOST_STEP = "run.lost_step";
+export const LOST_STEP_WORDS = "The server stopped while this step was running, so it may or may not have gone out. Check, then retry the run from this step.";
+
 export interface RetryPolicy { max: number; backoff: "none" | "linear" | "exp"; baseMs: number }
 export const NO_RETRY: RetryPolicy = { max: 0, backoff: "none", baseMs: 0 };
 const BACKOFF_CAP_MS = 3_600_000;
@@ -566,8 +571,8 @@ function recordedOutputs(db: Db, runId: string): Record<string, unknown> {
 /**
  * Run a plan of steps to its end, a wait, a pending retry or a failure.
  * - Every attempt is a row in the step log, written running before the executor is called and succeeded or failed after it.
- * - Resume: succeeded and skipped steps are walked past using their stored results and their stored `next`; the first other step runs. A step found `running` (a crash)
- *   runs again as the same attempt with the same key; a `failed` step with a retry time runs as the next attempt once the time has come; a `waiting` step continues as the same attempt.
+ * - Resume: succeeded and skipped steps are walked past using their stored results and their stored `next`; the first other step runs. A step found `running` (a crash) runs again as the same attempt with
+ *   the same key, except an outward one, which fails the Run for a person to check; a `failed` step with a retry time runs as the next attempt once the time has come; a `waiting` step continues as the same attempt.
  * - Sandboxes (test mode, replay) record write and outward steps from the recorded or sample output instead of running them. Reads still run.
  * - Stop is read before every step: a stopped Run does not start another.
  */
@@ -636,7 +641,15 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
           if (!opts.sleep) return { status: "running", retryAt: last.retryAt };
           await opts.sleep(wait);
         }
-      } else { attempt = last.attempt; resumed = true; }
+      } else {
+        // A step found running was running when the server stopped. An outward act may or may not have left: its key is written after it answers, so running it again could send it twice, and only a
+        // person can check (hole 12). Everything else runs again as the same attempt with the same key.
+        if (last.state === "running" && step.effects === "outward" && !sandbox) {
+          saveStep(ctx.db, { ...last, state: "failed", error: { code: LOST_STEP, message: LOST_STEP_WORDS }, endedAt: ctx.now() });
+          return failRun(ctx, run, { code: LOST_STEP, message: LOST_STEP_WORDS, step: cur });
+        }
+        attempt = last.attempt; resumed = true;
+      }
     }
     const key = idemKeyFor(runId, cur, attempt);
     const startedAt = last?.startedAt !== undefined && resumed ? last.startedAt : ctx.now();

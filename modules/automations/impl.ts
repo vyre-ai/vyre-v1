@@ -12,7 +12,7 @@ import { registry } from "../../generated/registry.ts";
 export { handlers };
 export const hostSeams = { setDocumentNetwork, setConnectorReadSender, setHttpStepHost };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
-import { acceptHook, consumeEvent, loadRunPlan, startRun } from "./handlers/triggers.ts";
+import { acceptHook, adoptRun, consumeEvent, loadRunPlan, startRun } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
@@ -44,6 +44,11 @@ export const consumers = {
         ...(parent ? { origin: `automation:${parent.link.automationId}`, depth: (parent.link.depth ?? 0) + 1 } : {}),
       });
     },
+  },
+  /** A Run retried or replayed from the Runs pages joins its Automation, so it actually runs. */
+  "automations.run_retried": {
+    on: ["run.retried", "run.started"],
+    run: (ctx: Ctx, event: Parameters<typeof adoptRun>[1]) => adoptRun(ctx as unknown as AutoCtx, event),
   },
   "automations.connector_offer": {
     on: ["vault.item_created"],

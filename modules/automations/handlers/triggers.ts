@@ -117,6 +117,28 @@ export async function retry(ctx: AutoCtx, input: In): Promise<unknown> {
   return { runId: r.runId };
 }
 
+/**
+ * A Run of an Automation retried or replayed through runs.*, as the Runs pages and the notification's Retry button do: it needs what automations.retry gives it, the link to the definition, and the event that
+ * drives it. Without them the new Run sat queued for ever. A paused Automation ends the Run at once with the reason, so nothing waits in silence. automations.retry links the Run first, and then this does nothing.
+ */
+export async function adoptRun(ctx: AutoCtx, event: { name: string; payload: { runId?: string; newRunId?: string; kind?: string; parentRun?: string; definitionVersion?: number } }): Promise<string | undefined> {
+  const p = event.payload;
+  const replay = event.name === "run.started" && p.kind === "replay";
+  if (event.name === "run.started" && !replay) return undefined;
+  const fresh = replay ? p.runId : p.newRunId;
+  const oldId = replay ? p.parentRun : p.runId;
+  if (!fresh || !oldId || findRunLink(ctx.db, fresh)) return undefined;
+  const old = findRunLink(ctx.db, oldId);
+  if (!old) return undefined;   // not a Run of an Automation
+  const a = findAutomation(ctx.db, old.automationId);
+  if (!a) return undefined;
+  if (a.status === "paused" && !replay) { await ctx.call?.("runs.stop", { runId: fresh, reason: a.pausedReason ?? "This automation is paused." }); return undefined; }
+  const version = replay && p.definitionVersion === undefined ? a.version : old.version;
+  saveRunLink(ctx.db, clean({ ...old, runId: fresh, version, parentRun: old.runId, principal: principalFor(a), startedAt: ctx.now() }) as RunLink);
+  emitAuto(ctx, "automation.run_started", a.id, clean({ runId: fresh, trigger: old.trigger, version, test: replay ? true : old.test, depth: old.depth, origin: old.origin }));
+  return fresh;
+}
+
 /** A live rerun repeats outward steps. It is not a sandbox replay, so a missing confirmation does not start a run. */
 export async function replay(ctx: AutoCtx, input: In): Promise<unknown> {
   if (input.confirm !== true) raise(ctx, "validation.precondition_failed", "A live rerun needs confirmation.", { reason: "needs_confirm" });

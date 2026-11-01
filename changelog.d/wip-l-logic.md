@@ -3,3 +3,4 @@
 - A turn a server restart cut off never replays what it may already have done: one that used a tool ends with Try again, one that had not simply runs again. Try again runs straight away instead of waiting for the next message, a parked turn goes on after a restart, and an agent that was working before a crash no longer reads as Working for ever.
 - A paused agent stops and takes no new turn, with the reason in the chat, and a teammate's job follows it (running, paused, lost, stopped). A lost job offers Run again. The Crew tab no longer crashes in a Personal Space.
 - A Mac stays awake while a turn runs.
+- An outward automation step a server restart cut off is never sent twice by itself: the run fails into Needs you with what to check. Retry goes on from the step that did not finish instead of repeating what already went out, and a Retry or Replay pressed on the Runs pages now really runs (it used to stay queued for ever).

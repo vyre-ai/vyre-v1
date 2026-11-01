@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, create, engine, goodDefinition, node } from "../fixtures/seed.ts";
-import { consumeEvent, loadRunPlan, startRun } from "../impl.ts";
+import { consumeEvent, consumers, loadRunPlan, startRun } from "../impl.ts";
 import type { LoggedEvent } from "../handlers/triggers.ts";
 import { findRunLink, getAutomation } from "../projections.ts";
 
@@ -313,4 +313,40 @@ test("retry starts the failed Run again on its own version and payload; it must 
   assert.deepEqual(h.calls.find((c) => c.cap === "runs.retry")!.input, { runId: first.runId, fromStep: "a" });
   assert.deepEqual(h.events.map((e) => e.name), ["automation.run_started"]);
   await refused(h.call("automations.retry", { automationId: other, runId: first.runId }, alice), "validation.precondition_failed", "not_a_run_of_this");
+});
+
+// ---- a Run retried or replayed from the Runs pages (runs.retry, runs.replay): they know nothing of the Automation, so without this the new Run stayed queued for ever ----
+
+test("a Run retried through runs.retry joins its Automation and starts", async () => {
+  const h = harness();
+  const a = await live(h);
+  const { runId } = await h.call("automations.run", { automationId: a, idempotencyKey: "k" }, alice);
+  const fresh = "run_retry1";
+  const ctx = h.ctxFor("automations.retry", alice);
+  const started = await consumers["automations.run_retried"].run(ctx as never, { name: "run.retried", payload: { runId, newRunId: fresh } } as never);
+  assert.equal(started, fresh);
+  assert.equal(findRunLink(h.db, fresh)?.automationId, a);
+  assert.equal(h.events.at(-1)?.name, "automation.run_started");
+  assert.equal(await consumers["automations.run_retried"].run(ctx as never, { name: "run.retried", payload: { runId, newRunId: fresh } } as never), undefined, "a second delivery starts nothing");
+});
+
+test("a sandbox replay of an Automation's Run is driven too, in test mode; any other Run that starts is none of this", async () => {
+  const h = harness();
+  const a = await live(h);
+  const { runId } = await h.call("automations.run", { automationId: a, idempotencyKey: "k" }, alice);
+  const ctx = h.ctxFor("automations.retry", alice);
+  assert.equal(await consumers["automations.run_retried"].run(ctx as never, { name: "run.started", payload: { runId: "run_x", kind: "automation", parentRun: runId } } as never), undefined);
+  assert.equal(await consumers["automations.run_retried"].run(ctx as never, { name: "run.started", payload: { runId: "run_rp", kind: "replay", parentRun: runId, definitionVersion: 1 } } as never), "run_rp");
+  assert.equal((h.events.at(-1)?.payload as { test?: boolean }).test, true);
+});
+
+test("a retry of a paused Automation ends at once with the reason instead of waiting in silence", async () => {
+  const h = harness();
+  const a = await live(h);
+  const { runId } = await h.call("automations.run", { automationId: a, idempotencyKey: "k" }, alice);
+  await h.call("automations.stop", { automationId: a }, alice);
+  h.runs.push({ id: "run_t2", status: "queued" } as never);
+  const ctx = h.ctxFor("automations.retry", alice);
+  assert.equal(await consumers["automations.run_retried"].run(ctx as never, { name: "run.retried", payload: { runId, newRunId: "run_t2" } } as never), undefined);
+  assert.equal(h.runs.find((r: { id: string }) => r.id === "run_t2")?.status, "stopped");
 });

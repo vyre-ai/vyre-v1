@@ -77,6 +77,37 @@ test("crash recovery: a Run that died mid-step resumes at that step and runs not
   assert.deepEqual(interrupted(h.db), []);
 });
 
+test("a step that could have left is never run again by itself after a crash: the Run fails for a person to check", async () => {
+  const h = harness();
+  const { made } = tasksCreate(h);
+  const id = await started(h);
+  const plan = [step("first"), step("send", { effects: "outward" }), step("after")];
+  let entered!: () => void;
+  const inSend = new Promise<void>((res) => { entered = res; });
+  // the first process: the send starts and the process dies (the promise never settles)
+  const dying: Executor = async (s) => { if (s.id === "send") { entered(); await new Promise<never>(() => undefined); } return { output: s.id }; };
+  void h.engineRun(engine, (ctx) => drive(ctx, id, plan, dying));
+  await inSend;
+  const calls: string[] = [];
+  const out = await h.engineRun(engine, (ctx) => recoverRuns(ctx, () => ({ plan, exec: async (s) => { calls.push(s.id); return { output: 1 }; } })));
+  assert.deepEqual(out, { [id]: { status: "failed", failedStep: "send" } });
+  assert.deepEqual(calls, [], "the send did not run a second time, and nothing after it ran");
+  assert.equal((await runOf(h, id)).status, "failed");
+  assert.equal(allSteps(h.db, id).find((s) => s.step === "send")?.error?.code, "run.lost_step");
+  assert.match(made[0].summary, /may or may not have gone out/, "it lands in Needs you with what to check");
+});
+
+test("a step that only changes things inside Vyre runs again after a crash, with the same key", async () => {
+  const h = harness();
+  const id = await started(h);
+  const keys: string[] = [];
+  const exec: Executor = async (s, c) => { keys.push(c.key); return { output: s.id }; };
+  await h.call("runs.record_step", { runId: id, step: "write", attempt: 1, state: "running" }, engine);
+  const r = await h.engineRun(engine, (ctx) => drive(ctx, id, [step("write", { effects: "write" })], exec));
+  assert.equal(r.status, "succeeded");
+  assert.deepEqual(keys, [`${id}:write:1`]);
+});
+
 test("steps are idempotent by run:step:attempt: a retry is a new attempt with a new key, a replayed attempt keeps its key", async () => {
   const h = harness();
   const id = await started(h);
