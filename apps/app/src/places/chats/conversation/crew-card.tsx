@@ -3,7 +3,7 @@
 // state from the crew list, so it is right after a reload and for someone who opens the chat later.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { Glyph, TextButton } from "./parts.tsx";
@@ -12,6 +12,22 @@ import type { MessageBlock } from "./model.ts";
 
 type Data = Pick<ConversationData, "call" | "nav">;
 type Job = CapMap["engine.crew.list"]["out"]["jobs"][number];
+
+/** The line a lead's chat shows when a teammate starts: a helper block that says `crew`. */
+export const isCrewStart = (b: Pick<MessageBlock, "type" | "data">): boolean => b.type === "helper" && (b.data as { crew?: unknown } | null)?.crew === true;
+
+/** One line for the start of a teammate's job, in place of "Started a helper", the chip and the lead's own sentence: who is on what, opening the teammate's thread. */
+export function CrewStartLine({ block, name, onOpen }: { block: Pick<MessageBlock, "data" | "id">; name: string; onOpen: (threadId: string) => void }): ReactElement {
+  const d = (block.data && typeof block.data === "object" ? block.data : {}) as Record<string, unknown>;
+  const thread = typeof d["helperThreadId"] === "string" ? (d["helperThreadId"] as string) : "";
+  const title = typeof d["title"] === "string" ? (d["title"] as string) : "";
+  return (
+    <Pressable accessibilityRole="link" accessibilityLabel={`${name} is on ${title}. Open its thread`} testID={`crew-start-${block.id}`} disabled={thread === ""} onPress={() => onOpen(thread)} style={st.start}>
+      <Glyph name="helper" size={13} />
+      <Text style={st.startText}>{`${name} is on ${title}`}</Text>
+    </Pressable>
+  );
+}
 
 export const isCrewResult = (b: Pick<MessageBlock, "type">): boolean => b.type === "crew_result";
 
@@ -133,6 +149,8 @@ const st = StyleSheet.create({
   input: { minHeight: 56, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 8, padding: 8, fontSize: 13, color: "var(--ink)" as string },
   line: { fontSize: 12, color: "var(--ink-3)" as string },
   doneBox: { gap: 4 },
+  start: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
+  startText: { fontSize: 13, color: "var(--ink-2)" as string },
   done: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 2 },
   doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

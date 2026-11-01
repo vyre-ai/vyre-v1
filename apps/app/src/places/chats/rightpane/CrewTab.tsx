@@ -1,6 +1,7 @@
 // Right pane > Crew (DESIGN-crew.md, step 3): one row per teammate working for this chat, what it is on in a few words and how it stands. A row opens the teammate's own thread beside the chat, where you can
 // type to it directly; a finished one offers Merge, a running one offers Stop. The lead's chat stays calm: this list is where the crew lives, and the result card is where a finish arrives.
 import type { ReactElement } from "react";
+import { View } from "react-native";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { PaneDeps } from "./actions.ts";
@@ -28,13 +29,13 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
   if (data.space.personal && (jobs.length > 0 || waits.length > 0)) entries.push({ key: "runs-here", type: "label", text: "Runs while this computer is on" });
   const waits = q.status === "ready" ? q.data.waits : [];
   // what the lead waits on besides teammates: a live row, "Waiting on checks, 12 of 40", until the host sees them end and wakes the lead
-  for (const w of waits) entries.push({ key: `w-${w.waitId}`, type: "row", title: `Checks of ${w.label}`, note: w.total > 0 ? `Waiting · ${w.done} of ${w.total} done` : "Waiting for the first check", leading: <LeadIcon name="clock" color="var(--accent)" />, testID: `crew-wait-${w.waitId}` });
+  for (const w of waits) entries.push({ key: `w-${w.waitId}`, type: "row", title: `Checks of ${w.label}`, note: w.total > 0 ? `Waiting · ${w.done} of ${w.total} done` : "Waiting for the first check", leading: <View style={{ marginRight: 8 }}><LeadIcon name="clock" color="var(--accent)" /></View>, testID: `crew-wait-${w.waitId}` });
   if (jobs.length === 0 && waits.length === 0) entries.push({ key: "none", type: "empty", text: "No teammates working for this chat.", testID: "crew-empty" });
   for (const j of jobs) {
     const name = j.name ?? "Teammate";
     entries.push({
       key: `j-${j.jobId}`, type: "row", title: `${name} · ${j.title}`, note: crewNote(j, clock), testID: `crew-${j.jobId}`,
-      leading: <Face name={name} seedId={j.agentId} size={16} pulse={j.state === "working"} />,
+      leading: <View style={{ marginRight: 8 }}><Face name={name} seedId={j.agentId} size={16} pulse={j.state === "working"} /></View>,
       onPress: () => data.nav.openThread(j.threadId, "side"),
       trailing: (): ReactElement => (
         <>
