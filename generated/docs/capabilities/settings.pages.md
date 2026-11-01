@@ -1,6 +1,6 @@
 # settings.pages
 
-The ten settings pages in their two groups (named after the Space, and Everywhere) with row counts
+The settings pages a person has, with row counts
 
 | | |
 |---|---|
@@ -34,7 +34,7 @@ type Out = {
   pages: Array<{
       key: string;
       title: string;
-      group: "space" | "everywhere";
+      group: "you" | "space";
       rows: number;
     }>;
 };
@@ -56,7 +56,7 @@ type Out = {
   "output": {
     "pages": [
       {
-        "group": "space",
+        "group": "you",
         "key": "example",
         "rows": 1,
         "title": "example"

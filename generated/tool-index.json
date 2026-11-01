@@ -6927,7 +6927,7 @@
     {
       "deferred": false,
       "name": "settings_pages",
-      "summary": "The ten settings pages in their two groups (named after the Space, and Everywhere) with row counts",
+      "summary": "The settings pages a person has, with row counts",
       "toolset": "meta"
     },
     {

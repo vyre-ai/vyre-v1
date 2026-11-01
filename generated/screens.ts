@@ -2801,38 +2801,6 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
-    "id": "console.logging",
-    "module": "console-views",
-    "place": "console",
-    "slot": "main",
-    "builtin": "ui:ConsoleLogging",
-    "caller": "principal",
-    "queries": {
-      "settings": {
-        "cap": "logs.settings_get",
-        "input": {},
-        "live": true
-      }
-    },
-    "actions": {
-      "set": {
-        "cap": "logs.settings_set",
-        "input": {
-          "level": "/draft/level",
-          "fullDays": "/draft/fullDays",
-          "aggregateDays": "/draft/aggregateDays"
-        }
-      }
-    },
-    "needs": [
-      "server.logs"
-    ],
-    "perf": {
-      "firstPaintMs": 50,
-      "completeMs": 100
-    }
-  },
-  {
     "id": "console.mcp-sessions",
     "module": "mcp",
     "place": "console",
