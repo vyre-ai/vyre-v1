@@ -1,7 +1,7 @@
 // The crew (DESIGN-crew.md, steps 1 and 2): a project's repository on this computer, and teammate jobs. A job is a teammate agent working in its own copy of that repository, on its own branch, in its own thread
 // under the lead's chat. Nothing new is made for it: the thread is a helper thread, the teammate is a project teammate, the work folder is the engine's per-thread folder with a clone in it (../crew-git.ts).
 import { engineHost } from "../runtime.ts";
-import { GitError, cleanBranch, git, prepareClone, repoHead } from "../crew-git.ts";
+import { GitError, cleanBranch, commitLeftovers, git, landBranch, prepareClone, repoHead } from "../crew-git.ts";
 import { ensure, actorOf, mintEngineId, raise } from "../projections.ts";
 import { workFolder } from "../sandbox.ts";
 import { GUIDE_FILES } from "../../../lib/memory-guide.ts";
@@ -90,7 +90,7 @@ export async function start(ctx: EngineCtx, input: { threadId: string; projectId
   const branch = cleanBranch(`crew/${slug(mate.name)}-${n}`);
   const asker = actorOf(ctx);
   const started = (await ctx.call("chat.helper.start", {
-    threadId: input.threadId, title, instruction: brief, agentId: mate.agentId,
+    threadId: input.threadId, title, instruction: brief, agentId: mate.agentId, crew: true,
     ...(input.model ? { model: input.model } : {}), ...(input.provider ? { provider: input.provider } : {}), ...(input.effort ? { effort: input.effort } : {}),
   })) as { helper: { threadId: string } };
   const jobId = mintEngineId("crw", ctx.now());
@@ -127,4 +127,44 @@ export async function workspace(ctx: EngineCtx, input: { threadId: string }) {
   let name = str(r["agent_id"]);
   try { const a = (await ctx.call("agents.get", { agentId: str(r["agent_id"]) })) as { agent?: { name?: string } }; if (a.agent?.name) name = a.agent.name; } catch { /* the id stands */ }
   return { workspace: { jobId: str(r["job_id"]), repo: str(r["repo_path"]), base: str(r["base_branch"]), branch: str(r["branch"]), name } };
+}
+
+function jobRow(ctx: EngineCtx, jobId: string): Row {
+  const r = ctx.db.all("SELECT * FROM engine_crew_job WHERE job_id = ?", jobId)[0] as Row | undefined;
+  if (!r) raise(ctx, "validation.not_found", "There is no such teammate job.");
+  return r;
+}
+
+export async function message(ctx: EngineCtx, input: { jobId: string; body: string }) {
+  ensure(ctx.db);
+  const r = jobRow(ctx, input.jobId);
+  const body = input.body.trim();
+  if (body === "") raise(ctx, "validation.bad_input", "Write something to send.");
+  await ctx.call("chat.post", { threadId: str(r["thread_id"]), body, mentions: [{ kind: "agent", id: str(r["agent_id"]) }], idempotencyKey: `crew-msg-${input.jobId}-${ctx.trace.traceId}` });
+  return { sent: true };
+}
+
+export async function stop(ctx: EngineCtx, input: { jobId: string }) {
+  ensure(ctx.db);
+  const r = jobRow(ctx, input.jobId);
+  await ctx.call("engine.stop_all", { threadId: str(r["thread_id"]) });
+  ctx.db.run("UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE job_id = ? AND state IN ('working', 'waiting')", ctx.now(), input.jobId);
+  return { job: jobOut(jobRow(ctx, input.jobId)) };
+}
+
+export async function merge(ctx: EngineCtx, input: { jobId: string }) {
+  ensure(ctx.db);
+  const r = jobRow(ctx, input.jobId);
+  const dataDir = engineHost()?.dataDir;
+  if (!dataDir) raise(ctx, "validation.precondition_failed", "This computer has no work folders for the crew.");
+  const dir = workFolder(dataDir, str(r["asker"]), str(r["thread_id"]));
+  try {
+    await commitLeftovers(dir, `Work in progress by ${str(r["agent_id"])}`);
+    const landed = await landBranch({ repo: str(r["repo_path"]), clone: dir, branch: str(r["branch"]), base: str(r["base_branch"]) });
+    if (landed.landed) {
+      ctx.db.run("UPDATE engine_crew_job SET state = 'merged', ended_at = COALESCE(ended_at, ?) WHERE job_id = ?", ctx.now(), input.jobId);
+      ctx.emit("crew.job_merged", str(r["lead_thread_id"]), { jobId: input.jobId, threadId: str(r["thread_id"]), leadThreadId: str(r["lead_thread_id"]), branch: str(r["branch"]), landed: true });
+    }
+    return { job: jobOut(jobRow(ctx, input.jobId)), landed: landed.landed, ref: landed.ref, ...(landed.note ? { note: landed.note } : {}) };
+  } catch (e) { return gitFailure(ctx, e); }
 }

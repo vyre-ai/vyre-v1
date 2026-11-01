@@ -7,7 +7,7 @@ import { extraHandlers } from "./extra/index.ts";
 import { mcpCall, mcpTools, mcpOauthComplete, mcpOauthStart, mcpOauthStatus } from "./mcp.ts";
 import { stepTurn } from "../step-turn.ts";
 import { usageGet } from "./usage.ts";
-import { list as crewList, repoGet as crewRepoGet, repoSet as crewRepoSet, start as crewStart, workspace as crewWorkspace } from "./crew.ts";
+import { list as crewList, merge as crewMerge, message as crewMessage, repoGet as crewRepoGet, repoSet as crewRepoSet, start as crewStart, stop as crewStop, workspace as crewWorkspace } from "./crew.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
 
 export const handlers = {
@@ -41,6 +41,9 @@ export const handlers = {
   "engine.crew.start": crewStart,
   "engine.crew.list": crewList,
   "engine.crew.workspace": crewWorkspace,
+  "engine.crew.message": crewMessage,
+  "engine.crew.stop": crewStop,
+  "engine.crew.merge": crewMerge,
   "engine.mcp.tools": mcpTools,
   "engine.mcp.read": mcpCall,
   "engine.mcp.call": mcpCall,

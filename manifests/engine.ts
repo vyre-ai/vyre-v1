@@ -74,6 +74,18 @@ export default defineManifest({
     read('engine.crew.list', 'The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands', {
       in: { ...threadT }, out: { jobs: t.arr(crewJob) }, on: ['thread', '/threadId'], tool: 'chats', mcpName: 'crew_list', agent: { planMode: 'allowed', blocks: [] },
     }),
+    write('engine.crew.message', 'Send a message to a teammate in its own thread; a teammate that stopped picks up where it left off', {
+      in: { jobId: t.str(), body: t.str() }, out: { sent: t.bool() }, level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_message', agent: { planMode: 'blocked', blocks: [] },
+      errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    write('engine.crew.stop', 'Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch', {
+      in: { jobId: t.str() }, out: { job: crewJob }, level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_stop', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found'],
+    }),
+    write('engine.crew.merge', 'Land a teammate\'s branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate', {
+      in: { jobId: t.str() }, out: { job: crewJob, landed: t.bool(), ref: t.str(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high',
+      gate: { act: 'push_protected', when: "actor.kind != 'person'" }, emits: ['crew.job_merged'], tool: 'chats', mcpName: 'crew_merge', agent: { planMode: 'blocked', blocks: [] },
+      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
+    }),
     read('engine.crew.workspace', 'System: the repository copy a teammate thread works in, so the engine can make it before the first turn', {
       in: { ...threadT }, out: { workspace: t.nullable(t.obj({ jobId: t.str(), repo: t.str(), base: t.str(), branch: t.str(), name: t.str() })) }, on: ['thread', '/threadId'],
     }),
@@ -344,6 +356,9 @@ export default defineManifest({
     }),
   ],
   events: [
+    ev('crew.job_merged', 'A teammate\'s branch was landed in the project repository', {
+      p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, branch: t.str(), landed: t.bool() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
+    }),
     ev('crew.job_started', 'A teammate started on a brief in its own thread and its own branch', {
       p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
     }),

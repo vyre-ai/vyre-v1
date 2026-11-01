@@ -83,3 +83,107 @@ test("a teammate started from a chat works in its own copy of the repository on 
     await waitFor(async () => (((await ok(d, "chat.messages.list", { threadId: again.threadId })).messages as Array<{ author: { kind: string } }>).some((m) => m.author.kind === "agent") ? true : null), 20_000, () => hostLog(d));
   } finally { await stop(d); }
 });
+
+test("the lead starts a teammate with a tool, the teammate finishes and one result card wakes the lead, a person presses Merge and the branch lands, and the lead's own ask to merge holds at the Gate", async () => {
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-repo-")));
+  git(repo, "init", "--quiet", "-b", "main");
+  fs.writeFileSync(path.join(repo, "README.md"), "a small site\n");
+  git(repo, "add", "-A"); git(repo, "commit", "--quiet", "-m", "first");
+
+  let dir = "";
+  let owner = "";
+  let teammate = "";
+  let project = "";
+  let lead = "";
+  let startAnswer = "";
+  let sawCard = "";
+  let jobId = "";
+  const model = scriptedModel(async function* (input, run) {
+    if (input.agent.id === teammate) {
+      const work = workFolder(dir, owner, input.threadId);
+      await waitFor(async () => (fs.existsSync(path.join(work, "README.md")) ? true : null), 20_000);
+      fs.writeFileSync(path.join(work, "dark-mode.txt"), "toggle: on\n");   // left uncommitted on purpose: the finish commits it
+      yield { type: "text", text: "Added the toggle; the test passes." };
+      return;
+    }
+    if (input.agent.id !== lead) return;
+    const ask = input.trigger?.body ?? "";
+    if (/build dark mode/.test(ask)) {
+      yield* run("tool_search", { query: "crew teammate" });
+      const r = yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "crew2-tool-start", projectId: project, teammateId: teammate, title: "Dark mode", brief: "Add a dark mode toggle and a test." });
+      startAnswer = JSON.stringify(r.content).slice(0, 400);
+      yield { type: "text", text: "Started Ember on dark mode." };
+    } else if (input.trigger?.author.id === teammate) {
+      sawCard = ask;
+      yield* run("tool_search", { query: "crew teammate" });
+      const jobs = yield* run("crew_list", { threadId: input.threadId });
+      jobId = (((jobs.content as { data?: { jobs?: Array<{ jobId: string }> } }).data?.jobs) ?? [])[0]?.jobId ?? "";
+      // an agent's merge is held for a person: this call parks the turn until someone answers, which this test never does
+      yield* run("crew_merge", { jobId, idempotencyKey: "crew2-tool-merge" });
+      yield { type: "text", text: "Reviewed the card." };
+    }
+  });
+  const d = await boot(seededDir(), model);
+  dir = d.paths.root;
+  try {
+    await connect(d);
+    lead = await makeAgent(d, "Lead");
+    owner = (await ok(d, "agents.get", { agentId: lead })).agent.ownerId as string;
+    project = (await ok(d, "projects.create", { type: "project", title: "Small site", idempotencyKey: "crew2-project" })).projectId as string;
+    teammate = (await ok(d, "projects.teammates.create", { projectId: project, name: "Ember", role: "member", idempotencyKey: "crew2-ember" })).teammate.agentId as string;
+    await ok(d, "engine.crew.repo.set", { projectId: project, path: repo });
+    const chat = await startChat(d, lead, "crew2");
+
+    await ok(d, "chat.post", { threadId: chat, body: "build dark mode", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "crew2-ask" });
+    // the card: one message from the teammate in the lead's chat, mentioning the lead, carrying the result
+    const card = await waitFor(async () => {
+      const ms = (await ok(d, "chat.messages.list", { threadId: chat })).messages as Array<{ author: { id: string }; body: string; blocks: Array<{ type: string; data: Record<string, any> }> }>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+      return ms.find((m) => m.author.id === teammate && m.blocks.some((b) => b.type === "crew_result")) ?? null;
+    }, 40_000, () => `START ${startAnswer.slice(0, 80)}`).catch(async (e) => {
+      const jobs = (await ok(d, "engine.crew.list", { threadId: chat })).jobs as Array<{ threadId: string; state: string }>;
+      const helper = jobs[0] ? ((await ok(d, "chat.messages.list", { threadId: jobs[0].threadId })).messages as Array<{ author: { kind: string }; body: string }>).map((m) => `${m.author.kind}:${m.body.slice(0, 80)}`) : [];
+      const lm = ((await ok(d, "chat.messages.list", { threadId: chat })).messages as Array<{ author: { kind: string }; body: string }>).map((m) => `${m.author.kind}:${m.body.slice(0, 80)}`);
+      throw new Error(`${String(e).slice(0, 100)} JOBS ${JSON.stringify(jobs.map((j) => j.state))} HELPER ${JSON.stringify(helper)} LEAD ${JSON.stringify(lm)} LOG ${hostLog(d).split("\",\"").filter((l) => /bridge|engine|crew|turn/i.test(l)).join(" || ").slice(0, 2500)}`);
+    });
+    const data = card.blocks.find((b) => b.type === "crew_result")!.data;
+    assert.deepEqual([data["name"], data["title"], data["branch"], data["state"], data["ahead"]], ["Ember", "Dark mode", "crew/ember-1", "done", 1]);
+    assert.deepEqual((data["files"] as Array<{ path: string }>).map((f) => f.path), ["dark-mode.txt"]);
+    assert.match(card.body, /Ember finished "Dark mode": 1 commit, 1 file on crew\/ember-1\./);
+    assert.match(card.body, /the test passes/);
+    const cards = ((await ok(d, "chat.messages.list", { threadId: chat })).messages as Array<{ author: { id: string }; blocks: Array<{ type: string }> }>).filter((m) => m.blocks.some((b) => b.type === "crew_result"));
+    assert.equal(cards.length, 1, "one card, not a stream");
+
+    // the card woke the lead, which listed the crew and asked to merge: that is held at the Gate for a person, and nothing landed
+    const hold = await waitFor(async () => {
+      const holds = (await ok(d, "gate.holds.list", {})).holds as Array<{ holdId: string; act: string; state: string }>;
+      return holds.find((h) => h.act === "push_protected") ?? null;
+    }, 60_000, () => `${hostLog(d)} SAW ${sawCard.slice(0, 100)}`);
+    assert.equal(hold.state, "held");
+    assert.match(sawCard, /Ember finished "Dark mode"/);
+    assert.notEqual(jobId, "");
+    assert.equal(fs.existsSync(path.join(repo, "dark-mode.txt")), false, "the lead's merge did not land anything");
+
+    // a person presses Merge: it lands
+    const landed = await ok(d, "engine.crew.merge", { jobId, idempotencyKey: "crew2-merge" });
+    assert.deepEqual([landed.landed, landed.job.state], [true, "merged"]);
+    assert.equal(fs.readFileSync(path.join(repo, "dark-mode.txt"), "utf8"), "toggle: on\n");
+    assert.match(git(repo, "log", "--format=%s", "-n", "3"), /Merge crew\/ember-1/);
+    assert.deepEqual((await ok(d, "engine.crew.list", { threadId: chat })).jobs.map((j: { state: string }) => j.state), ["merged"]);
+
+    // a person talks to the teammate directly in its own thread (a plain helper thread would refuse), and the teammate picks up again: a second card follows
+    const threadOfJob = (await ok(d, "engine.crew.list", { threadId: chat })).jobs[0].threadId as string;
+    await ok(d, "chat.post", { threadId: threadOfJob, body: "Also add a footer.", mentions: [{ kind: "agent", id: teammate }], idempotencyKey: "crew2-steer" });
+    await waitFor(async () => {
+      const ms = (await ok(d, "chat.messages.list", { threadId: chat })).messages as Array<{ blocks: Array<{ type: string }> }>;
+      return ms.filter((m) => m.blocks.some((b) => b.type === "crew_result")).length >= 2 ? true : null;
+    }, 40_000, () => hostLog(d));
+    // and the lead can message it too
+    assert.equal((await ok(d, "engine.crew.message", { jobId, body: "One more thing.", idempotencyKey: "crew2-msg" })).sent, true);
+    await waitFor(async () => {
+      const ms = (await ok(d, "chat.messages.list", { threadId: chat })).messages as Array<{ blocks: Array<{ type: string }> }>;
+      return ms.filter((m) => m.blocks.some((b) => b.type === "crew_result")).length >= 3 ? true : null;
+    }, 40_000, () => hostLog(d));
+    // stopping a teammate that is idle leaves the job as it was; stopping is for a running one
+    assert.equal((await ok(d, "engine.crew.stop", { jobId, idempotencyKey: "crew2-stop" })).job.jobId, jobId);
+  } finally { await stop(d); }
+});
