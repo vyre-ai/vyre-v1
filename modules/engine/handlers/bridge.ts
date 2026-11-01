@@ -74,6 +74,26 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 /** An engine error can echo a key or a token. It goes to the log only: it passes the shared credential redactor (agent/src/transcript/sanitize.ts, the same rules as every transcript) and is cut to 300 characters. The key is `why`: the sink drops a key named message. */
 export const scrub = (text: string): string => redact(text.slice(0, 600)).text.slice(0, 300);
 
+/** A message carries at most this many blocks (modules/chat/projections.ts MAX_BLOCKS); the bridge keeps to it so a long turn's reply is never refused. */
+const MAX_POST_BLOCKS = 20;
+const STEP_BLOCKS: ReadonlySet<string> = new Set(["tool_call", "tool_result"]);
+
+/**
+ * The blocks of one reply, fitted under the limit without losing anything a person reads. Tool steps (a call and its result) are bookkeeping: past the limit they fold into one "tool_steps" block that
+ * counts them, leading the message. Every other block (a card, a file, a question) is kept; if those alone are over the limit the rest go in follow-up messages, in order. Text is never touched.
+ */
+export function fitBlocks(blocks: readonly PostBlock[]): PostBlock[][] {
+  if (blocks.length <= MAX_POST_BLOCKS) return [[...blocks]];
+  const steps = blocks.filter((b) => STEP_BLOCKS.has(b.type));
+  const keep = blocks.filter((b) => !STEP_BLOCKS.has(b.type));
+  const failed = steps.filter((b) => b.type === "tool_result" && (b.data as { ok?: unknown } | null)?.ok === false).length;
+  const summary: PostBlock = { type: "tool_steps", v: 1, data: { calls: steps.filter((b) => b.type === "tool_call").length, results: steps.filter((b) => b.type === "tool_result").length, failed } };
+  const all = steps.length > 0 ? [summary, ...keep] : keep;
+  const out: PostBlock[][] = [];
+  for (let i = 0; i < all.length; i += MAX_POST_BLOCKS) out.push(all.slice(i, i + MAX_POST_BLOCKS));
+  return out;
+}
+
 export function createBridge(o: BridgeOptions): Bridge {
   let engine: TurnEngine | null = null;
   const opened = new Set<string>();
@@ -96,8 +116,26 @@ export function createBridge(o: BridgeOptions): Bridge {
     const prev = chains.get(threadId) ?? Promise.resolve();
     const next = prev.then(async () => {
       const asker = askerOf.get(threadId);
+      const as = (p: AgentPost): AgentPost => (asker ? { ...p, actingFor: asker } : p);
       let posted = false;
-      try { await o.postAs(agentId, asker ? { ...post, actingFor: asker } : post); posted = true; } catch (e) { warn("the bridge could not post an agent reply", { threadId, agentId, error: e instanceof Error ? e.message : String(e) }); }
+      const [first = [], ...more] = fitBlocks(post.blocks);
+      try {
+        await o.postAs(agentId, as({ ...post, blocks: first }));
+        posted = true;
+        // what did not fit goes after it, in order, as messages of their own
+        for (const rest of more) await o.postAs(agentId, as({ threadId, body: "", blocks: rest, mentions: [], clientId: brgId(), ...(post.via ? { via: post.via } : {}) }));
+      } catch (e) {
+        warn("the bridge could not post an agent reply", { threadId, agentId, error: e instanceof Error ? e.message : String(e) });
+        if (!posted) {
+          // A reply must never vanish: say so in the chat with a failed turn the person can retry, and keep the words if the words were the part that could not go.
+          const failure: PostBlock = { type: "turn_status", v: 1, data: { state: "failed", turnId: turnId ?? "", code: "engine.post_failed" } };
+          try { await o.postAs(agentId, as({ threadId, body: post.body, blocks: [failure], mentions: post.mentions, clientId: brgId(), ...(post.via ? { via: post.via } : {}) })); }
+          catch (again) {
+            try { await o.postAs(agentId, as({ threadId, body: "", blocks: [failure], mentions: [], clientId: brgId() })); }
+            catch (last) { warn("the bridge could not even say that a reply was lost", { threadId, agentId, error: last instanceof Error ? last.message : String(again) }); }
+          }
+        }
+      }
       if (turnId) emit({ kind: "final", threadId, turnId, agentId, messageId: posted ? post.clientId : null });   // after the post: the row exists when the reader hears which one it is
     });
     chains.set(threadId, next);

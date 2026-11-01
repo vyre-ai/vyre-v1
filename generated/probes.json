@@ -983,6 +983,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.records.sync",
+      "place": "records",
+      "screen": "records.sync"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.records.sync-conflict",
       "place": "records",
       "screen": "records.sync-conflict"

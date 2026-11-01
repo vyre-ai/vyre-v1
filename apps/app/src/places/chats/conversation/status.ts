@@ -25,6 +25,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.vault_locked": { message: "Your Vault is locked.", cause: "Unlock it to let this chat use your AI account.", next: [{ key: "unlock_vault", label: "Unlock" }], retryable: false },
   "engine.vault_unreadable": { message: "Your Vault could not be read just now.", next: [{ key: "open_vault", label: "Open the Vault" }], retryable: true },
   "sandbox.unavailable": { message: "Your server cannot sandbox the engine.", retryable: true },
+  "engine.post_failed": { message: "The reply was written but could not be shown.", cause: "Try again.", retryable: true },
   turn_timeout: { message: "That took too long, so it was stopped.", retryable: true },
 };
 

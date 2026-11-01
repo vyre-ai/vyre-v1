@@ -36,6 +36,25 @@ export async function managersFor(ctx: VaultReqCtx, folderId: string | undefined
   return [...out].sort();
 }
 
+/** "Dana_Lawmatics" reads "Dana Lawmatics key needed"; a name that already ends in key is not doubled. */
+export function neededTitle(name: string): string {
+  const words = name.replace(/_+/g, " ").trim();
+  return /\bkey$/i.test(words) ? `${words} needed` : `${words} key needed`;
+}
+
+/** The chat the agent asked in and the agent's id, read back from the request's own card (no column holds them). */
+async function chatOf(ctx: VaultReqCtx, row: RequestRow): Promise<{ threadId: string; agentId?: string } | null> {
+  const taskId = idsOf(row.task_ids_json)[0];
+  if (!taskId) return null;
+  try {
+    const t = asRow(asRow(await ctx.call("tasks.get", { taskId }))?.["task"]);
+    const blocks = Array.isArray(t?.["blocks"]) ? (t!["blocks"] as unknown[]) : [];
+    const d = asRow(asRow(blocks[0])?.["data"]);
+    const threadId = strOf(d?.["threadId"]);
+    return threadId ? { threadId, ...(strOf(d?.["agentId"]) ? { agentId: strOf(d?.["agentId"])! } : {}) } : null;
+  } catch { return null; }
+}
+
 export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fields?: string[]; reason: string; forRun?: string; folderId?: string; idempotencyKey: string }) {
   const trace = ctx.trace.traceId;
   const requester = requesterOf(ctx);
@@ -55,14 +74,15 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
   const managers = await managersFor(ctx, input.folderId, requester.id);
   if (managers.length === 0) raise(trace, "validation.precondition_failed", "Nobody can decide this request.");
   const id = nid("vrq");
-  const block = { type: "vault_request", v: 1, data: { requestId: id, name, fields, reason: input.reason.trim(), requester, ...(input.forRun ? { forRun: input.forRun } : {}), ...(input.folderId ? { folderId: input.folderId } : {}), state: "waiting" } };
+  const block = { type: "vault_request", v: 1, data: { requestId: id, name, fields, reason: input.reason.trim(), requester, ...(input.forRun ? { forRun: input.forRun } : {}), ...(input.folderId ? { folderId: input.folderId } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}), ...(ctx.thread && requester.kind === "agent" ? { agentId: requester.id } : {}), state: "waiting" } };
   const taskIds: string[] = [];
   for (const manager of managers) {
     const made = asRow(await ctx.call("tasks.create", {
-      kind: "unblock", title: `The key ${name} is needed`, summary: input.reason.trim(), why: "A key is needed that only a manager of the Vault can supply.",
+      kind: "unblock", title: neededTitle(name), summary: input.reason.trim(), why: "Add the key to the Vault and it carries on.",
+      ...(ctx.thread ? { notes: { thread: ctx.thread } } : {}),
       assigned: { kind: "person", id: manager }, source: { kind: "manual", id }, blocks: [block],
-      // the actions an unblock task offers (modules/tasks/handlers/state.ts): the card closes through vault.requests.fulfil or decline, which transition it
-      actions: [{ key: "resolved", label: "Provide the key" }, { key: "cannot", label: "Decline", note: "optional" }], idempotencyKey: `${id}:${manager}`,
+            // no "resolved" here: a key request closes only through vault.requests.fulfil (a key saved) or decline, never by pressing a bare Done
+      actions: [{ key: "cannot", label: "Decline", note: "optional" }], idempotencyKey: `${id}:${manager}`,
     }));
     const taskId = strOf(asRow(made?.["task"])?.["id"]);
     if (!taskId) raise(trace, "internal.unexpected", "The task for the request was not created.");
@@ -74,6 +94,11 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
   );
   const row = requestById(ctx, id)!;
   ctx.emit("vault.requested", id, { requestId: id, name, fields, requester, ...(input.forRun ? { forRun: input.forRun } : {}), taskId: taskIds[0]! });
+  // the person asked in a chat: the ask lands there as a card, where they are (Needs you keeps its linked row)
+  if (ctx.thread) {
+    try { await ctx.call("chat.post", { threadId: ctx.thread, body: "", blocks: [block], idempotencyKey: `${id}:card` }); }
+    catch (e) { ctx.log.warn("vault request: the chat card was not posted", { requestId: id, error: e instanceof Error ? e.message : String(e) }); }
+  }
   return { request: requestOut(row) };
 }
 
@@ -118,6 +143,16 @@ async function closeCards(ctx: VaultReqCtx, row: RequestRow, to: "done" | "cance
   }
 }
 
+/** The agent that asked picks the work up again in the same chat, and says so: a short message from the person who answered, addressed to it. */
+async function carryOn(ctx: VaultReqCtx, row: RequestRow, chat: { threadId: string; agentId?: string } | null, text: string): Promise<void> {
+  if (!chat || !chat.agentId) return;
+  try {
+    await ctx.call("chat.post", { threadId: chat.threadId, body: text, mentions: [{ kind: "agent", id: chat.agentId }], idempotencyKey: `${row.id}:carry` });
+  } catch (e) {
+    ctx.log.warn("vault request: the agent was not told to carry on", { requestId: row.id, error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
 /** A manager decides a request that is still waiting. */
 function decidable(ctx: VaultReqCtx, requestId: string): { row: RequestRow; me: string } {
   const { row, asManager } = visible(ctx, requestId);
@@ -154,11 +189,18 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
   }
 
   // the requester gets Use: a handle to fill, never the value
-  await ctx.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: row.requester_kind, id: row.requester_id }, level: "use", idempotencyKey: `${row.id}:use` });
+  try {
+    await ctx.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: row.requester_kind, id: row.requester_id }, level: "use", idempotencyKey: `${row.id}:use` });
+  } catch (e) {
+    // a Mine item is private to its owner: an agent acting for that person already works as them, so there is nothing to share. Any other refusal stands.
+    if (!/private/i.test(e instanceof Error ? e.message : "") ) throw e;
+  }
 
   ctx.db.run(`UPDATE ${TABLE} SET state = ?, item_id = ?, decided_by = ?, decided_at = ? WHERE id = ?`, "fulfilled", itemId, me, ctx.now(), row.id);
   ctx.emit("vault.request_fulfilled", row.id, { requestId: row.id, itemId, ...(row.for_run ? { forRun: row.for_run } : {}) });
+  const chat = await chatOf(ctx, row);
   await closeCards(ctx, row, "done", "Provided");
+  await carryOn(ctx, row, chat, `I added the ${row.name.replace(/_+/g, " ")} key. Carry on.`);
   if (row.for_run) {
     try {
       await ctx.call("runs.resume", { runId: row.for_run, reason: "key" });
@@ -174,7 +216,9 @@ export async function requestsDecline(ctx: VaultReqCtx, input: { requestId: stri
   const note = input.note?.trim() || null;
   ctx.db.run(`UPDATE ${TABLE} SET state = ?, note = ?, decided_by = ?, decided_at = ? WHERE id = ?`, "declined", note, me, ctx.now(), row.id);
   ctx.emit("vault.request_declined", row.id, { requestId: row.id, ...(row.for_run ? { forRun: row.for_run } : {}), ...(note ? { note } : {}) });
+  const chat = await chatOf(ctx, row);
   await closeCards(ctx, row, "canceled", note ? `Declined: ${note}` : "Declined");
+  await carryOn(ctx, row, chat, note ? `I did not add the ${row.name.replace(/_+/g, " ")} key: ${note}` : `I did not add the ${row.name.replace(/_+/g, " ")} key.`);
   return { ok: true };
 }
 
