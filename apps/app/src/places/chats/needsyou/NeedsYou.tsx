@@ -243,9 +243,10 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
       {blockNodes}
       <View style={st.src}>
         <Text style={st.srcText}>From </Text>
-        {src && !system ? <Pressable accessibilityRole="link" onPress={() => data.nav.openSource(src.kind, src.id)} testID="needs-source"><Text style={st.link}>{srcTitle}</Text></Pressable> : <Text style={st.srcText}>{who}</Text>}
-        <Text style={st.srcText}>{system ? ` · ${arrivedLabel(t.updatedAt, clock)}` : ` · ${who} · ${arrivedLabel(t.updatedAt, clock)}`}</Text>
+        {src && !system && src.kind !== "manual" ? <Pressable accessibilityRole="link" onPress={() => data.nav.openSource(src.kind, src.id)} testID="needs-source"><Text style={st.link}>{srcTitle}</Text></Pressable> : <Text style={st.srcText}>{who}</Text>}
+        <Text style={st.srcText}>{system || src?.kind === "manual" ? ` · ${arrivedLabel(t.updatedAt, clock)}` : ` · ${who} · ${arrivedLabel(t.updatedAt, clock)}`}</Text>
       </View>
+      {t.workingNotes["thread"] ? <View style={st.acts}><Button label="Open the chat" onPress={() => data.nav.openSource("chat", t.workingNotes["thread"] ?? "")} testID="needs-open-chat" /></View> : null}
       {held.kind === "handled" ? <Text testID="needs-handled" style={st.holder}>{`Handled by ${data.nameOf(held.by ?? "")}`}</Text> : null}
       {held.kind === "taken" ? <Text testID="needs-taken" style={st.holder}>{`Taken by ${data.nameOf(held.by ?? "")}`}</Text> : null}
       {compose ? (
