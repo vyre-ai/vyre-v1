@@ -11,7 +11,7 @@ Read one public API docs page as plain text, with its same-site links. For an Op
 | Grant level | view |
 | Risk | low |
 | Resource | space |
-| Gate | none |
+| Gate | send when links.is_composed(input.url) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
@@ -51,6 +51,7 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
+- permission.needs_approval
 - permission.no_grant
 - validation.bad_input
 

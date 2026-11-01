@@ -2,18 +2,24 @@
   "module": "gate",
   "capabilities": {
     "gate.acts.list@1": "47a318bf1ac7661922d760d193579702dbc48f9e5069d998f941db8b61d559fa",
+    "gate.allow.list@1": "6028bea4e99526b4353a74bdfd8761bbc9e0976826fd592b9bbfb25209c50a48",
+    "gate.allow.remove@1": "dd3ff73999f0b00bcd69b66c14af028bb7bbe35c6d43206dbaa3417c7f79ee8d",
+    "gate.allow.set@1": "b38cc11f2676839ddaa851928e2431422be3ca753aa737f0dc09876cb8641063",
     "gate.deny@1": "14d821130834a364dc8f803e87b7cf4e1d146c64d74ca6eb1b86a51a3e088492",
     "gate.effective_rule@1": "3afa0ff1a938fa897609f58bdfc5b80c6fcc79f7499814d602e0dbf59ab7b85f",
     "gate.expire@1": "91f689719d3f782a1ae65243ee89a36225f5f89ce95db1a3d4f8728b88ee36db",
-    "gate.grants.set@1": "bd8365414d7a27e38a27bacdece4e1b388b9e5d373394383fb14855b076e55ac",
-    "gate.grants.take@1": "19b3fb9e43e94f721fe50009f9a87f324e11e8e3fe36f6f57e6e18a23a6fd2ef",
+    "gate.grants.ask@1": "2c4a2489a289fe16f35db22f9b42f8bc389455ce8153a0aab86b0029a8879eef",
+    "gate.grants.set@1": "8a2d7b7de3f9f472ca21094132cac04d8006fa4840fb8e180e59098e94e26867",
+    "gate.grants.take@1": "dda50f9d4a2b019af0431598fc4e82d9c5d5ce01efb91d0b9cdbff7e844619ed",
     "gate.holds.get@1": "a016ae4a6b2a8a4e44dd5d7e10e0c4b66490b7b2555c53851880becd846bc0bf",
     "gate.holds.list@1": "b9d461302bb1e82e6cf572611fedb1e413392720bb10aded188b7269378288c4",
+    "gate.links.known@1": "bc42884b6a6dc7cc1892fe6593bb5b4c36c410be8209cc72d578a85ce0a69b0c",
     "gate.park@1": "49e382a3d3c933df41f36d38c413b4eb3f58ececc737533f2844d9e102214e6a",
     "gate.release@1": "2c929a04c862141d1e413753f1386ce4bd932a2fe4d7983236aed29b4190ba78",
     "gate.result.take@1": "98320d242c8523bf42a2b4551d113b567505fce84a27563631158d7518295eff",
     "gate.rules.list@1": "b9c7a0dd01379318e7b3aaa9e274c9954af24603b621a91ed6eb4af861b745cc",
-    "gate.rules.set@1": "059059ddfbaac4ce6b9b8e7c73ecc56f42ce5feb6a6407b46fbd68a3ad5d7b01"
+    "gate.rules.set@1": "059059ddfbaac4ce6b9b8e7c73ecc56f42ce5feb6a6407b46fbd68a3ad5d7b01",
+    "gate.taint.mark@1": "5bc0eb682db269102b670264b7cac88d6f88279937ad4c5d977a8aeb62907cea"
   },
   "events": {
     "gate.approved": "e6968e1a59d925001811b74d3a8bf7f2f7de22dc76bbbde1ce6bc540903513ce",

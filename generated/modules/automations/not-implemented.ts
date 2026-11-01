@@ -44,6 +44,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.preview_promote": async (ctx) => { throw new VyreErr(notImplemented("automations.preview_promote", ctx.trace)); },
   "automations.promote": async (ctx) => { throw new VyreErr(notImplemented("automations.promote", ctx.trace)); },
   "automations.read_docs": async (ctx) => { throw new VyreErr(notImplemented("automations.read_docs", ctx.trace)); },
+  "automations.read_link": async (ctx) => { throw new VyreErr(notImplemented("automations.read_link", ctx.trace)); },
   "automations.replay": async (ctx) => { throw new VyreErr(notImplemented("automations.replay", ctx.trace)); },
   "automations.restore_version": async (ctx) => { throw new VyreErr(notImplemented("automations.restore_version", ctx.trace)); },
   "automations.retry": async (ctx) => { throw new VyreErr(notImplemented("automations.retry", ctx.trace)); },

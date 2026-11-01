@@ -3304,6 +3304,22 @@ export type AutomationsReadDocsOut = {
     }>;
   truncated?: boolean;
 };
+export type AutomationsReadLinkIn = {
+  url: string;
+  focus?: string;
+};
+export type AutomationsReadLinkOut = {
+  ok: boolean;
+  reason?: string;
+  finalUrl?: string;
+  kind?: "openapi" | "html" | "text";
+  text?: string;
+  links?: Array<{
+      text: string;
+      url: string;
+    }>;
+  truncated?: boolean;
+};
 export type AutomationsReplayIn = {
   automationId: string;
   runId: string;
@@ -12194,6 +12210,46 @@ export type GateActsListOut = {
       peopleOnly: boolean;
     }>;
 };
+export type GateAllowListIn = Record<string, unknown>;
+export type GateAllowListOut = {
+  rules: Array<{
+      id: string;
+      kind: "standing" | "always";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      target: string;
+      agentId?: string;
+      threadId?: string;
+      automationId?: string;
+      stepId?: string;
+      expiresAt?: number;
+    }>;
+};
+export type GateAllowRemoveIn = {
+  id: string;
+};
+export type GateAllowRemoveOut = {
+  ok: boolean;
+};
+export type GateAllowSetIn = {
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  target: string;
+  agentId?: string;
+  threadId?: string;
+  days?: number;
+};
+export type GateAllowSetOut = {
+  rule: {
+    id: string;
+    kind: "standing" | "always";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+    target: string;
+    agentId?: string;
+    threadId?: string;
+    automationId?: string;
+    stepId?: string;
+    expiresAt?: number;
+  };
+};
 export type GateDenyIn = {
   holdId: string;
   taskId: string;
@@ -12232,6 +12288,18 @@ export type GateExpireOut = {
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
 };
+export type GateGrantsAskIn = {
+  threadId: string;
+  messageId: string;
+  asked: Array<{
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      target: string;
+    }>;
+  links?: Array<string>;
+};
+export type GateGrantsAskOut = {
+  ok: boolean;
+};
 export type GateGrantsSetIn = {
   automationId: string;
   defHash: string;
@@ -12255,11 +12323,21 @@ export type GateGrantsSetOut = {
 export type GateGrantsTakeIn = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   targets: Array<string>;
-  step: {
+  step?: {
     automationId: string;
     nodeId: string;
     defHash: string;
     ask?: boolean;
+  };
+  turn?: {
+    person: string;
+    threads: Array<string>;
+  };
+  always?: {
+    person: string;
+    agentId: string;
+    threads: Array<string>;
+    cap: string;
   };
 };
 export type GateGrantsTakeOut = {
@@ -12312,6 +12390,13 @@ export type GateHoldsListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type GateLinksKnownIn = {
+  url: string;
+  threads: Array<string>;
+};
+export type GateLinksKnownOut = {
+  known: boolean;
 };
 export type GateParkIn = {
   capName: string;
@@ -12399,6 +12484,14 @@ export type GateRulesSetOut = {
     scope: "space" | "floor" | "agent";
     agentId?: string;
   };
+};
+export type GateTaintMarkIn = {
+  threads: Array<string>;
+  source: string;
+  links?: Array<string>;
+};
+export type GateTaintMarkOut = {
+  ok: boolean;
 };
 export type GitBranchIn = {
   folderId: string;
@@ -32934,6 +33027,7 @@ export interface CapMap {
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
   "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
+  "automations.read_link": { in: AutomationsReadLinkIn; out: AutomationsReadLinkOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -33456,18 +33550,24 @@ export interface CapMap {
   "forms.unpublish": { in: FormsUnpublishIn; out: FormsUnpublishOut };
   "forms.update": { in: FormsUpdateIn; out: FormsUpdateOut };
   "gate.acts.list": { in: GateActsListIn; out: GateActsListOut };
+  "gate.allow.list": { in: GateAllowListIn; out: GateAllowListOut };
+  "gate.allow.remove": { in: GateAllowRemoveIn; out: GateAllowRemoveOut };
+  "gate.allow.set": { in: GateAllowSetIn; out: GateAllowSetOut };
   "gate.deny": { in: GateDenyIn; out: GateDenyOut };
   "gate.effective_rule": { in: GateEffectiveRuleIn; out: GateEffectiveRuleOut };
   "gate.expire": { in: GateExpireIn; out: GateExpireOut };
+  "gate.grants.ask": { in: GateGrantsAskIn; out: GateGrantsAskOut };
   "gate.grants.set": { in: GateGrantsSetIn; out: GateGrantsSetOut };
   "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
   "gate.holds.list": { in: GateHoldsListIn; out: GateHoldsListOut };
+  "gate.links.known": { in: GateLinksKnownIn; out: GateLinksKnownOut };
   "gate.park": { in: GateParkIn; out: GateParkOut };
   "gate.release": { in: GateReleaseIn; out: GateReleaseOut };
   "gate.result.take": { in: GateResultTakeIn; out: GateResultTakeOut };
   "gate.rules.list": { in: GateRulesListIn; out: GateRulesListOut };
   "gate.rules.set": { in: GateRulesSetIn; out: GateRulesSetOut };
+  "gate.taint.mark": { in: GateTaintMarkIn; out: GateTaintMarkOut };
   "git.branch": { in: GitBranchIn; out: GitBranchOut };
   "git.commit": { in: GitCommitIn; out: GitCommitOut };
   "git.diff": { in: GitDiffIn; out: GitDiffOut };
@@ -36410,6 +36510,7 @@ export type MessageReceivedPayload = {
   hasBlocks: boolean;
   via?: string;
   actingFor?: string;
+  typed?: boolean;
 };
 export type MessageSentPayload = {
   messageId: string;
