@@ -14,8 +14,8 @@ export function sinceWord(since: number, c: Clock): string {
   return "a while ago";
 }
 
-export type PartKey = "changes" | "unread" | "match" | "waiting";
-export interface Counts { changes: number; unread: number; match: number; waiting: number }
+export type PartKey = "changes" | "ran" | "unread" | "match" | "waiting";
+export interface Counts { changes: number; unread: number; match: number; waiting: number; ran?: number }
 export interface LinePart { key: PartKey; text: string }
 
 /** The nonzero parts, in the order a person cares about: what waits on them first. */
@@ -24,6 +24,7 @@ export function lineParts(n: Counts): LinePart[] {
   if (n.waiting > 0) out.push({ key: "waiting", text: `${plural(n.waiting, "task")} ${n.waiting === 1 ? "waits" : "wait"} on you` });
   if (n.unread > 0) out.push({ key: "unread", text: plural(n.unread, "unread message") });
   if (n.match > 0) out.push({ key: "match", text: `${plural(n.match, "sender")} to match` });
+  if ((n.ran ?? 0) > 0) out.push({ key: "ran", text: `${plural(n.ran!, "flow")} ran for you` });
   if (n.changes > 0) out.push({ key: "changes", text: `${plural(n.changes, "record")} you follow changed` });
   return out;
 }

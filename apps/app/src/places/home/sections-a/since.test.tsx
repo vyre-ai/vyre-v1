@@ -23,6 +23,7 @@ test("the since word is how the person would say it", () => {
 test("the line names only what is counted, what waits on the person first, and reads well when nothing did", () => {
   const parts = lineParts({ waiting: 2, unread: 1, match: 0, changes: 4 });
   assert.deepEqual(parts.map((p) => p.text), ["2 tasks wait on you", "1 unread message", "4 records you follow changed"]);
+  assert.deepEqual(lineParts({ waiting: 0, unread: 0, match: 0, changes: 0, ran: 3 }).map((p) => p.text), ["3 flows ran for you"]);
   assert.equal(lineParts({ waiting: 1, unread: 0, match: 3, changes: 0 }).map((p) => p.text).join("|"), "1 task waits on you|3 senders to match");
   assert.equal(lead(parts, "Friday"), "Since Friday:");
   assert.equal(lead([], "Friday"), "All quiet since Friday.");
@@ -49,7 +50,7 @@ test("the line is built from the three reads, and each part opens where it lives
     "inbox.counts": { byInbox: [], total: 5, needsMatch: 1 }, "tasks.needs_you": { items: [], total: 2 },
   }, opened));
   try {
-    assert.match(textOf(find(node, "home-since")), /Since yesterday: 2 tasks wait on you, 5 unread messages, 1 sender to match, 2 records you follow changed\./);
+    assert.match(textOf(find(node, "home-since")), /Since yesterday: 2 tasks wait on you, 5 unread messages, 1 sender to match, 1 flow ran for you, 2 records you follow changed\./);
     await press(find(node, "since-waiting")); await press(find(node, "since-unread")); await press(find(node, "since-match")); await press(find(node, "since-changes"));
     assert.deepEqual(opened, ["needs", "inbox:unread", "inbox:match", "activity"]);
   } finally { await act(async () => { root.unmount(); }); restore(); }

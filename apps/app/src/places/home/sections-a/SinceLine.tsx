@@ -31,7 +31,7 @@ export function SinceLine({ onOpen }: { onOpen?: (key: PartKey) => void } = {}):
       if (!live) return;
       // nothing answered (offline, or no access to any of it): say nothing rather than "all quiet"
       if (!activity && !inbox && !needs) return;
-      setCounts({ changes: activity?.items.filter((i) => i.kind === "record_change").length ?? 0, unread: inbox?.total ?? 0, match: inbox?.needsMatch ?? 0, waiting: needs?.total ?? 0 });
+      setCounts({ changes: activity?.items.filter((i) => i.kind === "record_change").length ?? 0, ran: activity?.items.filter((i) => i.kind === "finished" || i.kind === "decision" || i.kind === "routine").length ?? 0, unread: inbox?.total ?? 0, match: inbox?.needsMatch ?? 0, waiting: needs?.total ?? 0 });
     })();
     const timer = setTimeout(() => write(data.clock().now), MARK_AFTER_MS);
     return () => { live = false; clearTimeout(timer); };
@@ -41,10 +41,10 @@ export function SinceLine({ onOpen }: { onOpen?: (key: PartKey) => void } = {}):
   const open = (key: PartKey): void => {
     if (onOpen) return onOpen(key);
     if (key === "waiting") data.nav.openNeedsYou();
-    else if (key === "changes") data.nav.openActivity();
+    else if (key === "changes" || key === "ran") data.nav.openActivity();
     else data.nav.openInbox?.(key);
   };
-  const linked = (key: PartKey): boolean => onOpen !== undefined || key === "waiting" || key === "changes" || data.nav.openInbox !== undefined;
+  const linked = (key: PartKey): boolean => onOpen !== undefined || key === "waiting" || key === "changes" || key === "ran" || data.nav.openInbox !== undefined;
   return (
     <View style={s.line} testID="home-since" accessibilityRole="summary">
       <Text style={s.lead}>{lead(parts, sinceWord(since, clock))}</Text>
