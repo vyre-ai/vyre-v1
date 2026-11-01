@@ -47,7 +47,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
