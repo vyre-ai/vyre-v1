@@ -1,0 +1,1 @@
+- Vyre Black and Vyre Light are the new skins. The default, shown as Vyre, picks one by device; people's marbles and the working ring wear the same palette.

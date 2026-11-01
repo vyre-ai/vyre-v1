@@ -37,12 +37,11 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", fill }: { name:
   );
 }
 
-/** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. `pulse` rings it while an agent works; `online` adds the presence dot. */
-export function Face({ name, seedId, kind, size = 18, pulse = false, online = false }: { name: string; seedId?: string | undefined; kind: "person" | "agent"; size?: number; pulse?: boolean; online?: boolean }): ReactElement {
+/** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. State sits on the face: `pulse` is the moving ring while an agent works, `waiting` the amber ring; `online` adds the presence dot. */
+export function Face({ name, seedId, kind, size = 18, pulse = false, waiting = false, online = false }: { name: string; seedId?: string | undefined; kind: "person" | "agent"; size?: number; pulse?: boolean; waiting?: boolean; online?: boolean }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <Avatar name={name} seedId={seedId} kind={kind} size={size} />
-      {pulse ? <View testID="pulse" style={[s.pulse, { width: size + 6, height: size + 6, borderRadius: kind === "person" ? size : Math.round(size * 0.4) }]} /> : null}
+      <Avatar name={name} seedId={seedId} kind={kind} size={size} state={waiting ? "waiting" : pulse ? "working" : undefined} {...(waiting || pulse ? { testID: "pulse" } : {})} />
       {online ? <View testID="presence" style={s.presence} /> : null}
     </View>
   );
@@ -125,7 +124,6 @@ export function EmptyLine({ text }: { text: string }): ReactElement {
 }
 
 export const s = StyleSheet.create({
-  pulse: { position: "absolute", left: -3, top: -3, borderWidth: 1.5, borderColor: "var(--accent)" as string, opacity: 0.55 },
   presence: { position: "absolute", right: -2, bottom: -2, width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string, borderWidth: 1.5, borderColor: "var(--side)" as string },
   lead: { width: 18, height: 18, marginRight: 6, alignItems: "center", justifyContent: "center" },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },

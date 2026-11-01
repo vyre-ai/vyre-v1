@@ -142,11 +142,11 @@ function documentMode(): "dark" | "light" | null {
 }
 const noWatch = (): (() => void) => () => undefined;
 
-/** System shows the skin the computer is on: Graphite in the dark, Paper in the light. The server snapshot is "unmarked", so a pre-rendered page hydrates and then follows the document. */
+/** Vyre, the default, shows the skin the computer is on: Vyre Black in the dark, Vyre Light in the light. The server snapshot is "unmarked", so a pre-rendered page hydrates and then follows the document. */
 function SkinPreview({ skinId, space }: { skinId: string; space: string }): ReactElement {
   const ambient = useSyncExternalStore(noWatch, documentMode, () => null);
-  const shown = skinId === "system" ? (ambient === "dark" ? "graphite" : "paper") : skinId;
-  const sk = skins.find((x) => x.id === shown) ?? skins.find((x) => x.id === "paper")!;
+  const shown = skinId === "system" ? (ambient === "dark" ? "vyre-black" : "vyre-light") : skinId;
+  const sk = skins.find((x) => x.id === shown) ?? skins.find((x) => x.id === "vyre-light")!;
   const p = sk.palette;
   const navItems: ReactElement[] = [];
   for (const n of ["Home", "Chats", "Projects", "Files"]) navItems.push(<View key={n} style={[a.pvItem, n === "Chats" && { backgroundColor: p.me }]}><Text style={[a.pvItemText, { color: n === "Chats" ? p.ink : p.ink2 }]}>{n}</Text></View>);
@@ -230,7 +230,7 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
         <View testID="row-appearance.skin" {...webOnly({ dataSet: { sid: "appearance.skin" } })} style={found === "appearance.skin" ? a.foundBlock : undefined}>
           <Text accessibilityRole="header" style={a.heading}>Skin</Text>
           <SkinPreview skinId={shown} space={data.space.name} />
-          <Text style={a.group}>System</Text>
+          <Text style={a.group}>Default</Text>
           <View style={a.grid} testID="skins-system">{tile("system", system.name, system.note, systemSwatch)}</View>
           <Text style={a.group}>Dark</Text>
           <View style={a.grid} testID="skins-dark">{tiles("dark")}</View>

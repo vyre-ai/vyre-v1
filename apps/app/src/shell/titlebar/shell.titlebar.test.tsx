@@ -1,4 +1,4 @@
-// The title bar (spec 3.0): title, tiny confirmations with Undo, the sync chip, Search, the skin dropdown (13 skins plus System, seven dark and six light).
+// The title bar (spec 3.0): title, tiny confirmations with Undo, the sync chip, Search, the skin dropdown (15 skins plus Vyre, eight dark and seven light).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -31,7 +31,7 @@ test("the bar shows the title, the sync chip, Search with its key and the skin's
   assert.ok(out.includes("Vyre · Northwind · Chats"));
   assert.ok(out.includes("Connected") && out.includes("Search") && out.includes("⌘K") && out.includes("Paper"));
   assert.ok(html(props({ online: false, waiting: 3 })).includes("Offline, 3 changes waiting"));
-  assert.ok(html(props({ skin: SYSTEM_SKIN })).includes("System"));
+  assert.ok(html(props({ skin: SYSTEM_SKIN })).includes("Vyre"));
 });
 
 test("a tiny confirmation replaces the title, with Undo when it can be taken back", () => {
@@ -47,20 +47,22 @@ test("a phone-width window keeps the icons and drops the labels", () => {
   assert.ok(out.includes('data-testid="title-search"') && out.includes('data-testid="title-skin"'));
 });
 
-test("the skin menu lists System, seven dark skins, six light skins, checks the open one and applies a choice", () => {
+test("the skin menu lists Vyre, eight dark skins, seven light skins, checks the open one and applies a choice", () => {
   const chosen: string[] = [];
   const entries = skinMenuEntries("graphite", (id) => chosen.push(id), { space: "Northwind", onMore: () => chosen.push("more") });
   const heads = entries.filter(isHead).map((e) => e.head);
   assert.deepEqual(heads, ["Your skin in Northwind", "Dark", "Light"]);
   const items = entries.filter(isItem);
-  assert.equal(items.length, 15, "System, thirteen skins and More in Appearance");
-  assert.equal(items[14]?.label, "More in Appearance");
-  assert.equal(items[0]?.label, "System");
+  assert.equal(items.length, 17, "Vyre, fifteen skins and More in Appearance");
+  assert.equal(items[16]?.label, "More in Appearance");
+  assert.equal(items[0]?.label, "Vyre");
   assert.equal(entries.findIndex((e) => isHead(e) && e.head === "Dark") < entries.findIndex((e) => isHead(e) && e.head === "Light"), true, "dark skins first");
-  const dark = items.slice(1, 8).map((e) => e.label);
-  const light = items.slice(8, 14).map((e) => e.label);
-  assert.equal(dark.length, 7);
-  assert.equal(light.length, 6);
+  const dark = items.slice(1, 9).map((e) => e.label);
+  const light = items.slice(9, 16).map((e) => e.label);
+  assert.equal(dark.length, 8);
+  assert.equal(dark[0], "Vyre Black");
+  assert.equal(light[0], "Vyre Light");
+  assert.equal(light.length, 7);
   assert.ok(dark.includes("Graphite") && light.includes("Paper"));
   assert.deepEqual(items.filter((e) => e.checked === true).map((e) => e.label), ["Graphite"]);
   assert.ok(items.every((e) => typeof e.icon === "string" && e.icon.startsWith("<svg")), "every row has an icon, System included");
@@ -70,7 +72,7 @@ test("the skin menu lists System, seven dark skins, six light skins, checks the 
   items.find((e) => e.label === "Paper")?.onSelect?.();
   assert.deepEqual(chosen, ["paper"]);
   assert.equal(skinName("graphite"), "Graphite");
-  assert.equal(skinName("unknown"), "System");
+  assert.equal(skinName("unknown"), "Vyre");
 });
 
 test("the title names the Space and the place, and Away when you set yourself away", () => {

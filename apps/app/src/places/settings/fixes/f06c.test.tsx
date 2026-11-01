@@ -38,7 +38,7 @@ test("search on a phone: the results take the place of the page list under the s
   assert.ok(has(out, 'data-testid="settings-nav"') && has(out, 'data-testid="search-results"') && !has(out, 'data-testid="row-page-profile"'));
 });
 
-test("Appearance: Density, Text size, Reduce motion at the top, then Skin with the preview, System, Dark and Light, and the line under them", () => {
+test("Appearance: Density, Text size, Reduce motion at the top, then Skin with the preview, the default, Dark and Light, and the line under them", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "appearance" });
   for (const id of ["ctl-appearance.density", "ctl-appearance.text_size", "ctl-appearance.reduce_motion", "skin-preview", "skins-system", "skins-dark", "skins-light", "skin-system"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.match(tag(out, "ctl-appearance.density-comfortable"), /aria-checked="true"/);
@@ -46,7 +46,7 @@ test("Appearance: Density, Text size, Reduce motion at the top, then Skin with t
   assert.ok(has(out, 'data-testid="ctl-appearance.text_size-value"') && has(out, ">100%<"));
   assert.match(tag(out, "ctl-appearance.text_size"), /aria-valuenow="100"/);
   assert.ok(out.indexOf("ctl-appearance.density") < out.indexOf("skin-preview") && out.indexOf("skin-preview") < out.indexOf("skins-system") && out.indexOf("skins-system") < out.indexOf("skins-dark") && out.indexOf("skins-dark") < out.indexOf("skins-light"));
-  assert.ok(has(out, "Just for you, in Northwind") && has(out, "Paper by day, Graphite by night") && has(out, "Weekly report"));
+  assert.ok(has(out, "Just for you, in Northwind") && has(out, "Vyre Light by day, Vyre Black by night") && has(out, "Weekly report"));
   for (const gone of ["Light or dark", "Skin for this Space", "Hover a tile to try it", "A Kit sets the rail"]) assert.ok(!has(out, gone), `no "${gone}"`);
 });
 

@@ -46,15 +46,16 @@ test("the frozen token set is the vars() list from vyre-v1.html", () => {
   assert.equal(new Set(TOKEN_NAMES).size, TOKEN_NAMES.length);
 });
 
-test("thirteen skins, seven dark and six light, system kept beside them", () => {
-  assert.equal(skins.length, 13);
+test("fifteen skins, eight dark and seven light with Vyre's own first, system kept beside them", () => {
+  assert.equal(skins.length, 15);
   assert.deepEqual(
     skins.map((s) => s.id),
-    ["graphite", "obsidian", "charcoal", "slate", "ember", "moss", "dusk", "paper", "fog", "linen", "sand", "sage", "mist"],
+    ["vyre-black", "graphite", "obsidian", "charcoal", "slate", "ember", "moss", "dusk", "vyre-light", "paper", "fog", "linen", "sand", "sage", "mist"],
   );
-  assert.equal(skins.filter((s) => s.base === "dark").length, 7);
-  assert.equal(skins.filter((s) => s.base === "light").length, 6);
+  assert.equal(skins.filter((s) => s.base === "dark").length, 8);
+  assert.equal(skins.filter((s) => s.base === "light").length, 7);
   assert.equal(system.id, "system");
+  assert.equal(system.name, "Vyre", "the default shows as Vyre");
   assert.equal(skins.some((s) => s.id === "system"), false);
   assert.equal(typeTokens["--ui"].includes("Inter"), true);
   assert.equal(typeTokens["--mono"].includes("JetBrains Mono"), true);
@@ -77,8 +78,19 @@ test("each skin defines every token for light and for dark", () => {
   }
 });
 
+test("the Vyre palettes are vyre-palette.json, token for token", () => {
+  const black = skinById("vyre-black") as Skin;
+  const light = skinById("vyre-light") as Skin;
+  const want = (set: TokenSet, p: Record<string, string>): void => {
+    for (const [k, v] of Object.entries(p)) assert.equal(set[k as keyof TokenSet], v, k);
+  };
+  want(black.dark, { "--win": "#121118", "--side": "#16151D", "--rail": "#07070A", "--raised": "#201E29", "--sunk": "#0B0A10", "--field": "#201E29", "--ink": "#F2F0F7", "--ink-2": "#C6C2D2", "--ink-3": "#928DA2", "--ink-4": "#625D70", "--me": "#2A2736", "--accent": "#A092FF", "--accent-ink": "#120E24", "--beacon": "#FF8A66", "--ok": "#5AD6A2", "--warn": "#F4BE62", "--danger": "#FF6F85", "--accent-wash": "rgba(160,146,255,0.15)", "--accent-line": "rgba(160,146,255,.4)", "--hover": "rgba(255,255,255,0.05)", "--sel": "rgba(255,255,255,0.085)", "--line": "rgba(255,255,255,0.07)", "--line-2": "rgba(255,255,255,0.12)" });
+  want(light.light, { "--win": "#FBFAFD", "--side": "#F4F2F8", "--rail": "#E8E5EF", "--raised": "#FFFFFF", "--sunk": "#EEEBF3", "--field": "#EEEBF3", "--ink": "#17141F", "--ink-2": "#454052", "--ink-3": "#6A6578", "--ink-4": "#A29DAF", "--me": "#E8E3F8", "--accent": "#5A3FF0", "--accent-ink": "#FFFFFF", "--beacon": "#EE5A38", "--ok": "#16805A", "--warn": "#9C5C07", "--danger": "#CC2A4A", "--accent-wash": "rgba(90,63,240,0.1)", "--accent-line": "rgba(90,63,240,.4)", "--hover": "rgba(23,20,31,0.045)", "--sel": "rgba(23,20,31,0.075)", "--line": "rgba(23,20,31,0.08)", "--line-2": "rgba(23,20,31,0.13)" });
+});
+
 test("palette colours from vyre-v1.html land on both modes, and status colours follow the mode", () => {
   for (const s of skins) {
+    if (s.id.startsWith("vyre-")) continue; // their own status colours and beacon: the test above
     for (const mode of MODES) {
       const set = s[mode];
       assert.equal(set["--win"], s.palette.win, s.id);
@@ -131,13 +143,13 @@ test("native mode matches the prototype derivation for graphite and paper", () =
   assert.equal(ember.palette.accent, "#E2A55B");
 });
 
-test("document tokens are the vyre-v1.html :root strings, distinct from Graphite and Paper", () => {
-  assert.equal(documentTokens.light["--hover"], "rgba(0,0,0,.045)");
-  assert.equal(documentTokens.light["--accent"], "#5B50E8");
-  assert.equal(documentTokens.light["--accent-wash"], "rgba(91,80,232,.10)");
-  assert.equal(documentTokens.light["--side"], "#F7F7F8");
-  assert.equal(documentTokens.dark["--win"], "#161618");
-  assert.equal(documentTokens.dark["--sh-pop"], "0 0 0 1px rgba(255,255,255,.08), 0 16px 40px rgba(0,0,0,.5)");
+test("System paints Vyre Light by day and Vyre Black by night, distinct from Graphite and Paper", () => {
+  const black = skinById("vyre-black") as Skin;
+  const light = skinById("vyre-light") as Skin;
+  assert.equal(documentTokens.light, light.light);
+  assert.equal(documentTokens.dark, black.dark);
+  assert.equal(documentTokens.light["--beacon"], "#EE5A38");
+  assert.equal(documentTokens.dark["--beacon"], "#FF8A66");
   const graphite = skinById("graphite") as Skin;
   const paper = skinById("paper") as Skin;
   assert.notEqual(documentTokens.dark["--win"], graphite.palette.win);

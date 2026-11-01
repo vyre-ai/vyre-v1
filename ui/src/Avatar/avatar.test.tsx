@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Avatar, faceKey, faceTint, hash, hueOf, kindOf, marbleInner, marbleSpec, initialsOf } from "./index.tsx";
+import { Avatar, FACE_STATE_CSS, faceKey, faceTint, hash, hueOf, kindOf, marbleInner, marbleSpec, initialsOf } from "./index.tsx";
 import { notionistsSvg } from "./notionists.ts";
 import { marbleGradient } from "./faces.ts";
 import { hslHex } from "./faces.ts";
@@ -12,15 +12,16 @@ test("the hash is the prototype's, so a name seeds the same face as the prototyp
   assert.equal(hash("Scheduler"), 467662964);
 });
 
-test("a person's marble takes the prototype's colours and turns for the name", () => {
+test("a person's marble takes the Vyre palette and turns for the name", () => {
   const m = marbleSpec("Maya Chen");
-  assert.deepEqual([m.base, m.c1, m.c2], ["#C20D90", "#F0AB3D", "#C20D90"]);
+  assert.deepEqual([m.base, m.c1, m.c2], ["#FF8A66", "#A092FF", "#FF8A66"]);
+  for (const c of [m.base, m.c1, m.c2]) assert.ok(["#3B2CA6", "#6E4BD8", "#A092FF", "#F4BE62", "#FF8A66"].includes(c), "the Vyre palette");
   assert.deepEqual([m.t1.x, m.t1.y, m.t2.x, m.t2.y, m.t1.rot, m.t2.rot], [-1, 3, -2, 1, 299, 189]);
   const html = renderToStaticMarkup(<Avatar name="Maya Chen" size={24} />);
   assert.match(html, /data-testid="avatar-Maya Chen"/);
   assert.match(html, /data-avatar="person"/);
   assert.match(html, /<mask id="mb[0-9a-z]+m"/);
-  assert.match(html, /fill="#C20D90"/);
+  assert.match(html, /fill="#FF8A66"/);
   assert.match(html, /border-top-left-radius:12px/, "a person is round");
   assert.doesNotMatch(html, />MC</, "no letter tile");
 });
@@ -66,14 +67,14 @@ test("a Space is a letter on a tint, not a face", () => {
   assert.doesNotMatch(html, /<svg/);
 });
 
-test("the assistant is the Vyre mark on the neutral tile, whether asked for by kind or by name", () => {
+test("the assistant is the Vyre mark on the accent wash, whether asked for by kind or by name", () => {
   assert.equal(kindOf("Assistant", "agent"), "assistant");
   assert.equal(kindOf("Scout", "agent"), "agent");
   assert.equal(kindOf("Maya Chen"), "person");
   const html = renderToStaticMarkup(<Avatar name="Assistant" kind="agent" size={22} />);
   assert.match(html, /data-avatar="assistant"/);
   assert.match(html, /class="vmark"/);
-  assert.match(html, /background-color:var\(--sunk\)/);
+  assert.match(html, /background-color:var\(--accent-wash\)/);
   assert.match(html, /var\(--beacon, #8B7CF6\)/);
 });
 
@@ -207,4 +208,14 @@ test("a person's face in the browser paints: the gradient goes in `background`, 
 test("marbleGradient ends in the base colour, so it is a `background` value", () => {
   const m = marbleSpec("Elena Rivera");
   assert.ok(marbleGradient("Elena Rivera").trimEnd().endsWith(m.base), "base colour last");
+});
+
+test("state sits on the face: a moving ring working, an amber ring waiting, a green dot finished, dimmed asleep", () => {
+  const ring = renderToStaticMarkup(<Avatar name="Mira" kind="agent" state="working" />);
+  assert.match(ring, /vyre-face-ring vyre-working/);
+  const wait = renderToStaticMarkup(<Avatar name="Sara" kind="person" state="waiting" />);
+  assert.match(wait, /vyre-face-ring vyre-waiting vyre-round/);
+  assert.match(renderToStaticMarkup(<Avatar name="Mira" kind="agent" state="done" />), /avatar-Mira-done/);
+  assert.doesNotMatch(renderToStaticMarkup(<Avatar name="Mira" kind="agent" />), /vyre-face-ring/);
+  assert.match(FACE_STATE_CSS, /var\(--accent\) 78%,var\(--beacon\) 100%/, "the ring runs iris into coral");
 });

@@ -1,5 +1,5 @@
 // Face drawing for ui/Avatar, as svg strings (testable without a renderer). All of it is a pure function of the name.
-// People: a Boring Avatars style marble (the prototype's marble(), same constants). Agents: a DiceBear Notionists face on a soft tint (see notionists.ts).
+// People: a Boring Avatars style marble in the Vyre palette (the prototype's marble(), same shapes). Agents: a DiceBear Notionists face on a soft tint (see notionists.ts).
 
 /** The prototype's string hash. Every face and tint is derived from it. */
 export function hash(s: string): number {
@@ -9,7 +9,8 @@ export function hash(s: string): number {
 }
 
 export const HUES = [250, 160, 28, 205, 330, 95, 12, 280];
-const BORING = ["#92A1C6", "#146A7C", "#F0AB3D", "#C271B4", "#C20D90"];
+/** The Vyre palette, as the prototype's people wear it. */
+const MARBLE = ["#3B2CA6", "#6E4BD8", "#A092FF", "#F4BE62", "#FF8A66"];
 
 /** The hue an agent's tint takes from its name. */
 export function hueOf(name: string): number {
@@ -27,7 +28,7 @@ export interface MarbleSpec {
 
 export function marbleSpec(name: string): MarbleSpec {
   const h = hash(name);
-  const c = (k: number): string => BORING[(h >>> (k * 3)) % BORING.length] as string;
+  const c = (k: number): string => MARBLE[(h >>> (k * 3)) % MARBLE.length] as string;
   const n = (k: number, m: number): number => ((h >>> k) % m) - m / 2;
   return {
     id: `mb${h.toString(36)}`,

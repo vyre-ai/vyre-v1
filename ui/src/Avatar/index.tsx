@@ -10,10 +10,11 @@ import type { ViewStyle } from "react-native";
 import { faceTint, hueOf, initialsOf, marbleGradient, marbleInner } from "./faces.ts";
 import { cachedFace, currentSkin, faceKey, requestFace } from "./cache.ts";
 import { loadNotionists } from "./load.ts";
-import type { AvatarKind, AvatarProps } from "./props.ts";
+import { injectCss } from "../theme/css.ts";
+import type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
 import { assistantLook, isAssistantId, subscribeAssistant } from "./assistant.ts";
 
-export type { AvatarKind, AvatarProps } from "./props.ts";
+export type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
 export { assistantId, assistantLook, avatarOf, isAssistantId, resetAssistant, setAssistantId, setAssistantLook, subscribeAssistant } from "./assistant.ts";
 export type { AvatarEntity } from "./assistant.ts";
 export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
@@ -22,6 +23,16 @@ export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requ
 export const AVATAR_DEFAULT_SIZE = 18;
 
 const web = Platform.OS === "web";
+
+/** The working ring runs iris into coral, ours and nobody else's; the waiting ring is amber. CSS only, so a list of faces costs no frames and nothing restarts on a re-render. */
+export const FACE_STATE_CSS = [
+  "@keyframes vyre-face-spin{to{transform:rotate(360deg)}}",
+  ".vyre-face-ring{position:absolute;inset:-3px;border-radius:42%;pointer-events:none}",
+  ".vyre-face-ring.vyre-round{border-radius:50%}",
+  ".vyre-face-ring.vyre-working{background:conic-gradient(from 0deg,transparent 0 50%,var(--accent) 78%,var(--beacon) 100%);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 1.6px),#000 calc(100% - 1.6px));mask:radial-gradient(farthest-side,transparent calc(100% - 1.6px),#000 calc(100% - 1.6px));animation:vyre-face-spin 3.2s linear infinite}",
+  ".vyre-face-ring.vyre-waiting{box-shadow:inset 0 0 0 1.6px var(--warn)}",
+  "@media (prefers-reduced-motion:reduce){.vyre-face-ring.vyre-working{animation:none}}",
+].join("\n");
 
 /** The face svg at the caller's size: DiceBear writes width and height 64 on the root. */
 function sized(markup: string, size: number): string {
@@ -53,7 +64,15 @@ function svg(markup: string, size: number, viewBox: string, extra: Record<string
   return createElement("svg", { viewBox, width: size, height: size, "aria-hidden": true, style: { display: "block" }, dangerouslySetInnerHTML: { __html: markup }, ...extra });
 }
 
-export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, testID }: AvatarProps): ReactElement {
+/** The ring round a working or waiting face. */
+function FaceRing({ state, round, id }: { state: FaceState; round: boolean; id: string }): ReactElement | null {
+  if (state !== "working" && state !== "waiting") return null;
+  if (!web) return <View testID={`${id}-ring`} style={[styles.ringNative, { borderRadius: round ? 999 : 8, borderColor: (state === "working" ? "var(--accent)" : "var(--warn)") as string }]} />;
+  injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-ui-face-state", FACE_STATE_CSS);
+  return createElement("span", { className: `vyre-face-ring vyre-${state}${round ? " vyre-round" : ""}`, "data-testid": `${id}-ring`, "data-state": state, "aria-hidden": true });
+}
+
+export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, state, testID }: AvatarProps): ReactElement {
   const kind = kindOf(name, kindProp, seedId);
   // A look the person picked in Settings turns the assistant into a drawn face from the agent library; with none it stays the Vyre mark.
   const look = useSyncExternalStore(subscribeAssistant, assistantLook, assistantLook);
@@ -112,7 +131,9 @@ export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size 
   const glyphColor = kind === "assistant" ? "var(--ink)" : "var(--ink-2)";
   return (
     <View testID={id} accessible accessibilityRole="image" accessibilityLabel={name} style={{ width: size, height: size, flexShrink: 0 }} {...data}>
-      <View style={[box, clip && { overflow: "hidden" }, neutral && { backgroundColor: "var(--sunk)" as string, ...ring() }, neutral && inkOf(glyphColor)]}>{face}</View>
+      {state ? <FaceRing state={state} round={round} id={id} /> : null}
+      <View style={[box, clip && { overflow: "hidden" }, neutral && { backgroundColor: kind === "assistant" ? "var(--accent-wash)" as string : "var(--sunk)" as string, ...(kind === "assistant" ? {} : ring()) }, neutral && inkOf(glyphColor), state === "idle" && styles.idle]}>{face}</View>
+      {state === "done" ? <View testID={`${id}-done`} style={styles.done} /> : null}
       {running ? <View testID={`${id}-running`} style={[styles.dot, styles.right, dotSize(size)]} /> : null}
       {present ? <View testID={`${id}-present`} style={[styles.dot, styles.left, dotSize(size)]} /> : null}
     </View>
@@ -141,6 +162,9 @@ function AgentFallback({ name, seed, size }: { name: string; seed: string; size:
 }
 
 const styles = StyleSheet.create({
+  idle: { opacity: 0.45 },
+  ringNative: { position: "absolute", left: -3, top: -3, right: -3, bottom: -3, borderWidth: 1.5 },
+  done: { position: "absolute", right: -3, bottom: -3, width: 9, height: 9, borderRadius: 5, backgroundColor: "var(--ok)" as string, ...(web ? ({ boxShadow: "0 0 0 2px var(--raised)" } as ViewStyle) : {}) },
   dot: { position: "absolute", backgroundColor: "var(--ok)" as string, ...(web ? ({ boxShadow: "0 0 0 2px var(--side)" } as ViewStyle) : {}) },
   right: { right: -3, bottom: -3 },
   left: { left: -1, bottom: -1 },

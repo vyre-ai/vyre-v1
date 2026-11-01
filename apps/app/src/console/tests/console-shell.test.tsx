@@ -193,7 +193,7 @@ test("the skin menu lists System, then Dark and Light skins, and checks the open
   const picked: string[] = [];
   const entries = skinMenuEntries("graphite", (id) => picked.push(id));
   const items = entries.filter((e): e is { label: string; checked?: boolean; onSelect?: () => void } => "label" in e);
-  assert.equal(items[0]!.label, "System");
+  assert.equal(items[0]!.label, "Vyre");
   assert.deepEqual(items.filter((i) => i.checked).map((i) => i.label), ["Graphite"]);
   assert.ok(entries.some((e) => "head" in e && e.head === "Dark") && entries.some((e) => "head" in e && e.head === "Light"));
   items[0]!.onSelect?.();

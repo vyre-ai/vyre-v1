@@ -1,6 +1,6 @@
-// The title bar's words and the skin menu (spec 3.0 Title bar): Space name, skin dropdown (13 skins plus System, seven dark and six light; instant; personal per Space),
+// The title bar's words and the skin menu (spec 3.0 Title bar): Space name, skin dropdown (15 skins plus Vyre, the default, eight dark and seven light; instant; personal per Space),
 // tiny confirmations, "Offline, N changes waiting", "Away", Saved. Pure functions, tested without a window.
-import { skins } from "../../../../../ui/src/tokens/skins.ts";
+import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 
 export type SyncTone = "ok" | "busy" | "offline";
@@ -23,8 +23,8 @@ export function syncLabel(online: boolean, waiting: number): SyncLabel {
 export const SYSTEM_SKIN = "system";
 
 export function skinName(id: string): string {
-  if (id === SYSTEM_SKIN) return "System";
-  return skins.find((s) => s.id === id)?.name ?? "System";
+  if (id === SYSTEM_SKIN) return system.name;
+  return skins.find((s) => s.id === id)?.name ?? system.name;
 }
 
 const SVG_OPEN = 'viewBox="0 0 16 16" width="15" height="15" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"';
@@ -41,11 +41,11 @@ export function skinSwatch(id: string): string {
     + `<rect x="3" y="3" width="10" height="5.5" rx="1.5" fill="${p.raised}"/><circle cx="10.5" cy="11.5" r="1.8" fill="${p.accent}"/></svg>`;
 }
 
-/** The dropdown, as the prototype draws it: "Your skin in <Space>", System, the dark skins, the light ones, then More in Appearance. Each skin has its swatch; the open skin is checked. */
+/** The dropdown, as the prototype draws it: "Your skin in <Space>", Vyre (the default), the dark skins, the light ones, then More in Appearance. Each skin has its swatch; the open skin is checked. */
 export function skinMenuEntries(current: string, onSkin: (id: string) => void, more?: { space?: string; onMore?: () => void }): MenuEntry[] {
   const out: MenuEntry[] = [];
   if (more?.space) out.push({ head: `Your skin in ${more.space}` });
-  out.push({ label: "System", icon: SYSTEM_ICON, checked: current === SYSTEM_SKIN, onSelect: () => onSkin(SYSTEM_SKIN) });
+  out.push({ label: system.name, icon: SYSTEM_ICON, checked: current === SYSTEM_SKIN, onSelect: () => onSkin(SYSTEM_SKIN) });
   const group = (head: string, base: "dark" | "light"): void => {
     out.push({ head });
     for (const s of skins) if (s.base === base) out.push({ label: s.name, icon: skinSwatch(s.id), checked: s.id === current, onSelect: () => onSkin(s.id) });
