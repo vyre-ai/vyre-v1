@@ -1,1 +1,0 @@
-- With a place sidebar collapsed, its show button no longer sits on top of the page title; the page moves over to make room.

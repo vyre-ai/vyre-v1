@@ -1,1 +1,0 @@
-- New chats start in Auto. Ask first and Plan are a tap away in the composer; anything that leaves Vyre is still held in every mode.

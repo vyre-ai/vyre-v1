@@ -1,3 +1,0 @@
-- File names in a note are links. In the Files viewer and in an agent's AGENT.md, a [[link]], a relative markdown link and a bare name such as VYRE.md or agent.toml that is a real file near it opens that file in a new tab on click (Cmd-click or middle click opens it behind). Hover shows the path. A [[link]] to a file that is not there is dim and says Create it.
-- The Inherits VYRE.md check chip opens VYRE.md.
-- A person or service with no name shows as a plain word, never an id: svc_host reads as Vyre.
