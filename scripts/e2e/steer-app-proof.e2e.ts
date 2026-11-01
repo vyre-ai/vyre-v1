@@ -76,27 +76,58 @@ async function main(): Promise<void> {
     const agentReplies = async (): Promise<string[]> => ((await ok("chat.messages.list", { threadId })).messages as Array<{ author?: { kind?: string }; body?: string }>).filter((m) => m.author?.kind === "agent" && (m.body ?? "") !== "").map((m) => m.body ?? "");
     const t0 = Date.now();
     const at = (): string => `+${((Date.now() - t0) / 1000).toFixed(1)}s`;
-    await send("Use the Bash tool to run `sleep 9; echo one`, then `sleep 9; echo two`, then `sleep 9; echo three`, each as its own Bash call, one after another, then reply with the word FINISHED.");
-    say(`${at()} sent the task`);
-    // wait until the agent is working (Working sign) and has begun its first command
-    for (let i = 0; i < 400 && (await page.getByTestId("stop-button").count()) === 0; i++) await sleep(50);
-    await sleep(6000);
-    say(`${at()} agent is working; composer placeholder: ${JSON.stringify(await field.getAttribute("placeholder"))}`);
-    await send("Change of plan: do not run any more commands. Reply with exactly the single word STEERED and nothing else.");
-    say(`${at()} sent the steering message`);
-    // the row appears once the post is confirmed; its picture is taken then, and the time it stays is measured against the agent's first command ending (about 9 s after it began)
-    let shownAt = -1, rowGoneAt = -1;
-    for (let i = 0; i < 2000; i++) {
-      const rows = await page.getByTestId("queue-row").count();
-      if (shownAt < 0 && rows > 0 && (await page.getByTestId("queue-edit").count()) > 0) { shownAt = Date.now() - t0; say(`${at()} waiting row: ${JSON.stringify(await page.getByTestId("queue-row").innerText().catch(() => ""))}`); await page.screenshot({ path: path.join(OUT, "waiting-row.png") }); }
-      if (shownAt >= 0 && rowGoneAt < 0 && rows === 0) { rowGoneAt = Date.now() - t0; say(`${at()} the waiting row is gone`); await page.screenshot({ path: path.join(OUT, "row-gone.png") }); }
-      if ((await agentReplies()).length > 0 && (await page.getByTestId("stop-button").count()) === 0) break;
-      await sleep(100);
+    const SCEN = process.env["SCENARIO"] ?? "steer";
+    const idle = async (): Promise<void> => { for (let i = 0; i < 1500 && (await page.getByTestId("stop-button").count()) > 0; i++) await sleep(100); };
+    if (SCEN === "steer") {
+      await send("Use the Bash tool to run `sleep 9; echo one`, then `sleep 9; echo two`, then `sleep 9; echo three`, each as its own Bash call, one after another, then reply with the word FINISHED.");
+      for (let i = 0; i < 400 && (await page.getByTestId("stop-button").count()) === 0; i++) await sleep(50);
+      await sleep(6000);
+      await send("Change of plan: do not run any more commands. Reply with exactly the single word STEERED and nothing else.");
+      await idle(); await sleep(2500);
+      const r = await agentReplies();
+      say(`${at()} steer: replies ${JSON.stringify(r.map((x) => x.slice(0, 60)))}`);
+    } else if (SCEN === "stop-unread") {
+      await send("Use the Bash tool to run `sleep 12; echo one`, then reply with the word FINISHED.");
+      for (let i = 0; i < 400 && (await page.getByTestId("stop-button").count()) === 0; i++) await sleep(50);
+      await sleep(5000);
+      await send("Remember the secret word PINEAPPLE. When I ask for it later, answer with just that word.");
+      say(`${at()} sent the unread message`);
+      await sleep(600);
+      await page.getByTestId("stop-button").click();
+      say(`${at()} pressed Stop`);
+      await idle(); await sleep(1500);
+      say(`${at()} after Stop: unread message visible in the chat: ${(await page.getByTestId("conversation-feed").innerText()).includes("PINEAPPLE")}; stop button gone: ${(await page.getByTestId("stop-button").count()) === 0}; replies so far ${JSON.stringify((await agentReplies()).map((x) => x.slice(0, 60)))}`);
+      await page.screenshot({ path: path.join(OUT, "after-stop.png") });
+      await send("What was the secret word I asked you to remember? Reply with just that word.");
+      say(`${at()} sent the next message`);
+      for (let i = 0; i < 1200 && (await agentReplies()).length === 0; i++) await sleep(100);
+      await idle(); await sleep(2500);
+      const r = await agentReplies();
+      say(`${at()} next reply: ${JSON.stringify(r.map((x) => x.slice(0, 80)))}; knows the word: ${r.some((x) => /PINEAPPLE/i.test(x))}`);
+    } else if (SCEN === "last-step") {
+      await send("Use the Bash tool to run `sleep 4; echo one`, then reply with a 120 word paragraph about tea, ending with the word FINISHED.");
+      for (let i = 0; i < 400 && (await page.getByTestId("stop-button").count()) === 0; i++) await sleep(50);
+      // wait for the reply to start writing: after the last tool, no tool after it
+      let started = false, sawCommand = false;
+      for (let i = 0; i < 3000; i++) {
+        const f = await page.getByTestId("conversation-feed").innerText({ timeout: 500 }).catch(() => "");
+        const running = /Running a command/.test(f);
+        if (running) sawCommand = true;
+        // the command has finished and the Working sign is still on: the agent is writing its last step, with no tool after it
+        if (sawCommand && !running && (await page.getByTestId("stop-button").count()) > 0) { started = true; break; }
+        await sleep(30);
+      }
+      say(`${at()} the reply is being written (agent words in the feed, Working sign still on): ${started}`);
+      await send("Also, at the very end, add the word EXTRA.");
+      say(`${at()} sent a message during the last step`);
+      const t1 = Date.now();
+      await idle();
+      say(`${at()} turn ended ${((Date.now() - t1) / 1000).toFixed(1)}s after that message`);
+      await sleep(3000); await idle(); await sleep(1500);
+      const r = await agentReplies();
+      say(`${at()} replies: ${r.length}: ${JSON.stringify(r.map((x) => x.slice(0, 70) + " … " + x.slice(-40)))}`);
+      say(`verdict: hung=${(await page.getByTestId("stop-button").count()) > 0} replies=${r.length} extraSeen=${r.some((x) => /EXTRA/.test(x))}`);
     }
-    await sleep(2500);
-    const replies = await agentReplies();
-    say(`${at()} done. agent replies saved: ${replies.length}: ${JSON.stringify(replies.map((r) => r.slice(0, 80)))}`);
-    say(`verdict: steered=${replies.some((r) => /STEERED/.test(r))} sawFinished=${replies.some((r) => /FINISHED/.test(r))} doubleAnswer=${replies.length > 1} rowShown=${shownAt >= 0} rowGone=${rowGoneAt >= 0}`);
     await page.screenshot({ path: path.join(OUT, "final.png") });
     await browser.close();
   } catch (e) {
