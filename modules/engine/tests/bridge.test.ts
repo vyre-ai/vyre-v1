@@ -338,6 +338,25 @@ test("what a turn started comes under its reply as cards, in one message, in the
   assert.deepEqual((posts[0]!.blocks as { type: string; data: { lead: string; title: string } }[]).map((b) => `${b.type}:${b.data.lead}:${b.data.title}`), ["link_card:Record:Dana Fox", "link_card:Task:Call Dana"]);
 });
 
+test("steps and thinking go to the live link as they happen, names only, and the saved reply keeps its steps and how long the turn took", async () => {
+  const seen: StreamEvent[] = [];
+  const s = setup({
+    stream: (e) => seen.push(e),
+    script: [{ type: "thinking", text: "I will read it" }, { type: "block", kind: "tool_call", payload: { id: "c1", name: "Read" } }, { type: "block", kind: "tool_input", payload: { id: "c1", detail: "model.ts" } }, { type: "block", kind: "tool_result", payload: { id: "c1", ok: true } }, { type: "text", text: "Done." }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }],
+  });
+  await s.say("Please check the file.");
+  const kinds = seen.map((e) => e.kind);
+  assert.deepEqual(kinds.filter((k) => k !== "delta"), ["start", "thinking", "step", "step", "step", "end", "final"]);
+  const steps = seen.filter((e): e is Extract<StreamEvent, { kind: "step" }> => e.kind === "step");
+  assert.deepEqual(steps.map((e) => [e.phase, e.id, e.name, e.detail]), [["call", "c1", "Read", undefined], ["input", "c1", undefined, "model.ts"], ["result", "c1", "Read", undefined]]);
+  assert.ok(!JSON.stringify(steps).includes("file_path") && !JSON.stringify(steps).includes("command"), "names and one short safe detail: no raw input of the step goes out");
+  const post = s.chat.find((r) => r.author.id === LEAD && r.blocks.length > 0) as { blocks: Array<{ type: string; data: Record<string, unknown> }> } | undefined;
+  assert.deepEqual(post?.blocks.map((b) => b.type), ["tool_call", "tool_result"], "what a call touches is not saved with the reply");
+  assert.ok(!JSON.stringify(post).includes("model.ts"));
+  assert.equal(post?.blocks[1]?.data["name"], "Read");
+  assert.equal(typeof post?.blocks[1]?.data["turnSecs"], "number", "how long the whole turn took rides on the last step");
+});
+
 test("an agent message chat already holds (a crew card posted by the host) is not posted a second time", async () => {
   const s = setup({ script: reply("Done.") });
   await s.say("Please draft the closing letter.");

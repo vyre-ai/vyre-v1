@@ -19,7 +19,16 @@ export interface LiveTurn {
   triggerId?: string;
 }
 
+/** What a turn is doing right now, from the host's step and thinking frames: for the live line under a reply being written. Never persisted, never logged. */
+export interface ActivityStep { id: string; name: string; state: "live" | "done" | "failed"; /** what it touches, from the host in safe words ("model.ts", "stream pacing") */ detail?: string }
+export interface ActivitySnapshot { startedAt: number; thinking: string; steps: readonly ActivityStep[]; version: number; /** the turn has ended: the mark settles */ done?: boolean }
+export interface ActivityStore { get(): ActivitySnapshot; subscribe(l: () => void): () => void }
+
+const THINKING_KEPT = 1_200;
+
 export interface TurnStreams {
+  /** The activity of the turn behind a row (`turn:<id>` while it writes, the saved message's id for a moment after). */
+  activityOf(rowId: string): ActivityStore | undefined;
   /** One `turn` frame from the live socket. Anything else is ignored. */
   onFrame(frame: unknown): void;
   /** Turns of this chat that still show a row of their own, oldest first. The array identity changes only when the set or a state changes. */
@@ -71,6 +80,17 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
   const byThread = new Map<string, readonly LiveTurn[]>();
   const listeners = new Set<() => void>();
   const gapListeners = new Set<(threadId: string) => void>();
+  const acts = new Map<string, { snap: ActivitySnapshot; ls: Set<() => void> }>();
+  const actOf = (turnId: string): { snap: ActivitySnapshot; ls: Set<() => void> } => {
+    let a = acts.get(turnId);
+    if (!a) { a = { snap: { startedAt: turns.get(turnId)?.startedAt ?? now(), thinking: "", steps: [], version: 0 }, ls: new Set() }; acts.set(turnId, a); }
+    return a;
+  };
+  const touchAct = (turnId: string, patch: (s: ActivitySnapshot) => ActivitySnapshot): void => {
+    const a = actOf(turnId);
+    a.snap = { ...patch(a.snap), version: a.snap.version + 1 };
+    for (const l of [...a.ls]) l();
+  };
   const have = new Map<string, number>();                  // turnId -> characters held in its store
   const held = new Map<string, Array<{ at: number; text: string }>>();   // pieces that arrived before the text so far
   // What a provider sends in a piece may be a whole sentence (a fast model answers in three or four chunks); the screen shows it word by word, a few words each beat, faster the more is waiting, and
@@ -127,7 +147,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
     timers.delete(turnId);
     if (!t) return;
     { const bh = beats.get(turnId); if (bh !== undefined) clearT(bh); beats.delete(turnId); waiting.delete(turnId); }
-    turns.delete(turnId); have.delete(turnId); held.delete(turnId);
+    turns.delete(turnId); have.delete(turnId); held.delete(turnId); acts.delete(turnId);
     tell(t.threadId);
   }
   const ensure = (turnId: string, threadId: string, agentId: string): LiveTurn => {
@@ -147,6 +167,22 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       const threadId = str(d["threadId"]), agentId = str(d["agentId"]), kind = str(d["kind"]);
       if (threadId === "" || agentId === "") return;
       const turnId = f.turn;
+      if (kind === "step" || kind === "thinking") {
+        const t = ensure(turnId, threadId, agentId);
+        if (t.state === "ended") return;
+        arm(turnId, quietMs);
+        if (kind === "thinking") {
+          const text = str(d["text"]);
+          if (text !== "") touchAct(turnId, (s) => ({ ...s, thinking: (s.thinking + text).slice(-THINKING_KEPT) }));
+        } else {
+          const id = str(d["id"]), name = str(d["name"]);
+          if (id === "") return;
+          if (d["phase"] === "input") { const detail = str(d["detail"]); if (detail !== "") touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, detail } : x)) })); }
+          else if (d["phase"] === "call") touchAct(turnId, (s) => (s.steps.some((x) => x.id === id) ? s : { ...s, steps: [...s.steps, { id, name, state: "live" as const }] }));
+          else touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, state: d["ok"] === false ? ("failed" as const) : ("done" as const) } : x)) }));
+        }
+        return;
+      }
       if (kind === "start" || kind === "delta") {
         const fresh = !turns.has(turnId);
         const t = ensure(turnId, threadId, agentId);
@@ -170,6 +206,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         if (!t || t.state === "ended") return;
         showAll(t);
         t.store.end();
+        if (acts.has(turnId)) touchAct(turnId, (s) => ({ ...s, done: true }));
         turns.set(turnId, { ...t, state: "ended" });
         arm(turnId, settleMs);
         tell(threadId);
@@ -200,6 +237,11 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         if (fresh) tell(threadId);
       }
     },
+    activityOf(rowId) {
+      const turnId = rowId.startsWith("turn:") ? rowId.slice(5) : [...turns.values()].find((x) => x.messageId === rowId)?.turnId;
+      if (turnId === undefined || !turns.has(turnId)) return undefined;
+      return { get: () => actOf(turnId).snap, subscribe: (l) => { const a = actOf(turnId); a.ls.add(l); return () => { a.ls.delete(l); }; } };
+    },
     turnsOf: (threadId) => byThread.get(threadId) ?? NONE,
     streamOf(rowId) {
       if (rowId.startsWith("turn:")) return turns.get(rowId.slice(5))?.store;
@@ -213,7 +255,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       const threads = new Set([...turns.values()].map((t) => t.threadId));
       for (const id of ids) { const h = timers.get(id); if (h !== undefined) clearT(h); timers.delete(id); }
       for (const h of beats.values()) clearT(h);
-      beats.clear(); waiting.clear();
+      beats.clear(); waiting.clear(); acts.clear();
       turns.clear(); have.clear(); held.clear();
       for (const th of threads) rebuild(th);
       if (ids.length) for (const l of [...listeners]) l();

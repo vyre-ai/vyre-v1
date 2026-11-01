@@ -37,6 +37,10 @@ export type CallAs = (cap: string, input: unknown, personId: string) => Promise<
 export type StreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string; /** the message that started the turn, so a screen puts the reply after it and before what is sent meanwhile */ triggerId?: string }
   | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number }
+  /** A step of the turn (a tool call or its result): what the agent is doing, for the line under its reply. Names only; no input. */
+  | { kind: "step"; threadId: string; turnId: string; agentId: string; phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string }
+  /** A piece of the thinking the provider sent. It goes only to the people who may read the thread, over the live link; it is never logged and never saved. */
+  | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string }
   | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
   | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
 
@@ -67,7 +71,7 @@ export interface Bridge {
   liveTurns(threadId: string): Array<{ turnId: string; agentId: string; text: string }>;
 }
 
-interface Segment { blocks: PostBlock[]; text: string; mentions: number }
+interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; calls?: Map<string, { name: string; at: number }> }
 interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -176,6 +180,8 @@ export function createBridge(o: BridgeOptions): Bridge {
         emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: "done" });
         // what the turn started (a task, a Run, a file...) goes under its reply as cards, one group
         seg.blocks.push(...workBlocks(e.turnId));
+        // how long the whole turn took (thinking and writing too), for "Worked for 14s" under the reply
+        if (seg.t0 !== undefined) { const last = [...seg.blocks].reverse().find((x) => x.type === "tool_result" || x.type === "tool_call"); if (last) last.data = { ...(last.data as Record<string, unknown>), turnSecs: Math.max(0, Math.round(((o.now ?? Date.now)() - seg.t0) / 1000)) }; }
         if (seg.text !== "" || seg.mentions > 0) {
           ready.set(`${e.threadId}:${e.agentId}`, { ...seg, routineOwner, turnId: e.turnId });   // the engine stores the reply right after this event; message.received below posts it
         } else if (seg.blocks.length > 0) {
@@ -217,11 +223,32 @@ export function createBridge(o: BridgeOptions): Bridge {
 
   function wrap(s: EngineSession): EngineSession {
     const send = (input: TurnInput): AsyncIterable<DriverEvent> => (async function* () {
-      const seg: Segment = { blocks: [], text: "", mentions: 0 };
+      const seg: Segment = { blocks: [], text: "", mentions: 0, t0: (o.now ?? Date.now)(), calls: new Map() };
       live.set(input.turnId, seg);
       for await (const ev of s.send(input)) {
         if (ev.type === "text") { const at = seg.text.length; seg.text += ev.text; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text, at }); }
-        else if (ev.type === "block") seg.blocks.push({ type: ev.kind, v: 1, data: ev.payload ?? {} });
+        else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text }); }
+        else if (ev.type === "block" && ev.kind === "tool_input") {
+          // what a call touches goes to the live line only, over the same gated link as the words: it is never saved with the reply
+          const p = (ev.payload ?? {}) as { id?: unknown; detail?: unknown };
+          if (typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "") emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "input", id: p.id, detail: p.detail });
+        }
+        else if (ev.type === "block") {
+          const p = (ev.payload ?? {}) as { id?: unknown; name?: unknown; ok?: unknown };
+          const id = typeof p.id === "string" ? p.id : "";
+          const now = (o.now ?? Date.now)();
+          let data: Record<string, unknown> = ev.payload ?? {};
+          if (ev.kind === "tool_call" && id !== "") {
+            const name = typeof p.name === "string" ? p.name : "";
+            seg.calls?.set(id, { name, at: now });
+            emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "call", id, ...(name ? { name } : {}) });
+          } else if (ev.kind === "tool_result" && id !== "") {
+            const call = seg.calls?.get(id);
+            emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "result", id, ...(call?.name ? { name: call.name } : {}), ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}) });
+            if (call) data = { ...data, name: call.name, secs: Math.max(0, Math.round((now - call.at) / 1000)) };
+          }
+          seg.blocks.push({ type: ev.kind, v: 1, data });
+        }
         else if (ev.type === "done") {
           // The engine routes the reply with the mentions the driver ends on: a reply addressed to the asker (a reviewer's verdict) names them, so it reaches them and no agent answers it.
           const aimed = o.addressAsker?.(input.threadId, input.agent.id) ? [{ kind: "person" as const, id: input.asker }] : [];

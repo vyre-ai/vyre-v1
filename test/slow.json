@@ -5,6 +5,7 @@
   {"file":"test/terminal.pane.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon and actual Chromium: the chat pane opens a terminal in Personal and Team"},
   {"file":"test/chat.streaming.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon, real CLI driver and actual Chromium: the working sign before the first word, words arriving in steps, no stray memory cards"},
   {"file":"test/chat.btw.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon, CLI driver and actual Chromium: /btw during a running reply, Keep and Dismiss"},
+  {"file":"test/chat.activity.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon, CLI driver and actual Chromium: the live activity line, its real steps and thinking, the trail, the Vyre mark"},
   {"file":"test/chat.queued.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon, CLI driver and actual Chromium: a queued message can be edited or sent now"},
   {"file":"test/chat.no-recall.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon, real CLI driver and actual Chromium: a greeting raises no memory cards"},
   {"file":"test/work-cards.journeys.live.test.ts","capSec":120,"owner":"L5","reason":"booted daemon and actual Chromium: work an agent does leaves live cards under its reply"},

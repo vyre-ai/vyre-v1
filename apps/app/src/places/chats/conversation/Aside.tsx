@@ -6,6 +6,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { StreamText, createStreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { TextButton } from "./parts.tsx";
+import { ActivityLine } from "./ActivityLine.tsx";
 import { useConversationData } from "./data.tsx";
 import * as act from "./actions.ts";
 
@@ -70,7 +71,8 @@ export function AsideCard({ item, onDismiss }: { item: AsideItem; onDismiss: (id
       </View>
       <Text numberOfLines={2} testID={`aside-question-${item.id}`} style={st.question}>{item.question}</Text>
       <View testID={`aside-answer-${item.id}`} style={st.answer}>
-        {store ? <StreamText store={store} /> : <Text style={st.thinking}>Thinking</Text>}
+        {store ? <StreamText store={store} /> : null}
+        {!answered && turn && data.activityOf?.(turn.messageId ?? `turn:${turn.turnId}`) ? <ActivityLine store={data.activityOf(turn.messageId ?? `turn:${turn.turnId}`)!} /> : !store ? <Text style={st.thinking}>Thinking</Text> : null}
       </View>
       {problem !== "" ? <Text style={st.problem}>{problem}</Text> : null}
       {answered ? <View style={st.foot}><TextButton link label={kept ? "Kept" : "Keep"} testID={`aside-keep-${item.id}`} onPress={keep} disabled={kept} /></View> : null}
