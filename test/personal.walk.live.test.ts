@@ -11,11 +11,11 @@ import os from "node:os";
 import net from "node:net";
 import path from "node:path";
 import type { Page } from "playwright-core";
-import { fakePlatform } from "../../../host/src/platform/index.ts";
-import { loadConfig } from "../../../host/src/daemon/config.ts";
-import { CODE_ROOT, startDaemon } from "../../../host/src/daemon/daemon.ts";
-import { standIn } from "../../../test/memory-live-kit.ts";
-import { claimOnEdge, dismissOnboarding, edge } from "./real-app-harness.test.ts";
+import { fakePlatform } from "../host/src/platform/index.ts";
+import { loadConfig } from "../host/src/daemon/config.ts";
+import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
+import { standIn } from "./memory-live-kit.ts";
+import { claimOnEdge, dismissOnboarding, edge } from "../apps/app/tests/real-app-harness.test.ts";
 
 const PASSWORD = "fixture password 123";
 const SHOTS = process.env["VYRE_WALK_SHOTS"] ?? "shots-evidence/personal-walk";
