@@ -1,0 +1,1 @@
+- Catch me up: a thread you have not read opens with one line (3 new from Maya. 1 decision, 1 task. 1 message names you.), Jump to first and Got it, read from your cursor with no model and no cost. An agent @mentioned in a chat between people joins it as a listener and answers on the mentioner's account; its answer carries Make task and Remember.

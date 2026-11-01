@@ -248,6 +248,15 @@ export default defineManifest({
       in: { ...threadT, before: t.opt(t.int()), after: t.opt(t.int()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
       out: { messages: t.arr(messageRow), hasMore: t.bool() }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter',
     }),
+    read('chat.catch_up', 'What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives', {
+      in: threadT,
+      out: {
+        unread: t.int(), since: t.int(), top: t.int(), firstMessageId: t.opt(id.message),
+        people: t.arr(t.obj({ id: t.str(), count: t.int() })), tasks: t.arr(t.obj({ messageId: id.message, title: t.str() })),
+        decisions: t.arr(t.obj({ messageId: id.message, text: t.str() })), at: t.arr(t.obj({ messageId: id.message, author: t.str(), text: t.str() })),
+      },
+      on: ['thread', '/threadId'], tool: 'chats', label: 'check',
+    }),
     read('chat.message.get', 'Read one message with its blocks', {
       in: { ...threadT, messageId: id.message }, out: { message: messageRow }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),

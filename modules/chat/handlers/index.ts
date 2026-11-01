@@ -1,6 +1,7 @@
 // Handler table of the chat module: all 64 capabilities. P-L2_10 wrote the first eight (post, start, thread, blocks, plans, channels); chat.post runs behind the sealed-thread guard of private chats
 // (P-L2_11, with the three Ask capabilities). P-L2_24a to d wrote the other 51: threads (g24a), channels (g24b), messages and pins (g24c), transcript, plans and helpers (g24d).
 import { archiveHandlers } from "./archive.ts";
+import { catchUp } from "./catch-up.ts";
 import { makeTask } from "./make-task.ts";
 import { remember } from "./remember.ts";
 import { askLevel, askSuggest, asksOf, openAsChat } from "./ask.ts";
@@ -30,6 +31,7 @@ export const handlers = {
   "chat.post": guardPrivate(post),
   "chat.start": start,
   "chat.make_task": makeTask,
+  "chat.catch_up": catchUp,
   "chat.remember": remember,
   "chat.thread": thread,
   "chat.answer_block": answerBlock,

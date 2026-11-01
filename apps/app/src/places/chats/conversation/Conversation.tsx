@@ -23,6 +23,7 @@ import * as act from "./actions.ts";
 import { ChatMemoryProvider } from "../memory/thread.tsx";
 import { useMemoryEntries } from "../memory/menu.tsx";
 import { MessageView } from "./MessageView.tsx";
+import { CatchUpLine } from "./catch-up.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
@@ -439,6 +440,7 @@ function ConversationView(): ReactElement {
           <IconButton icon="x" label="Close find" size={24} testID="find-close" onPress={() => { setFinding(false); setQuery(""); }} />
         </View>
       ) : null}
+      <CatchUpLine onJump={(id) => setFocusId(id)} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
 
       {liveView ? null : (
