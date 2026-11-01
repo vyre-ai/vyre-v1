@@ -238,3 +238,31 @@ test("the address typed becomes the sign-in hint; Outlook without an app keeps t
   assert.ok(find(root, "connect-matched"), "Outlook has no app here: the Workspace match is back");
   assert.equal(find(root, "connect-signin"), null);
 });
+
+test("signing in again after a lost sign-in finishes when the mailbox that needed it is well again, though no new account appeared", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const done: Connected[] = [];
+  let healed = false;
+  const rt = {
+    call: async (cap: string, input?: unknown) => {
+      calls.push({ cap, input });
+      if (cap === "google.user.app_status") return { configured: true };
+      if (cap === "google.user.list") return { accounts: [{ accountId: "gua_1", email: "me@gmail.test" }] };
+      if (cap === "google.user.start") return { authUrl: "https://accounts.example.com/o/auth", state: "gos_1" };
+      if (cap === "mail.mailbox.list") return { mailboxes: [{ id: "mbx_1", address: "me@gmail.test", title: "", state: healed ? "syncing" : "error" }] };
+      return {};
+    },
+    openUrl: () => undefined, open: () => undefined,
+  } as unknown as ShellRuntime;
+  const root = await mount(createRoot, <ConnectSheets rt={rt} need={{ kind: "mailbox", provider: "google" }} onDone={(a) => done.push(a)} onCancel={() => undefined} />);
+  await flush();
+  await press(find(root, "connect-signin"));
+  await flush();
+  await press(find(root, "connect-signed-in"));
+  await flush();
+  assert.deepEqual(done, [], "still needing the sign-in");
+  healed = true;
+  await press(find(root, "connect-signed-in"));
+  await flush();
+  assert.deepEqual(done, [{ id: "mbx_1", title: "me@gmail.test", app: "mail" }]);
+});

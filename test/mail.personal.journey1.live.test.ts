@@ -67,7 +67,7 @@ test("journey 1, Personal first hour: guided setup, connect, mail appears, reply
     await shoot(again.page, dir, "caught-up");
     const mails = ((await w.owner.ok("mail.message.list", { mailboxId: box!.id })).messages as { subject: string }[]).map((m) => m.subject);
     assert.equal(mails.filter((x) => x === "Lunch on Friday").length, 1, "no mail doubled");
-    await phonePass(again, s, dir, [{ name: "inbox", route: "/mail" }, { name: "home", route: "/home" }, { name: "settings", route: "/settings" }]);
+    await phonePass(again, s, dir, [{ name: "inbox", route: "/mail" }, { name: "home", route: "/home", tab: "You" }, { name: "settings", route: "/settings" }]);
     assert.deepEqual(me.errors.concat(again.errors), [], "no page errors");
   } catch (e) {
     await s.debug(dir);

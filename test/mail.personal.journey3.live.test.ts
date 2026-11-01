@@ -44,7 +44,7 @@ test("journey 3, a revoked sign-in: Home shows one Fix item, Fix opens Connect a
     await me.page.waitForTimeout(1500);
     assert.equal(await me.page.getByText(/Sign in to olivia@gmail.test again/).count(), 0, "Home is clear");
     await shoot(me.page, dir, "home-clear");
-    await phonePass(me, s, dir, [{ name: "home", route: "/home" }, { name: "inbox", route: "/mail" }]);
+    await phonePass(me, s, dir, [{ name: "home", route: "/home", tab: "You" }, { name: "inbox", route: "/mail" }]);
     assert.deepEqual(me.errors, [], "no page errors");
   } catch (e) {
     await s.debug(dir);

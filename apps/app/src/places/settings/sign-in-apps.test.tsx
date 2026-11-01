@@ -49,11 +49,11 @@ test("each provider shows whether its app is set; setting one up shows the steps
   assert.match(textOf(root), /Google sign-in/);
   assert.match(textOf(root), /Not set up/);
   assert.match(textOf(root), /Client 2222 from #Microsoft_Sign_In/);
-  assert.equal(find(root, "signin-google-redirect"), null, "the guide shows only while setting up");
+  assert.equal(find(root, "row-signin.google.redirect"), null, "the guide shows only while setting up");
   await press(find(root, "signin-google"));
   assert.match(textOf(root), /1\. Open Credentials in Google Cloud/);
   assert.match(textOf(root), /Publish the consent screen/);
-  assert.equal(textOf(find(root, "signin-google-redirect")), "https://space.test/oauth/callback");
+  assert.match(textOf(find(root, "row-signin.google.redirect")), /https:\/\/space\.test\/oauth\/callback/);
 });
 
 test("Save files the id and secret in a Shared Apps folder and names that item to the module; the secret is never put in the module call", async () => {
@@ -73,7 +73,7 @@ test("Save files the id and secret in a Shared Apps folder and names that item t
   const set = w.calls.find((c) => c.cap === "google.user.app_set")!.input;
   assert.deepEqual(set, { vaultItem: "#Google_Sign_In" });
   assert.match(textOf(root), /Client client-1 from #Google_Sign_In/);
-  assert.equal(find(root, "signin-google-redirect"), null, "the guide closes once saved");
+  assert.equal(find(root, "row-signin.google.redirect"), null, "the guide closes once saved");
 });
 
 test("a Vault name already taken gets the next number; Microsoft also takes a tenant", async () => {
@@ -103,5 +103,5 @@ test("a refused app says why and keeps the guide open; a provider this server la
   await press(find(root, "signin-google-save"));
   await flush();
   assert.match(textOf(root), /#Nope has no client_id/);
-  assert.ok(find(root, "signin-google-redirect"));
+  assert.ok(find(root, "row-signin.google.redirect"));
 });

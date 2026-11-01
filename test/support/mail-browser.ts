@@ -107,19 +107,61 @@ export async function open(seatOf: Seat, s: Screens, route: string): Promise<voi
 }
 
 let shotCount = 0;
-/** One step, two pictures at desktop width: light and dark. Nothing here resizes the page, so what is open stays open. */
+const darkByContext = new WeakMap<object, Promise<{ css: string; mode: string; skin: string }>>();
+
+/** The graphite skin's variables as the app's own head script sets them at load, read once from a page opened with ?skin=graphite. */
+function darkTokens(p: Page): Promise<{ css: string; mode: string; skin: string }> {
+  const ctx = p.context();
+  let t = darkByContext.get(ctx);
+  if (!t) {
+    t = (async () => {
+      const q = await ctx.newPage();
+      try {
+        await q.goto(`${new URL(p.url()).origin}/home?skin=graphite`, { waitUntil: "domcontentloaded" });
+        return await q.evaluate(() => { const r = document.documentElement; return { css: r.getAttribute("style") ?? "", mode: r.getAttribute("data-mode") ?? "dark", skin: r.getAttribute("data-skin") ?? "graphite" }; });
+      } finally { await q.close(); }
+    })();
+    darkByContext.set(ctx, t);
+  }
+  return t;
+}
+
+/**
+ * The app takes its skin when a page loads, so emulating a dark computer does not repaint an open page. A dark picture applies the graphite variables to the page as they are, and the light one puts
+ * the page's own back. Nothing reloads or resizes, so a sheet or a panel stays open.
+ */
+async function setScheme(p: Page, scheme: "light" | "dark"): Promise<void> {
+  if (scheme === "dark") {
+    const dark = await darkTokens(p);
+    await p.evaluate((d) => {
+      const r = document.documentElement;
+      if (r.getAttribute("data-shot-orig") === null) r.setAttribute("data-shot-orig", JSON.stringify({ style: r.getAttribute("style") ?? "", mode: r.getAttribute("data-mode") ?? "", skin: r.getAttribute("data-skin") ?? "" }));
+      r.setAttribute("style", d.css); r.setAttribute("data-mode", d.mode); r.setAttribute("data-skin", d.skin);
+    }, dark);
+  } else {
+    await p.evaluate(() => {
+      const r = document.documentElement;
+      const o = r.getAttribute("data-shot-orig");
+      if (o === null) return;
+      const v = JSON.parse(o) as { style: string; mode: string; skin: string };
+      r.setAttribute("style", v.style); r.setAttribute("data-mode", v.mode); r.setAttribute("data-skin", v.skin); r.removeAttribute("data-shot-orig");
+    });
+  }
+}
+
+/** One step, two pictures at the current width: light and dark. */
 export async function shoot(p: Page, dir: string, step: string): Promise<string[]> {
   const out: string[] = [];
   const n = String(++shotCount).padStart(2, "0");
   fs.mkdirSync(dir, { recursive: true });
   for (const scheme of SCHEMES) {
-    await p.emulateMedia({ colorScheme: scheme });
+    await setScheme(p, scheme);
     await p.waitForTimeout(250);
     const file = path.join(dir, `${n}-${step}-${scheme}-desktop.png`);
     await p.screenshot({ path: file, animations: "disabled" });
     out.push(file);
   }
-  await p.emulateMedia({ colorScheme: "light" });
+  await setScheme(p, "light");
   return out;
 }
 
@@ -127,10 +169,11 @@ export async function shoot(p: Page, dir: string, step: string): Promise<string[
  * The phone pass, at the end of a journey: the phone width draws another shell, so it is not done mid-flow. Each route is opened fresh at phone width and shot in light and dark.
  * A route that cannot draw at phone width fails the journey like any other step.
  */
-export async function phonePass(seatOf: Seat, s: Screens, dir: string, steps: { name: string; route: string }[]): Promise<void> {
+export async function phonePass(seatOf: Seat, s: Screens, dir: string, steps: { name: string; route: string; /** the phone tab to open (Home is the You tab) */ tab?: string }[]): Promise<void> {
   await seatOf.page.setViewportSize(SIZES.phone);
   for (const st of steps) {
     await open(seatOf, s, st.route);
+    if (st.tab) await seatOf.page.getByText(st.tab, { exact: true }).last().click();
     await seatOf.page.waitForTimeout(800);
     await shoot(seatOf.page, dir, `phone-${st.name}`).then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
   }

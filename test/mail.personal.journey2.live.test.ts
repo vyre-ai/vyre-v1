@@ -57,7 +57,7 @@ test("journey 2, Team: the admin sets the app once, two members connect their ow
     assert.ok(!(await ask(w, w.owner, adminHelper, list(anaBox.id))).includes("Ana's contract"), "the admin's assistant reads no member's mailbox");
     await open(admin, s, "/chat");
     await shoot(admin.page, dir, "admin-chat");
-    await phonePass(anaSeat, s, dir, [{ name: "ana-inbox", route: "/mail" }, { name: "ana-home", route: "/home" }]);
+    await phonePass(anaSeat, s, dir, [{ name: "ana-inbox", route: "/mail" }, { name: "ana-home", route: "/home", tab: "You" }]);
     assert.deepEqual([...anaSeat.errors, ...boSeat.errors, ...admin.errors], [], "no page errors");
   } catch (e) {
     await s.debug(dir);
