@@ -35,8 +35,9 @@ test("the tool list is the capability list: every MCP capability and every agent
 
 test("agent-optout is exactly the automation plumbing and the provider check, and pre-auth capabilities are never tools", () => {
   // the Connector builder grant and status are a person's decision about an agent, so no agent holds them as tools; and
+  // deleting, restoring and leaving a chat are the person's own act, never an agent's;
   // host-side steps an Automation runs for itself (its HTTP step, its AI step) and the label check of an AI step's records: an agent reaches the same ends through its own tools (docs/frozen/agent-tools.md)
-  assert.deepEqual([...optedOut].sort(), ["access.connector_builder.grant", "access.connector_builder.status", "access.provider_check", "automations.http_read", "automations.http_send", "engine.step_turn"]);
+  assert.deepEqual([...optedOut].sort(), ["access.connector_builder.grant", "access.connector_builder.status", "access.provider_check", "automations.http_read", "automations.http_send", "engine.step_turn", "threads.delete", "threads.leave", "threads.restore"]);
   const pre = reg.capabilities.filter((c) => c.caller === "anonymous" || c.caller === "pending").map((c) => c.name);
   assert.ok(pre.length >= 10);
   const toolCaps = new Set(tools.map((t) => t.cap));

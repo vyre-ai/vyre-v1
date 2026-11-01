@@ -6,6 +6,7 @@ HTTP 403. Retryable: no.
 
 ## Raised by
 
+- access.audience_set
 - access.grants.update
 - access.requests.approve
 - access.share

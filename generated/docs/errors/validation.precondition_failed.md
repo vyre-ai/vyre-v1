@@ -6,6 +6,7 @@ HTTP 422. Retryable: no.
 
 ## Raised by
 
+- access.audience_set
 - access.groups.add_member
 - access.roles.apply
 - access.roles.assign
@@ -30,4 +31,3 @@ HTTP 422. Retryable: no.
 - comms.senders.set_default
 - computers.record_start
 - computers.sleep
-- computers.take_over

@@ -32,6 +32,12 @@
     },
     {
       "deferred": false,
+      "name": "access_audience_set",
+      "summary": "Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_check",
       "summary": "Access checker: can principal P do action A on resource R, with each step in plain words",
       "toolset": "engineer"
@@ -170,6 +176,12 @@
     },
     {
       "deferred": false,
+      "name": "access_record_marks",
+      "summary": "For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_request",
       "summary": "Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource",
       "toolset": "meta"
@@ -285,7 +297,7 @@
     {
       "deferred": false,
       "name": "access_shares_of",
-      "summary": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry",
+      "summary": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export",
       "toolset": "meta"
     },
     {
@@ -4492,6 +4504,12 @@
       "deferred": false,
       "name": "mail_mailbox_set_privacy",
       "summary": "Mark a mailbox private, shared with the Space or shared with chosen people",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "mail_mailbox_set_sync_state",
+      "summary": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
       "toolset": "inbox"
     },
     {

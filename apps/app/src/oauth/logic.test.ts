@@ -29,6 +29,14 @@ test("a Dropbox sign-in (state dbs_) is finished by the dropbox module, everythi
   assert.deepEqual(calls, [{ cap: "dropbox.connect.complete", input: { state: "dbs_abc", code: "code-d" } }, { cap: "dropbox.connect.complete", input: { state: "dbs_def", error: "access_denied" } }]);
 });
 
+test("a person's own Google or Microsoft mailbox sign-in (gos_, mos_) is finished by that module and reports the account", async () => {
+  const calls: string[] = [];
+  const call: CapCall = async (cap) => { calls.push(cap); return { accountId: "gua_1", email: "me@gmail.test" }; };
+  assert.deepEqual(await completeCallback(call, { state: "gos_1", code: "c", error: null }), { kind: "connected", connectionId: "gua_1" });
+  await completeCallback(call, { state: "mos_1", code: "c", error: null });
+  assert.deepEqual(calls, ["google.user.complete", "ms.user.complete"]);
+});
+
 test("nothing is sent without a state or without a code or error", async () => {
   let sent = 0;
   const call: CapCall = async () => { sent++; return {}; };

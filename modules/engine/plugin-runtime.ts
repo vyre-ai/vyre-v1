@@ -11,14 +11,17 @@ import { McpClient, McpError, httpTransport, resultText, stdioTransport } from "
 import type { FetchPort, McpTool } from "../../agent/src/mcp-client/index.ts";
 import { createScrubber, handlesIn, WITHHELD } from "../../agent/src/vault-use/index.ts";
 import type { Secret, ValueSource, VaultRunDeps } from "../../agent/src/vault-use/index.ts";
+import { sha256Hex } from "../../kernel/src/log/hash.ts";
 import { expandVars } from "../../lib/plugin-format.ts";
+import { hubById, identityOfTool } from "../../lib/mcp-hubs.ts";
+import type { Identity } from "../../lib/mcp-hubs.ts";
 import { sandboxWrap, workFolder } from "./sandbox.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 
 /** One MCP server as `plugins.mcp.servers` describes it. */
 export interface ServerSpec {
   key: string; name: string; from: "plugin" | "connection"; pluginId?: string; transport: "stdio" | "http" | "sse" | "ws";
-  command?: string; args: string[]; env: Record<string, string>; url?: string; headers: Record<string, string>; files?: string; needs: string[];
+  command?: string; args: string[]; env: Record<string, string>; url?: string; headers: Record<string, string>; files?: string; needs: string[]; hub?: string; oauth?: boolean; connectionId?: string;
 }
 /** One hook as `plugins.hooks.list` describes it. */
 export interface HookSpec { pluginId: string; plugin: string; event: string; matcher: string; command: string; args: string[]; timeoutSec?: number }
@@ -35,6 +38,8 @@ export interface PluginRuntimeDeps {
   reportMiss?: VaultRunDeps["reportMiss"];
   /** The fetch for remote servers: the network guard's, so a private address is refused. */
   fetch?: FetchPort;
+  /** Signs a remote server in with OAuth when its connection says so (modules/engine/mcp-oauth.ts). */
+  oauth?: { token(connectionId: string, fresh?: boolean): Promise<string | undefined> };
   /** Replaces the process launcher (tests). */
   launch?: (argv: readonly string[], start: { env: Record<string, string>; cwd: string }) => Promise<CliProcess>;
   now?: () => number;
@@ -49,11 +54,16 @@ export class PluginError extends Error {
 
 interface Live { client: McpClient; secrets: Secret[]; last: number; spec: string }
 const HOOK_OUT = 64_000;
+/** The server answered 401: its token ended or was withdrawn. */
+const refused = (e: unknown): boolean => e instanceof Error && /answered 401/.test(e.message);
 const hash = (s: string): string => {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(36);
 };
+
+/** What the hub is told about whose sign-in a call uses: one value for the Space, and for a person a hash of their id, so the hub never holds a Vyre id and two people never share one. */
+const identityValue = (kind: Identity, asker: string): string => (kind === "space" ? "space" : `p_${sha256Hex(`vyre-hub|${asker}`).slice(0, 32)}`);
 
 export function createPluginRuntime(d: PluginRuntimeDeps) {
   const live = new Map<string, Live>();
@@ -103,7 +113,7 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
     return createLocalLauncher({ wrap: sandboxWrap(plan) }).spawn({ argv, env, cwd });
   }
 
-  async function open(spec: ServerSpec, who: Who): Promise<Live> {
+  async function open(spec: ServerSpec, who: Who, fresh = false, ident: Identity = "space"): Promise<Live> {
     const sig = hash(JSON.stringify([spec.transport, spec.command, spec.args, spec.env, spec.url, spec.headers, spec.files]));
     if (spec.needs.length > 0) throw new PluginError("validation.precondition_failed", `${spec.name} needs ${spec.needs.join(", ")} set first.`);
     if (spec.transport === "stdio") {
@@ -128,23 +138,39 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
       if (!d.fetch) throw new PluginError("provider.unavailable", "This server cannot reach remote MCP servers.");
       const { values, secrets } = await fill([spec.url, ...Object.values(spec.headers)], who);
       const headers = Object.fromEntries(Object.entries(spec.headers).map(([k, v]) => [k, sub(v, values)]));
+      if (spec.oauth) {
+        // the token is held sealed by the engine and made fresh on the way; nobody who lists or calls the tools sees it
+        const token = spec.connectionId && d.oauth ? await d.oauth.token(spec.connectionId, fresh) : undefined;
+        if (!token) throw new PluginError("permission.no_grant", `${spec.name} needs to be signed in first.`);
+        headers["authorization"] = `Bearer ${token}`;
+      }
+      let url = sub(spec.url, values);
+      const hub = hubById(spec.hub);
+      if (hub) {
+        const value = identityValue(ident, who.asker);
+        if (hub.identity.in === "header") headers[hub.identity.name] = value;
+        else { const u = new URL(url); u.searchParams.set(hub.identity.name, value); url = u.toString(); }
+      }
       try {
-        const client = await McpClient.connect(httpTransport({ url: sub(spec.url, values), fetch: d.fetch, headers: () => headers }), { timeoutMs: 20_000 });
+        const client = await McpClient.connect(httpTransport({ url, fetch: d.fetch, headers: () => headers }), { timeoutMs: 20_000 });
         return { client, secrets, last: now(), spec: sig };
       } catch (e) { throw new PluginError("provider.unavailable", `${spec.name} did not answer: ${e instanceof Error ? e.message : "no answer"}`); }
     }
     throw new PluginError("validation.precondition_failed", `${spec.name} uses ${spec.transport}, which is not supported yet. Use a command or an https URL.`);
   }
 
-  async function connection(spec: ServerSpec, who: Who): Promise<Live> {
-    const key = `${who.asker}|${who.agentId}|${spec.key}`;
+  /** A hub connection holds one live session per identity (the person's own, and the Space's); any other connection holds one. */
+  const liveKey = (spec: ServerSpec, who: Who, ident: Identity): string => `${who.asker}|${who.agentId}|${spec.key}${spec.hub ? `|${ident}` : ""}`;
+
+  async function connection(spec: ServerSpec, who: Who, fresh = false, ident: Identity = "space"): Promise<Live> {
+    const key = liveKey(spec, who, ident);
     const sig = hash(JSON.stringify([spec.transport, spec.command, spec.args, spec.env, spec.url, spec.headers, spec.files]));
     const cur = live.get(key);
-    if (cur && !cur.client.isClosed && cur.spec === sig) { cur.last = now(); return cur; }
+    if (cur && !fresh && !cur.client.isClosed && cur.spec === sig) { cur.last = now(); return cur; }
     if (cur) { void cur.client.close(); live.delete(key); }
     const pending = connecting.get(key);
     if (pending) return pending;
-    const p = open(spec, who).then((l) => { live.set(key, l); return l; }).finally(() => connecting.delete(key));
+    const p = open(spec, who, fresh, ident).then((l) => { live.set(key, l); return l; }).finally(() => connecting.delete(key));
     connecting.set(key, p);
     return p;
   }
@@ -157,19 +183,30 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
   return {
     /** The tools of one server. A server that is down or still waiting for an option throws a PluginError saying why. */
     async tools(spec: ServerSpec, who: Who): Promise<McpTool[]> {
-      const l = await connection(spec, who);
+      const ident: Identity = "space"; // the list of tools is the same for everyone
+      const l = await connection(spec, who, false, ident);
       try { return await l.client.listTools(); }
-      catch (e) { live.delete(`${who.asker}|${who.agentId}|${spec.key}`); throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer."); }
+      catch (e) {
+        live.delete(liveKey(spec, who, ident));
+        // a signed-in server that refuses the token gets one fresh token and one more try
+        if (spec.oauth && refused(e)) { const again = await connection(spec, who, true, ident); try { return await again.client.listTools(); } catch { live.delete(liveKey(spec, who, ident)); } }
+        throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer.");
+      }
     },
     /** Calls one tool. The text has any filled secret removed; a leftover fragment withholds it whole. */
     async callTool(spec: ServerSpec, who: Who, tool: string, args: unknown): Promise<{ isError: boolean; text: string; structured?: unknown }> {
-      const l = await connection(spec, who);
+      const hub = hubById(spec.hub);
+      const ident: Identity = hub ? identityOfTool(hub, tool) : "space";
+      let l = await connection(spec, who, false, ident);
       let r;
       try { r = await l.client.callTool(tool, args); }
       catch (e) {
-        live.delete(`${who.asker}|${who.agentId}|${spec.key}`);
+        live.delete(liveKey(spec, who, ident));
         if (e instanceof McpError && e.code === "mcp.server_error") return { isError: true, text: e.message };
-        throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer.");
+        if (spec.oauth && refused(e)) {
+          l = await connection(spec, who, true, ident);
+          try { r = await l.client.callTool(tool, args); } catch (e2) { live.delete(liveKey(spec, who, ident)); if (e2 instanceof McpError && e2.code === "mcp.server_error") return { isError: true, text: e2.message }; throw new PluginError("provider.unavailable", e2 instanceof Error ? e2.message : "The server did not answer."); }
+        } else throw new PluginError("provider.unavailable", e instanceof Error ? e.message : "The server did not answer.");
       }
       let text = resultText(r);
       if (l.secrets.length > 0) {

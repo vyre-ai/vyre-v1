@@ -42,8 +42,9 @@ test("mounts live: a chat agent lists a mounted folder and reads its file throug
     assert.match(read.reply, /TOOL RESULT ok/, read.reply);
     assert.match(read.reply, /NDA v1/, "the agent reads the mounted file's content");
 
-    // Ask mode (the default): the agent stops before the step and the person it works for is asked to allow it; nothing is written and the turn waits on the approval
+    // Ask mode: the agent stops before the step and the person it works for is asked to allow it; nothing is written and the turn waits on the approval
     const askThread = (await ok(d, "chat.start", { kind: "chat", agentIds: [agent.id] })).thread.threadId as string;
+    await ok(d, "threads.set_mode", { threadId: askThread, mode: "ask" });
     await ok(d, "chat.post", { threadId: askThread, body: `TOOL files_write ${JSON.stringify({ fileId: nda!.fileId, content: { text: "NDA changed in Ask mode" }, reason: "Agent edit", idempotencyKey: "ma-agent-write-ask" })}`, mentions: [{ kind: "agent", id: agent.id }] });
     const hold = await waitFor(async () => {
       await d.hooks?.pump?.();

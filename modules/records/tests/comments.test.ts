@@ -104,7 +104,8 @@ test("mentioning an agent starts it headless as a private Ask pane on the record
   assert.equal(start.scopeType, "record");
   assert.equal(start.scopeId, s.id);
   assert.equal(start.title, "Comment replies", "the pane says what it is for");
-  assert.equal(s.calls.some((x) => x.cap === "threads.set_mode"), false, "the pane keeps the person's own mode");
+  const mode = s.calls.find((x) => x.cap === "threads.set_mode");
+  assert.equal((mode?.input as Record<string, unknown> | undefined)?.["mode"], "ask", "the pane is Ask first whatever new chats default to: nobody watches the agent work");
   const post = s.calls.find((x) => x.cap === "chat.post")!.input as Record<string, any>;
   assert.deepEqual(post.mentions, [{ kind: "agent", id: "agt_intake" }]);
   assert.match(post.body, /Summarise the history/);

@@ -5,10 +5,11 @@
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ADMIN_CONSOLE_URL, api, apiRaw, bad, bearer, CALENDAR, CONFIG_ID, config, DOCS, DRIVE, EMAIL, enc, ensure, EVENTS, first, forgetTokens, int, list, MEET,
-  needHost, newId, normalizeEmail, num, obj, pushToken, refusal, rowsOf, SCOPES, SHEETS, str, strOrNull, text, codeOf,
+  needHost, newId, normalizeEmail, num, obj, pushToken, refusal, rowsOf, SCOPES, SHEETS, str, strOrNull, text, codeOf, userAccountByEmail,
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
+import { userSigninLost } from "./personal.ts";
 import { pullMeet } from "./meet.ts";
 import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./gmail.ts";
@@ -320,10 +321,13 @@ export async function receivePush(
 /** Pull one mailbox for a push notice or a poll, then keep exactly one future poll queued for it. A failed pull never fails the notice. */
 async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Promise<void> {
   const cfg = config(ctx);
-  const connectionId = strOrNull(cfg, "connectionId");
-  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) return;
+  const workspaceId = strOrNull(cfg, "connectionId");
   const member = first(ctx.db.all(`SELECT mapped, excluded FROM google_member WHERE email = ?`, email));
-  if (!member || num(member, "mapped") !== 1 || num(member, "excluded") === 1) return;
+  const delegated = !!cfg && num(cfg, "configured") === 1 && !!workspaceId && !!member && num(member, "mapped") === 1 && num(member, "excluded") !== 1;
+  // an address the Workspace covers is read through the delegation; any other is a person's own sign-in (google.user.*), if there is one
+  const own = delegated ? null : userAccountByEmail(ctx, email);
+  const connectionId = delegated ? workspaceId! : own?.accountId;
+  if (!connectionId) return;
   const now = ctx.now();
   let delay: number;
   try {
@@ -332,11 +336,19 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
     ctx.log.info("google pull", { mailbox: email, ingested: pull.ingested, deduped: pull.deduped, skipped: pull.skipped, complete: pull.complete, cause });
   } catch (e) {
     ctx.log.warn("google pull failed", { mailbox: email, code: codeOf(e), cause });
+    // a person's own sign-in that the provider no longer accepts: say so once and stop polling (signing in again starts the chain)
+    if (own && !delegated && codeOf(e) === "provider.auth_failed") {
+      await userSigninLost(ctx, own);
+      ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, email);
+      return;
+    }
     delay = pollInterval(now, null, false);
   }
-  // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull
-  await syncCalendar(ctx, { connectionId, email });
-  await pullMeet(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("google meet pull failed", { mailbox: email, code: codeOf(e) }));
+  // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull. A person's own sign-in carries mail only.
+  if (delegated) {
+    await syncCalendar(ctx, { connectionId, email });
+    await pullMeet(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("google meet pull failed", { mailbox: email, code: codeOf(e) }));
+  }
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a push or a manual sync does not start a second chain

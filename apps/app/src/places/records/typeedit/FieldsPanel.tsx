@@ -11,7 +11,7 @@ import { Glyph } from "../schemamap/icons.tsx";
 import { fieldMark } from "../schemamap/model.ts";
 import { ConfirmLine, FieldMark, TextButton } from "./parts.tsx";
 import {
-  addFieldOps, addableTypes, confirmLine, connectChoices, linkFieldOps, namesOf, dropFieldOps, fieldDeleteBlocked, moveFieldOps, renameFieldOps, requiredOps, retypeBlocked, retypeFieldOps, retypeTarget, slugOf,
+  addFieldOps, addableTypes, canSeal, confirmLine, connectChoices, linkFieldOps, namesOf, sealBlocked, sealFieldOps, sensitiveKind, dropFieldOps, fieldDeleteBlocked, moveFieldOps, renameFieldOps, requiredOps, retypeBlocked, retypeFieldOps, retypeTarget, slugOf,
 } from "./model.ts";
 import type { Call, ConnectType, FieldDef, FieldTypeInfo } from "./model.ts";
 import { OVERVIEW, addGroup, deleteGroup, groupOf, groupsIn, moveField, renameGroup } from "./groups.ts";
@@ -33,7 +33,7 @@ export interface PanelType {
   fields: readonly FieldDef[];
 }
 type TrashItem = CapMap["schema.trash.list"]["out"]["items"][number];
-export type FieldMode = "rename" | "type" | "delete" | "group" | "show";
+export type FieldMode = "rename" | "type" | "delete" | "group" | "show" | "seal";
 
 export interface FieldsPanelProps {
   call: Call;
@@ -55,6 +55,7 @@ export interface FieldsPanelProps {
   linkTypes?: readonly ConnectType[];
 }
 
+type Suggestion = CapMap["schema.sensitivity.scan"]["out"]["suggestions"][number];
 const LINK = "link";
 
 export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initial, fieldTypes: given, trash: givenTrash, viewToggles = true, layout: givenLayout, linkTypes: givenLinks }: FieldsPanelProps): ReactElement {
@@ -70,6 +71,7 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
   const [linkTypes, setLinkTypes] = useState<readonly ConnectType[]>(givenLinks ?? []);
   const [linkTo, setLinkTo] = useState<ConnectType | null>(null);
   const [farKeys, setFarKeys] = useState<readonly string[]>([]);
+  const [scan, setScan] = useState<{ busy: boolean; found: readonly Suggestion[] | null; marked: readonly string[]; sealing: string | null; error: string | null }>({ busy: false, found: null, marked: [], sealing: null, error: null });
   const [layout, setLayout] = useState<readonly LayoutSection[]>(givenLayout ?? []);
   const [groupBusy, setGroupBusy] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
@@ -170,6 +172,22 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
       <TextButton label="Save" primary testID={`panel-group-rename-save-${renamingGroup.key}`} off={renaming.text.trim() === "" || groupBusy ? true : undefined} onPress={() => saveLayout(renameGroup(layout, fieldKeys, renamingGroup.key, renaming.text), () => setRenaming(null))} />
     </View>
   ) : null;
+  const runScan = (): void => {
+    setScan((x) => ({ ...x, busy: true, error: null }));
+    call("schema.sensitivity.scan", { type: type.key }).then(
+      (out) => setScan((x) => ({ ...x, busy: false, found: (out as CapMap["schema.sensitivity.scan"]["out"]).suggestions ?? [] })),
+      () => setScan((x) => ({ ...x, busy: false, error: "Could not check this type. Try again." })),
+    );
+  };
+  const mark = (sg: Suggestion): void => {
+    call("schema.set_label", { type: type.key, field: sg.field, label: sg.suggestedLabel }).then(
+      () => setScan((x) => ({ ...x, marked: [...x.marked, sg.field] })),
+      () => setScan((x) => ({ ...x, error: "Could not change the label. Try again." })),
+    );
+  };
+  // Seal from the check: the same one-way change as a field's own Seal this field, with its one confirm line under the list
+  const sealFrom = (sg: Suggestion): void => { change.cancel(); setOpen(null); setMode(null); setScan((x) => ({ ...x, sealing: sg.field })); void change.run(sealFieldOps(type.key, sg.field)); };
+  const sealingField = scan.sealing === null ? undefined : type.fields.find((f) => f.key === scan.sealing);
   const openStageIndex = stageList.findIndex((x) => x.key === openStage);
   const stageEditor = openStageIndex < 0 ? null : (() => {
     const g = stageList[openStageIndex]!;
@@ -276,6 +294,34 @@ export function FieldsPanel({ call, type, hidden, onToggleHidden, onClose, initi
           ) : <View style={s.addLink}><TextButton label="New group" testID="panel-group-new" onPress={() => { setGroupError(null); setNewGroup(""); }} /></View>}
           {groupError ? <Text style={s.error} accessibilityRole="alert" testID="panel-group-error">{groupError}</Text> : null}
         </View>
+        <View style={s.trash} testID="panel-sensitive">
+          <View style={s.addLink}><TextButton label={scan.busy ? "Checking…" : "Check for sensitive data"} testID="panel-scan" off={scan.busy ? true : undefined} onPress={runScan} /></View>
+          {scan.found !== null && scan.found.length === 0 ? <Text style={s.hint} testID="panel-scan-none">Nothing sensitive found in this type.</Text> : null}
+          {/* ui-rows-lint: not a list (a short result of the check, one row per field) */}
+          {(scan.found ?? []).map((sg) => {
+            const f = type.fields.find((x) => x.key === sg.field);
+            const sealed = f?.type === "sealed";
+            const may = f !== undefined && sg.seal && canSeal(f) && sealBlocked(type, type.titleField, f.key) === null;
+            return (
+              <Row
+                key={sg.field} id={`panel-scan-${sg.field}`} title={f?.title ?? sg.field}
+                note={sealed ? "Sealed" : `${sg.matches > 0 ? `Looks like ${sensitiveKind(sg.kind)} · ${sg.matches} ${sg.matches === 1 ? "value" : "values"}` : `The name suggests ${sensitiveKind(sg.kind)}`}`}
+                trailing={sealed ? undefined : (
+                  <View style={s.inline}>
+                    {may ? <TextButton label="Seal" testID={`panel-scan-seal-${sg.field}`} off={change.busy ? true : undefined} onPress={() => sealFrom(sg)} /> : null}
+                    {scan.marked.includes(sg.field) ? <Text style={s.hint}>{`Marked ${sg.suggestedLabel}`}</Text> : <TextButton label={`Mark ${sg.suggestedLabel}`} testID={`panel-scan-mark-${sg.field}`} onPress={() => mark(sg)} />}
+                  </View>
+                )}
+              />
+            );
+          })}
+          {change.staged !== null && sealingField ? (
+            <ConfirmLine text={confirmLine("field.seal", sealingField.title, change.staged.rows)} busy={change.busy} confirmLabel="Seal"
+              onConfirm={() => { void change.confirm().then((ok) => { if (ok) setScan((x) => ({ ...x, sealing: null })); }); }} onCancel={() => { change.cancel(); setScan((x) => ({ ...x, sealing: null })); }} />
+          ) : null}
+          {change.error && scan.sealing !== null ? <Text style={s.error} accessibilityRole="alert" testID="panel-scan-seal-error">{change.error}</Text> : null}
+          {scan.error ? <Text style={s.error} accessibilityRole="alert" testID="panel-scan-error">{scan.error}</Text> : null}
+        </View>
         {lost.length > 0 ? (
           <View style={s.trash} testID="panel-trash">
             <Text style={s.head}>Recently deleted</Text>
@@ -315,6 +361,7 @@ function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, chan
           <TextButton label="Move down" testID={`panel-down-${f.key}`} off={down === null ? "Already last" : change.busy ? true : undefined} onPress={() => { if (down) run(down); }} />
           {stages ? <TextButton label="Show" testID={`panel-show-at-${f.key}`} off={f.key === type.titleField || f.key === type.statusField ? "This field always shows" : undefined} onPress={() => setMode("show")} /> : null}
           <TextButton label="Move to group" testID={`panel-group-move-${f.key}`} off={f.key === type.titleField ? "The title stays at the top" : undefined} onPress={() => setMode("group")} />
+          {canSeal(f) ? <TextButton label="Seal this field" testID={`panel-seal-${f.key}`} off={sealBlocked(type, type.titleField, f.key) ?? (change.busy ? true : undefined)} onPress={() => { setMode("seal"); run(sealFieldOps(type.key, f.key)); }} /> : null}
           <TextButton label="Delete" danger testID={`panel-delete-${f.key}`} off={deleteOff ?? undefined} onPress={() => { setMode("delete"); run(dropFieldOps(type.key, f.key)); }} />
         </View>
       ) : null}
@@ -359,11 +406,11 @@ function FieldEdit({ f, type, order, mode, setMode, name, setName, choices, chan
           <View style={s.addRow}><View style={s.grow} /><TextButton label="Back" onPress={() => setMode(null)} testID="panel-group-back" /></View>
         </View>
       ) : null}
-      {mode === "delete" && staged === null && !change.busy ? <View style={s.addRow}><View style={s.grow} /><TextButton label="Back" onPress={() => { change.cancel(); setMode(null); }} testID="panel-delete-back" /></View> : null}
+      {(mode === "delete" || mode === "seal") && staged === null && !change.busy ? <View style={s.addRow}><View style={s.grow} /><TextButton label="Back" onPress={() => { change.cancel(); setMode(null); }} testID="panel-delete-back" /></View> : null}
       {staged !== null ? (
         <ConfirmLine
-          text={confirmLine(staged.ops[0]?.op === "field.drop" ? "field.drop" : "field.retype", f.title, staged.rows)} busy={change.busy}
-          confirmLabel={staged.ops[0]?.op === "field.drop" ? "Delete" : "Change type"}
+          text={confirmLine(staged.ops[0]?.op === "field.drop" ? "field.drop" : staged.ops[0]?.toType === "sealed" ? "field.seal" : "field.retype", f.title, staged.rows)} busy={change.busy}
+          confirmLabel={staged.ops[0]?.op === "field.drop" ? "Delete" : staged.ops[0]?.toType === "sealed" ? "Seal" : "Change type"}
           onConfirm={() => { void change.confirm().then((ok) => { if (ok) setMode(null); }); }} onCancel={() => { change.cancel(); setMode(null); }}
         />
       ) : null}

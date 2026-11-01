@@ -120,6 +120,8 @@ import { createResourceRegistrar, missingAgentResources } from "../gateway/resou
 import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
+import { createRecordsVaultHost } from "../seams/records-vault.ts";
+import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
 import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts";
 import { createViewAs } from "./view-as.ts";
@@ -257,6 +259,8 @@ export interface DaemonOptions {
   engineCli?: unknown;
   /** Tests: a scripted session opener in place of the real one (the engine runtime's `openSession`), for proofs of what the engine puts in front of a model without running one. */
   engineOpenSession?: unknown;
+  /** The fetch outside-tool (MCP) servers are reached with. Omitted: the network guard, which refuses a private address; a test that runs a server on this machine passes a guard that allows it. */
+  mcpFetch?: unknown;
   /** replace the consumers and periodic jobs read from the live modules' exports (tests) */
   hooks?: ModuleHooks[];
   /** The key behind ctx.seal. Omitted: a random 32-byte key kept in <data dir>/seal.key (0600). */
@@ -948,7 +952,68 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!result.ok) throw new Error(`could not register the folder: ${result.message}`);
         if (!result.duplicate) { access.fold(result.event); accessPending.push(toAccessEvent(result.event)); headSeq = Math.max(headSeq, result.event.seq); await syncAccess(); }
       };
+      // A Vault folder is a resource in access (vault_folder under the Space). One resource.created per folder, with an id made from the folder's own, so a reboot repeats the same event.
+      const registerVaultFolder = async (id: string, owner: string | null): Promise<void> => {
+        if (access.snap.resource(id)) return;
+        const made = await spaceLog.appendResult({
+          id: `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
+          payload: { id, type: "vault_folder", parent_id: spaceId, label: 0, owner_id: owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+        });
+        if (made.ok && !made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
+      };
+      let sealed: ReturnType<typeof createRecordsVaultHost> | null = null;
+      const sealedVault = (): ReturnType<typeof createRecordsVaultHost> => (sealed ??= createRecordsVaultHost({
+        system: (cap, input) => system(cap, input),
+        as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "seam" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
+        registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null),
+        scrub: (type, field) => scrubSealedField(type, field),
+      }));
+      // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
+      const scrubSealedField = async (type: string, field: string): Promise<void> => {
+        const dec = new TextDecoder();
+        const seqs: number[] = [];
+        const ids = new Set<string>();
+        const plain = (v: unknown): boolean => v !== undefined && v !== null && !(typeof v === "object" && typeof (v as { sealed?: unknown }).sealed === "string");
+        for (let after = 0; ;) {
+          const page = await spaceLog.read({ after, limit: 2000 });
+          for (const e of page) {
+            if (!e.type.startsWith("record.") || isErased(e)) continue;
+            let p: Record<string, unknown>;
+            try { p = JSON.parse(dec.decode(e.payload)) as Record<string, unknown>; } catch { continue; }
+            if (p["type"] !== type) continue;
+            if (["fields", "prev", "data", "before"].some((k) => { const part = p[k]; return !!part && typeof part === "object" && plain((part as Record<string, unknown>)[field]); })) {
+              seqs.push(e.seq);
+              if (typeof p["recordId"] === "string") ids.add(p["recordId"] as string);
+            }
+          }
+          if (page.length < 2000) break;
+          after = page[page.length - 1]!.seq;
+        }
+        if (seqs.length) await spaceLog.compactSeqs(seqs);
+        await spaceLog.forgetField(type, field);
+        if (db && ids.size) {
+          const mine = db;
+          try {
+            mine.exec("PRAGMA secure_delete = ON");
+            for (const id of ids) {
+              mine.run("DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id = ?)", `record:${type}`, id);
+              mine.run("DELETE FROM search_docs WHERE entity = ? AND id = ?", `record:${type}`, id);
+            }
+            mine.exec("INSERT INTO search_fts(search_fts) VALUES('optimize')");
+            mine.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+            mine.exec("VACUUM");
+          } catch { /* a Space without the search index has nothing to clear */ }
+        }
+        // the records are read again by search: the touch is an ordinary record.updated, with no values in it
+        for (const id of ids) {
+          await spaceLog.appendResult({ id: `evt_seal_${type}_${field}_${id}`.slice(0, 120), type: "record.updated", sv: 1, trace_id: "5e".repeat(16), actor: "svc_host", vis: "space", entity: "record", entity_id: id, payload: { recordId: id, type, fields: {}, prev: {}, version: 0 } });
+        }
+      };
       const hostDrivers: Record<string, SeamDriver> = {
+        // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
+        // (schema seals an existing field through the same Vault, so both setters get one driver)
+        setRecordsVault: () => sealedVault(),
+        setSchemaVault: () => sealedVault(),
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
         configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
@@ -1032,7 +1097,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -1148,14 +1213,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // A Vault folder the AI provider flows made quietly (before they declared it) has rows in the Vault but no resource in access, so putting an item into it answered "not found" to its own owner.
       // Register each one that is missing, owned by the person the row names. A folder that is already registered is left alone.
       try {
-        for (const row of db!.all("SELECT id, owner FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null }[]) {
-          if (access.snap.resource(row.id)) continue;
-          const made = await spaceLog.appendResult({
-            id: `evt_res_${row.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: row.id,
-            payload: { id: row.id, type: "vault_folder", parent_id: spaceId, label: 0, owner_id: row.owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
-          });
-          if (made.ok && !made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
-        }
+        for (const row of db!.all("SELECT id, owner FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null }[]) await registerVaultFolder(row.id, row.owner);
       } catch { /* a Space without a Vault has no table to repair */ }
 
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.

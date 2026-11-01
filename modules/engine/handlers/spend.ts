@@ -250,7 +250,8 @@ async function limitCard(ctx: EngineCtx, hit: Hit, who: { agentId: string; threa
       assigned: { kind: "person", id: who.asker },
       source: { kind: "chat", id: who.threadId },
       blocks: [{ type: "limit_card", v: 1, data: { ...hit, agentId: who.agentId, raiseOnce: { cap: "engine.spend.raise", input: onceInput } } }],
-      actions: [{ key: "raise_once", label: "Raise once" }, { key: "stop", label: "Stop" }],
+      // an unblock task takes resolved and cannot (modules/tasks/handlers/state.ts); the card's own buttons run the cap in the block
+      actions: [{ key: "resolved", label: "Raise once" }, { key: "cannot", label: "Stop", note: "optional" }],
     })) as { task?: { id?: string } };
     const taskId = out.task?.id;
     if (taskId === undefined) return undefined;

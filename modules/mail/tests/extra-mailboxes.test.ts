@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  autoConnectMembers, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxUpdate,
+  autoConnectMembers, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxSetSyncState, mailboxUpdate,
 } from "../handlers/extra/mailboxes.ts";
 import { connect, ingest } from "../handlers/ingest.ts";
 import { eventErrors } from "../handlers/extra/kit.ts";
@@ -252,4 +252,18 @@ test("auto-connect with the same key answers the first counts and adds nothing; 
   await assert.rejects(autoConnectMembers(h.ctx, { provider: "yahoo" as never, members, idempotencyKey: key() }), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(autoConnectMembers(h.ctx, { provider: "google", members: "all" as never, idempotencyKey: key() }), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(mailboxCreate(h.ctx, { kind: "shared", address: "a@vyre.test", title: "a", idempotencyKey: "" }), (e) => codeOf(e) === "validation.bad_input");
+});
+
+test("set_sync_state: a connection that lost its sign-in marks the mailbox Needs attention once, and a good sign-in puts it back; paused stays paused", async () => {
+  const h = setup();
+  const out = await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "error", reason: "Google stopped accepting the saved sign-in." });
+  assert.deepEqual(contractErrors("mail.mailbox.set_sync_state", "out", out), []);
+  assert.equal(out.mailbox.state, "error");
+  assert.deepEqual(h.named("mailbox.sync_failed").map((e) => e.payload), [{ mailboxId: "mbx_maya", reason: "Google stopped accepting the saved sign-in." }]);
+  await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "error" });
+  assert.equal(h.named("mailbox.sync_failed").length, 1, "said once");
+  assert.equal((await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "syncing" })).mailbox.state, "syncing");
+  await mailboxPause(h.ctx, { mailboxId: "mbx_maya" });
+  assert.equal((await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "error" })).mailbox.state, "paused");
+  conforms(h);
 });

@@ -10,6 +10,7 @@ import type { SeamSetters } from "../../host/src/seams/index.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createSchemaHandlers, applyOps, planOps } from "./handlers/index.ts";
 import type { SchemaHandlers, SchemaOp } from "./handlers/index.ts";
+import { finishJobs, setSchemaVault } from "./handlers/seal.ts";
 import { allDefs, ensureTables, refuse, seedManifestTypes } from "./projections.ts";
 import type { FieldDefT, FieldTypeRow, Registry, SchemaCtx, SchemaDeps, SeedType, ViewKindRow } from "./projections.ts";
 
@@ -79,7 +80,7 @@ export async function pruneSeededKitTypes(h: SchemaHandle, candidates: Set<strin
 }
 
 export function openSchema(o: {
-  path?: string; space?: string; store?: Store; tx?: Tx; registry?: Registry; now?: () => number;
+  path?: string; space?: string; store?: Store; tx?: Tx; host?: ProjectionHost; registry?: Registry; now?: () => number;
   readFile?: SchemaDeps["readFile"]; publicBase?: string;
 } = {}): SchemaHandle {
   let host: ProjectionHost | undefined;
@@ -93,6 +94,7 @@ export function openSchema(o: {
   }
   const deps: SchemaDeps = {
     store, tx, registry: o.registry ?? loadRegistry(),
+    ...((o.host ?? host) ? { host: (o.host ?? host)! } : {}),
     ...(o.now ? { now: o.now } : {}), ...(o.readFile ? { readFile: o.readFile } : {}), ...(o.publicBase ? { publicBase: o.publicBase } : {}),
   };
   ensureTables(tx);
@@ -141,11 +143,11 @@ let shared: SchemaHandle | null = null;
 let spaceSeam: SpaceStoreSeam | null = null;
 /** The host hands the Space store (P-H_08, ruling 31): schema, records, sources and connectors then share one persisted store. */
 export function setSchemaSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
-export const hostSeams: SeamSetters = { setSchemaSpaceStore };
+export const hostSeams: SeamSetters = { setSchemaSpaceStore, setSchemaVault };
 const live = (): SchemaHandle => {
   if (!shared) {
     const s = spaceSeam?.open();
-    shared = openSchema(s ? { store: s.store, tx: s.tx } : {});
+    shared = openSchema(s ? { store: s.store, tx: s.tx, host: s.host } : {});
   }
   return shared;
 };
@@ -158,7 +160,7 @@ export async function startSchema(): Promise<string[]> { const h = live(); await
 
 function adapt(name: keyof SchemaHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
-    const sc: SchemaCtx = { trace: ctx.trace, emit: (n, s, p) => ctx.emit(n, s, p), ...(ctx.principal ? { actor: ctx.principal.id } : {}) };
+    const sc: SchemaCtx = { trace: ctx.trace, emit: (n, s, p) => ctx.emit(n, s, p), ...(ctx.principal ? { actor: ctx.principal.id } : {}), ...(ctx.authorize ? { authorize: (a, r) => ctx.authorize!(a, r) } : {}) };
     return (live().handlers[name] as (c: SchemaCtx, i: unknown) => Promise<unknown>)(sc, input);
   };
 }
@@ -171,3 +173,11 @@ const NAMES = [
 
 export const handlers = Object.fromEntries(NAMES.map((n) => [n, adapt(n)])) as Record<(typeof NAMES)[number], (ctx: HostCtx, input: never) => Promise<unknown>>;
 export { createSchemaHandlers, planOps, applyOps };
+
+/** After a field was sealed the old copies are cleaned (seal.ts): once the apply has committed, and at every boot in case a crash came between. */
+export const consumers = {
+  "schema.seal_clean": { on: ["schema.changed"], run: async (): Promise<void> => { await finishJobs(live().deps); } },
+};
+export const periodic = {
+  "schema.seal_resume": { everyMs: 60_000, immediate: true, run: async (): Promise<number> => finishJobs(live().deps) },
+};

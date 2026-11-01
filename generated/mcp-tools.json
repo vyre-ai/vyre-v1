@@ -168,6 +168,89 @@
     },
     {
       "blocks": [],
+      "cap": "access.audience_set",
+      "deferred": false,
+      "description": "Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "exporters": {
+            "enum": [
+              "admins",
+              "viewers",
+              "chosen"
+            ],
+            "type": "string"
+          },
+          "resource": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "rec_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "space",
+                  "record_type",
+                  "record",
+                  "project",
+                  "folder",
+                  "file",
+                  "channel",
+                  "thread",
+                  "inbox",
+                  "mailbox",
+                  "vault_folder",
+                  "vault_item",
+                  "automation_group",
+                  "automation",
+                  "agent",
+                  "connector",
+                  "connection",
+                  "site",
+                  "form",
+                  "campaign",
+                  "kit",
+                  "terminal",
+                  "computer",
+                  "task",
+                  "run",
+                  "number",
+                  "domain",
+                  "calendar"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "resource"
+        ],
+        "type": "object"
+      },
+      "name": "access_audience_set",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.check",
       "deferred": false,
       "description": "Access checker: can principal P do action A on resource R, with each step in plain words",
@@ -499,6 +582,9 @@
                 "minimum": 0,
                 "type": "integer"
               },
+              "export": {
+                "type": "boolean"
+              },
               "hiddenFields": {
                 "items": {
                   "type": "string"
@@ -513,6 +599,9 @@
                   "restricted"
                 ],
                 "type": "string"
+              },
+              "reshare": {
+                "type": "boolean"
               },
               "rowFilter": {
                 "description": "Any JSON value"
@@ -1471,6 +1560,32 @@
     },
     {
       "blocks": [],
+      "cap": "access.record_marks",
+      "deferred": false,
+      "description": "For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "access_record_marks",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.request",
       "deferred": false,
       "description": "Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource",
@@ -2206,6 +2321,9 @@
                 "minimum": 0,
                 "type": "integer"
               },
+              "export": {
+                "type": "boolean"
+              },
               "hiddenFields": {
                 "items": {
                   "type": "string"
@@ -2220,6 +2338,9 @@
                   "restricted"
                 ],
                 "type": "string"
+              },
+              "reshare": {
+                "type": "boolean"
               },
               "rowFilter": {
                 "description": "Any JSON value"
@@ -2252,6 +2373,9 @@
             },
             "type": "object"
           },
+          "export": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -2267,6 +2391,9 @@
               "manage"
             ],
             "type": "string"
+          },
+          "reshare": {
+            "type": "boolean"
           },
           "resource": {
             "properties": {
@@ -2365,7 +2492,7 @@
       "blocks": [],
       "cap": "access.shares_of",
       "deferred": false,
-      "description": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry",
+      "description": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -29494,6 +29621,14 @@
             "pattern": "^[^@\\s]+@[^@\\s]+$",
             "type": "string"
           },
+          "connectionId": {
+            "description": "A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) the mailbox reads and sends through",
+            "examples": [
+              "gua_0123456789abcdef0123456789abcdef"
+            ],
+            "pattern": "^(gua|mua)_[0-9a-f]{32}$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -30206,6 +30341,43 @@
         "type": "object"
       },
       "name": "mail_mailbox_set_privacy",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mail.mailbox.set_sync_state",
+      "deferred": false,
+      "description": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "error",
+              "syncing"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mailboxId",
+          "state"
+        ],
+        "type": "object"
+      },
+      "name": "mail_mailbox_set_sync_state",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -38523,6 +38695,12 @@
             },
             "type": "array"
           },
+          "auth": {
+            "enum": [
+              "oauth"
+            ],
+            "type": "string"
+          },
           "command": {
             "type": "string"
           },
@@ -38539,6 +38717,13 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "hub": {
+            "enum": [
+              "composio",
+              "pipedream"
+            ],
+            "type": "string"
           },
           "idempotencyKey": {
             "examples": [

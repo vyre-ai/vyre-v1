@@ -63,7 +63,7 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
     return (
       <View testID={`approval-done-${taskId}`} style={st.done} accessibilityRole="text">
         <Glyph name={ended === "allowed" ? "check" : "x"} size={13} color={ended === "allowed" ? "var(--ok)" : "var(--ink-3)"} />
-        <Text style={st.doneText}>{doneLine(ended, held.cap, subject)}</Text>
+        <Text style={st.doneText}>{doneLine(ended, held.cap, subject, held.input)}</Text>
       </View>
     );
   }
@@ -74,12 +74,12 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
       () => setLine("Failed. Try again."),
     ).finally(() => setBusy(false));
   };
-  const rows = excerptLines(held.input);
+  const rows = excerptLines(held.input, 5, held.cap);
   return (
-    <View testID={`approval-${taskId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={wantsLine(agent, held.cap, subject)}>
+    <View testID={`approval-${taskId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={wantsLine(agent, held.cap, subject, held.input)}>
       <View style={st.head}>
         <Face name={agent} seedId={agentId} kind="agent" size={20} />
-        <Text style={st.title}>{wantsLine(agent, held.cap, subject)}</Text>
+        <Text style={st.title}>{wantsLine(agent, held.cap, subject, held.input)}</Text>
       </View>
       {diff && diff.lines.length > 0 ? (
         <View testID={`approval-diff-${taskId}`} style={st.excerpt}>

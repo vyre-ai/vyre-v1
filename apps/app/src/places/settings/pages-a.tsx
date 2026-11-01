@@ -1,4 +1,5 @@
 // Settings pages that belong to the open Space: Profile (with Copy from another Space), Notifications, Models and usage, Connections, Memory and privacy.
+import { AppHubsCard } from "../../hubs/AppHubs.tsx";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -8,6 +9,7 @@ import { useOpenConnect } from "../../shell/connect/context.ts";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
+import { SignInApps } from "./SignInApps.tsx";
 import { CONNECTIONS, MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
 import { labelOf, moneyLabel, sectionsFor } from "./model.ts";
 import type { SettingRow } from "./model.ts";
@@ -226,6 +228,7 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const saved = useSaved();
   const boxes = useScreenQuery<MailboxesOut>(CONNECTIONS, "mailboxes", {});
+  const openConnect = useOpenConnect();
   const list: ReactElement[] = [];
   if (boxes.status === "ready") {
     boxes.data.mailboxes.forEach((m, i) => list.push(
@@ -235,6 +238,9 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
         control={
           <>
             <Value text={STATE[m.state] ?? m.state} accent={m.state === "error"} />
+            {m.state === "error" && (m.provider === "google" || m.provider === "microsoft") && openConnect
+              ? <SmallButton label="Sign in again" primary testID={`mailbox-fix-${m.id}`} onPress={() => void openConnect({ kind: "mailbox", provider: m.provider as "google" | "microsoft" })} />
+              : null}
             {m.state === "paused"
               ? <SmallButton label="Resume" onPress={() => void data.call("mail.mailbox.resume", { mailboxId: m.id }).then(() => saved.saved("Resumed")).catch(() => saved.failed("That did not resume."))} />
               : <SmallButton label="Pause" onPress={() => void data.call("mail.mailbox.pause", { mailboxId: m.id }).then(() => saved.saved("Paused", async () => { await data.call("mail.mailbox.resume", { mailboxId: m.id }); })).catch(() => saved.failed("That did not pause."))} />}
@@ -255,7 +261,6 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
   const mine = boxes.status === "ready" ? boxes.data.mailboxes.map((m) => ({ id: m.id, address: m.address, provider: m.provider, state: m.state })) : [];
   const suites = suiteSections(mine, calendars ?? []);
   const personal = useIsPersonal();
-  const openConnect = useOpenConnect();
   const firm: ReactElement[] = [];
   suites.forEach((suite, si) => firm.push(
     <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
@@ -273,6 +278,8 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "number" }) : data.nav.connect("twilio"))} control={<Glyph name="chevR" size={13} />} />
       </Section>
+      <Section title="App hubs"><AppHubsCard call={data.call} /></Section>
+      <SignInApps />
       <RegistrySections page="connections" rows={rows} found={found} />
     </>
   );

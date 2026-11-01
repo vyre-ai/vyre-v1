@@ -1,5 +1,100 @@
 {
   "$defs": {
+    "s_0009d545f0": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "auth": {
+          "enum": [
+            "oauth"
+          ],
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "connectionId": {
+          "examples": [
+            "mcs_a1b2c3"
+          ],
+          "pattern": "^mcs_[a-z0-9]+$",
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "hub": {
+          "enum": [
+            "composio",
+            "pipedream"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "space",
+            "agent"
+          ],
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "stdio",
+            "http"
+          ],
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "name",
+        "scope",
+        "transport",
+        "args",
+        "env",
+        "headers",
+        "enabled",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_0046d61ae3": {
       "properties": {
         "eTag": {
@@ -942,59 +1037,6 @@
       ],
       "type": "object"
     },
-    "s_090e0c0321": {
-      "properties": {
-        "by": {
-          "type": "string"
-        },
-        "conditions": {
-          "$ref": "#/$defs/s_87ec6d95cd"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "id": {
-          "examples": [
-            "gnt_a1b2c3"
-          ],
-          "pattern": "^gnt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "level": {
-          "enum": [
-            "view",
-            "use",
-            "edit",
-            "manage"
-          ],
-          "type": "string"
-        },
-        "resource": {
-          "$ref": "#/$defs/s_f21ece25da"
-        },
-        "source": {
-          "type": "string"
-        },
-        "subject": {
-          "$ref": "#/$defs/s_38b6d47dbd"
-        }
-      },
-      "required": [
-        "id",
-        "subject",
-        "resource",
-        "level",
-        "conditions",
-        "by",
-        "createdAt"
-      ],
-      "type": "object"
-    },
     "s_09238f98e5": {
       "properties": {
         "dkim": {
@@ -1921,6 +1963,32 @@
       ],
       "type": "object"
     },
+    "s_173d2b8b74": {
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "email": {
+          "examples": [
+            "maya@example.com"
+          ],
+          "pattern": "^[^@\\s]+@[^@\\s]+$",
+          "type": "string"
+        },
+        "mailboxId": {
+          "examples": [
+            "mbx_a1b2c3"
+          ],
+          "pattern": "^mbx_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "email"
+      ],
+      "type": "object"
+    },
     "s_182344e02b": {
       "description": "The page this fact is about",
       "properties": {
@@ -2312,6 +2380,42 @@
       ],
       "type": "object"
     },
+    "s_19d778ba55": {
+      "items": {
+        "properties": {
+          "dir": {
+            "enum": [
+              "pull",
+              "push",
+              "both",
+              "off"
+            ],
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "email"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "remote": {
+            "type": "string"
+          },
+          "transform": {
+            "description": "Small expression over the value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "remote",
+          "dir"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "s_1a1d60d9d2": {
       "properties": {
         "fileId": {
@@ -2599,6 +2703,146 @@
       },
       "required": [
         "site"
+      ],
+      "type": "object"
+    },
+    "s_1c0da72715": {
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "builtin": {
+          "type": "boolean"
+        },
+        "connections": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "domains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "key": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "api",
+            "mcp",
+            "dwd",
+            "oauth_app",
+            "webhook_only"
+          ],
+          "type": "string"
+        },
+        "objects": {
+          "additionalProperties": {
+            "properties": {
+              "create": {
+                "type": "string"
+              },
+              "delete": {
+                "type": "string"
+              },
+              "list": {
+                "type": "string"
+              },
+              "listAfter": {
+                "description": "List the next page; takes { after }",
+                "type": "string"
+              },
+              "update": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "scope": {
+          "enum": [
+            "person",
+            "space"
+          ],
+          "type": "string"
+        },
+        "secrets": {
+          "items": {
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "description"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "sourceFolderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "enum": [
+            "live",
+            "draft",
+            "failing_tests"
+          ],
+          "type": "string"
+        },
+        "syncedTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "examples": [
+            "1.0.0"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "mode",
+        "scope",
+        "builtin",
+        "version",
+        "state",
+        "domains",
+        "secrets",
+        "connections",
+        "syncedTypes",
+        "actions",
+        "sources"
       ],
       "type": "object"
     },
@@ -2906,26 +3150,6 @@
         "ringSeconds",
         "voicemail",
         "voicemailTranscript"
-      ],
-      "type": "object"
-    },
-    "s_1fbdcd20b0": {
-      "properties": {
-        "at": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "summary": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "at",
-        "summary"
       ],
       "type": "object"
     },
@@ -3324,6 +3548,128 @@
       "required": [
         "event",
         "enabled"
+      ],
+      "type": "object"
+    },
+    "s_2795589129": {
+      "properties": {
+        "conflict": {
+          "enum": [
+            "newest",
+            "source",
+            "vyre",
+            "ask"
+          ],
+          "type": "string"
+        },
+        "conflicts": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "connectionId": {
+          "examples": [
+            "con_a1b2c3"
+          ],
+          "pattern": "^con_[a-z0-9]+$",
+          "type": "string"
+        },
+        "connector": {
+          "examples": [
+            "hubspot"
+          ],
+          "type": "string"
+        },
+        "createAtSource": {
+          "type": "boolean"
+        },
+        "deletes": {
+          "enum": [
+            "off",
+            "soft",
+            "travel"
+          ],
+          "type": "string"
+        },
+        "fields": {
+          "$ref": "#/$defs/s_19d778ba55"
+        },
+        "lastSyncAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "match": {
+          "items": {
+            "examples": [
+              "email"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "nightlyReconcile": {
+          "type": "boolean"
+        },
+        "pending": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "polling": {
+          "$ref": "#/$defs/s_101a8e8ab2"
+        },
+        "remote": {
+          "type": "string"
+        },
+        "schemaChanges": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "enum": [
+            "initial",
+            "syncing",
+            "paused",
+            "needs_review",
+            "error"
+          ],
+          "type": "string"
+        },
+        "syncTypeId": {
+          "examples": [
+            "syt_a1b2c3"
+          ],
+          "pattern": "^syt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "type": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "syncTypeId",
+        "type",
+        "connector",
+        "connectionId",
+        "remote",
+        "state",
+        "fields",
+        "match",
+        "createAtSource",
+        "deletes",
+        "conflict",
+        "polling",
+        "nightlyReconcile",
+        "pending",
+        "conflicts",
+        "schemaChanges"
       ],
       "type": "object"
     },
@@ -3875,6 +4221,68 @@
       ],
       "type": "object"
     },
+    "s_2e1bfcfbb5": {
+      "properties": {
+        "expiresAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "export": {
+          "type": "boolean"
+        },
+        "hiddenFields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "labelCeiling": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ],
+          "type": "string"
+        },
+        "reshare": {
+          "type": "boolean"
+        },
+        "rowFilter": {
+          "description": "Any JSON value"
+        },
+        "window": {
+          "properties": {
+            "from": {
+              "description": "Milliseconds since the Unix epoch",
+              "examples": [
+                1760000000000
+              ],
+              "minimum": 0,
+              "type": "integer"
+            },
+            "to": {
+              "description": "Milliseconds since the Unix epoch",
+              "examples": [
+                1760000000000
+              ],
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "from",
+            "to"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "s_2e977f2711": {
       "properties": {
         "mount": {
@@ -3883,45 +4291,6 @@
       },
       "required": [
         "mount"
-      ],
-      "type": "object"
-    },
-    "s_2ec1ed1603": {
-      "properties": {
-        "bodyAt": {
-          "description": "Pointer in the body where the properties go; empty for the body itself",
-          "type": "string"
-        },
-        "evidence": {
-          "description": "The docs page or quote that shows this call. A write without it is refused.",
-          "type": "string"
-        },
-        "idAt": {
-          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-          "examples": [
-            "/id"
-          ],
-          "type": "string"
-        },
-        "method": {
-          "enum": [
-            "POST",
-            "PUT",
-            "PATCH",
-            "DELETE"
-          ],
-          "type": "string"
-        },
-        "path": {
-          "examples": [
-            "/contacts/{id}"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "path",
-        "evidence"
       ],
       "type": "object"
     },
@@ -4440,42 +4809,6 @@
         "at",
         "resolved",
         "mentions"
-      ],
-      "type": "object"
-    },
-    "s_360f676900": {
-      "properties": {
-        "header": {
-          "type": "string"
-        },
-        "headers": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "prefix": {
-          "type": "string"
-        },
-        "style": {
-          "enum": [
-            "bearer",
-            "header",
-            "basic"
-          ],
-          "type": "string"
-        },
-        "vaultHandle": {
-          "examples": [
-            "#Dana_Lawmatics"
-          ],
-          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "vaultHandle",
-        "style"
       ],
       "type": "object"
     },
@@ -5013,17 +5346,6 @@
       "minItems": 1,
       "type": "array"
     },
-    "s_3c6509eaaa": {
-      "properties": {
-        "syncedType": {
-          "$ref": "#/$defs/s_43654a6b85"
-        }
-      },
-      "required": [
-        "syncedType"
-      ],
-      "type": "object"
-    },
     "s_3cca829a09": {
       "properties": {
         "engineerMcp": {
@@ -5354,145 +5676,6 @@
       ],
       "type": "object"
     },
-    "s_43654a6b85": {
-      "properties": {
-        "account": {
-          "type": "string"
-        },
-        "app": {
-          "properties": {
-            "domain": {
-              "type": "string"
-            },
-            "title": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "title"
-          ],
-          "type": "object"
-        },
-        "conflict": {
-          "enum": [
-            "newest",
-            "source",
-            "vyre",
-            "ask"
-          ],
-          "type": "string"
-        },
-        "conflicts": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "connectionId": {
-          "examples": [
-            "con_a1b2c3"
-          ],
-          "pattern": "^con_[a-z0-9]+$",
-          "type": "string"
-        },
-        "connector": {
-          "examples": [
-            "hubspot"
-          ],
-          "type": "string"
-        },
-        "createAtSource": {
-          "type": "boolean"
-        },
-        "deletes": {
-          "enum": [
-            "off",
-            "soft",
-            "travel"
-          ],
-          "type": "string"
-        },
-        "fields": {
-          "$ref": "#/$defs/s_a78d49b059"
-        },
-        "lastSyncAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "match": {
-          "items": {
-            "examples": [
-              "email"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "nightlyReconcile": {
-          "type": "boolean"
-        },
-        "pending": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "polling": {
-          "$ref": "#/$defs/s_101a8e8ab2"
-        },
-        "remote": {
-          "type": "string"
-        },
-        "schemaChanges": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "state": {
-          "enum": [
-            "initial",
-            "syncing",
-            "paused",
-            "needs_review",
-            "error"
-          ],
-          "type": "string"
-        },
-        "syncTypeId": {
-          "examples": [
-            "syt_a1b2c3"
-          ],
-          "pattern": "^syt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "type": {
-          "examples": [
-            "contact"
-          ],
-          "pattern": "^[a-z][a-z0-9_]*$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "syncTypeId",
-        "type",
-        "connector",
-        "connectionId",
-        "remote",
-        "state",
-        "fields",
-        "match",
-        "createAtSource",
-        "deletes",
-        "conflict",
-        "polling",
-        "nightlyReconcile",
-        "pending",
-        "conflicts",
-        "schemaChanges"
-      ],
-      "type": "object"
-    },
     "s_4378c74ec9": {
       "properties": {
         "tools": {
@@ -5755,6 +5938,20 @@
         "other"
       ],
       "type": "string"
+    },
+    "s_4541f8f90f": {
+      "properties": {
+        "accounts": {
+          "items": {
+            "$ref": "#/$defs/s_e6d65cc314"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "accounts"
+      ],
+      "type": "object"
     },
     "s_4590eb98ca": {
       "properties": {
@@ -6432,6 +6629,12 @@
       ],
       "type": "object"
     },
+    "s_4cd0b64c5d": {
+      "items": {
+        "$ref": "#/$defs/s_de3161587f"
+      },
+      "type": "array"
+    },
     "s_4d39cc7304": {
       "properties": {
         "added": {
@@ -6515,149 +6718,6 @@
         "$ref": "#/$defs/s_08caf54cab"
       },
       "type": "array"
-    },
-    "s_4daca4cad3": {
-      "properties": {
-        "actions": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "builtin": {
-          "type": "boolean"
-        },
-        "connections": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "domains": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "key": {
-          "examples": [
-            "hubspot"
-          ],
-          "type": "string"
-        },
-        "mode": {
-          "enum": [
-            "api",
-            "mcp",
-            "dwd",
-            "oauth_app",
-            "webhook_only"
-          ],
-          "type": "string"
-        },
-        "objects": {
-          "additionalProperties": {
-            "properties": {
-              "create": {
-                "type": "string"
-              },
-              "delete": {
-                "type": "string"
-              },
-              "list": {
-                "type": "string"
-              },
-              "listAfter": {
-                "description": "List the next page; takes { after }",
-                "type": "string"
-              },
-              "since": {
-                "type": "boolean"
-              },
-              "update": {
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "type": "object"
-        },
-        "scope": {
-          "enum": [
-            "person",
-            "space"
-          ],
-          "type": "string"
-        },
-        "secrets": {
-          "items": {
-            "properties": {
-              "description": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "description"
-            ],
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "sourceFolderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "sources": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "state": {
-          "enum": [
-            "live",
-            "draft",
-            "failing_tests"
-          ],
-          "type": "string"
-        },
-        "syncedTypes": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "title": {
-          "type": "string"
-        },
-        "version": {
-          "examples": [
-            "1.0.0"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "key",
-        "title",
-        "mode",
-        "scope",
-        "builtin",
-        "version",
-        "state",
-        "domains",
-        "secrets",
-        "connections",
-        "syncedTypes",
-        "actions",
-        "sources"
-      ],
-      "type": "object"
     },
     "s_4e30f81d76": {
       "properties": {
@@ -8566,6 +8626,29 @@
       },
       "type": "array"
     },
+    "s_627d7922b1": {
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "type": {
+          "examples": [
+            "contact"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
     "s_62d0c5de12": {
       "items": {
         "properties": {
@@ -9191,23 +9274,6 @@
       ],
       "type": "object"
     },
-    "s_65809e04d5": {
-      "items": {
-        "$ref": "#/$defs/s_090e0c0321"
-      },
-      "type": "array"
-    },
-    "s_658fdc8731": {
-      "properties": {
-        "spec": {
-          "$ref": "#/$defs/s_82fe7441fe"
-        }
-      },
-      "required": [
-        "spec"
-      ],
-      "type": "object"
-    },
     "s_65ae3d1fbc": {
       "properties": {
         "kind": {
@@ -9698,6 +9764,21 @@
       ],
       "type": "object"
     },
+    "s_6d0de879ff": {
+      "properties": {
+        "vaultItem": {
+          "examples": [
+            "#Dana_Lawmatics"
+          ],
+          "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vaultItem"
+      ],
+      "type": "object"
+    },
     "s_6d2c83cc88": {
       "properties": {
         "run": {
@@ -9880,6 +9961,17 @@
       },
       "required": [
         "plugin"
+      ],
+      "type": "object"
+    },
+    "s_72c6b56e17": {
+      "properties": {
+        "syncedType": {
+          "$ref": "#/$defs/s_2795589129"
+        }
+      },
+      "required": [
+        "syncedType"
       ],
       "type": "object"
     },
@@ -10352,6 +10444,26 @@
       "required": [
         "personId",
         "kind"
+      ],
+      "type": "object"
+    },
+    "s_7a2160f39e": {
+      "properties": {
+        "clientId": {
+          "type": "string"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "redirectUri": {
+          "type": "string"
+        },
+        "vaultItem": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "configured"
       ],
       "type": "object"
     },
@@ -11049,480 +11161,6 @@
       ],
       "type": "object"
     },
-    "s_82fe7441fe": {
-      "properties": {
-        "app": {
-          "properties": {
-            "account": {
-              "description": "Which account of the app this is (a location, a workspace); accounts share record types and each record says which it came from",
-              "type": "string"
-            },
-            "docsUrl": {
-              "type": "string"
-            },
-            "domain": {
-              "examples": [
-                "api.example.com"
-              ],
-              "type": "string"
-            },
-            "logoHint": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name",
-            "domain"
-          ],
-          "type": "object"
-        },
-        "auth": {
-          "properties": {
-            "header": {
-              "type": "string"
-            },
-            "headers": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object"
-            },
-            "prefix": {
-              "type": "string"
-            },
-            "style": {
-              "enum": [
-                "bearer",
-                "header",
-                "basic",
-                "query",
-                "oauth"
-              ],
-              "type": "string"
-            },
-            "vaultHandle": {
-              "examples": [
-                "#Dana_Lawmatics"
-              ],
-              "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-              "type": "string"
-            }
-          },
-          "required": [
-            "vaultHandle",
-            "style"
-          ],
-          "type": "object"
-        },
-        "mapping": {
-          "items": {
-            "properties": {
-              "createAtSource": {
-                "type": "boolean"
-              },
-              "deletes": {
-                "enum": [
-                  "off",
-                  "soft",
-                  "travel"
-                ],
-                "type": "string"
-              },
-              "fields": {
-                "items": {
-                  "properties": {
-                    "direction": {
-                      "enum": [
-                        "both",
-                        "pull",
-                        "push",
-                        "off"
-                      ],
-                      "type": "string"
-                    },
-                    "field": {
-                      "examples": [
-                        "email"
-                      ],
-                      "pattern": "^[a-z][a-z0-9_]*$",
-                      "type": "string"
-                    },
-                    "path": {
-                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-                      "examples": [
-                        "/id"
-                      ],
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "path",
-                    "direction"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "match": {
-                "items": {
-                  "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-                  "examples": [
-                    "/id"
-                  ],
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "recordType": {
-                "examples": [
-                  "contact"
-                ],
-                "pattern": "^[a-z][a-z0-9_]*$",
-                "type": "string"
-              },
-              "remote": {
-                "type": "string"
-              },
-              "stagesFrom": {
-                "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-                "examples": [
-                  "/id"
-                ],
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              },
-              "titleField": {
-                "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-                "examples": [
-                  "/id"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "remote",
-              "recordType",
-              "fields"
-            ],
-            "type": "object"
-          },
-          "minItems": 1,
-          "type": "array"
-        },
-        "objects": {
-          "items": {
-            "properties": {
-              "count": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "create": {
-                "$ref": "#/$defs/s_2ec1ed1603"
-              },
-              "delete": {
-                "$ref": "#/$defs/s_2ec1ed1603"
-              },
-              "fields": {
-                "items": {
-                  "properties": {
-                    "choices": {
-                      "examples": [
-                        [
-                          {
-                            "label": "Lead",
-                            "value": "lead"
-                          }
-                        ]
-                      ],
-                      "items": {
-                        "properties": {
-                          "label": {
-                            "type": "string"
-                          },
-                          "value": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "value"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "label": {
-                      "type": "string"
-                    },
-                    "path": {
-                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-                      "examples": [
-                        "/id"
-                      ],
-                      "type": "string"
-                    },
-                    "readOnly": {
-                      "type": "boolean"
-                    },
-                    "relationTo": {
-                      "description": "The remote object a relation points at",
-                      "type": "string"
-                    },
-                    "type": {
-                      "enum": [
-                        "text",
-                        "number",
-                        "money",
-                        "date",
-                        "bool",
-                        "choice",
-                        "multi",
-                        "email",
-                        "phone",
-                        "url",
-                        "relation",
-                        "json"
-                      ],
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "path",
-                    "label",
-                    "type"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "get": {
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ],
-                "type": "object"
-              },
-              "id": {
-                "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-                "examples": [
-                  "/id"
-                ],
-                "type": "string"
-              },
-              "itemsAt": {
-                "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-                "examples": [
-                  "/id"
-                ],
-                "type": "string"
-              },
-              "label": {
-                "type": "string"
-              },
-              "list": {
-                "properties": {
-                  "cursor": {
-                    "properties": {
-                      "kind": {
-                        "enum": [
-                          "none",
-                          "page",
-                          "cursor",
-                          "offset",
-                          "link"
-                        ],
-                        "type": "string"
-                      },
-                      "next": {
-                        "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-                        "examples": [
-                          "/id"
-                        ],
-                        "type": "string"
-                      },
-                      "param": {
-                        "type": "string"
-                      },
-                      "size": {
-                        "minimum": 1,
-                        "type": "integer"
-                      },
-                      "sizeParam": {
-                        "type": "string"
-                      },
-                      "start": {
-                        "minimum": 0,
-                        "type": "integer"
-                      }
-                    },
-                    "required": [
-                      "kind"
-                    ],
-                    "type": "object"
-                  },
-                  "filter": {
-                    "properties": {
-                      "param": {
-                        "type": "string"
-                      },
-                      "value": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "param",
-                      "value"
-                    ],
-                    "type": "object"
-                  },
-                  "path": {
-                    "examples": [
-                      "/contacts"
-                    ],
-                    "type": "string"
-                  },
-                  "query": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "type": "object"
-                  },
-                  "updatedSince": {
-                    "properties": {
-                      "format": {
-                        "type": "string"
-                      },
-                      "param": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "param"
-                    ],
-                    "type": "object"
-                  }
-                },
-                "required": [
-                  "path"
-                ],
-                "type": "object"
-              },
-              "openUrl": {
-                "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
-                "type": "string"
-              },
-              "remote": {
-                "type": "string"
-              },
-              "update": {
-                "$ref": "#/$defs/s_2ec1ed1603"
-              },
-              "updatedAt": {
-                "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
-                "examples": [
-                  "/id"
-                ],
-                "type": "string"
-              },
-              "webhook": {
-                "properties": {
-                  "events": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "evidence": {
-                    "type": "string"
-                  },
-                  "manualUrl": {
-                    "type": "boolean"
-                  },
-                  "signature": {
-                    "type": "string"
-                  },
-                  "subscribePath": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "events"
-                ],
-                "type": "object"
-              }
-            },
-            "required": [
-              "remote",
-              "label",
-              "list",
-              "id",
-              "itemsAt",
-              "fields"
-            ],
-            "type": "object"
-          },
-          "minItems": 1,
-          "type": "array"
-        },
-        "plan": {
-          "properties": {
-            "audience": {
-              "enum": [
-                "space",
-                "added",
-                "me"
-              ],
-              "type": "string"
-            },
-            "backfill": {
-              "enum": [
-                "later",
-                "now"
-              ],
-              "type": "string"
-            },
-            "conflicts": {
-              "const": "newest",
-              "type": "string"
-            },
-            "firstPull": {
-              "properties": {
-                "words": {
-                  "description": "Plain words: what the first pull brings in",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "words"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "firstPull",
-            "backfill",
-            "conflicts"
-          ],
-          "type": "object"
-        }
-      },
-      "required": [
-        "app",
-        "auth",
-        "objects",
-        "mapping",
-        "plan"
-      ],
-      "type": "object"
-    },
     "s_83ded911cc": {
       "properties": {
         "fileId": {
@@ -11778,62 +11416,6 @@
       ],
       "type": "object"
     },
-    "s_87ec6d95cd": {
-      "properties": {
-        "expiresAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "hiddenFields": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "labelCeiling": {
-          "enum": [
-            "public",
-            "internal",
-            "confidential",
-            "restricted"
-          ],
-          "type": "string"
-        },
-        "rowFilter": {
-          "description": "Any JSON value"
-        },
-        "window": {
-          "properties": {
-            "from": {
-              "description": "Milliseconds since the Unix epoch",
-              "examples": [
-                1760000000000
-              ],
-              "minimum": 0,
-              "type": "integer"
-            },
-            "to": {
-              "description": "Milliseconds since the Unix epoch",
-              "examples": [
-                1760000000000
-              ],
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "from",
-            "to"
-          ],
-          "type": "object"
-        }
-      },
-      "type": "object"
-    },
     "s_8887548e27": {
       "properties": {
         "author": {
@@ -11863,32 +11445,6 @@
         "author"
       ],
       "type": "object"
-    },
-    "s_88ed0578b4": {
-      "items": {
-        "properties": {
-          "at": {
-            "type": "string"
-          },
-          "level": {
-            "enum": [
-              "error",
-              "warn"
-            ],
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "level",
-          "at",
-          "message"
-        ],
-        "type": "object"
-      },
-      "type": "array"
     },
     "s_89cf53a7b6": {
       "properties": {
@@ -12706,6 +12262,17 @@
       },
       "required": [
         "item"
+      ],
+      "type": "object"
+    },
+    "s_928000790c": {
+      "properties": {
+        "grant": {
+          "$ref": "#/$defs/s_de3161587f"
+        }
+      },
+      "required": [
+        "grant"
       ],
       "type": "object"
     },
@@ -14401,60 +13968,6 @@
     "s_a764aa8ba1": {
       "items": {
         "$ref": "#/$defs/s_38b6d47dbd"
-      },
-      "type": "array"
-    },
-    "s_a78d49b059": {
-      "items": {
-        "properties": {
-          "constant": {
-            "description": "A value stamped on every record this binding pulls (the From field)",
-            "type": "string"
-          },
-          "dir": {
-            "enum": [
-              "pull",
-              "push",
-              "both",
-              "off"
-            ],
-            "type": "string"
-          },
-          "inverse": {
-            "examples": [
-              "email"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "key": {
-            "examples": [
-              "email"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "relation": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "remote": {
-            "type": "string"
-          },
-          "transform": {
-            "description": "Small expression over the value",
-            "type": "string"
-          }
-        },
-        "required": [
-          "key",
-          "remote",
-          "dir"
-        ],
-        "type": "object"
       },
       "type": "array"
     },
@@ -17287,17 +16800,6 @@
       ],
       "type": "object"
     },
-    "s_c8f62afafb": {
-      "properties": {
-        "grant": {
-          "$ref": "#/$defs/s_090e0c0321"
-        }
-      },
-      "required": [
-        "grant"
-      ],
-      "type": "object"
-    },
     "s_c963887871": {
       "properties": {
         "class": {
@@ -18487,6 +17989,59 @@
       },
       "type": "object"
     },
+    "s_de3161587f": {
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "conditions": {
+          "$ref": "#/$defs/s_2e1bfcfbb5"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "examples": [
+            "gnt_a1b2c3"
+          ],
+          "pattern": "^gnt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "view",
+            "use",
+            "edit",
+            "manage"
+          ],
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/s_f21ece25da"
+        },
+        "source": {
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/s_38b6d47dbd"
+        }
+      },
+      "required": [
+        "id",
+        "subject",
+        "resource",
+        "level",
+        "conditions",
+        "by",
+        "createdAt"
+      ],
+      "type": "object"
+    },
     "s_de4eba3dc2": {
       "properties": {
         "agentId": {
@@ -19255,6 +18810,25 @@
         "ifMissed",
         "active",
         "createdAt"
+      ],
+      "type": "object"
+    },
+    "s_e6d65cc314": {
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "email": {
+          "examples": [
+            "maya@example.com"
+          ],
+          "pattern": "^[^@\\s]+@[^@\\s]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "email"
       ],
       "type": "object"
     },
@@ -20443,88 +20017,6 @@
       ],
       "type": "object"
     },
-    "s_f37bc5d2c7": {
-      "properties": {
-        "agentId": {
-          "examples": [
-            "agt_a1b2c3"
-          ],
-          "pattern": "^agt_[a-z0-9]+$",
-          "type": "string"
-        },
-        "args": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "command": {
-          "type": "string"
-        },
-        "connectionId": {
-          "examples": [
-            "mcs_a1b2c3"
-          ],
-          "pattern": "^mcs_[a-z0-9]+$",
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "headers": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
-        },
-        "name": {
-          "type": "string"
-        },
-        "scope": {
-          "enum": [
-            "space",
-            "agent"
-          ],
-          "type": "string"
-        },
-        "transport": {
-          "enum": [
-            "stdio",
-            "http"
-          ],
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "connectionId",
-        "name",
-        "scope",
-        "transport",
-        "args",
-        "env",
-        "headers",
-        "enabled",
-        "createdAt"
-      ],
-      "type": "object"
-    },
     "s_f3add3544d": {
       "properties": {
         "fileId": {
@@ -20737,43 +20229,6 @@
         "message"
       ],
       "type": "object"
-    },
-    "s_fa21fe852f": {
-      "items": {
-        "properties": {
-          "fieldsFound": {
-            "type": "integer"
-          },
-          "fieldsMissing": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "hasNext": {
-            "type": "boolean"
-          },
-          "items": {
-            "type": "integer"
-          },
-          "remote": {
-            "type": "string"
-          },
-          "status": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "remote",
-          "items",
-          "hasNext",
-          "fieldsFound",
-          "fieldsMissing",
-          "status"
-        ],
-        "type": "object"
-      },
-      "type": "array"
     },
     "s_fa2657e139": {
       "properties": {
@@ -24037,6 +23492,113 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "grant.created",
+        "grant.revoked",
+        "access.changed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.needs_team",
+        "permission.no_grant",
+        "permission.not_contained",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "audience": "space",
+            "exporters": "admins",
+            "resource": {
+              "id": "rec_a1b2c3",
+              "type": "space"
+            }
+          },
+          "name": "example",
+          "output": {
+            "audience": "space",
+            "exporters": "admins"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "exporters": {
+            "enum": [
+              "admins",
+              "viewers",
+              "chosen"
+            ],
+            "type": "string"
+          },
+          "resource": {
+            "$ref": "#/$defs/s_f21ece25da"
+          }
+        },
+        "required": [
+          "resource"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.audience_set",
+      "output": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "exporters": {
+            "enum": [
+              "admins",
+              "viewers",
+              "chosen"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "audience",
+          "exporters"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "ref": "/resource",
+        "type": "dynamic"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "teamOnly": true,
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -24451,10 +24013,12 @@
                 "by": "example",
                 "conditions": {
                   "expiresAt": 1760000000000,
+                  "export": true,
                   "hiddenFields": [
                     "example"
                   ],
                   "labelCeiling": "public",
+                  "reshare": true,
                   "rowFilter": {},
                   "window": {
                     "from": 1760000000000,
@@ -24509,7 +24073,7 @@
       "output": {
         "properties": {
           "grants": {
-            "$ref": "#/$defs/s_65809e04d5"
+            "$ref": "#/$defs/s_4cd0b64c5d"
           },
           "next": {
             "description": "Cursor for the next page; absent on the last page",
@@ -24559,10 +24123,12 @@
           "input": {
             "conditions": {
               "expiresAt": 1760000000000,
+              "export": true,
               "hiddenFields": [
                 "example"
               ],
               "labelCeiling": "public",
+              "reshare": true,
               "rowFilter": {},
               "window": {
                 "from": 1760000000000,
@@ -24578,10 +24144,12 @@
               "by": "example",
               "conditions": {
                 "expiresAt": 1760000000000,
+                "export": true,
                 "hiddenFields": [
                   "example"
                 ],
                 "labelCeiling": "public",
+                "reshare": true,
                 "rowFilter": {},
                 "window": {
                   "from": 1760000000000,
@@ -24608,7 +24176,7 @@
       "input": {
         "properties": {
           "conditions": {
-            "$ref": "#/$defs/s_87ec6d95cd"
+            "$ref": "#/$defs/s_2e1bfcfbb5"
           },
           "grantId": {
             "examples": [
@@ -24636,7 +24204,7 @@
       "module": "access",
       "name": "access.grants.update",
       "output": {
-        "$ref": "#/$defs/s_c8f62afafb"
+        "$ref": "#/$defs/s_928000790c"
       },
       "permission": null,
       "resource": {
@@ -25045,10 +24613,12 @@
                 "by": "example",
                 "conditions": {
                   "expiresAt": 1760000000000,
+                  "export": true,
                   "hiddenFields": [
                     "example"
                   ],
                   "labelCeiling": "public",
+                  "reshare": true,
                   "rowFilter": {},
                   "window": {
                     "from": 1760000000000,
@@ -25114,7 +24684,7 @@
       "output": {
         "properties": {
           "grants": {
-            "$ref": "#/$defs/s_65809e04d5"
+            "$ref": "#/$defs/s_4cd0b64c5d"
           },
           "group": {
             "$ref": "#/$defs/s_d82a98b687"
@@ -26030,10 +25600,12 @@
                 "by": "example",
                 "conditions": {
                   "expiresAt": 1760000000000,
+                  "export": true,
                   "hiddenFields": [
                     "example"
                   ],
                   "labelCeiling": "public",
+                  "reshare": true,
                   "rowFilter": {},
                   "window": {
                     "from": 1760000000000,
@@ -26079,7 +25651,7 @@
       "output": {
         "properties": {
           "grants": {
-            "$ref": "#/$defs/s_65809e04d5"
+            "$ref": "#/$defs/s_4cd0b64c5d"
           },
           "owns": {
             "items": {
@@ -26548,6 +26120,151 @@
       "v": 1
     },
     {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "type": "contact"
+          },
+          "name": "example",
+          "output": {
+            "audience": "space",
+            "can": {
+              "export": true,
+              "manage": true,
+              "share": true
+            },
+            "rows": [
+              {
+                "audience": "space",
+                "direct": 1,
+                "id": "rec_a1b2c3",
+                "mine": true
+              }
+            ],
+            "typeShared": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "access",
+      "name": "access.record_marks",
+      "output": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "can": {
+            "properties": {
+              "export": {
+                "type": "boolean"
+              },
+              "manage": {
+                "type": "boolean"
+              },
+              "share": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "manage",
+              "share",
+              "export"
+            ],
+            "type": "object"
+          },
+          "rows": {
+            "items": {
+              "properties": {
+                "audience": {
+                  "enum": [
+                    "space",
+                    "added",
+                    "me"
+                  ],
+                  "type": "string"
+                },
+                "direct": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "id": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "mine": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "audience",
+                "direct",
+                "mine"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "typeShared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "typeShared",
+          "audience",
+          "can",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "meta"
+        }
+      },
+      "v": 1
+    },
+    {
       "effects": "write",
       "emits": [
         "access.requested"
@@ -26682,10 +26399,12 @@
               "by": "example",
               "conditions": {
                 "expiresAt": 1760000000000,
+                "export": true,
                 "hiddenFields": [
                   "example"
                 ],
                 "labelCeiling": "public",
+                "reshare": true,
                 "rowFilter": {},
                 "window": {
                   "from": 1760000000000,
@@ -26737,7 +26456,7 @@
       "module": "access",
       "name": "access.requests.approve",
       "output": {
-        "$ref": "#/$defs/s_c8f62afafb"
+        "$ref": "#/$defs/s_928000790c"
       },
       "permission": null,
       "resource": {
@@ -27114,10 +26833,12 @@
                   "by": "example",
                   "conditions": {
                     "expiresAt": 1760000000000,
+                    "export": true,
                     "hiddenFields": [
                       "example"
                     ],
                     "labelCeiling": "public",
+                    "reshare": true,
                     "rowFilter": {},
                     "window": {
                       "from": 1760000000000,
@@ -27185,7 +26906,7 @@
                   "type": "string"
                 },
                 "grant": {
-                  "$ref": "#/$defs/s_090e0c0321"
+                  "$ref": "#/$defs/s_de3161587f"
                 },
                 "lastUsedAt": {
                   "description": "Milliseconds since the Unix epoch",
@@ -28260,18 +27981,22 @@
           "input": {
             "conditions": {
               "expiresAt": 1760000000000,
+              "export": true,
               "hiddenFields": [
                 "example"
               ],
               "labelCeiling": "public",
+              "reshare": true,
               "rowFilter": {},
               "window": {
                 "from": 1760000000000,
                 "to": 1760000000000
               }
             },
+            "export": true,
             "idempotencyKey": "idem_1",
             "level": "view",
+            "reshare": true,
             "resource": {
               "id": "rec_a1b2c3",
               "type": "space"
@@ -28288,10 +28013,12 @@
               "by": "example",
               "conditions": {
                 "expiresAt": 1760000000000,
+                "export": true,
                 "hiddenFields": [
                   "example"
                 ],
                 "labelCeiling": "public",
+                "reshare": true,
                 "rowFilter": {},
                 "window": {
                   "from": 1760000000000,
@@ -28318,7 +28045,10 @@
       "input": {
         "properties": {
           "conditions": {
-            "$ref": "#/$defs/s_87ec6d95cd"
+            "$ref": "#/$defs/s_2e1bfcfbb5"
+          },
+          "export": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "examples": [
@@ -28335,6 +28065,9 @@
               "manage"
             ],
             "type": "string"
+          },
+          "reshare": {
+            "type": "boolean"
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
@@ -28359,7 +28092,7 @@
       "module": "access",
       "name": "access.share",
       "output": {
-        "$ref": "#/$defs/s_c8f62afafb"
+        "$ref": "#/$defs/s_928000790c"
       },
       "permission": null,
       "resource": {
@@ -28397,16 +28130,26 @@
           },
           "name": "example",
           "output": {
+            "audience": "space",
+            "can": {
+              "export": true,
+              "manage": true,
+              "share": true
+            },
+            "exporters": "admins",
+            "inherits": "example",
             "shares": [
               {
                 "grant": {
                   "by": "example",
                   "conditions": {
                     "expiresAt": 1760000000000,
+                    "export": true,
                     "hiddenFields": [
                       "example"
                     ],
                     "labelCeiling": "public",
+                    "reshare": true,
                     "rowFilter": {},
                     "window": {
                       "from": 1760000000000,
@@ -28441,11 +28184,50 @@
       "name": "access.shares_of",
       "output": {
         "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "can": {
+            "properties": {
+              "export": {
+                "type": "boolean"
+              },
+              "manage": {
+                "type": "boolean"
+              },
+              "share": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "manage",
+              "share",
+              "export"
+            ],
+            "type": "object"
+          },
+          "exporters": {
+            "enum": [
+              "admins",
+              "viewers",
+              "chosen"
+            ],
+            "type": "string"
+          },
+          "inherits": {
+            "description": "The container this resource follows (the record type of a record), when it follows it",
+            "type": "string"
+          },
           "shares": {
             "items": {
               "properties": {
                 "grant": {
-                  "$ref": "#/$defs/s_090e0c0321"
+                  "$ref": "#/$defs/s_de3161587f"
                 },
                 "through": {
                   "enum": [
@@ -28479,7 +28261,7 @@
       },
       "risk": "low",
       "since": "1.0.0",
-      "summary": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry",
+      "summary": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -61582,7 +61364,7 @@
       "output": {
         "properties": {
           "connector": {
-            "$ref": "#/$defs/s_4daca4cad3"
+            "$ref": "#/$defs/s_1c0da72715"
           }
         },
         "required": [
@@ -61881,7 +61663,7 @@
         "properties": {
           "connectors": {
             "items": {
-              "$ref": "#/$defs/s_4daca4cad3"
+              "$ref": "#/$defs/s_1c0da72715"
             },
             "type": "array"
           },
@@ -61993,7 +61775,6 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "cursor": "example",
             "limit": 1,
             "state": "pending",
@@ -62025,9 +61806,6 @@
       "idempotency": "natural",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "cursor": {
             "type": "string"
           },
@@ -62702,7 +62480,6 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "connectionId": "con_a1b2c3",
             "idempotencyKey": "idem_1",
             "mode": "incremental",
@@ -62719,9 +62496,6 @@
       "idempotency": "key",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "connectionId": {
             "examples": [
               "con_a1b2c3"
@@ -62803,155 +62577,6 @@
         "mcp": {
           "toolset": "records"
         }
-      },
-      "v": 1
-    },
-    {
-      "effects": "write",
-      "emits": [
-        "sync.completed",
-        "sync.conflict",
-        "sync.deletes_paused",
-        "sync.pushed",
-        "sync.push_failed",
-        "record.created",
-        "record.updated"
-      ],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "validation.bad_input"
-      ],
-      "examples": [
-        {
-          "input": {
-            "type": "contact"
-          },
-          "name": "example",
-          "output": {
-            "ran": true,
-            "summary": "example"
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "level": "edit",
-      "module": "connectors",
-      "name": "connectors.sync_poll",
-      "output": {
-        "properties": {
-          "ran": {
-            "type": "boolean"
-          },
-          "summary": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "ran"
-        ],
-        "type": "object"
-      },
-      "permission": null,
-      "resource": {
-        "type": "space"
-      },
-      "risk": "medium",
-      "since": "1.0.0",
-      "summary": "Keep a synced type current when the app has no webhook: pull what changed, push what people changed here, and schedule the next poll (called by the scheduler)",
-      "surfaces": {
-        "http": "auto"
-      },
-      "v": 1
-    },
-    {
-      "effects": "write",
-      "emits": [
-        "sync.completed",
-        "sync.conflict",
-        "sync.deletes_paused",
-        "sync.pushed",
-        "sync.push_failed",
-        "record.created",
-        "record.updated"
-      ],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "validation.bad_input"
-      ],
-      "examples": [
-        {
-          "input": {
-            "runId": "run_a1b2c3"
-          },
-          "name": "example",
-          "output": {
-            "ok": true,
-            "summary": "example"
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "runId": {
-            "examples": [
-              "run_a1b2c3"
-            ],
-            "pattern": "^run_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "runId"
-        ],
-        "type": "object"
-      },
-      "level": "edit",
-      "module": "connectors",
-      "name": "connectors.sync_run",
-      "output": {
-        "properties": {
-          "ok": {
-            "type": "boolean"
-          },
-          "summary": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "ok",
-          "summary"
-        ],
-        "type": "object"
-      },
-      "permission": null,
-      "resource": {
-        "type": "space"
-      },
-      "risk": "medium",
-      "since": "1.0.0",
-      "summary": "Run the pass a sync_now asked for, in the background as the person who asked, and finish its Run (called by the scheduler)",
-      "surfaces": {
-        "http": "auto"
       },
       "v": 1
     },
@@ -68608,19 +68233,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "vaultItem": {
-            "examples": [
-              "#Dana_Lawmatics"
-            ],
-            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "vaultItem"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_6d0de879ff"
       },
       "level": "edit",
       "module": "dropbox",
@@ -72946,6 +72559,209 @@
       "v": 1
     },
     {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.unavailable",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "error": "example",
+            "state": "example"
+          },
+          "name": "example",
+          "output": {
+            "connectionId": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.mcp.oauth_complete",
+      "output": {
+        "properties": {
+          "connectionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Finish an OAuth sign-in with the state and code the server sent back, or the error it sent when the person declined. Only the person who started it can finish it.",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "example",
+            "redirectUri": "example"
+          },
+          "name": "example",
+          "output": {
+            "authUrl": "example",
+            "state": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "type": "string"
+          },
+          "redirectUri": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "redirectUri"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "engine",
+      "name": "engine.mcp.oauth_start",
+      "output": {
+        "properties": {
+          "authUrl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authUrl",
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": "agents.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Begin signing a remote outside-tool connection in with OAuth (the MCP authorization flow). Answers the address to send the person to; the token that comes back is sealed and never answered.",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "connectionId": "example"
+          },
+          "name": "example",
+          "output": {
+            "signedIn": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "connectionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.mcp.oauth_status",
+      "output": {
+        "properties": {
+          "signedIn": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "signedIn"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Has this remote connection signed in? A yes or no, never the token.",
+      "surfaces": {
+        "agent": false,
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
       "effects": "read",
       "emits": [],
       "errors": [
@@ -73041,8 +72857,10 @@
               {
                 "error": "example",
                 "from": "plugin",
+                "hub": "composio",
                 "key": "greeter/echo",
                 "name": "example",
+                "oauth": true,
                 "ok": true,
                 "tools": [
                   {
@@ -73094,6 +72912,13 @@
                   ],
                   "type": "string"
                 },
+                "hub": {
+                  "enum": [
+                    "composio",
+                    "pipedream"
+                  ],
+                  "type": "string"
+                },
                 "key": {
                   "examples": [
                     "greeter/echo"
@@ -73102,6 +72927,9 @@
                 },
                 "name": {
                   "type": "string"
+                },
+                "oauth": {
+                  "type": "boolean"
                 },
                 "ok": {
                   "type": "boolean"
@@ -98125,6 +97953,499 @@
     {
       "audit": "always",
       "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.auth_failed",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "vaultItem": "#Dana_Lawmatics"
+          },
+          "name": "example",
+          "output": {
+            "clientId": "example",
+            "configured": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_6d0de879ff"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.user.app_set",
+      "output": {
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured",
+          "clientId"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Name the Vault item that holds the Google OAuth client (client_id, and client_secret for a web client)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "clientId": "example",
+            "configured": true,
+            "redirectUri": "example",
+            "vaultItem": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.user.app_status",
+      "output": {
+        "$ref": "#/$defs/s_7a2160f39e"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Whether a Google OAuth client is set up for signing in to your own Gmail, and the redirect address to give Google for it",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "google.user_connected"
+      ],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.bad_response",
+        "provider.network",
+        "validation.bad_input",
+        "validation.duplicate",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "error": "example",
+            "state": "example"
+          },
+          "name": "example",
+          "output": {
+            "accountId": "example",
+            "email": "maya@example.com",
+            "mailboxId": "mbx_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.user.complete",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_173d2b8b74"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Finish signing in from the callback: the state and the code, or the error Google sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "accounts": [
+              {
+                "accountId": "example",
+                "email": "maya@example.com"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "google",
+      "name": "google.user.list",
+      "output": {
+        "$ref": "#/$defs/s_4541f8f90f"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Your own signed-in Google accounts",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.user.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Sign out of your own Google account: revoke it at Google and remove its token",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.rate_limited",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example",
+            "attachments": [
+              "fil_a1b2c3"
+            ],
+            "bcc": [
+              "maya@example.com"
+            ],
+            "cc": [
+              "maya@example.com"
+            ],
+            "html": "example",
+            "idempotencyKey": "idem_1",
+            "subject": "example",
+            "text": "example",
+            "threadId": "example",
+            "to": [
+              "maya@example.com"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "id": "example",
+            "threadId": "example"
+          }
+        }
+      ],
+      "gate": {
+        "act": "send"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "attachments": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bcc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountId",
+          "to",
+          "subject",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "google",
+      "name": "google.user.send_message",
+      "output": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "loginHint": "maya@example.com"
+          },
+          "name": "example",
+          "output": {
+            "authUrl": "example",
+            "state": "example"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "loginHint": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "google",
+      "name": "google.user.start",
+      "output": {
+        "properties": {
+          "authUrl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authUrl",
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Start signing in to your own Gmail: the address to approve at",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
       "emits": [
         "erase.started",
         "erase.completed"
@@ -112527,6 +112848,7 @@
         {
           "input": {
             "address": "maya@example.com",
+            "connectionId": "gua_0123456789abcdef0123456789abcdef",
             "idempotencyKey": "idem_1",
             "imap": {
               "host": "example",
@@ -112563,6 +112885,14 @@
               "maya@example.com"
             ],
             "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "description": "A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) the mailbox reads and sends through",
+            "examples": [
+              "gua_0123456789abcdef0123456789abcdef"
+            ],
+            "pattern": "^(gua|mua)_[0-9a-f]{32}$",
             "type": "string"
           },
           "idempotencyKey": {
@@ -114368,6 +114698,91 @@
       "risk": "medium",
       "since": "1.0.0",
       "summary": "Mark a mailbox private, shared with the Space or shared with chosen people",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "inbox"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [
+        "mailbox.sync_failed"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "mailboxId": "mbx_a1b2c3",
+            "reason": "example",
+            "state": "error"
+          },
+          "name": "example",
+          "output": {
+            "mailbox": {
+              "address": "maya@example.com",
+              "agentId": "agt_a1b2c3",
+              "id": "mbx_a1b2c3",
+              "kind": "personal",
+              "lastSyncAt": 1760000000000,
+              "ownerId": "usr_a1b2c3",
+              "privacy": "private",
+              "provider": "google",
+              "state": "pending",
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "error",
+              "syncing"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mailboxId",
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "mail",
+      "name": "mail.mailbox.set_sync_state",
+      "output": {
+        "$ref": "#/$defs/s_9206859ebe"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/mailboxId",
+        "type": "mailbox"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -136483,6 +136898,494 @@
     },
     {
       "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "permission.role_lacks_permission",
+        "provider.auth_failed",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "vaultItem": "#Dana_Lawmatics"
+          },
+          "name": "example",
+          "output": {
+            "clientId": "example",
+            "configured": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "$ref": "#/$defs/s_6d0de879ff"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.user.app_set",
+      "output": {
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured",
+          "clientId"
+        ],
+        "type": "object"
+      },
+      "permission": "connectors.manage",
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Name the Vault item that holds the Microsoft OAuth app (client_id, client_secret when it has one, tenant when it is not common)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "clientId": "example",
+            "configured": true,
+            "redirectUri": "example",
+            "vaultItem": "example"
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "microsoft",
+      "name": "ms.user.app_status",
+      "output": {
+        "$ref": "#/$defs/s_7a2160f39e"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Whether a Microsoft OAuth app is set up for signing in to your own Outlook, and the redirect address to give Microsoft for it",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "microsoft.user_connected"
+      ],
+      "errors": [
+        "auth.invalid_code",
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.bad_response",
+        "provider.network",
+        "validation.bad_input",
+        "validation.duplicate",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "code": "example",
+            "error": "example",
+            "state": "example"
+          },
+          "name": "example",
+          "output": {
+            "accountId": "example",
+            "email": "maya@example.com",
+            "mailboxId": "mbx_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.user.complete",
+      "offline": "online",
+      "output": {
+        "$ref": "#/$defs/s_173d2b8b74"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Finish signing in from the callback: the state and the code, or the error Microsoft sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {},
+          "name": "example",
+          "output": {
+            "accounts": [
+              {
+                "accountId": "example",
+                "email": "maya@example.com"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {},
+        "type": "object"
+      },
+      "level": "view",
+      "module": "microsoft",
+      "name": "ms.user.list",
+      "output": {
+        "$ref": "#/$defs/s_4541f8f90f"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Your own signed-in Microsoft accounts",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example"
+          },
+          "name": "example",
+          "output": {
+            "removed": true
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.user.remove",
+      "output": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Sign out of your own Microsoft account and remove its token",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "outward",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.rate_limited",
+        "provider.unavailable",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "accountId": "example",
+            "attachments": [
+              "fil_a1b2c3"
+            ],
+            "bcc": [
+              "maya@example.com"
+            ],
+            "cc": [
+              "maya@example.com"
+            ],
+            "conversationId": "example",
+            "html": "example",
+            "idempotencyKey": "idem_1",
+            "subject": "example",
+            "text": "example",
+            "to": [
+              "maya@example.com"
+            ]
+          },
+          "name": "example",
+          "output": {
+            "sent": true
+          }
+        }
+      ],
+      "gate": {
+        "act": "send"
+      },
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "attachments": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bcc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "conversationId": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accountId",
+          "to",
+          "subject",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "microsoft",
+      "name": "ms.user.send_message",
+      "output": {
+        "properties": {
+          "sent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sent"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "high",
+      "since": "1.0.0",
+      "summary": "Send a message from your own signed-in Outlook (mail.send_as uses it for a mailbox made by ms.user.complete)",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "loginHint": "maya@example.com"
+          },
+          "name": "example",
+          "output": {
+            "authUrl": "example",
+            "state": "example"
+          }
+        }
+      ],
+      "idempotency": "none",
+      "input": {
+        "properties": {
+          "loginHint": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "level": "edit",
+      "module": "microsoft",
+      "name": "ms.user.start",
+      "output": {
+        "properties": {
+          "authUrl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authUrl",
+          "state"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "type": "space"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Start signing in to your own Outlook: the address to approve at",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
       "effects": "outward",
       "emits": [],
       "errors": [
@@ -141744,9 +142647,11 @@
             "args": [
               "example"
             ],
+            "auth": "oauth",
             "command": "example",
             "env": {},
             "headers": {},
+            "hub": "composio",
             "idempotencyKey": "idem_1",
             "name": "crm",
             "scope": "space",
@@ -141759,12 +142664,14 @@
               "args": [
                 "example"
               ],
+              "auth": "oauth",
               "command": "example",
               "connectionId": "mcs_a1b2c3",
               "createdAt": 1760000000000,
               "enabled": true,
               "env": {},
               "headers": {},
+              "hub": "composio",
               "name": "example",
               "scope": "space",
               "transport": "stdio",
@@ -141789,6 +142696,12 @@
             },
             "type": "array"
           },
+          "auth": {
+            "enum": [
+              "oauth"
+            ],
+            "type": "string"
+          },
           "command": {
             "type": "string"
           },
@@ -141805,6 +142718,13 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "hub": {
+            "enum": [
+              "composio",
+              "pipedream"
+            ],
+            "type": "string"
           },
           "idempotencyKey": {
             "examples": [
@@ -141843,7 +142763,7 @@
       "output": {
         "properties": {
           "connection": {
-            "$ref": "#/$defs/s_f37bc5d2c7"
+            "$ref": "#/$defs/s_0009d545f0"
           }
         },
         "required": [
@@ -141987,12 +142907,14 @@
                 "args": [
                   "example"
                 ],
+                "auth": "oauth",
                 "command": "example",
                 "connectionId": "mcs_a1b2c3",
                 "createdAt": 1760000000000,
                 "enabled": true,
                 "env": {},
                 "headers": {},
+                "hub": "composio",
                 "name": "example",
                 "scope": "space",
                 "transport": "stdio",
@@ -142022,7 +142944,7 @@
         "properties": {
           "connections": {
             "items": {
-              "$ref": "#/$defs/s_f37bc5d2c7"
+              "$ref": "#/$defs/s_0009d545f0"
             },
             "type": "array"
           }
@@ -142950,15 +143872,18 @@
                   "example"
                 ],
                 "command": "example",
+                "connectionId": "mcs_a1b2c3",
                 "env": {},
                 "files": "example",
                 "from": "plugin",
                 "headers": {},
+                "hub": "composio",
                 "key": "deploy-tools/api",
                 "name": "example",
                 "needs": [
                   "example"
                 ],
+                "oauth": true,
                 "pluginId": "plg_a1b2c3",
                 "transport": "stdio",
                 "url": "example"
@@ -142997,6 +143922,13 @@
                 "command": {
                   "type": "string"
                 },
+                "connectionId": {
+                  "examples": [
+                    "mcs_a1b2c3"
+                  ],
+                  "pattern": "^mcs_[a-z0-9]+$",
+                  "type": "string"
+                },
                 "env": {
                   "additionalProperties": {
                     "type": "string"
@@ -143020,6 +143952,13 @@
                   },
                   "type": "object"
                 },
+                "hub": {
+                  "enum": [
+                    "composio",
+                    "pipedream"
+                  ],
+                  "type": "string"
+                },
                 "key": {
                   "description": "plugin:<plugin>/<server> or <name> for a connection made by hand",
                   "examples": [
@@ -143036,6 +143975,9 @@
                     "type": "string"
                   },
                   "type": "array"
+                },
+                "oauth": {
+                  "type": "boolean"
                 },
                 "pluginId": {
                   "examples": [
@@ -151425,7 +152367,9 @@
     {
       "audit": "always",
       "effects": "read",
-      "emits": [],
+      "emits": [
+        "field.revealed"
+      ],
       "errors": [
         "internal.unexpected",
         "permission.above_clearance",
@@ -151771,27 +152715,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "cursor": {
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 500,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_627d7922b1"
       },
       "label": "filter",
       "level": "view",
@@ -173100,1784 +174024,6 @@
       "audit": "always",
       "effects": "write",
       "emits": [
-        "connector.created",
-        "connector.published",
-        "connection.created",
-        "sync.type_bound",
-        "schema.changed"
-      ],
-      "errors": [
-        "internal.unavailable",
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "permission.role_lacks_permission",
-        "validation.bad_input",
-        "validation.duplicate",
-        "validation.precondition_failed"
-      ],
-      "examples": [
-        {
-          "input": {
-            "idempotencyKey": "idem_1",
-            "spec": {
-              "app": {
-                "account": "example",
-                "docsUrl": "example",
-                "domain": "api.example.com",
-                "logoHint": "example",
-                "name": "example"
-              },
-              "auth": {
-                "header": "example",
-                "headers": {},
-                "prefix": "example",
-                "style": "bearer",
-                "vaultHandle": "#Dana_Lawmatics"
-              },
-              "mapping": [
-                {
-                  "createAtSource": true,
-                  "deletes": "off",
-                  "fields": [
-                    {
-                      "direction": "both",
-                      "field": "email",
-                      "path": "/id"
-                    }
-                  ],
-                  "match": [
-                    "/id"
-                  ],
-                  "recordType": "contact",
-                  "remote": "example",
-                  "stagesFrom": "/id",
-                  "title": "example",
-                  "titleField": "/id"
-                }
-              ],
-              "objects": [
-                {
-                  "count": 1,
-                  "create": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "delete": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "fields": [
-                    {
-                      "choices": [
-                        {
-                          "label": "Lead",
-                          "value": "lead"
-                        }
-                      ],
-                      "label": "example",
-                      "path": "/id",
-                      "readOnly": true,
-                      "relationTo": "example",
-                      "type": "text"
-                    }
-                  ],
-                  "get": {
-                    "path": "example"
-                  },
-                  "id": "/id",
-                  "itemsAt": "/id",
-                  "label": "example",
-                  "list": {
-                    "cursor": {
-                      "kind": "none",
-                      "next": "/id",
-                      "param": "example",
-                      "size": 1,
-                      "sizeParam": "example",
-                      "start": 1
-                    },
-                    "filter": {
-                      "param": "example",
-                      "value": "example"
-                    },
-                    "path": "/contacts",
-                    "query": {},
-                    "updatedSince": {
-                      "format": "example",
-                      "param": "example"
-                    }
-                  },
-                  "openUrl": "example",
-                  "remote": "example",
-                  "update": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "updatedAt": "/id",
-                  "webhook": {
-                    "events": [
-                      "example"
-                    ],
-                    "evidence": "example",
-                    "manualUrl": true,
-                    "signature": "example",
-                    "subscribePath": "example"
-                  }
-                }
-              ],
-              "plan": {
-                "audience": "space",
-                "backfill": "later",
-                "conflicts": "newest",
-                "firstPull": {
-                  "words": "example"
-                }
-              }
-            }
-          },
-          "name": "example",
-          "output": {
-            "connectionId": "con_a1b2c3",
-            "connector": "hubspot",
-            "live": "polling",
-            "types": [
-              {
-                "runId": "run_a1b2c3",
-                "syncTypeId": "syt_a1b2c3",
-                "type": "contact"
-              }
-            ],
-            "version": "example",
-            "webhookUrl": "example"
-          }
-        }
-      ],
-      "idempotency": "key",
-      "input": {
-        "properties": {
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "spec": {
-            "$ref": "#/$defs/s_82fe7441fe"
-          }
-        },
-        "required": [
-          "spec",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "level": "edit",
-      "module": "connectors",
-      "name": "sync_specs.apply",
-      "output": {
-        "properties": {
-          "connectionId": {
-            "examples": [
-              "con_a1b2c3"
-            ],
-            "pattern": "^con_[a-z0-9]+$",
-            "type": "string"
-          },
-          "connector": {
-            "examples": [
-              "hubspot"
-            ],
-            "type": "string"
-          },
-          "live": {
-            "enum": [
-              "polling",
-              "webhook"
-            ],
-            "type": "string"
-          },
-          "types": {
-            "items": {
-              "properties": {
-                "runId": {
-                  "examples": [
-                    "run_a1b2c3"
-                  ],
-                  "pattern": "^run_[a-z0-9]+$",
-                  "type": "string"
-                },
-                "syncTypeId": {
-                  "examples": [
-                    "syt_a1b2c3"
-                  ],
-                  "pattern": "^syt_[a-z0-9]+$",
-                  "type": "string"
-                },
-                "type": {
-                  "examples": [
-                    "contact"
-                  ],
-                  "pattern": "^[a-z][a-z0-9_]*$",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "syncTypeId"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "version": {
-            "type": "string"
-          },
-          "webhookUrl": {
-            "description": "The address to give the app by hand when its docs show no subscribe call",
-            "type": "string"
-          }
-        },
-        "required": [
-          "connector",
-          "connectionId",
-          "version",
-          "types",
-          "live"
-        ],
-        "type": "object"
-      },
-      "permission": "connectors.manage",
-      "resource": {
-        "type": "space"
-      },
-      "risk": "medium",
-      "since": "1.0.0",
-      "summary": "Apply a validated SyncSpec: a live connector (with its own tests), a connection holding the Vault handle, the record types with fields, choices, relations and stages, the synced-type bindings, and the first pull",
-      "surfaces": {
-        "agent": {
-          "planMode": "blocked"
-        },
-        "cli": "vyre sync-spec apply",
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "audit": "always",
-      "effects": "write",
-      "emits": [
-        "connector.published"
-      ],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "permission.role_lacks_permission",
-        "validation.bad_input",
-        "validation.not_found",
-        "validation.precondition_failed"
-      ],
-      "examples": [
-        {
-          "input": {
-            "account": "example",
-            "idempotencyKey": "idem_1",
-            "type": "contact"
-          },
-          "name": "example",
-          "output": {
-            "runId": "run_a1b2c3"
-          }
-        }
-      ],
-      "idempotency": "key",
-      "input": {
-        "properties": {
-          "account": {
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "level": "edit",
-      "module": "connectors",
-      "name": "sync_specs.backfill",
-      "output": {
-        "properties": {
-          "runId": {
-            "examples": [
-              "run_a1b2c3"
-            ],
-            "pattern": "^run_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "permission": "connectors.manage",
-      "resource": {
-        "type": "space"
-      },
-      "risk": "medium",
-      "since": "1.0.0",
-      "summary": "Bring in everything, not just the first-pull filter: re-applies the stored spec with the filter dropped and starts the pull",
-      "surfaces": {
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "read",
-      "emits": [],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "permission.role_lacks_permission",
-        "validation.bad_input",
-        "validation.not_found"
-      ],
-      "examples": [
-        {
-          "input": {
-            "account": "example",
-            "connector": "hubspot",
-            "type": "contact"
-          },
-          "name": "example",
-          "output": {
-            "appliedAt": 1760000000000,
-            "connectionId": "con_a1b2c3",
-            "connector": "hubspot",
-            "spec": {
-              "app": {
-                "account": "example",
-                "docsUrl": "example",
-                "domain": "api.example.com",
-                "logoHint": "example",
-                "name": "example"
-              },
-              "auth": {
-                "header": "example",
-                "headers": {},
-                "prefix": "example",
-                "style": "bearer",
-                "vaultHandle": "#Dana_Lawmatics"
-              },
-              "mapping": [
-                {
-                  "createAtSource": true,
-                  "deletes": "off",
-                  "fields": [
-                    {
-                      "direction": "both",
-                      "field": "email",
-                      "path": "/id"
-                    }
-                  ],
-                  "match": [
-                    "/id"
-                  ],
-                  "recordType": "contact",
-                  "remote": "example",
-                  "stagesFrom": "/id",
-                  "title": "example",
-                  "titleField": "/id"
-                }
-              ],
-              "objects": [
-                {
-                  "count": 1,
-                  "create": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "delete": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "fields": [
-                    {
-                      "choices": [
-                        {
-                          "label": "Lead",
-                          "value": "lead"
-                        }
-                      ],
-                      "label": "example",
-                      "path": "/id",
-                      "readOnly": true,
-                      "relationTo": "example",
-                      "type": "text"
-                    }
-                  ],
-                  "get": {
-                    "path": "example"
-                  },
-                  "id": "/id",
-                  "itemsAt": "/id",
-                  "label": "example",
-                  "list": {
-                    "cursor": {
-                      "kind": "none",
-                      "next": "/id",
-                      "param": "example",
-                      "size": 1,
-                      "sizeParam": "example",
-                      "start": 1
-                    },
-                    "filter": {
-                      "param": "example",
-                      "value": "example"
-                    },
-                    "path": "/contacts",
-                    "query": {},
-                    "updatedSince": {
-                      "format": "example",
-                      "param": "example"
-                    }
-                  },
-                  "openUrl": "example",
-                  "remote": "example",
-                  "update": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "updatedAt": "/id",
-                  "webhook": {
-                    "events": [
-                      "example"
-                    ],
-                    "evidence": "example",
-                    "manualUrl": true,
-                    "signature": "example",
-                    "subscribePath": "example"
-                  }
-                }
-              ],
-              "plan": {
-                "audience": "space",
-                "backfill": "later",
-                "conflicts": "newest",
-                "firstPull": {
-                  "words": "example"
-                }
-              }
-            },
-            "types": [
-              {
-                "remote": "example",
-                "type": "contact"
-              }
-            ]
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "account": {
-            "type": "string"
-          },
-          "connector": {
-            "examples": [
-              "hubspot"
-            ],
-            "type": "string"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "level": "view",
-      "module": "connectors",
-      "name": "sync_specs.get",
-      "output": {
-        "properties": {
-          "appliedAt": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          },
-          "connectionId": {
-            "examples": [
-              "con_a1b2c3"
-            ],
-            "pattern": "^con_[a-z0-9]+$",
-            "type": "string"
-          },
-          "connector": {
-            "examples": [
-              "hubspot"
-            ],
-            "type": "string"
-          },
-          "spec": {
-            "$ref": "#/$defs/s_82fe7441fe"
-          },
-          "types": {
-            "items": {
-              "properties": {
-                "remote": {
-                  "type": "string"
-                },
-                "type": {
-                  "examples": [
-                    "contact"
-                  ],
-                  "pattern": "^[a-z][a-z0-9_]*$",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "remote"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "spec",
-          "connector",
-          "connectionId",
-          "appliedAt",
-          "types"
-        ],
-        "type": "object"
-      },
-      "permission": "connectors.manage",
-      "resource": {
-        "type": "space"
-      },
-      "risk": "low",
-      "since": "1.0.0",
-      "summary": "Read the SyncSpec a synced type was made from (so Edit mapping can open the agent with it)",
-      "surfaces": {
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "read",
-      "emits": [],
-      "errors": [
-        "internal.unavailable",
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "permission.role_lacks_permission",
-        "validation.bad_input"
-      ],
-      "examples": [
-        {
-          "input": {
-            "spec": {
-              "app": {
-                "account": "example",
-                "docsUrl": "example",
-                "domain": "api.example.com",
-                "logoHint": "example",
-                "name": "example"
-              },
-              "auth": {
-                "header": "example",
-                "headers": {},
-                "prefix": "example",
-                "style": "bearer",
-                "vaultHandle": "#Dana_Lawmatics"
-              },
-              "mapping": [
-                {
-                  "createAtSource": true,
-                  "deletes": "off",
-                  "fields": [
-                    {
-                      "direction": "both",
-                      "field": "email",
-                      "path": "/id"
-                    }
-                  ],
-                  "match": [
-                    "/id"
-                  ],
-                  "recordType": "contact",
-                  "remote": "example",
-                  "stagesFrom": "/id",
-                  "title": "example",
-                  "titleField": "/id"
-                }
-              ],
-              "objects": [
-                {
-                  "count": 1,
-                  "create": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "delete": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "fields": [
-                    {
-                      "choices": [
-                        {
-                          "label": "Lead",
-                          "value": "lead"
-                        }
-                      ],
-                      "label": "example",
-                      "path": "/id",
-                      "readOnly": true,
-                      "relationTo": "example",
-                      "type": "text"
-                    }
-                  ],
-                  "get": {
-                    "path": "example"
-                  },
-                  "id": "/id",
-                  "itemsAt": "/id",
-                  "label": "example",
-                  "list": {
-                    "cursor": {
-                      "kind": "none",
-                      "next": "/id",
-                      "param": "example",
-                      "size": 1,
-                      "sizeParam": "example",
-                      "start": 1
-                    },
-                    "filter": {
-                      "param": "example",
-                      "value": "example"
-                    },
-                    "path": "/contacts",
-                    "query": {},
-                    "updatedSince": {
-                      "format": "example",
-                      "param": "example"
-                    }
-                  },
-                  "openUrl": "example",
-                  "remote": "example",
-                  "update": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "updatedAt": "/id",
-                  "webhook": {
-                    "events": [
-                      "example"
-                    ],
-                    "evidence": "example",
-                    "manualUrl": true,
-                    "signature": "example",
-                    "subscribePath": "example"
-                  }
-                }
-              ],
-              "plan": {
-                "audience": "space",
-                "backfill": "later",
-                "conflicts": "newest",
-                "firstPull": {
-                  "words": "example"
-                }
-              }
-            }
-          },
-          "name": "example",
-          "output": {
-            "objects": [
-              {
-                "fieldsFound": 1,
-                "fieldsMissing": [
-                  "example"
-                ],
-                "hasNext": true,
-                "items": 1,
-                "remote": "example",
-                "status": 1
-              }
-            ],
-            "ok": true,
-            "problems": [
-              {
-                "at": "example",
-                "level": "error",
-                "message": "example"
-              }
-            ],
-            "samples": [
-              {
-                "fields": [
-                  {
-                    "key": "email",
-                    "label": "example",
-                    "value": {}
-                  }
-                ],
-                "remote": "example",
-                "title": "example",
-                "type": "contact"
-              }
-            ],
-            "size": {
-              "bytes": 1,
-              "records": 1,
-              "text": "about 180 MB"
-            },
-            "summary": "example",
-            "types": [
-              {
-                "existing": 1,
-                "fields": [
-                  {
-                    "dir": "example",
-                    "key": "email",
-                    "label": "example",
-                    "type": "example"
-                  }
-                ],
-                "isNew": true,
-                "remote": "example",
-                "title": "example",
-                "type": "contact"
-              }
-            ]
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "$ref": "#/$defs/s_658fdc8731"
-      },
-      "level": "view",
-      "module": "connectors",
-      "name": "sync_specs.preview",
-      "output": {
-        "properties": {
-          "objects": {
-            "$ref": "#/$defs/s_fa21fe852f"
-          },
-          "ok": {
-            "type": "boolean"
-          },
-          "problems": {
-            "$ref": "#/$defs/s_88ed0578b4"
-          },
-          "samples": {
-            "items": {
-              "properties": {
-                "fields": {
-                  "items": {
-                    "properties": {
-                      "key": {
-                        "examples": [
-                          "email"
-                        ],
-                        "pattern": "^[a-z][a-z0-9_]*$",
-                        "type": "string"
-                      },
-                      "label": {
-                        "type": "string"
-                      },
-                      "value": {
-                        "description": "Any JSON value"
-                      }
-                    },
-                    "required": [
-                      "key",
-                      "label",
-                      "value"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "remote": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "type": {
-                  "examples": [
-                    "contact"
-                  ],
-                  "pattern": "^[a-z][a-z0-9_]*$",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "remote",
-                "title",
-                "fields"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "size": {
-            "properties": {
-              "bytes": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "records": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "text": {
-                "examples": [
-                  "about 180 MB"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "records",
-              "bytes",
-              "text"
-            ],
-            "type": "object"
-          },
-          "summary": {
-            "type": "string"
-          },
-          "types": {
-            "items": {
-              "properties": {
-                "existing": {
-                  "type": "integer"
-                },
-                "fields": {
-                  "items": {
-                    "properties": {
-                      "dir": {
-                        "type": "string"
-                      },
-                      "key": {
-                        "examples": [
-                          "email"
-                        ],
-                        "pattern": "^[a-z][a-z0-9_]*$",
-                        "type": "string"
-                      },
-                      "label": {
-                        "type": "string"
-                      },
-                      "type": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "key",
-                      "label",
-                      "type",
-                      "dir"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "isNew": {
-                  "type": "boolean"
-                },
-                "remote": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "type": {
-                  "examples": [
-                    "contact"
-                  ],
-                  "pattern": "^[a-z][a-z0-9_]*$",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "remote",
-                "isNew",
-                "title",
-                "existing",
-                "fields"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "ok",
-          "problems",
-          "objects",
-          "summary",
-          "size",
-          "types",
-          "samples"
-        ],
-        "type": "object"
-      },
-      "permission": "connectors.manage",
-      "resource": {
-        "type": "space"
-      },
-      "risk": "low",
-      "since": "1.0.0",
-      "summary": "Dry run of a SyncSpec: the record types it would make, three sample records drawn from the real page, and what the first pull would bring in. Writes nothing to Vyre or to the app",
-      "surfaces": {
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "audit": "always",
-      "effects": "write",
-      "emits": [
-        "sync.type_native",
-        "connection.deleted",
-        "connector.removed",
-        "schema.changed",
-        "schema.type_dropped"
-      ],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "permission.role_lacks_permission",
-        "validation.bad_input",
-        "validation.not_found",
-        "validation.precondition_failed"
-      ],
-      "examples": [
-        {
-          "input": {
-            "account": "example",
-            "records": "keep",
-            "type": "contact"
-          },
-          "name": "example",
-          "output": {
-            "detached": [
-              "contact"
-            ],
-            "removed": [
-              "contact"
-            ]
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "account": {
-            "type": "string"
-          },
-          "records": {
-            "enum": [
-              "keep",
-              "remove"
-            ],
-            "type": "string"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "records"
-        ],
-        "type": "object"
-      },
-      "level": "edit",
-      "module": "connectors",
-      "name": "sync_specs.remove",
-      "output": {
-        "properties": {
-          "detached": {
-            "items": {
-              "examples": [
-                "contact"
-              ],
-              "pattern": "^[a-z][a-z0-9_]*$",
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "removed": {
-            "items": {
-              "examples": [
-                "contact"
-              ],
-              "pattern": "^[a-z][a-z0-9_]*$",
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "detached",
-          "removed"
-        ],
-        "type": "object"
-      },
-      "permission": "connectors.manage",
-      "resource": {
-        "id": "/type",
-        "type": "record_type"
-      },
-      "risk": "medium",
-      "since": "1.0.0",
-      "summary": "Stop syncing an app into Records and remove its connector and connection; keep its records as plain records, or remove them with their types (a copy waits in Trash for 30 days)",
-      "surfaces": {
-        "agent": {
-          "planMode": "blocked"
-        },
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "read",
-      "emits": [],
-      "errors": [
-        "internal.unavailable",
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "permission.role_lacks_permission",
-        "validation.bad_input"
-      ],
-      "examples": [
-        {
-          "input": {
-            "auth": {
-              "header": "example",
-              "headers": {},
-              "prefix": "example",
-              "style": "bearer",
-              "vaultHandle": "#Dana_Lawmatics"
-            },
-            "domain": "api.example.com",
-            "items": 1,
-            "path": "/contacts",
-            "query": {},
-            "url": "example"
-          },
-          "name": "example",
-          "output": {
-            "estimate": {
-              "count": 1,
-              "source": "example"
-            },
-            "items": [
-              {}
-            ],
-            "nextLink": "example",
-            "ok": true,
-            "preview": "example",
-            "reason": "example",
-            "shape": {
-              "cursors": [
-                {
-                  "pointer": "example",
-                  "value": "example"
-                }
-              ],
-              "keys": [
-                "example"
-              ],
-              "kind": "object",
-              "lists": [
-                {
-                  "count": 1,
-                  "fields": [
-                    {
-                      "example": "example",
-                      "path": "example",
-                      "seen": 1,
-                      "type": "example"
-                    }
-                  ],
-                  "idAt": "example",
-                  "itemsAt": "example",
-                  "updatedAtGuess": "example"
-                }
-              ],
-              "totals": [
-                {
-                  "pointer": "example",
-                  "value": 1
-                }
-              ]
-            },
-            "status": 1
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "auth": {
-            "$ref": "#/$defs/s_360f676900"
-          },
-          "domain": {
-            "examples": [
-              "api.example.com"
-            ],
-            "type": "string"
-          },
-          "items": {
-            "maximum": 10,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "path": {
-            "examples": [
-              "/contacts"
-            ],
-            "type": "string"
-          },
-          "query": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "url": {
-            "description": "A full address on the same host, such as a next link",
-            "type": "string"
-          }
-        },
-        "required": [
-          "auth",
-          "domain",
-          "path"
-        ],
-        "type": "object"
-      },
-      "level": "view",
-      "module": "connectors",
-      "name": "sync_specs.sample",
-      "output": {
-        "properties": {
-          "estimate": {
-            "properties": {
-              "count": {
-                "type": "integer"
-              },
-              "source": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "count",
-              "source"
-            ],
-            "type": "object"
-          },
-          "items": {
-            "items": {
-              "description": "Any JSON value"
-            },
-            "type": "array"
-          },
-          "nextLink": {
-            "type": "string"
-          },
-          "ok": {
-            "type": "boolean"
-          },
-          "preview": {
-            "type": "string"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "shape": {
-            "properties": {
-              "cursors": {
-                "items": {
-                  "properties": {
-                    "pointer": {
-                      "type": "string"
-                    },
-                    "value": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "pointer",
-                    "value"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "keys": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "kind": {
-                "enum": [
-                  "object",
-                  "array",
-                  "empty",
-                  "text"
-                ],
-                "type": "string"
-              },
-              "lists": {
-                "items": {
-                  "properties": {
-                    "count": {
-                      "type": "integer"
-                    },
-                    "fields": {
-                      "items": {
-                        "properties": {
-                          "example": {
-                            "type": "string"
-                          },
-                          "path": {
-                            "type": "string"
-                          },
-                          "seen": {
-                            "type": "integer"
-                          },
-                          "type": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "path",
-                          "type",
-                          "seen"
-                        ],
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "idAt": {
-                      "type": "string"
-                    },
-                    "itemsAt": {
-                      "type": "string"
-                    },
-                    "updatedAtGuess": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "itemsAt",
-                    "count",
-                    "fields"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "totals": {
-                "items": {
-                  "properties": {
-                    "pointer": {
-                      "type": "string"
-                    },
-                    "value": {
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "pointer",
-                    "value"
-                  ],
-                  "type": "object"
-                },
-                "type": "array"
-              }
-            },
-            "required": [
-              "kind",
-              "lists",
-              "cursors",
-              "totals"
-            ],
-            "type": "object"
-          },
-          "status": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "status",
-          "ok"
-        ],
-        "type": "object"
-      },
-      "permission": "connectors.manage",
-      "resource": {
-        "type": "space"
-      },
-      "risk": "low",
-      "since": "1.0.0",
-      "summary": "Read one page of an app, read-only (GET only), with a Vault handle as the key: where the lists are, what one item holds, how the next page is asked for, a total if there is one. Also reads field-metadata and schema endpoints",
-      "surfaces": {
-        "cli": "vyre sync-spec sample",
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "read",
-      "emits": [],
-      "errors": [
-        "internal.unavailable",
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "permission.role_lacks_permission",
-        "validation.bad_input"
-      ],
-      "examples": [
-        {
-          "input": {
-            "auth": {
-              "header": "example",
-              "headers": {},
-              "prefix": "example",
-              "style": "bearer",
-              "vaultHandle": "#Dana_Lawmatics"
-            },
-            "domain": "example",
-            "paths": [
-              "example"
-            ]
-          },
-          "name": "example",
-          "output": {
-            "results": [
-              {
-                "lists": [
-                  {
-                    "count": 1,
-                    "fields": 1,
-                    "idAt": "example",
-                    "itemsAt": "example"
-                  }
-                ],
-                "nextLink": true,
-                "path": "example",
-                "reason": "example",
-                "status": 1,
-                "total": 1
-              }
-            ]
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "auth": {
-            "$ref": "#/$defs/s_360f676900"
-          },
-          "domain": {
-            "type": "string"
-          },
-          "paths": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 12,
-            "minItems": 1,
-            "type": "array"
-          }
-        },
-        "required": [
-          "auth",
-          "domain",
-          "paths"
-        ],
-        "type": "object"
-      },
-      "level": "view",
-      "module": "connectors",
-      "name": "sync_specs.survey",
-      "output": {
-        "properties": {
-          "results": {
-            "items": {
-              "properties": {
-                "lists": {
-                  "items": {
-                    "properties": {
-                      "count": {
-                        "type": "integer"
-                      },
-                      "fields": {
-                        "type": "integer"
-                      },
-                      "idAt": {
-                        "type": "string"
-                      },
-                      "itemsAt": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "itemsAt",
-                      "count",
-                      "fields"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "nextLink": {
-                  "type": "boolean"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "reason": {
-                  "type": "string"
-                },
-                "status": {
-                  "type": "integer"
-                },
-                "total": {
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "path",
-                "status",
-                "lists"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "results"
-        ],
-        "type": "object"
-      },
-      "permission": "connectors.manage",
-      "resource": {
-        "type": "space"
-      },
-      "risk": "low",
-      "since": "1.0.0",
-      "summary": "Read up to 12 paths of an app at once, read-only, and say for each what lists it holds, how many items, a total if given. Use it to see which objects an app has",
-      "surfaces": {
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "read",
-      "emits": [],
-      "errors": [
-        "internal.unavailable",
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "permission.role_lacks_permission",
-        "validation.bad_input"
-      ],
-      "examples": [
-        {
-          "input": {
-            "spec": {
-              "app": {
-                "account": "example",
-                "docsUrl": "example",
-                "domain": "api.example.com",
-                "logoHint": "example",
-                "name": "example"
-              },
-              "auth": {
-                "header": "example",
-                "headers": {},
-                "prefix": "example",
-                "style": "bearer",
-                "vaultHandle": "#Dana_Lawmatics"
-              },
-              "mapping": [
-                {
-                  "createAtSource": true,
-                  "deletes": "off",
-                  "fields": [
-                    {
-                      "direction": "both",
-                      "field": "email",
-                      "path": "/id"
-                    }
-                  ],
-                  "match": [
-                    "/id"
-                  ],
-                  "recordType": "contact",
-                  "remote": "example",
-                  "stagesFrom": "/id",
-                  "title": "example",
-                  "titleField": "/id"
-                }
-              ],
-              "objects": [
-                {
-                  "count": 1,
-                  "create": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "delete": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "fields": [
-                    {
-                      "choices": [
-                        {
-                          "label": "Lead",
-                          "value": "lead"
-                        }
-                      ],
-                      "label": "example",
-                      "path": "/id",
-                      "readOnly": true,
-                      "relationTo": "example",
-                      "type": "text"
-                    }
-                  ],
-                  "get": {
-                    "path": "example"
-                  },
-                  "id": "/id",
-                  "itemsAt": "/id",
-                  "label": "example",
-                  "list": {
-                    "cursor": {
-                      "kind": "none",
-                      "next": "/id",
-                      "param": "example",
-                      "size": 1,
-                      "sizeParam": "example",
-                      "start": 1
-                    },
-                    "filter": {
-                      "param": "example",
-                      "value": "example"
-                    },
-                    "path": "/contacts",
-                    "query": {},
-                    "updatedSince": {
-                      "format": "example",
-                      "param": "example"
-                    }
-                  },
-                  "openUrl": "example",
-                  "remote": "example",
-                  "update": {
-                    "bodyAt": "example",
-                    "evidence": "example",
-                    "idAt": "/id",
-                    "method": "POST",
-                    "path": "/contacts/{id}"
-                  },
-                  "updatedAt": "/id",
-                  "webhook": {
-                    "events": [
-                      "example"
-                    ],
-                    "evidence": "example",
-                    "manualUrl": true,
-                    "signature": "example",
-                    "subscribePath": "example"
-                  }
-                }
-              ],
-              "plan": {
-                "audience": "space",
-                "backfill": "later",
-                "conflicts": "newest",
-                "firstPull": {
-                  "words": "example"
-                }
-              }
-            }
-          },
-          "name": "example",
-          "output": {
-            "objects": [
-              {
-                "fieldsFound": 1,
-                "fieldsMissing": [
-                  "example"
-                ],
-                "hasNext": true,
-                "items": 1,
-                "remote": "example",
-                "status": 1
-              }
-            ],
-            "ok": true,
-            "problems": [
-              {
-                "at": "example",
-                "level": "error",
-                "message": "example"
-              }
-            ]
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "$ref": "#/$defs/s_658fdc8731"
-      },
-      "level": "view",
-      "module": "connectors",
-      "name": "sync_specs.validate",
-      "output": {
-        "properties": {
-          "objects": {
-            "$ref": "#/$defs/s_fa21fe852f"
-          },
-          "ok": {
-            "type": "boolean"
-          },
-          "problems": {
-            "$ref": "#/$defs/s_88ed0578b4"
-          }
-        },
-        "required": [
-          "ok",
-          "problems",
-          "objects"
-        ],
-        "type": "object"
-      },
-      "permission": "connectors.manage",
-      "resource": {
-        "type": "space"
-      },
-      "risk": "low",
-      "since": "1.0.0",
-      "summary": "Check a SyncSpec against a real sampled page of the app (read-only GET with the Vault handle): the list, ids, next page, every mapped field path, value types and choices. Writes nothing",
-      "surfaces": {
-        "cli": "vyre sync-spec validate",
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "audit": "always",
-      "effects": "write",
-      "emits": [
         "sync.type_updated"
       ],
       "errors": [
@@ -174891,7 +174037,6 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "decision": "mark_removed",
             "type": "contact"
           },
@@ -174904,9 +174049,6 @@
       "idempotency": "natural",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "decision": {
             "enum": [
               "mark_removed",
@@ -174976,18 +174118,14 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "conflict": "newest",
             "connectionId": "con_a1b2c3",
             "createAtSource": true,
             "deletes": "off",
             "fields": [
               {
-                "constant": "example",
                 "dir": "pull",
-                "inverse": "email",
                 "key": "email",
-                "relation": "contact",
                 "remote": "example",
                 "transform": "example"
               }
@@ -175008,11 +174146,6 @@
           "name": "example",
           "output": {
             "syncedType": {
-              "account": "example",
-              "app": {
-                "domain": "example",
-                "title": "example"
-              },
               "conflict": "newest",
               "conflicts": 1,
               "connectionId": "con_a1b2c3",
@@ -175021,11 +174154,8 @@
               "deletes": "off",
               "fields": [
                 {
-                  "constant": "example",
                   "dir": "pull",
-                  "inverse": "email",
                   "key": "email",
-                  "relation": "contact",
                   "remote": "example",
                   "transform": "example"
                 }
@@ -175053,10 +174183,6 @@
       "idempotency": "key",
       "input": {
         "properties": {
-          "account": {
-            "description": "Which account of the app this binding reads; accounts of one app share the record type",
-            "type": "string"
-          },
           "conflict": {
             "enum": [
               "newest",
@@ -175085,7 +174211,7 @@
             "type": "string"
           },
           "fields": {
-            "$ref": "#/$defs/s_a78d49b059"
+            "$ref": "#/$defs/s_19d778ba55"
           },
           "idempotencyKey": {
             "examples": [
@@ -175138,7 +174264,7 @@
       "module": "connectors",
       "name": "sync_types.create",
       "output": {
-        "$ref": "#/$defs/s_3c6509eaaa"
+        "$ref": "#/$defs/s_72c6b56e17"
       },
       "permission": "connectors.manage",
       "resource": {
@@ -175306,151 +174432,11 @@
       "examples": [
         {
           "input": {
-            "field": "email",
-            "recordId": "rec_a1b2c3",
-            "type": "contact"
-          },
-          "name": "example",
-          "output": {
-            "entries": [
-              {
-                "actor": "example",
-                "at": 1760000000000,
-                "by": "example",
-                "historyId": "example",
-                "replacedBy": "app",
-                "value": {}
-              }
-            ]
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "field": {
-            "examples": [
-              "email"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "recordId": {
-            "examples": [
-              "rec_a1b2c3"
-            ],
-            "pattern": "^rec_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "recordId",
-          "field"
-        ],
-        "type": "object"
-      },
-      "label": "check",
-      "level": "view",
-      "module": "connectors",
-      "name": "sync_types.field_history",
-      "output": {
-        "properties": {
-          "entries": {
-            "items": {
-              "properties": {
-                "actor": {
-                  "type": "string"
-                },
-                "at": {
-                  "description": "Milliseconds since the Unix epoch",
-                  "examples": [
-                    1760000000000
-                  ],
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "by": {
-                  "type": "string"
-                },
-                "historyId": {
-                  "type": "string"
-                },
-                "replacedBy": {
-                  "enum": [
-                    "app",
-                    "you",
-                    "push"
-                  ],
-                  "type": "string"
-                },
-                "value": {
-                  "description": "Any JSON value"
-                }
-              },
-              "required": [
-                "historyId",
-                "value",
-                "replacedBy",
-                "actor"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "entries"
-        ],
-        "type": "object"
-      },
-      "permission": null,
-      "resource": {
-        "id": "/recordId",
-        "type": "record"
-      },
-      "risk": "low",
-      "since": "1.0.0",
-      "summary": "The earlier values of one field that a newest-wins settlement replaced: yours when the app was newer, the app's when you were",
-      "surfaces": {
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "read",
-      "emits": [],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "validation.bad_input",
-        "validation.not_found"
-      ],
-      "examples": [
-        {
-          "input": {
-            "account": "example",
             "type": "contact"
           },
           "name": "example",
           "output": {
             "syncedType": {
-              "account": "example",
-              "app": {
-                "domain": "example",
-                "title": "example"
-              },
               "conflict": "newest",
               "conflicts": 1,
               "connectionId": "con_a1b2c3",
@@ -175459,11 +174445,8 @@
               "deletes": "off",
               "fields": [
                 {
-                  "constant": "example",
                   "dir": "pull",
-                  "inverse": "email",
                   "key": "email",
-                  "relation": "contact",
                   "remote": "example",
                   "transform": "example"
                 }
@@ -175491,9 +174474,6 @@
       "idempotency": "natural",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "type": {
             "examples": [
               "contact"
@@ -175512,7 +174492,7 @@
       "module": "connectors",
       "name": "sync_types.get",
       "output": {
-        "$ref": "#/$defs/s_3c6509eaaa"
+        "$ref": "#/$defs/s_72c6b56e17"
       },
       "permission": null,
       "resource": {
@@ -175551,11 +174531,6 @@
             "next": "example",
             "syncedTypes": [
               {
-                "account": "example",
-                "app": {
-                  "domain": "example",
-                  "title": "example"
-                },
                 "conflict": "newest",
                 "conflicts": 1,
                 "connectionId": "con_a1b2c3",
@@ -175564,11 +174539,8 @@
                 "deletes": "off",
                 "fields": [
                   {
-                    "constant": "example",
                     "dir": "pull",
-                    "inverse": "email",
                     "key": "email",
-                    "relation": "contact",
                     "remote": "example",
                     "transform": "example"
                   }
@@ -175627,7 +174599,7 @@
           },
           "syncedTypes": {
             "items": {
-              "$ref": "#/$defs/s_43654a6b85"
+              "$ref": "#/$defs/s_2795589129"
             },
             "type": "array"
           },
@@ -175669,7 +174641,6 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "cursor": "example",
             "limit": 1,
             "type": "contact"
@@ -175692,30 +174663,7 @@
       ],
       "idempotency": "natural",
       "input": {
-        "properties": {
-          "account": {
-            "type": "string"
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 500,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
+        "$ref": "#/$defs/s_627d7922b1"
       },
       "level": "view",
       "module": "connectors",
@@ -175816,7 +174764,6 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "type": "contact"
           },
           "name": "example",
@@ -175828,9 +174775,6 @@
       "idempotency": "natural",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "type": {
             "examples": [
               "contact"
@@ -175893,7 +174837,6 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "type": "contact"
           },
           "name": "example",
@@ -175905,9 +174848,6 @@
       "idempotency": "natural",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "type": {
             "examples": [
               "contact"
@@ -175965,7 +174905,6 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "direction": "pull",
             "type": "contact"
           },
@@ -175995,9 +174934,6 @@
       "idempotency": "natural",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "direction": {
             "enum": [
               "pull",
@@ -176109,190 +175045,6 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Dry run: what a sync would do, such as will update 34 records in HubSpot, and the first-sync match counts",
-      "surfaces": {
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "read",
-      "emits": [],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "validation.bad_input",
-        "validation.not_found"
-      ],
-      "examples": [
-        {
-          "input": {
-            "recordId": "rec_a1b2c3",
-            "type": "contact"
-          },
-          "name": "example",
-          "output": {
-            "app": {
-              "domain": "example",
-              "key": "hubspot",
-              "title": "example"
-            },
-            "fields": [
-              {
-                "at": 1760000000000,
-                "dir": "pull",
-                "error": "example",
-                "history": 1,
-                "key": "email",
-                "outboxId": "obx_a1b2c3",
-                "state": "synced"
-              }
-            ],
-            "lastSyncAt": 1760000000000,
-            "openUrl": "example",
-            "remoteId": "example",
-            "state": "synced",
-            "synced": true
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "$ref": "#/$defs/s_9287e79a4f"
-      },
-      "label": "check",
-      "level": "view",
-      "module": "connectors",
-      "name": "sync_types.record_state",
-      "output": {
-        "properties": {
-          "app": {
-            "properties": {
-              "domain": {
-                "type": "string"
-              },
-              "key": {
-                "examples": [
-                  "hubspot"
-                ],
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "key",
-              "title"
-            ],
-            "type": "object"
-          },
-          "fields": {
-            "items": {
-              "properties": {
-                "at": {
-                  "description": "Milliseconds since the Unix epoch",
-                  "examples": [
-                    1760000000000
-                  ],
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "dir": {
-                  "enum": [
-                    "pull",
-                    "push",
-                    "both",
-                    "off"
-                  ],
-                  "type": "string"
-                },
-                "error": {
-                  "type": "string"
-                },
-                "history": {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "key": {
-                  "examples": [
-                    "email"
-                  ],
-                  "pattern": "^[a-z][a-z0-9_]*$",
-                  "type": "string"
-                },
-                "outboxId": {
-                  "examples": [
-                    "obx_a1b2c3"
-                  ],
-                  "pattern": "^obx_[a-z0-9]+$",
-                  "type": "string"
-                },
-                "state": {
-                  "enum": [
-                    "synced",
-                    "saving",
-                    "failed",
-                    "local"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "key",
-                "dir",
-                "state",
-                "history"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "lastSyncAt": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          },
-          "openUrl": {
-            "type": "string"
-          },
-          "remoteId": {
-            "type": "string"
-          },
-          "state": {
-            "enum": [
-              "synced",
-              "saving",
-              "failed",
-              "local"
-            ],
-            "type": "string"
-          },
-          "synced": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "synced",
-          "state",
-          "fields"
-        ],
-        "type": "object"
-      },
-      "permission": null,
-      "resource": {
-        "id": "/recordId",
-        "type": "record"
-      },
-      "risk": "low",
-      "since": "1.0.0",
-      "summary": "Where one record came from and how each of its synced fields is doing: saved, saving, failed or only here, with the address to open it in the app",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -176490,108 +175242,6 @@
     {
       "effects": "write",
       "emits": [
-        "record.updated"
-      ],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "permission.role_lacks_permission",
-        "validation.bad_input",
-        "validation.field_locked",
-        "validation.not_found"
-      ],
-      "examples": [
-        {
-          "input": {
-            "field": "email",
-            "historyId": "example",
-            "recordId": "rec_a1b2c3",
-            "type": "contact"
-          },
-          "name": "example",
-          "output": {
-            "ok": true,
-            "runId": "run_a1b2c3"
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "field": {
-            "examples": [
-              "email"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "historyId": {
-            "type": "string"
-          },
-          "recordId": {
-            "examples": [
-              "rec_a1b2c3"
-            ],
-            "pattern": "^rec_[a-z0-9]+$",
-            "type": "string"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "recordId",
-          "field",
-          "historyId"
-        ],
-        "type": "object"
-      },
-      "level": "edit",
-      "module": "connectors",
-      "name": "sync_types.restore_field",
-      "output": {
-        "properties": {
-          "ok": {
-            "type": "boolean"
-          },
-          "runId": {
-            "examples": [
-              "run_a1b2c3"
-            ],
-            "pattern": "^run_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "ok"
-        ],
-        "type": "object"
-      },
-      "permission": "records.edit",
-      "resource": {
-        "id": "/recordId",
-        "type": "record"
-      },
-      "risk": "medium",
-      "since": "1.0.0",
-      "summary": "Put an earlier value of a field back (an ordinary edit, newer than the app's value, so it is sent on the next pass) and start that pass",
-      "surfaces": {
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "write",
-      "emits": [
         "sync.type_resumed"
       ],
       "errors": [
@@ -176605,7 +175255,6 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "type": "contact"
           },
           "name": "example",
@@ -176617,9 +175266,6 @@
       "idempotency": "natural",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "type": {
             "examples": [
               "contact"
@@ -176683,7 +175329,6 @@
             "accept": [
               "example"
             ],
-            "account": "example",
             "ignore": [
               "example"
             ],
@@ -176704,9 +175349,6 @@
               "type": "string"
             },
             "type": "array"
-          },
-          "account": {
-            "type": "string"
           },
           "ignore": {
             "items": {
@@ -176777,7 +175419,6 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "type": "contact"
           },
           "name": "example",
@@ -176796,9 +175437,6 @@
       "idempotency": "natural",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "type": {
             "examples": [
               "contact"
@@ -176863,289 +175501,6 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "Remote schema changes waiting for review (for example 3 changes to review)",
-      "surfaces": {
-        "http": "auto",
-        "mcp": {
-          "toolset": "records"
-        }
-      },
-      "v": 1
-    },
-    {
-      "effects": "read",
-      "emits": [],
-      "errors": [
-        "internal.unexpected",
-        "permission.above_clearance",
-        "permission.no_grant",
-        "validation.bad_input",
-        "validation.not_found"
-      ],
-      "examples": [
-        {
-          "input": {
-            "account": "example",
-            "type": "contact"
-          },
-          "name": "example",
-          "output": {
-            "account": "example",
-            "accounts": [
-              {
-                "account": "example",
-                "estimate": 1,
-                "pending": 1,
-                "records": 1,
-                "state": "example"
-              }
-            ],
-            "app": {
-              "domain": "example",
-              "key": "hubspot",
-              "title": "example"
-            },
-            "canBackfill": true,
-            "catchingUp": true,
-            "conflict": "newest",
-            "conflicts": 1,
-            "deletes": "off",
-            "estimate": 1,
-            "failedPushes": 1,
-            "failures": [
-              {
-                "at": 1760000000000,
-                "summary": "example"
-              }
-            ],
-            "filter": "example",
-            "lastRun": {
-              "at": 1760000000000,
-              "summary": "example"
-            },
-            "nextPollAt": 1760000000000,
-            "paused": true,
-            "pending": 1,
-            "polling": {
-              "activeSec": 30,
-              "dormantSec": 300,
-              "idleSec": 60
-            },
-            "records": 1,
-            "schemaChanges": 1,
-            "sentToday": 1,
-            "spec": true,
-            "state": "initial",
-            "type": "contact"
-          }
-        }
-      ],
-      "idempotency": "natural",
-      "input": {
-        "properties": {
-          "account": {
-            "type": "string"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "label": "check",
-      "level": "view",
-      "module": "connectors",
-      "name": "sync_types.status",
-      "output": {
-        "properties": {
-          "account": {
-            "type": "string"
-          },
-          "accounts": {
-            "items": {
-              "properties": {
-                "account": {
-                  "type": "string"
-                },
-                "estimate": {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "pending": {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "records": {
-                  "minimum": 0,
-                  "type": "integer"
-                },
-                "state": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "account",
-                "state",
-                "records",
-                "pending"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "app": {
-            "properties": {
-              "domain": {
-                "type": "string"
-              },
-              "key": {
-                "examples": [
-                  "hubspot"
-                ],
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "key",
-              "title"
-            ],
-            "type": "object"
-          },
-          "canBackfill": {
-            "type": "boolean"
-          },
-          "catchingUp": {
-            "type": "boolean"
-          },
-          "conflict": {
-            "enum": [
-              "newest",
-              "source",
-              "vyre",
-              "ask"
-            ],
-            "type": "string"
-          },
-          "conflicts": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "deletes": {
-            "enum": [
-              "off",
-              "soft",
-              "travel"
-            ],
-            "type": "string"
-          },
-          "estimate": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "failedPushes": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "failures": {
-            "items": {
-              "$ref": "#/$defs/s_1fbdcd20b0"
-            },
-            "type": "array"
-          },
-          "filter": {
-            "type": "string"
-          },
-          "lastRun": {
-            "$ref": "#/$defs/s_1fbdcd20b0"
-          },
-          "nextPollAt": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          },
-          "paused": {
-            "type": "boolean"
-          },
-          "pending": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "polling": {
-            "$ref": "#/$defs/s_101a8e8ab2"
-          },
-          "records": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "schemaChanges": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "sentToday": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "spec": {
-            "type": "boolean"
-          },
-          "state": {
-            "enum": [
-              "initial",
-              "syncing",
-              "paused",
-              "needs_review",
-              "error"
-            ],
-            "type": "string"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "app",
-          "state",
-          "paused",
-          "deletes",
-          "conflict",
-          "polling",
-          "records",
-          "canBackfill",
-          "pending",
-          "failedPushes",
-          "conflicts",
-          "schemaChanges",
-          "failures",
-          "sentToday",
-          "spec"
-        ],
-        "type": "object"
-      },
-      "permission": null,
-      "resource": {
-        "id": "/type",
-        "type": "record_type"
-      },
-      "risk": "low",
-      "since": "1.0.0",
-      "summary": "The Sync page of a synced type: last pass, counts, failures, pushes waiting, whether a first-pull filter still holds, and the next poll",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -177235,17 +175590,13 @@
       "examples": [
         {
           "input": {
-            "account": "example",
             "conflict": "newest",
             "createAtSource": true,
             "deletes": "off",
             "fields": [
               {
-                "constant": "example",
                 "dir": "pull",
-                "inverse": "email",
                 "key": "email",
-                "relation": "contact",
                 "remote": "example",
                 "transform": "example"
               }
@@ -177264,11 +175615,6 @@
           "name": "example",
           "output": {
             "syncedType": {
-              "account": "example",
-              "app": {
-                "domain": "example",
-                "title": "example"
-              },
               "conflict": "newest",
               "conflicts": 1,
               "connectionId": "con_a1b2c3",
@@ -177277,11 +175623,8 @@
               "deletes": "off",
               "fields": [
                 {
-                  "constant": "example",
                   "dir": "pull",
-                  "inverse": "email",
                   "key": "email",
-                  "relation": "contact",
                   "remote": "example",
                   "transform": "example"
                 }
@@ -177309,9 +175652,6 @@
       "idempotency": "natural",
       "input": {
         "properties": {
-          "account": {
-            "type": "string"
-          },
           "conflict": {
             "enum": [
               "newest",
@@ -177333,7 +175673,7 @@
             "type": "string"
           },
           "fields": {
-            "$ref": "#/$defs/s_a78d49b059"
+            "$ref": "#/$defs/s_19d778ba55"
           },
           "match": {
             "items": {
@@ -177368,7 +175708,7 @@
       "module": "connectors",
       "name": "sync_types.update",
       "output": {
-        "$ref": "#/$defs/s_3c6509eaaa"
+        "$ref": "#/$defs/s_72c6b56e17"
       },
       "permission": "connectors.manage",
       "resource": {
@@ -198990,6 +197330,13 @@
         "google.dwd.map_member",
         "google.dwd.disable",
         "google.health",
+        "google.user.app_status",
+        "google.user.app_set",
+        "google.user.start",
+        "google.user.complete",
+        "google.user.list",
+        "google.user.remove",
+        "google.user.send_message",
         "google.receive_push",
         "google.gmail.get_profile",
         "google.gmail.list_labels",
@@ -199276,6 +197623,13 @@
         "ms.consent.setup",
         "ms.consent.verify",
         "ms.consent.my_account",
+        "ms.user.app_status",
+        "ms.user.app_set",
+        "ms.user.start",
+        "ms.user.complete",
+        "ms.user.list",
+        "ms.user.remove",
+        "ms.user.send_message",
         "ms.consent.members",
         "ms.consent.set_excluded",
         "ms.directory.list",
@@ -210208,6 +208562,21 @@
       "vis": "space"
     },
     {
+      "module": "google",
+      "name": "google.user_connected",
+      "payload": {
+        "$ref": "#/$defs/s_e6d65cc314"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/accountId",
+        "type": "entity"
+      },
+      "summary": "A person signed in to their own Google account",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
       "module": "access",
       "name": "grant.created",
       "payload": {
@@ -214436,6 +212805,21 @@
         "type": "connector"
       },
       "summary": "A verified Graph change notification arrived",
+      "sv": 1,
+      "vis": "space"
+    },
+    {
+      "module": "microsoft",
+      "name": "microsoft.user_connected",
+      "payload": {
+        "$ref": "#/$defs/s_e6d65cc314"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/accountId",
+        "type": "entity"
+      },
+      "summary": "A person signed in to their own Microsoft account",
       "sv": 1,
       "vis": "space"
     },

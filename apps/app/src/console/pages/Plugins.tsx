@@ -7,8 +7,9 @@ import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
-import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Segmented, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { Tick } from "./ai-controls.tsx";
+import { AppHubsSection, OauthSignIn } from "./AppHubs.tsx";
 
 type Markets = CapMap["plugins.marketplaces.list"]["out"];
 type Browse = CapMap["plugins.browse"]["out"];
@@ -35,6 +36,7 @@ export function PluginsPage(): ReactElement {
   const [openPlugin, setOpenPlugin] = useState<string | null>(null);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [conn, setConn] = useState({ name: "", url: "", command: "", header: "" });
+  const [viaOauth, setViaOauth] = useState(false);
   const refresh = (): void => { markets.refresh(); installed.refresh(); connections.refresh(); browse.refresh(); };
   const action = useAction(refresh);
   if (!markets.data || !installed.data) return <ReadState error={markets.error ?? installed.error} retry={refresh} />;
@@ -88,15 +90,17 @@ export function PluginsPage(): ReactElement {
         <Button label="Remove plugin" danger testID="plugin-remove" disabled={action.busy} onPress={() => void action.run("plugins.uninstall", { pluginId: selected.pluginId, idempotencyKey: attempt() }, "Plugin removed").then(() => setOpenPlugin(null))} />
       </Actions>
     </Group></Section> : null}
-    <Section title="Outside tools" count={connections.data?.connections.length ?? ""}><Group>
+    <AppHubsSection />
+    <Section title="Outside tools" count={(connections.data?.connections ?? []).filter((c) => c.hub === undefined).length}><Group>
       <Help>Connect an MCP server by its https address or a sandbox command.</Help>
-      {(connections.data?.connections ?? []).map((c) => <Row key={c.connectionId} id={`conn-${c.name}`} title={c.name} note={c.url ?? `${c.command ?? ""} ${c.args.join(" ")}`.trim()} trailing={<Button label="Disconnect" disabled={action.busy} onPress={() => void action.run("plugins.connection.remove", { connectionId: c.connectionId, idempotencyKey: attempt() }, "Disconnected")} />} />)}
+      {(connections.data?.connections ?? []).filter((c) => c.hub === undefined).map((c) => <Row key={c.connectionId} id={`conn-${c.name}`} title={c.name} note={c.url ?? `${c.command ?? ""} ${c.args.join(" ")}`.trim()} trailing={<Actions>{c.auth === "oauth" ? <OauthSignIn conn={c} refresh={refresh} /> : null}<Button label="Disconnect" disabled={action.busy} onPress={() => void action.run("plugins.connection.remove", { connectionId: c.connectionId, idempotencyKey: attempt() }, "Disconnected")} /></Actions>} />)}
       <Field label="Name" testID="conn-name" value={conn.name} onChange={(v) => setConn({ ...conn, name: v })} />
       <Field label="Address (https) or leave empty and give a command" testID="conn-url" value={conn.url} onChange={(v) => setConn({ ...conn, url: v })} />
       <Field label="Command" testID="conn-command" value={conn.command} onChange={(v) => setConn({ ...conn, command: v })} />
-      <Field label="Authorization, as a Vault handle such as #Crm_Key.token" testID="conn-header" value={conn.header} onChange={(v) => setConn({ ...conn, header: v })} />
+      {viaOauth ? null : <Field label="Authorization, as a Vault handle such as #Crm_Key.token" testID="conn-header" value={conn.header} onChange={(v) => setConn({ ...conn, header: v })} />}
+      {conn.url.trim() ? <Segmented options={[{ key: "key", title: "A key" }, { key: "oauth", title: "Sign in" }]} value={viaOauth ? "oauth" : "key"} onChange={(k) => setViaOauth(k === "oauth")} /> : null}
       <Actions><Button label="Connect" testID="conn-add" disabled={action.busy || conn.name.trim() === "" || (conn.url.trim() === "") === (conn.command.trim() === "")}
-        onPress={() => void action.run("plugins.connection.add", { name: conn.name.trim(), scope: "space", ...(conn.url.trim() ? { url: conn.url.trim(), ...(conn.header.trim() ? { headers: { Authorization: conn.header.trim() } } : {}) } : { command: conn.command.trim().split(/\s+/)[0], args: conn.command.trim().split(/\s+/).slice(1) }), idempotencyKey: attempt() }, "Connected").then((out) => { if (out) setConn({ name: "", url: "", command: "", header: "" }); })} /></Actions>
+        onPress={() => void action.run("plugins.connection.add", { name: conn.name.trim(), scope: "space", ...(conn.url.trim() ? { url: conn.url.trim(), ...(viaOauth ? { auth: "oauth" } : {}), ...(!viaOauth && conn.header.trim() ? { headers: { Authorization: conn.header.trim() } } : {}) } : { command: conn.command.trim().split(/\s+/)[0], args: conn.command.trim().split(/\s+/).slice(1) }), idempotencyKey: attempt() }, "Connected").then((out) => { if (out) setConn({ name: "", url: "", command: "", header: "" }); })} /></Actions>
     </Group></Section>
   </View>;
 }

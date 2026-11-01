@@ -18,6 +18,8 @@ import { Glyph as Icon } from "../schemamap/icons.tsx";
 import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
 import { FieldMark, SyncChip, historyMenu, markOf, useRecordSync } from "../sync/index.ts";
 import type { HistoryEntry, RecordSync } from "../sync/index.ts";
+import { useOptionalRecordsData } from "../sidebar/data.tsx";
+import { useRecordRights } from "../sharing/useRecordAccess.ts";
 import { tabsOf, visibleSections, withStages } from "./groups.ts";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
@@ -31,6 +33,7 @@ import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { channelFieldToAdd, findContact } from "./askfor.ts";
 import { ActivityTab, ChatTab, CommentsTab, FilesTab } from "../recordpane/index.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
+import { SealedField } from "./SealedField.tsx";
 
 export interface RecordPageStart {
   /** The relationship map open. */
@@ -126,6 +129,8 @@ function FieldRow(q: FieldProps): ReactElement {
         {q.editing!.error ? <Text style={p.errText} accessibilityRole="alert" testID={`error-${f.key}`}>{q.editing!.error}</Text> : null}
       </View>
     );
+  } else if (f.type === "sealed") {
+    body = <SealedField field={f} row={row} type={q.type} />;
   } else if (f.type === "relation") {
     const cards: ReactElement[] = [];
     for (const id of relationIds(f, row)) cards.push(<RelationCard key={id} field={f} id={id} />);
@@ -398,6 +403,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         <Text accessibilityRole="header" aria-level={1} style={p.h1} numberOfLines={1} testID="record-title-crumb">{title}</Text></> : null}
         <View style={p.grow} />
         {rs.sync?.synced && rs.sync.app ? <SyncChip app={rs.sync.app} openUrl={rs.sync.openUrl} onSync={data.nav.openSync ? () => data.nav.openSync!(type) : undefined} /> : null}
+        <ShareButton recordId={recordId} title={title} typeName={def.plural} wide={wide} />
         {late ? <><Pressable accessibilityRole="button" accessibilityLabel="Relationships" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, map && p.lit]}>Relationships</Text> : null}</Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Details" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, paneOpen && p.lit]}>Details</Text> : null}</Pressable></> : null}
       </View>
@@ -435,6 +441,18 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
       </View>
       {menu.element}
     </View>
+  );
+}
+
+/** Share, in a Team Space, for someone who may share this record. A Personal Space and a viewer draw nothing. */
+function ShareButton({ recordId, title, typeName, wide }: { recordId: string; title: string; typeName: string; wide: boolean }): ReactElement | null {
+  const data = useOptionalRecordsData();
+  const { on, can } = useRecordRights(recordId);
+  if (!on || !(can.manage || can.share)) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Share" testID="record-share-btn" onPress={() => data?.share?.open({ type: "record", id: recordId, name: title, typeName })} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver]}>
+      <Glyph name="share" size={14} color="var(--ink-2)" />{wide ? <Text style={p.hbText}>Share</Text> : null}
+    </Pressable>
   );
 }
 

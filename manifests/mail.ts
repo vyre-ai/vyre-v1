@@ -136,6 +136,9 @@ const manifest = defineManifest({
     }),
     write('mail.mailbox.pause', 'Pause a mailbox connection; filing and sync stop', { in: { mailboxId: id.mailbox }, out: { mailbox: mailboxRow }, on: ['mailbox', '/mailboxId'], level: 'manage', emits: ['mailbox.paused'], audit: 'always', tool: 'inbox' }),
     write('mail.mailbox.resume', 'Resume a paused mailbox connection', { in: { mailboxId: id.mailbox }, out: { mailbox: mailboxRow }, on: ['mailbox', '/mailboxId'], level: 'manage', emits: ['mailbox.resumed'], audit: 'always', tool: 'inbox' }),
+    write('mail.mailbox.set_sync_state', 'A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings', {
+      in: { mailboxId: id.mailbox, state: t.enm('error', 'syncing'), reason: t.opt(t.str()) }, out: { mailbox: mailboxRow }, on: ['mailbox', '/mailboxId'], level: 'use', emits: ['mailbox.sync_failed'], tool: 'inbox', idem: 'natural',
+    }),
     write('mail.mailbox.disconnect', 'Remove a mailbox connection (mail already filed to records stays)', {
       in: { mailboxId: id.mailbox }, out: { disconnected: t.bool() }, on: ['mailbox', '/mailboxId'], level: 'manage', emits: ['mailbox.disconnected'], audit: 'always', tool: 'inbox',
       gate: { act: 'delete', when: "actor.kind != 'person'" },
@@ -144,6 +147,7 @@ const manifest = defineManifest({
       in: {
         provider: t.enm('google', 'microsoft', 'imap'), address: email, privacy: t.opt(privacy),
         imap: t.opt(t.obj({ host: t.str(), port: t.int(), secure: t.bool(), username: t.str(), passwordHandle: id.handle })),
+        connectionId: t.opt(t.str({ pattern: '^(gua|mua)_[0-9a-f]{32}$', examples: ['gua_0123456789abcdef0123456789abcdef'], description: "A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) the mailbox reads and sends through" })),
       },
       out: { mailbox: mailboxRow }, emits: ['mailbox.connected'], idem: 'key', tool: 'inbox', offline: 'online', errors: ['provider.auth_failed', 'validation.duplicate'],
     }),

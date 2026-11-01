@@ -74,4 +74,11 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.sheets.get_spreadsheet": async (ctx) => { throw new VyreErr(notImplemented("google.sheets.get_spreadsheet", ctx.trace)); },
   "google.sheets.get_values": async (ctx) => { throw new VyreErr(notImplemented("google.sheets.get_values", ctx.trace)); },
   "google.sheets.update_values": async (ctx) => { throw new VyreErr(notImplemented("google.sheets.update_values", ctx.trace)); },
+  "google.user.app_set": async (ctx) => { throw new VyreErr(notImplemented("google.user.app_set", ctx.trace)); },
+  "google.user.app_status": async (ctx) => { throw new VyreErr(notImplemented("google.user.app_status", ctx.trace)); },
+  "google.user.complete": async (ctx) => { throw new VyreErr(notImplemented("google.user.complete", ctx.trace)); },
+  "google.user.list": async (ctx) => { throw new VyreErr(notImplemented("google.user.list", ctx.trace)); },
+  "google.user.remove": async (ctx) => { throw new VyreErr(notImplemented("google.user.remove", ctx.trace)); },
+  "google.user.send_message": async (ctx) => { throw new VyreErr(notImplemented("google.user.send_message", ctx.trace)); },
+  "google.user.start": async (ctx) => { throw new VyreErr(notImplemented("google.user.start", ctx.trace)); },
 };

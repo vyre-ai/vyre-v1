@@ -31,11 +31,13 @@ const mcpSpec = t.obj({
   command: t.opt(t.str()), args: t.arr(t.str()), env: t.rec(t.str()), url: t.opt(t.str()), headers: t.rec(t.str()),
   files: t.opt(t.str({ description: 'Plugin id whose files the command runs from; the folder is ${CLAUDE_PLUGIN_ROOT}' })),
   needs: t.arr(t.str({ description: 'Options of the plugin that have no value yet; the server is not started until they do' })),
+  hub: t.opt(t.enm('composio', 'pipedream')), oauth: t.opt(t.bool()), connectionId: t.opt(mcsId),
 });
 const hookRow = t.obj({ pluginId: plgId, plugin: t.str(), event: t.str({ examples: ['PostToolUse'] }), matcher: t.str(), command: t.str(), args: t.arr(t.str()), timeoutSec: t.opt(t.int({ minimum: 1 })) });
 const connectionRow = t.obj({
   connectionId: mcsId, name: t.str(), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), transport: t.enm('stdio', 'http'), url: t.opt(t.str()), command: t.opt(t.str()), args: t.arr(t.str()),
   env: t.rec(t.str()), headers: t.rec(t.str()), enabled: t.bool(), createdAt: t.ts(),
+  hub: t.opt(t.enm('composio', 'pipedream')), auth: t.opt(t.enm('oauth')),
 });
 const allowRow = t.obj({ kind: t.enm('marketplace', 'plugin'), marketplace: t.str(), plugin: t.opt(t.str()), by: t.str(), at: t.ts() });
 const handleMap = t.rec(t.str({ description: 'A value, or a Vault handle such as #Dana_Api.token for a secret' }));
@@ -102,7 +104,7 @@ export const pluginCapabilities: CapabilityDef[] = [
   }),
   write('plugins.connection.add', 'Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model', {
     in: {
-      name: t.str({ examples: ['crm'] }), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), url: t.opt(t.str()), command: t.opt(t.str()), args: t.opt(t.arr(t.str())), env: t.opt(handleMap), headers: t.opt(handleMap),
+      name: t.str({ examples: ['crm'] }), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), url: t.opt(t.str()), command: t.opt(t.str()), args: t.opt(t.arr(t.str())), env: t.opt(handleMap), headers: t.opt(handleMap), hub: t.opt(t.enm('composio', 'pipedream')), auth: t.opt(t.enm('oauth')),
     },
     out: { connection: connectionRow }, perm: 'agents.manage', level: 'manage', risk: 'high', idem: 'key', audit: 'always', emits: ['plugin.connection_added'], tool: 'agents', mcpName: 'plugins_connection_add', errors: ['validation.duplicate'],
   }),

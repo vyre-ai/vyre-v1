@@ -411,6 +411,15 @@ test("send_as sends through the member's Gmail and answers with the Gmail id", a
   assert.equal(r.sent().length, 1);
 });
 
+test("send_as through a mailbox made by the person's own sign-in uses that account, not the Space's delegation", async () => {
+  const r = rig();
+  r.h.ctx.db.run(`UPDATE mail_mailbox SET "connectionId" = ? WHERE id = ?`, "gua_0123456789abcdef0123456789abcdef", "mbx_maya");
+  const out = await sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Re: Own", text: "Yes.", idempotencyKey: "as-own" });
+  assert.equal(out.providerId, "gu_1");
+  assert.deepEqual(r.calls("google.user.send_message")[0]!.input, { accountId: "gua_0123456789abcdef0123456789abcdef", to: ["pat@acme.test"], subject: "Re: Own", text: "Yes.", idempotencyKey: out.messageId });
+  assert.equal(r.calls("google.gmail.send_message").length, 0);
+});
+
 test("send_as through Graph answers with the message id only", async () => {
   const r = rig();
   const out = await sendAs(r.ctx, { mailboxId: "mbx_sam", to: [{ address: "pat@acme.test" }], subject: "Hi", html: "<p>Hi</p>", idempotencyKey: "as-2" });

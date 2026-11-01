@@ -6,6 +6,7 @@ import { LogStore } from "./store.ts";
 import { IdempotencyTable } from "../idempotency/table.ts";
 import type { NewEvent } from "./types.ts";
 import { compact, compactSeqs } from "../events/compact.ts";
+import { forgetField } from "../events/forget-field.ts";
 
 export interface WorkerInit { path: string; space: string; windowMs: number; maxBatch: number }
 const init = workerData as WorkerInit;
@@ -59,6 +60,7 @@ port.on("message", (m: { req: number; op: string; args?: any }) => {
       case "idem_get": return port.postMessage({ req: m.req, ok: true, value: idem.get(m.args.key, Date.now()) });
       case "idem_put": return port.postMessage({ req: m.req, ok: true, value: idem.put(m.args.key, m.args.principal, m.args.cap, m.args.rec, Date.now()) });
       case "idem_settle": return port.postMessage({ req: m.req, ok: true, value: idem.settle(m.args.key, m.args.principal, m.args.cap, m.args.rec, Date.now()) });
+      case "idem_forget_field": return port.postMessage({ req: m.req, ok: true, value: forgetField(store.db, m.args.type, m.args.field) });
       case "idem_purge": return port.postMessage({ req: m.req, ok: true, value: idem.purge(Date.now()) });
       case "close": flush(); store.close(); return port.postMessage({ req: m.req, ok: true, value: null });
       default: return port.postMessage({ req: m.req, ok: false, error: { code: "internal", message: `unknown op ${m.op}` } });

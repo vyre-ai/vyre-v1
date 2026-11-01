@@ -24,6 +24,7 @@ import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded } from "./handlers/task-baton.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
+import { bindOauthStore } from "./mcp-oauth.ts";
 import { createPluginTools } from "./plugin-tools.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -116,6 +117,8 @@ async function resolveOne(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedA
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
 function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<ResolvedAccount | null> {
+  // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
+  if (h.openSession) return (q) => resolveOne(h, q);
   return createRunnableAccount({
     call: h.call, resolve: (q) => resolveOne(h, q), ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
     ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
@@ -210,6 +213,7 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
  * (a daemon without the engine seam, or a unit test), in which case the control handlers keep raising internal.unavailable.
  */
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
+  bindOauthStore(ctx as never);   // the sealed MCP sign-in tokens are read through the module's own ctx (db, seal, clock)
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;

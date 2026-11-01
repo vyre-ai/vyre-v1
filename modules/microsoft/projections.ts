@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
+import type { Sealed } from "../../packages/contracts/src/ctx.ts";
 
 export interface MsDb {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -35,6 +36,7 @@ export interface MsCtx {
   http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
   log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
   schedule(at: number | string, cap: string, input: unknown): Promise<string>;
+  seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -56,6 +58,11 @@ export interface MsHost {
   download(ctx: MsCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
   /** PUT a Space file to a Graph content address and return Graph's JSON answer. */
   upload(ctx: MsCtx, a: { url: string; token: string; fileId: string; ifMatch?: string }): Promise<unknown>;
+  /** A person's own sign-in (handlers/personal.ts): the OAuth client of a Vault item, the address people come back to, the code traded for tokens, an access token from a refresh token. */
+  userApp(ctx: MsCtx, handle: string): Promise<{ clientId: string; hasSecret: boolean; tenant?: string }>;
+  userPublicUrl(ctx: MsCtx): Promise<string>;
+  userExchange(ctx: MsCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
+  userRefresh(ctx: MsCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
 }
 
 let host: MsHost | null = null;
@@ -105,7 +112,7 @@ export function bad(ctx: Pick<MsCtx, "trace">, message: string): never {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_microsoft_core.sql", "0002_microsoft_teams.sql", "0003_microsoft_calendar.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_microsoft_core.sql", "0002_microsoft_teams.sql", "0003_microsoft_calendar.sql", "0004_microsoft_user.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -181,8 +188,58 @@ export function query(q: Query | undefined): string {
 
 export const enc = (s: string): string => encodeURIComponent(s);
 
+// ---- a person's own account
+
+/** Connection ids that name a person's own Microsoft sign-in instead of the tenant's application consent. */
+export const USER_PREFIX = "mua_";
+export const isUserConnection = (connectionId: string): boolean => connectionId.startsWith(USER_PREFIX);
+/** A person's own token reaches their own mailbox as Graph's /me (a personal Microsoft account has no /users/{id}); the subject names it so. */
+export const ME = "me";
+
+export interface UserAccount { accountId: string; ownerId: string; email: string; refreshSealed: string; mailboxId: string | null; fixTaskId: string | null }
+const accountOfRow = (r: Row): UserAccount => ({ accountId: str(r, "accountId"), ownerId: str(r, "ownerId"), email: str(r, "email"), refreshSealed: str(r, "refreshSealed"), mailboxId: strOrNull(r, "mailboxId"), fixTaskId: strOrNull(r, "fixTaskId") });
+
+/** A person's account is theirs alone; the host's own services (the poll that runs with nobody signed in) act for them. */
+function userUsable(ctx: MsCtx, a: UserAccount): boolean {
+  return a.ownerId === (ctx.actingFor ?? ctx.principal.id) || isTrustedService(ctx.principal);
+}
+
+export function userAccount(ctx: MsCtx, accountId: string): UserAccount {
+  ensure(ctx);
+  const r = first(ctx.db.all(`SELECT * FROM microsoft_user_account WHERE "accountId" = ?`, accountId));
+  const a = r ? accountOfRow(r) : null;
+  if (!a || !userUsable(ctx, a)) throw fail("validation.not_found", ctx.trace.traceId, { message: "There is no such Microsoft sign-in." });
+  return a;
+}
+
+/** The signed-in account behind a mailbox address, for the pull. */
+export function userAccountByEmail(ctx: MsCtx, email: string): UserAccount | null {
+  ensure(ctx);
+  return rowsOf(ctx.db.all(`SELECT * FROM microsoft_user_account WHERE email = ?`, email)).map(accountOfRow).sort((a, b) => a.accountId.localeCompare(b.accountId))[0] ?? null;
+}
+
+export function userAppHandle(ctx: MsCtx): string {
+  ensure(ctx);
+  const handle = strOrNull(first(ctx.db.all(`SELECT "vaultItem" FROM microsoft_user_app WHERE id = ?`, CONFIG_ID)), "vaultItem");
+  if (!handle) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft sign-in is not set up. Add a Microsoft OAuth app first." });
+  return handle;
+}
+
+/** An access token for a person's own account. The refresh token is sealed in this module's table, opened for this one call and handed to the host, which keeps only the access token. */
+async function userToken(ctx: MsCtx, accountId: string, fresh: boolean): Promise<string> {
+  const a = userAccount(ctx, accountId);
+  const refreshToken = new TextDecoder().decode(ctx.seal.unseal(JSON.parse(a.refreshSealed) as Sealed));
+  return (await needHost(ctx).userRefresh(ctx, { appHandle: userAppHandle(ctx), refreshToken, cacheKey: accountId, ...(fresh ? { fresh: true } : {}) })).token;
+}
+
 /** Who the call acts as: the caller's mapped address, or another mapped member for an admin or a service. */
 export function subjectFor(ctx: MsCtx, c: Pick<Call, "connectionId" | "as" | "open">): string {
+  if (isUserConnection(c.connectionId)) {
+    // a person's own sign-in is one mailbox: theirs, and nobody else's
+    const a = userAccount(ctx, c.connectionId);
+    if (c.as && normalizeEmail(c.as) !== a.email) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This sign-in is for another address." });
+    return ME;
+  }
   const cfg = config(ctx);
   const person = isTrustedService(ctx.principal) ? null : (ctx.actingFor ?? ctx.principal.id);
   const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
@@ -205,6 +262,11 @@ export function subjectFor(ctx: MsCtx, c: Pick<Call, "connectionId" | "as" | "op
 async function tokenFor(ctx: MsCtx, connectionId: string, fresh: boolean): Promise<string> {
   const hit = tokens.get(connectionId);
   if (!fresh && hit && hit.expiresAt - ctx.now() > 60_000) return hit.token;
+  if (isUserConnection(connectionId)) {
+    const t = await userToken(ctx, connectionId, fresh);
+    tokens.set(connectionId, { token: t, expiresAt: ctx.now() + 55 * 60_000 });
+    return t;
+  }
   const minted = await needHost(ctx).mintToken(ctx, { connectionId });
   tokens.set(connectionId, minted);
   return minted.token;
@@ -219,7 +281,7 @@ function logCall(ctx: MsCtx, subject: string, cap: string, bulk: boolean): void 
 }
 
 /** `/users/{member}` for a path under it. */
-export const userUrl = (sub: string, path = ""): string => `${GRAPH}/users/${enc(sub)}${path}`;
+export const userUrl = (sub: string, path = ""): string => (sub === ME ? `${GRAPH}/me${path}` : `${GRAPH}/users/${enc(sub)}${path}`);
 
 const full = (url: string): string => (url.startsWith("https://") ? url : GRAPH + url);
 

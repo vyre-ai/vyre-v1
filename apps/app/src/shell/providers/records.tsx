@@ -24,6 +24,9 @@ import { useOptionalShellRuntime } from "./runtime.tsx";
 import { AskPane, ASK_CLOSED, askPaneReduce, makeAskVyre } from "../../places/records/askpane/index.ts";
 import { RecordsAssistant } from "./records-ask.tsx";
 import { SyncPage, editMappingOpening } from "../../places/records/sync/index.ts";
+import { RecordShareSheet } from "../../places/records/sharing/index.ts";
+import type { RecordsShare, ShareTarget } from "../../places/records/sidebar/index.ts";
+import { useDirectory } from "./automations-parts.tsx";
 
 const SIDEBAR_W = 240;
 
@@ -67,6 +70,11 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   }, [state.type, id, schemaView, syncType, opened]);
   // Ask Vyre opens a pane beside the page, in this tab; it never goes to Chats.
   const [pane, ask] = useReducer(askPaneReduce, ASK_CLOSED);
+  // Sharing: a Team Space only (a Personal Space has no one to share with). The sheet is the Files Share sheet with the Records line on top.
+  const [sharing, setSharing] = useState<ShareTarget | null>(null);
+  const directory = useDirectory(rt);
+  const team = rt.space.kind !== "personal";
+  const share = useMemo<RecordsShare | undefined>(() => (team ? { open: setSharing } : undefined), [team]);
   const schema = useMemo<SchemaData>(() => ({
     screens: rt.screens,
     call: rt.call,
@@ -87,14 +95,14 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
     const { openSync, bringInCrm, ...plainNav } = base.nav;
     const nav = canSync ? base.nav : plainNav;
     void openSync; void bringInCrm;
-    return { ...base, askVyre: makeAskVyre(ask, { type, screen: target.screen }), nav: { ...nav, openRecord: (recordId: string) => {
+    return { ...base, ...(share ? { share } : {}), askVyre: makeAskVyre(ask, { type, screen: target.screen }), nav: { ...nav, openRecord: (recordId: string) => {
       const open = (): void => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} });
       // an Agents row opens the agent's own page; a row with no agent behind it opens the "not set up" page
       if (type !== "agent") { open(); return; }
       void agentOfRecord(rt.call, recordId).then((r) => { if ("agent" in r) openAgent(rt, r.agent.agentId); else open(); }, open);
     } } };
-  }, [rt, type, target.screen, canEdit, canSync]);
-  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: editMappingOpening(a) } }), closed: () => opened({}) }} canManage /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{pane.open ? <AskPane about={pane.about} onClose={() => ask({ type: "close" })}><RecordsAssistant rt={rt} about={pane.about} /></AskPane> : null}</View></RecordsDataProvider>;
+  }, [rt, type, target.screen, canEdit, canSync, share]);
+  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: editMappingOpening(a) } }), closed: () => opened({}) }} canManage /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{pane.open ? <AskPane about={pane.about} onClose={() => ask({ type: "close" })}><RecordsAssistant rt={rt} about={pane.about} /></AskPane> : null}{sharing ? <RecordShareSheet target={sharing} directory={{ people: directory.people, groups: directory.groups, agents: directory.agents }} onClose={() => setSharing(null)} /> : null}</View></RecordsDataProvider>;
 }
 
 export default function RecordsPlace(_props: { place: string }): ReactElement {

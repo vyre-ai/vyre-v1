@@ -35,6 +35,7 @@ type In = {
     username: string;
     passwordHandle: string;
   };
+  connectionId?: string;
   idempotencyKey: string;
 };
 ```
@@ -74,6 +75,7 @@ type Out = {
   "name": "example",
   "input": {
     "address": "maya@example.com",
+    "connectionId": "gua_0123456789abcdef0123456789abcdef",
     "idempotencyKey": "idem_1",
     "imap": {
       "host": "example",
