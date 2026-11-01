@@ -1,1 +1,0 @@
-When an agent starts working on its computer for a chat, the chat gets a small live view of its screen in the message. It follows the work as it happens, opens the computer when pressed, and turns into the last picture it showed, marked Done, when the work ends.

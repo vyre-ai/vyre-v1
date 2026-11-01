@@ -1,1 +1,0 @@
-A Crew card and its row follow the repository: a branch merged or pushed by the lead, a person in a terminal or the button reads as Merged and pushed on its own, a stale Merge says it is already merged, and the lead can merge or push when told in plain words (held for approval).

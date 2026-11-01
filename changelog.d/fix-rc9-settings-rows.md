@@ -1,2 +1,0 @@
-- Settings menus show their whole value. Time zone and Working hours were clipped to a sliver.
-- A row that does nothing is no longer announced as a button.

@@ -1,2 +1,0 @@
-The Computer tab in a chat now shows the agent's screen live. Press Take over and your clicks, right clicks, wheel and keys go to its desktop right there, without opening a window. Give back returns the controls and says in the chat, as you, "I took care of it. Carry on.", so the agent picks the work up again on your account.
-Files an agent makes on a computer that joined the Space are said in the chat too, the same way.

@@ -1,1 +1,0 @@
-- An agent acting for a person is judged by the person it acts for in access.share, audience_set and the other sharing calls (the host's actingFor is an id string; the module read .id of it and saw no one), so an agent with a grant now acts as far as its own grants and its asker's access allow together, and no further.

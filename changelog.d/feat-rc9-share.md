@@ -1,1 +1,0 @@
-- Share to...: a message goes to a channel or a person as a card; the chat it came from gets a line saying where it went; both open the other chat.

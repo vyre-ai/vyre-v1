@@ -1,2 +1,0 @@
-The Terminal tab in the chat pane opens a terminal again in a Personal Space. It named no computer, so the Space answered that it needed one and the tab said "Could not open". It now opens on this computer, or on the chat agent's computer when it has one. Where the app is not on a computer (the web, a phone) it offers the computers and servers the person has, or says there is none, and a failure shows the real reason.
-Give back in the Computer tab no longer fails to tell the agent to carry on: the message carried an id the chat refuses.

@@ -1,1 +1,0 @@
-- On a Mac, git now works inside the engine's Seatbelt sandbox. Apple's /usr/bin/git is a shim that needs the developer folders and the Xcode license preference to be readable, and with them closed every git command a crew teammate ran failed ("unable to load libxcrun"). They are opened for reading only.

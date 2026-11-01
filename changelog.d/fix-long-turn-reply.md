@@ -1,1 +1,0 @@
-A reply is never lost to a long turn. A turn with many tool calls used to be refused by chat (a message holds at most 20 blocks) and the person saw nothing. Now the tool steps fold into one summary line, cards and files past the limit follow in messages of their own, and if a post is still refused the person gets the words and a failed turn they can retry.

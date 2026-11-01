@@ -1,1 +1,0 @@
-A send an agent wants to make now shows what will go out. In Needs you, a held email shows the draft (to, subject, the text) with the record it is about beside it, and the buttons say Send and Ask for changes; Ask for changes sends it back to the agent with your note and sends nothing. The same card shows when the task is opened from Home.

@@ -1,1 +1,0 @@
-- A restart within 20 seconds of a crash no longer leaves a turn that was running stuck: the engine's periodic job looks again for threads whose lease nobody beats any more, instead of trying once at boot.

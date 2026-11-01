@@ -1,1 +1,0 @@
-- A chat opened while an agent is mid-answer, on any device, or after the link dropped and came back, shows the answer written so far at once and follows it live (engine.live_turns; every piece now says where it starts, so nothing is doubled or lost). Catch me up now reads 'Maya and 1 other wrote. 2 decisions, 1 task, and you're mentioned.'

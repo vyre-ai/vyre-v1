@@ -1,1 +1,0 @@
-A crew teammate's start is one line ("Ember is on Dark mode") that opens its thread, the Crew tab rows have room between the face and the text, and the chat header no longer stays on Working because of a teammate's open line.

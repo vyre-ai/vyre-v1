@@ -1,1 +1,0 @@
-- A second answer to an agent that is still working on a real CLI no longer leaves it quiet: a message that arrives during a turn waits for the turn to end and is then sent as the next turn of the same send (the real CLI folds a mid-turn message into the running turn, so the engine waited for a result that never came).

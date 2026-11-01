@@ -1,1 +1,0 @@
-- A running turn whose lease store has gone away (the host shut down under it) ends its heartbeat quietly; the beat used to throw out of a timer with "database is not open" and take the process down.

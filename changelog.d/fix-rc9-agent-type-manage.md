@@ -1,1 +1,0 @@
-- An agent that makes a record type for a person now holds Manage on that type (the person owns it), so it can set who the type is open to in the same piece of work; it still acts only as far as its own grants and the person's access allow together.

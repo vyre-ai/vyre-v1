@@ -1,1 +1,0 @@
-- On a Mac, the developer folders git needs inside the sandbox are the ones xcode-select names (a hosted runner's Xcode is /Applications/Xcode_26.6.app, not Xcode.app), plus the fixed ones that exist.
