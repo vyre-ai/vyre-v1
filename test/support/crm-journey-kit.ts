@@ -97,11 +97,11 @@ export function hostErrors(d: Daemon): string {
 
 /** The Vault, unlocked as the owner does in Settings, with the CRM's key in a Shared folder so the Space can use it. Returns the handle a spec names. */
 export async function vaultKey(s: Space, app: "Ledger" | "Orbit"): Promise<string> { return (await vaultItemOf(s, app)).handle; }
-export async function vaultItemOf(s: Space, app: "Ledger" | "Orbit"): Promise<{ id: string; handle: string; name: string }> {
+export async function vaultItemOf(s: Space, app: "Ledger" | "Orbit", label = ""): Promise<{ id: string; handle: string; name: string }> {
   const unlock = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${s.d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
   if (unlock.status !== 204 && unlock.status !== 409) throw new Error(`unlock ${unlock.status}`);
-  const folder = (await ok(s, "vault.folders.create", { name: `${app} keys`, scope: "shared" })).folder.id as string;
-  return (await ok(s, "vault.item.put", { folderId: folder, name: `${app} Key`, kind: "api_key", fields: [{ key: "api_key", value: s.keys[app], secret: true }] })).item as { id: string; handle: string; name: string };
+  const folder = (await ok(s, "vault.folders.create", { name: `${app}${label} keys`, scope: "shared" })).folder.id as string;
+  return (await ok(s, "vault.item.put", { folderId: folder, name: `${app}${label} Key`, kind: "api_key", fields: [{ key: "api_key", value: s.keys[app], secret: true }] })).item as { id: string; handle: string; name: string };
 }
 
 /** Waits until a check holds; the message names what never happened. */
@@ -178,7 +178,13 @@ export async function connectAi(s: Space): Promise<void> {
 }
 
 /** The assistant, with the two permissions an admin adds for this work, and Use access to the CRM key. Returns the agent id. */
-export async function trustAssistant(s: Space, vaultItemId: string): Promise<string> {
+export async function trustAssistant(s: Space, vaultItemId: string, existing?: string): Promise<string> {
+  const agentId = existing ?? await createAssistant(s);
+  // a Team Space shares the item with the agent by name; a Personal one has no sharing, the person's own agents use their items
+  if (s.kind === "team") await ok(s, "vault.share", { resource: { type: "vault_item", id: vaultItemId }, subject: { kind: "agent", id: agentId }, level: "use" });
+  return agentId;
+}
+async function createAssistant(s: Space): Promise<string> {
   const agentId = (await ok(s, "agents.create", { name: "Assistant", role: "You are the person's assistant." })).agent.agentId as string;
   const roles = (await ok(s, "access.roles.list", {})).roles as { id: string; builtIn: boolean; permissions: string[] }[];
   const member = roles.find((r) => r.builtIn && /member/i.test((r as { name?: string }).name ?? "")) ?? roles.find((r) => r.builtIn && !/owner|admin/i.test((r as { name?: string }).name ?? ""));
@@ -188,8 +194,6 @@ export async function trustAssistant(s: Space, vaultItemId: string): Promise<str
   const preview = await ok(s, "access.roles.preview", { roleId: role.id, permissions: wanted });
   await ok(s, "access.roles.apply", { roleId: role.id, permissions: wanted, previewHash: preview.previewHash });
   await ok(s, "access.roles.assign", { subject: { kind: "agent", id: agentId }, roleId: role.id });
-  // a Team Space shares the item with the agent by name; a Personal one has no sharing, the person's own agents use their items
-  if (s.kind === "team") await ok(s, "vault.share", { resource: { type: "vault_item", id: vaultItemId }, subject: { kind: "agent", id: agentId }, level: "use" });
   return agentId;
 }
 

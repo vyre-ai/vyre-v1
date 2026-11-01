@@ -145,18 +145,22 @@ test("journey 3, Team: an admin brings the CRM in once, the app calls the Space'
   } finally { await s.stop(); }
 });
 
-test("journey 4, Team with four locations: each location is its own account of one type, every record says where it came from, and one failing account does not stop the others", async () => {
+test("journey 4, Team with several locations: each location is its own account of one type, brought in by chat, every record says where it came from", async () => {
   const s = await startSpace({ kind: "team", name: "Firm", address: "https://firm.example" });
   try {
-    const handle = await vaultKey(s, "Ledger");
-    await ok(s, "sync_specs.apply", { spec: withHandle(ledgerAccountSpec("Main"), handle), idempotencyKey: "j4-main" });
-    await ok(s, "sync_specs.apply", { spec: withHandle(ledgerAccountSpec("Paris", "b"), handle), idempotencyKey: "j4-paris" });
-    await until("both accounts arrive", async () => (await rows(s, "person")).some((r) => nameOf(r) === "Gus Hale") && (await rows(s, "person")).some((r) => nameOf(r) === "Ed Park"));
+    await connectAi(s);
+    const main = await vaultItemOf(s, "Ledger", " Main");
+    const agentId = await trustAssistant(s, main.id);
+    await bringInByChat(s, agentId, { ...ledgerKnow(main.handle), account: "Main" } as Know, main);
+    await until("Main arrives", async () => (await rows(s, "person").catch(() => [])).some((r) => nameOf(r) === "Ed Park"), 90_000);
+    // the second location: another key, another tenant of the same app, asked for the same way
+    const paris = await vaultItemOf(s, "Ledger", " Paris");
+    await trustAssistant(s, paris.id, agentId);
+    await bringInByChat(s, agentId, { ...ledgerKnow(paris.handle, "Paris", "b"), account: "Paris", query: { people: { tenant: "b" } } } as Know, paris);
+    await until("Paris arrives", async () => (await rows(s, "person").catch(() => [])).some((r) => nameOf(r) === "Gus Hale"), 90_000);
     const people = await rows(s, "person");
-    const from = new Set(people.map((r) => String(r.data?.from ?? r.fields?.from)));
-    assert.deepEqual([...from].sort(), ["Main", "Paris"]);
-    const status = await ok(s, "sync_types.status", { type: "person" });
-    assert.equal(status.accounts.length, 2);
+    assert.deepEqual([...new Set(people.map((r) => String(r.data?.from ?? r.fields?.from)))].sort(), ["Main", "Paris"]);
+    assert.equal((await ok(s, "sync_types.status", { type: "person" })).accounts.length, 2);
     await viaBrowser(s, "team", async (page) => {
       const pics = shots(OUT, "4-team-accounts");
       await openSync(s, page);
