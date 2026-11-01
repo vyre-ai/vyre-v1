@@ -19,7 +19,7 @@ const limits = t.obj({
   runCostMicros: t.opt(t.int()), dayCostMicros: t.opt(t.int()), monthCostMicros: t.opt(t.int()), turnsPerDay: t.opt(t.int()), minutesPerRun: t.opt(t.int()), tokensPerDay: t.opt(t.int()),
 });
 const agentRow = t.obj({
-  agentId: id.agent, name: t.str(), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
+  agentId: id.agent, name: t.str(), kind: t.opt(t.enm('assistant', 'teammate', 'agent')), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
   status: agentStatus, pausedReason: t.opt(t.str()), pausedBy: t.opt(t.str()), ownerId: id.user, folderId: id.folder,
   model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
   accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
@@ -255,7 +255,7 @@ export default defineManifest({
     ev('agent.paused', 'An agent was paused', { p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is paused' } }),
     ev('agent.resumed', 'An agent was resumed', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.owner_changed', 'An agent was handed to another person', { p: { agentId: id.agent, from: id.user, to: id.user, by: t.str() }, subject: ['agent', '/agentId'] }),
-    ev('agent.deleted', 'An agent moved to Trash', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
+    ev('agent.deleted', 'An agent moved to Trash', { p: { agentId: id.agent, name: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.restored', 'An agent came back from Trash', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.config_changed', 'AGENT.md, agent.toml or the agent record changed (a new version was saved)', {
       p: { agentId: id.agent, fields: t.arr(t.str()), versionId: t.opt(id.version), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent configuration changes', fields: ['/fields'] },

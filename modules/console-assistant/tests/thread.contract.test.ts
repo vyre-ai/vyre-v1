@@ -25,7 +25,7 @@ const AGENT = "agt_a1b2c3";
 /** A Space where the example ids exist: the person has an assistant, an open thread thr_a1b2c3, and (for Apply and Reject) the proposed card dif_a1b2c3. */
 async function populated(withCard: boolean): Promise<{ h: Harness; ctx: AssistCtx }> {
   const h = harness({
-    "agents.list": { agents: [{ agentId: AGENT, ownerId: PERSON, role: "assistant" }] },
+    "agents.list": { agents: [{ agentId: AGENT, ownerId: PERSON, role: "assistant", kind: "assistant" }] },
     "chat.start": { threadId: "thr_a1b2c3" },
     "threads.update": { threadId: "thr_a1b2c3" },
     "settings.set_space": { key: "ui.density" },

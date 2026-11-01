@@ -1,4 +1,5 @@
 // What the right column shows: the real state a step has set up so far, read from the Space. Nothing is invented: an empty answer is "Not yet" with a one-line hint of what will appear.
+import { isAssistantRow } from "../../../../lib/agent-kind.ts";
 import type { CapCall } from "../shell/session/caps.ts";
 import type { CardKind } from "./flow.ts";
 
@@ -36,8 +37,8 @@ export async function previewFor(call: CapCall, card: CardKind): Promise<Preview
       };
     }
     case "agents": {
-      const r = await safe(async () => (await call("agents.list", { limit: 100 })) as { agents: { agentId: string; name: string; role?: string }[] }, { agents: [] });
-      return { heading: "Agents", items: r.agents.filter((a) => a.role !== "assistant").map((a) => ({ id: a.agentId, label: a.name, ...(a.role ? { note: a.role } : {}) })), hint: "Not yet. The agents your Kit brings appear here." };
+      const r = await safe(async () => (await call("agents.list", { limit: 100 })) as { agents: { agentId: string; name: string; kind?: string; role?: string }[] }, { agents: [] });
+      return { heading: "Agents", items: r.agents.filter((a) => !isAssistantRow(a)).map((a) => ({ id: a.agentId, label: a.name, ...(a.role ? { note: a.role } : {}) })), hint: "Not yet. The agents your Kit brings appear here." };
     }
     case "org": {
       const r = await safe(async () => (await call("kits.list", { limit: 50 })) as { kits: { kitId: string; title: string; installed: boolean }[] }, { kits: [] });

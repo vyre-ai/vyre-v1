@@ -344,3 +344,16 @@ test("adminOnly: the default rule does not hold a service's send, a rule somebod
   const on = await ask(true);
   assert.deepEqual([on.hold, on.adminRule], [true, true]);
 });
+
+test("a deleted agent's holds can no longer be approved: each is dropped, and a mid-send one is left to recovery", async () => {
+  const h = harness();
+  const a = await park(h);
+  const other = await park(h, { decisionId: "dec_2", principal: bot2 }, as(bot2));
+  const spec = consumers["gate.agent_deleted"];
+  assert.deepEqual(spec.on, ["agent.deleted"]);
+  const done = await spec.run(h.ctxFor(null, svc), { payload: { agentId: bot.id } });
+  assert.deepEqual(done, [a.holdId]);
+  assert.equal(findHold(h.db, a.holdId)!.state, "denied");
+  assert.equal(findHold(h.db, other.holdId)!.state, "held", "another agent's hold stands");
+  assert.deepEqual(h.callsTo("tasks.withdraw").map((x) => [x.input.taskId, x.input.note]), [[a.taskId, "The agent that asked was deleted."]]);
+});

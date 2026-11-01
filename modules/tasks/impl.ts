@@ -4,6 +4,7 @@ import { handlers } from "./handlers/index.ts";
 export { handlers };
 import { countNeedsYou } from "./handlers/state.ts";
 import { resumeRunOf } from "./handlers/resume.ts";
+import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
 export { applyMove, checkMove, commitMove, planMove, submitTarget, afterReview } from "./handlers/state.ts";
@@ -18,4 +19,7 @@ export const hostCalls = {
 /** A Run waiting on a task goes on when the task is Done or Canceled, whichever way it got there (handlers/resume.ts). */
 export const consumers = {
   "tasks.run_resume": { on: ["task.transitioned"], run: (ctx: TasksCtx, event: Parameters<typeof resumeRunOf>[1]) => resumeRunOf(ctx, event) },
+  /** Nothing waits on someone who is gone: what they held moves on, with one line of history. */
+  "tasks.person_left": { on: ["member.removed"], run: (ctx: TasksCtx, event: Parameters<typeof onPersonLeft>[1]) => onPersonLeft(ctx, event) },
+  "tasks.agent_deleted": { on: ["agent.deleted"], run: (ctx: TasksCtx, event: Parameters<typeof onAgentDeleted>[1]) => onAgentDeleted(ctx, event) },
 };

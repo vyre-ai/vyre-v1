@@ -16,7 +16,7 @@ const BOSS = "usr_boss";
 const ASSISTANT = "agt_asst";
 const world = (allow: string[] = ALL_PERMS): Harness =>
   harness({
-    "agents.list": { agents: [{ agentId: "agt_other", ownerId: BOSS, role: "worker" }, { agentId: ASSISTANT, ownerId: BOSS, role: "assistant" }, { agentId: "agt_theirs", ownerId: "usr_x", role: "assistant" }] },
+    "agents.list": { agents: [{ agentId: "agt_other", ownerId: BOSS, role: "worker" }, { agentId: ASSISTANT, ownerId: BOSS, role: "assistant", kind: "assistant" }, { agentId: "agt_theirs", ownerId: "usr_x", role: "assistant" }] },
     "chat.start": { threadId: "thr_console1" },
     "threads.update": { threadId: "thr_console1" },
   }, allow);
@@ -76,7 +76,7 @@ test("an agent acting for the person opens the person's thread", async () => {
 });
 
 test("without an assistant the pane gets a clear precondition error and no thread row", async () => {
-  const h = harness({ "agents.list": { agents: [{ agentId: "agt_theirs", ownerId: "usr_x", role: "assistant" }] } });
+  const h = harness({ "agents.list": { agents: [{ agentId: "agt_theirs", ownerId: "usr_x", role: "assistant", kind: "assistant" }] } });
   await assert.rejects(handlers["console.assistant_open"](h.as(BOSS), { page: "console.overview", idempotencyKey: "idem_1" }), (e: unknown) => codeOf(e) === "validation.precondition_failed");
   assert.equal(h.raw.rows("console_assistant_thread").length, 0);
   assert.equal(h.calls.some((c) => c.cap === "chat.start"), false);

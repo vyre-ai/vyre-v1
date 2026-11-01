@@ -1,6 +1,7 @@
 // The live Assistant of the onboarding screen: the person's own Ask thread with their private assistant, about this screen. It opens (once per person and flow) as an Ask about the
 // onboarding screen, tells the Ask door where the person is (setScreenContext with the focus skill for this flow), and draws the same conversation component as every other chat.
 // It is drawn only when an AI account is connected; before that the screen speaks the scripted words and the cards still work.
+import { isAssistantRow } from "../../../../lib/agent-kind.ts";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text } from "react-native";
@@ -12,10 +13,10 @@ import { onboardingScreen } from "./screen-context.ts";
 
 const ChatsConversation = lazy(() => import("../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })));
 
-/** The person's private assistant, found the way the Console assistant finds it: their own personal agent with the assistant role. */
+/** The person's private assistant, found the way the Console assistant finds it: their own personal agent of kind assistant. */
 export async function findAssistant(rt: Pick<ShellRuntime, "call">, person: string): Promise<string | null> {
-  const out = (await rt.call("agents.list", { section: "personal", limit: 100 })) as { agents: { agentId: string; ownerId: string; role?: string }[] };
-  return out.agents.find((a) => a.ownerId === person && a.role === "assistant")?.agentId ?? null;
+  const out = (await rt.call("agents.list", { section: "personal", limit: 100 })) as { agents: { agentId: string; ownerId: string; kind?: string; role?: string }[] };
+  return out.agents.find((a) => a.ownerId === person && isAssistantRow(a))?.agentId ?? null;
 }
 
 export function AssistantThread({ rt, person, flow, step, progress }: { rt: ShellRuntime; person: string; flow: FlowKind; step: string | null; progress: Progress }): ReactElement {

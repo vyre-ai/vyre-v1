@@ -47,7 +47,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -55,7 +55,7 @@ const ready = new WeakSet<object>();
 /** Make sure the agents tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind FROM agents_agent WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -470,18 +470,20 @@ export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<str
 
 // ---- the agent row --------------------------------------------------------------------------------------------------------------------------------------
 
+/** What an agent is: the person's private assistant, a teammate made for one project, or an agent the Space shares. Stored as a column; the role line is only words. */
+export type AgentKind = "assistant" | "teammate" | "agent";
 export interface AgentRec {
-  id: string; name: string; face: string; ownerId: string; folderId?: string; tomlFileId?: string; agentMdFileId?: string; tomlText: string; config: AgentConfig; configError?: Problem;
+  id: string; name: string; kind: AgentKind; projectId?: string; face: string; ownerId: string; folderId?: string; tomlFileId?: string; agentMdFileId?: string; tomlText: string; config: AgentConfig; configError?: Problem;
   lastGoodVersionId?: string; hasComputer: boolean; templateVersion: number; paused: boolean; pausedReason?: string; pausedBy?: string; pausedAt?: number; working: number; lastActiveAt?: number;
   createdAt: number; updatedAt: number; deletedAt?: number;
 }
 export function agentOf(r: Row): AgentRec {
   const o: AgentRec = {
-    id: str(r["id"]), name: str(r["name"]), face: str(r["face"]), ownerId: str(r["ownerId"]), tomlText: str(r["tomlText"] ?? ""), config: parseJson<AgentConfig>(r["config"], newConfig({ name: str(r["name"]) })),
+    id: str(r["id"]), name: str(r["name"]), kind: r["kind"] === "assistant" || r["kind"] === "teammate" ? r["kind"] : "agent", face: str(r["face"]), ownerId: str(r["ownerId"]), tomlText: str(r["tomlText"] ?? ""), config: parseJson<AgentConfig>(r["config"], newConfig({ name: str(r["name"]) })),
     hasComputer: flag(r["hasComputer"]), templateVersion: num(r["templateVersion"] ?? 0), paused: flag(r["paused"]), working: num(r["working"] ?? 0), createdAt: num(r["createdAt"]), updatedAt: num(r["updatedAt"]),
   };
   const set = <K extends keyof AgentRec>(k: K, v: AgentRec[K] | undefined): void => { if (v !== undefined) o[k] = v; };
-  set("folderId", optStr(r["folderId"])); set("tomlFileId", optStr(r["tomlFileId"])); set("agentMdFileId", optStr(r["agentMdFileId"])); set("lastGoodVersionId", optStr(r["lastGoodVersionId"]));
+  set("projectId", optStr(r["projectId"])); set("folderId", optStr(r["folderId"])); set("tomlFileId", optStr(r["tomlFileId"])); set("agentMdFileId", optStr(r["agentMdFileId"])); set("lastGoodVersionId", optStr(r["lastGoodVersionId"]));
   set("pausedReason", optStr(r["pausedReason"])); set("pausedBy", optStr(r["pausedBy"])); set("pausedAt", optNum(r["pausedAt"])); set("lastActiveAt", optNum(r["lastActiveAt"])); set("deletedAt", optNum(r["deletedAt"]));
   if (r["configError"] !== null && r["configError"] !== undefined) set("configError", parseJson<Problem | undefined>(r["configError"], undefined));
   return o;
@@ -510,7 +512,7 @@ export function statusOf(a: AgentRec, now: number): Status {
 export function agentOut(a: AgentRec, now: number): Record<string, unknown> {
   const c = a.config;
   return {
-    agentId: a.id, name: a.name, face: a.face, ...(c.description !== undefined ? { role: c.description } : {}), status: statusOf(a, now),
+    agentId: a.id, name: a.name, kind: a.kind, face: a.face, ...(c.description !== undefined ? { role: c.description } : {}), status: statusOf(a, now),
     ...(a.paused && a.pausedReason !== undefined ? { pausedReason: a.pausedReason } : {}), ...(a.paused && a.pausedBy !== undefined ? { pausedBy: a.pausedBy } : {}),
     ownerId: a.ownerId, folderId: a.folderId ?? "fld_unset", ...(c.model !== undefined ? { model: c.model } : {}), ...(c.fallbackModel !== undefined ? { fallbackModel: c.fallbackModel } : {}),
     accountPolicy: c.accountPolicy, ...(c.accountKey !== undefined ? { accountKey: c.accountKey } : {}), accountFallback: c.accountFallback ?? [], ...(c.memoryKey !== undefined ? { memoryKey: c.memoryKey } : {}), ...(c.switchOnLimit !== undefined ? { switchOnLimit: c.switchOnLimit } : {}), toolsAllowed: c.toolsAllowed, toolsDenied: c.toolsDenied, vaultKeys: c.vaultKeys,
@@ -521,9 +523,9 @@ export function agentOut(a: AgentRec, now: number): Record<string, unknown> {
 
 export function insertAgent(db: Db, a: AgentRec): void {
   db.run(
-    `INSERT INTO agents_agent (id, name, nameKey, face, ownerId, folderId, tomlFileId, agentMdFileId, tomlText, config, configError, lastGoodVersionId, hasComputer, templateVersion, paused, working, lastActiveAt, createdAt, updatedAt, deletedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?, NULL)`,
-    a.id, a.name, nameKey(a.name), a.face, a.ownerId, a.folderId ?? null, a.tomlFileId ?? null, a.agentMdFileId ?? null, a.tomlText, JSON.stringify(a.config), a.lastGoodVersionId ?? null, a.hasComputer ? 1 : 0,
+    `INSERT INTO agents_agent (id, name, nameKey, kind, projectId, face, ownerId, folderId, tomlFileId, agentMdFileId, tomlText, config, configError, lastGoodVersionId, hasComputer, templateVersion, paused, working, lastActiveAt, createdAt, updatedAt, deletedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?, NULL)`,
+    a.id, a.name, nameKey(a.name), a.kind, a.projectId ?? null, a.face, a.ownerId, a.folderId ?? null, a.tomlFileId ?? null, a.agentMdFileId ?? null, a.tomlText, JSON.stringify(a.config), a.lastGoodVersionId ?? null, a.hasComputer ? 1 : 0,
     a.templateVersion, a.lastActiveAt ?? null, a.createdAt, a.updatedAt,
   );
 }
@@ -927,10 +929,10 @@ export const ASSISTANT_AGENT_MD = (name: string): string => [
 ].join("\n");
 
 /**
- * The AGENT.md a new agent starts with: instructions to the agent, most important first. The private assistant (role "assistant") gets its own. Any other agent gets the same skeleton,
+ * The AGENT.md a new agent starts with: instructions to the agent, most important first. The private assistant (kind assistant) gets its own. Any other agent gets the same skeleton,
  * scoped to its job and its Space, with the role line driving "Your job".
  */
-export const AGENT_MD_DEFAULT = (name: string, role: string | undefined): string => (role?.trim() === "assistant" ? ASSISTANT_AGENT_MD(name) : [
+export const AGENT_MD_DEFAULT = (name: string, role: string | undefined, kind: AgentKind = "agent"): string => (kind === "assistant" ? ASSISTANT_AGENT_MD(name) : [
   `# ${name}`,
   "",
   "Inherits: VYRE.md",
@@ -1059,8 +1061,8 @@ export function seesAll(ctx: AgentsCtx): boolean {
   const row = (ctx.db.all("SELECT allAgents FROM agents_visibility WHERE principal = ?", askerOf(ctx)) as Row[])[0];
   return row !== undefined && Number(row["allAgents"]) === 1 && allows(ctx, "access.manage", "manage", "space", null);
 }
-/** A person's private assistant: made at their account (agents.ensure_assistant) with the role "assistant". It is theirs alone. */
-export const isAssistant = (a: Pick<AgentRec, "config">): boolean => a.config.description === "assistant";
+/** A person's private assistant: made at their account (agents.ensure_assistant), kind assistant. It is theirs alone. Its role line is words the person may change; only the column decides this. */
+export const isAssistant = (a: Pick<AgentRec, "kind">): boolean => a.kind === "assistant";
 export function canSee(ctx: AgentsCtx, a: AgentRec): boolean {
   // the assistant is private even from the Space's admins and from anyone it was shared with: other people neither see, mention nor open it
   if (isAssistant(a)) return a.ownerId === askerOf(ctx);
@@ -1081,12 +1083,11 @@ export async function makeFile(ctx: AgentsCtx, folderId: string, name: string, t
   return (await call<{ file: FileOut }>(ctx, "files.create", { folderId, name, content: { text }, idempotencyKey: key }, { idempotencyKey: key })).file;
 }
 
-/** The project an agent was made for (a teammate), or undefined for an agent of the Space. Kept in agents_meta so the agent record keeps its shape. */
-export const teammateOf = (db: Db, agentId: string): string | undefined => meta(db, `teammate:${agentId}`);
-export const markTeammate = (db: Db, agentId: string, projectId: string): void => setMeta(db, `teammate:${agentId}`, projectId);
+/** The project an agent was made for (a teammate), or undefined for an agent of the Space. */
+export const teammateOf = (a: Pick<AgentRec, "kind" | "projectId">): string | undefined => (a.kind === "teammate" ? a.projectId : undefined);
 /** An agent as the contract returns it, with the project it is a teammate of when it is one. */
-export function agentView(db: Db, a: AgentRec, now: number): Record<string, unknown> {
+export function agentView(a: AgentRec, now: number): Record<string, unknown> {
   const out = agentOut(a, now);
-  const project = teammateOf(db, a.id);
+  const project = teammateOf(a);
   return project === undefined ? out : { ...out, teammateOf: project };
 }

@@ -191,7 +191,7 @@ test("delete moves the agent and its folder to Trash and frees the name; restore
   hn.clear();
   assert.deepEqual(await call(hn, "agents.delete", { agentId: a.agentId }), { deleted: true });
   assert.equal(hn.world.folders.get(a.folderId)!.deleted, true);
-  assert.deepEqual(hn.named("agent.deleted")[0]!.payload, { agentId: a.agentId, by: DANA });
+  assert.deepEqual(hn.named("agent.deleted")[0]!.payload, { agentId: a.agentId, name: a.name, by: DANA });
   assert.equal(await failure(() => call(hn, "agents.get", { agentId: a.agentId })), "validation.not_found");
   assert.equal((await call(hn, "agents.list", {})).total, 0);
   const again = await make(hn);

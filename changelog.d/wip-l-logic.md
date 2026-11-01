@@ -1,0 +1,2 @@
+- An agent's kind is a column: the private assistant stays private whatever its role line says, and calling an agent "assistant" no longer hides it.
+- Deleting an agent drops its holds, closes the requests it raised, hands its work to the person behind it and leaves one line in its chats. A person who leaves or is removed comes off every thread, a chat they started gets a new owner, what they held moves on, and their assistant goes with them.
