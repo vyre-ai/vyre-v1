@@ -133,6 +133,27 @@ async function callTool(prompt) {
 let holding = false;
 const absorbed = [];
 
+/**
+ * "slow <words> <ms>": a reply that arrives the way a real one does: a pause before the first word, then the words one by one as partial messages (stream_event text deltas), then the whole assistant message
+ * (which repeats the text) and the result. A screen that shows the text only when the turn ends, or shows it twice, is caught by it.
+ */
+async function slow(prompt) {
+  const m = /^\s*slow\s+(\d+)\s+(\d+)/.exec(prompt);
+  const n = m ? Number(m[1]) : 6, ms = m ? Number(m[2]) : 500;
+  init();
+  const mid = `m_slow_${process.pid}_${Date.now()}`;   // the partial messages and the whole one carry the same message id, as the real CLI's do
+  out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
+  await new Promise((res) => setTimeout(res, ms * 2));
+  const words = Array.from({ length: n }, (_, i) => `word${i + 1}`);
+  for (const w of words) {
+    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: `${w} ` } } });
+    await new Promise((res) => setTimeout(res, ms));
+  }
+  const full = words.map((w) => `${w} `).join("");
+  out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: n } } });
+  out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: n } });
+}
+
 /** "askhold <ms> <json>": asks the question over MCP (ask_question), then keeps its turn open for <ms> as a model does while it finishes its sentence, and only then ends it. */
 async function askHold(prompt) {
   const m = /^\s*askhold\s+(\d+)\s+(.*)$/s.exec(prompt);
@@ -169,6 +190,7 @@ async function run(raw) {
   const first = prompt.trim().split(/\s+/)[0];
   const holdLine = prompt.split("\n").reverse().find((l) => /^askhold\s+\d+/.test(l));   // the instruction may follow other lines the person's messages brought
   if (holdLine) { await askHold(holdLine.trim()); return; }
+  if (first === "slow") { await slow(prompt.trim()); return; }
   switch (first) {
     case "hello": reply(["Hello", " from the fake engine."]); break;
     case "envcheck": {
