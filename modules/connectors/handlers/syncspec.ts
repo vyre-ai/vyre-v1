@@ -323,7 +323,8 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     if (rels.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:relation.add`, ops: rels, reason: `Links from ${spec.app.name}` });
     // who the new types are open to: the Records sharing capability decides (types that already existed keep their audience)
     if (spec.plan.audience !== undefined && spec.plan.audience !== "space") {
-      for (const m of makes) await ctx.call("access.audience_set", { idempotencyKey: `${idem}:audience:${m.recordType}`, resource: { type: "record_type", id: m.recordType }, audience: spec.plan.audience });
+      // an agent holds edit on what it made, not manage, so it cannot narrow who a type is open to: the types stay open to the Space and the person narrows them with Share. The sync does not fail for it.
+      for (const m of makes) await ctx.call("access.audience_set", { idempotencyKey: `${idem}:audience:${m.recordType}`, resource: { type: "record_type", id: m.recordType }, audience: spec.plan.audience }).catch(() => undefined);
     }
 
     // 4. bindings: bind a new type, update one that is already synced

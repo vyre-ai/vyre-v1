@@ -138,18 +138,21 @@ test("journey 2, Personal later: the app changes, the person is behind, both sid
   } finally { await s.stop(); }
 });
 
-test("journey 3, Team: an admin asks in chat, the app is told where to call, a call starts a pass at once, the new types are open to people added only", async () => {
+test("journey 3, Team: an admin asks in chat, the app is told where to call, a call starts a pass at once, the person narrows who the types are open to", async () => {
   const s = await startSpace({ kind: "team", name: "Firm", address: "https://firm.example" });
   try {
     await session(s, "team", async (page) => {
       await chatSetup(s, (h) => ledgerKnow(h, { webhook: true, audience: "added" }));
       await until("people arrive", async () => (await rows(s, "person").catch(() => [])).length === 4, 60_000);
+      // telling the app where to call is a write to it, so the first pass a person runs makes the call (the agent's own passes would only wait at the Gate)
+      await afterPass(s, "person");
       await until("the Space registered its address with the app", async () => s.crm.c.state.webhooks.length >= 1);
       const hook = new URL(s.crm.c.state.webhooks[0]!.url);
       assert.match(hook.origin, /^https:\/\/firm\.example$/);
-      // the new types are open to people added, not the whole Space
-      const shares = await ok(s, "access.shares_of", { resource: { type: "record_type", id: "person" } });
-      assert.equal(shares.audience, "added");
+      // the agent cannot narrow who the types are open to (it holds edit, not manage): the sync went ahead and the types are open to the Space; the person narrows them with Share
+      assert.equal((await ok(s, "access.shares_of", { resource: { type: "record_type", id: "person" } })).audience, "space");
+      await ok(s, "access.audience_set", { resource: { type: "record_type", id: "person" }, audience: "added" });
+      assert.equal((await ok(s, "access.shares_of", { resource: { type: "record_type", id: "person" } })).audience, "added");
       // the app says someone changed; the Space starts a pass without waiting for the next poll
       s.crm.c.state.people.push({ id: 107, attributes: { full_name: "Gil Hart", email: "gil@example.test", phone: "", status: "lead", tier: "gold", note: "" }, org_id: null, modified: new Date().toISOString() });
       const res = await fetch(`${s.d.url}${hook.pathname}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ event: "updated" }) });
