@@ -13,7 +13,6 @@ const cli = { command: { claude: [process.execPath, FAKE_CLI, "claude"] }, progr
 test("a second question asked while the turn is still open is answered, and the agent goes on", { timeout: 100_000 }, async () => {
   const dir = seededDir();
   const d = await boot(dir, null, { engineCli: cli });
-  let passed = false;
   try {
     await connect(d);
     const agentId = await makeAgent(d, "Asker");
@@ -44,12 +43,8 @@ test("a second question asked while the turn is still open is answered, and the 
       const msgs = (await call(d, "chat.messages.list", { threadId })).data.messages as { author?: { kind?: string }; body?: string }[];
       return msgs.some((m) => m.author?.kind === "agent" && /Apply it/.test(m.body ?? "")) ? true : null;
     }, 40_000, () => `the agent did not go on after the second answer; ${hostLog(d)}`);
-    passed = true;
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
-    // Known gap (see BACKLOG): the daemon's shutdown does not close the CLI session the engine opened (the CLI child, its MCP socket and its egress proxy stay up), so this process would wait for the
-    // runner's cap. The process ends here 1.5 s after the test, with the exit code of its result, so a pass or a failure shows at once and not as the runner's cap.
-    setTimeout(() => process.exit(passed ? 0 : 1), 1_500);
   }
 });
