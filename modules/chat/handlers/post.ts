@@ -4,6 +4,7 @@
 import {
   MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy, channelBy,
 } from "../projections.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { unarchiveForMention } from "./archive-state.ts";
 import { saveScreen } from "./screen.ts";
@@ -35,12 +36,12 @@ const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root
 
 /**
  * An invite-only channel is for the people in it, for reading and writing alike (its threads, messages, reactions and pins follow). The pipeline's grants are role wide, so the channel's own member
- * list is the check: its members, the person who started it, the agents added to it, and the host's own services. A public channel is open to the Space.
+ * list is the check: its members, the person who started it, the agents added to it, and the Space's trusted services (a tenant service such as a public form is not one). A public channel is open to the Space.
  */
 function mayEnterChannel(ctx: ChatCtx, root: ThreadRec, thread: ThreadRec, asker: string): boolean {
   const channel = root.channelId === undefined ? null : channelBy(ctx.db, root.channelId);
   if (!channel || channel.visibility !== "invite") return true;
-  if (ctx.principal.kind === "service") return true;
+  if (isTrustedService(ctx.principal)) return true;
   // an agent is in when it was added to the channel or its thread, or when the person it acts for is in
   if (ctx.principal.kind === "agent" && (agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id))) return true;
   return isMember(ctx.db, root.id, asker) || root.starter === asker;
