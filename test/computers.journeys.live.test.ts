@@ -79,7 +79,7 @@ for (const kind of ["team", "personal"] as const) test(`computers journey, ${kin
     // A Personal Space shows agent computers only once a capable server exists, and nothing about them before: no Computer tab at all. A Team Space always does.
     if (kind === "personal") {
       await showChat();
-      if (await me.page.getByTestId("pane-agent").count() === 0) await me.page.getByTestId("pane-toggle").click();
+      if (await me.page.getByTestId("pane-agent").count() === 0) await me.page.getByTestId("pane-button").click();   // the chat header's own button; the pane starts closed
       await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
       await me.page.waitForTimeout(1500);   // the Space has been asked where a computer can run; the answer is no
       assert.equal(await me.page.getByTestId("tab-computer").count(), 0, "no capable server, no Computer tab");
@@ -103,7 +103,8 @@ for (const kind of ["team", "personal"] as const) test(`computers journey, ${kin
     await shoot(me.page, dir, "run-output");
 
     // 2 the computer in the pane
-    if (await me.page.getByTestId("tab-computer").count() === 0) await me.page.getByTestId("pane-toggle").click();
+    if (await me.page.getByTestId("pane-agent").count() === 0) await me.page.getByTestId("pane-button").click();
+    await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
     await me.page.getByTestId("tab-computer").click();
     await me.page.getByTestId("computer-screen").waitFor({ timeout: 20_000 });
     await shoot(me.page, dir, "pane-working");

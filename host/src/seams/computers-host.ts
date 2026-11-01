@@ -17,7 +17,7 @@ export interface ComputersHostSeam {
     putBytes(url: string, bytes: Uint8Array): Promise<void>;
     intervalMs?: number;
     manifest(agentId: string): string;
-    announce?: (a: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }) => Promise<void>;
+    announce?: (a: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }) => Promise<boolean | void>;
     log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
   };
   /** How long a wake waits for agentd (Xvfb and Chromium start before it answers). */
@@ -35,7 +35,7 @@ export interface ComputersHostDeps {
   /** Send bytes to an upload url that files.upload_url handed out. */
   putBytes?: (url: string, bytes: Uint8Array) => Promise<void>;
   /** Said once when the agent has made files on its computer: the daemon puts a file card in the chat the work was for. */
-  announce?: (a: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }) => Promise<void>;
+  announce?: (a: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }) => Promise<boolean | void>;
   /** How often a pass runs while a computer is awake. Default 3 s. */
   homeIntervalMs?: number;
   log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
