@@ -1,1 +1,1 @@
-- Settings: rebuilt from an audit of what the code really reads. Space policies for approvals, tasks, automations and schedules now take effect, working hours and the email backstop reach delivery, and 36 settings nothing read are gone.
+- Settings: rebuilt from an audit of what the code really reads. Space policies for approvals, tasks, automations and schedules now take effect, working hours and the email backstop reach delivery, and 35 settings nothing read are gone.

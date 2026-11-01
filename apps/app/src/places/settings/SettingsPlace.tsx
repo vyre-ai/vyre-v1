@@ -114,8 +114,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   const nav = (
     <View style={[n.nav, phone && { width: "100%" as unknown as number, borderRightWidth: 0 }]} testID="settings-nav">
       <View style={n.top}>
-        <Mark name={spaceTitle} size={22} />
-        <Text numberOfLines={1} style={n.space}>{spaceTitle}</Text>
+        <Text numberOfLines={1} accessibilityRole="header" style={n.space}>Settings</Text>
         {data.spaces.some((sp) => !sp.current && sp.needsYou > 0) ? <View style={n.dot} accessibilityLabel="Another Space needs you" /> : null}
       </View>
       <View style={n.searchWrap}>
