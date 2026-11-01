@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "gate.deny": Handler<"gate.deny", X>;
   "gate.effective_rule": Handler<"gate.effective_rule", X>;
   "gate.expire": Handler<"gate.expire", X>;
+  "gate.grants.ask": Handler<"gate.grants.ask", X>;
   "gate.grants.set": Handler<"gate.grants.set", X>;
   "gate.grants.take": Handler<"gate.grants.take", X>;
   "gate.holds.get": Handler<"gate.holds.get", X>;

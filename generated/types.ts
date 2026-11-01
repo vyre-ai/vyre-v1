@@ -12232,6 +12232,17 @@ export type GateExpireOut = {
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
 };
+export type GateGrantsAskIn = {
+  threadId: string;
+  messageId: string;
+  asked: Array<{
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      target: string;
+    }>;
+};
+export type GateGrantsAskOut = {
+  ok: boolean;
+};
 export type GateGrantsSetIn = {
   automationId: string;
   defHash: string;
@@ -12255,11 +12266,15 @@ export type GateGrantsSetOut = {
 export type GateGrantsTakeIn = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   targets: Array<string>;
-  step: {
+  step?: {
     automationId: string;
     nodeId: string;
     defHash: string;
     ask?: boolean;
+  };
+  turn?: {
+    person: string;
+    threads: Array<string>;
   };
 };
 export type GateGrantsTakeOut = {
@@ -33459,6 +33474,7 @@ export interface CapMap {
   "gate.deny": { in: GateDenyIn; out: GateDenyOut };
   "gate.effective_rule": { in: GateEffectiveRuleIn; out: GateEffectiveRuleOut };
   "gate.expire": { in: GateExpireIn; out: GateExpireOut };
+  "gate.grants.ask": { in: GateGrantsAskIn; out: GateGrantsAskOut };
   "gate.grants.set": { in: GateGrantsSetIn; out: GateGrantsSetOut };
   "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
@@ -36410,6 +36426,7 @@ export type MessageReceivedPayload = {
   hasBlocks: boolean;
   via?: string;
   actingFor?: string;
+  typed?: boolean;
 };
 export type MessageSentPayload = {
   messageId: string;

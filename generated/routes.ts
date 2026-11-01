@@ -9419,7 +9419,7 @@ const routes1: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": "push_protected"
+    "gate": null
   },
   {
     "method": "POST",
@@ -12455,6 +12455,24 @@ const routes2: Route[] = [
     "effects": "write",
     "permission": null,
     "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/gate/grants/ask",
+    "cap": "gate.grants.ask",
+    "v": 1,
+    "module": "gate",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
     "resource": {
       "type": "space"
     },
@@ -16612,7 +16630,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/inbox/thread",
@@ -16630,10 +16651,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/inbox/unmatch",
@@ -22123,7 +22141,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/network/my_computer_remove",
@@ -22141,10 +22162,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/my_computers",
@@ -27656,7 +27674,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sources/health",
@@ -27674,10 +27695,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sources/ingest",

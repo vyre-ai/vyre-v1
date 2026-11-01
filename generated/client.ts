@@ -949,6 +949,7 @@ export function createClient(transport: Transport) {
       effective_rule: call("gate.effective_rule", 1),
       expire: call("gate.expire", 1),
       grants: {
+        ask: call("gate.grants.ask", 1),
         set: call("gate.grants.set", 1),
         take: call("gate.grants.take", 1),
       },

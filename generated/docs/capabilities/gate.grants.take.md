@@ -1,6 +1,6 @@
 # gate.grants.take
 
-System: does a grant cover this call? Asked by the Gate hook at act time; only the server may call it
+System: does a grant cover this call? Asked by the Gate hook at act time, it spends a single-use grant; only the server may call it
 
 | | |
 |---|---|
@@ -27,11 +27,15 @@ System: does a grant cover this call? Asked by the Gate hook at act time; only t
 type In = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   targets: Array<string>;
-  step: {
+  step?: {
     automationId: string;
     nodeId: string;
     defHash: string;
     ask?: boolean;
+  };
+  turn?: {
+    person: string;
+    threads: Array<string>;
   };
 };
 ```
@@ -66,7 +70,13 @@ type Out = {
     },
     "targets": [
       "example"
-    ]
+    ],
+    "turn": {
+      "person": "example",
+      "threads": [
+        "thr_a1b2c3"
+      ]
+    }
   },
   "output": {
     "granted": true

@@ -949,6 +949,7 @@ export function stubs(ctx: CallCtx) {
       effective_rule: call("gate.effective_rule"),
       expire: call("gate.expire"),
       grants: {
+        ask: call("gate.grants.ask"),
         set: call("gate.grants.set"),
         take: call("gate.grants.take"),
       },

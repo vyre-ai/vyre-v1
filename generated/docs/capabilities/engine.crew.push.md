@@ -1,6 +1,6 @@
 # engine.crew.push
 
-Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person's approval
+Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person's own message this turn asked for it, else it holds at the Gate
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Push the project repository's base branch, with a teammate's merged work in it, 
 | Grant level | use |
 | Risk | high |
 | Resource | space |
-| Gate | push_protected |
+| Gate | push_protected when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
