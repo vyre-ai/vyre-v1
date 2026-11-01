@@ -1,7 +1,7 @@
 // The crew (DESIGN-crew.md, steps 1 and 2): a project's repository on this computer, and teammate jobs. A job is a teammate agent working in its own copy of that repository, on its own branch, in its own thread
 // under the lead's chat. Nothing new is made for it: the thread is a helper thread, the teammate is a project teammate, the work folder is the engine's per-thread folder with a clone in it (../crew-git.ts).
 import { engineHost } from "../runtime.ts";
-import { GitError, cleanBranch, commitLeftovers, git, landBranch, prepareClone, pushBase, repoHead } from "../crew-git.ts";
+import { GitError, branchFacts, cleanBranch, commitLeftovers, git, landBranch, prepareClone, pushBase, repoHead } from "../crew-git.ts";
 import { ensure, actorOf, mintEngineId, raise } from "../projections.ts";
 import { workFolder } from "../sandbox.ts";
 import { GUIDE_FILES } from "../../../lib/memory-guide.ts";
@@ -118,7 +118,9 @@ export async function list(ctx: EngineCtx, input: { threadId: string }) {
     try { const a = (await ctx.call("agents.get", { agentId: id })) as { agent?: { name?: string } }; if (a.agent?.name) names.set(id, a.agent.name); } catch { /* the id stands */ }
   }
   const waits = ctx.db.all("SELECT * FROM engine_crew_wait WHERE lead_thread_id = ? AND state = 'pending' ORDER BY started_at DESC, rowid DESC", input.threadId) as Row[];
-  return { jobs: rows.map((r) => jobOut(r, names.get(str(r["agent_id"])))), waits: waits.map(waitOut) };
+  const fresh: Row[] = [];
+  for (const r of rows) fresh.push(await reconcile(ctx, r));
+  return { jobs: fresh.map((r) => jobOut(r, names.get(str(r["agent_id"])))), waits: waits.map(waitOut) };
 }
 
 export function waitOut(r: Row) {
@@ -146,6 +148,42 @@ export async function workspace(ctx: EngineCtx, input: { threadId: string }) {
   return { workspace: { jobId: str(r["job_id"]), repo: str(r["repo_path"]), base: str(r["base_branch"]), branch: str(r["branch"]), name } };
 }
 
+/**
+ * Brings a finished job's state in line with the repository: merged when its branch is part of the base (by the Merge button, the lead, a person in a terminal, anything), pushed when the remote's base has it.
+ * A job still working is left alone. Answers the row as it stands after. Called when a card renders, when a person presses Merge or Push, and by the periodic sweep.
+ */
+export async function reconcile(ctx: EngineCtx, r: Row): Promise<Row> {
+  const state = str(r["state"]);
+  if (state === "working" || state === "waiting") return r;
+  const prior = jobOut(r).result ?? {};
+  if (state === "merged" && prior["pushed"]) return r;
+  const dataDir = engineHost()?.dataDir;
+  if (!dataDir) return r;
+  let facts: Awaited<ReturnType<typeof branchFacts>> = null;
+  try { facts = await branchFacts({ repo: str(r["repo_path"]), clone: workFolder(dataDir, str(r["asker"]), str(r["thread_id"])), branch: str(r["branch"]), base: str(r["base_branch"]) }); } catch { return r; }
+  if (!facts || facts.ahead === 0 || !facts.merged) return r;
+  const id = str(r["job_id"]);
+  const event = { jobId: id, threadId: str(r["thread_id"]), leadThreadId: str(r["lead_thread_id"]), branch: str(r["branch"]) };
+  if (state !== "merged") {
+    ctx.db.run("UPDATE engine_crew_job SET state = 'merged', ended_at = COALESCE(ended_at, ?) WHERE job_id = ?", ctx.now(), id);
+    ctx.emit("crew.job_merged", str(r["lead_thread_id"]), { ...event, landed: true });
+  }
+  if (facts.pushed && !prior["pushed"]) {
+    ctx.db.run("UPDATE engine_crew_job SET result_json = ? WHERE job_id = ?", JSON.stringify({ ...prior, pushed: { at: ctx.now() } }), id);
+    ctx.emit("crew.job_pushed", str(r["lead_thread_id"]), { ...event, branch: str(r["base_branch"]) });
+  }
+  return jobRow(ctx, id);
+}
+
+/** The periodic sweep: every job that is finished and not yet known as merged and pushed is checked against its repository. */
+export async function reconcileAll(ctx: EngineCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const rows = ctx.db.all("SELECT * FROM engine_crew_job WHERE state IN ('done', 'failed', 'stopped', 'merged') ORDER BY started_at DESC LIMIT 50") as Row[];
+  const changed: string[] = [];
+  for (const r of rows) { const after = await reconcile(ctx, r); if (str(after["state"]) !== str(r["state"]) || str(after["result_json"]) !== str(r["result_json"])) changed.push(str(r["job_id"])); }
+  return changed;
+}
+
 function jobRow(ctx: EngineCtx, jobId: string): Row {
   const r = ctx.db.all("SELECT * FROM engine_crew_job WHERE job_id = ?", jobId)[0] as Row | undefined;
   if (!r) raise(ctx, "validation.not_found", "There is no such teammate job.");
@@ -171,7 +209,9 @@ export async function stop(ctx: EngineCtx, input: { jobId: string }) {
 
 export async function merge(ctx: EngineCtx, input: { jobId: string }) {
   ensure(ctx.db);
-  const r = jobRow(ctx, input.jobId);
+  const r = await reconcile(ctx, jobRow(ctx, input.jobId));
+  // a stale Merge on work that is already in the base is not an error: it says so
+  if (str(r["state"]) === "merged") return { job: jobOut(r), landed: true, ref: str(r["branch"]), note: "Already merged." };
   const dataDir = engineHost()?.dataDir;
   if (!dataDir) raise(ctx, "validation.precondition_failed", "This computer has no work folders for the crew.");
   const dir = workFolder(dataDir, str(r["asker"]), str(r["thread_id"]));
@@ -188,7 +228,8 @@ export async function merge(ctx: EngineCtx, input: { jobId: string }) {
 
 export async function push(ctx: EngineCtx, input: { jobId: string }) {
   ensure(ctx.db);
-  const r = jobRow(ctx, input.jobId);
+  const r = await reconcile(ctx, jobRow(ctx, input.jobId));
+  if (str(r["state"]) === "merged" && jobOut(r).result?.["pushed"]) return { job: jobOut(r), pushed: true, note: "Already on the remote." };
   if (str(r["state"]) !== "merged") raise(ctx, "validation.precondition_failed", "Merge the teammate's work first, then push.");
   try {
     const out = await pushBase({ repo: str(r["repo_path"]), base: str(r["base_branch"]) });

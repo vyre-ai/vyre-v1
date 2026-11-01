@@ -17,6 +17,7 @@ import type { FetchFn } from "../../host/src/platform/probes.ts";
 import { loadConfig } from "../../host/src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../host/src/daemon/daemon.ts";
+import { workFolder } from "../../modules/engine/sandbox.ts";
 import { edge } from "../../apps/app/tests/real-app-harness.test.ts";
 
 const TOKEN = process.env["VYRE_TEST_CLAUDE_SETUP_TOKEN"] ?? "";
@@ -182,11 +183,22 @@ async function main(): Promise<void> {
     say("STEP5 ok", `after send back: ${jobs2.map((j) => `${j.name} ${j.state}`).join("; ")}; teammate thread reply: ${JSON.stringify(String((await msgs(job.threadId)).filter((m) => m.author?.kind === "agent").at(-1)?.body).slice(0, 200))}`);
     say("shot", await shot("after-send-back"));
 
-    // ---- step 6: Merge lands in the repo
-    const merged = await ok("engine.crew.merge", { jobId: job.jobId });
-    say("STEP6", `merge: landed ${merged.landed}; repo log: ${git(repo, "log", "--oneline").trim().replace(/\n/g, " | ")}; index.html mentions dark: ${/dark/i.test(fs.readFileSync(path.join(repo, "index.html"), "utf8"))}`);
-    if (!merged.landed) fail(`merge did not land: ${merged.note}`);
-    await sleep(2500); say("shot", await shot("merged"));
+    // ---- step 6: the person tells the lead in plain words; the card must follow the repository
+    await ok("chat.post", { threadId: chat, body: "Looks good, just merge it.", mentions: [{ kind: "agent", id: lead }] });
+    say("person", "Looks good, just merge it.");
+    let flipped = false;
+    for (let i = 0; i < 75 && !flipped; i++) { await sleep(2000); flipped = ((await ok("engine.crew.list", { threadId: chat })).jobs as any[]).find((j) => j.jobId === job.jobId)?.state === "merged"; }   // eslint-disable-line @typescript-eslint/no-explicit-any
+    const holds = ((await ok("gate.holds.list", {})).holds as Array<{ act: string; state: string }>).map((h) => `${h.act}:${h.state}`);
+    say("STEP6", `after "just merge it": job merged ${flipped}; Gate holds: ${holds.join(", ") || "none"}; repo log: ${git(repo, "log", "--oneline").trim().replace(/\n/g, " | ")}`);
+    await sleep(6000); say("shot", await shot("after-just-merge-it"));
+    if (!flipped) {
+      const merged = await ok("engine.crew.merge", { jobId: job.jobId });
+      say("STEP6", `(fallback) a person pressed Merge: landed ${merged.landed}`);
+    }
+    const stale = await ok("engine.crew.merge", { jobId: job.jobId });
+    say("STEP6", `a stale Merge answers: landed ${stale.landed}, note ${JSON.stringify(stale.note)}`);
+    if (!stale.landed || !/Already merged/.test(String(stale.note))) fail("a stale Merge did not say it is already merged");
+    say("STEP6", `index.html mentions dark: ${/dark/i.test(fs.readFileSync(path.join(repo, "index.html"), "utf8"))}`);
 
     // ---- step 7: restart the daemon mid-work
     const ask2 = "Now add a small footer with the text \"Open daily 7 to 3\" to the site. Give it to a teammate too.";
@@ -208,6 +220,17 @@ async function main(): Promise<void> {
     if (resumed.state !== "done") { say("DIAG", `second job ${resumed.state}; its thread: ${JSON.stringify((await msgs(job2.threadId)).map((m) => [m.author?.kind, String(m.body).slice(0, 300), (m.blocks ?? []).map((b) => `${b.type}:${b.state}:${JSON.stringify(b.data).slice(0, 160)}`)]))}\n${hostLines(40)}`); }
     say("STEP7 ok", `after the restart the second job is ${resumed.state}; cards in chat: ${(await msgs(chat)).filter((m) => (m.blocks ?? []).some((b) => b.type === "crew_result")).length}`);
     await openPage(chat); await sleep(3000); say("shot", await shot("after-restart"));
+    // a person merges the footer in a terminal: no button, no lead. The open page must flip on its own.
+    const work2 = workFolder(dir, owner, job2.threadId);
+    git(repo, "fetch", "--quiet", work2, `+${job2.branch}:refs/heads/${job2.branch}`);
+    git(repo, "merge", "--no-ff", "--no-edit", job2.branch);
+    let seen = false;
+    for (let i = 0; i < 20 && !seen; i++) { await sleep(3000); seen = ((await ok("engine.crew.list", { threadId: chat })).jobs as any[]).find((j) => j.jobId === job2.jobId)?.state === "merged"; }   // eslint-disable-line @typescript-eslint/no-explicit-any
+    await sleep(6000);
+    const t2 = page ? await page.locator("body").innerText() : "";
+    say("STEP8", `merged by hand in a terminal: job state merged ${seen}; open page shows Merged without a refresh: ${/Merged · /.test(t2)}`);
+    say("shot", await shot("merged-in-terminal"));
+    if (!seen) fail("a branch merged by hand was not noticed");
     d.sink.flush();
     const logs = JSON.stringify(new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT msg, attrs FROM logs").all());
     if (logs.includes(TOKEN)) fail("the token is in the host logs");
