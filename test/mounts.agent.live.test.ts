@@ -65,6 +65,7 @@ test("mounts live: a chat agent lists a mounted folder and reads its file throug
 
     // Deny with a reason: the turn ends and the reason reaches the agent
     const denyThread = (await ok(d, "chat.start", { kind: "chat", agentIds: [agent.id] })).thread.threadId as string;
+    await ok(d, "threads.set_mode", { threadId: denyThread, mode: "ask" });
     await ok(d, "chat.post", { threadId: denyThread, body: `TOOL files_write ${JSON.stringify({ fileId: nda!.fileId, content: { text: "NDA denied edit" }, reason: "Agent edit", idempotencyKey: "ma-agent-write-deny" })}`, mentions: [{ kind: "agent", id: agent.id }] });
     const second = await waitFor(async () => {
       await d.hooks?.pump?.();

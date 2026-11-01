@@ -1,0 +1,1 @@
+Tests pin the mode of the threads agents work in without a person watching: a task's thread is Auto and still holds a destructive command at the Gate, and the Kit builder and Console assistant threads keep the default.

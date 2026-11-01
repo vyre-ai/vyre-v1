@@ -23513,6 +23513,8 @@
           "input": {
             "audience": "space",
             "exporters": "admins",
+            "follows": "rec_a1b2c3",
+            "outside": true,
             "resource": {
               "id": "rec_a1b2c3",
               "type": "space"
@@ -23521,7 +23523,8 @@
           "name": "example",
           "output": {
             "audience": "space",
-            "exporters": "admins"
+            "exporters": "admins",
+            "outside": true
           }
         }
       ],
@@ -23543,6 +23546,16 @@
               "chosen"
             ],
             "type": "string"
+          },
+          "follows": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "outside": {
+            "type": "boolean"
           },
           "resource": {
             "$ref": "#/$defs/s_f21ece25da"
@@ -23573,11 +23586,15 @@
               "chosen"
             ],
             "type": "string"
+          },
+          "outside": {
+            "type": "boolean"
           }
         },
         "required": [
           "audience",
-          "exporters"
+          "exporters",
+          "outside"
         ],
         "type": "object"
       },
@@ -23588,7 +23605,7 @@
       },
       "risk": "medium",
       "since": "1.0.0",
-      "summary": "Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people",
+      "summary": "Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record",
       "surfaces": {
         "http": "auto",
         "mcp": {
@@ -28138,6 +28155,7 @@
             },
             "exporters": "admins",
             "inherits": "example",
+            "outside": true,
             "shares": [
               {
                 "grant": {
@@ -28222,6 +28240,9 @@
           "inherits": {
             "description": "The container this resource follows (the record type of a record), when it follows it",
             "type": "string"
+          },
+          "outside": {
+            "type": "boolean"
           },
           "shares": {
             "items": {

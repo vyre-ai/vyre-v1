@@ -16282,6 +16282,8 @@ if (!("resource" in o916)) e.push(p + "/resource" + ': required');
 if ("resource" in o916) d_s_f21ece25da(o916["resource"], p + "/resource", e);
 if ("audience" in o916) lf(o916["audience"], p + "/audience", e, L357);
 if ("exporters" in o916) lf(o916["exporters"], p + "/exporters", e, L358);
+if ("outside" in o916) lf(o916["outside"], p + "/outside", e, L7);
+if ("follows" in o916) lf(o916["follows"], p + "/follows", e, L36);
 }
 }
 }
@@ -16296,8 +16298,10 @@ if (g917 === "object") {
 if (g917 === 'object') { const o917 = x917 as Record<string, unknown>;
 if (!("audience" in o917)) e.push(p + "/audience" + ': required');
 if (!("exporters" in o917)) e.push(p + "/exporters" + ': required');
+if (!("outside" in o917)) e.push(p + "/outside" + ': required');
 if ("audience" in o917) lf(o917["audience"], p + "/audience", e, L357);
 if ("exporters" in o917) lf(o917["exporters"], p + "/exporters", e, L358);
+if ("outside" in o917) lf(o917["outside"], p + "/outside", e, L7);
 }
 }
 }
@@ -17982,6 +17986,7 @@ if ("through" in o1030) lf(o1030["through"], p + "/shares" + '/' + i1029 + "/thr
 if ("audience" in o1028) lf(o1028["audience"], p + "/audience", e, L357);
 if ("exporters" in o1028) lf(o1028["exporters"], p + "/exporters", e, L358);
 if ("inherits" in o1028) lf(o1028["inherits"], p + "/inherits", e, L2);
+if ("outside" in o1028) lf(o1028["outside"], p + "/outside", e, L7);
 if ("can" in o1028) {
 {
 const x1031 = o1028["can"];
