@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { Text } from "react-native";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SidebarSlotProvider, escapeGoesBack } from "../sidebar/index.ts";
-import { Stage } from "./Shell.tsx";
+import { Sheets, Stage } from "./Shell.tsx";
 
 const props = { deviceId: "d1", personId: "p1", spaceId: "northwind", place: "files", epoch: 1 };
 const entry = { title: "Files", searchPlaceholder: "Search files" };
@@ -19,7 +19,7 @@ function tagOf(html: string, testid: string): string {
 }
 const hidden = (html: string, testid: string): boolean => tagOf(html, testid).includes('aria-hidden="true"');
 const draw = (compact: boolean, bodyOpen: boolean): string => renderToStaticMarkup(
-  <SidebarSlotProvider {...props} compact={compact} initialEntry={entry} initialBodyOpen={bodyOpen}><Stage><Text>The open file</Text></Stage></SidebarSlotProvider>,
+  <SidebarSlotProvider {...props} compact={compact} initialEntry={entry} initialBodyOpen={bodyOpen}>{compact ? <Stage><Text>The open file</Text></Stage> : <Sheets tabs={null}><Stage><Text>The open file</Text></Stage></Sheets>}</SidebarSlotProvider>,
 );
 
 test("phone 390 px, nothing open: the sidebar list shows, the body is hidden, no Back", () => {
@@ -37,9 +37,10 @@ test("phone 390 px, an item open: the sidebar is hidden, the body shows with a B
   assert.ok(tagOf(html, "sidebar-back").includes('aria-label="Back"'));
 });
 
-test("a computer shows the sidebar and the body together, with no Back", () => {
+test("a computer shows the sidebar and the body together as sheets, with no Back", () => {
   for (const open of [false, true]) {
     const html = draw(false, open);
+    assert.ok(html.indexOf('data-testid="place-sidebar"') < html.indexOf('data-testid="sheet-main"'), "the sidebar is a sheet of its own, beside the main sheet");
     assert.equal(hidden(html, "place-sidebar"), false, `sidebar, open=${open}`);
     assert.equal(hidden(html, "place-body"), false, `body, open=${open}`);
     assert.ok(!html.includes('data-testid="sidebar-back"'));

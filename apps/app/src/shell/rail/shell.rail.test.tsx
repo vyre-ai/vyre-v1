@@ -45,15 +45,16 @@ test("a count is a number, a dot is quiet and never on the place you are looking
   assert.equal(lookingAtIt.top.find((e) => e.place === "chats")?.dot, false);
 });
 
-test("the rail draws the open place selected with its bar, counts and dots, the Space tile in the header and the bottom group after a spacer", () => {
-  const out = html(<Rail groups={rail(NORTHWIND)} active="chats" onSelect={() => undefined} header={<SpaceTile spaces={SEED_DEFS} openId="nw" away={false} onSwitch={() => undefined} onAction={() => undefined} />} />);
-  assert.ok(out.includes('data-testid="rail-chats-selected"') && out.includes('data-testid="rail-bar"'));
-  assert.ok(out.includes('data-testid="rail-home"') && !out.includes('data-testid="rail-home-selected"'));
-  assert.ok(out.includes('data-testid="rail-count-chats"') && out.includes(">7<"));
+test("the rail draws the open place selected, a coral dot for what waits, the tile above two soft tracks and the person's own face at the foot", () => {
+  const out = html(<Rail groups={rail(NORTHWIND)} active="chats" onSelect={() => undefined} header={<SpaceTile spaces={SEED_DEFS} openId="nw" away={false} onSwitch={() => undefined} onAction={() => undefined} />} foot={<span data-testid="rail-me" />} />);
+  assert.ok(out.includes('data-testid="rail-chats-selected"'));
+  assert.ok(out.includes('data-testid="rail-inbox"') && !out.includes('data-testid="rail-inbox-selected"'));
+  assert.ok(out.includes('data-testid="rail-count-chats"') && !out.includes(">7<"), "a dot, the number is in the label");
   assert.ok(out.includes('data-testid="rail-dot-inbox"'));
   assert.ok(out.includes('aria-label="Chats, 7 waiting"'));
-  assert.ok(out.indexOf('data-testid="space-tile"') < out.indexOf('data-testid="rail-home"'), "the Space tile sits above the places");
-  assert.ok(out.indexOf('data-testid="rail-files"') < out.indexOf('data-testid="rail-apps"'), "top group, then bottom group");
+  assert.ok(out.indexOf('data-testid="space-tile"') < out.indexOf('data-testid="rail-track"'), "the Space tile sits above the places");
+  assert.ok(out.indexOf('data-testid="rail-track"') < out.indexOf('data-testid="rail-files"') && out.indexOf('data-testid="rail-files"') < out.indexOf('data-testid="rail-track-foot"') && out.indexOf('data-testid="rail-track-foot"') < out.indexOf('data-testid="rail-apps"'), "top track, then bottom track");
+  assert.ok(out.indexOf('data-testid="rail-settings"') < out.indexOf('data-testid="rail-me"'), "the face closes the lower track");
   assert.ok(out.includes('data-testid="tile-dot"'), "Harbor Studio needs you: the red dot on the tile");
   for (const p of Object.keys(PLACE_TITLE)) assert.ok(SHELL_ICONS[p as keyof typeof SHELL_ICONS] !== undefined, `an icon for ${p}`);
 });

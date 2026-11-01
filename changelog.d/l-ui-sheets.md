@@ -1,0 +1,1 @@
+- The app is soft sheets on a quiet ground: sidebar, main view and right rail are separate rounded sheets you can drag to resize, in every place. The rail sits in soft tracks with your face at the foot, the top bar is one search, and a confirmation is a toast near the composer.

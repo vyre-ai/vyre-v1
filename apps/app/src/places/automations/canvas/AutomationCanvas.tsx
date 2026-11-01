@@ -507,7 +507,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const graphCards: ReactElement[] = [];
   for (const card of lay.cards) if (card.type === "step") graphCards.push(<StepCard key={card.id} card={card} selected={false} hovered={false} handlers={still} agent={agentOf(card)} onHover={() => undefined} />);
   const runGraph = tab === "runs" && tabBodies.runs ? (
-    <ResizableColumn paneKey="automation-run-graph" defaultWidth={250} grow="left" min={200} style={s.graphCol as never} testID="run-graph" label="Steps of the run" onLayout={(e: LayoutChangeEvent) => setGraphView({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+    <ResizableColumn inline paneKey="automation-run-graph" defaultWidth={250} grow="left" min={200} style={s.graphCol as never} testID="run-graph" label="Steps of the run" onLayout={(e: LayoutChangeEvent) => setGraphView({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
       <View pointerEvents="none" style={{ flex: 1 }}>
         <Surface lay={lay} zoom={graphView.w > 0 ? fitScale(lay, graphView.w, graphView.h) : 0.4} view={graphView}>
           <TriggerCard card={lay.cards[0]!} triggers={def.triggers} selected={false} hovered={false} onHover={() => undefined} handlers={still} selectedIndex={null} onSelectTrigger={() => undefined} onOpenTrigger={() => undefined} onAddTrigger={() => undefined} onTriggerMenu={() => undefined} describe={describe} />

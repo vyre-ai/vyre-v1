@@ -52,7 +52,7 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
     );
   }
   return (
-    <ResizableColumn paneKey="vault-sidebar" defaultWidth={240} grow="right" min={200} maxFraction={0.5} style={s.side as never} testID="vault-sidebar" role="menu" label="Vault sections">
+    <ResizableColumn paneKey="place-sidebar" defaultWidth={244} grow="right" min={200} maxFraction={0.5} maxWidth={380} style={s.side as never} testID="vault-sidebar" role="menu" label="Vault sections">
       <View style={s.title}><Text accessibilityRole="header" style={s.titleText}>Vault</Text></View>
       <View style={s.group}>
         {counts.requested > 0 ? item({ kind: "requested" }, "requested", "Requested", "requested", counts.requested) : null}

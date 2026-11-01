@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { isHead, isItem } from "../../../../../ui/src/Menu/props.ts";
 import { createShellHub, titleText } from "../spaces/hub.ts";
 import { SEED_DEFS } from "../spaces/model.ts";
+import { Toast } from "../spaces/Toast.tsx";
 import { TitleBar } from "./TitleBar.tsx";
 import { ResumeContext } from "../../onboarding/resume-context.ts";
 import { ResumeChip } from "../../onboarding/ResumeChip.tsx";
@@ -26,25 +27,28 @@ test("the sync chip says Connected, Sending or Offline with the count, and only 
   assert.deepEqual(syncLabel(false, 0), { text: "Offline", tone: "offline", opens: false });
 });
 
-test("the bar shows the title, the sync chip, Search with its key and the skin's name", () => {
+test("a calm bar is one search field; the connection shows only when it is broken, and the title is for screen readers", () => {
   const out = html(props());
-  assert.ok(out.includes("Vyre · Northwind · Chats"));
-  assert.ok(out.includes("Connected") && out.includes("Search") && out.includes("⌘K") && out.includes("Paper"));
+  assert.ok(out.includes('aria-label="Vyre · Northwind · Chats"'));
+  assert.ok(out.includes("Search or run a command") && out.includes("⌘K"));
+  assert.ok(!out.includes("Connected") && !out.includes('data-testid="title-sync"'), "never shown while fine");
+  assert.ok(!out.includes('data-testid="title-skin"'), "the skin lives in Settings and Cmd-K");
   assert.ok(html(props({ online: false, waiting: 3 })).includes("Offline, 3 changes waiting"));
-  assert.ok(html(props({ skin: SYSTEM_SKIN })).includes("Vyre"));
+  assert.ok(html(props({ waiting: 2 })).includes("Sending 2 changes"));
 });
 
-test("a tiny confirmation replaces the title, with Undo when it can be taken back", () => {
-  const plain = html(props({ status: { id: 1, text: "Saved", undo: false } }));
-  assert.ok(plain.includes("Saved") && !plain.includes("Vyre · Northwind") && !plain.includes('data-testid="title-undo"'));
-  const undo = html(props({ status: { id: 2, text: "Task moved to Friday", undo: true } }));
-  assert.ok(undo.includes("Task moved to Friday") && undo.includes('data-testid="title-undo"'));
+test("a confirmation is a toast with Undo when it can be taken back, not a line in the title bar", () => {
+  const plain = renderToStaticMarkup(<Toast status={{ id: 1, text: "Saved", undo: false }} onUndo={() => undefined} />);
+  assert.ok(plain.includes("Saved") && !plain.includes('data-testid="toast-undo"'));
+  const undo = renderToStaticMarkup(<Toast status={{ id: 2, text: "Task moved to Friday", undo: true }} onUndo={() => undefined} />);
+  assert.ok(undo.includes("Task moved to Friday") && undo.includes('data-testid="toast-undo"'));
+  assert.equal(renderToStaticMarkup(<Toast status={null} onUndo={() => undefined} />), "");
 });
 
-test("a phone-width window keeps the icons and drops the labels", () => {
+test("a phone-width window keeps the icon and drops the words", () => {
   const out = html(props({ compact: true }));
-  assert.ok(!out.includes(">Search<") && !out.includes("⌘K") && !out.includes(">Paper<"));
-  assert.ok(out.includes('data-testid="title-search"') && out.includes('data-testid="title-skin"'));
+  assert.ok(!out.includes("Search or run a command") && !out.includes("⌘K"));
+  assert.ok(out.includes('data-testid="title-search"'));
 });
 
 test("the skin menu lists Vyre, eight dark skins, seven light skins, checks the open one and applies a choice", () => {
@@ -105,7 +109,7 @@ test("unfinished setup is a pill in the title bar, not a floating chip over the 
   const withSetup = renderToStaticMarkup(<ResumeContext.Provider value={{ handled: 1, total: 6, open: () => undefined, pill }}><TitleBar {...props()} /></ResumeContext.Provider>).replaceAll("<!-- -->", "");
   assert.ok(withSetup.includes('data-testid="title-setup"') && withSetup.includes("Finish setup, 1 of"), "the bar carries the entry");
   const bar = withSetup.slice(withSetup.indexOf('data-testid="shell-titlebar"'));
-  assert.ok(bar.indexOf('data-testid="title-setup"') < bar.indexOf('data-testid="title-sync"'), "it sits before the connection chip, inside the bar");
-  assert.ok(!/position:\s*absolute/.test(withSetup.slice(withSetup.indexOf('data-testid="title-setup"'), withSetup.indexOf('data-testid="title-sync"'))), "nothing in it is positioned over the page");
+  assert.ok(bar.indexOf('data-testid="title-setup"') < bar.indexOf('data-testid="title-search"'), "it sits left of the search, inside the bar");
+  assert.ok(!/position:\s*absolute/.test(withSetup.slice(withSetup.indexOf('data-testid="title-setup"'), withSetup.indexOf('data-testid="title-search"'))), "nothing in it is positioned over the page");
   assert.ok(!html(props()).includes("title-setup"), "no unfinished setup, no entry");
 });

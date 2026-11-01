@@ -7,8 +7,9 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
+import { sq } from "../../../../../ui/src/SidePane/host.tsx";
 import { ShellIcon, iconMarkup } from "../rail/icons.tsx";
-import { initialOf, othersNeedingYou, tileGradient } from "./model.ts";
+import { initialOf, othersNeedingYou } from "./model.ts";
 import type { SpaceDef } from "./model.ts";
 
 export type SpaceAction = "add" | "invite" | "settings" | "terminal" | "add-server" | "away" | "profile" | "sign-out" | "lock";
@@ -85,6 +86,7 @@ export function SpaceTile(props: SpaceTileProps): ReactElement {
         {...menuTrigger(at)}
         {...web}
         style={[styles.tile, { opacity: over ? 0.92 : 1 }, tintStyle(open)]}
+        {...sq("tile")}
       >
         <Text style={styles.letter}>{initialOf(open)}</Text>
         {away ? <View testID="tile-away" style={styles.away}><ShellIcon name="moon" size={9} color="#fff" /></View> : null}
@@ -97,13 +99,13 @@ export function SpaceTile(props: SpaceTileProps): ReactElement {
 
 /** A gradient is a web-only style; native falls back to the first colour. */
 function tintStyle(def: SpaceDef): ViewStyle {
-  return (Platform.OS === "web" ? { backgroundImage: tileGradient(def) } : { backgroundColor: def.tint[0] }) as ViewStyle;
+  return (Platform.OS === "web" ? { backgroundImage: "linear-gradient(145deg,var(--accent),color-mix(in srgb,var(--accent) 72%,#2A1A8C))" } : { backgroundColor: def.tint[0] }) as ViewStyle;
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginBottom: 8 },
-  tile: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  letter: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  wrap: { marginBottom: 2 },
+  tile: { width: 36, height: 36, borderRadius: 13, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? ({ boxShadow: "inset 0 1px 0 rgba(255,255,255,.22)" } as ViewStyle) : {}) },
+  letter: { color: "var(--accent-ink)" as string, fontSize: 14, fontWeight: "600" },
   dot: { position: "absolute", top: -2, right: -2, width: 9, height: 9, borderRadius: 5, backgroundColor: "var(--danger)" as string, borderWidth: 2, borderColor: "var(--rail)" as string },
   away: { position: "absolute", right: -3, bottom: -3, width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn)" as string, borderWidth: 2, borderColor: "var(--rail)" as string },
 });

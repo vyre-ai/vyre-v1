@@ -134,8 +134,8 @@ function focusNode(node: unknown): void {
 /* ---------- the strip ---------- */
 
 export const TAB_STRIP_HEIGHT = 38;
-export const TAB_HEIGHT = 32;
-const TAB_MAX_WIDTH = 210;
+export const TAB_HEIGHT = 30;
+const TAB_MAX_WIDTH = 200;
 
 export interface TabStripViewProps extends TabStripProps {
   /** Accessible name for the strip. */
@@ -146,6 +146,8 @@ export interface TabStripViewProps extends TabStripProps {
   bare?: boolean;
   /** A lone tab has no Close button. Only the main tab strip sets it: closing its last tab just reopens the start place. A pane keeps its Close (that is how the pane closes). */
   hideLoneClose?: boolean;
+  /** No options button at the end: the strip's menu is the right-click on a tab. */
+  noOptions?: boolean;
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
@@ -267,16 +269,18 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
           <IconButton name="plus" label={plusTitle ?? "Open"} onPress={() => onPlus()} />
         )}
         <View style={styles.spacer} />
-        <IconButton
-          name="more"
-          label="Tab options"
-          nodeRef={(node) => { moreNode.current = node; }}
-          onPress={() => {
-            const box = moreNode.current as Focusable | null;
-            if (box !== null && typeof box.measureInWindow === "function") box.measureInWindow((x, y, w, h) => openFor(active, x + w - 230, y + h + 4));
-            else openFor(active, 0, TAB_STRIP_HEIGHT);
-          }}
-        />
+        {props.noOptions === true ? null : (
+          <IconButton
+            name="more"
+            label="Tab options"
+            nodeRef={(node) => { moreNode.current = node; }}
+            onPress={() => {
+              const box = moreNode.current as Focusable | null;
+              if (box !== null && typeof box.measureInWindow === "function") box.measureInWindow((x, y, w, h) => openFor(active, x + w - 230, y + h + 4));
+              else openFor(active, 0, TAB_STRIP_HEIGHT);
+            }}
+          />
+        )}
       </ScrollView>
       {element}
     </View>
@@ -376,34 +380,21 @@ function TabItem({ tab, on, tight, dropTarget, canClose, only, nodeRef, onPress:
 
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
-const ACTIVE = { backgroundColor: "var(--win)", borderColor: "var(--line)" };
+const ACTIVE = { backgroundColor: "var(--sel)" };
 const DROP = { boxShadow: "inset 2px 0 0 var(--accent)" } as unknown as ViewStyle;
 const HIDDEN = { opacity: 0 };
 
 const styles = StyleSheet.create({
-  strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  stripBare: { backgroundColor: "transparent", borderBottomWidth: 0 },
+  strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", paddingTop: 6 },
+  stripBare: { paddingTop: 0, height: 34 },
   scroll: { flex: 1 },
-  content: { flexGrow: 1, alignItems: "flex-end", paddingHorizontal: 6, gap: 2 },
-  tabs: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
+  content: { flexGrow: 1, alignItems: "center", paddingHorizontal: 8, gap: 2 },
+  tabs: { flexDirection: "row", alignItems: "center", gap: 2 },
   spacer: { flexGrow: 1 },
-  tab: {
-    height: TAB_HEIGHT,
-    maxWidth: TAB_MAX_WIDTH,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    paddingLeft: 10,
-    paddingRight: 6,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: "transparent",
-  },
+  tab: { height: TAB_HEIGHT, maxWidth: TAB_MAX_WIDTH, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 10, paddingRight: 5, borderRadius: 10 },
   tabPinned: { paddingRight: 10 },
   tabTight: { paddingLeft: 7, paddingRight: 7 },
   title: { flexShrink: 1, fontSize: 12.5, lineHeight: 16 },
-  close: { width: 18, height: 18, borderRadius: 5, alignItems: "center", justifyContent: "center" },
-  iconButton: { width: 26, height: 26, marginBottom: 4, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  close: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  iconButton: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center" },
 });
