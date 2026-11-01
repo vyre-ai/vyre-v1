@@ -116,6 +116,12 @@ test("healthcheck checks the space doctor unless the role is device only", () =>
   assert.equal(roleOf({ VYRE_ROLE: "device" }), "device");
 });
 
+// A daemon's start is CPU work, not waiting: it loads about 930 TypeScript files (13 MB of source, 3.6 MB of it generated/validators.ts) and Node strips their types on every start, 2.1 to 2.4 s of one core
+// when idle (measured; the profile is 36% WebAssembly type stripping, 9% SQLite setup). Boots scale linearly with how many run at once: on a 10-core machine 2 at once took 2.2 s, 10 took 6.3 s, 20 took
+// 14.5 s. A CI host runs eight shards on eight cores, each shard booting its daemons, so 12 s was shorter than an honest start under load (it failed 3 of 6 runs with empty output: slow, not stuck). The limit is
+// 45 s and a daemon that exits still fails at once; the roles boot one after the other so a shard never has two of its own competing, and the file keeps its 120 s cap in test/slow.json.
+const BOOT_MS = 45_000;
+
 async function bootDaemon(role: "space" | "device"): Promise<{ dir: string; child: ChildProcess; stop: () => Promise<void> }> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `vyred-smoke-${role}-`));
   const args = [path.join(REPO, "host/src/daemon/main.ts"), "--role", role, "--data-dir", dir, "--port", "0", "--host", "127.0.0.1", ...(role === "space" ? ["--space", "spc_smoke"] : [])];
@@ -126,7 +132,7 @@ async function bootDaemon(role: "space" | "device"): Promise<{ dir: string; chil
   const t0 = Date.now();
   while (!fs.existsSync(path.join(dir, "vyred.json"))) {
     if (child.exitCode !== null) throw new Error(`vyred exited ${child.exitCode}: ${out}`);
-    if (Date.now() - t0 > 12_000) { child.kill("SIGKILL"); throw new Error(`vyred did not start in 12 s: ${out}`); }
+    if (Date.now() - t0 > BOOT_MS) { child.kill("SIGKILL"); throw new Error(`vyred did not start in ${BOOT_MS / 1000} s: ${out}`); }
     await new Promise((r) => setTimeout(r, 50));
   }
   const stop = async (): Promise<void> => {
@@ -155,9 +161,10 @@ async function bootAndCheck(role: "space" | "device"): Promise<void> {
   fs.rmSync(d.dir, { recursive: true, force: true });
 }
 
-// both roles boot at once so the file stays well inside the 20 s cap
+// one role after the other: two daemons at once doubled each other's start on a loaded host (see BOOT_MS)
 test("@heavy boot: vyred in the space and the device role starts and the container healthcheck reports ok, then unhealthy once it stops", async () => {
-  await Promise.all([bootAndCheck("space"), bootAndCheck("device")]);
+  await bootAndCheck("space");
+  await bootAndCheck("device");
 });
 
 const dockerOn = process.env["VYRE_HEAVY_DOCKER"] === "1" && spawnSync("docker", ["version", "--format", "{{.Server.Version}}"], { encoding: "utf8" }).status === 0;
