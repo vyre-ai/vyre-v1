@@ -7,6 +7,8 @@ import type { TaskCap } from "../../../../../../ui/src/TaskPage/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { TaskBlock } from "../../chats/needsyou/NeedsYou.tsx";
 import { blockView } from "../../chats/needsyou/model.ts";
+import { HeldMailCard } from "../../chats/needsyou/HeldMail.tsx";
+import { heldMail } from "../../chats/needsyou/heldmail.ts";
 import { useHomeData, useOnline, usePrincipals, useScreenQuery } from "../sections-a/data.tsx";
 
 type Task = CapMap["tasks.get"]["out"]["task"];
@@ -45,7 +47,7 @@ export function TaskRoute({ taskId, onBack, onOpen }: { taskId: string; onBack()
   if (!task) return <View testID="task-page-loading" style={{ flex: 1, padding: 28 }}>{readError || error ? <States kind="error" message={error || readError?.message || "Couldn't open this task."} retryable onRetry={() => void refresh()} /> : <Text style={{ color: "var(--ink-3)" as string }}>Opening task…</Text>}</View>;
   return <TaskPage key={task.id} task={task} me={data.me.id} principals={people.list} history={historyRows} online={online} onCommand={command} onBack={onBack} onOpen={onOpen} nameOf={(type, id) => type === "record" ? data.recordTitle(id) ?? "Linked record" : ["person", "agent", "group", "role"].includes(type) ? people.byId(id)?.name ?? "Unavailable teammate" : `Linked ${type}`}>
     {/* ui-rows-lint: not a list (rich task content uses the shared structured block renderer) */}
-    {task.blocks.map((block, index) => <TaskBlock key={`${block.type}-${index}`} view={blockView(block)} />)}
+    {heldMail(task) ? <HeldMailCard mail={heldMail(task)!} call={data.call} onOpenRecord={(id) => data.nav.openRecord(id)} /> : task.blocks.map((block, index) => <TaskBlock key={`${block.type}-${index}`} view={blockView(block)} />)}
     {activityError ? <States kind="error" message={activityError.message} retryable onRetry={() => void refresh()} /> : null}
   </TaskPage>;
 }

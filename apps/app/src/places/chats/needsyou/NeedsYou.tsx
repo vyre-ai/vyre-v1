@@ -12,6 +12,8 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { act, snooze, take } from "./actions.ts";
+import { HeldMailCard } from "./HeldMail.tsx";
+import { heldMail, labelOf } from "./heldmail.ts";
 import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
 import type { NeedsYouData } from "./data.tsx";
@@ -209,9 +211,12 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
     showMenu(who, x, y);
   };
   const blockNodes: ReactElement[] = [];
-  for (const [i, b] of t.blocks.entries()) blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
+  const mail = heldMail(t);
+  // a held send shows the draft with its record; the raw block would show only its type
+  if (mail) blockNodes.push(<HeldMailCard key="held-mail" mail={mail} call={data.call} onOpenRecord={(id) => data.nav.openSource("record", id)} />);
+  else for (const [i, b] of t.blocks.entries()) blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
   const moreButtons: ReactElement[] = [];
-  for (const m of actions.more) moreButtons.push(<Button key={m.key} label={m.label} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />);
+  for (const m of actions.more) moreButtons.push(<Button key={m.key} label={labelOf(mail, m)} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />);
   const noAccount = isNoAccount(t);
   const mailSignIn = mailFix(t);
   const openConnect = useOpenConnect();
@@ -255,7 +260,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
             {...{ onKeyPress: (e: { nativeEvent?: { key?: string } }) => { if (e.nativeEvent?.key === "Escape") onCancel(); } }}
           />
           <View style={st.row}>
-            <Button label={compose.label} primary disabled={draft.trim() === "" && needsNote(compose)} onPress={() => onAct(compose, draft)} testID="needs-send" />
+            <Button label={mail ? labelOf(mail, compose) : compose.label} primary disabled={draft.trim() === "" && needsNote(compose)} onPress={() => onAct(compose, draft)} testID="needs-send" />
             <Button label="Cancel" onPress={onCancel} testID="needs-cancel" />
           </View>
         </View>
@@ -266,8 +271,8 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
           {fix === "replace_key" ? <Button label="Replace key" primary onPress={() => setReplacing(true)} testID="needs-replace-key" /> : null}
           {!mustTake && noAccount ? <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" /> : null}
           {!mustTake && mailSignIn ? <Button label="Sign in again" primary onPress={() => void openConnect?.({ kind: "mailbox", provider: mailSignIn })} testID="needs-mailfix" /> : null}
-          {!mustTake && !noAccount && fix === null && !mailSignIn && primary ? <Button label={primary.label} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
-          {!mustTake && fix === null && sendBack ? <Button label="Send back" hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
+          {!mustTake && !noAccount && fix === null && !mailSignIn && primary ? <Button label={labelOf(mail, primary)} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
+          {!mustTake && fix === null && sendBack ? <Button label={mail ? labelOf(mail, sendBack) : "Send back"} hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
           {!mustTake && fix === null ? moreButtons : null}
           {hasComputer(t) && !noAccount ? <Button label="Open its computer" onPress={() => data.nav.openComputer(t.createdBy)} testID="needs-computer" /> : null}
         </View>
