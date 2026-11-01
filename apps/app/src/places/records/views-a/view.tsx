@@ -11,6 +11,7 @@ import { SCREENS, typeMenuEntries } from "../sidebar/model.ts";
 import type { ViewRow } from "../sidebar/model.ts";
 import { Glyph, HeadButton, anchorOf, pointOf, typeIcon } from "../sidebar/parts.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
+import { useRecordAccess } from "../sharing/useRecordAccess.ts";
 import { chosen, clearClauses, countSpec, isEdited, optionValue, optionsOf, setSort, sortable, toSaved, toggleHidden, toggleOption } from "../table/model.ts";
 import { each, filterable, toggleable } from "./model.ts";
 import type { FieldDef, TableViewState, TypeDef } from "./model.ts";
@@ -116,6 +117,16 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
   const slim = winW > 0 && winW < 720;
   const typeList = useScreenQuery<{ types: Parameters<typeof typeMenuEntries>[0] }>(SCREENS.types, "types");
   const { def } = ctx;
+  // sharing: a Team Space only; Share for those who may share, Export for those who may export (a viewer sees neither)
+  const access = useRecordAccess(ctx.type);
+  const [exported, setExported] = useState<"busy" | "done" | "failed" | null>(null);
+  const exportAll = (): void => { setExported("busy"); data.call("records.export", { type: ctx.type, format: "csv" }).then(() => setExported("done"), () => setExported("failed")); };
+  const canShare = access.on && (access.can.manage || access.can.share);
+  const canExport = access.on && access.can.export;
+  const shareEntries = (): MenuEntry[] => [
+    ...(canShare ? [{ label: "Share", onSelect: () => data.share?.open({ type: "record_type", id: ctx.type, name: def.plural }) } as MenuEntry] : []),
+    ...(canExport ? [{ label: "Export as CSV", onSelect: exportAll } as MenuEntry] : []),
+  ];
   const { v, set } = st;
 
   const countOf = (field: FieldDef, key: string): number | null => {
@@ -200,6 +211,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
       {slim ? (
         // the phone keeps Find, New and one "..." menu holding the filter, sort, lanes and fields choices
         <HeadButton icon="more" label="More options" bare testID="records-more" onPress={(x, y) => menu.show([
+          ...(shareEntries().length ? [...shareEntries(), { separator: true } as MenuEntry] : []),
           ...filterEntries(), { separator: true },
           ...(sort ? [...sortEntries(), { separator: true } as MenuEntry] : []),
           ...(lanes ? [...laneEntries(), { separator: true } as MenuEntry] : []),
@@ -213,6 +225,11 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
       {fields ? <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={(x, y) => menu.show(fieldEntries(), x, y, "other")} /> : null}
         </>
       )}
+      {slim ? null : <>
+        {canShare ? <HeadButton icon="share" label="Share" testID="records-share-btn" onPress={() => data.share?.open({ type: "record_type", id: ctx.type, name: def.plural })} /> : null}
+        {canExport ? <HeadButton icon="download" label="Export" testID="records-export-btn" onPress={exportAll} /> : null}
+      </>}
+      {exported === null ? null : <Text style={s.offline} accessibilityRole="alert" testID="records-export-note">{exported === "busy" ? "Exporting" : exported === "done" ? "Exported to Files" : "Export failed"}</Text>}
       {extra}
       {slim ? null : <KindSwitch ctx={ctx} />}
       {ctx.journey ? null : <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={() => st.newRecord()} />}
