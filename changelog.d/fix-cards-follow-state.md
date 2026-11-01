@@ -1,0 +1,1 @@
+Crew and request cards follow the real record while open: the Crew card shows a held merge for approval inline and flips to Merged by itself, key and access request cards refresh and a stale press shows the decision.

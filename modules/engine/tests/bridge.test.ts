@@ -368,3 +368,10 @@ test("an agent message chat already holds (a crew card posted by the host) is no
   assert.equal(s.echoes.length, before, "no second post of a message chat already has");
   assert.equal(s.chat.filter((r) => r.messageId === "msg_crwcard1").length, 1);
 });
+
+test("words after a tool call start a new paragraph instead of running into the sentence before it", async () => {
+  const s = setup({ script: [{ type: "text", text: "Heredoc blocked by the sandbox; I'll use Edit." }, { type: "block", kind: "tool_call", payload: { id: "t1", name: "Edit" } }, { type: "block", kind: "tool_result", payload: { id: "t1", ok: true } }, { type: "text", text: "The footer is added." }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }] });
+  await s.say("Add a footer.");
+  const body = s.chat.filter((r) => r.author.kind === "agent").map((r) => r.body).join("");
+  assert.match(body, /I'll use Edit\.\n\nThe footer is added\./);
+});
