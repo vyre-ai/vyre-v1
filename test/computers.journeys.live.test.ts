@@ -8,7 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { connectClaude, makeAgent, unlockVault, until } from "./support/mail-world.ts";
-import { bootScreens, browserOrSkip, open, seat, shoot } from "./support/mail-browser.ts";
+import { bootScreens, browserOrSkip, open, phonePass, seat, shoot } from "./support/mail-browser.ts";
 import { standIn } from "./memory-live-kit.ts";
 import { bindHost as bindComputers } from "../modules/computers/projections.ts";
 import type { ComputerHost } from "../modules/computers/projections.ts";
@@ -82,7 +82,7 @@ for (const kind of ["team", "personal"] as const) test(`computers journey, ${kin
       if (await me.page.getByTestId("pane-agent").count() === 0) await me.page.getByTestId("pane-button").click();   // the chat header's own button; the pane starts closed
       await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
       await me.page.waitForTimeout(1500);   // the Space has been asked where a computer can run; the answer is no
-      assert.equal(await me.page.getByTestId("tab-computer").count(), 0, "no capable server, no Computer tab");
+      assert.equal(await me.page.locator('[data-testid^="tab-computer"]').count(), 0, "no capable server, no Computer tab");
       assert.equal((await w.owner.ok("computers.hosts", {})).available, false);
       await shoot(me.page, dir, "no-computers");
     }
@@ -105,7 +105,7 @@ for (const kind of ["team", "personal"] as const) test(`computers journey, ${kin
     // 2 the computer in the pane
     if (await me.page.getByTestId("pane-agent").count() === 0) await me.page.getByTestId("pane-button").click();
     await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
-    await me.page.getByTestId("tab-computer").click();
+    if (await me.page.getByTestId("tab-computer").count() > 0) await me.page.getByTestId("tab-computer").click();   // it is already the open tab when it is the first
     await me.page.getByTestId("computer-screen").waitFor({ timeout: 20_000 });
     await shoot(me.page, dir, "pane-working");
     await me.page.getByTestId("computer-take").click();
@@ -117,11 +117,15 @@ for (const kind of ["team", "personal"] as const) test(`computers journey, ${kin
 
     // 3 the live card
     await w.owner.ok("chat.post", { threadId, body: `TOOL screen_click ${JSON.stringify({ computerId, x: 20, y: 20 })}`, mentions: [{ kind: "agent", id: agentId }] });
-    await me.page.locator('[data-testid^="live-card-"]').first().waitFor({ timeout: 40_000 });
+    const card = me.page.locator('[data-testid^="live-card-"]').first();
+    await card.waitFor({ timeout: 40_000 });
+    await card.scrollIntoViewIfNeeded();
     await shoot(me.page, dir, "live-card");
     await w.owner.ok("computers.sleep", { computerId });
     await me.page.getByText("Done", { exact: true }).first().waitFor({ timeout: 30_000 });
+    await card.scrollIntoViewIfNeeded();
     await shoot(me.page, dir, "live-card-frozen");
+    await phonePass(me, s, dir, [{ name: "chat", route: "/chat" }]);
     assert.deepEqual(me.errors, [], "no page errors");
   } finally { bindComputers(null); bindTerminal(null); await s.close(); }
 });

@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { connectClaude, makeAgent, unlockVault } from "./support/mail-world.ts";
-import { bootScreens, browserOrSkip, open, seat, shoot } from "./support/mail-browser.ts";
+import { bootScreens, browserOrSkip, open, phonePass, seat, shoot } from "./support/mail-browser.ts";
 import { standIn } from "./memory-live-kit.ts";
 import { bindHost as bindTerminal } from "../modules/terminal/impl.ts";
 import type { TerminalHost } from "../modules/terminal/projections.ts";
@@ -48,7 +48,9 @@ for (const kind of ["personal", "team"] as const) test(`terminal pane journey, $
     await me.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
     if (await me.page.getByTestId("pane-agent").count() === 0) await me.page.getByTestId("pane-button").click();
     await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
-    await me.page.getByTestId("tab-terminal").click();
+    // the pane's tabs that do not fit sit behind the chevron: in a Team Space (Computer is also there) Terminal is one of them
+    if (await me.page.getByTestId("tab-terminal").count() > 0) await me.page.getByTestId("tab-terminal").click();
+    else { await me.page.getByTestId("tab-more").click(); await me.page.getByRole("menuitem", { name: "Terminal" }).or(me.page.getByRole("button", { name: "Terminal", exact: true })).first().click(); }
     await me.page.getByTestId("terminal-pane-open").waitFor({ timeout: 20_000 });
     await shoot(me.page, dir, "pane-empty");
     await me.page.getByTestId("terminal-pane-open").click();
@@ -58,6 +60,7 @@ for (const kind of ["personal", "team"] as const) test(`terminal pane journey, $
     assert.equal(opened[0]!["host"], "device");
     assert.ok(typeof opened[0]!["deviceId"] === "string" && (opened[0]!["deviceId"] as string).length > 0, "the terminal names the computer it opens on");
     await shoot(me.page, dir, "pane-open");
+    await phonePass(me, s, dir, [{ name: "chat", route: "/chat" }]);
     assert.deepEqual(me.errors, [], "no page errors");
   } finally { bindTerminal(null); await s.close(); }
 });
