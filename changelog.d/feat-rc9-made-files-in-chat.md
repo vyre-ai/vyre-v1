@@ -1,0 +1,1 @@
+When an agent makes a file on its computer while working for a chat, the chat now shows it: one message with a file card for each file (four at most, the rest counted) that opens the file in Files. Work that goes quiet, or the computer going to sleep, is what ends a message, so a burst of work is one card, not one per file. Recordings and hidden folders are left out.

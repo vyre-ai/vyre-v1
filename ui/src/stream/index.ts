@@ -8,7 +8,7 @@ export { createStreamStore } from "./store.ts";
 export type { StreamSnapshot, StreamStats, StreamStore } from "./store.ts";
 export { useStream } from "./useStream.ts";
 export { BlockView, CARET, MarkdownBlocks } from "./Markdown.tsx";
-export type { BlockViewProps, MarkdownBlocksProps, RenderLink } from "./Markdown.tsx";
+export type { BlockViewProps, MarkdownBlocksProps, RenderCode, RenderLink } from "./Markdown.tsx";
 export { StreamText } from "./StreamText.tsx";
 export type { StreamTextProps } from "./StreamText.tsx";
 export { END_SLACK, Feed, isAtEnd } from "./Feed.tsx";

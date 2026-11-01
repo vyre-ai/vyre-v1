@@ -2,17 +2,17 @@
 // back), Record (while you are in control), Chat and Close; Esc also closes. Taking over sends your clicks and keys to the agent's desktop. Recording captures every click and
 // key, each page, the network traffic and the video; when you stop, one sheet asks what the agent should do with it: make a skill, learn a routine, work out the app's backend
 // calls, learn this workflow, any of them. Send, Save Only or Discard. Passwords and sealed fields are masked.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { createForwarder, discardRecording, giveBack, keepRecording, openStream, sendRecording, startRecording, stopRecording, takeOver, wake } from "./actions.ts";
+import { createForwarder, discardRecording, giveBack, keepRecording, sendRecording, startRecording, stopRecording, takeOver, wake } from "./actions.ts";
 import type { PopupDeps } from "./actions.ts";
 import { PopupDataProvider, useCapture, useOnline, useOptionalPopupData, usePopupData, useScreenQuery } from "./data.tsx";
 import type { ComputerPopupData } from "./data.tsx";
-import { DEFAULT_INTENTS, MASKED_NOTE, hostLabel, streamSrc, NO_CAPTURE, captureLine, captureParts, mmss, options, orderedIntents, popupView, railItems, toggleIntent } from "./model.ts";
+import { DEFAULT_INTENTS, MASKED_NOTE, hostLabel, NO_CAPTURE, captureLine, captureParts, mmss, options, orderedIntents, popupView, railItems, toggleIntent } from "./model.ts";
 import type { Capture, Intent, Recording } from "./model.ts";
+import { LiveScreen } from "./LiveScreen.tsx";
 import { Desk, Icon, RailButton, SheetButton } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 
@@ -42,15 +42,6 @@ export function ComputerPopupLoading(): ReactElement {
   return <View testID="popup-loading" accessibilityLabel="Loading" style={st.veil}><View style={st.stage}><View style={st.win} /></View></View>;
 }
 
-interface DomEvent {
-  clientX?: number;
-  clientY?: number;
-  deltaX?: number;
-  deltaY?: number;
-  currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } };
-  preventDefault?: () => void;
-}
-
 interface Sheet { recording: Recording; capture: Capture; secs: number }
 
 function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
@@ -65,9 +56,6 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [line, setLine] = useState("");
   const [, setTick] = useState(0);
-  const [stream, setStream] = useState<{ transport: "webrtc" | "mjpeg"; url: string; ticket: string } | null>(null);
-  const box = useRef({ width: 0, height: 0 });
-  const screenNode = useRef<unknown>(null);
   const q = useScreenQuery<ComputerOut>(POPUP_SCREEN, "computer", { computerId: data.computerId });
   const deps: PopupDeps = useMemo(() => ({ call: data.call, note: (text: string) => setLine(text) }), [data.call]);
   const forwarder = useMemo(() => createForwarder(deps, data.computerId, data.display), [deps, data.computerId, data.display]);
@@ -90,13 +78,6 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
     const t = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(t);
   }, [rec]);
-
-  useEffect(() => {
-    if (!reachable) { setStream(null); return; }
-    let live = true;
-    void openStream(deps, data.computerId).then((s) => { if (live && s) setStream({ transport: s.transport, url: s.url, ticket: s.ticket }); });
-    return () => { live = false; };
-  }, [reachable, deps, data.computerId]);
 
   const close = useCallback((): void => {
     if (rec) { setLine("Recording is still on. Stop it first, or it will be lost."); return; }
@@ -143,37 +124,6 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
   const railNodes: ReactElement[] = [];
   for (const r of rail) railNodes.push(<RailButton key={r.key} label={r.label} tip={r.tip} icon={icons[r.key] ?? "x"} on={r.on} disabled={r.disabled} danger={r.key === "record"} {...(r.timer ? { timer: r.timer } : {})} onPress={() => press(r.key)} testID={`rail-${r.key}`} />);
 
-  const screenPress = (e: { nativeEvent?: { locationX?: number; locationY?: number } }): void => {
-    if (c.state !== "takeover") { if (c.state === "asleep") void wake(deps, c.computerId, name); return; }
-    void forwarder.press(e.nativeEvent?.locationX ?? 0, e.nativeEvent?.locationY ?? 0, box.current, data.clock().now);
-  };
-
-  // Right click and the wheel exist only on the web, where they arrive as DOM events on the screen. They go to the agent's desktop only while you are in control; the browser's own
-  // menu and page scroll never open over the screen.
-  const domPoint = (e: DomEvent): { x: number; y: number } => {
-    const r = e.currentTarget?.getBoundingClientRect?.();
-    return { x: (e.clientX ?? 0) - (r?.left ?? 0), y: (e.clientY ?? 0) - (r?.top ?? 0) };
-  };
-  // Right click (and long press) arrive through the shared menuTrigger, which also keeps the browser's own menu from opening over the screen; the point is made relative to the
-  // screen from its box. Only while you are in control does either go to the agent's desktop.
-  const trigger = menuTrigger((x, y) => {
-      if (c.state !== "takeover") return;
-      const r = (screenNode.current as { getBoundingClientRect?: () => { left: number; top: number } } | null)?.getBoundingClientRect?.();
-      void forwarder.press(x - (r?.left ?? 0), y - (r?.top ?? 0), box.current, data.clock().now, "right");
-  });
-  delete trigger.onKeyDown; // the menu key is a key for the desktop, not a right click
-  const screenWeb: Record<string, unknown> = {
-    ...trigger,
-    ...(Platform.OS !== "web" ? {} : {
-      onWheel: (e: DomEvent) => {
-        if (c.state !== "takeover") return;
-        e.preventDefault?.();
-        const p = domPoint(e);
-        void forwarder.scroll(p.x, p.y, box.current, e.deltaX ?? 0, e.deltaY ?? 0);
-      },
-    }),
-  };
-
   const parts = captureParts(rec ? capture : NO_CAPTURE);
   const partNodes: ReactElement[] = [];
   for (const p of parts) partNodes.push(<Text key={p} style={st.capText}>{p}</Text>);
@@ -188,17 +138,14 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
         ) : null}
         <View testID="popup-window" style={[st.win, view.screen === "mine" && st.winMine, rec !== null && st.winRec]}>
           <View style={st.pillWrap} pointerEvents="none"><View testID="popup-pill" style={st.pill}><View style={[st.pillDot, view.screen === "mine" && st.pillMine, rec !== null && st.pillRec]} /><Text style={st.pillText}>{view.pill}</Text></View>{hostName ? <Text testID="popup-host" style={st.hostText}>{hostName}</Text> : null}</View>
-          <Pressable
-            accessibilityRole="button" accessibilityLabel={c.state === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`} testID="popup-screen" onPress={screenPress} disabled={!online && c.state === "takeover"}
-            onLayout={(e) => { box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }}
-            ref={(n) => { screenNode.current = n; }}
-            style={st.screen}
-            {...screenWeb}
+          <LiveScreen
+            computerId={c.computerId} state={c.state} call={data.call} note={deps.note} spaceUrl={data.spaceUrl} display={data.display} now={() => data.clock().now} control={c.state === "takeover"}
+            onIdlePress={() => { if (c.state === "asleep") void wake(deps, c.computerId, name); }} testID="popup-screen" streamTestID="popup-stream"
+            label={c.state === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`} style={st.screen} disabled={!online && c.state === "takeover"}
           >
             <Desk kind={view.screen} caption="Elena Rivera, referred by Maya" />
-            {stream && stream.transport === "mjpeg" ? <Image testID="popup-stream" accessibilityLabel="Live view" source={{ uri: streamSrc(stream.url, stream.ticket, data.spaceUrl) }} resizeMode="contain" style={st.stream} /> : null}
             {c.state === "asleep" ? <View style={st.wakeWrap}><View testID="popup-wake" style={st.wake}><Icon name="moon" size={14} /><Text style={st.wakeText}>Wake</Text></View></View> : null}
-          </Pressable>
+          </LiveScreen>
           {rec ? <View testID="popup-capture" style={st.capture}>{partNodes}</View> : null}
           {line ? <View testID="popup-line" style={st.line}><Text numberOfLines={2} style={st.lineText}>{line}</Text></View> : null}
           {sheet ? (
@@ -292,7 +239,6 @@ const st = StyleSheet.create({
   hostText: { marginTop: 4, fontSize: 11, color: "#fff", opacity: 0.8 },
   pillText: { fontSize: 12, fontWeight: "500", color: "#fff" },
   screen: { flex: 1 },
-  stream: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
   wakeWrap: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
   wake: { height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.14)" as string },
   wakeText: { fontSize: 13, fontWeight: "500", color: "#fff" },

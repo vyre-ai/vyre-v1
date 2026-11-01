@@ -480,3 +480,28 @@ test("with a terminal in the shell the pane has a sixth tab after Files, and wit
   inOrder(out, [">Computer<", ">Threads<", ">Files<", ">Terminal<", ">Knows<", ">Routines<"]);
   assert.ok(!has(html(s, "computer", 760), ">Terminal<"));
 });
+
+test("giving back from the pane tells the agent in the chat to carry on, once, as the person; a failed give back says nothing", async () => {
+  const posted: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const notes: string[] = [];
+  const mk = (failGive: boolean) => ({
+    call: async (cap: string, input: unknown) => {
+      if (cap === "computers.give_back" && failGive) throw new Error("no");
+      posted.push({ cap, input: input as Record<string, unknown> });
+      return {};
+    },
+    note: (t: string) => void notes.push(t),
+  });
+  assert.equal(await giveBack(mk(false), "cmp_1", "Intake", { threadId: "thr_1", agentId: "agt_1" }), true);
+  const post = posted.find((p) => p.cap === "chat.post");
+  assert.ok(post, "the person said it in the chat");
+  assert.equal(post!.input["threadId"], "thr_1");
+  assert.deepEqual(post!.input["mentions"], [{ kind: "agent", id: "agt_1" }]);
+  assert.match(String(post!.input["body"]), /Carry on/);
+  posted.length = 0;
+  assert.equal(await giveBack(mk(true), "cmp_1", "Intake", { threadId: "thr_1", agentId: "agt_1" }), false);
+  assert.ok(!posted.some((p) => p.cap === "chat.post"), "nothing is posted when the controls were not given back");
+  posted.length = 0;
+  await giveBack(mk(false), "cmp_1", "Intake");
+  assert.ok(!posted.some((p) => p.cap === "chat.post"), "without a chat there is nowhere to say it");
+});

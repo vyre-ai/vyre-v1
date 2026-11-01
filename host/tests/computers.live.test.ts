@@ -183,6 +183,30 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     await inBox(`printf ' and more' >> ${HOME}/from-terminal.txt`);
     await until("a second version", async () => (await filesIn(folderId)).files.find((f) => f.name === "from-terminal.txt" && f.version > t1.version));
 
+    // a file the agent makes while working for a chat is said in that chat, once, as a file card pointing at Files
+    const chat = await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "computers-live-chat" });
+    assert.equal(chat.status, 200, JSON.stringify(chat.data));
+    const threadId = (chat.data.thread?.threadId ?? chat.data.threadId) as string;
+    const { DatabaseSync } = await import("node:sqlite");
+    const mdb = new DatabaseSync(path.join(dir, "modules.db"));
+    mdb.prepare("INSERT INTO computers_timeline (step_id, computer_id, idx, at, by_who, caption, tool, thread_id) VALUES (?, ?, 9000, ?, 'agent', 'Writing the report', 'screen', ?)").run("stp_madefiles1", computerId, Date.now(), threadId);
+    mdb.close();
+    assert.equal((await inBox(`printf report-body > ${HOME}/Q3-report.txt`)).code, 0);
+    const card = await until("a file card in the chat", async () => {
+      const page = (await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { fileId: string; name: string } }> }> };
+      return page.messages.flatMap((m) => m.blocks ?? []).find((b) => b.type === "file" && b.data.name === "Q3-report.txt");
+    }, 100_000);
+    const q3 = (await filesIn(folderId)).files.find((f) => f.name === "Q3-report.txt");
+    assert.equal(card.data.fileId, q3?.fileId, "the card points at the file in Files");
+    await new Promise<void>((r) => setTimeout(r, 8_000));
+    const cards = ((await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { name: string } }> }> }).messages.flatMap((m) => m.blocks ?? []).filter((b) => b.type === "file" && b.data.name === "Q3-report.txt");
+    assert.equal(cards.length, 1, "said once");
+
+    // the first step the agent takes for the chat puts a live card in it, once (rc.9 flow 13): a screenshot block marked live, pointing at a frame in Files
+    await call(d, "computers.screen.screenshot", { computerId });   // a person's own step posts no card: only an agent working for a chat does
+    const liveCards = async () => ((await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { live?: boolean; computerId?: string } }> }> }).messages.flatMap((m) => m.blocks ?? []).filter((b) => b.type === "screenshot" && b.data.live === true);
+    assert.equal((await liveCards()).length, 0, "a person at the keyboard leaves no live card");
+
     // a file saved in Vyre shows on the computer
     const fromVyre = await call(d, "files.create", { folderId, name: "from-vyre.txt", content: { text: "from-vyre" }, idempotencyKey: "home-from-vyre" });
     assert.equal(fromVyre.status, 200, JSON.stringify(fromVyre.data));
@@ -254,6 +278,21 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     assert.equal(dl.name, "dl.bin");
     const dlRow = (await filesIn((await filesIn(folderId)).folders.find((f) => f.name === "downloads")!.folderId)).files.find((f) => f.name === "dl.bin") as { size?: number } | undefined;
     assert.equal(dlRow?.size, 2097152, "a 2 MB download went through the upload path whole");
+
+    // take the wheel: a live view ticket, then the person's own click reaches the desktop, and giving back returns the controls to the agent with the time recorded in its steps (rc.9 flow 12)
+    const view = await call(d, "computers.stream", { computerId });
+    assert.equal(view.status, 200, JSON.stringify(view.data));
+    assert.ok(typeof view.data.ticket === "string" && view.data.ticket.length > 0, "a short-lived ticket for the live view");
+    const took = await call(d, "computers.take_over", { computerId });
+    assert.equal(took.status, 200, JSON.stringify(took.data));
+    assert.equal(took.data.computer.state, "takeover");
+    const clicked = await call(d, "computers.screen.click", { computerId, x: 640, y: 400 });
+    assert.equal(clicked.status, 200, `the person's click reached the desktop: ${JSON.stringify(clicked.data)}`);
+    const gave = await call(d, "computers.give_back", { computerId });
+    assert.equal(gave.status, 200, JSON.stringify(gave.data));
+    assert.equal(gave.data.computer.state, "working", "the controls are the agent's again");
+    const steps = (await call(d, "computers.timeline", { computerId })).data.steps as Array<{ caption: string; by: string }>;
+    assert.ok(steps.some((x) => x.by === "person" && /^You took over/.test(x.caption)), `the take-over is a step: ${JSON.stringify(steps).slice(0, 300)}`);
 
     const slept = await call(d, "computers.sleep", { computerId });
     assert.equal(slept.status, 200, JSON.stringify(slept.data));

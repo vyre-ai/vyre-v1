@@ -172,11 +172,16 @@ test("the node's copy of an agent's home is a working mirror: what was edited on
   const mirror = path.join(nodeDir, "computers", agentId, "Vyre");
   // the module's own home mirror, over a folder, calling Files through the job's token; loaded through the host loader, as the node does
   const homeOf = async (link: HomeLink) => {
-    const { createHomeSync } = (await fileExportsImporter(ROOT)("computers")) as unknown as { createHomeSync: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number }> } };
+    const { createHomeSync } = (await fileExportsImporter(ROOT)("computers")) as unknown as { createHomeSync: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number; made?: Array<{ fileId: string }> }> } };
     const sync = createHomeSync({ agentId, computerId: "cmp", fs: dirFs(mirror), manifest: path.join(nodeDir, "computers", agentId, "home-manifest.json") }, { callAs: link.call, putBytes: link.put, now: Date.now, log: () => undefined });
     return async (kind: string): Promise<unknown> => {
       if (kind === "start") { await sync.pass(); return {}; }
-      if (kind === "stop") { const r = await sync.pass(); return { sessions: [], homeSynced: r.failed === 0 }; }
+      if (kind === "stop") {
+        const r = await sync.pass() as { failed: number; made?: Array<{ fileId: string }> };
+        // what the node's host does with the files the pass says the agent made (impl.ts announce): name them to the Space through the door
+        if (r.made?.length) await link.call(agentId, "made_files", { files: r.made.map((f) => ({ fileId: f.fileId })) });
+        return { sessions: [], homeSynced: r.failed === 0 };
+      }
       return undefined;
     };
   };
@@ -198,7 +203,13 @@ test("the node's copy of an agent's home is a working mirror: what was edited on
     fs.utimesSync(path.join(mirror, "clash.txt"), new Date(Date.now() - 10_000), new Date(Date.now() - 10_000));
     fs.writeFileSync(path.join(mirror, "made-on-node.txt"), "new on the node");
     fs.utimesSync(path.join(mirror, "made-on-node.txt"), new Date(Date.now() - 10_000), new Date(Date.now() - 10_000));
+    // the chat this work is for: the computer's latest step names it
+    const chat = await post(d, "/v1/chat/start", { kind: "chat", agentIds: [agentId], idempotencyKey: "chat-made" }, owner);
+    const threadId = chat.json.data.thread.threadId as string;
+    d.db!.run("INSERT INTO computers_timeline (step_id, computer_id, idx, at, by_who, caption, tool, thread_id) VALUES (?, ?, 9000, ?, 'agent', 'Writing', 'screen', ?)", "stp_nodemade1", id, Date.now(), threadId);
     assert.equal((await post(d, "/v1/computers/sleep", { computerId: id }, owner)).json.data.computer.state, "asleep");
+    const cards = ((await post(d, "/v1/chat/messages/list", { threadId }, owner)).json.data.messages as Array<{ blocks?: Array<{ type: string; data: { name: string; fileId: string } }> }>).flatMap((m) => m.blocks ?? []).filter((b) => b.type === "file");
+    assert.deepEqual(cards.map((c) => c.data.name), ["made-on-node.txt"], "a file made on the node is said in the chat, once, by the name Files has");
     assert.equal(await read(quiet.fileId), "edited on the Space", "the Space's edit is not overwritten at sleep");
     assert.equal(await read(clash.fileId), "clash, Space side", "Files keeps its version of a clash");
     assert.ok(names().includes("clash (from computer).txt"), `the computer's version is kept beside it: ${JSON.stringify(names())}`);

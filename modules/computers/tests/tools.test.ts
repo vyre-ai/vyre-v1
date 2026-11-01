@@ -199,6 +199,36 @@ test("the run and thread of the caller are on the step, and a frame that cannot 
   bindHost(null);
 });
 
+test("the first thing the agent does for a chat puts one live card in it; more steps add none; a post that fails never fails the tool", async () => {
+  const w = await world({ answers: { chrome_click: () => ({ ok: true, frame: PNG }) } });
+  const a = w.agent();
+  a.ctx.thread = "thr_live";
+  a.respond["files.create"] = () => ({ file: { fileId: "fil_frame" } });
+  a.respond["chat.post"] = () => ({ message: { messageId: "msg_1" } });
+  await tool["computers.chrome.click"]!(a.ctx, { ref: "e1" });
+  await tool["computers.chrome.click"]!(a.ctx, { ref: "e2" });
+  const posts = a.calls("chat.post");
+  assert.equal(posts.length, 1, "one card for the burst of work");
+  const input = posts[0]!.input as { threadId: string; blocks: Array<{ type: string; data: Record<string, unknown> }> };
+  assert.equal(input.threadId, "thr_live");
+  assert.equal(input.blocks[0]!.type, "screenshot");
+  assert.equal(input.blocks[0]!.data["live"], true);
+  assert.equal(input.blocks[0]!.data["fileId"], "fil_frame");
+  assert.equal(input.blocks[0]!.data["computerId"], w.id);
+  // a person at the keyboard, or work for no chat, posts nothing
+  const none = w.agent();
+  const before = none.calls("chat.post").length;
+  await tool["computers.chrome.click"]!(none.ctx, { ref: "e1" });
+  assert.equal(none.calls("chat.post").length, before, "no chat, no card");
+  // a refused post is not a failed tool
+  const f = w.agent();
+  f.ctx.thread = "thr_other";
+  f.respond["files.create"] = () => ({ file: { fileId: "fil_f2" } });
+  f.respond["chat.post"] = () => { throw new Error("not in this chat"); };
+  assert.equal((await tool["computers.chrome.click"]!(f.ctx, { ref: "e1" })).ok, true);
+  bindHost(null);
+});
+
 test("what is typed is never in the timeline, and a held item says so", async () => {
   const w = await world({ answers: { chrome_act: () => ({ ok: true, heldId: "held_1" }), chrome_type: () => ({ ok: true }) } });
   const agent = w.agent();

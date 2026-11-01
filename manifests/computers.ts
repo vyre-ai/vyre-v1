@@ -273,7 +273,7 @@ export default defineManifest({
   ],
   blocks: [
     block('screenshot', {
-      computerId: id.computer, fileId: id.file, caption: t.str(), stepId: t.opt(t.id('stp')), stepIndex: t.opt(t.int()), at: t.ts(),
+      computerId: id.computer, fileId: id.file, caption: t.str(), stepId: t.opt(t.id('stp')), stepIndex: t.opt(t.int()), at: t.ts(), live: t.opt(t.bool()),
     }, 'Screenshot: {{caption}}', {
       opens: { tab: 'computer', input: { computerId: '/computerId' } },
       actions: [{ key: 'make_skill', label: 'Make a skill from here', cap: 'computers.skill_from_step', input: { computerId: '/computerId', stepId: '/stepId' } }],

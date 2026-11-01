@@ -116,6 +116,24 @@ async function keepFrame(ctx: CompCtx, c: ComputerRow, frame: unknown, at: numbe
   }
 }
 
+// The live card (rc.9): the first thing an agent does on its computer for a chat puts one message in that chat, a screenshot block marked live. The chat draws it as the computer's live view while the
+// computer works and as the last picture afterwards. One card per chat and computer for a burst of work; a new burst (ten quiet minutes) gets a new one. Posting never fails the tool call.
+const LIVE_GAP_MS = 10 * 60_000;
+const lastCard = new Map<string, number>();
+async function liveCard(ctx: CompCtx, c: ComputerRow, caption: string, fileId: string | undefined, at: number): Promise<void> {
+  if (!ctx.thread || ctx.principal.kind !== "agent" || !fileId) return;
+  const key = `${c.computerId}|${ctx.thread}`;
+  const prev = lastCard.get(key);
+  lastCard.set(key, at);
+  if (prev !== undefined && at - prev < LIVE_GAP_MS) return;
+  try {
+    await ctx.call("chat.post", {
+      threadId: ctx.thread, body: "", mentions: [], idempotencyKey: `cmplive:${c.computerId}:${ctx.thread}:${Math.floor(at / LIVE_GAP_MS)}`,
+      blocks: [{ type: "screenshot", v: 1, data: { computerId: c.computerId, fileId, caption, at, live: true } }],
+    });
+  } catch { lastCard.delete(key); }
+}
+
 export interface Resolved { computer: ComputerRow; host: ComputerHost & ToolHost }
 
 /** Everything before the call: team Space, the computer, the caller's right to it, awake, and the controls with the agent. Returns null when the spec says to leave a sleeping computer alone. */
@@ -152,6 +170,7 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
     addStep(ctx.db, c.computerId, at, {
       by: ctx.principal.kind === "agent" ? "agent" : "person", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}),
     });
+    await liveCard(ctx, c, words, frameFileId, at);
   }
   return out;
 }

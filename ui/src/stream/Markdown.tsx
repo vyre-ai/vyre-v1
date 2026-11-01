@@ -7,6 +7,9 @@ import type { Block, Inline } from "./markdown.ts";
 import { BLOCK_GAP, BODY_LINE, BODY_SIZE } from "./Reserved.tsx";
 
 /** Draws a link its own way (a known subject with its hover card) or returns null to draw it as the plain link. */
+/** Draws something under a fenced code block (a Run bar), or null for nothing. Only called for a block that is finished. */
+export type RenderCode = (block: Extract<Block, { kind: "code" }>) => ReactNode | null;
+
 export type RenderLink = (href: string, children: ReactNode, key: number) => ReactNode | null;
 
 function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void, renderLink?: RenderLink): ReactNode {
@@ -57,6 +60,7 @@ export interface BlockViewProps {
   caret?: boolean;
   onLink?: (href: string) => void;
   renderLink?: RenderLink;
+  renderCode?: RenderCode;
 }
 
 /** The inline runs with the caret written into the last text run (or after the last non-text run), so it is part of an existing text node and never a node of its own. */
@@ -79,7 +83,7 @@ function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean,
   return out;
 }
 
-export const BlockView = memo(function BlockView({ block, caret = false, onLink, renderLink }: BlockViewProps) {
+export const BlockView = memo(function BlockView({ block, caret = false, onLink, renderLink, renderCode }: BlockViewProps) {
   switch (block.kind) {
     case "p":
       return <Text testID={`block-${block.key}`} style={styles.p}>{inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}</Text>;
@@ -95,8 +99,11 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink,
       return <View testID={`block-${block.key}`} style={styles.rule} />;
     case "code":
       return (
-        <View testID={`block-${block.key}`} style={styles.pre}>
-          <Text style={styles.preText}>{caret ? block.text + CARET : block.text}</Text>
+        <View testID={`block-${block.key}`}>
+          <View style={styles.pre}>
+            <Text style={styles.preText}>{caret ? block.text + CARET : block.text}</Text>
+          </View>
+          {renderCode && !caret && block.closed ? renderCode(block) : null}
         </View>
       );
     case "ul":
@@ -114,15 +121,17 @@ export interface MarkdownBlocksProps {
   onLink?: (href: string) => void;
   /** Draws some links its own way (memory underlines known subjects with it); leave it out and every link is the plain accent link. */
   renderLink?: RenderLink;
+  /** Draws a bar under a finished code block (Run); leave it out and a code block is just the code. */
+  renderCode?: RenderCode;
 }
 
 /** Final blocks first (same objects every frame, so they do not re-render), then the open ones. */
-export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink }: MarkdownBlocksProps) {
+export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, renderCode }: MarkdownBlocksProps) {
   const last = blocks.length - 1;
   const views: ReactNode[] = [];
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
-    if (b) views.push(<BlockView key={b.key} block={b} caret={streaming && i === last} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} />);
+    if (b) views.push(<BlockView key={b.key} block={b} caret={streaming && i === last} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} {...(renderCode ? { renderCode } : {})} />);
   }
   return (
     <View testID="markdown-blocks" style={styles.root}>

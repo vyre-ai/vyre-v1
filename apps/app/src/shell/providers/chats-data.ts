@@ -151,7 +151,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId, me: { id: rt.me.id, name: rt.me.name },
     nameOf: (id) => nameOr(byId.get(id)?.name, id),
     kindOf: (id) => kindOf(byId.get(id)),
-    nav, clock: rt.clock, spaceName: rt.space.name, ...(rt.space.kind === "personal" ? { personal: true } : {}),
+    nav, clock: rt.clock, spaceName: rt.space.name, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}), ...(rt.space.kind === "personal" ? { personal: true } : {}),
     ...(fill ? { fill } : {}),
     memory: chatMemory(rt, a),
     lists: composerLists(principals, rt.me.id),
@@ -189,5 +189,6 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
     nav, clock: rt.clock,
     memory: chatMemory(rt, a),
+    ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
   };
 }

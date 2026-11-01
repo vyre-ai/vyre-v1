@@ -44,7 +44,12 @@ export interface HomeSync {
   pass(): Promise<HomeReport>;
 }
 /** `failed` counts what a pass could not do (a call refused or lost, a removal that did not happen): a pass with any is not a finished sync. */
-export interface HomeReport { down: number; up: number; conflicts: number; removed: number; refused: string[]; suggested: number; failed: number }
+export interface HomeReport { down: number; up: number; conflicts: number; removed: number; refused: string[]; suggested: number; failed: number;
+  /** The files the agent made on the computer in this pass (new in Files, not edits), for the chat to say so. Recordings and hidden paths are left out. */
+  made: MadeFile[] }
+export interface MadeFile { fileId: string; name: string; kind: string; size: number; version: number }
+/** A file the agent made for the person, not the computer's own housekeeping: not a recording, not under a hidden folder. */
+export const worthSaying = (rel: string): boolean => !rel.startsWith("work/recordings/") && !rel.split("/").some((seg) => seg.startsWith("."));
 
 const emptyManifest = (): Manifest => ({ files: {}, folders: {} });
 
@@ -124,7 +129,7 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
   // ---- the pass
 
   async function run(): Promise<HomeReport> {
-    const report: HomeReport = { down: 0, up: 0, conflicts: 0, removed: 0, refused: [], suggested: 0, failed: 0 };
+    const report: HomeReport = { down: 0, up: 0, conflicts: 0, removed: 0, refused: [], suggested: 0, failed: 0, made: [] };
     const agent = (await d.callAs(o.agentId, "agents.get", { agentId: o.agentId })).agent as { folderId: string; ownerId: string };
     const m = load();
     const R = await remote(agent.folderId);
@@ -181,9 +186,10 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
             if (readOnly) { removeFiles.push(rel); afterRemove.push(() => undefined); continue; }
             const folderId = await folderFor(dirOf(rel));
             const made = await d.callAs(o.agentId, "files.create", { folderId, name: baseOf(rel), content: await content(bytes), idempotencyKey: `home:${o.computerId}:create:${rel}:${sha256b64(bytes)}` });
-            const f = made.file as { fileId: string; version: number };
+            const f = made.file as { fileId: string; version: number; kind?: string; size?: number };
             m.files[rel] = { fileId: f.fileId, version: f.version, sha: sha256b64(bytes) };
             report.up++;
+            if (worthSaying(rel)) report.made.push({ fileId: f.fileId, name: baseOf(rel), kind: f.kind ?? "other", size: f.size ?? bytes.length, version: f.version });
           }
         } else if (r && l) {
           const bytes = l.bytes;
