@@ -397,3 +397,12 @@ test("an access request's Approve grants (access.requests.approve); it is not a 
   assert.ok(has(out, 'data-testid="needs-access-approve"') && has(out, 'data-testid="needs-access-decline"'));
   assert.ok(!has(out, 'data-testid="needs-primary"'));
 });
+
+test("a connection that stopped working offers Reconnect and Check again; no bare Fix, no Take", () => {
+  const s = createSample("northwind");
+  for (const r of s.replica.rows("needs")) s.replica.remove("needs", [r.id]);
+  s.replica.put("needs", [{ id: "tsk_cf", reason: "blocking", task: { ...keyTask(), id: "tsk_cf", title: "Your Acme key stopped working", blocks: [{ type: "connection_fix", v: 1, data: { connectionId: "con_1", title: "Acme" } }], workingNotes: {}, source: { kind: "manual", id: "con_1" } } }]);
+  const out = html(s);
+  assert.ok(has(out, 'data-testid="needs-reconnect"') && has(out, 'data-testid="needs-check-again"'));
+  assert.ok(!has(out, 'data-testid="needs-primary"') && !has(out, ">Fix<") && !has(out, "connection fix"));
+});
