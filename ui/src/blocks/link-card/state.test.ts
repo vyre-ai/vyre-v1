@@ -1,3 +1,4 @@
+// @tsx
 // What a work card reads from its target: which read, how the answer is worded, and what hides a card from someone who may not open it.
 import test from "node:test";
 import assert from "node:assert/strict";

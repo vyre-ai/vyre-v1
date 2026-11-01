@@ -149,3 +149,21 @@ export async function pushBase(o: { repo: string; base: string }): Promise<{ pus
   if (out.code !== 0) return { pushed: false, remote: url.out.trim(), note: `The remote did not take it: ${(out.err || out.out).trim().split("\n").slice(-2).join(" ").slice(0, 240)}` };
   return { pushed: true, remote: url.out.trim() };
 }
+
+/**
+ * What the repository says about a teammate's branch, however it got there: how far ahead of its start the branch is, whether its tip is now part of the base branch (the lead merged it, a person did it in a
+ * terminal, anything), and whether the remote's copy of the base holds it. Read from the repository, never from a flag a button set. Null when the teammate's copy is gone. A squash or a rebase leaves the
+ * original commits out of the base and reads as not merged.
+ */
+export async function branchFacts(o: { repo: string; clone: string; branch: string; base: string }): Promise<{ ahead: number; merged: boolean; pushed: boolean } | null> {
+  if (!fs.existsSync(o.clone) || !fs.existsSync(o.repo)) return null;
+  const tip = await git(["rev-parse", "--verify", "--quiet", `refs/heads/${cleanBranch(o.branch)}`], o.clone);
+  if (tip.code !== 0) return null;
+  const sha = tip.out.trim();
+  const ahead = Number((await git(["rev-list", "--count", `${cleanBranch(o.base)}..${sha}`], o.clone)).out.trim()) || 0;
+  if (ahead === 0) return { ahead: 0, merged: false, pushed: false };
+  if ((await git(["cat-file", "-e", `${sha}^{commit}`], o.repo)).code !== 0) return { ahead, merged: false, pushed: false };
+  const merged = (await git(["merge-base", "--is-ancestor", sha, cleanBranch(o.base)], o.repo)).code === 0;
+  const pushed = merged && (await git(["merge-base", "--is-ancestor", sha, `origin/${cleanBranch(o.base)}`], o.repo)).code === 0;
+  return { ahead, merged, pushed };
+}

@@ -1,6 +1,7 @@
 // The conversation's logic, with no renderer (spec 3.2 Chats, 2.5 Chat, 4.13 Agents lead and listen): which messages are on the page (the last 50, older ones stream in),
 // how they group into a timeline, how an agent's work folds into "Worked for 14s, 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
 // interrupt), and the optimistic message that shows in the same frame as the send.
+import { stepWords } from "./activity.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blocks/registry.ts";
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
@@ -91,12 +92,14 @@ const dataOf = (b: MessageBlock): Record<string, unknown> => (isRec(b.data) ? b.
 
 /** A step of an agent's work (a tool call, a page opened, a record read). They fold into one line. */
 export const isStep = (b: MessageBlock): boolean => b.type === "step";
+/** The steps a turn took, as the host records them on its reply: a call and its result for each, or one summary when there were many. They fold into "Worked for 14s", they are not cards. */
+export const isToolStep = (b: MessageBlock): boolean => b.type === "tool_call" || b.type === "tool_result" || b.type === "tool_steps";
 /** The shared error shape (V1-SPEC 4.18): what, why, next, trace id. */
 export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 const QUIET_BLOCKS = new Set(["refs", "fork_origin"]);
-export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
+export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
 export { isTurnStatus, statusView } from "./status.ts";
 export type { StatusView } from "./status.ts";
 
@@ -111,11 +114,14 @@ export interface Work { steps: StepLine[]; secs: number; live: boolean; summary:
 
 /** "Worked for 14s, 3 steps" once done; "Working, 2 steps so far" while a step is live. */
 export function workOf(m: Message): Work | null {
-  const steps = m.blocks.filter(isStep);
+  const tools = m.blocks.filter(isToolStep);
+  const steps = [...m.blocks.filter(isStep), ...tools.filter((b) => b.type === "tool_call" || b.type === "tool_steps")];
   if (steps.length === 0) return null;
-  const lines = steps.map(stepLine);
+  const lines = steps.map((b) => (b.type === "tool_call" ? { id: b.id, title: stepWords(str(dataOf(b).name)), sub: "", state: "done" as const } : b.type === "tool_steps" ? { id: b.id, title: `${num(dataOf(b).calls)} steps`, sub: "", state: "done" as const } : stepLine(b)));
+  steps.push(...tools.filter((b) => b.type === "tool_result"));   // their times count, they are not lines of their own
   const live = lines.some((l) => l.state === "live");
-  const secs = steps.reduce((n, b) => n + num(dataOf(b).secs), 0);
+  // the whole turn when the host said how long it took (thinking and writing too), else the time of the steps
+  const secs = Math.max(steps.reduce((n, b) => n + num(dataOf(b).secs), 0), steps.reduce((n, b) => Math.max(n, num(dataOf(b).turnSecs)), 0));
   const n = lines.length;
   const count = `${n} ${n === 1 ? "step" : "steps"}`;
   const summary = live ? `Working, ${count} so far` : secs > 0 ? `Worked for ${secs}s, ${count}` : `Worked ${count}`;

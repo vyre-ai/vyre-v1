@@ -1,3 +1,4 @@
+// @tsx
 // Choosing a skin in Settings > Appearance applies it to the window: the root attributes follow the chosen skin at once.
 import test from "node:test";
 import assert from "node:assert/strict";

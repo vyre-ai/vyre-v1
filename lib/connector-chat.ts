@@ -19,3 +19,6 @@ export const CRM_TOOLS: readonly string[] = [
   "sync_specs_sample", "sync_specs_survey", "sync_specs_validate", "sync_specs_preview", "sync_specs_apply", "sync_specs_get", "sync_specs_backfill",
   "automations_draft_connector", "automations_read_docs", "automations_connector_card", "schema_types_list", "vault_use", "vault_request", "runs_get",
 ];
+
+/** The crew tools, listed from the start in a chat inside a project: a person says "give it to a teammate", never a tool name, and the CLI cannot pick up a tool found later with tool_search. */
+export const CREW_TOOLS: readonly string[] = ["crew_start", "crew_list", "crew_message", "crew_stop", "crew_wait", "crew_merge", "crew_push"];

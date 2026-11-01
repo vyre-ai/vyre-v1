@@ -20,6 +20,7 @@ import { claimOnEdge, dismissOnboarding, edge } from "../apps/app/tests/real-app
 const PASSWORD = "fixture password 123";
 const SHOTS = process.env["VYRE_WALK_SHOTS"] ?? "shots-evidence/personal-walk";
 
+
 test("a fresh Personal Space: the first hour works end to end in the real app", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
@@ -183,6 +184,16 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await page.getByText("walk.txt", { exact: true }).first().waitFor({ timeout: 20_000 });
     });
 
+    await step("Files: a Personal folder offers no Share, since there is no one to share with", async () => {
+      await go("files", "files-place");
+      const row = page.getByText("Walk folder 2", { exact: true }).first();
+      await row.waitFor({ timeout: 15_000 });
+      await row.click({ button: "right", timeout: 10_000 });
+      await page.getByText(/^(Open|Rename)/).first().waitFor({ timeout: 10_000 });   // the menu is up
+      assert.equal(await page.getByText(/^Share/).count(), 0, "no Share item in the folder menu");
+      await page.keyboard.press("Escape");
+    });
+
     await step("Records: create a Contact, edit a field, see Activity", async () => {
       await go("records", "records-place");
       await page.getByText("Contacts", { exact: true }).first().click({ timeout: 15_000 });
@@ -230,17 +241,44 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       assert.equal(await page.getByTestId("skin-preview").getAttribute("aria-label"), mode === "dark" ? "Preview of Graphite" : "Preview of Paper", `the System preview matches data-mode ${mode}`);
     });
 
-    await step("Terminal: opens", async () => {
+    await step("Terminal: opens from the Space menu and from Search, and again", async () => {
       await go("chat", "chats-place");
-      // the Terminal is a tab in the chat's right pane; open the pane if it is shut, then press the tab
+      const list = page.getByTestId("terminal-list");
+      const openFromMenu = async (): Promise<void> => {
+        await page.getByTestId("space-tile").click({ timeout: 10_000 });
+        await page.getByRole("menuitem", { name: "Open Terminal", exact: true }).click({ timeout: 10_000 });
+        await list.waitFor({ timeout: 20_000 });
+      };
+      await openFromMenu();
+      // a browser has no computer a terminal can open on: the list says where one can, and New offers no row that does nothing
+      await page.getByTestId("terminals-empty").waitFor({ timeout: 10_000 });
+      await page.getByText(/Vyre desktop app/).first().waitFor({ timeout: 10_000 });
+      await page.getByTestId("terminal-new").first().click({ timeout: 10_000 });
+      await page.getByText("No computer here", { exact: true }).waitFor({ timeout: 10_000 });
+      assert.equal(await page.getByRole("menuitem", { name: "This computer", exact: true }).count(), 0, "no This computer row without a desktop device");
+      assert.equal(await page.getByRole("menuitem", { name: "Space server", exact: true }).count(), 0, "no Space server row in a Personal Space");
+      assert.equal(await page.getByRole("menuitem", { name: "Agent computer", exact: true }).count(), 0, "no Agent computer row without one");
+      await page.keyboard.press("Escape");
+      // leave, then open again from Search
+      await go("chat", "chats-place");
+      await page.keyboard.press("Meta+k");
+      await page.getByTestId("cmdk-input").fill(">terminal");
+      await page.getByText("Open terminal", { exact: true }).first().click({ timeout: 10_000 });
+      await list.waitFor({ timeout: 20_000 });
+      // open, leave, open: the second open shows the list again
+      await go("chat", "chats-place");
+      await openFromMenu();
+    });
+
+    await step("Terminal: the chat pane's tab opens and says where a terminal can open from", async () => {
+      await go("chat", "chats-place");
       const tab = page.getByTestId("tab-terminal").or(page.getByTestId("tab-terminal-selected")).first();
-      if (!(await tab.isVisible().catch(() => false))) {
-        await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
-      }
+      if (!(await tab.isVisible().catch(() => false))) await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
       await tab.waitFor({ timeout: 15_000 });
       await tab.click({ timeout: 10_000 });
       await page.getByTestId("pane-body-terminal").waitFor({ timeout: 15_000 });
-      await page.getByTestId("terminal-pane-open").or(page.getByTestId("terminal-pane-hosts")).or(page.getByTestId("terminal-pane-empty")).or(page.getByTestId("terminal-tab")).first().waitFor({ timeout: 20_000 });
+      await page.getByTestId("terminal-pane-open").click({ timeout: 10_000 });
+      await page.getByText(/No computer to open a terminal on/).waitFor({ timeout: 15_000 });   // a plain line, not a dead button
     });
   } finally {
     if (failures.length) {

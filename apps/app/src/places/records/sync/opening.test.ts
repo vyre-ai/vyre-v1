@@ -1,3 +1,4 @@
+// @tsx
 import test from "node:test";
 import assert from "node:assert/strict";
 import { BRING_IN_OPENING, appNameOf, editMappingOpening, syncOpening } from "./opening.ts";

@@ -209,7 +209,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
       onSelect: goFolder,
       onToggle: (id, open) => setOpenF((o) => ({ ...o, [id]: open })),
       onNewFolder: (scope, parent) => data.nav.newFolder(scope === "space" ? "space" : "personal", parent),
-      onShare: (n) => data.nav.shareFolder(n.id),
+      ...(data.nav.shareFolder ? { onShare: (n: { id: string }) => data.nav.shareFolder?.(n.id) } : {}),
       ...(data.nav.connectFolder ? { onMount: (n: { id: string }) => data.nav.connectFolder?.(n.id) } : {}),
       onRename: (n) => data.nav.renameEntry("folder", n.id, n.name),
       onDelete: (n) => void data.call("folders.delete", { folderId: n.id }),

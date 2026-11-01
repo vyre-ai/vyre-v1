@@ -58,12 +58,16 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
   const [back, setBack] = useState(false);
   const [words, setWords] = useState("");
 
+  // the card follows the repository, not its own buttons: it reads the job when it shows and every few seconds after, so a branch merged or pushed any other way flips it without a refresh
   useEffect(() => {
     let live = true;
-    void (async () => {
+    const look = async (): Promise<void> => {
       try { const out = (await data.call("engine.crew.list", { threadId: leadThreadId })) as CapMap["engine.crew.list"]["out"]; if (live) setJob(out.jobs.find((j) => j.jobId === c.jobId) ?? null); } catch { /* the card still works from its own words */ }
-    })();
-    return () => { live = false; };
+    };
+    void look();
+    const timer = setInterval(() => { void look(); }, 4000);
+    (timer as unknown as { unref?: () => void }).unref?.();
+    return () => { live = false; clearInterval(timer); };
   }, [data, leadThreadId, c.jobId]);
 
   const merged = job?.state === "merged" || line?.startsWith("Merged") === true;
@@ -91,6 +95,9 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
       else { if (out.job) setJob(out.job); setLine(out.pushed ? "Pushed to the remote" : out.note ?? "Nothing was pushed"); }
     } catch { setLine("Could not push. Try again."); } finally { setBusy(false); }
   };
+  if (job?.state === "stopped") {
+    return <View testID={`crew-card-${c.jobId}`} style={st.doneBox}><View style={st.done}><Glyph name="check" size={13} /><Text style={st.doneText}>{`Stopped · ${c.name}: ${c.title}`}</Text></View></View>;
+  }
   if (merged) {
     return (
       <View testID={`crew-card-${c.jobId}`} style={st.doneBox}>

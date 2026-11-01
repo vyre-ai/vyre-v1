@@ -499,7 +499,7 @@ export function Terminal(props: TerminalViewProps): ReactElement {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Host: ${props.hostLabel}`}
-      onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => menu.show(props.hosts && props.hosts.length > 0 ? hostChoiceMenu(props.hosts, props.hostKey, (k) => props.onPickHost?.(k)) : hostMenu(props.host, locked && props.host === "server", (h) => props.onHost?.(h)), e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0, "context", { label: "Terminal host" })}
+      onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => menu.show(props.hosts && props.hosts.length > 0 ? hostChoiceMenu(props.hosts, props.hostKey, (k) => props.onPickHost?.(k)) : props.hosts ? [{ label: "No other computer here", disabled: true, reason: "Open Vyre on a computer to use a terminal here" }] : hostMenu(props.host, locked && props.host === "server", (h) => props.onHost?.(h)), e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0, "context", { label: "Terminal host" })}
       testID="terminal-host"
       style={({ hovered }: { hovered?: boolean }) => [styles.chip, hovered === true && styles.chipHover]}
     >
