@@ -266,18 +266,19 @@ test("the message menu keeps every item it had and adds Remember This, Add to a 
   assert.deepEqual(shown[0], ["# Add to a page", "Ian Brooks · Client", "Elena Rivera · Client", "Maya Chen · Person", "Brooks onboarding · Project", "@5,6"], "the picker lists the pages, never an agent, under the menu that asked");
 });
 
-test("Remember This asks chat.remember (the chat module picks the layer and leaves the card), flashes 'Remembered.' with Undo, and Learned shows it", async () => {
+test("Remember This asks chat.remember (the chat module picks the layer and leaves the card), flashes 'Remembered.' with Undo, and keeps the fact out of the Learned feed (as the server does)", async () => {
   const s = await withWarm();
   const { say, lines } = says();
   await rememberMessage(s.memory, "c1", { messageId: MESSAGE_IDS.reply, body: "The Growth plan is unchanged this month." }, say);
   const call = s.calls.find((c) => c.cap === "chat.remember")!;
   assert.deepEqual({ ...(call.input as Record<string, unknown>), idempotencyKey: "k" }, { threadId: "c1", messageId: MESSAGE_IDS.reply, text: "The Growth plan is unchanged this month.", idempotencyKey: "k" }, "the server picks the layer and keeps the message as the source");
   assert.equal(lines[0]!.text, FLASH.remembered);
-  const items = await learned(s);
-  const made = items.find((i) => i.fact.text === "The Growth plan is unchanged this month.");
-  assert.ok(made && made.fact.sourceRef === MESSAGE_IDS.reply, "it is in what this thread taught, from that message");
+  // like the server: Learned is what memory learned by itself; a fact the person asked to keep is theirs, in their memory, and the card in the thread is its trace
+  assert.ok(!(await learned(s)).some((i) => i.fact.text === "The Growth plan is unchanged this month."), "not in the Learned feed");
+  const kept = ((await s.memory.store.read("memory.facts.list", { status: ["current"] })) as { facts: Array<{ text: string; sourceRef: string }> }).facts.find((f) => f.text === "The Growth plan is unchanged this month.");
+  assert.ok(kept && kept.sourceRef === MESSAGE_IDS.reply, "it is in the person's memory, from that message");
   await lines[0]!.undo!();
-  assert.ok(!(await learned(s)).some((i) => i.fact.text === "The Growth plan is unchanged this month."), "Undo takes it back");
+  assert.ok(!((await s.memory.store.read("memory.facts.list", { status: ["current"] })) as { facts: Array<{ text: string }> }).facts.some((f) => f.text === "The Growth plan is unchanged this month."), "Undo takes it back");
   await rememberMessage(s.memory, "c1", { messageId: "m", body: "   " }, say);
   assert.equal(lines[1]!.text, "There are no words in this message to remember.");
 });

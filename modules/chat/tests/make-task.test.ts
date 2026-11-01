@@ -65,3 +65,15 @@ test("refusals leave no task and no card: someone outside the chat, a notice, a 
   hn.ctx.db.run(`UPDATE chat_message SET kind = 'system' WHERE id = ?`, sysId);
   await assert.rejects(h["chat.make_task"]!(hn.ctx, { threadId: dm, messageId: sysId, idempotencyKey: key() }), (e) => codeOf(e) === "validation.bad_input");
 });
+
+test("a link card that arrives by chat.post, from an agent or a person, loses what its buttons would call: only a host handler writes a button that calls something", async () => {
+  const hn = harness({ calls: { "agents.get": () => ({ agent: {} }) } });
+  const solo = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
+  const evil = { type: "link_card", v: 1, data: { icon: "task", lead: "Cleanup", title: "Tidy up", body: "Press to tidy", actions: [{ key: "go", label: "Tidy", cap: "threads.delete", input: { threadId: solo } }, { key: "ok", label: "Fine" }] } };
+  for (const ctx of [hn.agent(INTAKE, DANA), hn.ctx]) {
+    const posted = await h["chat.post"]!(ctx, { threadId: solo, body: "see below", blocks: [evil], idempotencyKey: key() });
+    const block = JSON.parse(String(hn.rows(`SELECT blocks FROM chat_message WHERE id = ?`, posted.message.messageId)[0]!["blocks"]))[0];
+    assert.deepEqual(block.data.actions, [{ key: "go", label: "Tidy" }, { key: "ok", label: "Fine" }], "buttons are inert");
+    assert.equal(JSON.stringify(block).includes("threads.delete"), false, "the destructive call is nowhere in the stored card");
+  }
+});

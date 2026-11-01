@@ -48,6 +48,12 @@ test("a chat with no project remembers into the person's own layer; a fact that 
   const out = await h["chat.remember"]!(hn.ctx, { threadId: dm, messageId: said, idempotencyKey: key() });
   assert.equal(out.layer, "person");
   assert.equal(asked[0]!["layer"], undefined);
+  assert.equal(asked[0]!["agentId"], undefined, "a chat with no agent has none to keep it for");
+  const withAgent = world({ projects: [] });
+  const t4 = (await h["chat.start"]!(withAgent.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
+  const m4 = (await h["chat.post"]!(withAgent.ctx, { threadId: t4, body: "I prefer Fridays", idempotencyKey: key() })).message.messageId as string;
+  await h["chat.remember"]!(withAgent.ctx, { threadId: t4, messageId: m4, idempotencyKey: key() });
+  assert.equal(asked[0]!["agentId"], INTAKE, "kept for the agent that leads the chat, which is the one recall reads for");
   assert.equal(cards(hn, dm)[0]!.block.data.lead, "Remembered");
   const waiting = world({ merged: false, noEdit: true });
   const t2 = (await h["chat.start"]!(waiting.ctx, { kind: "chat", agentIds: [INTAKE], recordId: "rec_rivera", idempotencyKey: key() })).thread.threadId as string;

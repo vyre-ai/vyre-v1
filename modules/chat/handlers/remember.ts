@@ -1,7 +1,7 @@
 // chat.remember (rc.9, "Remember that decision"): one message becomes a fact, in the memory of the project the chat belongs to (its record or its project channel), else in the person's own. The fact's
 // source is the message, so recall in a later chat brings it back with the link; the Learned line under the message is the memory module's own (memory.learned for this message), and a "Remembered
 // for Rivera matter" card in the thread links to the fact. A shared layer keeps its own review rule: when the fact waits for a yes the card says "Proposed to ...", not "Remembered".
-import { askerOf, channelBy, ensure, messageBy, raise, threadBy } from "../projections.ts";
+import { agentsOf, askerOf, channelBy, ensure, messageBy, raise, threadBy } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
 import { postLinkCard } from "./link-card.ts";
@@ -43,7 +43,11 @@ export async function remember(ctx: ChatCtx, input: { threadId: string; messageI
   if (text === "") raise(ctx, "validation.bad_input", "There are no words in this message to remember.");
   if (!ctx.call) raise(ctx, "internal.unavailable", "Memory is not available just now.");
   const project = await projectOf(ctx, t.id);
-  const out = (await ctx.call("memory.remember", { text, threadId: t.id, sourceRef: m.id, ...(project ? { layer: "project", projectId: project.projectId } : {}) })) as { fact: { factId: string; layer?: string }; merged: boolean };
+  // a person's own memory is kept per agent (People/<person>/memory/<agent>) and recall reads it for the agent that is answering: so it is kept for the agent that leads this chat. A chat with no agent
+  // in it has none to keep it for, and the fact waits in the person's layer unscoped.
+  const root = rootOf(ctx, t);
+  const leader = agentsOf(ctx.db, root.id).find((a) => a.mode === "lead") ?? agentsOf(ctx.db, root.id)[0];
+  const out = (await ctx.call("memory.remember", { text, threadId: t.id, sourceRef: m.id, ...(project ? { layer: "project", projectId: project.projectId } : leader ? { agentId: leader.agentId } : {}) })) as { fact: { factId: string; layer?: string }; merged: boolean };
   // a person who says "remember this" for a project they may edit is not held back (a person typing a fact in is not); one who may not edit leaves it proposed for someone who can
   let merged = out.merged;
   if (!merged && project) {

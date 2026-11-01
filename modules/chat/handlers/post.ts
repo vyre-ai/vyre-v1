@@ -65,8 +65,19 @@ function cleanBlocks(ctx: ChatCtx, raw: PostInput["blocks"]): Array<Record<strin
   return (raw ?? []).map((b) => {
     if (!BLOCK_TYPE.test(b.type)) raise(ctx, "validation.bad_input", "That is not a block type.", { type: b.type });
     if (OWN_TOOL.has(b.type)) raise(ctx, "validation.bad_input", "Questions and plans are made with ask_question and plan_propose, so they can be answered.", { type: b.type });
-    return { type: b.type, v: b.v, id: mintId("blk", ctx.now()), data: b.data, state: "done", traceId: ctx.trace.traceId };
+    return { type: b.type, v: b.v, id: mintId("blk", ctx.now()), data: b.type === "link_card" ? inertCard(b.data) : b.data, state: "done", traceId: ctx.trace.traceId };
   });
+}
+
+/**
+ * A link card that arrives by chat.post (a person's client, an agent's reply, a tool's output) is words and buttons that only report their key: its buttons lose any capability and input. Only a host handler
+ * writes a card whose buttons call something (postLinkCard), because a tap runs that call with the tapper's own rights: a card anyone could write would let anyone make a person's tap do anything.
+ */
+export function inertCard(data: unknown): unknown {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return data;
+  const d = data as Record<string, unknown>;
+  if (!Array.isArray(d["actions"])) return d;
+  return { ...d, actions: d["actions"].map((a) => { const { cap: _c, input: _i, ...rest } = (a ?? {}) as Record<string, unknown>; return rest; }) };
 }
 
 /**
