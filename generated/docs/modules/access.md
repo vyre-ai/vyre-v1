@@ -12,7 +12,7 @@ Requires: files.
 - [access.actors.revoke](../capabilities/access.actors.revoke.md): Revoke the token of an outside actor in one click
 - [access.actors.set_engineer_mcp](../capabilities/access.actors.set_engineer_mcp.md): Allow or stop an outside actor using the Engineer MCP toolset
 - [access.actors.update](../capabilities/access.actors.update.md): Change the roles or declared provider of an outside actor
-- [access.audience_set](../capabilities/access.audience_set.md): Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people
+- [access.audience_set](../capabilities/access.audience_set.md): Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record
 - [access.check](../capabilities/access.check.md): Access checker: can principal P do action A on resource R, with each step in plain words
 - [access.connector_builder.grant](../capabilities/access.connector_builder.grant.md): Give an assistant the Connector builder role (Member permissions plus connectors.manage), making the role if the Space has none. Needs access.manage.
 - [access.connector_builder.status](../capabilities/access.connector_builder.status.md): Does this assistant hold the permission to build connectors, and may the caller give it

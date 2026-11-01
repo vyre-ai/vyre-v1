@@ -170,7 +170,7 @@
       "blocks": [],
       "cap": "access.audience_set",
       "deferred": false,
-      "description": "Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people",
+      "description": "Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -189,6 +189,16 @@
               "chosen"
             ],
             "type": "string"
+          },
+          "follows": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "outside": {
+            "type": "boolean"
           },
           "resource": {
             "properties": {

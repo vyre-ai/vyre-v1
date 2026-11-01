@@ -93,10 +93,13 @@ export type AccessAudienceSetIn = {
   };
   audience?: "space" | "added" | "me";
   exporters?: "admins" | "viewers" | "chosen";
+  outside?: boolean;
+  follows?: string;
 };
 export type AccessAudienceSetOut = {
   audience: "space" | "added" | "me";
   exporters: "admins" | "viewers" | "chosen";
+  outside: boolean;
 };
 export type AccessCheckIn = {
   principal: {
@@ -1072,6 +1075,7 @@ export type AccessSharesOfOut = {
   audience?: "space" | "added" | "me";
   exporters?: "admins" | "viewers" | "chosen";
   inherits?: string;
+  outside?: boolean;
   can?: {
     manage: boolean;
     share: boolean;
