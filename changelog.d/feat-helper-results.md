@@ -1,0 +1,1 @@
+A helper the lead starts now runs (its brief is no longer the lead's own message), and when it finishes its answer comes back to the lead's chat and wakes the lead, which waits for its helpers and answers with what each found; the Agents head hides when there are no agents.

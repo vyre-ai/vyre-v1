@@ -422,13 +422,15 @@ export async function helperStart(
   if (asker.startsWith("usr_")) addMember(ctx, helper.id, asker, "owner");
   addAgent(ctx, helper.id, { agentId, mode: "lead", model: input.model, provider: input.provider, effort: input.effort, addedBy: asker });
 
-  const first = insertMessage(ctx, helper.id, { author: ctx.principal.id, kind: authorKind(ctx), body: instruction });
+  // an agent that gives the brief to itself would never wake on its own message: the brief is then the person's, who asked for the helper
+  const self = ctx.principal.kind === "agent" && agentId === ctx.principal.id && asker.startsWith("usr_");
+  const first = insertMessage(ctx, helper.id, { author: self ? asker : ctx.principal.id, kind: self ? "text" : authorKind(ctx), body: instruction });
   ctx.emit("helper.started", helper.id, { helperThreadId: helper.id, parentThreadId: parent.id, agentId, ...(input.model !== undefined ? { model: input.model } : {}) });
   emitStarted(ctx, helper);
   deliver(ctx, parent, messageBy(ctx.db, line.id)!, [], by, { notify: false });
   // a brief from one agent to another is addressed to it: an agent's message reaches another agent only when it names it
-  const addressed = ctx.principal.kind === "agent" && agentId !== ctx.principal.id ? [{ kind: "agent" as const, id: agentId }] : [];
-  deliver(ctx, helper, first, addressed, by, { notify: false });
+  const addressed = ctx.principal.kind === "agent" ? [{ kind: "agent" as const, id: agentId }] : [];
+  deliver(ctx, helper, first, addressed, self ? { kind: "person" as const, id: asker } : by, { notify: false });
   return { helper: threadOut(ctx.db, threadBy(ctx.db, helper.id)!), blockId };
 }
 

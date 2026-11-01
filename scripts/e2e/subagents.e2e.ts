@@ -146,16 +146,23 @@ async function main(): Promise<void> {
     await ok("threads.set_mode", { threadId: plain, mode: "auto" });
     chat = plain;
     await openPage(plain);
-    const ask = "Launch a subagent or two to research two things in parallel: what a sourdough starter is, and what a poolish is. Then give me one line on each.";
+    const ask = "Launch two subagents. One should open https://example.com and tell me its main heading. The other should open https://www.iana.org and tell me the title of that page. Then give me both facts.";
     await ok("chat.post", { threadId: plain, body: ask, mentions: [{ kind: "agent", id: lead }] });
     say("person", ask);
-    await waitFor("the lead to finish", async () => { const m = await msgs(plain); return m.some((x) => x.author?.kind === "agent" && String(x.body ?? "").length > 40 && !(x.blocks ?? []).some((b) => b.state === "live")) ? true : null; }, 300_000).catch(() => undefined);
+    await waitFor("both helper results and the lead's answer", async () => {
+      const m = await msgs(plain);
+      const results = m.filter((x) => /^Helper "/.test(String(x.body ?? ""))).length;
+      const lastResult = m.map((x, i) => (/^Helper "/.test(String(x.body ?? "")) ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
+      return results >= 2 && m.slice(lastResult + 1).some((x) => x.author?.kind === "agent" && String(x.body ?? "").length > 20 && !/^Helper "/.test(String(x.body))) ? true : null;
+    }, 270_000).catch(() => undefined);
     await sleep(8000);
     const helpers = ((await ok("chat.helpers.list", { threadId: plain })).helpers as any[]);   // eslint-disable-line @typescript-eslint/no-explicit-any
     const all = await msgs(plain);
     const calls = all.flatMap((m) => (m.blocks ?? []).filter((b) => b.type === "tool_call").map((b) => `${b.data?.name}${b.data?.detail ? `: ${b.data.detail}` : ""}`));
+    for (const h of helpers) say("HELPER", `${h.title}: ${JSON.stringify((await msgs(h.threadId)).map((m) => [m.author?.kind, String(m.body).slice(0, 300), (m.blocks ?? []).map((b) => `${b.type}:${b.state}`)]))}`);
+    say("LOG", hostLines(25).replace(/\n/g, " || ").slice(0, 2500));
     say("RESULT1", `Vyre helpers started: ${helpers.length} (${helpers.map((h) => h.title).join("; ")}); tool calls in the chat: ${calls.join(" | ")}`);
-    say("RESULT2", `lead's words: ${JSON.stringify(all.filter((m) => m.author?.kind === "agent").map((m) => String(m.body).slice(0, 400)))}`);
+    say("RESULT2", `chat, in order: ${JSON.stringify(all.map((m) => [m.author?.kind === "agent" ? "agent" : "person", String(m.body).slice(0, 350)]))}`);
     if (page) { const t = await page.locator("body").innerText(); say("UI", `"Using agent" shown: ${/Using agent/.test(t)}; "Working with a helper" shown: ${/Working with a helper/.test(t)}`); try { await page.getByText(/steps?/).first().click({ timeout: 3000 }); } catch { /* none */ } await sleep(800); say("shot", await shot("subagents-chat")); }
     d.sink.flush();
     const logs = JSON.stringify(new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT msg, attrs FROM logs").all());
