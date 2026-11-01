@@ -281,7 +281,7 @@ function StartFailed({ onRetry, onSignIn }: { onRetry: () => void; onSignIn: () 
   return <JoinFrame><Panel below={<Links><TextButton label="Sign in" testID="start-failed-sign-in" onPress={onSignIn}/></Links>} bar={<Bar cont={<Button label="Try again" testID="start-failed-retry" onPress={onRetry}/>}/>}><Step id="start-failed"><Title title="Vyre did not start"/><ErrorLine testID="start-failed-line">Your Space could not start on this computer.</ErrorLine></Step></Panel></JoinFrame>;
 }
 
-async function resumePersonal(local:{address:string;spaceId:string},old:StoredSession,open:NonNullable<SessionGateProps['open']>):Promise<StoredSession>{const stored=await openVerifiedSession({baseUrl:local.address,token:old.token,continuity:{id:local.spaceId,marker:old.marker},open:()=>open({baseUrl:local.address,token:old.token}),getSpace:()=>authenticatedSpace(local.address,old.token)});if(old.baseUrl!==local.address)clearStored(undefined,old.baseUrl);return stored;}
+async function resumePersonal(local:{address:string;spaceId:string},old:StoredSession,open:NonNullable<SessionGateProps['open']>):Promise<StoredSession>{const stored=await openVerifiedSession({baseUrl:local.address,token:old.token,...(old.username?{username:old.username}:{}),continuity:{id:local.spaceId,marker:old.marker},open:()=>open({baseUrl:local.address,token:old.token}),getSpace:()=>authenticatedSpace(local.address,old.token)});if(old.baseUrl!==local.address)clearStored(undefined,old.baseUrl);return stored;}
 
 export function SessionGate(props: SessionGateProps): ReactElement {
   // What the first-launch screen reads about this window (the desktop app, the Mac, the width) is known only in the browser: the static page is drawn without it, so the first client

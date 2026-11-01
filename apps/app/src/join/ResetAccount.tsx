@@ -1,7 +1,7 @@
 // Administrator-issued reset codes stay in this component, never URLs or storage.
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Bar, Button, CheckBox, CodeShown, ErrorLine, FieldRow, Group, JoinFrame, Panel, QuietLine, Step, Title } from "./kit.tsx";
+import { Bar, Button, CheckBox, CodeShown, ErrorLine, FieldRow, Group, JoinFrame, Panel, Step, Title } from "./kit.tsx";
 import { makeRecoveryCode } from "./JoinFlow.tsx";
 import { ResetAppliedError } from "./reset.ts";
 
@@ -19,7 +19,7 @@ function ResetBody({ onBack, onReset }: Props): ReactElement {
     try { await onReset({ code: code.trim(), password, recoveryCode: recovery.current }); setCode(""); setPassword(""); setConfirm(""); }
     catch (failure) {
       if (failure instanceof ResetAppliedError) { setApplied(true); setCode(""); setPassword(""); setConfirm(""); setError(""); }
-      else { setStage("details"); setError("Check the code, or ask your administrator for a new one."); }
+      else setError("Check the code, or ask your administrator for a new one.");
     } finally { flight.current = false; setBusy(false); }
   };
   const back = (): void => { if (busy) return; if (stage === "recovery") { setStage("details"); setSaved(false); setError(""); } else onBack(); };
@@ -30,19 +30,18 @@ function ResetBody({ onBack, onReset }: Props): ReactElement {
         <Step id="reset-account">
           <Title title="Reset code" />
           <Group>
-            <FieldRow testID="reset-code" label="Reset code" value={code} disabled={busy} onChange={(v) => { setCode(v); setError(""); }} placeholder="rst_" autoComplete="off" error={!!error} />
+            <FieldRow testID="reset-code" label="Reset code" value={code} disabled={busy} onChange={(v) => { setCode(v); setError(""); }} placeholder="rst_" autoComplete="off" />
             <FieldRow testID="reset-password" label="New password" value={password} disabled={busy} onChange={setPassword} placeholder="At least 8 characters" secure autoComplete="new-password" />
             <FieldRow testID="reset-confirm" label="Confirm" value={confirm} disabled={busy} onChange={setConfirm} secure autoComplete="new-password" error={!!confirm && confirm !== password} />
           </Group>
           <CheckBox testID="reset-ack" checked={ack} label="Private items may stay locked" onChange={setAck} />
-          <ErrorLine testID="reset-error">{error}</ErrorLine>
         </Step>
       ) : (
         <Step id="reset-recovery-code">
           <Title title="Your recovery code" />
           <CodeShown code={recovery.current} testID="reset-recovery" />
           <CheckBox testID="reset-saved" checked={saved} label="I saved it" onChange={setSaved} />
-          <QuietLine>{""}</QuietLine>
+          <ErrorLine testID="reset-error">{error}</ErrorLine>
         </Step>
       )}
     </Panel>

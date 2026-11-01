@@ -473,15 +473,16 @@ function OptionView({ title, help, checked, onPress, testID }: RowProps & { titl
 /** One of a few short choices, side by side in the field's box: a radio group that needs no marks. */
 export function Segments<T extends string>({ options, value, onChange, label }: { options: readonly { id: T; title: string; testID?: string }[]; value: T; onChange: (id: T) => void; label: string }): ReactElement {
   const { p } = useJoin();
-  return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: "row", gap: 2, padding: 2, minHeight: 44, borderRadius: 10, backgroundColor: p.field, ...shadow(`inset 0 0 0 1px ${p.fieldLine}`) }}>
-      {options.map((o) => (
-        <Pressable key={o.id} accessibilityRole="radio" aria-checked={value === o.id} onPress={() => onChange(o.id)} testID={o.testID} style={{ flex: 1, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: value === o.id ? p.sheet : "transparent", ...(value === o.id ? shadow(`0 0 0 1px ${p.line2}`) : {}) }}>
-          <Text numberOfLines={1} style={[base(p), { fontSize: 13, lineHeight: 18, fontWeight: value === o.id ? "600" : "500", color: value === o.id ? p.ink : p.ink3 }]}>{o.title}</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
+  const parts: ReactElement[] = [];
+  for (const o of options) {
+    const on = value === o.id;
+    parts.push(
+      <Pressable key={o.id} accessibilityRole="radio" aria-checked={on} onPress={() => onChange(o.id)} testID={o.testID} style={{ flex: 1, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: on ? p.sheet : "transparent", ...(on ? shadow(`0 0 0 1px ${p.line2}`) : {}) }}>
+        <Text numberOfLines={1} style={[base(p), { fontSize: 13, lineHeight: 18, fontWeight: on ? "600" : "500", color: on ? p.ink : p.ink3 }]}>{o.title}</Text>
+      </Pressable>,
+    );
+  }
+  return <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: "row", gap: 2, padding: 2, minHeight: 44, borderRadius: 10, backgroundColor: p.field, ...shadow(`inset 0 0 0 1px ${p.fieldLine}`) }}>{parts}</View>;
 }
 
 export function Switch({ on, onChange, label, testID }: { on: boolean; onChange: (v: boolean) => void; label: string; testID?: string }): ReactElement {

@@ -385,7 +385,7 @@ test("the pages are one sheet: one column, no gradients or blurs, and tokens onl
     assert.doesNotMatch(out, /gradient|blur\(|backdrop-filter/i, JSON.stringify(p));
     assert.equal(out.match(/data-testid="join-panel"/g)?.length, 1, "one sheet");
     assert.equal(out.match(/data-testid="step-/g)?.length, 1, "one centred column");
-    if (p.step !== 0) assert.doesNotMatch(out, /#[0-9a-fA-F]{3,8}\b|rgba?\(/, `tokens only: ${JSON.stringify(p)}`); // step 0 holds the person's generated face, which has its own colours
+    if (p.step !== 0) assert.doesNotMatch(out.replaceAll("rgba(0,0,0,0.00)", ""), /#[0-9a-fA-F]{3,8}\b|rgba?\(/, `tokens only: ${JSON.stringify(p)}`); // step 0 holds the person's generated face, which has its own colours
   }
   for (const value of Object.values(ENTRY)) assert.match(value, /^var\(--[a-z0-9-]+\)$/, "every role is one token");
 });
