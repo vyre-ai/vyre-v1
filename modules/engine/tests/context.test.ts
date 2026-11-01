@@ -221,13 +221,15 @@ test("in any other chat the skill is in the index with a description that says w
 test("an Ask or comment thread about a record, file, folder, automation or agent names the object, not only its id", async () => {
   const scoped = (scopeType: string, scopeId: string, extra: Record<string, unknown>): Record<string, unknown> => ({ ...FULL, "threads.get": { thread: { kind: "ask", title: "Comment replies", scopeType, scopeId, members: [], agents: [] } }, ...extra });
   const where = async (answers: Record<string, unknown>): Promise<string> => (await createContextBuilder({ call: fake(answers).call, now: () => at }).build(input())).sections.find((s) => s.id === "where")?.text ?? "";
-  assert.match(await where(scoped("record", "rec_1", { "records.get": { record: { id: "rec_1", type: "matter", fields: { title: "Hart v. Lowell", secret_note: "never in context" } } } })), /about record rec_1 "matter: Hart v\. Lowell"/);
-  assert.doesNotMatch(await where(scoped("record", "rec_1", { "records.get": { record: { id: "rec_1", type: "matter", fields: { title: "Hart v. Lowell", secret_note: "never in context" } } } })), /never in context/);
+  // records.get needs the type; a thread names only the record, so the Space's types are tried until one holds it
+  const matter = { "schema.describe": { types: [{ key: "contact" }, { key: "matter" }] }, "records.get": (i: unknown) => { if ((i as { type: string }).type !== "matter") throw new Error("no such record"); return { record: { id: "rec_1", type: "matter", fields: { title: "Hart v. Lowell", secret_note: "never in context" } } }; } };
+  assert.match(await where(scoped("record", "rec_1", matter)), /about record rec_1 "matter: Hart v\. Lowell"/);
+  assert.doesNotMatch(await where(scoped("record", "rec_1", matter)), /never in context/);
   assert.match(await where(scoped("file", "fil_9", { "files.get": { file: { fileId: "fil_9", name: "Engagement letter.docx" } } })), /about file fil_9 "Engagement letter\.docx"/);
   assert.match(await where(scoped("folder", "fld_3", { "files.folder.get": { folder: { folderId: "fld_3", name: "Closing set" } } })), /about folder fld_3 "Closing set"/);
   assert.match(await where(scoped("automation", "aut_2", { "automations.get": { automation: { id: "aut_2", name: "Weekly summary" } } })), /about automation aut_2 "Weekly summary"/);
   assert.match(await where(scoped("agent", "agt_docs", { "agents.get": { agent: { agentId: "agt_docs", name: "Docs" } } })), /about agent agt_docs "Docs"/);
   // an object the asker cannot read gives no name, and a record with no name field is known by its type
   assert.match(await where(scoped("file", "fil_9", {})), /about file fil_9(?! ")/);
-  assert.match(await where(scoped("record", "rec_2", { "records.get": { record: { id: "rec_2", type: "contact", fields: {} } } })), /about record rec_2 "contact"/);
+  assert.match(await where(scoped("record", "rec_2", { "schema.describe": { types: [{ key: "contact" }] }, "records.get": { record: { id: "rec_2", type: "contact", fields: {} } } })), /about record rec_2 "contact"/);
 });

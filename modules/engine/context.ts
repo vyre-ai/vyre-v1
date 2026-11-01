@@ -202,12 +202,18 @@ export function createContextBuilder(d: ContextDeps) {
       case "automation": return str(got(await read<Obj>("automations.get", { automationId: scopeId }, asker), "automation")?.["name"]);
       case "agent": return str(got(await read<Obj>("agents.get", { agentId: scopeId }, asker), "agent")?.["name"]);
       case "record": {
-        const rec = got(await read<Obj>("records.get", { recordId: scopeId }, asker), "record");
-        if (!rec) return undefined;
-        const fields = (rec["fields"] as Obj | undefined) ?? {};
-        const name = ["title", "name", "subject", "label", "full_name"].map((k) => str(fields[k])).find((v) => v !== undefined);
-        const type = str(rec["type"]);
-        return name ? `${type ? `${type}: ` : ""}${name}` : type;
+        // records.get needs the type, and a thread names only the record: try the Space's types (a person's own reach decides which answer), once per record for a short while
+        return kept<string>(`rec:${asker}:${scopeId}`, async () => {
+          const types = arr((await kept<Obj>(`rtypes:${asker}`, () => read("schema.describe", {}, asker)))?.["types"]).map((x) => str(x["key"])).filter((k): k is string => k !== undefined).slice(0, 60);
+          for (const type of types) {
+            const rec = got(await read<Obj>("records.get", { type, recordId: scopeId }, asker), "record");
+            if (!rec) continue;
+            const fields = (rec["fields"] as Obj | undefined) ?? {};
+            const name = ["title", "name", "subject", "label", "full_name"].map((k) => str(fields[k])).find((v) => v !== undefined);
+            return name ? `${type}: ${name}` : type;
+          }
+          return undefined;
+        });
       }
       default: return undefined;
     }

@@ -193,7 +193,8 @@ function ConversationView(): ReactElement {
   const win = lastMessages(all, shown);
   const ghosts = liveView ? ghostMessages(liveTurns, win.rows, thread.threadId) : [];
   const writing = new Set(collect([...win.rows, ...ghosts].filter((m) => { const s = data.streamOf(m.messageId); return s !== undefined && !s.getSnapshot().done; }), (m) => m.messageId));
-  const working = workingAgents(win.rows, writing);
+  // a turn that has streamed text but is not yet a stored message is a ghost row: its agent is working, so the header, Stop and the composer's Stop show for it too
+  const working = workingAgents([...win.rows, ...ghosts], writing);
   const isWorking = working.length > 0;
   const nameOf = data.nameOf;
   const lead = leadOf(thread);
