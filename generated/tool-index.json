@@ -2168,6 +2168,36 @@
     },
     {
       "deferred": false,
+      "name": "crew_list",
+      "summary": "The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "crew_merge",
+      "summary": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "crew_message",
+      "summary": "Send a message to a teammate in its own thread; a teammate that stopped picks up where it left off",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "crew_start",
+      "summary": "Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "crew_stop",
+      "summary": "Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "devices_get",
       "summary": "One device with its sessions",
       "toolset": "meta"
@@ -2405,6 +2435,18 @@
       "name": "engine_accounts_list",
       "summary": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "engine_crew_repo_get",
+      "summary": "The project's repository for the crew, or nothing when none is set",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_crew_repo_set",
+      "summary": "Say which folder on this computer holds the project's repository, and the branch teammates start from; the folder must be a git repository",
+      "toolset": "chats"
     },
     {
       "deferred": false,
