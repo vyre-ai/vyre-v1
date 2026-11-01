@@ -100,13 +100,15 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
     const shoot = async (page: import("playwright-core").Page, name: string): Promise<void> => { await page.screenshot({ path: path.join(shots, `${name}.png`) }); };
 
     for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
-      const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      const ctx = await browser.newContext({ viewport: process.env["VYRE_CREW_PHONE"] === "1" ? { width: 390, height: 844 } : { width: 1440, height: 900 } });
       await ctx.addInitScript((s: unknown) => { try { localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } })); } catch { /* blocked */ } }, session);
       const page = await ctx.newPage();
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(e.message));
+      page.on("console", (c) => { if (c.type() === "error") console.error("CONSOLE", c.text().slice(0, 600)); });
       await page.goto(`${web.origin}/chats?skin=${skin}`, { waitUntil: "load" });
-      await page.getByTestId("shell").waitFor({ timeout: 40_000 });
+      const phone = process.env["VYRE_CREW_PHONE"] === "1";
+      await (phone ? page.getByText("Build the site", { exact: false }).first() : page.getByTestId("shell")).waitFor({ timeout: 40_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-shell`); throw e; });
       if (mode === "light") {
         // the lead is asked in the chat the way a person asks: the message is posted into the thread
         await api("chat.post", { threadId: chat, body: "build dark mode", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "j-ask" });
@@ -117,12 +119,18 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       }
       const later = page.getByText("Finish later", { exact: true });
       if (await later.count()) await later.first().click().catch(() => undefined);
-      await page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 });
+      await (phone ? Promise.resolve() : page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 })).catch(async (e) => { await shoot(page, `${mode}-FAILED-open-chat`); await page.getByText("Details", { exact: true }).click().catch(() => undefined); console.error("DETAILS", (await page.locator("body").innerText()).slice(0, 1500), errors.join(" | ")); throw e; });
       const jobId = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ jobId: string }>)[0]!.jobId;
       const card = page.getByTestId(`crew-card-${jobId}`);
       await card.waitFor({ timeout: 40_000 });
       // the dark pass opens the chat after the merge: the same card, now one line
       assert.match(await card.innerText(), mode === "light" ? /Ember finished Dark mode[\s\S]*1 commit · 2 files/ : /Merged · Ember: Dark mode/);
+      if (mode === "light") {
+        // the start of the job is one line, not "Started a helper" plus a chip; and nobody is left marked Working once the job is done
+        await page.getByText("Ember is on Dark mode").first().waitFor({ timeout: 15_000 });
+        assert.equal(await page.getByText(/Started a helper/).count(), 0);
+        assert.equal(await page.getByText("Working", { exact: true }).count(), 0, "the header is not left on Working");
+      }
       await shoot(page, `${mode}-1-card`);
       // the Crew tab: open the pane, choose Crew, one row for Ember
       await page.getByTestId("pane-button").click({ timeout: 10_000 });
@@ -135,6 +143,8 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       if (mode === "light") {
         // Merge on the card lands the branch and the card collapses to one line
         await page.getByTestId(`crew-merge-${jobId}`).first().click();
+        // on a phone the pane covers the chat: the pane saying Merged is the check, and the phone run stops there
+        if (phone) { await page.getByText(/Merged/).first().waitFor({ timeout: 15_000 }); await shoot(page, `${mode}-3-merged-pane`); await ctx.close(); return; }
         await card.getByText(/Merged/).first().waitFor({ timeout: 15_000 });
         assert.equal(fs.readFileSync(path.join(repo, "dark-mode.txt"), "utf8"), "toggle: on\n");
         assert.match(git(repo, "log", "--format=%s", "-n", "2"), /Merge crew\/ember-1/);
