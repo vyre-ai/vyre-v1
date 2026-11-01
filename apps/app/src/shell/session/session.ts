@@ -15,6 +15,7 @@ import type { CapCall, RouteRow } from "./caps.ts";
 import { withVaultGate } from "./vault-gate.ts";
 import { attemptKey } from "../providers/files-review.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
+import { keepKey, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
@@ -166,6 +167,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error("That password does not open your vault."); }
     try {
       if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", opened.personKey))) throw new Error("Your Mine vault opens on the computer your Space runs on, not from here.");
+      keepKey(opened.personKey);
     } finally { wipe(opened.personKey); wipe(opened.privateKey); }
   };
 
@@ -175,7 +177,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     return r;
   };
   // a locked vault key asks for the password in place (one prompt for every call that meets it) and tries again; it never ends the session
-  const gated: CapCall = withVaultGate(once, unlockVault);
+  const gated: CapCall = withVaultGate(once, unlockVault, () => rehandKey(o.baseUrl, token ?? ""));
   // one idempotency key per logical call: the gate's retry after the password, and any other send of the same call, carries the same opts and so the same key
   const call: CapCall = (cap, input, given) => gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
 
