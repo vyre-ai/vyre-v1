@@ -102,5 +102,6 @@
   {"file": "scripts/shots/real-app.apps.live.test.ts","capSec": 120,"owner": "L9","reason": "fresh daemon owner claim and real production Apps route in Paper and Graphite; screenshot gate checks actual mounted place","heavy": true},
   {"file": "apps/app/tests/records.views.live.test.ts","capSec": 120,"owner": "L9","reason": "fresh daemon actual Records opening verifies saved-view request absence until canonical schema type arrives","heavy": true},
   {"file": "apps/app/tests/console.connectors.live.test.ts","capSec": 120,"owner": "L9","reason": "actual production browser and fresh owner verify connector publish/version restore, real Files export, Vault metadata references and connection lifecycle without external sign-in","heavy": true},
-  {"file":"test/chat-brain.bench.test.ts","capSec":120,"owner":"L2","reason":"runs all 30 chat benchmark tasks on a seeded Space twice, with the turn context and without it; about 30 s each on a loaded runner, over the fast cap"}
+  {"file":"test/chat-brain.bench.test.ts","capSec":120,"owner":"L2","reason":"runs all 30 chat benchmark tasks on a seeded Space twice, with the turn context and without it; about 30 s each on a loaded runner, over the fast cap"},
+  {"file":"apps/app/tests/personal.walk.live.test.ts","capSec":120,"owner":"personal-walk","reason":"The Personal Space first hour in the real app: claim, AI chat, Vault, Inbox, Files, Records, Automations, theme, Terminal; the production export in Chromium","heavy":true}
 ]
