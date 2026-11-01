@@ -8,7 +8,6 @@ export interface SpaceTile { id: string; name: string; addr: string; kind: "pers
 
 export interface SettingsNav {
   openVault(): void;
-  openConsole(): void;
   openSpace(id: string): void;
   /** Provider or mailbox sign-in lives in the Vault or the Connections flow. */
   connect(kind: "mailbox" | "calendar" | "twilio"): void;
@@ -35,7 +34,18 @@ export interface DesktopUpdater {
   install(): Promise<void>;
 }
 
+/** What this person may do for the Space: which Console pages they can open and whether they can change Space-wide rows. Absent in a Personal Space and for someone with neither. */
+export interface SpaceAdmin {
+  pages: ReadonlySet<string>;
+  canPolicy: boolean;
+  /** Draws a Console page inside Settings; `open` moves to another one. */
+  render(id: string, args: Record<string, string>, open: (id: string, args?: Record<string, string>) => void): ReactElement;
+}
+
 export interface SettingsData {
+  admin?: SpaceAdmin | undefined;
+  /** Reruns the guided first steps for this Space. */
+  openSetupGuide?(): void;
   sessionImporter?: import("../../../../../client/src/session-import/desktop.ts").SessionImporter | undefined;
   /** Update this desktop app (This computer). Absent in a browser. */
   desktopUpdater?: DesktopUpdater | undefined;

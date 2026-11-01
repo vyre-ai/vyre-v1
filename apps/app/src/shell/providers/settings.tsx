@@ -1,26 +1,30 @@
-// The Settings place in the shell (spec 3.9): ten pages over the Space's data. The open Space is the one Space the runtime knows; leaving Settings (Vault, Console, Connections) goes
-// out through the shell's door. Before the runtime exists the place draws its loading frame.
-import { useEffect, useMemo, useState } from "react";
+// The Settings place in the shell: You, and for someone who can change it, the Space with the Console's pages. The open Space is the one Space the runtime knows; leaving Settings goes out
+// through the shell's door. Before the runtime exists the place draws its loading frame.
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { desktopSessionImporter } from "../../../../../client/src/session-import/desktop.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { SettingsDataProvider } from "../../places/settings/data.tsx";
-import type { DesktopUpdater, SettingsData } from "../../places/settings/data.tsx";
+import type { DesktopUpdater, SettingsData, SpaceAdmin } from "../../places/settings/data.tsx";
 import { SecuritySheet } from "../../places/settings/SecuritySheet.tsx";
 import type { SettingsNav } from "../../places/settings/data.tsx";
 import { SettingsPlace } from "../../places/settings/SettingsPlace.tsx";
-import { PAGES } from "../../places/settings/model.ts";
+import { OLD_PAGES, PAGES } from "../../places/settings/model.ts";
 import type { PageKey } from "../../places/settings/model.ts";
 import { usePlaceHash } from "../hash/context.tsx";
 import { applySkinToWindow } from "./settings-skin.ts";
 import { nameOf } from "./misc-common.ts";
 import { chooseProfilePhoto } from "./settings-photo.ts";
 import { loadSecurity } from "./settings-security.ts";
+import { adminPages, consoleScreens } from "./settings-admin.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import { addServerAsked, useAddServerNonce } from "../computers-available.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+
+// the Console's pages load the first time one opens, so Settings itself stays light
+const AdminPage = lazy(() => import("./console.tsx").then((m) => ({ default: m.AdminPage })));
 
 /** The desktop shell's two fixed update commands (src-tauri/src/updater.rs); undefined in a browser. */
 export function desktopUpdater(invoke: Invoke | undefined = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke): DesktopUpdater | undefined {
@@ -35,9 +39,10 @@ export function desktopUpdater(invoke: Invoke | undefined = (globalThis as { __T
   };
 }
 
-export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"], security?: SettingsData["security"]): SettingsData {
+export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"], security?: SettingsData["security"], admin?: SpaceAdmin): SettingsData {
   return {
     ...(security ? { security } : {}),
+    ...(admin ? { admin } : {}),
     screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) }, space: { id: rt.space.id, name: rt.space.name },
     spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
     name: nameOf(rt),
@@ -50,7 +55,6 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
     },
     nav: {
       openVault: () => rt.open({ screen: "vault.layout" }),
-      openConsole: () => rt.open({ screen: "console.overview" }),
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
       connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "connections" } }),
       choosePhoto: () => chooseProfilePhoto(rt),
@@ -75,11 +79,25 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   const nonce = useAddServerNonce();
   // a link into Settings names its page ({ page } or the mail connections screen); without this it always opened Profile
   const { target } = usePlaceHash();
-  const asked = target.screen === "mail.connections" ? "connections" : typeof target.args["page"] === "string" ? target.args["page"] : "";
+  const raw = target.screen === "mail.connections" ? "connected" : typeof target.args["page"] === "string" ? target.args["page"] : "";
+  const asked = OLD_PAGES[raw] ?? raw;
   const page = PAGES.some((x) => x.key === asked) ? (asked as PageKey) : undefined;
-  const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn) : null), [rt, signIn]);
+  const { page: _page, admin: askedAdmin, ...adminArgs } = target.args as Record<string, string>;
+  // what this person can do for the Space, from the same read the Console used
+  const [pages, setPages] = useState<ReadonlySet<string> | null>(null);
+  useEffect(() => {
+    if (!rt || rt.space.kind === "personal") return undefined;
+    let live = true;
+    void rt.call("console.nav", {}).then((out) => { if (live) setPages(adminPages(out as Parameters<typeof adminPages>[0])); }, () => undefined);
+    return () => { live = false; };
+  }, [rt]);
+  const admin = useMemo<SpaceAdmin | undefined>(() => (rt && pages && pages.size > 0 ? {
+    pages, canPolicy: pages.has("policies"),
+    render: (id, args, open) => <Suspense fallback={null}><AdminPage rt={rt} id={id} args={args} allowed={consoleScreens(pages)} open={open} /></Suspense>,
+  } : undefined), [rt, pages]);
+  const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn, admin) : null), [rt, signIn, admin]);
   if (!data) return <View style={s.page} testID="settings-loading" />;
-  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} /> : null}</SettingsDataProvider>;
+  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} {...(askedAdmin ? { initialAdmin: askedAdmin, initialAdminArgs: adminArgs } : {})} />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} /> : null}</SettingsDataProvider>;
 }
 
 const s = StyleSheet.create({ page: { flex: 1, backgroundColor: "var(--win)" as string } });

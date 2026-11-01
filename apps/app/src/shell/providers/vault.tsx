@@ -1,5 +1,6 @@
 // The Vault place in the shell (spec 3.8): the whole Apple-Passwords layout over the Space's data. The runtime's people list, calls and door become the place's VaultData; where a click
 // leaves the Vault (share, export, Advanced, requests, an agent) it goes out through the shell. Before the runtime exists the place draws its own loading frame.
+import { adminTarget } from "./settings-admin.ts";
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import VaultLayout, { VaultLoading } from "../../places/vault/layout/index.tsx";
@@ -61,9 +62,9 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
       openShare: (itemId) => rt.open({ screen: "vault.layout", args: { share: itemId } }),
       openExport: (folderId) => rt.open({ screen: "vault.export", args: { folderId } }),
       openAdvanced: () => rt.open({ screen: "vault.layout", args: { advanced: true } }),
-      ...(rt.space.kind !== "personal" ? { openBackups: () => rt.open({ screen: "console.backups" }) } : {}),
+      ...(rt.space.kind !== "personal" ? { openBackups: () => rt.open(adminTarget("console.backups")) } : {}),
       openDevices: () => rt.open({ screen: "devices.mine" }),
-      ...(rt.space.kind !== "personal" ? { openOutsideActors: () => rt.open({ screen: "console.outside-actors" }) } : {}),
+      ...(rt.space.kind !== "personal" ? { openOutsideActors: () => rt.open(adminTarget("console.outside-actors")) } : {}),
       openPolicy: () => rt.open({ screen: "vault.layout", args: { policy: true } }),
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),

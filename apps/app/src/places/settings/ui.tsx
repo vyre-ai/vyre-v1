@@ -8,10 +8,12 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { Info, Tip } from "../../../../../ui/src/Tip/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 
+export { Info, Tip };
 export const web = Platform.OS === "web";
 export const webOnly = (o: Record<string, unknown>): Record<string, unknown> => (web ? o : {});
 export const pointer = (web ? { cursor: "pointer" } : {}) as ViewStyle;
@@ -25,6 +27,9 @@ export const PATHS: Readonly<Record<string, readonly string[]>> = {
   bell: ["M4 11V7.5a4 4 0 118 0V11l1 1.5H3z", "M6.5 13.5a1.5 1.5 0 003 0"],
   mail: ["M2.5 4.5h11v7h-11z", "M2.8 5l5.2 3.8L13.2 5"],
   chip: ["M5 5h6v6H5z", "M8 2v3M8 11v3M2 8h3M11 8h3"],
+  people: ["M8 6a2.3 2.3 0 11-4.6 0 2.3 2.3 0 014.6 0z", "M2 13c.5-2.3 2.1-3.5 4-3.5s3.5 1.2 4 3.5", "M13.3 6.5a1.8 1.8 0 11-3.6 0 1.8 1.8 0 013.6 0z", "M11.5 9.5c1.4 0 2.4.9 2.8 2.5"],
+  box: ["M2.5 3h11v3h-11z", "M3.5 6v6.5h9V6", "M6.5 8.5h3"],
+  gear: ["M10 8a2 2 0 11-4 0 2 2 0 014 0z", "M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"],
   link: ["M6.5 9.5a2.5 2.5 0 003.5 0l2-2a2.5 2.5 0 00-3.5-3.5l-.5.5", "M9.5 6.5a2.5 2.5 0 00-3.5 0l-2 2a2.5 2.5 0 003.5 3.5l.5-.5"],
   shield: ["M8 2l5 1.8v4c0 3-2.2 5-5 6.2C5.2 12.8 3 10.8 3 7.8v-4z"],
   key: ["M6 9.5a3 3 0 110-6 3 3 0 010 6z", "M8.2 7.8L13 12.5M11 10.5l1.5 1.5"],
@@ -66,11 +71,6 @@ export function Section({ title, note, help, children, testID }: { title?: strin
   );
 }
 
-/** Hover help: the words a row or section used to carry as a bracket or a paragraph. A `display: contents` span carries the browser's own tooltip without touching the layout; off the web there is nothing to hover. */
-export function Tip({ help, children }: { help: string | undefined; children: ReactElement }): ReactElement {
-  if (!web || !help) return children;
-  return createElement("span", { title: help, style: { display: "contents" } }, children);
-}
 
 export interface SettingsRowProps {
   id: string;
@@ -101,18 +101,18 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
   const small = inline || isValidElement(control) && (control.type === Switch || control.type === SmallButton || control.type === Value);
   const stack = narrow && control !== undefined && control !== null && !small;
   return (
-    <Tip help={help}>
+    <>
       <View style={wrap} {...webOnly({ dataSet: { sid: id } })}>
         <Row
           id={id} title={label} {...(sub ? { note: sub, tall: sub.length > 56 } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
           {...(lead ? { leading: <View style={s.lead}>{lead}</View> } : {})} {...(control && !stack ? { trailing: <View style={small ? s.controlFixed : s.control}>{control}</View> } : {})}
-          {...(danger ? { titleMarks: <View style={s.dangerDot} /> } : {})}
+          {...(danger ? { titleMarks: <View style={s.dangerDot} /> } : help ? { titleMarks: <Info help={help} testID={`help-${id}`} /> } : {})}
           {...(onPress ? { onPress } : { domProps: { role: undefined, tabIndex: undefined, style: { cursor: "default", backgroundColor: "transparent" } } })}
         />
         {subAlert && sub ? <Text accessibilityRole="alert" style={s.srOnly}>{sub}</Text> : null}
         {stack ? <View style={s.stacked}>{control}</View> : null}
       </View>
-    </Tip>
+    </>
   );
 }
 

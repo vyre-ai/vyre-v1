@@ -1,6 +1,7 @@
 // The Records place in the shell (spec 3.6): the sidebar of record types and saved views in the shell's shared place sidebar slot (P-L9d_22), and the open type as a table, board, gallery or list.
 // The open type and view are the place's own state (the sidebar chooses, the views follow). On a phone the sidebar is the list and the view opens when a row is chosen. Before the Space's runtime
 // exists the place draws its loading frames.
+import { adminTarget } from "./settings-admin.ts";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
@@ -81,7 +82,7 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
     nav: {
       openType: (key) => { dispatch({ type: "open", key }); opened({}); },
       // structure is edited in the Console, at Data > Schema
-      ...(rt.space.kind !== "personal" ? { openConsole: (type?: string) => rt.open({ screen: "console.schema", ...(type ? { args: { type } } : {}) }) } : {}),
+      ...(rt.space.kind !== "personal" ? { openConsole: (type?: string) => rt.open(adminTarget("console.schema", type ? { type } : {})) } : {}),
     },
     canEdit,
     askVyre: makeAskVyre(ask, { screen: target.screen }),

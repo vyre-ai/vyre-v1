@@ -37,6 +37,8 @@ import { Retention } from "../../console/pages/Retention.tsx";
 import { Holds } from "../../console/pages/Holds.tsx";
 import { ErasePerson } from "../../console/pages/ErasePerson.tsx";
 import { Assistant } from "../../console/Assistant.tsx";
+import { Audit } from "../../console/pages/audit/Audit.tsx";
+import { Overview } from "../../console/pages/overview/Overview.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import { nameLookup } from "./records-live.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
@@ -99,6 +101,23 @@ export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "erase") return <ErasePerson />;
   return null;
 }
+/** What every Console page reads, for the person and the pages they may open. Settings and the Console's own address share it. */
+function consoleData(rt: ShellRuntime, allowed: ReadonlySet<string>, openPage: ConsoleData["nav"]["openPage"]): ConsoleData {
+  return {
+    screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.createRecordsPreview?{createRecordsPreview:rt.createRecordsPreview}:{}), me: { id: rt.me.id, name: rt.me.name, role: "" }, space: { id: rt.space.id, name: rt.space.name, address: "" },
+    can: (permission) => permission === "console.access" || PAGES.some((page) => page.needs === permission && allowed.has(page.screen)), allowedScreens: allowed,
+    name: nameLookup(rt), clock: rt.clock,
+    nav: { openApp: (target) => rt.open(target ?? { screen: "chats.conversation" }), openPage },
+  };
+}
+
+/** One Console page, inside Settings. */
+export function AdminPage({ rt, id, args, allowed, open }: { rt: ShellRuntime; id: string; args: Record<string, string>; allowed: ReadonlySet<string>; open(id: string, args?: Record<string, string>): void }): ReactElement {
+  const data = useMemo(() => consoleData(rt, allowed, (next, state) => open(next, state as Record<string, string> | undefined)), [rt, allowed, open]);
+  const page = id === "overview" ? <Overview /> : id === "audit" ? <Audit /> : consolePageFor(id, args);
+  return <ConsoleDataProvider value={data}>{page}</ConsoleDataProvider>;
+}
+
 export default function ConsolePlace(): ReactElement {
   const rt = useOptionalShellRuntime();
   const { target } = usePlaceHash();
@@ -120,12 +139,7 @@ export default function ConsolePlace(): ReactElement {
     try { storage = globalThis.localStorage ?? null; } catch { /* blocked storage keeps the theme in this window */ }
     return createThemeController({ personId: rt.me.id, spaceId: rt.space.id, spaceSkin: { [rt.space.id]: root.getAttribute("data-skin") ?? "system" }, prefersDark: globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false, storage, root: { setAttribute: (key, value) => root.setAttribute(key, value), setProperty: (key, value) => root.style.setProperty(key, value), removeProperty: (key) => root.style.removeProperty(key) } });
   }, [rt]);
-  const data = useMemo<ConsoleData | null>(() => rt && allowed ? {
-    screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.createRecordsPreview?{createRecordsPreview:rt.createRecordsPreview}:{}), me: { id: rt.me.id, name: rt.me.name, role: "" }, space: { id: rt.space.id, name: rt.space.name, address: "" },
-    can: (permission) => permission === "console.access" || PAGES.some((page) => page.needs === permission && allowed.has(page.screen)), allowedScreens: allowed,
-    name: nameLookup(rt), clock: rt.clock,
-    nav: { openApp: (target) => rt.open(target ?? { screen: "home.today-starred-ask" }), openPage: (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); } },
-  } : null, [rt, allowed]);
+  const data = useMemo<ConsoleData | null>(() => rt && allowed ? consoleData(rt, allowed, (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); }) : null, [rt, allowed]);
   // no door leads here from a Personal Space and the shell sends a stale address Home; if this page is ever shown it follows the theme and has a way back
   if (rt?.space.kind === "personal") return <OutsideShell rt={rt ?? null} testID="console-needs-team"><States kind="empty" title="Needs a Team Space" icon="search" /></OutsideShell>;
   if (failed) return <OutsideShell rt={rt ?? null}><States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} /></OutsideShell>;

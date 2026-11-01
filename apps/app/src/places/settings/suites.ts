@@ -1,5 +1,5 @@
 // What a person sees of Google Workspace and Microsoft 365 in Settings: what is connected for them through their Space, service by service, and what to do when it is not. The admin connects
-// the suite once (Console, Integrations); a person never signs in to it themselves. Pure, so the rules are tested without drawing.
+// the suite once (Connected apps); a person never signs in to it themselves. Pure, so the rules are tested without drawing.
 
 export interface MailboxLite { id: string; address: string; provider: string; state: string }
 export interface CalendarLite { id: string; title: string; provider: string; state: string }
@@ -24,7 +24,7 @@ export function suiteSections(boxes: readonly MailboxLite[], calendars: readonly
   return out;
 }
 
-export const NOT_CONNECTED = "Nothing connected yet. Ask your admin: Console, Integrations.";
+export const NOT_CONNECTED = "Nothing connected yet. Ask your admin.";
 export const THROUGH_FIRM = "Connected by your admin";
 
 /** The line under a connected suite. */

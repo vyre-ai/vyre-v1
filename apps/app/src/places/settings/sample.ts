@@ -1,43 +1,39 @@
 // The sample Spaces behind the Settings screen tests and screenshots: Northwind (the default Space, filled from the prototype's Settings) and Harbor Studio. A fake replica holds the
 // rows; every capability a page reads is registered with a resolver over those rows, and the writes a page makes (set, reset, copy, mute, revoke, leave) change the rows, so each
 // control in a mount really works. The real replica is SQLite behind the same surface. The `ROWS` table is the person rows of the registry (generated/registry.json) with their titles.
+import { createElement } from "react";
+import { Text } from "react-native";
 import { createFakeReplica, createScreenHooks, liveQuery } from "../../../../../client/src/index.ts";
 import type { FakeReplica, LiveQuery, Row, ScreenHooks } from "../../../../../client/src/index.ts";
 import { screensById } from "../../../../../generated/screens.ts";
 import { namesFor, nameOf } from "../../fixtures/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { SettingsData, SettingsNav, SpaceTile } from "./data.tsx";
-import { searchRows } from "./model.ts";
+import { ADMIN_LINKS, SPACE_ROWS, searchRows } from "./model.ts";
 import type { SettingRow } from "./model.ts";
 
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const MIN = 60_000;
 const DAY = 86_400_000;
 
+const SPACE_DEFAULTS: Readonly<Record<string, unknown>> = { "gate.drafted_by_label": true, "gate.timeout_hours": 24, "gate.email_backstop_hours": 4, "engine.agent_hops": 4, "tasks.review_loop_limit": 2, "access.review_every_days": 90, "git.protected_branches": ["main", "master"], "files.review_changes": { git: true, cloud_mount: true, plain: false }, "vault.export_expiry_max": "1d", "contacts.sms_requires_consent": true, "google.auto_connect": true, "microsoft.auto_connect": true };
+
 type Def = Omit<SettingRow, "value" | "source" | "floorable"> & { value?: unknown };
 const d = (key: string, scope: "space" | "person", page: string, title: string, def: unknown, value?: unknown): Def => ({ key, scope, page, title, default: def, ...(value !== undefined ? { value } : {}) }) as Def;
 
-/** The person rows of the registry, in its order, plus the one Space row on the Notifications page. */
+/** The person rows of the registry, in its order. */
 export const ROWS: readonly Def[] = [
-  d("appearance.density", "person", "appearance", "Density", "comfortable"),
-  d("appearance.mode", "person", "appearance", "Light or dark", "system"),
-  d("appearance.reduce_motion", "person", "appearance", "Reduce motion", false),
   d("appearance.skin", "person", "appearance", "Skin", "classic"),
-  d("appearance.text_size", "person", "appearance", "Text size (percent)", 100),
   d("chat.agent_tabs", "person", "Chats", "Let agents open and switch side tabs for me", true),
   d("chat.ask_agent", "person", "Models and usage", "Agent I last used in Ask panes", null),
   d("chrome.agents_use_my_browser", "person", "This computer", "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)", {}),
-  d("engine.local_runs", "person", "This computer", "Run my private chats on this computer", true),
-  d("engine.runtime_opt_in", "person", "Memory and privacy", "Let the Space continue my chats when my computer is off", true),
-  d("engine.subscription_share", "person", "Models and usage", "Let the Space run work on my subscription", true),
-  d("home.digest_schedule", "person", "Home", "When the assistant writes the While you were away digest", { at: "07:30", tz: "UTC" }),
-  d("keyboard.overrides", "person", "keyboard", "Shortcuts", {}),
-  d("kit.choice_person", "person", "kit", "My Kit in this Space", {}),
+  d("engine.local_runs", "person", "Models and usage", "Run my private chats on this computer", true),
   d("kit.person_choice", "person", "appearance", "My Kit", null),
-  d("memory.weekly_nudge", "person", "Memory and privacy", "Weekly reminder about proposed facts", true),
+  d("notifications.alert_replies", "person", "Notifications", "Alert me on replies", false),
   d("notifications.email_backstop", "person", "Notifications", "Email me once if an approval waits 4 hours", true),
-  d("notifications.push_idle_minutes", "space", "Notifications", "Minutes idle on the computer before pushes go to the phone", 5),
-  d("notifications.working_hours", "person", "Notifications", "Working hours (outside them only calls, urgent approvals and incidents interrupt)", { days: [1, 2, 3, 4, 5], from: "09:00", to: "18:00", tz: "UTC" }),
+  d("notifications.hand_needs_you_to", "person", "Notifications", "While you are away, hand Needs you to (a person; none leaves it with you)", null),
+  d("notifications.quiet_hours", "person", "Notifications", "Quiet hours: no sounds or pushes between the two times; Needs you may come through", { on: false, from: "22:00", to: "07:00", needs: true }),
+  d("notifications.routines_all", "person", "Notifications", "Also tell me when routines succeed (failures always)", false),
   d("profile.contact", "person", "profile", "Contact", {}),
   d("profile.display_name", "person", "profile", "Name", ""),
   d("profile.handle", "person", "profile", "Handle", ""),
@@ -46,11 +42,12 @@ export const ROWS: readonly Def[] = [
   d("profile.title", "person", "profile", "Title", ""),
   d("profile.working_hours", "person", "profile", "Working hours", { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:00" }),
   d("security.chrome_mode", "person", "This computer", "Chrome prompts on this computer (Ask, Allow or Auto; one value per Space)", { base: "ask", spaces: {} }),
-  d("security.level", "person", "This computer", "Security level", "standard"),
   d("security.team_agents_on_my_computer", "person", "This computer", "Let team agents use my terminal (per Space, locked to a work folder)", {}),
   d("security.terminal_mode", "person", "This computer", "Terminal prompts on this computer (Ask, Allow or Auto; one value per Space)", { base: "ask", spaces: {} }),
-  d("sync.blob_cache_mb", "person", "This computer", "File cache size on this computer (MB)", 2048),
 ];
+
+/** The Space rows the Space pages draw, with their shipped defaults. */
+export const SPACE_SAMPLE: readonly Def[] = SPACE_ROWS.filter((r, i) => SPACE_ROWS.findIndex((x) => x.key === r.key) === i).map((r) => d(r.key, "space", r.page, r.label, SPACE_DEFAULTS[r.key] ?? (r.control.kind === "switch" ? false : r.control.kind === "number" ? r.control.min : r.control.kind === "choice" ? r.control.options[0]!.value : r.control.kind === "list" ? [] : "")));
 
 export interface SampleSpace {
   id: "northwind" | "harbor";
@@ -70,9 +67,8 @@ export const northwind: SampleSpace = {
   names: namesFor("northwind", { ch_sales: "#sales" }),
   values: {
     "appearance.skin": "system", "profile.display_name": "Irfad Imtiaz", "profile.handle": "irfad", "profile.title": "Head of operations", "profile.timezone": "America/Los_Angeles",
-    "profile.working_hours": hrs, "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" }, "engine.subscription_share": false, "engine.runtime_opt_in": false,
-    "notifications.working_hours": { days: [1, 2, 3, 4, 5], from: "09:00", to: "18:00", tz: "America/Los_Angeles" },
-  },
+    "profile.working_hours": hrs, "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" }, 
+      },
   spaces: [
     { id: "northwind", name: "Northwind", addr: "northwind.vyre.run", kind: "team", role: "Owner", needsYou: 0, current: true },
     { id: "harbor", name: "Harbor Studio", addr: "harbor.vyre.run", kind: "team", role: "Member", needsYou: 2, current: false },
@@ -122,7 +118,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   const opened: string[] = [];
   const previews: (string | null)[] = [];
   const failing = new Set<string>();
-  replica.put("settings", ROWS.map((r) => ({ id: r.key, ...r, ...(space.values[r.key] !== undefined ? { value: space.values[r.key] } : { value: r.default }) }) as unknown as Row));
+  replica.put("settings", [...ROWS, ...SPACE_SAMPLE].map((r) => ({ id: r.key, ...r, ...(space.values[r.key] !== undefined ? { value: space.values[r.key] } : { value: r.default }) }) as unknown as Row));
   replica.put("devices", [
     device("dev_mac", "Irfad's MacBook Pro", "desktop", 0, { current: true, location: "San Francisco" }), device("dev_phone", "Irfad's iPhone", "phone", 3 * 60 * MIN, { location: "San Francisco" }),
     device("dev_web", "Chrome on a library computer", "web", 6 * DAY, { location: "Oakland" }), device("dev_old", "Old Windows laptop", "desktop", 30 * DAY),
@@ -200,11 +196,12 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
 
   const find = (key: string): Row => { const r = replica.rows("settings").find((x) => x.id === key); if (!r) throw new Error(`no such setting ${key}`); return r; };
   const writes: Record<string, (input: any) => unknown> = {
-    "settings.set_space": (i: { key: string; value: number }) => {
-      if (i.key !== "memory.upkeep_monthly_cap") throw new Error("unknown space setting");
+    "settings.set_space": (i: { key: string; value: unknown }) => {
       if (space.id !== "northwind") throw new Error("Only a Space admin can change this");
-      replica.put("memcap", [{ id: "c", dollars: i.value }] as unknown as Row[]);
-      return { ok: true };
+      if (i.key === "memory.upkeep_monthly_cap") { replica.put("memcap", [{ id: "c", dollars: i.value }] as unknown as Row[]); return { ok: true }; }
+      const cur = find(i.key);
+      replica.put("settings", [{ ...cur, value: i.value }]);
+      return { row: rowsNow().find((r) => r.key === i.key), previous: cur["value"] };
     },
     "settings.set": (i: { key: string; value: unknown }) => {
       const cur = find(i.key);
@@ -256,10 +253,12 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     },
   };
   const nav: SettingsNav = {
-    openVault: () => void opened.push("vault"), openConsole: () => void opened.push("console"), openSpace: (id) => void opened.push(`space:${id}`), connect: (k) => void opened.push(`connect:${k}`),
+    openVault: () => void opened.push("vault"), openSpace: (id) => void opened.push(`space:${id}`), connect: (k) => void opened.push(`connect:${k}`),
     choosePhoto: async () => "fil_sample", previewSkin: (id) => void previews.push(id), manageSecurity: (kind, id) => void opened.push(`security:${kind}:${id}`),
   };
   const data: SettingsData = {
+    // the Owner of Northwind can open everything; Harbor Studio is a Member's Space and has no Space pages
+    ...(space.id === "northwind" ? { admin: { pages: new Set(Object.values(ADMIN_LINKS).flat().map((l) => l.id)), canPolicy: true, render: (id: string) => createElement(Text, { testID: `admin-${id}` }, id) } } : {}),
     screens,
     async call(cap, input) {
       calls.push({ cap, input });
