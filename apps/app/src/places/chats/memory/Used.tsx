@@ -16,13 +16,15 @@ import { USED_FOOT, factLine, quoteDate, quoteSub, usedCount, usedLabel } from "
 import type { ChatFact, ChatQuote, UsedOut } from "./model.ts";
 import { ChipLink, LinkButton, QuoteIcon, glyphOf, sourceLabel, useOpenSource, webProps, ownMenu, ownMenuKeys } from "./parts.tsx";
 import { useThreadMemory } from "./thread.tsx";
+import { recallable } from "../../../../../../lib/recall-intent.ts";
 
 /** The line, its list and the quote cards of one reply. Draws nothing without memory, while loading, or when the reply used nothing. */
 export function ReplyMemory({ messageId, threadId, startOpen = false }: { messageId: string; threadId: string; startOpen?: boolean }): ReactElement | null {
   const mem = useChatMemory();
   const read = useRead<UsedOut>(mem?.store ?? null, "memory.used", mem ? { threadId, messageId } : null);
   if (!mem || read.status !== "ready") return null;
-  const used = read.data;
+  // what an older reply recorded may include a greeting or an imported session's preamble matched as a quote: those say nothing and are not shown or counted
+  const used = { ...read.data, quotes: read.data.quotes.filter((q) => recallable(q.text)) };
   if (usedCount(used) === 0) return null;
   return (
     <View testID={`used-${messageId}`} style={st.root}>

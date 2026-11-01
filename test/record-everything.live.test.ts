@@ -1,3 +1,4 @@
+// @tsx
 // Flow 6, "A record shows everything", on a booted daemon: the Everything feed is made of ordinary reads as the person, so it must show a Member what they may read and nothing of what they may not:
 // the owner's private chat about the record and the owner's private mailbox are in the owner's feed and absent from a Member's.
 import test from "node:test";

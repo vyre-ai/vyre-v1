@@ -50,15 +50,16 @@ import { nodePlatform } from "../platform/index.ts";
 
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
 export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; call: (agentId: string, cap: string, input: unknown) => Promise<unknown>; log: (msg: string, attrs?: Record<string, unknown>) => void }) {
-  return async (m: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }): Promise<void> => {
+  return async (m: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }): Promise<boolean> => {
     const t = a.db.all("SELECT thread_id FROM computers_timeline WHERE computer_id = ? AND thread_id IS NOT NULL ORDER BY idx DESC LIMIT 1", m.computerId)[0] as { thread_id?: string } | undefined;
-    if (!t?.thread_id) { a.log("made files with no chat to say it in", { computerId: m.computerId, count: m.files.length }); return; }
+    if (!t?.thread_id) { a.log("made files with no chat to say it in yet", { computerId: m.computerId, count: m.files.length }); return false; }
     const shown = m.files.slice(0, 4), more = m.files.length - shown.length;
     await a.call(m.agentId, "chat.post", {
       threadId: t.thread_id, body: more > 0 ? `and ${more} more in Files` : "", mentions: [],
       blocks: shown.map((f) => ({ type: "file", v: 1, data: { fileId: f.fileId, name: f.name, kind: f.kind, size: f.size, version: f.version, thumb: f.kind === "image" } })),
       idempotencyKey: `made:${m.computerId}:${shown.map((f) => `${f.fileId}.${f.version}`).join(",")}`,
     });
+    return true;
   };
 }
 
@@ -630,8 +631,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             const row = ((await asAgent(check.agentId, "files.get", { fileId })) as { file: { name: string; kind: string; size: number; version: number } }).file;
             files.push({ fileId, name: row.name, kind: row.kind, size: row.size, version: row.version });
           }
-          await createMadeFilesAnnouncer({ db: db!, call: asAgent, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }) })({ agentId: check.agentId, computerId: a.computerId, files });
-          return { ok: true, output: {} };
+          const said = await createMadeFilesAnnouncer({ db: db!, call: asAgent, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }) })({ agentId: check.agentId, computerId: a.computerId, files });
+          return { ok: true, output: { said } };
         }
         if (a.cap === "put_upload") {
           const put = (a.input ?? {}) as { url?: unknown; base64?: unknown };

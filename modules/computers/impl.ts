@@ -82,7 +82,7 @@ export interface DockerHostOptions {
   startTimeoutMs?: number;
   user?: { uid: number; gid: number };
   /** The agent's home on the computer mirrors its folder in Files (handlers/home.ts): calls as the agent, how often to look, and where the manifest of what was last synced is kept. */
-  home?: { deps: HomeDeps; intervalMs?: number; manifest(agentId: string): string; announce?: (a: { agentId: string; computerId: string; files: MadeFile[] }) => Promise<void> };
+  home?: { deps: HomeDeps; intervalMs?: number; manifest(agentId: string): string; announce?: (a: { agentId: string; computerId: string; files: MadeFile[] }) => Promise<boolean | void> };
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -184,13 +184,13 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   }
 
   // the home mirror: one HomeSync per computer, a pass before it starts, one every few seconds while it runs, and a last one after it stops
-  const homes = new Map<string, { sync: HomeSync; timer: ReturnType<typeof setInterval> | null }>();
-  function homeOf(computerId: string, agentId: string | undefined): { sync: HomeSync; timer: ReturnType<typeof setInterval> | null } | null {
+  const homes = new Map<string, { sync: HomeSync; timer: ReturnType<typeof setInterval> | null; agentId: string }>();
+  function homeOf(computerId: string, agentId: string | undefined): { sync: HomeSync; timer: ReturnType<typeof setInterval> | null; agentId: string } | null {
     if (!o.home || !o.http || !agentId || !o.filesRoot?.(agentId)) return null;
     let h = homes.get(computerId);
     if (!h) {
       const fsView = createContainerHomeFs({ http: o.http, container: nameOf(computerId), image: o.image ?? DEFAULT_COMPUTER_IMAGE, user: { uid: o.user?.uid ?? 10001, gid: o.user?.gid ?? 10001 } });
-      h = { sync: createHomeSync({ agentId, computerId, fs: fsView, manifest: o.home.manifest(agentId) }, o.home.deps), timer: null };
+      h = { sync: createHomeSync({ agentId, computerId, fs: fsView, manifest: o.home.manifest(agentId) }, o.home.deps), timer: null, agentId };
       homes.set(computerId, h);
     }
     return h;
@@ -198,22 +198,35 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   /** One pass; true when it finished with nothing left undone (or there is no mirror), so a caller that is about to wipe its copy knows it is safe to. */
   // Files the agent made, held until the work goes quiet (a pass that made none) or the computer stops, then said once: one card per burst of work, not one per file.
   const made = new Map<string, MadeFile[]>();
+  const heldSince = new Map<string, number>();
+  const HOLD_MS = 10 * 60_000;
   async function sayMade(computerId: string, agentId: string): Promise<void> {
     const files = made.get(computerId);
     if (!files?.length || !o.home?.announce) return;
     made.delete(computerId);
-    try { await o.home.announce({ agentId, computerId, files }); } catch (e) { o.home.deps.log("warn", "computers.home.announce_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); }
+    try {
+      // announce answers false when there is no chat to say it in yet (the work was not for one): the files stay held, and are said when a chat appears, for ten minutes
+      const said = await o.home.announce({ agentId, computerId, files });
+      if (said === false) {
+        const kept = [...files, ...(made.get(computerId) ?? [])].slice(-50);
+        const since = heldSince.get(computerId) ?? Date.now();
+        heldSince.set(computerId, since);
+        if (Date.now() - since < HOLD_MS) made.set(computerId, kept); else heldSince.delete(computerId);
+      } else heldSince.delete(computerId);
+    } catch (e) { o.home.deps.log("warn", "computers.home.announce_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); }
+  }
+  /** What every pass leaves behind, whoever ran it (the timer, a tool, a recording, sleep): the files it made are held for the chat. A pass that goes round without losing them is the only way a file is announced. */
+  async function afterPass(computerId: string, agentId: string, r: { made: MadeFile[] }, final = false): Promise<void> {
+    if (r.made.length > 0) made.set(computerId, [...(made.get(computerId) ?? []), ...r.made]);
+    else if (made.has(computerId) || final) await sayMade(computerId, agentId);
+    if (final) await sayMade(computerId, agentId);
   }
   async function homePass(computerId: string, agentId: string | undefined, final = false): Promise<boolean> {
     const h = homeOf(computerId, agentId);
     if (!h) return true;
     try {
       const r = await h.sync.pass();
-      if (agentId) {
-        if (r.made.length > 0) made.set(computerId, [...(made.get(computerId) ?? []), ...r.made]);
-        else if (made.has(computerId) || final) await sayMade(computerId, agentId);
-        if (final) await sayMade(computerId, agentId);
-      }
+      await afterPass(computerId, h.agentId, r, final);
       if (r.down + r.up + r.conflicts + r.removed + r.suggested + r.refused.length > 0) o.home?.deps.log("info", "computers.home.pass", { computer: computerId, ...r, refused: r.refused.slice(0, 10) });
       return r.failed === 0;
     } catch (e) { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
@@ -319,6 +332,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (home) {
         await sleep(1_100);
         const r = await home.sync.pass();
+        await afterPass(a.computerId, home.agentId, r);
         if (r.failed > 0) throw new Error("the recording did not reach Files");
       }
     },
@@ -346,7 +360,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (typeof answer !== "object" || answer === null || Array.isArray(answer)) throw new ToolError("unavailable", "agentd answered the tool with something that is not an object");
       // a tool may have changed files in the home: mirror them now rather than at the next pass
       const home = homes.get(a.computerId);
-      if (home) void home.sync.pass().catch((e: unknown) => { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: a.computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); });
+      if (home) void home.sync.pass().then((r) => afterPass(a.computerId, home.agentId, r)).catch((e: unknown) => { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: a.computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); });
       return answer as ToolAnswer;
     },
     async health() {
@@ -375,7 +389,7 @@ export interface ComputersHostConfig {
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
   /** The agent's home mirror: calls as the agent principal, the upload of large files, how often a pass runs, where each agent's manifest lives, and a log. */
-  home?: { callAs: HomeDeps["callAs"]; putBytes: HomeDeps["putBytes"]; intervalMs?: number; manifest(agentId: string): string; log?: HomeDeps["log"]; announce?: (a: { agentId: string; computerId: string; files: MadeFile[] }) => Promise<void> };
+  home?: { callAs: HomeDeps["callAs"]; putBytes: HomeDeps["putBytes"]; intervalMs?: number; manifest(agentId: string): string; log?: HomeDeps["log"]; announce?: (a: { agentId: string; computerId: string; files: MadeFile[] }) => Promise<boolean | void> };
 }
 
 /** The Docker host for a machine, not yet bound: the Space binds it as its own; a computer that joined runs jobs on it. */

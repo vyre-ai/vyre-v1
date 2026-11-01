@@ -4,6 +4,7 @@
 // DECISION: where a fact lands follows "who accepts what" in spec 2.15: channel facts go straight to the project layer, run and Journey facts wait in proposed for the agent owner,
 //   everything from a chat goes to the asker's own layer and merges on its own only for a kind in the setting memory.auto_merge_kinds (default preference), or when the person typed it themselves.
 // DECISION: search is local and has no model call: BM25 over words, character trigrams for the "semantic" side, a small recency lift. The vector table of ARCH 6.10 is the same call shape and slots in later.
+import { IMPORTED_PREAMBLE } from "../../../lib/recall-intent.ts";
 import { extrasFor, factRows } from "../enrich.ts";
 import { meaningScores } from "../meaning.ts";
 import { reviewRequired } from "../policy.ts";
@@ -867,7 +868,8 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   const who: Who = agentId ? { actor: agentId, kind: "agent" } : whoIs(ctx);
   let proposed = 0;
   let merged = 0;
-  for (const c of await extractor(page.messages)) {
+  // an imported session's first message (the preamble and the transcript it carries) is history to read, not something the person said: nothing is learned from it
+  for (const c of await extractor(page.messages.filter((m) => !IMPORTED_PREAMBLE.test(String((m as { body?: unknown }).body ?? ""))))) {
     const key = `${input.threadId}:${c.messageId}:${c.index}`;
     if (rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'capture' AND ref = ?", key)[0]) continue;
     let layer: Layer = "person";
