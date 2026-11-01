@@ -275,6 +275,7 @@ test("a message that arrives while the thread is being opened for an earlier one
   await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_early", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 } });
   const late = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_late", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [{ kind: "agent", id: LEAD }], depth: 0 } });
   assert.deepEqual(late, { receivedAs: [LEAD] });
+});
 
 const steps = (n: number): DriverEvent[] => Array.from({ length: n }, (_, i): DriverEvent[] => [
   { type: "block", kind: "tool_call", payload: { id: `c${i}`, name: "records_query" } }, { type: "block", kind: "tool_result", payload: { id: `c${i}`, ok: i !== 7 } },
