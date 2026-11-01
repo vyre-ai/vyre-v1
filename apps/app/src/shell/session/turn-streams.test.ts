@@ -1,3 +1,4 @@
+// @tsx
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createTurnStreams, turnRowId } from "./turn-streams.ts";

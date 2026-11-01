@@ -1,3 +1,4 @@
+// @tsx
 // The chat surfaces in the real app with a live reply: the production export, a fresh claimed daemon (Team and Personal), the real engine and OpenAI driver, and a local stand-in for the model vendor.
 // Proved here: the record Chat tab streams a reply in the shared conversation, Stop ends a held turn, the Ask thread carries the record on screen, and what the engine puts in front of the model
 // names the record (its type and title), not only its id. Shots in paper and graphite, desktop and phone, go to VYRE_CHAT_SURFACES_SHOTS.

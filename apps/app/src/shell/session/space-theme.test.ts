@@ -1,3 +1,4 @@
+// @tsx
 // System appearance follows the device while the app is open: a change of the device's light or dark repaints the root at once.
 import test from "node:test";
 import assert from "node:assert/strict";

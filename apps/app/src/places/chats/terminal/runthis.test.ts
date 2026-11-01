@@ -1,3 +1,4 @@
+// @tsx
 // Run on a code block (rc.9): only a finished one-line shell block offers it; a read-only command runs and brings its output back, anything else is typed and waits for Enter, a refusal is a sentence.
 import test from "node:test";
 import assert from "node:assert/strict";

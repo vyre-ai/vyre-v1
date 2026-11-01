@@ -1,3 +1,4 @@
+// @tsx
 // Records sharing in the real app (DESIGN-records-sharing): a Team Space with four people, each in their own browser on the production export, signed in through the sign-in screen. Ada makes
 // Deals Only people added and adds Bea (Can edit) and Cal (Can view); Bea edits a deal; Cal sees it read only, with no Export and no Share; Dee, who was not added, has no Deals type; Ada turns Can export
 // on for Cal and his Export button appears without a refresh and exports a CSV of the rows he can see; Ada sets one deal to Only me and it leaves Bea's and Cal's tables at once.
