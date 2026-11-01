@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { KeyGate, LockScreen } from "./KeyGate.tsx";
+import { KeyGate, LockScreen, NoPasswordKey } from "./KeyGate.tsx";
 import { forgetKey, keepKey, keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 
 const text = (h: string): string => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
@@ -18,8 +18,19 @@ test("a Space that is not on this computer never shows the lock: it keeps its ex
   assert.match(html, /the shell/);
 });
 
-test("on this computer nothing shows until the daemon is asked (no shell flash behind the lock)", () => {
-  assert.equal(renderToStaticMarkup(<KeyGate baseUrl="http://127.0.0.1:1" token="t" name="Irfad"><p>the shell</p></KeyGate>), "");
+test("on this computer a calm loading state shows until the daemon answers: no blank page, no shell flash behind the lock", () => {
+  const t = text(renderToStaticMarkup(<KeyGate baseUrl="http://127.0.0.1:1" token="t" name="Irfad"><p>the shell</p></KeyGate>));
+  assert.match(t, /Opening your Vault/);
+  assert.doesNotMatch(t, /the shell/);
+});
+
+test("the lock screen has a quiet way out: Forgot password and Sign out; an account with no password key is told so and can go on", () => {
+  const t = text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} onForgot={() => undefined} onSignOut={() => undefined} />));
+  assert.match(t, /Forgot password/);
+  assert.match(t, /Sign out/);
+  const n = text(renderToStaticMarkup(<NoPasswordKey onContinue={() => undefined} onSignOut={() => undefined} />));
+  assert.match(n, /no password here/);
+  assert.match(n, /Continue/);
 });
 
 test("the key is kept in memory only for the session and dropped on sign-out; a foreign address is never handed it", async () => {

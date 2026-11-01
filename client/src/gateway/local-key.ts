@@ -42,3 +42,13 @@ export async function keyHeldOnOwnNode(baseUrl: string, token: string, f: Fetch 
     return ((await res.json()) as { held?: unknown }).held === true;
   } catch { return false; }
 }
+
+/** held: this computer has the key. locked: the daemon answered and has none. unreachable: it did not answer (still starting): ask again, do not treat it as locked. */
+export async function keyStatusOnOwnNode(baseUrl: string, token: string, f: Fetch = (...a) => fetch(...a)): Promise<"held" | "locked" | "unreachable"> {
+  if (!isLoopbackUrl(baseUrl)) return "unreachable";
+  try {
+    const res = await f(`${baseUrl.replace(/\/+$/, "")}/local/vault/key/status`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    if (res.status !== 200) return "unreachable";
+    return ((await res.json()) as { held?: unknown }).held === true ? "held" : "locked";
+  } catch { return "unreachable"; }
+}

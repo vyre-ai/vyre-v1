@@ -11,7 +11,7 @@ import type { VaultPort } from "./ports.ts";
 
 export type VaultLookup =
   | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
-  | { kind: "unknown" }
+  | { kind: "unknown"; /** In plain words: why the Vault could not give it (the item is gone, or it has no such field). */ why?: string }
   | { kind: "denied"; reason: "no_access" | "provider_label" | "other" };
 
 export interface EngineSessionHost {
@@ -24,6 +24,8 @@ export interface EngineSessionHost {
 }
 
 export interface EngineSessionHostDeps {
+  /** Where a failure is explained: the handle and the field NAME it asked for and the code, never a value. */
+  log?(msg: string, attrs?: Record<string, unknown>): void;
   invoke: Invoke;
   vault: VaultPort;
   /** The Space the Vault is read for. */
@@ -55,6 +57,15 @@ function vaultLocked(e: unknown): boolean {
   const reason = x?.error?.details?.reason ?? x?.details?.reason;
   const message = x?.error?.message ?? x?.message;
   return reason === "vault_locked" || (typeof message === "string" && /vault key is locked/i.test(message));
+}
+
+/** Plain words for a Vault refusal that is not about access: what is wrong with the item or the field the turn asked for. */
+function whyUnusable(e: unknown, code: string | null): string {
+  const x = e as { message?: unknown; error?: { message?: unknown } } | null;
+  const m = String(x?.error?.message ?? x?.message ?? "");
+  const field = /no field (\w+)/i.exec(m)?.[1];
+  if (field) return `That account's Vault item has no ${field} field. Sign in to it again.`;
+  return code === "validation.not_found" ? "The Vault item for that account is gone or not shared with you. Sign in to it again." : "The Vault could not use that account's item. Sign in to it again.";
 }
 
 /** An error the turn engine reads the code of (agent/src/turn-engine/engine.ts), so the failure reaches the chat under that code. */
@@ -91,7 +102,11 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
           const code = codeOf(e);
           if (code === "permission.provider_label") return { kind: "denied", reason: "provider_label" };
           if (code !== null && code.startsWith("permission.")) return { kind: "denied", reason: "no_access" };
-          if (code === "validation.not_found" || code === "validation.bad_input") return { kind: "unknown" };
+          // Not the same as "no account": the item is gone, or it has no such field. Say which, in plain words, and log the field NAME (never a value) so the next one explains itself.
+          if (code === "validation.not_found" || code === "validation.bad_input") {
+            d.log?.("the vault could not give the account its key", { code, handle: item, field: field ?? null, why: whyUnusable(e, code) });
+            return { kind: "unknown", why: whyUnusable(e, code) };
+          }
           // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
           if (vaultLocked(e)) throw coded("engine.vault_locked", "Your Vault is locked on this computer.");
           throw coded("engine.vault_unreadable", code !== null ? `The Vault could not be read (${code}).` : "The Vault could not be read.");
