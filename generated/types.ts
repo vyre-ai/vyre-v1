@@ -2192,6 +2192,13 @@ export type AutomationsAnalyticsOut = {
       count: number;
     }>;
 };
+export type AutomationsCodeReachIn = {
+  hosts: Array<string>;
+  idempotencyKey: string;
+};
+export type AutomationsCodeReachOut = {
+  ok: boolean;
+};
 export type AutomationsConnectorCardIn = {
   threadId: string;
   title: string;
@@ -12225,6 +12232,39 @@ export type GateExpireOut = {
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
 };
+export type GateGrantsSetIn = {
+  automationId: string;
+  defHash: string;
+  press: "save" | "on";
+  steps: Array<{
+      stepId: string;
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      targets: Array<string>;
+      computed: boolean;
+      changed: boolean;
+    }>;
+};
+export type GateGrantsSetOut = {
+  grants: Array<{
+      id: string;
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      target: string;
+      stepId?: string;
+    }>;
+};
+export type GateGrantsTakeIn = {
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  targets: Array<string>;
+  step: {
+    automationId: string;
+    nodeId: string;
+    defHash: string;
+    ask?: boolean;
+  };
+};
+export type GateGrantsTakeOut = {
+  granted: boolean;
+};
 export type GateHoldsGetIn = {
   holdId: string;
 };
@@ -12287,6 +12327,12 @@ export type GateParkIn = {
   decisionId: string;
   runId?: string;
   threadId?: string;
+  step?: {
+    automationId: string;
+    nodeId: string;
+    defHash: string;
+    ask?: boolean;
+  };
   idempotencyKey: string;
 };
 export type GateParkOut = {
@@ -32853,6 +32899,7 @@ export interface CapMap {
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
+  "automations.code_reach": { in: AutomationsCodeReachIn; out: AutomationsCodeReachOut };
   "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
   "automations.connector_levels": { in: AutomationsConnectorLevelsIn; out: AutomationsConnectorLevelsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
@@ -33412,6 +33459,8 @@ export interface CapMap {
   "gate.deny": { in: GateDenyIn; out: GateDenyOut };
   "gate.effective_rule": { in: GateEffectiveRuleIn; out: GateEffectiveRuleOut };
   "gate.expire": { in: GateExpireIn; out: GateExpireOut };
+  "gate.grants.set": { in: GateGrantsSetIn; out: GateGrantsSetOut };
+  "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
   "gate.holds.list": { in: GateHoldsListIn; out: GateHoldsListOut };
   "gate.park": { in: GateParkIn; out: GateParkOut };

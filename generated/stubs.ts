@@ -178,6 +178,7 @@ export function stubs(ctx: CallCtx) {
         set: call("automations.alerts.set"),
       },
       analytics: call("automations.analytics"),
+      code_reach: call("automations.code_reach"),
       connector_card: call("automations.connector_card"),
       connector_levels: call("automations.connector_levels"),
       connector_offer: {
@@ -947,6 +948,10 @@ export function stubs(ctx: CallCtx) {
       deny: call("gate.deny"),
       effective_rule: call("gate.effective_rule"),
       expire: call("gate.expire"),
+      grants: {
+        set: call("gate.grants.set"),
+        take: call("gate.grants.take"),
+      },
       holds: {
         get: call("gate.holds.get"),
         list: call("gate.holds.list"),
