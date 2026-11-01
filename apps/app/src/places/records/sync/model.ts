@@ -1,6 +1,6 @@
 // Records > sync (the pure part): what a synced type shows. The dot in the sidebar, the chip on a record, the mark beside a field and the lines of the Sync page are all decided here from what
 // the server says (sync_types.list, sync_types.record_state, sync_types.status), so a screen only draws. Words are short; the longer ones are tooltips.
-import { brandForDomain, brandForName } from "../../../../../../ui/src/AppIcon/index.tsx";
+import { brandForDomain, brandForName } from "../../../../../../ui/src/AppIcon/domains.ts";
 
 export type FieldState = "synced" | "saving" | "failed" | "local";
 export type Dir = "pull" | "push" | "both" | "off";
