@@ -1,7 +1,7 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
@@ -24,6 +24,9 @@ import { ApprovalCard } from "./approval.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
 import { MountCard } from "./mountcard.tsx";
 import { TerminalCard } from "./TerminalCard.tsx";
+import { RunCode } from "./RunCode.tsx";
+import type { RunCodeConfig } from "./RunCode.tsx";
+import { commandOf } from "../terminal/runthis.ts";
 import { mountOffers } from "./mountcard.ts";
 import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.tsx";
 import { unnamed } from "../names.ts";
@@ -65,6 +68,8 @@ export interface MessageActions {
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
   mountCard?: { agents: readonly { id: string; name: string }[]; data: Pick<ConversationData, "call" | "mountSheet"> };
   /** What a Run this card needs: the capability door, a key for a new session, who asked, and how to show a session. Left out where the shell has no terminal. */
+  /** Run on a one-line shell block in a message. Absent: a code block is just the code. */
+  runCode?: RunCodeConfig;
   terminalCard?: { deps: { call(cap: string, input: unknown): Promise<unknown>; newKey(): string }; agentId?: string; copy(text: string): void; openTerminal(terminalId: string): void };
   /** What the shared native blocks (changeset, plan, question, terminal, deploy) call: capabilities as the person, and tabs beside the chat. */
   host: BlockHost;
@@ -255,6 +260,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const errors = [...m.blocks.filter(isErrorBlock), ...statuses.flatMap((x) => (x.kind === "error" ? [x.block] : []))];
   const person = item.who.kind === "person";
   const blocks = stream ? null : bodyBlocks(m.messageId, m.body);
+  const runCfg = actions.runCode;
+  const renderCode = useMemo(() => (runCfg ? (b: { lang: string; text: string; closed: boolean }) => { const c = commandOf(b.lang, b.text, b.closed); return c ? <RunCode command={c} cfg={runCfg} /> : null; } : undefined), [runCfg]);
   const subjects = useSubjectBlocks(blocks);
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
@@ -280,7 +287,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
           ))}
         </Fold>
       ) : null}
-      {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink ? { renderLink: subjects.renderLink } : {})} /></View> : null}
+      {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink ? { renderLink: subjects.renderLink } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} />}
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}

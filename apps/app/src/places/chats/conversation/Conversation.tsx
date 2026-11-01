@@ -338,6 +338,7 @@ function ConversationView(): ReactElement {
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
+    ...(data.terminal ? { runCode: { deps: { call: data.call, newKey: data.newKey }, team: data.personal !== true, nameOf: (id: string) => data.nameOf(id), now: () => data.clock().now, copy: (t: string) => data.copy(t), openTerminal: (id: string) => data.nav.openBeside("terminal", id) } } : {}),
     ...(data.terminal ? { terminalCard: { deps: { call: data.call, newKey: data.newKey }, ...(lead ? { agentId: lead.agentId } : {}), copy: (t: string) => data.copy(t), openTerminal: (id: string) => data.nav.openBeside("terminal", id) } } : {}),
     ...(data.mountSheet ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } } : {}),
     ...(memoryEntries ? { memoryEntries } : {}),
