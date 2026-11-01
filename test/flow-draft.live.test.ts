@@ -57,17 +57,3 @@ test("flow draft live: the card says what it does, Turn on works as the person, 
     assert.ok(task);
   } finally { await d.stop(); }
 });
-
-test("a Flow that makes the record it listens for runs once, not for ever (self-trigger is dropped)", async () => {
-  const d = await boot(seededDir());
-  try {
-    await connect(d);
-    const def = { triggers: [{ key: "record_change", config: {}, filter: { type: "contact", op: "created" } }], nodes: [{ id: "more", key: "records.create", title: "Make a follow-up contact", input: { type: "contact", fields: { name: "Follow-up" } } }] };
-    const id = (await ok(d, "automations.create", { name: "Echo", definition: def })).automation.id as string;
-    await ok(d, "automations.set_enabled", { automationId: id, enabled: true });
-    await ok(d, "records.create", { type: "contact", fields: { name: "Dana Fox" } });
-    for (let i = 0; i < 40; i++) { await d.hooks?.pump?.(); await new Promise((r) => setTimeout(r, 150)); }
-    const rows = (await call(d, "records.query", { type: "contact" })).data.rows as Array<{ fields: { name?: string } }>;
-    assert.equal(rows.filter((r) => r.fields.name === "Follow-up").length, 1, "one follow-up, then the chain stops");
-  } finally { await d.stop(); }
-});

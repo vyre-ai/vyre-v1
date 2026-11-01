@@ -1,10 +1,13 @@
 // A Flow in plain words, from its definition and the step and trigger catalogue: "When a record changes", then one line per step, and a step that sends something marked as held for the person's yes.
 // Built by code, so what the card in chat promises is what the definition does; an agent's own description is not trusted for it.
-import { registry } from "../../generated/registry.ts";
-import type { Definition, Node } from "./projections.ts";
+/** The parts of a definition the words need (modules/automations/projections.ts holds the full type). */
+export interface FlowNode { id: string; key: string; title?: string; next?: string[]; branches?: unknown[]; askBeforeSending?: boolean }
+export interface FlowDefinition { triggers: { key: string }[]; nodes: FlowNode[]; start?: string[] }
+type Node = FlowNode;
+type Definition = FlowDefinition;
 
-const STEPS = new Map(registry.steps.map((s) => [s.key, s] as const));
-const TRIGGERS = new Map(registry.triggers.map((t) => [t.key, t] as const));
+/** The catalogue the words come from: the registry's steps and triggers (a lib file does not import the registry, so the caller hands it in). */
+export interface Catalogue { steps: readonly { key: string; title: string; effects?: string }[]; triggers: readonly { key: string; title: string }[] }
 
 const lower = (s: string): string => (s.length > 1 && s[1] === s[1]!.toLowerCase() ? s[0]!.toLowerCase() + s.slice(1) : s);
 
@@ -29,7 +32,9 @@ function inOrder(def: Definition): Node[] {
 }
 
 /** One line per part: how it starts, then each step. A step that sends (an email, a text, a post) says it is held for a yes unless the definition turned asking off. */
-export function describeFlow(def: Definition): string[] {
+export function describeFlow(def: Definition, cat: Catalogue): string[] {
+  const STEPS = new Map(cat.steps.map((s) => [s.key, s] as const));
+  const TRIGGERS = new Map(cat.triggers.map((t) => [t.key, t] as const));
   const lines: string[] = [];
   const when = def.triggers.map((t) => TRIGGERS.get(t.key)?.title ?? t.key);
   lines.push(`When ${when.length === 0 ? "you run it" : when.map(lower).join(" or ")}`);

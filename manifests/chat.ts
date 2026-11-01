@@ -233,6 +233,10 @@ export default defineManifest({
       out: { taskId: id.task, messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low',
       agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found'],
     }),
+    write('chat.flow_card', 'Leave the card of a drafted Flow in its chat: its name, what it does in plain words and Turn on and Test buttons. Written by the server from the draft itself; only a draft gets one', {
+      in: { ...threadT, automationId: id.automation }, out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low',
+      agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found'],
+    }),
     write('chat.remember', 'Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule', {
       in: { ...threadT, messageId: id.message, text: t.opt(t.str({ description: 'The words to keep; default the message' })) },
       out: { factId: id.fact, layer: t.enm('project', 'person'), merged: t.bool(), projectId: t.opt(id.project), projectTitle: t.opt(t.str()), by: t.str() },

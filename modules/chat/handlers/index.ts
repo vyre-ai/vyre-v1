@@ -3,6 +3,7 @@
 import { archiveHandlers } from "./archive.ts";
 import { catchUp } from "./catch-up.ts";
 import { makeTask } from "./make-task.ts";
+import { flowCard } from "./flow-card.ts";
 import { remember } from "./remember.ts";
 import { askLevel, askSuggest, asksOf, openAsChat } from "./ask.ts";
 import { g24aHandlers } from "./g24a.ts";
@@ -31,6 +32,7 @@ export const handlers = {
   "chat.post": guardPrivate(post),
   "chat.start": start,
   "chat.make_task": makeTask,
+  "chat.flow_card": flowCard,
   "chat.catch_up": catchUp,
   "chat.remember": remember,
   "chat.thread": thread,

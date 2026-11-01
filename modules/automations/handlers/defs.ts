@@ -12,7 +12,6 @@ import {
   raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
-import { describeFlow } from "../describe.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
@@ -479,27 +478,12 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
 }
 
 /**
- * A Flow an agent drafted in a chat leaves a card there: its name, what it does in plain words, and two buttons that run as the person who presses them (Turn on, Test). The card is written after the work it
- * names and never fails the create: a chat that cannot take it still has the draft in Automations.
+ * A Flow an agent drafted in a chat leaves a card there. The card is the chat module's own (chat.flow_card), written by its host-side handler: it reads the draft itself and builds the words and the two
+ * buttons, so an agent cannot dress a button up as something else. It never fails the create: a chat that cannot take the card still has the draft in Automations.
  */
 async function draftCard(ctx: AutoCtx, a: Automation): Promise<void> {
   if (ctx.principal.kind !== "agent" || !ctx.thread || !ctx.call) return;
-  try {
-    const body = describeFlow(a.definition).join("\n");
-    await ctx.call("chat.post", {
-      threadId: ctx.thread, body: `Flow drafted: ${a.name}`, idempotencyKey: `flow-draft:${a.id}`,
-      blocks: [{
-        type: "link_card", v: 1,
-        data: {
-          icon: "flow", lead: "Flow drafted", title: a.name, body, target: { type: "automation", id: a.id },
-          actions: [
-            { key: "on", label: "Turn on", cap: "automations.set_enabled", input: { automationId: a.id, enabled: true } },
-            { key: "test", label: "Test", cap: "automations.test", input: { automationId: a.id } },
-          ],
-        },
-      }],
-    });
-  } catch { /* the draft stands in Automations either way */ }
+  try { await ctx.call("chat.flow_card", { threadId: ctx.thread, automationId: a.id, idempotencyKey: `flow-card:${a.id}` }); } catch { /* the draft stands in Automations either way */ }
 }
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
