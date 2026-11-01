@@ -3,6 +3,11 @@ export function canonical(value: unknown): string {
   return JSON.stringify(sortKeys(value), null, 2) + '\n';
 }
 
+/** The same deterministic JSON on one line, for a file only programs read (registry.json): the indent was more than half of its bytes. */
+export function canonicalCompact(value: unknown): string {
+  return JSON.stringify(sortKeys(value)) + '\n';
+}
+
 export function sortKeys(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(sortKeys);
   if (v !== null && typeof v === 'object') {
