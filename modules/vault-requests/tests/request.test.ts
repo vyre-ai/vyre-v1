@@ -242,3 +242,10 @@ test("every statement the module runs names only its own table", async () => {
   assert.ok(w.db.statements.length >= 5);
   assert.ok(w.db.statements.every((s) => /vault_requests_requests/.test(s)));
 });
+
+import { neededTitle } from "../handlers/request.ts";
+test("the card title names the key and says it is needed", () => {
+  assert.equal(neededTitle("Fathom"), "Fathom key needed");
+  assert.equal(neededTitle("Dana_Lawmatics"), "Dana Lawmatics key needed");
+  assert.equal(neededTitle("Fathom_key"), "Fathom key needed");
+});
