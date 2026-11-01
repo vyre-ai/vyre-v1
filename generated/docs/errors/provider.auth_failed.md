@@ -8,6 +8,7 @@ HTTP 502. Retryable: no.
 
 - connections.complete_auth
 - connectors.push
+- connectors.read
 - dropbox.app.set
 - dropbox.connect.complete
 - dropbox.files.create_folder
@@ -30,4 +31,3 @@ HTTP 502. Retryable: no.
 - google.dwd.probe
 - google.dwd.setup
 - google.gmail.send_message
-- google.user.app_set

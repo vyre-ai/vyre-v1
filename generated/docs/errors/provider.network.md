@@ -14,6 +14,7 @@ HTTP 502. Retryable: yes.
 - computers.chrome.send
 - connections.complete_auth
 - connectors.push
+- connectors.read
 - connectors.run
 - dropbox.connect.complete
 - dropbox.files.create_folder
@@ -30,4 +31,3 @@ HTTP 502. Retryable: yes.
 - github.issue.close
 - github.issue.comment
 - github.issue.create
-- github.issue.update
