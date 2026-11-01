@@ -16,6 +16,8 @@ export interface SettingsNav {
   choosePhoto(): Promise<string | null>;
   /** Applies a skin to the window at once, before it is saved. */
   previewSkin?(skinId: string | null): void;
+  /** Applies a chosen skin to the window for good (the setting is saved by the page). */
+  applySkin?(skinId: string): void;
   /** Starts a sign-in change that needs its own flow (password, authenticator app, passkey, GitHub) for a Space. The shell opens it; the page only asks. */
   manageSecurity?(kind: "password" | "totp-on" | "totp-off" | "passkey" | "github-on" | "github-off", spaceId: string): void;
 }

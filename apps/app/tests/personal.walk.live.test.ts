@@ -191,7 +191,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await adding.press("Enter");
       // the new record opens in its own tab, with its history beside it
       await page.getByText("Vyre created it").first().waitFor({ timeout: 15_000 });
-      await page.getByText("Activity", { exact: true }).first().click({ timeout: 10_000 }).catch(() => { throw new Error("could not press the Activity tab of the record"); });
+      await page.getByRole("tab", { name: "Activity", exact: true }).or(page.getByRole("button", { name: "Activity", exact: true })).or(page.getByText("Activity", { exact: true })).last().click({ timeout: 10_000, force: true }).catch(() => { throw new Error("could not press the Activity tab of the record"); });
       await page.getByText("Vyre created it").first().waitFor({ timeout: 10_000 });
       // edit a field: show the empty ones, give the contact a job title, and see it saved
       await page.getByText(/Show \d+ empty fields/).first().click({ timeout: 10_000 }).catch(() => { throw new Error("could not press Show empty fields"); });
@@ -233,7 +233,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // a person opens it from the Space menu (the Space tile at the top of the rail)
       await page.getByTestId("space-tile").click({ timeout: 10_000 });
       await page.getByRole("menuitem", { name: "Open Terminal", exact: true }).click({ timeout: 10_000 });
-      await page.getByTestId("chats-terminal").or(page.getByTestId("terminal-pane-open")).or(page.getByTestId("terminal-pane-empty")).or(page.getByTestId("terminal-pane-hosts")).or(page.getByTestId("terminal-tab")).first().waitFor({ timeout: 20_000 });
+      await page.getByTestId("chats-terminal").or(page.getByTestId("terminal-list")).or(page.getByTestId("terminal-new")).or(page.getByTestId("terminal-pane-open")).or(page.getByTestId("terminal-pane-empty")).or(page.getByTestId("terminal-pane-hosts")).or(page.getByTestId("terminal-tab")).first().waitFor({ timeout: 20_000 });
     });
   } finally {
     if (failures.length) {

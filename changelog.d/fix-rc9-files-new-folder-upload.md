@@ -1,1 +1,3 @@
 Files: New folder, Rename and Upload work from the Files screen. New folder (the empty state, the New menu and the sidebar +) and Rename opened a screen nothing read, so they did nothing, and Upload had no door at all. They now ask for a name in a sheet and make the change, and Upload opens the file chooser and stores the files in the open folder, with a quiet line saying how many.
+
+Settings, Appearance: choosing a skin tile now changes the app at once. It only saved the setting and moved the preview before. The root's data-mode now follows every skin and mode change (it stayed at the first paint's value, which is what the Appearance preview reads, so the System preview could show the wrong side).
