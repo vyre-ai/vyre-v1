@@ -719,6 +719,9 @@ export function createClient(transport: Transport) {
       },
       mcp: {
         call: call("engine.mcp.call", 1),
+        oauth_complete: call("engine.mcp.oauth_complete", 1),
+        oauth_start: call("engine.mcp.oauth_start", 1),
+        oauth_status: call("engine.mcp.oauth_status", 1),
         read: call("engine.mcp.read", 1),
         tools: call("engine.mcp.tools", 1),
       },
