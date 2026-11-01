@@ -15,15 +15,17 @@ test("the mark is the Vyre V with its dot, in ink, and its state is a class: thi
   assert.match(renderToStaticMarkup(<WorkingMark state="still" />), /vyre-wm-still/);
 });
 
-test("a step is one nod: only a mark given a step moves its dot, and the dot is keyed by it so each change restarts the nod", () => {
-  assert.ok(!renderToStaticMarkup(<WorkingMark state="thinking" />).includes("vyre-wm-step"));
-  assert.match(renderToStaticMarkup(<WorkingMark state="thinking" step="t1l" />), /vyre-wm-step/);
+test("a step is one nod on a dot group that is the same element for the life of the mark: no key, no remount, no CSS class animation to restart", () => {
+  const a = renderToStaticMarkup(<WorkingMark state="thinking" step="t1l" />);
+  const b = renderToStaticMarkup(<WorkingMark state="thinking" step="t2l" />);
+  assert.equal(a, b, "the markup does not depend on the step");
+  assert.ok(!a.includes("vyre-wm-step"));
 });
 
 test("the motion is CSS only, honours reduced motion, and sets no per-frame work", () => {
   assert.match(WORKING_MARK_CSS, /@media \(prefers-reduced-motion:reduce\)/);
   assert.match(WORKING_MARK_CSS, /2\.4s ease-in-out infinite/);
-  assert.match(WORKING_MARK_CSS, /700ms ease-in-out 1/);
+  assert.ok(!/vyre-wm-nod/.test(WORKING_MARK_CSS), "the nod is a Web Animation, so it fires no animationstart");
   assert.match(WORKING_MARK_CSS, /1\.8s ease-in-out infinite alternate/);
   assert.ok(!/requestAnimationFrame|setInterval/.test(WORKING_MARK_CSS));
 });
