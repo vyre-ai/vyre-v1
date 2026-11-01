@@ -2,6 +2,7 @@
 // (vault.requests.fulfil; the value is in the call, never in a message, a block or a log), or Declines. Once provided the agent carries on in this chat by itself. Needs you keeps a linked row; both close together
 // because both read the one request. A person who cannot decide it (a member asking in a Team Space) sees who it is waiting on, never a field.
 import { useCallback, useEffect, useState } from "react";
+import { usePoll } from "./use-poll.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { ConversationData } from "./data.tsx";
@@ -32,6 +33,7 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
     } catch { setReq(null); }
   }, [data, requestId]);
   useEffect(() => { void load(); }, [load]);
+  usePoll(load, req === undefined || req === null || req.state === "waiting");
 
   if (req === undefined || req === null) return null;
   const words = keyWords(req.name);
@@ -60,13 +62,13 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
       await data.call("vault.requests.fulfil", { requestId, folderId, fields: req.fields.map((k) => ({ key: k, value: (values[k] ?? "").trim() })) });
       setValues({});
       await load();
-    } catch (e) { setProblem((e as { message?: string }).message ?? "That did not save. Try again."); }
+    } catch (e) { setProblem((e as { message?: string }).message ?? "That did not save. Try again."); void load(); }
     finally { setBusy(false); }
   };
   const decline = async (): Promise<void> => {
     setBusy(true); setProblem("");
     try { await data.call("vault.requests.decline", { requestId, ...(reason.trim() ? { note: reason.trim() } : {}) }); await load(); }
-    catch (e) { setProblem((e as { message?: string }).message ?? "That did not send. Try again."); }
+    catch (e) { setProblem((e as { message?: string }).message ?? "That did not send. Try again."); void load(); }
     finally { setBusy(false); }
   };
   const ready = req.fields.every((k) => (values[k] ?? "").trim() !== "");

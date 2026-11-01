@@ -1,7 +1,8 @@
 // The result card of a crew teammate (DESIGN-crew.md, step 3): the one thing that reaches the lead's chat when a teammate finishes. What changed in a few words (commits, files with their counts), the teammate's own last
 // words, and two actions: Merge, which lands the branch in the project, and Send back, which tells the teammate what to change in its own thread. A merged card collapses to one line. The card reads the job's
 // state from the crew list, so it is right after a reload and for someone who opens the chat later.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePoll } from "./use-poll.ts";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -58,17 +59,28 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
   const [back, setBack] = useState(false);
   const [words, setWords] = useState("");
 
-  // the card follows the repository, not its own buttons: it reads the job when it shows and every few seconds after, so a branch merged or pushed any other way flips it without a refresh
-  useEffect(() => {
-    let live = true;
-    const look = async (): Promise<void> => {
-      try { const out = (await data.call("engine.crew.list", { threadId: leadThreadId })) as CapMap["engine.crew.list"]["out"]; if (live) setJob(out.jobs.find((j) => j.jobId === c.jobId) ?? null); } catch { /* the card still works from its own words */ }
-    };
-    void look();
-    const timer = setInterval(() => { void look(); }, 4000);
-    (timer as unknown as { unref?: () => void }).unref?.();
-    return () => { live = false; clearInterval(timer); };
+  const [heldTask, setHeldTask] = useState<string | null>(null);
+  // the card follows the repository, not its own buttons: it reads the job when it shows and every few seconds after, so a branch merged or pushed any other way flips it without a refresh.
+  // A merge the lead asked for waits for a person: the approval shows here, not only in Needs you.
+  const look = useCallback(async (): Promise<void> => {
+    try { const out = (await data.call("engine.crew.list", { threadId: leadThreadId })) as CapMap["engine.crew.list"]["out"]; setJob(out.jobs.find((j) => j.jobId === c.jobId) ?? null); } catch { /* the card still works from its own words */ }
+    try {
+      const holds = ((await data.call("gate.holds.list", { states: ["held"] })) as { holds?: Array<{ capName: string; taskId: string }> }).holds ?? [];
+      let found: string | null = null;
+      for (const h of holds.filter((x) => x.capName === "engine.crew.merge")) {
+        const t = ((await data.call("tasks.get", { taskId: h.taskId })) as { task?: { blocks?: Array<{ data?: { input?: { jobId?: string } } }> } }).task;
+        if (t?.blocks?.[0]?.data?.input?.jobId === c.jobId) { found = h.taskId; break; }
+      }
+      setHeldTask(found);
+    } catch { /* no holds to read: nothing is shown */ }
   }, [data, leadThreadId, c.jobId]);
+  useEffect(() => { void look(); }, [look]);
+  usePoll(look, true);
+  const approve = async (): Promise<void> => {
+    if (!heldTask) return;
+    setBusy(true);
+    try { await data.call("tasks.act", { taskId: heldTask, action: "approve" }); setLine("Approved. Merging."); } catch { setLine("Could not approve. Try again."); } finally { setBusy(false); void look(); }
+  };
 
   const merged = job?.state === "merged" || line?.startsWith("Merged") === true;
   const merge = async (): Promise<void> => {
@@ -134,6 +146,12 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
           <TextButton label="Open thread" onPress={() => data.nav.openThread(c.threadId)} testID={`crew-open-${c.jobId}`} />
         </View>
       )}
+      {heldTask ? (
+        <View style={st.row}>
+          <Text testID={`crew-held-${c.jobId}`} style={st.line}>The lead wants to merge this.</Text>
+          <TextButton label="Approve" primary onPress={() => { void approve(); }} disabled={busy} testID={`crew-approve-${c.jobId}`} />
+        </View>
+      ) : null}
       {line ? <Text testID={`crew-line-${c.jobId}`} style={st.line}>{line}</Text> : null}
     </View>
   );

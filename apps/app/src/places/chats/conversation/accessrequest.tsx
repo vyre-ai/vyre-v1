@@ -1,6 +1,7 @@
 // The access request card of a chat: someone asked for access to something in this chat. People who can decide it see Approve and Decline right here (access.requests.approve grants, access.requests.decline
 // tells the asker); everyone else sees who it is waiting on. Needs you keeps its row and both close together because both read the one request.
 import { useCallback, useEffect, useState } from "react";
+import { usePoll } from "./use-poll.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { ConversationData } from "./data.tsx";
@@ -30,6 +31,7 @@ export function AccessRequestCard({ block, data }: { block: Block; data: Data })
     } catch { setState("waiting"); }
   }, [data, block.requestId]);
   useEffect(() => { void load(); }, [load]);
+  usePoll(load, state === null || state === "waiting");
   if (state === null) return null;
   const who = block.requester ? data.nameOf(block.requester) : "Someone";
   const line = accessLine(who, block);
@@ -44,7 +46,7 @@ export function AccessRequestCard({ block, data }: { block: Block; data: Data })
   const decide = async (cap: "access.requests.approve" | "access.requests.decline"): Promise<void> => {
     setBusy(true); setProblem("");
     try { await data.call(cap, cap === "access.requests.approve" ? { requestId: block.requestId, ...(block.level ? { level: block.level } : {}) } : { requestId: block.requestId }); await load(); }
-    catch (e) { setProblem((e as { message?: string }).message ?? "That did not go through. Try again."); }
+    catch (e) { setProblem((e as { message?: string }).message ?? "That did not go through. Try again."); void load(); }
     finally { setBusy(false); }
   };
   return (
