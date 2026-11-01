@@ -9,6 +9,7 @@
 import {
   MAX_NAME, askerOf, channelBy, channelByName, channelOfRecord, channelOut, ensure, membersOf, agentsOf, isMember, addAgent, addMember, messageOf, nameKey, raise, threadBy, threadOf,
 } from "../projections.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
 import { mayGovernChannel } from "./post.ts";
 
@@ -27,7 +28,7 @@ function load(ctx: ChatCtx, channelId: string, o: { anyone?: boolean; govern?: b
   const ch = channelBy(ctx.db, channelId);
   if (!ch) raise(ctx, "validation.not_found", "That channel does not exist.");
   // an invite-only channel is not there for someone who is not in it (the same answer as a channel that does not exist); Join alone says why it cannot be entered
-  if (o.anyone !== true && ch.visibility === "invite" && ctx.principal.kind !== "service" && !isMember(ctx.db, ch.mainThread, askerOf(ctx)) && ch.createdBy !== askerOf(ctx)
+  if (o.anyone !== true && ch.visibility === "invite" && !isTrustedService(ctx.principal) && !isMember(ctx.db, ch.mainThread, askerOf(ctx)) && ch.createdBy !== askerOf(ctx)
     && !(ctx.principal.kind === "agent" && agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === ctx.principal.id))
     && !(o.govern === true && mayGovernChannel(ctx, ch.id))) {
     raise(ctx, "validation.not_found", "That channel does not exist.");
