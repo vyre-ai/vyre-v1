@@ -1358,6 +1358,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_catch_up",
+      "summary": "What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_composer_suggest",
       "summary": "Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates",
       "toolset": "chats"
@@ -1384,6 +1390,12 @@
       "deferred": false,
       "name": "chat_helpers_list",
       "summary": "Helpers running under a chat, with status",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_make_task",
+      "summary": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
       "toolset": "chats"
     },
     {
@@ -1448,6 +1460,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_remember",
+      "summary": "Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a \"Remembered for ...\" card in the thread links to the fact. A shared layer keeps its review rule",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_screen_get",
       "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
       "toolset": "chats"
@@ -1456,6 +1474,12 @@
       "deferred": false,
       "name": "chat_search",
       "summary": "Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_share",
+      "summary": "Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to",
       "toolset": "chats"
     },
     {
@@ -2458,6 +2482,12 @@
       "deferred": false,
       "name": "engine_interrupt",
       "summary": "Interrupt now: cancel the current turn and queue the message at top priority (\"stop and send\")",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_live_turns",
+      "summary": "The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream",
       "toolset": "chats"
     },
     {

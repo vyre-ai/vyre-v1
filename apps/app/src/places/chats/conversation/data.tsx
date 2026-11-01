@@ -40,6 +40,9 @@ export interface LiveTurns {
   subscribe(l: () => void): () => void;
   /** The saved message is on screen: its stream can go. */
   settle(messageId: string): void;
+  /** Take the turns the host says are being written now (engine.live_turns), and hear when a piece arrives for a turn this device never saw begin. */
+  seed(threadId: string, turns: readonly { turnId: string; agentId: string; text: string }[]): void;
+  onGap(l: (threadId: string) => void): () => void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }

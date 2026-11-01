@@ -161,6 +161,8 @@ export function rememberText(body: string): string {
 /** The line a Remember, Forget or Add flashes. */
 export const FLASH = {
   remembered: "Remembered.",
+  rememberedFor: (project: string): string => `Remembered for ${project}.`,
+  proposedTo: (project: string): string => `Proposed to ${project}. It waits for a yes.`,
   noneToForget: "Nothing was learned from this message, so there is nothing to forget.",
   forgot: (n: number): string => `Forgot ${n} ${n === 1 ? "fact" : "facts"} learned from this message. It is in Trash for 60 days.`,
   added: (title: string): string => `Added to ${title}.`,

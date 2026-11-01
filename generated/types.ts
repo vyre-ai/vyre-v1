@@ -5728,6 +5728,32 @@ export type ChatAsksOfOut = {
   next?: string;
   total?: number;
 };
+export type ChatCatchUpIn = {
+  threadId: string;
+};
+export type ChatCatchUpOut = {
+  unread: number;
+  since: number;
+  top: number;
+  firstMessageId?: string;
+  people: Array<{
+      id: string;
+      count: number;
+    }>;
+  tasks: Array<{
+      messageId: string;
+      title: string;
+    }>;
+  decisions: Array<{
+      messageId: string;
+      text: string;
+    }>;
+  at: Array<{
+      messageId: string;
+      author: string;
+      text: string;
+    }>;
+};
 export type ChatComposerSuggestIn = {
   symbol: "@" | "#" | "/";
   q: string;
@@ -5970,6 +5996,17 @@ export type ChatHistorySearchOut = {
       link: string;
       score: number;
     }>;
+};
+export type ChatMakeTaskIn = {
+  threadId: string;
+  messageId: string;
+  title?: string;
+  assigneeId?: string;
+  idempotencyKey: string;
+};
+export type ChatMakeTaskOut = {
+  taskId: string;
+  messageId: string;
 };
 export type ChatMessageGetIn = {
   threadId: string;
@@ -6357,6 +6394,20 @@ export type ChatRecentOut = {
     }>;
   nextUnread: string | null;
 };
+export type ChatRememberIn = {
+  threadId: string;
+  messageId: string;
+  text?: string;
+  idempotencyKey: string;
+};
+export type ChatRememberOut = {
+  factId: string;
+  layer: "project" | "person";
+  merged: boolean;
+  projectId?: string;
+  projectTitle?: string;
+  by: string;
+};
 export type ChatScreenGetIn = {
   threadId: string;
   messageId?: string;
@@ -6416,6 +6467,17 @@ export type ChatSearchOut = {
   meaning: boolean;
   sealedChats: number;
   tookMs: number;
+};
+export type ChatShareIn = {
+  threadId: string;
+  messageId: string;
+  toThreadId: string;
+  to?: string;
+  idempotencyKey: string;
+};
+export type ChatShareOut = {
+  messageId: string;
+  toThreadId: string;
 };
 export type ChatStartIn = {
   kind: "chat" | "ask";
@@ -9351,6 +9413,16 @@ export type EngineLeaseReleaseIn = {
 };
 export type EngineLeaseReleaseOut = {
   ok: boolean;
+};
+export type EngineLiveTurnsIn = {
+  threadId: string;
+};
+export type EngineLiveTurnsOut = {
+  turns: Array<{
+      turnId: string;
+      agentId: string;
+      text: string;
+    }>;
 };
 export type EngineMcpCallIn = {
   agentId: string;
@@ -31883,6 +31955,7 @@ export interface CapMap {
   "chat.ask_level": { in: ChatAskLevelIn; out: ChatAskLevelOut };
   "chat.ask_suggest": { in: ChatAskSuggestIn; out: ChatAskSuggestOut };
   "chat.asks_of": { in: ChatAsksOfIn; out: ChatAsksOfOut };
+  "chat.catch_up": { in: ChatCatchUpIn; out: ChatCatchUpOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
@@ -31891,6 +31964,7 @@ export interface CapMap {
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
+  "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
@@ -31904,8 +31978,10 @@ export interface CapMap {
   "chat.question.ask": { in: ChatQuestionAskIn; out: ChatQuestionAskOut };
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
+  "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
+  "chat.share": { in: ChatShareIn; out: ChatShareOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };
   "chat.thread": { in: ChatThreadIn; out: ChatThreadOut };
   "chat.transcript.append": { in: ChatTranscriptAppendIn; out: ChatTranscriptAppendOut };
@@ -32134,6 +32210,7 @@ export interface CapMap {
   "engine.lease.acquire": { in: EngineLeaseAcquireIn; out: EngineLeaseAcquireOut };
   "engine.lease.heartbeat": { in: EngineLeaseHeartbeatIn; out: EngineLeaseHeartbeatOut };
   "engine.lease.release": { in: EngineLeaseReleaseIn; out: EngineLeaseReleaseOut };
+  "engine.live_turns": { in: EngineLiveTurnsIn; out: EngineLiveTurnsOut };
   "engine.mcp.call": { in: EngineMcpCallIn; out: EngineMcpCallOut };
   "engine.mcp.oauth_complete": { in: EngineMcpOauthCompleteIn; out: EngineMcpOauthCompleteOut };
   "engine.mcp.oauth_start": { in: EngineMcpOauthStartIn; out: EngineMcpOauthStartOut };

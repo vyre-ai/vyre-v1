@@ -163,19 +163,28 @@ test("/export with no way to save copies the text instead", async () => {
   assert.match(r.said.at(-1)!, /Copied the chat as Markdown/);
 });
 
-test("/task makes a task from the last message with a block that links back to it", async () => {
-  const r = rig({ "tasks.create": () => ({ task: { id: "tsk_1" } }) });
+test("/task makes a task from the last message through chat.make_task: the server points it back at the message and leaves the card", async () => {
+  const r = rig({ "chat.make_task": () => ({ taskId: "tsk_1", messageId: "m" }) });
   const m = lastActionable(r.rows)!;
   await runSlash("/task", r.env);
-  const c = r.last("tasks.create")!;
-  assert.equal(c.input.source.id, r.data.threadId);
-  assert.equal(c.input.blocks[0].type, "chat_message");
-  assert.equal(c.input.blocks[0].data.messageId, m.messageId);
-  assert.equal(c.input.blocks[0].data.author, r.data.nameOf(m.author.id), "the author is a name");
-  assert.deepEqual(c.input.assigned, { kind: "person", id: r.data.me.id });
+  const c = r.last("chat.make_task")!;
+  assert.equal(c.input.threadId, r.data.threadId);
+  assert.equal(c.input.messageId, m.messageId);
+  assert.equal(c.input.assigneeId, undefined, "nobody is @named: the task is the asker's, which the server decides");
   assert.deepEqual(r.opened, ["beside:task:tsk_1"]);
   await runSlash("/task call the court", r.env);
-  assert.equal(r.last("tasks.create")!.input.title, "call the court");
+  assert.equal(r.last("chat.make_task")!.input.title, "call the court");
+});
+
+test("a message that @names a person hands the task to them; a name that is not in the chat's directory does not", async () => {
+  const r = rig({ "chat.make_task": () => ({ taskId: "tsk_2", messageId: "m" }) });
+  const { makeTask } = await import("./actions.ts");
+  const thread = (r.data.screens.query("chats.conversation", "thread", { threadId: r.data.threadId }).getSnapshot() as { data: { thread: never } }).data.thread;
+  const msg = { messageId: "msg_x", body: "@Maya please send the Rivera letter", author: { kind: "person" as const, id: "usr_omar" }, createdAt: 1 };
+  await makeTask(r.data, thread, msg, "k1");
+  assert.equal(r.last("chat.make_task")!.input.assigneeId, "usr_maya");
+  await makeTask(r.data, thread, { ...msg, body: "@Nobody please send it" }, "k2");
+  assert.equal(r.last("chat.make_task")!.input.assigneeId, undefined);
 });
 
 test("/remember proposes the fact to the lead's memory of this person, sourced to the chat", async () => {
@@ -430,6 +439,17 @@ test("a fork's first line names the chat it came from and links to the message",
   assert.ok(html.includes("Plan the launch"));
 });
 
+test("a link card in a system line says where the work went, by name, and opens the task; an agent's card with buttons draws as a card", () => {
+  const r = rig();
+  const sys: Message = { messageId: "m_card", threadId: r.data.threadId, threadSeq: 1, author: { kind: "person", id: r.data.me.id }, kind: "system", body: "Task created: Send the letter", blocks: [{ id: "blk_c", type: "link_card", v: 1, state: "done", data: { icon: "task", lead: "Task created", title: "Send the letter", who: "usr_maya", target: { type: "task", id: "tsk_1" } } }] as never, createdAt: 1, reactions: [], pinned: false, attachments: [] } as unknown as Message;
+  const summary: Message = { ...sys, messageId: "m_sum", kind: "agent", author: { kind: "agent", id: "agt_billing" }, body: "", blocks: [{ id: "blk_s", type: "link_card", v: 1, state: "done", data: { icon: "summary", lead: "Summary", title: "Invoices", body: "Three paid, two open.", actions: [{ key: "task", label: "Make task" }] } }] as never } as Message;
+  const items = timeline([sys, summary], { meId: r.data.me.id, nameOf: r.data.nameOf, kindOf: r.data.kindOf, clock: r.data.clock() });
+  const html = clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={{ openBeside: () => undefined, nameOf: r.data.nameOf } as never} meId={r.data.me.id} />)).join(""));
+  assert.ok(html.includes("Task created, assigned to Maya Chen"), "the name, not the id");
+  assert.ok(html.includes('data-testid="link-card-blk_c-open"') && html.includes("Send the letter"));
+  assert.ok(html.includes('data-testid="link-card-blk_s-task"') && html.includes("Three paid, two open."), "the agent's card has its words and its button");
+});
+
 /* ---------- export ---------- */
 
 test("the export file is named from the chat's title and never holds an id where a name belongs", () => {
@@ -513,4 +533,18 @@ test("a plugin command with a colon in its name is a command, and its prompt is 
   await runSlash("/greeter:hello Dana", r.env);
   assert.deepEqual(asked, ["Dana"]);
   assert.deepEqual(r.flags.sent, ["Say hello to Dana"]);
+});
+
+test("an agent's answer in a chat of people carries Make task and Remember; in a chat of one person it does not, and a person's own message never does", async () => {
+  const r = rig();
+  const reply: Message = { messageId: "m_ans", threadId: r.data.threadId, threadSeq: 2, author: { kind: "agent", id: "agt_billing" }, kind: "agent", body: "Three invoices are paid, two are open.", blocks: [], createdAt: 2, reactions: [], pinned: false, attachments: [] } as unknown as Message;
+  const own: Message = { ...reply, messageId: "m_own", author: { kind: "person", id: r.data.me.id }, kind: "text" } as Message;
+  const render = (withPeople: boolean): string => {
+    const items = timeline([reply, own], { meId: r.data.me.id, nameOf: r.data.nameOf, kindOf: r.data.kindOf, clock: r.data.clock() });
+    return clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, withPeople } as never} meId={r.data.me.id} />)).join(""));
+  };
+  const many = render(true);
+  assert.ok(many.includes('data-testid="reply-task-m_ans"'), "Make task under the agent's answer");
+  assert.ok(!many.includes('data-testid="reply-actions-m_own"'), "none under a person's own message");
+  assert.ok(!render(false).includes('data-testid="reply-actions-m_ans"'), "a chat of one person has the message menu only");
 });

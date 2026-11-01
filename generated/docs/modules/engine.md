@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (66)
+## Capabilities (67)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
@@ -22,6 +22,7 @@ Requires: nothing.
 - [engine.lease.acquire](../capabilities/engine.lease.acquire.md): Take the lease on a thread (compare and set; heartbeat every 5 s, expires after 20 s)
 - [engine.lease.heartbeat](../capabilities/engine.lease.heartbeat.md): Extend the lease on a thread
 - [engine.lease.release](../capabilities/engine.lease.release.md): Release the lease on a thread
+- [engine.live_turns](../capabilities/engine.live_turns.md): The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream
 - [engine.mcp.call](../capabilities/engine.mcp.call.md): Call an outside MCP tool that may change things; an agent's call goes through the Gate
 - [engine.mcp.oauth_complete](../capabilities/engine.mcp.oauth_complete.md): Finish an OAuth sign-in with the state and code the server sent back, or the error it sent when the person declined. Only the person who started it can finish it.
 - [engine.mcp.oauth_start](../capabilities/engine.mcp.oauth_start.md): Begin signing a remote outside-tool connection in with OAuth (the MCP authorization flow). Answers the address to send the person to; the token that comes back is sealed and never answered.

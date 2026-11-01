@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine.
 
-## Capabilities (77)
+## Capabilities (81)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -29,6 +29,7 @@ Requires: engine.
 - [chat.ask_level](../capabilities/chat.ask_level.md): The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it
 - [chat.ask_suggest](../capabilities/chat.ask_suggest.md): Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used
 - [chat.asks_of](../capabilities/chat.asks_of.md): Ask panes opened on one object (the pane history of a record, file, event, page, site or automation)
+- [chat.catch_up](../capabilities/chat.catch_up.md): What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives
 - [chat.composer.suggest](../capabilities/chat.composer.suggest.md): Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates
 - [chat.delete_message](../capabilities/chat.delete_message.md): Delete a message you wrote (kept in the audit trail)
 - [chat.edit](../capabilities/chat.edit.md): Edit the text of a message you wrote
@@ -37,6 +38,7 @@ Requires: engine.
 - [chat.helper.start](../capabilities/chat.helper.start.md): Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only
 - [chat.helpers.list](../capabilities/chat.helpers.list.md): Helpers running under a chat, with status
 - [chat.history.search](../capabilities/chat.history.search.md): Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line
+- [chat.make_task](../capabilities/chat.make_task.md): Turn a message into a task: the title is its first line, the task points back at it and a "Task created" card in the thread links to the task. An agent may do it for the person it acts for
 - [chat.message.get](../capabilities/chat.message.get.md): Read one message with its blocks
 - [chat.messages.list](../capabilities/chat.messages.list.md): Messages of a thread by sequence window (last 50 first, older stream in)
 - [chat.open_as_chat](../capabilities/chat.open_as_chat.md): Open an Ask pane as a normal chat so it appears in Recent
@@ -50,8 +52,10 @@ Requires: engine.
 - [chat.question.ask](../capabilities/chat.question.ask.md): Ask the person a structured question (single, multi or free text); the turn parks until it is answered
 - [chat.react](../capabilities/chat.react.md): Add or remove a reaction
 - [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)
+- [chat.remember](../capabilities/chat.remember.md): Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule
 - [chat.screen.get](../capabilities/chat.screen.get.md): The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows
 - [chat.search](../capabilities/chat.search.md): Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it
+- [chat.share](../capabilities/chat.share.md): Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to
 - [chat.start](../capabilities/chat.start.md): Start a chat or an Ask pane with one or more agents, or a direct message with one person (a third person means a channel)
 - [chat.thread](../capabilities/chat.thread.md): Open or create the inline thread under a message; an @mentioned agent works inside it
 - [chat.transcript.append](../capabilities/chat.transcript.append.md): Append canonical transcript rows for a turn (every engine writes here, API drivers directly and CLI drivers through hooks)

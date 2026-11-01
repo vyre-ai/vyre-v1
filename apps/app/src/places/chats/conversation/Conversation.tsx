@@ -23,6 +23,7 @@ import * as act from "./actions.ts";
 import { ChatMemoryProvider } from "../memory/thread.tsx";
 import { useMemoryEntries } from "../memory/menu.tsx";
 import { MessageView } from "./MessageView.tsx";
+import { CatchUpLine } from "./catch-up.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
@@ -94,6 +95,16 @@ function ConversationView(): ReactElement {
   const compact = useContext(CompactContext);
   const liveTurns = useLiveTurns(data);
   const online = useOnline();
+  // A chat opened mid-turn, on any device, or after a reconnect, shows the running turn at once: ask what it has written so far, then the live pieces carry on from there.
+  useEffect(() => {
+    const live = data.live;
+    if (!live || !online) return;
+    let gone = false;
+    const fetchNow = (): void => { void data.call("engine.live_turns", { threadId: data.threadId }).then((r) => { if (!gone) live.seed(data.threadId, (r as { turns?: { turnId: string; agentId: string; text: string }[] }).turns ?? []); }, () => undefined); };
+    fetchNow();
+    const off = live.onGap((th) => { if (th === data.threadId) fetchNow(); });
+    return () => { gone = true; off(); };
+  }, [data, data.threadId, online]);
   const menu = useMenu();
   const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
@@ -342,14 +353,21 @@ function ConversationView(): ReactElement {
     ...(data.mountSheet ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } } : {}),
     ...(memoryEntries ? { memoryEntries } : {}),
     fork: (id) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")),
+    withPeople: thread.members.filter((p) => p.kind === "person").length >= 2,
     makeTask: (id) => {
       const m = all.find((x) => x.messageId === id);
       if (!m) return;
-      void act.makeTask(data, thread, m, data.newKey()).then((taskId) => { say("Task made from this message"); data.nav.openBeside("task", taskId); }, fail("Could not make the task."));
+      void act.makeTask(data, thread, m, data.newKey()).then(() => undefined, fail("Could not make the task."));  // the card in the thread says it and opens it; the person stays where they are
     },
     files: data,
     nameOf,
-    openMessage: (threadId, messageId) => data.nav.openThread(threadId, messageId),
+    openMessage: (threadId, messageId) => (messageId === "" ? data.nav.openThread(threadId) : data.nav.openThread(threadId, messageId)),
+    share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
+      const entries: MenuEntry[] = [];
+      for (const to of targets) entries.push({ label: to.label, onSelect: () => void act.shareTo(data, thread.threadId, id, to, data.newKey()).catch(fail("Could not share it.")) });
+      if (entries.length === 0) entries.push({ label: "No one to share with", disabled: true, onSelect: () => undefined } as MenuEntry);
+      menu.show(entries, x, y, "context", { label: "Share to" });
+    }, fail("Could not list where to share it.")),
   };
 
   const inThread = new Map(thread.agents.map((a) => [a.agentId, a.mode] as const));
@@ -438,6 +456,7 @@ function ConversationView(): ReactElement {
           <IconButton icon="x" label="Close find" size={24} testID="find-close" onPress={() => { setFinding(false); setQuery(""); }} />
         </View>
       ) : null}
+      <CatchUpLine onJump={(id) => setFocusId(id)} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
 
       {liveView ? null : (

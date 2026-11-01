@@ -41,7 +41,7 @@ const messageRow = t.obj({
 const channelRow = t.obj({
   channelId: id.channel, mainThreadId: id.thread, name: t.str({ examples: ['intake'] }), topic: t.opt(t.str()), visibility: t.enm('public', 'invite'),
   folderId: t.opt(id.folder), recordId: t.opt(id.record), archived: t.bool(), members: t.arr(principalRef), agents: t.arr(threadAgent),
-  unread: t.int(), createdAt: t.ts(),
+  unread: t.int(), createdAt: t.ts(), restricted: t.opt(t.bool()),   // Console only: an invite-only channel the admin is not in; they can archive it and change who is in it, not read it
 });
 const recentRow = t.obj({
   threadId: id.thread, kind: threadKind, title: t.str(), agents: t.arr(id.agent), unread: t.int(), working: t.bool(), starred: t.bool(),
@@ -74,6 +74,8 @@ const streamItem = t.obj({
   groupKey: t.opt(t.str({ description: 'Same flow, runs next to each other' })), count: t.opt(t.int({ minimum: 2 })), anyFailed: t.opt(t.bool()), runIds: t.opt(t.arr(id.run)),
 });
 const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), ...pageIn };
+// `governance`: Console also lists the invite-only channels the caller is not in but may govern, marked restricted
+const channelListIn = { ...listIn, governance: t.opt(t.bool()) };
 
 export default defineManifest({
   id: 'chat',
@@ -210,7 +212,7 @@ export default defineManifest({
         screen: t.opt(screenContext),
       },
       out: { message: messageRow }, on: ['thread', '/threadId'], level: 'use', idem: 'key',
-      emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied', 'thread.unarchived'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',
+      emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied', 'thread.unarchived', 'agent.engaged'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',
       rate: { n: 120, perSeconds: 60, scope: 'principal' }, errors: ['permission.plan_mode', 'permission.limit'],
     }),
     read('chat.screen.get', 'The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows', {
@@ -228,6 +230,21 @@ export default defineManifest({
       in: { messageId: id.message, threadId: id.thread, emoji: t.str(), remove: t.opt(t.bool()) }, out: { reactions: t.arr(reaction) }, on: ['thread', '/threadId'], level: 'use',
       emits: ['message.reacted'], tool: 'chats', offline: 'patch', idem: 'natural', risk: 'low',
     }),
+    write('chat.make_task', 'Turn a message into a task: the title is its first line, the task points back at it and a "Task created" card in the thread links to the task. An agent may do it for the person it acts for', {
+      in: { ...threadT, messageId: id.message, title: t.opt(t.str()), assigneeId: t.opt(t.str({ description: 'A person or an agent in this chat; default the asker' })) },
+      out: { taskId: id.task, messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low',
+      agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found'],
+    }),
+    write('chat.share', 'Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to', {
+      in: { ...threadT, messageId: id.message, toThreadId: id.thread, to: t.opt(t.str({ description: 'A name for the place it went (a channel name); default the chat itself' })) },
+      out: { messageId: id.message, toThreadId: id.thread },
+      on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low', agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed'],
+    }),
+    write('chat.remember', 'Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule', {
+      in: { ...threadT, messageId: id.message, text: t.opt(t.str({ description: 'The words to keep; default the message' })) },
+      out: { factId: id.fact, layer: t.enm('project', 'person'), merged: t.bool(), projectId: t.opt(id.project), projectTitle: t.opt(t.str()), by: t.str() },
+      on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low', agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found', 'permission.provider_label'],
+    }),
     write('chat.pin', 'Mark a message as pinned (a content marker, not a Star)', {
       in: { messageId: id.message, threadId: id.thread }, out: { pinned: t.bool() }, on: ['thread', '/threadId'], emits: ['message.pinned'], tool: 'chats', offline: 'patch', idem: 'natural',
     }),
@@ -237,6 +254,15 @@ export default defineManifest({
     read('chat.messages.list', 'Messages of a thread by sequence window (last 50 first, older stream in)', {
       in: { ...threadT, before: t.opt(t.int()), after: t.opt(t.int()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
       out: { messages: t.arr(messageRow), hasMore: t.bool() }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter',
+    }),
+    read('chat.catch_up', 'What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives', {
+      in: threadT,
+      out: {
+        unread: t.int(), since: t.int(), top: t.int(), firstMessageId: t.opt(id.message),
+        people: t.arr(t.obj({ id: t.str(), count: t.int() })), tasks: t.arr(t.obj({ messageId: id.message, title: t.str() })),
+        decisions: t.arr(t.obj({ messageId: id.message, text: t.str() })), at: t.arr(t.obj({ messageId: id.message, author: t.str(), text: t.str() })),
+      },
+      on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
     read('chat.message.get', 'Read one message with its blocks', {
       in: { ...threadT, messageId: id.message }, out: { message: messageRow }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
@@ -343,7 +369,7 @@ export default defineManifest({
       out: { channel: channelRow }, perm: 'channels.create', emits: ['channel.created', 'thread.started', 'channel.agent_added', 'channel.member_added'], tool: 'chats', offline: 'queue', cli: 'vyre channels create',
     }),
     read('channels.list', 'List channels by section and folder (the items capability of the Channels list)', {
-      in: listIn, out: { channels: t.arr(channelRow), ...pageOut }, tool: 'chats', label: 'filter',
+      in: channelListIn, out: { channels: t.arr(channelRow), ...pageOut }, tool: 'chats', label: 'filter',
     }),
     read('channels.get', 'Read one channel with members, agents and unread count', {
       in: channelT, out: { channel: channelRow }, on: ['channel', '/channelId'], tool: 'chats', label: 'check',

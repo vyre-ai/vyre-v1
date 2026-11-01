@@ -360,6 +360,7 @@ export function createClient(transport: Transport) {
       ask_level: call("chat.ask_level", 1),
       ask_suggest: call("chat.ask_suggest", 1),
       asks_of: call("chat.asks_of", 1),
+      catch_up: call("chat.catch_up", 1),
       composer: {
         suggest: call("chat.composer.suggest", 1),
       },
@@ -376,6 +377,7 @@ export function createClient(transport: Transport) {
       history: {
         search: call("chat.history.search", 1),
       },
+      make_task: call("chat.make_task", 1),
       message: {
         get: call("chat.message.get", 1),
       },
@@ -399,10 +401,12 @@ export function createClient(transport: Transport) {
       },
       react: call("chat.react", 1),
       recent: call("chat.recent", 1),
+      remember: call("chat.remember", 1),
       screen: {
         get: call("chat.screen.get", 1),
       },
       search: call("chat.search", 1),
+      share: call("chat.share", 1),
       start: call("chat.start", 1),
       thread: call("chat.thread", 1),
       transcript: {
@@ -717,6 +721,7 @@ export function createClient(transport: Transport) {
         heartbeat: call("engine.lease.heartbeat", 1),
         release: call("engine.lease.release", 1),
       },
+      live_turns: call("engine.live_turns", 1),
       mcp: {
         call: call("engine.mcp.call", 1),
         oauth_complete: call("engine.mcp.oauth_complete", 1),

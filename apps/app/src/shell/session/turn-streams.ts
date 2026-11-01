@@ -27,6 +27,13 @@ export interface TurnStreams {
   /** The row of this message is on screen: the turn behind it can go. */
   settle(messageId: string): void;
   subscribe(listener: () => void): () => void;
+  /**
+   * The turns a chat is writing right now with their text so far (engine.live_turns), asked when the chat opens and after a reconnect. A turn this device missed the start of is created and filled;
+   * a turn it already follows takes only the part it lacks. Pieces that arrived first are held until the text so far is in, then the ones that follow it are added.
+   */
+  /** A piece arrived for a turn whose beginning this device never saw: the listener asks the host for the text so far (and calls seed). */
+  onGap(l: (threadId: string) => void): () => void;
+  seed(threadId: string, turns: readonly { turnId: string; agentId: string; text: string }[]): void;
   /** The link dropped: what was being written cannot finish here; the saved message will arrive by the normal re-read. */
   reset(): void;
   dispose(): void;
@@ -61,6 +68,18 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
   const timers = new Map<string, unknown>();
   const byThread = new Map<string, readonly LiveTurn[]>();
   const listeners = new Set<() => void>();
+  const gapListeners = new Set<(threadId: string) => void>();
+  const have = new Map<string, number>();                  // turnId -> characters held in its store
+  const held = new Map<string, Array<{ at: number; text: string }>>();   // pieces that arrived before the text so far
+  const add = (t: LiveTurn, at: number | undefined, text: string): boolean => {
+    const n = have.get(t.turnId) ?? 0;
+    if (at === undefined) { t.store.push(text); have.set(t.turnId, n + text.length); return true; }
+    if (at > n) return false;
+    if (at + text.length <= n) return true;
+    const rest = text.slice(n - at);
+    t.store.push(rest); have.set(t.turnId, n + rest.length);
+    return true;
+  };
 
   const rebuild = (threadId: string): void => {
     const list = [...turns.values()].filter((t) => t.threadId === threadId).sort((a, b) => a.startedAt - b.startedAt);
@@ -78,7 +97,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
     if (h !== undefined) clearT(h);
     timers.delete(turnId);
     if (!t) return;
-    turns.delete(turnId);
+    turns.delete(turnId); have.delete(turnId); held.delete(turnId);
     tell(t.threadId);
   }
   const ensure = (turnId: string, threadId: string, agentId: string): LiveTurn => {
@@ -101,7 +120,16 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       if (kind === "start" || kind === "delta") {
         const fresh = !turns.has(turnId);
         const t = ensure(turnId, threadId, agentId);
-        if (kind === "delta") { const text = str(d["text"]); if (text !== "") t.store.push(text); }
+        if (kind === "delta") {
+          const text = str(d["text"]);
+          const at = typeof d["at"] === "number" ? (d["at"] as number) : undefined;
+          if (text !== "" && !add(t, at, text)) {
+            const q = held.get(turnId) ?? [];
+            q.push({ at: at!, text });
+            held.set(turnId, q);
+            if (q.length === 1) for (const l of [...gapListeners]) l(threadId);
+          }
+        }
         arm(turnId, quietMs);
         if (fresh) tell(threadId);
         return;
@@ -126,6 +154,20 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         tell(threadId);
       }
     },
+    onGap(l) { gapListeners.add(l); return () => { gapListeners.delete(l); }; },
+    seed(threadId, list) {
+      for (const s of list) {
+        if (s.turnId === "" || s.agentId === "") continue;
+        const fresh = !turns.has(s.turnId);
+        const t = ensure(s.turnId, threadId, s.agentId);
+        if (t.state === "ended") continue;
+        add(t, 0, s.text);
+        const q = held.get(s.turnId);
+        if (q) { held.delete(s.turnId); for (const p of q) add(t, p.at, p.text); }
+        arm(s.turnId, quietMs);
+        if (fresh) tell(threadId);
+      }
+    },
     turnsOf: (threadId) => byThread.get(threadId) ?? NONE,
     streamOf(rowId) {
       if (rowId.startsWith("turn:")) return turns.get(rowId.slice(5))?.store;
@@ -138,10 +180,10 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       const ids = [...turns.keys()];
       const threads = new Set([...turns.values()].map((t) => t.threadId));
       for (const id of ids) { const h = timers.get(id); if (h !== undefined) clearT(h); timers.delete(id); }
-      turns.clear();
+      turns.clear(); have.clear(); held.clear();
       for (const th of threads) rebuild(th);
       if (ids.length) for (const l of [...listeners]) l();
     },
-    dispose() { for (const h of timers.values()) clearT(h); timers.clear(); turns.clear(); byThread.clear(); listeners.clear(); },
+    dispose() { for (const h of timers.values()) clearT(h); timers.clear(); turns.clear(); byThread.clear(); listeners.clear(); gapListeners.clear(); },
   };
 }

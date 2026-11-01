@@ -233,6 +233,8 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
   const now = o.now ?? KNOW_NOW;
   const replica = createFakeReplica(`know-${Math.random().toString(36).slice(2)}`);
   const calls: SampleMemory["calls"] = [];
+  /** Facts a person asked to keep (Remember This): in their memory, never in the Learned feed. */
+  const keptByPerson = new Set<string>();
   const opened: string[] = [];
   const initial = seed();
   if (o.proposed) {
@@ -254,7 +256,8 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
   replica.resolve("memory.learned", (_t, i: CapMap["memory.learned"]["in"]) => {
     const s = st();
     const x = i as typeof i & ChatScope;
-    const items = live(s).filter((f) => (!i.since || f.learnedAt >= i.since) && (!i.layer || f.layer === i.layer) && (!i.agentId || f.agentId === i.agentId) && (!x.sourceRef || f.sourceRef === x.sourceRef) && (!x.threadId || threadOfLink(f.sourceLink) === x.threadId)).map((f) => ({
+    // like the server: the feed is what memory learned by itself (an agent or upkeep), never what a person asked to keep with Remember This
+    const items = live(s).filter((f) => !keptByPerson.has(f.factId) && (!i.since || f.learnedAt >= i.since) && (!i.layer || f.layer === i.layer) && (!i.agentId || f.agentId === i.agentId) && (!x.sourceRef || f.sourceRef === x.sourceRef) && (!x.threadId || threadOfLink(f.sourceLink) === x.threadId)).map((f) => ({
       fact: f, at: f.learnedAt, actor: f.by ?? "", actorKind: f.byKind ?? "agent", sourceKind: f.sourceKind, sourceRef: f.sourceRef, ...(f.sourceLink ? { sourceLink: f.sourceLink } : {}), from: s.facts.find((x) => x.factId === f.factId)!._who, undone: false,
     }));
     for (const r of x.sourceRef || x.threadId ? [] : s.trail.filter((x) => x.actorKind === "upkeep" && (x.action === "merge" || x.action === "flag") && x.factId && (!i.since || x.at >= i.since))) {
@@ -479,10 +482,16 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
       const named = SUBJECTS.find((x) => PAGEABLE.has(x.type) && [x.name, ...(x.alias ?? [])].some((n) => n.length >= 3 && i.text.toLowerCase().includes(n.toLowerCase())));
       const chatKey = Object.entries(CHAT).find(([, c]) => c.thread === i.threadId)?.[0];
       const f = F(named?.id ?? "ian", i.text, i.layer ?? "person", now, { k: "chat", label: chatKey ? CHAT[chatKey]!.title : "This chat", ...(chatKey ? { chat: chatKey } : {}), who: "Irfad Imtiaz" }, "Irfad Imtiaz");
+      keptByPerson.add(f.factId);
       if (chatKey && i.sourceRef) { f.sourceRef = i.sourceRef; f.sourceLink = `vyre://thread/${i.threadId}?m=${i.sourceRef}`; }
       s.facts.unshift(structuredClone(f)); log(s, "create", ME, i.text, "Remembered from a message", f.factId);
       save(s);
       return { fact: strip(f), merged: false };
+    },
+    // chat.remember: the chat's own layer here (the sample has no project chats); the same fact, with the answer the chat module gives
+    "chat.remember": (i: { threadId: string; messageId: string; text?: string }) => {
+      const made = (writes["memory.remember"] as (x: unknown) => { fact: { factId: string } })({ text: i.text ?? "", threadId: i.threadId, sourceRef: i.messageId });
+      return { factId: made.fact.factId, layer: "person", merged: true, by: ME };
     },
     "memory.forget": (i: { factIds: string[] }) => {
       const s = st();

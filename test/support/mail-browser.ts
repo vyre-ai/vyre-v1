@@ -130,7 +130,7 @@ function darkTokens(p: Page): Promise<{ css: string; mode: string; skin: string 
  * The app takes its skin when a page loads, so emulating a dark computer does not repaint an open page. A dark picture applies the graphite variables to the page as they are, and the light one puts
  * the page's own back. Nothing reloads or resizes, so a sheet or a panel stays open.
  */
-async function setScheme(p: Page, scheme: "light" | "dark"): Promise<void> {
+export async function setScheme(p: Page, scheme: "light" | "dark"): Promise<void> {
   if (scheme === "dark") {
     const dark = await darkTokens(p);
     await p.evaluate((d) => {

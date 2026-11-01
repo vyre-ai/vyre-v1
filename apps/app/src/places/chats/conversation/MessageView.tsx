@@ -11,6 +11,11 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
+import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
+import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
+import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
+import { useThreadMemory } from "../memory/thread.tsx";
+import { rememberMessage } from "../memory/actions.ts";
 import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
@@ -56,6 +61,10 @@ export interface MessageActions {
   fork?(messageId: string): void;
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
+  /** Share this message to a channel or a person: opens the list of places at the point given. */
+  share?(messageId: string, x: number, y: number): void;
+  /** The chat has two or more people in it: an agent's answer is for all of them, and carries the buttons that turn it into work (Make task, Remember). */
+  withPeople?: boolean;
   /** A person's or agent's name for an id; a plain word where there is none. */
   nameOf?(id: string): string;
   /** Open another chat on a message (the line a fork starts with). */
@@ -97,6 +106,16 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
   const { item } = props;
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
   if (item.kind === "event") {
+    const link = linkCardOf(item.message.blocks.find((x) => x.type === "link_card") ?? { type: "", data: null });
+    if (link) {
+      const b = item.message.blocks.find((x) => x.type === "link_card")!;
+      return (
+        <View testID={`event-${item.key}`} style={st.event}>
+          <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
+          <Text style={st.eventTime}>{item.time}</Text>
+        </View>
+      );
+    }
     const origin = forkOrigin(item.message);
     if (origin && props.actions.openMessage) {
       const go = props.actions.openMessage;
@@ -129,6 +148,7 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   if (mine && m.kind === "text") items.push({ label: "Edit", onSelect: onEdit });
   items.push({ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) });
   if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
+  if (a.share && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
   items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
   items.push({ label: "Add Reaction", onSelect: () => a.react(m.messageId, "👍", false) });
@@ -287,12 +307,15 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       {collect(cards, (b) => {
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
+        const lc = linkCardOf(b);
+        if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
       {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} data={actions.files} /> : null))}
+      {item.who.kind === "agent" && actions.withPeople === true && !stream && m.body.trim() !== "" ? <ReplyActions m={m} actions={actions} /> : null}
       <Reactions m={m} a={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
@@ -314,6 +337,37 @@ function Reactions({ m, a, mine }: { m: Message; a: MessageActions; mine: boolea
 }
 
 /* ---------- native cards ---------- */
+
+/** Under an agent's answer in a chat of people: Make task and Remember, one tap each, so an answer both people read can become work without a form. They are the message menu's own actions. */
+function ReplyActions({ m, actions }: { m: Message; actions: MessageActions }): ReactElement {
+  const memory = useThreadMemory();
+  const [done, setDone] = useState<ReadonlySet<string>>(new Set());
+  const mark = (k: string): void => setDone((d) => new Set(d).add(k));
+  return (
+    <View testID={`reply-actions-${m.messageId}`} style={st.replyActs}>
+      {actions.makeTask ? <TextButton label={done.has("task") ? "Task made" : "Make task"} testID={`reply-task-${m.messageId}`} onPress={() => { if (!done.has("task")) { actions.makeTask!(m.messageId); mark("task"); } }} /> : null}
+      {memory ? <TextButton label={done.has("remember") ? "Remembered" : "Remember"} testID={`reply-remember-${m.messageId}`} onPress={() => { if (!done.has("remember")) { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); mark("remember"); } }} /> : null}
+    </View>
+  );
+}
+
+/** A link card in the conversation: names by the chat's own lookup, a fact opens the Knows tab of the pane (where the chat has memory), anything else opens beside the chat. */
+function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: LinkCardData; actions: MessageActions; size: number; trusted: boolean }): ReactElement {
+  const memory = useThreadMemory();
+  const [done, setDone] = useState<ReadonlySet<string>>(new Set());
+  // a button with a capability calls it as the person and reads as done; one that fails says nothing is done (the button stays)
+  const act = (key: string): void => {
+    const a = data.actions?.find((x) => x.key === key);
+    // only a card the app itself wrote (a system line) may name a call; the same card from a model or a tool is words and inert buttons, whatever it carries
+    if (!trusted || !a?.cap) return;
+    void Promise.resolve(actions.host.invoke(a.cap, a.input ?? {})).then(() => setDone((d) => new Set(d).add(key)), () => undefined);
+  };
+  const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={done} />;
+}
+
+/** The glyph a link card's icon word asks for. */
+const linkGlyph = (icon: string): GlyphName => (icon === "task" ? "task" : icon === "file" ? "file" : icon === "fact" ? "spark" : "reply");
 
 const CARD_ICON: Record<string, GlyphName> = { terminal: "term", plan: "plan", file: "file", changeset: "file", diff: "file", screenshot: "file", record_card: "file", question: "spark" };
 const OPENS = new Set(["terminal", "changeset", "diff", "file", "record_card", "tab_opened", "screenshot", "deploy", "mount"]);
@@ -406,7 +460,9 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
 }
 
 export const st = StyleSheet.create({
+  replyActs: { flexDirection: "row", gap: 4, marginTop: 4, marginLeft: -6 },
   day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
+  eventCard: { flexShrink: 1, minWidth: 0 },
   event: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },

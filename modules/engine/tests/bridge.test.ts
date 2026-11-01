@@ -244,3 +244,33 @@ test("a chat that pins no model runs on the agent's own model, so the turn and i
   await none.say("Hello");
   assert.equal(none.engine.turns(T)[0]?.model ?? null, null, "an agent with no model of its own leaves the turn unpinned");
 });
+
+test("an agent that joined the chat after it was opened here hears a message that @mentions it", async () => {
+  const agents: Array<{ agentId: string; mode: "lead" | "listen" }> = [{ agentId: LEAD, mode: "lead" }];
+  const s = setup({ script: reply("Here you go."), agents });
+  await s.say("Morning.");
+  assert.equal(s.engine.agents(T).some((a) => a.id === WATCHER), false, "not in the engine yet");
+  agents.push({ agentId: WATCHER, mode: "listen" });
+  const { result } = await s.say("@Watch sum this up", [{ kind: "agent", id: WATCHER }]);
+  assert.deepEqual(result, { receivedAs: [WATCHER] }, "the mention reaches the agent that joined later");
+  assert.equal(s.engine.agents(T).some((a) => a.id === WATCHER), true);
+});
+
+test("the turns being written are listed with their text so far, and each piece carries where it starts", async () => {
+  const seen: StreamEvent[] = [];
+  const s = setup({ script: reply("Hello there."), stream: (e) => seen.push(e) });
+  await s.say("Hi");
+  const at = seen.filter((e) => e.kind === "delta").map((e) => (e as { at: number }).at);
+  assert.equal(at[0], 0);
+  assert.ok(at.every((x, i) => i === 0 || x > at[i - 1]!), "each piece starts after the one before");
+  assert.deepEqual(s.bridge.liveTurns(T), [], "an ended turn is not listed");
+});
+
+test("a message that arrives while the thread is being opened for an earlier one is not copied as history, so its own event still reaches the agent", async () => {
+  const s = setup({ script: reply("Here you go.") });
+  s.chat.push({ messageId: "msg_early", threadId: T, threadSeq: 1, author: { kind: "person", id: "usr_dana" }, body: "Morning.", blocks: [], mentions: [], depth: 0 } as never);
+  s.chat.push({ messageId: "msg_late", threadId: T, threadSeq: 2, author: { kind: "person", id: "usr_dana" }, body: "Please sum up.", blocks: [], mentions: [{ kind: "agent", id: LEAD }], depth: 0 } as never);
+  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_early", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 } });
+  const late = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_late", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [{ kind: "agent", id: LEAD }], depth: 0 } });
+  assert.deepEqual(late, { receivedAs: [LEAD] });
+});

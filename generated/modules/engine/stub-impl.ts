@@ -20,6 +20,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.lease.acquire": async () => ({"acquired":true,"expiresAt":1760000000000} as unknown) as never,
   "engine.lease.heartbeat": async () => ({"expiresAt":1760000000000} as unknown) as never,
   "engine.lease.release": async () => ({"ok":true} as unknown) as never,
+  "engine.live_turns": async () => ({"turns":[{"agentId":"agt_a1b2c3","text":"example","turnId":"example"}]} as unknown) as never,
   "engine.mcp.call": async () => ({"isError":true,"structured":{},"text":"example"} as unknown) as never,
   "engine.mcp.oauth_complete": async () => ({"connectionId":"example"} as unknown) as never,
   "engine.mcp.oauth_start": async () => ({"authUrl":"example","state":"example"} as unknown) as never,
