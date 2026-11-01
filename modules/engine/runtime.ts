@@ -87,7 +87,8 @@ let closeOpener: (() => Promise<void>) | null = null;
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
 export function setEngineHost(h: EngineHostSeam | null): void {
   if (h === null) void closePluginRuntime();   // plugin servers end with the daemon
-  if (h === null && closeOpener) void closeOpener().catch(() => undefined);   // processes end and MCP tokens are revoked at shutdown
+  // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
+  if (h === null) void (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
   closeOpener = null;
   host = h;
   building = null;
@@ -216,6 +217,9 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
   bindOauthStore(ctx as never);   // the sealed MCP sign-in tokens are read through the module's own ctx (db, seal, clock)
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
+  // One runtime per host: every call after the first answers with it. The opener below is part of it; building another on each call left the first one, the one with the live CLI sessions, unreachable
+  // for closeOpener, so Quit closed an empty pool and the engine process, its MCP socket and its egress proxy outlived the daemon.
+  if (building) return building;
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
   const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });

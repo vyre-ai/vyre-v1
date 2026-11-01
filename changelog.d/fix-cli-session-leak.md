@@ -1,0 +1,1 @@
+Quitting now closes every engine session. The runtime built a new session opener on each call and only remembered the last one, so the one holding the live CLI sessions was never closed: the engine process, its MCP socket and its egress proxy outlived the daemon. There is one opener per runtime, and the sandbox's wall stops after the sessions end.
