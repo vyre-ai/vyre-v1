@@ -360,6 +360,14 @@ export async function dismissAside(data: ConversationData, asideThreadId: string
 }
 
 /** Send a queued message now: the running turn is cut and the message goes first (the same call as the composer's Now). */
+/** Hand a queued message to the agent now without stopping it: it reads it at its next step. False when the message was not waiting any more. */
+export async function steerQueued(data: ConversationData, threadId: string, messageId: string): Promise<boolean> {
+  return ((await data.call("engine.steer", { threadId, messageId } as CapMap["engine.steer"]["in"])) as CapMap["engine.steer"]["out"]).steered;
+}
+
+/** Engines that cannot take a message mid-turn: Steer is not offered for them, the message stays queued until the turn ends. */
+export const CANNOT_STEER = new Set(["codex", "grok"]);
+
 export async function sendQueuedNow(data: ConversationData, threadId: string, messageId: string): Promise<void> {
   await data.call("engine.interrupt", { threadId, messageId } as CapMap["engine.interrupt"]["in"]);
 }

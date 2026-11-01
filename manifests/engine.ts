@@ -124,6 +124,9 @@ export default defineManifest({
     write('engine.drop_queued', 'Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it', {
       in: { ...threadT, messageId: id.message }, out: { dropped: t.bool() }, on: ['thread', '/threadId'], level: 'use', tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
     }),
+    write('engine.steer', 'Hand a message that is waiting behind a running turn to the agent now, without stopping it: it reads the message at its next step and changes course', {
+      in: { ...threadT, messageId: id.message }, out: { steered: t.bool() }, on: ['thread', '/threadId'], level: 'use', tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
+    }),
     write('engine.stop', 'Stop one agent working in a thread (per-agent Stop)', {
       in: { ...threadT, agentId: t.opt(id.agent) }, out: { stopped: t.int() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled'],
       tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',

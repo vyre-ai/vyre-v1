@@ -243,6 +243,8 @@ function ConversationView(): ReactElement {
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
   const queuedIdsNow = queuedIds(timelineMessages, data.me.id, isWorking);
+  const leadDriver = accounts?.find((a) => a.ref === leadNow?.accountRef)?.provider;
+  const canSteer = !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
 
   /* ---------- menus: all open under the button that asked ---------- */
@@ -504,7 +506,7 @@ function ConversationView(): ReactElement {
 
       {data.waitingLine ?? null}
       <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
-      {q ? <View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text>{queuedIdsNow.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = queuedIdsNow[queuedIdsNow.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It has already started, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{queuedIdsNow.length > 0 ? <TextButton link label="Send now" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, queuedIdsNow[0]!).catch(fail("Could not send it now."))} /> : null}</View> : null}
+      {q ? <View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text>{queuedIdsNow.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = queuedIdsNow[queuedIdsNow.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It has already started, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{queuedIdsNow.length > 0 && canSteer ? <TextButton link label="Steer" testID="queue-steer" onPress={() => void act.steerQueued(data, thread.threadId, queuedIdsNow[0]!).then((ok) => { if (!ok) say("It has already been read."); }, fail("Could not steer it."))} /> : null}{queuedIdsNow.length > 0 ? <TextButton link label="Stop and send" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, queuedIdsNow[0]!).catch(fail("Could not send it now."))} /> : null}</View> : null}
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
