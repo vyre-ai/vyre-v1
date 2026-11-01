@@ -721,7 +721,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const threadChain = (id: string): string[] => {
         const chain = [id];
         for (let cur = id, i = 0; i < 8; i++) {
-          const up = (db?.all("SELECT parentThreadId FROM chat_thread WHERE id = ?", cur)[0] as { parentThreadId?: string | null } | undefined)?.parentThreadId;
+          let up: string | null | undefined;
+          try { up = (db?.all("SELECT parentThreadId FROM chat_thread WHERE id = ?", cur)[0] as { parentThreadId?: string | null } | undefined)?.parentThreadId; } catch { break; }   // no chat tables here: the thread alone
           if (!up || chain.includes(up)) break;
           chain.push(up); cur = up;
         }
@@ -741,10 +742,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           threads: threadChain,
           mode: (id) => {
             // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it
-            const rows = threadChain(id).map((t) => (db?.all("SELECT modePlan FROM chat_thread WHERE id = ?", t)[0] as { modePlan?: number | null } | undefined));
-            if (rows[0] === undefined) return undefined;
-            const codes = rows.filter((r) => r !== undefined).map((r) => r!.modePlan);
-            return codes.includes(1) ? "plan" : codes.every((c) => c === 2) ? "auto" : "ask";
+            try {
+              const rows = threadChain(id).map((t) => (db?.all("SELECT modePlan FROM chat_thread WHERE id = ?", t)[0] as { modePlan?: number | null } | undefined));
+              if (rows[0] === undefined) return undefined;
+              const codes = rows.filter((r) => r !== undefined).map((r) => r!.modePlan);
+              return codes.includes(1) ? "plan" : codes.every((c) => c === 2) ? "auto" : "ask";
+            } catch { return undefined; }
           },
           hold: (id) => {
             const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
