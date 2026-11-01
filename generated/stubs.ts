@@ -719,9 +719,6 @@ export function stubs(ctx: CallCtx) {
       },
       mcp: {
         call: call("engine.mcp.call"),
-        oauth_complete: call("engine.mcp.oauth_complete"),
-        oauth_start: call("engine.mcp.oauth_start"),
-        oauth_status: call("engine.mcp.oauth_status"),
         read: call("engine.mcp.read"),
         tools: call("engine.mcp.tools"),
       },

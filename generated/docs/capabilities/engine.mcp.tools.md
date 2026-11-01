@@ -46,8 +46,6 @@ type Out = {
           inputSchema: unknown;
           readOnly: boolean;
         }>;
-      hub?: "composio" | "pipedream";
-      oauth?: boolean;
     }>;
 };
 ```
@@ -73,10 +71,8 @@ type Out = {
       {
         "error": "example",
         "from": "plugin",
-        "hub": "composio",
         "key": "greeter/echo",
         "name": "example",
-        "oauth": true,
         "ok": true,
         "tools": [
           {

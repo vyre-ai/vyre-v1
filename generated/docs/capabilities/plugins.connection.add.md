@@ -33,8 +33,6 @@ type In = {
   args?: Array<string>;
   env?: Record<string, string>;
   headers?: Record<string, string>;
-  hub?: "composio" | "pipedream";
-  auth?: "oauth";
   idempotencyKey: string;
 };
 ```
@@ -56,8 +54,6 @@ type Out = {
     headers: Record<string, string>;
     enabled: boolean;
     createdAt: number;
-    hub?: "composio" | "pipedream";
-    auth?: "oauth";
   };
 };
 ```
@@ -81,11 +77,9 @@ type Out = {
     "args": [
       "example"
     ],
-    "auth": "oauth",
     "command": "example",
     "env": {},
     "headers": {},
-    "hub": "composio",
     "idempotencyKey": "idem_1",
     "name": "crm",
     "scope": "space",
@@ -97,14 +91,12 @@ type Out = {
       "args": [
         "example"
       ],
-      "auth": "oauth",
       "command": "example",
       "connectionId": "mcs_a1b2c3",
       "createdAt": 1760000000000,
       "enabled": true,
       "env": {},
       "headers": {},
-      "hub": "composio",
       "name": "example",
       "scope": "space",
       "transport": "stdio",
