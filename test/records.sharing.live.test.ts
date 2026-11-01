@@ -239,3 +239,34 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     assert.ok(((await D("schema.types.list")).data.types as Array<{ key: string }>).some((t) => t.key === "rt_deal"));
   } finally { await d.stop(); }
 });
+
+test("records sharing: a record's files folder made before folders followed their records is brought in line at boot", async () => {
+  const dir = seededDir();
+  let d = await boot(dir);
+  try {
+    await connect(d);
+    const everyone = (await call(d, "access.principals.list", {})).data.principals as Array<{ id: string; kind: string; roles: string[] }>;
+    const ada: Person = { id: everyone.find((p) => p.kind === "person" && (p.roles.includes("rol_owner") || p.roles.includes("rol_admin")))!.id, token: d.token!, name: "Ada" };
+    const A = as(d, ada);
+    const member = ((await A("access.roles.list")).data.roles as Array<{ id: string; name: string }>).find((r) => r.name === "Member")!.id;
+    const dee = await join(d, A, member, "dee", "Dee Dunn");
+    const D = as(d, dee);
+    await A("schema.apply", { ops: [{ op: "type.create", type: "rt_deal", def: { title: "Deal", plural: "Deals", icon: "invoice", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
+    const rec = (await A("records.create", { type: "rt_deal", fields: { name: "Acme renewal" } })).data.record.id as string;
+    const folder = (await A("projects.files_folder", { type: "rt_deal", recordId: rec })).data.folderId as string;
+    await A("files.create", { folderId: folder, name: "terms.txt", content: { text: "Acme renewal terms" } });
+    await A("access.audience_set", { resource: { type: "record_type", id: "rt_deal" }, audience: "added" });
+    // put the folder back where the old code left it: under Records files, owned by the Space
+    const home = ((await A("files.folder.get", { folderId: folder })).data.folder.parentId) as string;
+    const moved = await A("folders.move", { folderId: folder, parentId: home });
+    assert.equal(moved.status, 200, JSON.stringify(moved.data));
+    assert.equal((await D("files.list", { folder })).status, 200, "the old way: every member can open it");
+    await d.stop();
+    d = await boot(dir);
+    await connect(d).catch(() => undefined);
+    const D2 = as(d, { ...dee });
+    await waitFor(async () => { await d.hooks?.pump?.(); return (await D2("files.list", { folder })).status !== 200 ? true : null; }, 60_000);
+    assert.notEqual((await D2("files.list", { folder })).status, 200, "after the boot sweep Dee cannot open it");
+    assert.equal((await as(d, ada)("files.list", { folder })).status, 200, "Ada still can");
+  } finally { await d.stop(); }
+});

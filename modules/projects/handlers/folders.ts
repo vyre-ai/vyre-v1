@@ -61,6 +61,7 @@ export async function ensureFolder(ctx: ProjectsCtx, type: string, recordId: str
   }
   if (!folderId) throw new Error("No free folder name for this project.");
   await call(ctx, "records.update", { type, recordId, patch: { folder: folderId } });
+  await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId }, {});
   await syncAccess(ctx, type, recordId, folderId, by, fields);
   return folderId;
 }
@@ -166,6 +167,22 @@ export async function syncAccess(ctx: ProjectsCtx, type: string, recordId: strin
   }
 }
 
+const FOLLOWED = new WeakSet<object>();
+/**
+ * Once per boot: every record files folder and every project folder follows its record (access.audience_set follows), so a folder made before folders followed their records stops being open to people
+ * who cannot see the record. Idempotent: setting the same parent again changes nothing.
+ */
+export async function followRecords(ctx: ProjectsCtx): Promise<void> {
+  if (FOLLOWED.has(ctx.db)) return;
+  ensure(ctx.db);
+  ctx.db.run(RECORD_FILES_TABLE);
+  const pairs: Array<{ folder: string; record: string }> = [];
+  for (const r of ctx.db.all("SELECT record_id, folder_id FROM projects_record_files") as Array<{ record_id: string; folder_id: string }>) pairs.push({ folder: r.folder_id, record: r.record_id });
+  for (const r of ctx.db.all(`SELECT "recordId", "folderId" FROM projects_project WHERE "folderId" IS NOT NULL`) as Array<{ recordId: string; folderId: string }>) pairs.push({ folder: r.folderId, record: r.recordId });
+  for (const x of pairs) await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: x.folder }, follows: x.record }, {});
+  FOLLOWED.add(ctx.db);
+}
+
 /** The consumer: record events for project types. */
 /** The Space file ids a value names: "fil_..", { fileId }, or a list of them. */
 export function fileIdsOf(v: unknown): string[] {
@@ -222,6 +239,7 @@ export async function onRecordEvent(ctx: ProjectsCtx, event: HookEvent): Promise
  * The boot sweep (and the slow repeat): every project record with no project behind it is adopted as a real project (a channel, roles, and a folder when it has none). Returns how many folders it made.
  */
 export async function backfill(ctx: ProjectsCtx): Promise<number> {
+  await followRecords(ctx);
   const described = await tolerant<{ types?: Array<{ name?: string; key?: string; template?: string }> }>(ctx, "schema.describe", {}, {});
   let made = 0;
   for (const t of described.types ?? []) {
