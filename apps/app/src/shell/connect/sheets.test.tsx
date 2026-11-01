@@ -59,7 +59,7 @@ test("Gmail and Outlook without a Workspace or Microsoft 365 set-up say so in on
     assert.equal(calls.some((c) => c.cap === "mail.connect"), false, "no half-made mailbox");
     const line = find(root, "connect-unavailable");
     assert.ok(line, `${word}: the line is there`);
-    assert.match(JSON.stringify(line), new RegExp(`${word} sign-in needs ${space} set up for your Space`));
+    assert.match(JSON.stringify(line), new RegExp(`${word} sign-in needs a sign-in app, or ${space}, set up for your Space`));
     assert.equal(find(root, "connect-go"), null, "nothing to press that does nothing");
     await press(find(root, "connect-use-imap"));
     await flush();
@@ -183,4 +183,58 @@ test("Twilio: a number the Space already has counts as claimed when nothing new 
   await mount(createRoot, <NumberSheet rt={rt} onDone={(a) => done.push(a)} onCancel={() => undefined} />);
   await flush();
   assert.deepEqual(done, [{ id: "num_7", title: "+14155550123", app: "twilio" }]);
+});
+
+function ownRuntime(calls: { cap: string; input: unknown }[], opened: string[], o: { signedIn: boolean; microsoft?: boolean }): ShellRuntime {
+  return {
+    call: async (cap: string, input?: unknown) => {
+      calls.push({ cap, input });
+      if (cap === "google.user.app_status") return { configured: true, clientId: "c", redirectUri: "https://space.test/oauth/callback" };
+      if (cap === "ms.user.app_status") return { configured: o.microsoft === true };
+      if (cap === "google.dwd.my_account" || cap === "ms.consent.my_account") return { email: "firm@example.com" };
+      if (cap === "google.user.list") return { accounts: [{ accountId: "gua_old", email: "old@gmail.test" }, ...(o.signedIn ? [{ accountId: "gua_new", email: "me@gmail.test" }] : [])] };
+      if (cap === "google.user.start") return { authUrl: "https://accounts.example.com/o/auth", state: "gos_1" };
+      if (cap === "mail.mailbox.list") return { mailboxes: [{ id: "mbx_old", address: "old@gmail.test" }, { id: "mbx_new", address: "Me@gmail.test", title: "" }] };
+      return {};
+    },
+    openUrl: (url: string) => { opened.push(url); },
+    open: () => undefined,
+  } as unknown as ShellRuntime;
+}
+
+test("with a Google sign-in app the mailbox sheet signs the person in (before the Workspace match), then hands back the mailbox it made", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const opened: string[] = [];
+  const done: Connected[] = [];
+  const state = { signedIn: false };
+  const root = await mount(createRoot, <ConnectSheets rt={ownRuntime(calls, opened, state)} need={{ kind: "mailbox", provider: "google" }} onDone={(a) => done.push(a)} onCancel={() => undefined} />);
+  await flush();
+  assert.equal(find(root, "connect-go"), null, "no plain Connect: sign in replaces it");
+  assert.equal(find(root, "connect-matched"), null, "the Workspace match gives way to the person's own sign-in");
+  await press(find(root, "connect-signin"));
+  await flush();
+  assert.deepEqual(opened, ["https://accounts.example.com/o/auth"]);
+  assert.equal(calls.some((c) => c.cap === "mail.connect"), false, "the mailbox is made by the sign-in, not by the sheet");
+  await press(find(root, "connect-signed-in"));
+  await flush();
+  assert.deepEqual(done, [], "the account is not there yet");
+  assert.ok(find(root, "connect-line"), "the person is told it is not finished");
+  state.signedIn = true;
+  await press(find(root, "connect-signed-in"));
+  await flush();
+  assert.deepEqual(done, [{ id: "mbx_new", title: "Me@gmail.test", app: "mail" }]);
+});
+
+test("the address typed becomes the sign-in hint; Outlook without an app keeps the Workspace match", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const root = await mount(createRoot, <ConnectSheets rt={ownRuntime(calls, [], { signedIn: false })} need={{ kind: "mailbox", provider: "google" }} onDone={() => undefined} onCancel={() => undefined} />);
+  await flush();
+  await typeInto(find(root, "connect-address"), "me@gmail.test");
+  await press(find(root, "connect-signin"));
+  await flush();
+  assert.deepEqual(calls.find((c) => c.cap === "google.user.start")?.input, { loginHint: "me@gmail.test" });
+  await press(find(root, "connect-microsoft"));
+  await flush();
+  assert.ok(find(root, "connect-matched"), "Outlook has no app here: the Workspace match is back");
+  assert.equal(find(root, "connect-signin"), null);
 });

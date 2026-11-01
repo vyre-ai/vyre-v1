@@ -45,7 +45,7 @@ const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 export interface Edge { origin: string; close(): void }
 
 /** The app's export on one origin, with the gateway (/v1, /sync, /healthz) and the live socket (/live) passed through to the daemon. */
-export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert: string }): Promise<Edge> {
+export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert: string }, port = 0): Promise<Edge> {
   const target = new URL(daemonUrl);
   const base = path.resolve(dist);
   const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/");
@@ -76,7 +76,7 @@ export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert:
     up.on("error", () => socket.destroy());
     socket.on("error", () => up.destroy());
   });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })));
+  return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve({ origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })));
 }
 
 const ADMIN_TOKEN = "e2e-owner-bootstrap-token";

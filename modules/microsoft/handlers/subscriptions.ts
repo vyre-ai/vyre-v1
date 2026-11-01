@@ -9,10 +9,11 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   api, apiRaw, bad, CONFIG_ID, config, EMAIL, enc, ensure, first, forgetTokens, GRAPH, int, needHost, newId, normalizeEmail, num, obj, PERMISSIONS, refusal, resolveSubject, rowsOf,
-  str, strOrNull, text, codeOf, userUrl,
+  str, strOrNull, text, codeOf, userAccountByEmail, userUrl,
 } from "../projections.ts";
 import type { MsCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./graph.ts";
+import { userSigninLost } from "./personal.ts";
 import { pullTeams } from "./teams.ts";
 import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./graph.ts";
@@ -219,10 +220,13 @@ function mailboxOf(resource: string): string | null {
 /** Pull one mailbox for a notice or a poll, then keep exactly one future poll queued for it. A failed pull never fails the notice. */
 async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promise<void> {
   const cfg = config(ctx);
-  const connectionId = strOrNull(cfg, "connectionId");
-  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) return;
+  const tenantId = strOrNull(cfg, "connectionId");
   const member = first(ctx.db.all(`SELECT mapped, excluded FROM microsoft_member WHERE email = ?`, email));
-  if (!member || num(member, "mapped") !== 1 || num(member, "excluded") === 1) return;
+  const delegated = !!cfg && num(cfg, "configured") === 1 && !!tenantId && !!member && num(member, "mapped") === 1 && num(member, "excluded") !== 1;
+  // an address the tenant's consent covers is read through it; any other is a person's own sign-in (ms.user.*), if there is one
+  const own = delegated ? null : userAccountByEmail(ctx, email);
+  const connectionId = delegated ? tenantId! : own?.accountId;
+  if (!connectionId) return;
   const now = ctx.now();
   let delay: number;
   try {
@@ -231,11 +235,19 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
     ctx.log.info("microsoft pull", { mailbox: email, ingested: pull.ingested, deduped: pull.deduped, skipped: pull.skipped, complete: pull.complete, cause });
   } catch (e) {
     ctx.log.warn("microsoft pull failed", { mailbox: email, code: codeOf(e), cause });
+    // a person's own sign-in that the provider no longer accepts: say so once and stop polling (signing in again starts the chain)
+    if (own && !delegated && codeOf(e) === "provider.auth_failed") {
+      await userSigninLost(ctx, own);
+      ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, email);
+      return;
+    }
     delay = pollInterval(now, null, false);
   }
-  // Teams transcripts ride on the same pass; a Teams failure never fails the mailbox pull
-  await syncCalendar(ctx, { connectionId, email });
-  await pullTeams(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("microsoft teams pull failed", { mailbox: email, code: codeOf(e) }));
+  // Teams transcripts ride on the same pass; a Teams failure never fails the mailbox pull. A person's own sign-in carries mail only.
+  if (delegated) {
+    await syncCalendar(ctx, { connectionId, email });
+    await pullTeams(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("microsoft teams pull failed", { mailbox: email, code: codeOf(e) }));
+  }
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a notice or a manual sync does not start a second chain

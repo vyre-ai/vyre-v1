@@ -3,7 +3,7 @@
   "capabilities": {
     "mail.attachment.save@1": "6a3692e8a04d3c94ecdbfc56f366c94224a5c23f52493f81bdefbf9bc45a861b",
     "mail.auto_connect_members@1": "78d8b4a57857e5bb4b70235caa9f2e717f70e2d858a498d11f4936b5918eaf57",
-    "mail.connect@1": "0045607ee4c1e46df3f32e10eb8af6c3863df621fe994179e2e1f6b6affe5cfe",
+    "mail.connect@1": "e331f9b35b4900bd53cf9aae1451443d3f1924e8847b30c824b443ff28584c57",
     "mail.domain.add@1": "d9e4245dbaa251ac0dba9c7f2c8370c79e08e41362c45268b43564f864d8659c",
     "mail.domain.check@1": "a936fea60e91c19bda006440a70e0ffab318124fc3616b9553a3fcd1f5e918c3",
     "mail.domain.get@1": "5956ab4d62402a2b3dcb2ddf69691aba06299a4cd924471bfb2e814f431748a1",
@@ -22,6 +22,7 @@
     "mail.mailbox.pause@1": "648a2df81bb78ca49cfb85ce3659b4da61d90ab6ffb07f9e546e8d1f0483b627",
     "mail.mailbox.resume@1": "315f1f94b5dbb71637e1532ca91ae7ea1245f96240911dd85f56663f4d59c054",
     "mail.mailbox.set_privacy@1": "4642b97a45c9557601247c30da67b7903c8f426fb993d5ae49fdef788156956e",
+    "mail.mailbox.set_sync_state@1": "0142acb42f344ecc071e09fe6c840fef63899bf6026f04fa04374db5f61da4d5",
     "mail.mailbox.update@1": "29a8597e66b5284d195488affc73a9a3997a803171021019e5960bd4d670b77f",
     "mail.message.erase@1": "85ba4cced6bd24b16d1f7a15e743beba9935914dd2b5f83b92173ff5f9a7284f",
     "mail.message.get@1": "92c7c031aef866ba74509f73302f1a8f24185d2333a69061495eef8055d005ab",

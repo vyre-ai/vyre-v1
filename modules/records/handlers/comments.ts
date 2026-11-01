@@ -144,7 +144,9 @@ export function createCommentsHandlers(deps: CommentsDeps): CommentsHandlers {
         return;
       }
       tx.run("UPDATE records_comment_agent SET thread_id = ? WHERE comment_id = ? AND agent_id = ?", threadId, c.id, agentId);
-      // The pane keeps the person's own mode (Ask first by default): the agent's other writes wait for their yes. Its reply is a comment, which never waits (records.comments.add is allowed in every mode).
+      // A comment summons a headless agent and nobody is watching it work, so the pane is always Ask first, whatever new chats default to: the agent's other writes wait in the person's Needs you.
+      // Its reply is a comment, which never waits (records.comments.add is allowed in every mode).
+      await ctx.call("threads.set_mode" as never, { threadId, mode: "ask", idempotencyKey: `rcm-mode:${threadId}` });
       await ctx.call("chat.post" as never, { threadId, body: promptFor(c, root, title, names), mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `rcm-post:${c.id}:${agentId}` });
     } catch (e) {
       tx.run("UPDATE records_comment_agent SET state = 'failed' WHERE comment_id = ? AND agent_id = ?", c.id, agentId);

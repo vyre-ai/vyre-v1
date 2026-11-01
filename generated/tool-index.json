@@ -4508,6 +4508,12 @@
     },
     {
       "deferred": false,
+      "name": "mail_mailbox_set_sync_state",
+      "summary": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_mailbox_update",
       "summary": "Rename a mailbox or change its agent",
       "toolset": "inbox"

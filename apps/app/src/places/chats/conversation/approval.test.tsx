@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import { ApprovalCard } from "./approval.tsx";
-import { denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, wantsLine } from "./approval-model.ts";
+import { denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, verbPhrase, wantsLine, wantsPhrase } from "./approval-model.ts";
 
 installDom();
 
@@ -31,7 +31,7 @@ test("the words: who wants what, the excerpt without ids and keys, the done line
   assert.equal(held.cap, "files.write");
   assert.equal(wantsLine("Intake", held.cap, "Q4 pricing.docx"), "Intake wants to edit Q4 pricing.docx");
   assert.equal(wantsLine("Intake", "mail.send"), "Intake wants to send an email");
-  assert.equal(wantsLine("Intake", "crm.sync_all"), "Intake wants to run crm sync all");
+  assert.equal(wantsLine("Intake", "crm.sync_all"), "Intake wants to sync all in crm");
   assert.deepEqual(excerptLines(held.input), [{ label: "New text", text: "Q4 pricing\nBasic 49" }]);
   assert.equal(doneLine("allowed", "files.write", "Q4 pricing.docx"), "Allowed · edit Q4 pricing.docx");
   assert.equal(doneLine("denied", "mail.send"), "Denied · send an email");
@@ -86,4 +86,24 @@ test("an edit of an existing file shows what is taken out and put in", async () 
   assert.match(diff, /Basic 39 a month/);
   assert.match(diff, /Basic 49/);
   assert.equal(find(root, "approval-excerpt-tsk_1"), null, "the diff replaces the new-text excerpt");
+});
+
+test("a change through an outside hub reads as the app and the action, with where it runs", () => {
+  const input = { agentId: "agt_1", server: "composio", tool: "SLACK_SEND_MESSAGE", input: { channel: "general", text: "hello" } };
+  assert.equal(wantsLine("Ops", "engine.mcp.call", undefined, input), "Ops wants to send a message in Slack");
+  assert.deepEqual(excerptLines(input, 5, "engine.mcp.call"), [{ label: "Channel", text: "general" }, { label: "Text", text: "hello" }, { label: "Runs through", text: "Composio" }]);
+  assert.equal(doneLine("allowed", "engine.mcp.call", undefined, input), "Allowed · send a message in Slack");
+});
+
+test("a name with no wording of its own never reaches the person as a raw capability or tool name", () => {
+  assert.equal(verbPhrase("send message"), "send a message");
+  assert.equal(verbPhrase("create contact"), "create a contact");
+  assert.equal(verbPhrase("add reaction"), "add a reaction");
+  assert.equal(verbPhrase("update pages"), "update pages");
+  assert.equal(verbPhrase("add to list"), "add to list");
+  assert.equal(verbPhrase("foo bar"), "foo bar");
+  assert.equal(wantsPhrase("tasks.create"), "create a task");
+  assert.equal(wantsPhrase("calendar.add_guest"), "add a guest in calendar");
+  assert.doesNotMatch(wantsPhrase("engine.mcp.call"), /engine/);
+  assert.doesNotMatch(wantsLine("Ops", "records.merge_duplicates"), /records\./);
 });

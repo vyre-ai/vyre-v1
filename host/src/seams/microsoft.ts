@@ -5,12 +5,17 @@ import { fail } from "../routes/errors.ts";
 import { HANDLE } from "./ports.ts";
 import type { SeamCtx, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 import { downloadToBlob, putFile, statusError } from "./transfer.ts";
+import { createUserOauth } from "./user-oauth.ts";
+import type { UserOauthSeam } from "./user-oauth.ts";
 
 export const MS_DOMAINS = ["graph.microsoft.com", "login.microsoftonline.com", "sharepoint.com", "1drv.ms", "files.1drv.com"] as const;
 export const MS_GRAPH_SCOPE = "https://graph.microsoft.com/.default";
 const TENANT = /^[A-Za-z0-9.-]{1,128}$/;
 
-export interface MsHostSeam {
+/** What a person is asked to allow when they sign in to their own Microsoft mailbox. */
+export const MS_USER_SCOPE = "offline_access User.Read Mail.ReadWrite Mail.Send";
+
+export interface MsHostSeam extends UserOauthSeam {
   mintToken(ctx: SeamCtx, a: { connectionId: string }): Promise<{ token: string; expiresAt: number }>;
   /** The non-secret identity of the app registration stored under a Vault handle. */
   appRegistration(ctx: SeamCtx, handle: string): Promise<{ clientId: string; tenantId: string }>;
@@ -27,6 +32,8 @@ export interface MsSeamDeps {
   files: SpaceFiles;
   blobs: SpaceBlobs;
   members: SpaceMembers;
+  /** the address people reach this Space at, for a person's own sign-in to come back to */
+  publicUrl?: ((space: string) => Promise<string>) | undefined;
   /** Where the Microsoft module keeps the handle for a connection: read from its own table through ctx.db. Default: table microsoft_config, columns connectionId and vaultItem. */
   handleFor?: (ctx: SeamCtx, connectionId: string) => string | undefined;
 }
@@ -49,7 +56,9 @@ export function createMsHost(d: MsSeamDeps): MsHostSeam {
     const row = ctx.db.all('SELECT "vaultItem" AS h FROM microsoft_config WHERE "connectionId" = ? LIMIT 1', connectionId)[0] as { h?: unknown } | undefined;
     return typeof row?.h === "string" ? row.h : undefined;
   });
+  const user = createUserOauth({ vault: d.vault, fetch: d.fetch, publicUrl: d.publicUrl }, { name: "Microsoft", tokenUrl: (tenant) => `https://login.microsoftonline.com/${encodeURIComponent(tenant ?? "common")}/oauth2/v2.0/token`, domains: ["login.microsoftonline.com"], scope: MS_USER_SCOPE });
   return {
+    ...user,
     async mintToken(ctx, a) {
       const handle = handleFor(ctx, a.connectionId);
       if (!handle || !HANDLE.test(handle)) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Microsoft 365 is not connected on this server." });

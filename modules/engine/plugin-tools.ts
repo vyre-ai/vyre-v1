@@ -1,6 +1,8 @@
 // The MCP tools of plugins and connections, as tools for a chat on an API key (CHAT-DESIGN ruling 6): for an agent and the person asking, the servers `plugins.mcp.servers` names are started in the
 // sandbox, their tools are listed to the model as mcp__<server>__<tool>, and a call is one engine.mcp.read or engine.mcp.call (read-only tools skip the Gate; the rest go through it). The hooks
 // of those plugins run around every tool call, in the sandbox.
+import { watchConnection } from "./connection-watch.ts";
+import { hubLine } from "../../lib/mcp-hubs.ts";
 import type { CallHooks, DynamicTools } from "../../agent/src/tools/call.ts";
 import type { ToolCtx, ToolDef } from "../../agent/src/tools/types.ts";
 import type { HookSpec, PluginRuntime, ServerSpec } from "./plugin-runtime.ts";
@@ -74,16 +76,20 @@ export function createPluginTools(d: PluginToolsDeps): { extra(ctx: ToolCtx): Pr
       const defs: ToolDef[] = [];
       await Promise.all(servers.map(async (spec) => {
         try {
-          for (const tool of await rt.tools(spec, { agentId: ctx.agentId, asker: ctx.asker })) {
+          const listed = await rt.tools(spec, { agentId: ctx.agentId, asker: ctx.asker });
+          await watchConnection(spec, "ok");
+          for (const tool of listed) {
             const name = mcpToolName(spec.key, tool.name);
             const def: ToolDef = {
-              name, cap: tool.readOnly ? "engine.mcp.read" : "engine.mcp.call", v: 1, toolset: "plugins", summary: `[${spec.name}] ${tool.description}`.slice(0, 600), inputSchema: tool.inputSchema,
+              name, cap: tool.readOnly ? "engine.mcp.read" : "engine.mcp.call", v: 1, toolset: "plugins", summary: `[${spec.name}] ${hubLine(spec.hub) ? `${hubLine(spec.hub)}. ` : ""}${tool.description}`.slice(0, 600), inputSchema: tool.inputSchema,
               effects: tool.readOnly ? "read" : "outward", planMode: tool.readOnly ? "allowed" : "blocked", level: "use", deferred: false, blocks: [], local: "none", gated: !tool.readOnly,
             };
             mine.set(name, { def, server: spec.key, tool: tool.name, agentId: ctx.agentId });
             defs.push(def);
           }
-        } catch (e) { d.log?.("an outside tool server did not list its tools", { server: spec.key, error: e instanceof Error ? e.message : String(e) }); }
+        } catch (e) {
+          await watchConnection(spec, { error: e instanceof Error ? e.message : "" });
+          d.log?.("an outside tool server did not list its tools", { server: spec.key, error: e instanceof Error ? e.message : String(e) }); }
       }));
       return defs.sort((a, b) => a.name.localeCompare(b.name));
   };

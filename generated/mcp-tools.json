@@ -29615,6 +29615,14 @@
             "pattern": "^[^@\\s]+@[^@\\s]+$",
             "type": "string"
           },
+          "connectionId": {
+            "description": "A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) the mailbox reads and sends through",
+            "examples": [
+              "gua_0123456789abcdef0123456789abcdef"
+            ],
+            "pattern": "^(gua|mua)_[0-9a-f]{32}$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -30327,6 +30335,43 @@
         "type": "object"
       },
       "name": "mail_mailbox_set_privacy",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mail.mailbox.set_sync_state",
+      "deferred": false,
+      "description": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "error",
+              "syncing"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mailboxId",
+          "state"
+        ],
+        "type": "object"
+      },
+      "name": "mail_mailbox_set_sync_state",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -38644,6 +38689,12 @@
             },
             "type": "array"
           },
+          "auth": {
+            "enum": [
+              "oauth"
+            ],
+            "type": "string"
+          },
           "command": {
             "type": "string"
           },
@@ -38660,6 +38711,13 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "hub": {
+            "enum": [
+              "composio",
+              "pipedream"
+            ],
+            "type": "string"
           },
           "idempotencyKey": {
             "examples": [

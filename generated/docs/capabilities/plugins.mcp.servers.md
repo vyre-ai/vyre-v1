@@ -46,6 +46,9 @@ type Out = {
       headers: Record<string, string>;
       files?: string;
       needs: Array<string>;
+      hub?: "composio" | "pipedream";
+      oauth?: boolean;
+      connectionId?: string;
     }>;
 };
 ```
@@ -72,15 +75,18 @@ type Out = {
           "example"
         ],
         "command": "example",
+        "connectionId": "mcs_a1b2c3",
         "env": {},
         "files": "example",
         "from": "plugin",
         "headers": {},
+        "hub": "composio",
         "key": "deploy-tools/api",
         "name": "example",
         "needs": [
           "example"
         ],
+        "oauth": true,
         "pluginId": "plg_a1b2c3",
         "transport": "stdio",
         "url": "example"

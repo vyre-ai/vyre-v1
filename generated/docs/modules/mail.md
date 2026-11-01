@@ -4,7 +4,7 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (35)
+## Capabilities (36)
 
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
@@ -27,6 +27,7 @@ Requires: nothing.
 - [mail.mailbox.pause](../capabilities/mail.mailbox.pause.md): Pause a mailbox connection; filing and sync stop
 - [mail.mailbox.resume](../capabilities/mail.mailbox.resume.md): Resume a paused mailbox connection
 - [mail.mailbox.set_privacy](../capabilities/mail.mailbox.set_privacy.md): Mark a mailbox private, shared with the Space or shared with chosen people
+- [mail.mailbox.set_sync_state](../capabilities/mail.mailbox.set_sync_state.md): A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings
 - [mail.mailbox.update](../capabilities/mail.mailbox.update.md): Rename a mailbox or change its agent
 - [mail.message.erase](../capabilities/mail.message.erase.md): Erase one mail message for good (governance erase)
 - [mail.message.get](../capabilities/mail.message.get.md): Read one message with attachments, provider id, DNS check state and trace id

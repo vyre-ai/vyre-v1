@@ -3,7 +3,7 @@
 // by delta query, so a missed change notification costs nothing, and lands each message through mail.ingest. A message is never lost: when
 // mail.ingest cannot take it, the folder's delta link stays where it was.
 import {
-  api, apiRaw, bad, bearer, codeOf, EMAIL, enc, ensure, first, GRAPH, int, list, needHost, normalizeEmail, num, obj, query, refusal, resolveSubject, skipTokenOf, strOrNull, text, userUrl,
+  api, apiRaw, bad, bearer, codeOf, EMAIL, enc, ensure, first, GRAPH, int, isUserConnection, list, ME, needHost, normalizeEmail, num, obj, query, refusal, resolveSubject, skipTokenOf, strOrNull, text, userUrl,
 } from "../projections.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import type { Call, MsCtx } from "../projections.ts";
@@ -581,6 +581,8 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
   ensure(ctx);
   const email = normalizeEmail(a.mailbox);
   const act: Act = { connectionId: a.connectionId, as: email };
+  // a person's own sign-in reads its mailbox as /me (a personal Microsoft account has no /users/{id}); the delegated mailboxes are read as /users/{address}
+  const sub = isUserConnection(a.connectionId) ? ME : email;
   ensureMailbox(ctx, email, a.connectionId);
   const state = first(ctx.db.all(`SELECT * FROM microsoft_mailbox WHERE email = ?`, email))!;
   const deltaLinks = links(strOrNull(state, "deltaLinks"));
@@ -592,15 +594,15 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
     let walked: { changed: Record<string, unknown>[]; removed: string[]; deltaLink: string };
     if (start) {
       try {
-        walked = await walkDelta(ctx, act, "ms.mail.delta", { base: userUrl(email, `/mailFolders/${folder}/messages/delta`), resume: start });
+        walked = await walkDelta(ctx, act, "ms.mail.delta", { base: userUrl(sub, `/mailFolders/${folder}/messages/delta`), resume: start });
       } catch (e) {
         if (codeOf(e) !== "validation.precondition_failed") throw e;
         delete deltaLinks[folder];   // the delta token expired: start this folder over
-        walked = await firstWalk(ctx, act, email, folder, now);
+        walked = await firstWalk(ctx, act, sub, folder, now);
         bootstrapped = true;
       }
     } else {
-      walked = await firstWalk(ctx, act, email, folder, now);
+      walked = await firstWalk(ctx, act, sub, folder, now);
       bootstrapped = true;
     }
     let folderComplete = true;
@@ -611,7 +613,7 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
       if (!id || seen.has(id)) continue;   // a message that changed twice in one walk appears twice
       seen.add(id);
       const got = await apiRaw(ctx, {
-        cap: "ms.mail.get_message", connectionId: a.connectionId, as: email, bulk: true, url: userUrl(email, `/messages/${enc(id)}`), query: { $select: FULL_FIELDS },
+        cap: "ms.mail.get_message", connectionId: a.connectionId, as: email, bulk: true, url: userUrl(sub, `/messages/${enc(id)}`), query: { $select: FULL_FIELDS },
       });
       if (got.status === 404) { skipped += 1; continue; }   // deleted between the delta entry and now
       if (got.status >= 300) throw refusal(ctx, got.status, got.json);
@@ -639,9 +641,9 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
 }
 
 /** The first delta walk of a folder starts from the last 90 days; Graph answers with every message still in the window. */
-async function firstWalk(ctx: MsCtx, act: Act, email: string, folder: string, now: number) {
+async function firstWalk(ctx: MsCtx, act: Act, sub: string, folder: string, now: number) {
   const since = new Date(now - 90 * DAY).toISOString().replace(/\.\d+Z$/, "Z");
-  return walkDelta(ctx, act, "ms.mail.delta", { base: userUrl(email, `/mailFolders/${folder}/messages/delta`), first: { $select: "id,isDraft", $filter: `receivedDateTime ge ${since}` } });
+  return walkDelta(ctx, act, "ms.mail.delta", { base: userUrl(sub, `/mailFolders/${folder}/messages/delta`), first: { $select: "id,isDraft", $filter: `receivedDateTime ge ${since}` } });
 }
 
 // ---- Graph message to mail.ingest input
@@ -686,7 +688,7 @@ export async function toIngest(ctx: MsCtx, act: Act, mailbox: string, folder: st
   if (m.hasAttachments === true) {
     const attachments: { name: string; mime: string; size: number; blobId: string }[] = [];
     try {
-      const listing = await call(ctx, act, "ms.mail.get_attachment", { url: userUrl(mailbox, `/messages/${enc(id)}/attachments`), query: { $select: "id,name,contentType,size,isInline" } });
+      const listing = await call(ctx, act, "ms.mail.get_attachment", { url: userUrl(isUserConnection(act.connectionId) ? ME : mailbox, `/messages/${enc(id)}/attachments`), query: { $select: "id,name,contentType,size,isInline" } });
       for (const x of list(listing.value)) {
         const o = obj(x);
         if (o["@odata.type"] !== "#microsoft.graph.fileAttachment" || o.isInline === true) continue;
