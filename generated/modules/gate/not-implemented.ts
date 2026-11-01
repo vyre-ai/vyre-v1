@@ -6,16 +6,22 @@ import type { Handlers } from './handlers.ts';
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
   "gate.acts.list": async (ctx) => { throw new VyreErr(notImplemented("gate.acts.list", ctx.trace)); },
+  "gate.allow.list": async (ctx) => { throw new VyreErr(notImplemented("gate.allow.list", ctx.trace)); },
+  "gate.allow.remove": async (ctx) => { throw new VyreErr(notImplemented("gate.allow.remove", ctx.trace)); },
+  "gate.allow.set": async (ctx) => { throw new VyreErr(notImplemented("gate.allow.set", ctx.trace)); },
   "gate.deny": async (ctx) => { throw new VyreErr(notImplemented("gate.deny", ctx.trace)); },
   "gate.effective_rule": async (ctx) => { throw new VyreErr(notImplemented("gate.effective_rule", ctx.trace)); },
   "gate.expire": async (ctx) => { throw new VyreErr(notImplemented("gate.expire", ctx.trace)); },
+  "gate.grants.ask": async (ctx) => { throw new VyreErr(notImplemented("gate.grants.ask", ctx.trace)); },
   "gate.grants.set": async (ctx) => { throw new VyreErr(notImplemented("gate.grants.set", ctx.trace)); },
   "gate.grants.take": async (ctx) => { throw new VyreErr(notImplemented("gate.grants.take", ctx.trace)); },
   "gate.holds.get": async (ctx) => { throw new VyreErr(notImplemented("gate.holds.get", ctx.trace)); },
   "gate.holds.list": async (ctx) => { throw new VyreErr(notImplemented("gate.holds.list", ctx.trace)); },
+  "gate.links.known": async (ctx) => { throw new VyreErr(notImplemented("gate.links.known", ctx.trace)); },
   "gate.park": async (ctx) => { throw new VyreErr(notImplemented("gate.park", ctx.trace)); },
   "gate.release": async (ctx) => { throw new VyreErr(notImplemented("gate.release", ctx.trace)); },
   "gate.result.take": async (ctx) => { throw new VyreErr(notImplemented("gate.result.take", ctx.trace)); },
   "gate.rules.list": async (ctx) => { throw new VyreErr(notImplemented("gate.rules.list", ctx.trace)); },
   "gate.rules.set": async (ctx) => { throw new VyreErr(notImplemented("gate.rules.set", ctx.trace)); },
+  "gate.taint.mark": async (ctx) => { throw new VyreErr(notImplemented("gate.taint.mark", ctx.trace)); },
 };

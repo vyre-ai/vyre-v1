@@ -2217,7 +2217,7 @@
     {
       "deferred": false,
       "name": "crew_merge",
-      "summary": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate",
+      "summary": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed",
       "toolset": "chats"
     },
     {
@@ -2229,7 +2229,7 @@
     {
       "deferred": false,
       "name": "crew_push",
-      "summary": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person's approval",
+      "summary": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person's own message this turn asked for it, else it holds at the Gate",
       "toolset": "chats"
     },
     {
@@ -6251,6 +6251,12 @@
       "name": "providers_test",
       "summary": "Test a provider connection and list the models it offers",
       "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "read_link",
+      "summary": "Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only",
+      "toolset": "automations"
     },
     {
       "deferred": false,

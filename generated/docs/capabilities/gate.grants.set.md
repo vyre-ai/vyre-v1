@@ -8,9 +8,9 @@ Replace what an automation may send without a hold, for its definition as saved 
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | use |
+| Grant level | view |
 | Risk | medium |
-| Resource | automation (/automationId) |
+| Resource | space |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
@@ -57,7 +57,6 @@ type Out = {
 - permission.above_clearance
 - permission.no_grant
 - validation.bad_input
-- validation.not_found
 
 ## Example
 

@@ -15490,7 +15490,7 @@
       "blocks": [],
       "cap": "engine.crew.merge",
       "deferred": false,
-      "description": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate",
+      "description": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -15554,7 +15554,7 @@
       "blocks": [],
       "cap": "engine.crew.push",
       "deferred": false,
-      "description": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person's approval",
+      "description": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person's own message this turn asked for it, else it holds at the Gate",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -41783,6 +41783,31 @@
       "name": "providers_test",
       "planMode": "allowed",
       "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.read_link",
+      "deferred": false,
+      "description": "Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "focus": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "read_link",
+      "planMode": "allowed",
+      "toolset": "automations",
       "v": 1
     },
     {

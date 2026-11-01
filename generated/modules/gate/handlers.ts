@@ -6,16 +6,22 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "gate.acts.list": Handler<"gate.acts.list", X>;
+  "gate.allow.list": Handler<"gate.allow.list", X>;
+  "gate.allow.remove": Handler<"gate.allow.remove", X>;
+  "gate.allow.set": Handler<"gate.allow.set", X>;
   "gate.deny": Handler<"gate.deny", X>;
   "gate.effective_rule": Handler<"gate.effective_rule", X>;
   "gate.expire": Handler<"gate.expire", X>;
+  "gate.grants.ask": Handler<"gate.grants.ask", X>;
   "gate.grants.set": Handler<"gate.grants.set", X>;
   "gate.grants.take": Handler<"gate.grants.take", X>;
   "gate.holds.get": Handler<"gate.holds.get", X>;
   "gate.holds.list": Handler<"gate.holds.list", X>;
+  "gate.links.known": Handler<"gate.links.known", X>;
   "gate.park": Handler<"gate.park", X>;
   "gate.release": Handler<"gate.release", X>;
   "gate.result.take": Handler<"gate.result.take", X>;
   "gate.rules.list": Handler<"gate.rules.list", X>;
   "gate.rules.set": Handler<"gate.rules.set", X>;
+  "gate.taint.mark": Handler<"gate.taint.mark", X>;
 }

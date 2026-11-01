@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (59)
+## Capabilities (60)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -45,6 +45,7 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.preview_promote](../capabilities/automations.preview_promote.md): Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys
 - [automations.promote](../capabilities/automations.promote.md): Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself
 - [automations.read_docs](../capabilities/automations.read_docs.md): Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.
+- [automations.read_link](../capabilities/automations.read_link.md): Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only
 - [automations.replay](../capabilities/automations.replay.md): Live rerun of a past run on the same definition version or the current one, not a sandbox replay
 - [automations.restore_version](../capabilities/automations.restore_version.md): Restore an Automation to an earlier version (saved as a new version)
 - [automations.retry](../capabilities/automations.retry.md): Retry a failed run of this Automation from the start or from a step

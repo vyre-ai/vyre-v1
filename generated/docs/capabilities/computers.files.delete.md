@@ -11,7 +11,7 @@ Delete a file from the agent Files folder; always asks outside work/
 | Grant level | edit |
 | Risk | high |
 | Resource | computer (/computerId) |
-| Gate | delete when actor.kind != 'person' |
+| Gate | delete when computers.deletes_outside_work(input.path) |
 | Idempotency | none |
 | Offline | online |
 | Audit | none |

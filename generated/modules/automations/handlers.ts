@@ -44,6 +44,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.preview_promote": Handler<"automations.preview_promote", X>;
   "automations.promote": Handler<"automations.promote", X>;
   "automations.read_docs": Handler<"automations.read_docs", X>;
+  "automations.read_link": Handler<"automations.read_link", X>;
   "automations.replay": Handler<"automations.replay", X>;
   "automations.restore_version": Handler<"automations.restore_version", X>;
   "automations.retry": Handler<"automations.retry", X>;

@@ -221,6 +221,7 @@ export function createClient(transport: Transport) {
       preview_promote: call("automations.preview_promote", 1),
       promote: call("automations.promote", 1),
       read_docs: call("automations.read_docs", 1),
+      read_link: call("automations.read_link", 1),
       replay: call("automations.replay", 1),
       restore_version: call("automations.restore_version", 1),
       retry: call("automations.retry", 1),
@@ -945,16 +946,25 @@ export function createClient(transport: Transport) {
       acts: {
         list: call("gate.acts.list", 1),
       },
+      allow: {
+        list: call("gate.allow.list", 1),
+        remove: call("gate.allow.remove", 1),
+        set: call("gate.allow.set", 1),
+      },
       deny: call("gate.deny", 1),
       effective_rule: call("gate.effective_rule", 1),
       expire: call("gate.expire", 1),
       grants: {
+        ask: call("gate.grants.ask", 1),
         set: call("gate.grants.set", 1),
         take: call("gate.grants.take", 1),
       },
       holds: {
         get: call("gate.holds.get", 1),
         list: call("gate.holds.list", 1),
+      },
+      links: {
+        known: call("gate.links.known", 1),
       },
       park: call("gate.park", 1),
       release: call("gate.release", 1),
@@ -964,6 +974,9 @@ export function createClient(transport: Transport) {
       rules: {
         list: call("gate.rules.list", 1),
         set: call("gate.rules.set", 1),
+      },
+      taint: {
+        mark: call("gate.taint.mark", 1),
       },
     },
     git: {
