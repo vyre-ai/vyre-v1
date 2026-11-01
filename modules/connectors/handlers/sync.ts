@@ -11,6 +11,7 @@ import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { ensureTables, mintShort, nowOf, PAGE, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { executeAction } from "./runtime.ts";
+import { retrySubscriptions } from "./subscribe.ts";
 
 export type Dir = "pull" | "push" | "both" | "off";
 export type DeleteMode = "off" | "soft" | "travel";
@@ -263,15 +264,28 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
     tx.run("INSERT INTO sy_log (sync_type, at, kind, summary, run_id, trace_id) VALUES (?, ?, 'error', ?, ?, NULL)", syncTypeId, nowOf(deps), summary.slice(0, 300), runId ?? null);
   };
   /** One poll ahead at a time per type: sooner while pushes wait, otherwise at the idle interval. A pause or a removal ends the chain. */
-  const planPoll = async (ctx: ConnectorsCtx, r: SyncDb): Promise<void> => {
+  const WATCH_MS = 5_000;
+  /** Has the app called this connector's address since the last pass? (the call only leaves a mark: the pass itself runs as the person who set the sync up) */
+  const hooked = (r: SyncDb): boolean => {
+    try {
+      const h = tx.get<{ hit_at: number | null }>("SELECT hit_at FROM cn_sync_hooks WHERE connector = ?", r.connector);
+      if (!h?.hit_at) return false;
+      const last = has("sy_state") ? tx.get<{ t: number | null }>("SELECT last_run_at AS t FROM sy_state WHERE sync_type = ?", r.sync_type_id)?.t : undefined;
+      return h.hit_at >= (last ?? 0);
+    } catch { return false; }
+  };
+  const hasHook = (r: SyncDb): boolean => { try { return tx.get("SELECT 1 FROM cn_sync_hooks WHERE connector = ?", r.connector) !== undefined; } catch { return false; } };
+  /** One poll ahead at a time per type: sooner while pushes wait, otherwise at the idle interval. A type an app calls about is looked at every five seconds for that mark. A pause or a removal ends the chain. */
+  const planPoll = async (ctx: ConnectorsCtx, r: SyncDb, keepDue?: number): Promise<void> => {
     if (!ctx.schedule || r.paused) return;
     const at = nowOf(deps);
     const waiting = tx.get<{ at: number }>("SELECT at FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id);
-    if (waiting && waiting.at > at) return;
+    if (waiting && waiting.at > at && keepDue === undefined) return;
     const polling = parse<PollingRow>(r.polling);
-    const due = at + (pendingOf(r.sync_type_id) > 0 ? polling.activeSec : polling.idleSec) * 1000;
+    const due = keepDue ?? at + (pendingOf(r.sync_type_id) > 0 ? polling.activeSec : polling.idleSec) * 1000;
     tx.run("INSERT INTO cn_sync_poll (sync_type_id, at) VALUES (?, ?) ON CONFLICT(sync_type_id) DO UPDATE SET at = excluded.at", r.sync_type_id, due);
-    try { await ctx.schedule(due, "connectors.sync_poll", { type: r.type }); } catch { tx.run("DELETE FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id); }
+    const wake = hasHook(r) ? Math.min(due, at + WATCH_MS) : due;
+    try { await ctx.schedule(wake, "connectors.sync_poll", { type: r.type }); } catch { tx.run("DELETE FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id); }
   };
 
   const usable = (ctx: ConnectorsCtx, c: ConnectionDb | undefined, what: string): void => {
@@ -575,6 +589,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
 
     "connectors.sync_run": async (ctx, input) => {
       prep();
+      await retrySubscriptions(deps, ctx);
       const req = syncRequest(deps, input.runId);
       if (!req) return refuse(ctx, "validation.not_found", "There is no sync request for that run.");
       const engine = engineOf(ctx);
@@ -610,8 +625,11 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       prep();
       const r = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE type = ?", input.type);
       if (!r) return { ran: false };
+      const due = tx.get<{ at: number }>("SELECT at FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id)?.at;
       tx.run("DELETE FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id);
       if (r.paused) return { ran: false };
+      // woken early only to look for the app's call: nothing to read yet, wait on for the real time
+      if (due !== undefined && due > nowOf(deps) && hasHook(r) && !hooked(r)) { await planPoll(ctx, r, due); return { ran: false }; }
       const conn = connRow(r.connection_id);
       let summary: string | undefined;
       if (conn && conn.state === "active") {

@@ -6,11 +6,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { ledgerAccountSpec, ledgerSpec, orbitSpec } from "../../../modules/connectors/fixtures/crm.ts";
-import { claimOnEdge, dismissOnboarding } from "./real-app-harness.test.ts";
-import { ok, shots, startSpace, until, vaultKey, withHandle } from "./crm-journey-kit.ts";
-import type { Space } from "./crm-journey-kit.ts";
+import { ledgerAccountSpec, ledgerSpec, orbitSpec } from "../modules/connectors/fixtures/crm.ts";
+import { claimOnEdge, dismissOnboarding } from "../apps/app/tests/real-app-harness.test.ts";
+import { bringInByChat, connectAi, ok, shots, startSpace, trustAssistant, until, vaultItemOf, vaultKey, withHandle } from "./support/crm-journey-kit.ts";
+import type { Know } from "./support/agent-standin.ts";
+import type { Space } from "./support/crm-journey-kit.ts";
 
+const ledgerKnow = (handle: string, account?: string, tenant?: string): Know => ({
+  name: "Ledger", domain: "crm-a.test", auth: { vaultHandle: handle, style: "header", header: "X-Api-Token" },
+  objects: [
+    { remote: "organizations", path: "/api/v2/organizations", label: "Organization", recordType: "org" },
+    { remote: "people", path: "/api/v2/people", label: "Person", recordType: "person", write: { path: tenant ? `/api/v2/people/{id}?tenant=${tenant}` : "/api/v2/people/{id}", evidence: "https://docs.crm-a.test/people#update" } },
+  ],
+  fieldsEndpoint: { path: "/api/v2/fields/people", forRemote: "people" },
+  ...(tenant ? {} : { firstPullFilter: { remote: "people", param: "modified_after", value: "2026-01-01T00:00:00Z", words: "People changed since the start of 2026" } }),
+  ...(account ? { account } : {}),
+} as Know);
 const OUT = path.join(process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join(process.env["TMPDIR"] ?? "/tmp", "vyre-crm-journeys"), "crm");
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -45,9 +56,14 @@ const openSync = async (s: Space, page: Pg): Promise<void> => {
 test("journey 1, Personal: the first hour. A CRM key becomes record types and records, the person edits one and the app hears it once", async (t) => {
   const s = await startSpace({ kind: "personal", name: "Me" });
   try {
-    const handle = await vaultKey(s, "Ledger");
-    const applied = await ok(s, "sync_specs.apply", { spec: withHandle(ledgerSpec(), handle), idempotencyKey: "j1-apply" });
-    assert.equal(applied.live, "polling", "a Personal computer has no public address: it polls");
+    // the way a person starts: in chat, "bring my CRM into Records"; the agent reads the app, proposes in one message, and the person taps Looks good
+    await connectAi(s);
+    const item = await vaultItemOf(s, "Ledger");
+    const agentId = await trustAssistant(s, item.id);
+    await bringInByChat(s, agentId, ledgerKnow(item.handle), item);
+    await until("the agent applied it and the people arrived", async () => (await rows(s, "person").catch(() => [])).length === 4, 60_000);
+    assert.equal(s.model.plan, null, "the proposal was applied");
+    assert.ok(s.crm.methods().every((m) => m === "GET"), "reading the app is all that happened before the first edit");
     await until("people arrive", async () => (await rows(s, "person")).length === 4);
     assert.deepEqual((await rows(s, "org")).map(nameOf).sort(), ["North Works", "South Mill"]);
     const status = await ok(s, "sync_types.status", { type: "person" });
@@ -57,6 +73,7 @@ test("journey 1, Personal: the first hour. A CRM key becomes record types and re
     // the person fixes a phone number; the app is told, once, and the record says who sent it
     const ada = (await rows(s, "person")).find((r) => nameOf(r) === "Ada Stone")!;
     await ok(s, "records.update", { type: "person", recordId: ada.id, patch: { note: "Called back" } });
+    await ok(s, "connectors.sync_now", { type: "person", idempotencyKey: "j1-poll" });   // the next check, which a Personal computer makes within minutes
     await until("the app hears the edit", async () => s.crm.c.state.requests.some((r) => r.method === "PATCH"));
     assert.equal(s.crm.c.state.requests.filter((r) => r.method === "PATCH").length, 1);
     assert.equal((s.crm.c.state.people[0]!.attributes as any).note, "Called back");
@@ -107,10 +124,12 @@ test("journey 3, Team: an admin brings the CRM in once, the app calls the Space'
   const s = await startSpace({ kind: "team", name: "Firm", address: "https://firm.example" });
   try {
     const handle = await vaultKey(s, "Ledger");
-    const applied = await ok(s, "sync_specs.apply", { spec: withHandle(ledgerSpec(), handle), idempotencyKey: "j3-apply" });
+    const spec = withHandle(ledgerSpec(), handle) as { objects: { remote: string; webhook?: unknown }[] };
+    spec.objects.find((o) => o.remote === "people")!.webhook = { events: ["person.updated"], subscribePath: "/api/v2/webhooks", evidence: "https://docs.crm-a.test/webhooks" };
+    const applied = await ok(s, "sync_specs.apply", { spec, idempotencyKey: "j3-apply" });
     await until("people arrive", async () => (await rows(s, "person")).length === 4);
     assert.equal(applied.live, "webhook");
-    assert.equal(s.crm.c.state.webhooks.length >= 1, true, "the Space registered its address with the app");
+    await until("the Space registered its address with the app", async () => s.crm.c.state.webhooks.length >= 1);
     const hook = new URL(s.crm.c.state.webhooks[0]!.url);
     // the app says someone changed; the Space starts a pass without waiting for a poll
     s.crm.c.state.people.push({ id: 107, attributes: { full_name: "Gil Hart", email: "gil@example.test", phone: "", status: "lead", tier: "gold", note: "" }, org_id: null, modified: new Date().toISOString() });
@@ -152,10 +171,10 @@ test("journey 5, any Space: the key stops working, the person is told once and s
     const handle = await vaultKey(s, "Ledger");
     await ok(s, "sync_specs.apply", { spec: withHandle(ledgerSpec(), handle), idempotencyKey: "j5-apply" });
     await until("people arrive", async () => (await rows(s, "person")).length === 4);
-    s.keys["Ledger"] = "revoked";
-    await ok(s, "connectors.sync_now", { type: "person", idempotencyKey: "j5-bad-1" });
+    s.crm.c.state.keyA = "rotated-by-the-app";
+    await ok(s, "connectors.sync_now", { type: "person", idempotencyKey: "j5-bad-1" }).catch(() => undefined);
     await until("the type needs a person", async () => (await ok(s, "sync_types.status", { type: "person" })).state === "error");
-    await ok(s, "connectors.sync_now", { type: "person", idempotencyKey: "j5-bad-2" });
+    await ok(s, "connectors.sync_now", { type: "person", idempotencyKey: "j5-bad-2" }).catch(() => undefined);
     const tasks = (await ok(s, "tasks.list", {}).catch(() => ({ tasks: [] }))).tasks as any[];
     assert.ok(tasks.filter((x) => /Replace|reconnect/i.test(String(x.title))).length <= 1, "one item, not one per failure");
     await viaBrowser(s, "personal", async (page) => {
@@ -163,7 +182,10 @@ test("journey 5, any Space: the key stops working, the person is told once and s
       await openSync(s, page);
       await pics.take(page, "sync-page-needs-you");
     });
-    s.keys["Ledger"] = "ledger-key-0001";
+    s.crm.c.state.keyA = "ledger-key-0001";
+    const conn = (await ok(s, "connections.list", {})).connections[0].connectionId as string;
+    const tested = await ok(s, "connections.test", { connectionId: conn });
+    assert.equal(tested.state, "healthy", JSON.stringify(tested));
     await ok(s, "connectors.sync_now", { type: "person", idempotencyKey: "j5-good" });
     await until("the type recovers", async () => (await ok(s, "sync_types.status", { type: "person" })).state !== "error");
   } finally { await s.stop(); }

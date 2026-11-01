@@ -332,9 +332,9 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       const fields = t.fields.map((f) => ({ key: f.key, remote: f.remote, dir: f.dir, ...(f.relation ? { relation: compiled.types.find((x) => x.remote === f.relation)?.recordType ?? f.relation } : {}), ...(f.inverse ? { inverse: f.inverse } : {}), ...(f.constant !== undefined ? { constant: f.constant } : {}) }));
       const account = spec.app.account ?? "";
         const bound = tx.get<{ sync_type_id: string }>("SELECT sync_type_id FROM cn_synced_types WHERE type = ? AND account = ?", t.recordType, account);
-      // an app with no "changed since" filter is read whole at every check: slower checks keep its rate limit and the computer calm
+      // an app with a "changed since" filter is cheap to check (a page), so a person's edit leaves within two minutes; one without is read whole at every check, so its checks are slower
       const slow = spec.objects.find((o) => o.remote === t.remote)?.list.updatedSince === undefined;
-      const rules = { createAtSource: t.createAtSource, deletes: t.deletes, conflict: "newest" as const, ...(slow ? { polling: { activeSec: 900, idleSec: 3600, dormantSec: 14_400 } } : {}) };
+      const rules = { createAtSource: t.createAtSource, deletes: t.deletes, conflict: "newest" as const, polling: slow ? { activeSec: 900, idleSec: 3600, dormantSec: 14_400 } : { activeSec: 120, idleSec: 120, dormantSec: 900 } };
       const row = bound
         ? (await sync["sync_types.update"](ctx, { type: t.recordType, account, fields, match: t.match, ...rules })).syncedType
         : (await sync["sync_types.create"](ctx, { type: t.recordType, account, connectionId, remote: t.remote, fields, match: t.match, ...rules, idempotencyKey: `${idem}:bind:${t.recordType}` } as Parameters<typeof sync["sync_types.create"]>[1])).syncedType;
@@ -362,11 +362,13 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         if (!hook) { const token = mintShort("h", now).replace(/[^a-z]/g, "").padEnd(24, "q").slice(0, 24); tx.run("INSERT INTO cn_sync_hooks (token, connector, created_at) VALUES (?, ?, ?)", token, key, now); hook = { token }; }
         webhookUrl = `${base}/hooks/connectors/${hook.token}`;
         let subscribed = false;
+        const owed: string[] = [];
         for (const o of spec.objects) {
           if (!o.webhook?.subscribePath || !compiled.types.some((t) => t.remote === o.remote)) continue;
-          const row = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", connectionId)!;
-          try { await executeAction(deps, ctx, next, `subscribe_${o.remote.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`, { connection: row, input: { url: webhookUrl } }); subscribed = true; } catch { /* polling still keeps it current */ }
+          owed.push(`subscribe_${o.remote.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`);
         }
+        // the connection does not exist for the caller until this invocation ends, so the subscribe calls are made by the first pass (connectors.run, with the Vault grant)
+        if (owed.length) { tx.run("UPDATE cn_sync_hooks SET pending = ? WHERE token = ?", JSON.stringify({ url: webhookUrl, actions: owed }), hook.token); subscribed = true; }
         if (subscribed || spec.objects.some((o) => o.webhook?.manualUrl)) how = "webhook";
         if (subscribed) webhookUrl = undefined;
       }

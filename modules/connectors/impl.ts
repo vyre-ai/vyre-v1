@@ -74,12 +74,12 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
     const assertAuthorized=()=>{
       const current=key?handle.tx.get<{def:string;state:string}>('SELECT def,state FROM cn_connectors WHERE key = ?',key):undefined;
       if(!current||current.state!=='live'||current.def!==stored?.def)return refuse(cc,'validation.precondition_failed','The connector changed while preparing this request. Try again.');
-      const resource=name==='connections.complete_auth'?{type:'space',id:ctx.space}:name==='connectors.run'?{type:'connector',id:key!}:{type:'connection',id:connectionId??''};
-      const action={perm:name==='connectors.run'||name==='sync_types.discover'?'connectors.manage':null,level:name==='connectors.run'||name==='connections.complete_auth'?'use' as const:'view' as const};
+      const resource=name==='connections.complete_auth'?{type:'space',id:ctx.space}:(name==='connectors.run'||name==='connectors.read')?{type:'connector',id:key!}:{type:'connection',id:connectionId??''};
+      const action={perm:name==='connectors.run'||name==='connectors.read'||name==='sync_types.discover'?'connectors.manage':null,level:name==='connectors.run'||name==='connectors.read'||name==='connections.complete_auth'?'use' as const:'view' as const};
       if(ctx.authorize(action,resource).effect!=='allow')return refuse(cc,'permission.no_grant','Access changed before this connector request.');
       for(const binding of usedBindings.values()){
         const row=handle.tx.get<ConnectionDb>('SELECT * FROM cn_connections WHERE connection_id = ?',binding.connectionId);
-        if(!row||row.connector!==binding.connector||(row.owner_kind==='person'&&row.owner_id!==(ctx.actingFor??ctx.principal.id))||(JSON.parse(row.secrets) as Record<string,string>)[binding.slot]!==binding.handle||(name!=='connections.complete_auth'&&['paused','pending','needs_reconnect'].includes(row.state)))return refuse(cc,'validation.precondition_failed','The connection changed while preparing this request. Try again.');
+        if(!row||row.connector!==binding.connector||(row.owner_kind==='person'&&row.owner_id!==(ctx.actingFor??ctx.principal.id))||(JSON.parse(row.secrets) as Record<string,string>)[binding.slot]!==binding.handle||(name!=='connections.complete_auth'&&['paused','pending','needs_reconnect'].includes(row.state)&&!(name==='connections.test'&&row.state!=='paused')))return refuse(cc,'validation.precondition_failed','The connection changed while preparing this request. Try again.');
         if(ctx.authorize({perm:null,level:'view'},{type:'connection',id:row.connection_id}).effect!=='allow')return refuse(cc,'permission.no_grant','Connection access changed before this request.');
       }
       for(const id of usedVaultItems)if(ctx.authorize({perm:null,level:'use'},{type:'vault_item',id}).effect!=='allow')return refuse(cc,'permission.no_grant','Vault access changed before this connector request.');
@@ -124,7 +124,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
 }
 
 const NAMES = [
-  "connectors.list", "connectors.get", "connectors.init", "connectors.define", "connectors.build", "connectors.test", "connectors.run", "connectors.diff", "connectors.publish", "connectors.versions",
+  "connectors.list", "connectors.get", "connectors.init", "connectors.define", "connectors.build", "connectors.test", "connectors.run", "connectors.read", "connectors.diff", "connectors.publish", "connectors.versions",
   "connectors.rollback", "connectors.export", "connectors.remove", "connectors.health",
   "connections.list", "connections.get", "connections.create", "connections.update", "connections.set_secret", "connections.pause", "connections.resume", "connections.reconnect", "connections.complete_auth",
   "connections.test", "connections.delete",
@@ -147,7 +147,8 @@ export async function acceptWebhook(tx: Tx, ctx: { origin: string; depth: number
   const hook = a.kind ? tx.get<{ connector: string }>("SELECT connector FROM cn_sync_hooks WHERE token = ?", a.kind) : undefined;
   if (!hook) throw fail("auth.bad_credentials", ctx.trace.traceId, { message: "That address is not one of this Space's." });
   const types = tx.all<{ sync_type_id: string }>("SELECT sync_type_id FROM cn_synced_types WHERE connector = ? AND paused = 0", hook.connector);
-  for (const t of types) await ctx.call("connectors.sync_now", { syncTypeId: t.sync_type_id, mode: "incremental", idempotencyKey: `hook:${t.sync_type_id}:${Math.floor(Date.now() / 5000)}` }).catch(() => undefined);
+  // the call only leaves a mark: the next look (a few seconds) starts the pass as the person who set the sync up, since a pass run by the host itself would be held at the Gate
+  tx.run("UPDATE cn_sync_hooks SET hit_at = ? WHERE token = ?", Date.now(), a.kind);
   return { accepted: true, types: types.length };
 }
 

@@ -33,6 +33,8 @@ export function crm() {
       { uid: "j-3", props: { title: "Moss repair", kind: "repair", amount: 500, opened: "2026-08-20", contact_ref: "104" }, touched: "2026-10-05T00:00:00Z" },
     ] as Job[],
     requests: [] as { method: string; host: string; path: string }[],
+    /** The key Ledger accepts; a test changes it to revoke the one in the Vault. */
+    keyA: KEY_A as string,
     webhooks: [] as { url: string; events: string[] }[],
     rejectWrites: false,
   };
@@ -54,7 +56,7 @@ export function crm() {
     state.requests.push({ method, host: url.hostname, path: url.pathname });
     const h = Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k.toLowerCase(), v]));
     if (url.hostname === "crm-a.test") {
-      if (h["x-api-token"] !== KEY_A) return { status: 401, body: { error: "bad token" } };
+      if (h["x-api-token"] !== state.keyA) return { status: 401, body: { error: "bad token" } };
       if (method === "GET" && url.pathname === "/api/v2/people") {
         const since = url.searchParams.get("modified_after");
         const all = (url.searchParams.get("tenant") === "b" ? state.peopleB : state.people).filter((p) => !since || p.modified >= since);

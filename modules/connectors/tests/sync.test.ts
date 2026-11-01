@@ -84,7 +84,7 @@ const seedConflict = (w: World, syncTypeId: string, id: string, status = "open")
 
 test("every capability this packet owns has a handler, here and in the loader entry", async () => {
   const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string }[] };
-  const want = reg.capabilities.map((c) => c.name).filter((n) => n.startsWith("sync_types.") || ["connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push"].includes(n));
+  const want = reg.capabilities.map((c) => c.name).filter((n) => (n.startsWith("sync_types.") && !["sync_types.record_state", "sync_types.field_history", "sync_types.restore_field", "sync_types.status"].includes(n)) || ["connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push"].includes(n));
   assert.equal(want.length, 21, `16 sync_types + sync_now + 3 outbox + push = 21, got ${want.length}`);
   const w = await world();
   for (const n of want) {

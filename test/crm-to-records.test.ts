@@ -66,7 +66,7 @@ async function boot(spaceKind: "personal" | "team" = "personal") {
       if (cap === "records.update") { const i = input as { type: string; recordId: string; patch: Record<string, unknown> }; const cur = await schema.store.get(i.type, i.recordId); await schema.store.update(i.type, i.recordId, i.patch as never, cur!.version); return { record: { id: i.recordId } }; }
       if (cap === "records.delete") { const i = input as { type: string; recordId: string }; const cur = await schema.store.get(i.type, i.recordId); if (cur) await schema.store.remove(i.type, i.recordId, cur.version); return { deleted: true }; }
       if (cap === "records.counts") return { count: (await schema.store.query((input as { type: string }).type, { page: { limit: 500 } })).rows.length };
-      if (cap === "connectors.run" || cap === "connectors.get" || cap === "sync_types.get") return (conn.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(ctx, input);
+      if (cap === "connectors.run" || cap === "connectors.read" || cap === "connectors.get" || cap === "sync_types.get") return (conn.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(ctx, input);
       throw new Error(`no ${cap}`);
     },
   };
@@ -367,7 +367,6 @@ test("the app refuses the key mid-sync: the dot says needs you, one Home item fo
     VAULT["#Ledger_Key"] = real;
     const conn = w.schema.tx.get<{ connection_id: string }>("SELECT connection_id FROM cn_connections WHERE connector = 'crm_ledger'")!;
     await w.conn.handlers["connections.reconnect"](ctx, { connectionId: conn.connection_id });
-    w.schema.tx.run("UPDATE cn_connectors SET def = json_set(def, '$.health', 'list_organizations') WHERE key = 'crm_ledger'");
     assert.equal((await w.conn.handlers["connections.test"](ctx, { connectionId: conn.connection_id })).state, "healthy");
     assert.deepEqual(done, ["tsk_1"]);
     await w.hs["sync_types.resume"](ctx, { type: "org" });
@@ -396,6 +395,8 @@ test("Team: the app is told where to call, a call starts a pass, a wrong address
     const hookCtx = { ...team.ctx, origin: "hook", depth: 0 };
     const token = url.split("/").pop()!;
     await acceptWebhook(team.schema.tx, hookCtx as never, { kind: token });
+    // the call leaves a mark; the next look (a scheduled poll, a few seconds on) starts the pass as the person
+    await team.hs["connectors.sync_poll"](team.ctx, { type: "person" });
     await team.drain();
     assert.equal((await team.byName("person", "Ben Ford")).data["phone"], "+1 555 8888");
     await assert.rejects(acceptWebhook(team.schema.tx, hookCtx as never, { kind: "aaaaaaaaaaaaaaaaaaaaaaaa" }), (e: any) => e.error?.code === "auth.bad_credentials");
@@ -430,5 +431,16 @@ test("an app that filters by modified time is polled for only what changed since
     await w.pass("person");
     assert.equal(peopleReads() - before, 1, "one page for one change, not the whole list");
     assert.equal((await w.byName("person", "Ben Ford")).data["stage"], "client");
+  } finally { await w.close(); }
+});
+
+test("connectors.read runs a list and refuses an action that writes", async () => {
+  const w = await boot();
+  try {
+    await bring(w, LEDGER, "rd");
+    const conn = w.schema.tx.get<{ connection_id: string }>("SELECT connection_id FROM cn_connections WHERE connector = 'crm_ledger'")!;
+    const read = (action: string) => w.hs["connectors.read"](w.ctx, { key: "crm_ledger", action, connectionId: conn.connection_id, input: {} } as never);
+    assert.ok(JSON.stringify((await read("list_organizations")).output).includes("North Works"));
+    await assert.rejects(read("update_people"), (e: any) => e.error?.code === "validation.bad_input");
   } finally { await w.close(); }
 });

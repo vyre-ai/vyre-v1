@@ -348,6 +348,8 @@ export function compileSpec(spec: SyncSpec): Compiled {
   const connector: ConnectorDef = {
     key: connectorKeyOf(spec), title: spec.app.name, mode: "api", scope: "space", version: "0.0.0", auth, domains: [spec.app.domain],
     secrets: [{ name: secretSlot, description: `Key for ${spec.app.name}` }], actions, objects, syncedTypes: spec.mapping.map((m) => m.remote), rate: { rps: 5, burst: 10 },
+    // a first page of the first list: what "test the connection" reads, so a replaced key brings a connection back
+    ...(actions[0] ? { health: actions[0].name } : {}),
   };
   return { connector, types, secretSlot };
 }

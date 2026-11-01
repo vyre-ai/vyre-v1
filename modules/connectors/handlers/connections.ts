@@ -216,8 +216,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       if (!def.health) return { state: "healthy" as const, detail: "This connector has no health call; nothing to probe." };
       const started = nowOf(deps);
       try {
-        // a pending connection is probed too: the first good answer is what makes it active
-        await executeAction(deps, ctx, def, def.health, { connection: r.state === "pending" ? { ...r, state: "active" } : r, input: {} });
+        // a pending connection, or one waiting for a new key, is probed too: the first good answer is what makes it active
+        await executeAction(deps, ctx, def, def.health, { connection: r.state === "pending" || r.state === "needs_reconnect" ? { ...r, state: "active" } : r, input: {} });
       } catch (e) {
         const code = (e as { error?: { code?: string; message?: string } }).error?.code;
         const message = (e as { error?: { message?: string } }).error?.message ?? (e instanceof Error ? e.message : String(e));

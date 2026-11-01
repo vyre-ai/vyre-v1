@@ -50,7 +50,7 @@ test("syncengine: the adapter runs preview, push, undo, an asked conflict and co
     emit: () => ({}),
     call: async (cap, input) => {
       if (cap === "connectors.get") return { connector: { key: "fakeapp" } };   // no per-object map: the convention applies
-      assert.equal(cap, "connectors.run");
+      assert.ok(cap === "connectors.run" || cap === "connectors.read", cap);
       const i = input as { key: string; action: string; connectionId: string; input: { id?: string; properties?: Record<string, unknown> }; idempotencyKey: string };
       assert.equal(i.key, "fakeapp");
       assert.equal(i.connectionId, "con_1");

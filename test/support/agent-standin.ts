@@ -6,7 +6,7 @@ import type { ConnectorsCtx } from "../../modules/connectors/projections.ts";
 
 type Hs = ConnectorsHandle["handlers"];
 interface Auth { vaultHandle: string; style: "bearer" | "header"; header?: string }
-export interface Know { name: string; domain: string; auth: Auth; objects: { remote: string; path: string; label: string; recordType: string; write?: { path: string; evidence: string } }[]; fieldsEndpoint?: { path: string; forRemote: string }; firstPullFilter?: { remote: string; param: string; value: string; words: string }; backfill?: "now" | "later" }
+export interface Know { name: string; domain: string; auth: Auth; objects: { remote: string; path: string; label: string; recordType: string; write?: { path: string; evidence: string } }[]; fieldsEndpoint?: { path: string; forRemote: string }; firstPullFilter?: { remote: string; param: string; value: string; words: string }; backfill?: "now" | "later"; /** Which account of the app this is (a location, a tenant). */ account?: string; /** Query parameters the docs name for one object's list (a tenant, a sort). */ query?: Record<string, Record<string, string>> }
 
 const leaf = (p: string): string => p.split("/").pop() ?? p;
 const title = (s: string): string => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -33,7 +33,7 @@ export async function fillSpec(hs: Hs, ctx: ConnectorsCtx, know: Know): Promise<
   const base = { auth: know.auth, domain: know.domain };
   // 1. one page of each object
   const seen = new Map<string, Awaited<ReturnType<Hs["sync_specs.sample"]>>>();
-  for (const o of know.objects) seen.set(o.remote, await hs["sync_specs.sample"](ctx, { ...base, path: o.path, items: 10 }));
+  for (const o of know.objects) seen.set(o.remote, await hs["sync_specs.sample"](ctx, { ...base, path: o.path, items: 10, ...(know.query?.[o.remote] ? { query: know.query[o.remote] } : {}) }));
   // 2. pick-lists
   const choices = know.fieldsEndpoint ? choicesFrom((await hs["sync_specs.sample"](ctx, { ...base, path: know.fieldsEndpoint.path })).preview) : new Map();
   // 3. ids of each object, to see which field points at which
@@ -52,7 +52,7 @@ export async function fillSpec(hs: Hs, ctx: ConnectorsCtx, know: Know): Promise<
     if (s.nextLink) cursor = { kind: "link", size: l.count, sizeParam: "limit" };
     else if (s.shape!.cursors[0]) cursor = { kind: "cursor", param: "after", next: s.shape!.cursors[0].pointer };
     else {
-      const p2 = await hs["sync_specs.sample"](ctx, { ...base, path: o.path, query: { page: "2", per_page: String(l.count) } });
+      const p2 = await hs["sync_specs.sample"](ctx, { ...base, path: o.path, query: { ...(know.query?.[o.remote] ?? {}), page: "2", per_page: String(l.count) } });
       const first2 = (p2.items?.[0] as Record<string, unknown> | undefined);
       if (p2.ok && first2 && String(readPath(first2, l.idAt ?? "/id")) !== String(readPath((s.items as Record<string, unknown>[])[0]!, l.idAt ?? "/id"))) cursor = { kind: "page", param: "page", size: l.count, sizeParam: "per_page" };
     }
@@ -70,7 +70,7 @@ export async function fillSpec(hs: Hs, ctx: ConnectorsCtx, know: Know): Promise<
     });
     objects.push({
       remote: o.remote, label: o.label, ...(s.estimate ? { count: s.estimate.count } : {}), id: l.idAt ?? "/id", itemsAt: l.itemsAt, ...(l.updatedAtGuess ? { updatedAt: l.updatedAtGuess } : {}),
-      list: { path: o.path, cursor, ...(filter ? { filter } : {}) },
+      list: { path: o.path, ...(know.query?.[o.remote] ? { query: know.query[o.remote] } : {}), cursor, ...(filter ? { filter } : {}) },
       ...(o.write ? { update: { path: o.write.path, method: "PATCH", evidence: o.write.evidence } } : {}),
       fields,
     });
@@ -83,7 +83,7 @@ export async function fillSpec(hs: Hs, ctx: ConnectorsCtx, know: Know): Promise<
     });
   }
   return {
-    app: { name: know.name, domain: know.domain },
+    app: { name: know.name, domain: know.domain, ...(know.account ? { account: know.account } : {}) },
     auth: know.auth,
     objects, mapping,
     plan: { firstPull: { words: know.firstPullFilter?.words ?? "Everything" }, backfill: know.backfill ?? "later", conflicts: "newest" },

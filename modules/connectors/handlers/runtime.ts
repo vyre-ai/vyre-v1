@@ -37,6 +37,7 @@ export interface RuntimeHandlers {
   "connectors.define"(ctx: ConnectorsCtx, input: DefineInput): Promise<{ key: string; draftId: string; actions: string[]; domains: string[] }>;
   "connectors.build"(ctx: ConnectorsCtx, input: { key: string; docsUrl?: string; notes?: string }): Promise<{ runId: string; draftId: string }>;
   "connectors.test"(ctx: ConnectorsCtx, input: { key: string; draftId?: string }): Promise<{ result: TestResult }>;
+  "connectors.read"(ctx: ConnectorsCtx, input: { key: string; action: string; connectionId: string; input: unknown }): Promise<{ output: unknown }>;
   "connectors.run"(ctx: ConnectorsCtx, input: { key: string; action: string; connectionId: string; input: unknown; dryRun?: boolean }): Promise<{ output: unknown; dryRun: boolean }>;
   "connectors.diff"(ctx: ConnectorsCtx, input: { key: string; draftId?: string }): Promise<{ files: { path: string; added: number; removed: number }[]; breaking: boolean }>;
   "connectors.publish"(ctx: ConnectorsCtx, input: { key: string; draftId?: string; note?: string }): Promise<{ published: boolean; version?: string; result: TestResult }>;
@@ -489,6 +490,19 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const useDraft = input.draftId !== undefined || sourceOf(c.key) !== undefined || (c.state === "draft" && tx.get("SELECT 1 AS x FROM cn_drafts WHERE key = ?", c.key) !== undefined);
       const def = useDraft ? (await draftOf(ctx, c.key, input.draftId)).def : (JSON.parse(c.def) as ConnectorDef);
       return { result: await runCases(deps, ctx, def) };
+    },
+
+    "connectors.read": async (ctx, input) => {
+      const c = need(ctx, input.key);
+      const def = JSON.parse(c.def) as ConnectorDef;
+      const action = def.actions.find((a) => a.name === input.action);
+      if (!action) return refuse(ctx, "validation.bad_input", `${c.key} has no action ${input.action}.`);
+      if (action.write === true || (action.method ?? "GET") !== "GET") return refuse(ctx, "validation.bad_input", `${input.action} writes to the app: it goes through connectors.run.`);
+      const conn = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", input.connectionId) ?? refuse(ctx, "validation.not_found", "There is no such connection.");
+      if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system")) refuse(ctx, "validation.not_found", "There is no such connection.");
+      const out = await executeAction(deps, ctx, def, input.action, { connection: conn, input: input.input });
+      tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
+      return { output: out.output };
     },
 
     "connectors.run": async (ctx, input) => {

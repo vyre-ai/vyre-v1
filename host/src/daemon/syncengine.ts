@@ -115,7 +115,7 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
 const RATE_CODES = new Set(["rate_limit.exceeded", "provider.rate_limited"]);
 const pause = (ms: number): Promise<void> => new Promise((ok) => { setTimeout(ok, ms); });
 
-export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown, opts: { sleep?: (ms: number) => Promise<void> } = {}): Store & { updatedAtOf(id: string): number; page(after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }>; supportsSince: boolean; lazy: boolean } {
+export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown, opts: { sleep?: (ms: number) => Promise<void>; /** Tells one pass from the next: the same call in another pass is a new call, not a replay of the old answer. */ nonce?: string } = {}): Store & { updatedAtOf(id: string): number; page(after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }>; supportsSince: boolean; lazy: boolean } {
   const one = oneOf(b.remote);
   const names = namesFor(objects, b.remote);
   const nameList = names.list ?? `list_${b.remote}`, nameAfter = names.listAfter ?? `list_${b.remote}_after`;
@@ -126,8 +126,10 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
   const run = async (action: string, input: unknown): Promise<unknown> => {
     for (let wait = 0; ; wait++) {
       try {
-        const out = (await ctx.call("connectors.run", {
-          key: b.connector, action, connectionId: b.connectionId, input, idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}`).slice(0, 32)}`,
+        // a list is a read: it does not wait at the Gate when the pass runs as an agent or the host; a write goes through connectors.run
+        const reading = action === nameList || action === nameAfter;
+        const out = (await ctx.call(reading ? "connectors.read" : "connectors.run", {
+          key: b.connector, action, connectionId: b.connectionId, input, idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}|${opts.nonce ?? ""}`).slice(0, 32)}`,
         })) as { output?: unknown };
         return out.output;
       } catch (e) {
@@ -252,7 +254,7 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
   };
   const depsOf = async (ctx: EngineCtx, b: BindingRow): Promise<{ deps: SyncDepsLike; remote: ReturnType<typeof remoteStore>; tx: Tx; local: Store; binding: SyncBindingLike }> => {
     const { store, tx } = o.local.open();
-    const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector), o.sleep ? { sleep: o.sleep } : {});
+    const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector), { ...(o.sleep ? { sleep: o.sleep } : {}), nonce: ctx.trace.traceId });
     // a relation names a record type; the engine needs the synced type that pulls it, to turn the app's id into a link
     const relations = new Map<string, string>();
     for (const f of b.fields) {
