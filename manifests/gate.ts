@@ -61,7 +61,7 @@ export default defineManifest({
         automationId: id.automation, defHash: t.str(), press: t.enm('save', 'on'),
         steps: t.arr(t.obj({ stepId: t.str(), act: actKey, targets: t.arr(t.str()), computed: t.bool(), changed: t.bool() })),
       },
-      out: { grants: t.arr(grantRow) }, on: ['automation', '/automationId'], level: 'use', audit: 'always', idem: 'natural', agent: false,
+      out: { grants: t.arr(grantRow) }, perm: null, level: 'view', audit: 'always', idem: 'natural', agent: false,
     }),
     write('gate.grants.take', 'System: does a grant cover this call? Asked by the Gate hook at act time, it spends a single-use grant; only the server may call it', {
       in: { act: actKey, targets: t.arr(t.str()), step: t.opt(stepRef), turn: t.opt(t.obj({ person: t.str(), threads: t.arr(id.thread, { minItems: 1 }) })) },

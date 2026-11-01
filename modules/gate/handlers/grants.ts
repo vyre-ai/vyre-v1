@@ -26,6 +26,8 @@ function targetsAfter(s: StepIn, kept: string[], press: "save" | "on"): string[]
 }
 
 export async function grantsSet(ctx: GateCtx, input: In): Promise<unknown> {
+  // the automation capability a person pressed calls this, and it checked their access to the automation; nobody calls it from outside
+  if ((ctx.depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "An automation sets this when it is saved.", { reason: "system_only" });
   const by = ctx.principal;
   const pressed = by.kind === "person" || isHostService(by);
   const before = standing(ctx, input.automationId);

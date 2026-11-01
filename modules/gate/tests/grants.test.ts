@@ -8,7 +8,7 @@ import { HOUR, alice, as, bob, bot } from "../fixtures/seed.ts";
 const gate = { id: alice.id, kind: "person" as const, origin: "gate", depth: 0 };
 const set = (h: Harness, who: unknown, over: Record<string, unknown> = {}) => h.call("gate.grants.set", {
   automationId: "aut_0123456789abcdef0123456789abcdef", defHash: "h1", press: "save", steps: [{ stepId: "letter", act: "send", targets: ["lee@acme.test"], computed: false, changed: true }], ...over,
-}, who as never);
+}, { depth: 1, ...(who as object) } as never);
 const stepTake = (h: Harness, targets: string[], defHash = "h1") => h.call("gate.grants.take", { act: "send", targets, step: { automationId: "aut_0123456789abcdef0123456789abcdef", nodeId: "letter", defHash } }, gate);
 const ask = (h: Harness, messageId: string, asked: { act: string; target: string }[], threadId = "thr_chat", who: unknown = alice) => h.call("gate.grants.ask", { threadId, messageId, asked }, who as never);
 const take = (h: Harness, targets: string[], threads = ["thr_chat"], act = "send") => h.call("gate.grants.take", { act, targets, turn: { person: alice.id, threads } }, gate);
@@ -47,6 +47,10 @@ test("a save keeps the row of a step it did not touch, and gives none to a step 
   const theirs = { stepId: "other", act: "send", targets: ["sam@acme.test"], computed: false, changed: false };
   const rows = (await set(h, alice, { defHash: "h2", steps: [same, theirs] })).grants;
   assert.deepEqual(rows.map((g: { stepId: string; target: string }) => [g.stepId, g.target]), [["letter", "lee@acme.test"]]);
+});
+
+test("nobody writes rows from outside: only an automation capability calls set", async () => {
+  await assert.rejects(harness().call("gate.grants.set", { automationId: "aut_0123456789abcdef0123456789abcdef", defHash: "h1", press: "on", steps: [] }, { id: alice.id, depth: 0 } as never), (e) => codeOf(e) === "permission.role_lacks_permission");
 });
 
 test("take is for the server alone", async () => {

@@ -198,8 +198,11 @@ export interface Hold {
   backstopAt?: number; backstopSchedule?: string; expireSchedule?: string; escalatedAt?: number; sendingAt?: number; decidedAt?: number; decidedBy?: string; possiblySent: boolean; error?: string;
   /** What the approved call answered, for a chat turn that waited on it. */
   result?: unknown;
+  /** The automation step the call came from. */
+  step?: StepRef;
 }
-const HOLD_SELECT_EXTRA = ", result";
+export interface StepRef { automationId: string; nodeId: string; defHash: string; ask?: boolean }
+const HOLD_SELECT_EXTRA = ", result, step";
 const HOLD_COLS = `id, act, cap_name, cap_version, input, input_hash, payload_hash, principal_kind, principal_id, acting_for, decision_id, run_id, thread_id, task_id, state, summary, approver, rule,
   created_at, expires_at, backstop_at, backstop_schedule, expire_schedule, escalated_at, sending_at, decided_at, decided_by, possibly_sent, error`;
 
@@ -215,7 +218,7 @@ function holdFrom(r: Raw): Hold {
     rule: parse<Effective>(r.rule, effectiveFallback()), createdAt: r.created_at as number, expiresAt: r.expires_at as number, possiblySent: num(r.possibly_sent) === 1,
   };
   const res = str(r.result); if (res) h.result = parse<unknown>(res, null);
-  const stp = str(r.step); if (stp) h.step = parse<StepRef>(stp, undefined as unknown as StepRef);
+  const stp = str(r.step); if (stp) h.step = JSON.parse(stp) as StepRef;
   const af = str(r.acting_for); if (af) h.actingFor = af;
   const run = str(r.run_id); if (run) h.runId = run;
   const th = str(r.thread_id); if (th) h.threadId = th;
