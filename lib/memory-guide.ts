@@ -25,6 +25,8 @@ export function memoryGuide(agentName: string, mapBody: string | null | undefine
     "",
     ...TOOLS.map((t) => `- ${t}`),
     "",
+    "Name a record, file, task or chat as [[Name|id]], the name, a bar and its id, like [[Rivera Holdings|rec_01...]]. Never write a bare id (rec_..., file_..., task_...) in a reply: the reader sees the name as a link that opens it.",
+    "",
     "Facts recalled for a message come with their source. Quotes are the exact words people wrote: quote them as written, never reword them, and say where they came from. Memory you cannot see is not yours to guess.",
     "",
     map === "" ? "Your map is empty until the first night's upkeep has run." : map,

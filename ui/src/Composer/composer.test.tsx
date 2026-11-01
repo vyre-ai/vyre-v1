@@ -270,3 +270,18 @@ test("the right-click menu ends with Report a problem, after a separator, and ev
 test("plain-text paste keeps line breaks and drops control characters", () => {
   assert.equal(plainText("a\r\nb\u0007\tc"), "a\nb c");
 });
+
+test(":name offers emoji in every composer and inserts the character; times and urls never open it", () => {
+  const t = detectTrigger("nice :smi", 9);
+  assert.deepEqual(t, { ch: ":", start: 5, end: 9, query: "smi" });
+  assert.equal(detectTrigger("at 10:30", 8), null);
+  assert.equal(detectTrigger("see https://x.com", 17), null);
+  assert.equal(detectTrigger("hi :s", 5), null, "one letter is too early");
+  const entries = popupFor(t!, {} as ComposerLists);
+  const first = entries[0] as PopupItem;
+  assert.equal(first.label, "😄", ":smile comes first for :smi");
+  assert.ok(entries.some((e) => (e as PopupItem).label === "😀"), "other smiles are offered too");
+  const done = applyPick({ ...initialState("nice :smi"), cursor: 9 }, t!, first);
+  assert.equal(done.next.text, "nice 😄 ");
+  assert.equal(done.next.cursor, done.next.text.length);
+});
