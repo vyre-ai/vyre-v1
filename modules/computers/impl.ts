@@ -27,7 +27,7 @@ import type { ContainerConfig, DockerApi, DockerHttp } from "../../sandbox/src/d
 import { handlers as table } from "./handlers/index.ts";
 import { createHomeSync } from "./handlers/home.ts";
 import { createContainerHomeFs } from "./handlers/home-fs.ts";
-import type { HomeDeps, HomeSync } from "./handlers/home.ts";
+import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost } from "./projections.ts";
@@ -82,7 +82,7 @@ export interface DockerHostOptions {
   startTimeoutMs?: number;
   user?: { uid: number; gid: number };
   /** The agent's home on the computer mirrors its folder in Files (handlers/home.ts): calls as the agent, how often to look, and where the manifest of what was last synced is kept. */
-  home?: { deps: HomeDeps; intervalMs?: number; manifest(agentId: string): string };
+  home?: { deps: HomeDeps; intervalMs?: number; manifest(agentId: string): string; announce?: (a: { agentId: string; computerId: string; files: MadeFile[] }) => Promise<void> };
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -196,11 +196,24 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     return h;
   }
   /** One pass; true when it finished with nothing left undone (or there is no mirror), so a caller that is about to wipe its copy knows it is safe to. */
-  async function homePass(computerId: string, agentId: string | undefined): Promise<boolean> {
+  // Files the agent made, held until the work goes quiet (a pass that made none) or the computer stops, then said once: one card per burst of work, not one per file.
+  const made = new Map<string, MadeFile[]>();
+  async function sayMade(computerId: string, agentId: string): Promise<void> {
+    const files = made.get(computerId);
+    if (!files?.length || !o.home?.announce) return;
+    made.delete(computerId);
+    try { await o.home.announce({ agentId, computerId, files }); } catch (e) { o.home.deps.log("warn", "computers.home.announce_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); }
+  }
+  async function homePass(computerId: string, agentId: string | undefined, final = false): Promise<boolean> {
     const h = homeOf(computerId, agentId);
     if (!h) return true;
     try {
       const r = await h.sync.pass();
+      if (agentId) {
+        if (r.made.length > 0) made.set(computerId, [...(made.get(computerId) ?? []), ...r.made]);
+        else if (made.has(computerId) || final) await sayMade(computerId, agentId);
+        if (final) await sayMade(computerId, agentId);
+      }
       if (r.down + r.up + r.conflicts + r.removed + r.suggested + r.refused.length > 0) o.home?.deps.log("info", "computers.home.pass", { computer: computerId, ...r, refused: r.refused.slice(0, 10) });
       return r.failed === 0;
     } catch (e) { o.home?.deps.log("warn", "computers.home.pass_failed", { computer: computerId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
@@ -244,7 +257,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       const home = homes.get(a.computerId);
       if (home?.timer) { clearInterval(home.timer); home.timer = null; }
       await o.api.containerStop(name, 10);
-      const homeSynced = a.reason !== "remove" ? await homePass(a.computerId, a.agentId) : false;
+      const homeSynced = a.reason !== "remove" ? await homePass(a.computerId, a.agentId, true) : false;
       if (o.profile && a.reason !== "remove") await o.profile.seal(a.computerId);
       return { ...(sessions ? { sessions } : {}), ...(a.reason !== "remove" ? { homeSynced } : {}) };
     },
@@ -362,7 +375,7 @@ export interface ComputersHostConfig {
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
   /** The agent's home mirror: calls as the agent principal, the upload of large files, how often a pass runs, where each agent's manifest lives, and a log. */
-  home?: { callAs: HomeDeps["callAs"]; putBytes: HomeDeps["putBytes"]; intervalMs?: number; manifest(agentId: string): string; log?: HomeDeps["log"] };
+  home?: { callAs: HomeDeps["callAs"]; putBytes: HomeDeps["putBytes"]; intervalMs?: number; manifest(agentId: string): string; log?: HomeDeps["log"]; announce?: (a: { agentId: string; computerId: string; files: MadeFile[] }) => Promise<void> };
 }
 
 /** The Docker host for a machine, not yet bound: the Space binds it as its own; a computer that joined runs jobs on it. */
@@ -373,7 +386,7 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
     ...(c.image !== undefined ? { image: c.image } : {}),
     ...(c.filesRoot !== undefined ? { filesRoot: c.filesRoot } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
-    ...(c.home ? { home: { deps: { callAs: c.home.callAs, putBytes: c.home.putBytes, now: Date.now, log: c.home.log ?? (() => undefined) }, ...(c.home.intervalMs !== undefined ? { intervalMs: c.home.intervalMs } : {}), manifest: c.home.manifest } } : {}),
+    ...(c.home ? { home: { deps: { callAs: c.home.callAs, putBytes: c.home.putBytes, now: Date.now, log: c.home.log ?? (() => undefined) }, ...(c.home.intervalMs !== undefined ? { intervalMs: c.home.intervalMs } : {}), manifest: c.home.manifest, ...(c.home.announce ? { announce: c.home.announce } : {}) } } : {}),
   });
 }
 

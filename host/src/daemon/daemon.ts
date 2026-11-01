@@ -48,6 +48,20 @@ import type { RegistryLike } from "../loader.ts";
 import { LogSink } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
 
+/** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
+export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; call: (agentId: string, cap: string, input: unknown) => Promise<unknown>; log: (msg: string, attrs?: Record<string, unknown>) => void }) {
+  return async (m: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }): Promise<void> => {
+    const t = a.db.all("SELECT thread_id FROM computers_timeline WHERE computer_id = ? AND thread_id IS NOT NULL ORDER BY idx DESC LIMIT 1", m.computerId)[0] as { thread_id?: string } | undefined;
+    if (!t?.thread_id) { a.log("made files with no chat to say it in", { computerId: m.computerId, count: m.files.length }); return; }
+    const shown = m.files.slice(0, 4), more = m.files.length - shown.length;
+    await a.call(m.agentId, "chat.post", {
+      threadId: t.thread_id, body: more > 0 ? `and ${more} more in Files` : "", mentions: [],
+      blocks: shown.map((f) => ({ type: "file", v: 1, data: { fileId: f.fileId, name: f.name, kind: f.kind, size: f.size, version: f.version, thumb: f.kind === "image" } })),
+      idempotencyKey: `made:${m.computerId}:${shown.map((f) => `${f.fileId}.${f.version}`).join(",")}`,
+    });
+  };
+}
+
 export function createAgentHomeCaller(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; spaceId: string; invoke: Invoke }) {
   return async (agentId: string, cap: string, input: unknown): Promise<unknown> => {
     const owner = a.db.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
@@ -1083,6 +1097,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
           callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
+          announce: createMadeFilesAnnouncer({ db: db!, call: createAgentHomeCaller({ db: db!, spaceId, invoke }), log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }) }),
           // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
           putBytes: (url, bytes) => putToSlot(url, bytes),
           log: (level, msg, attrs) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),

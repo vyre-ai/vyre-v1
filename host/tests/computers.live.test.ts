@@ -183,6 +183,25 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     await inBox(`printf ' and more' >> ${HOME}/from-terminal.txt`);
     await until("a second version", async () => (await filesIn(folderId)).files.find((f) => f.name === "from-terminal.txt" && f.version > t1.version));
 
+    // a file the agent makes while working for a chat is said in that chat, once, as a file card pointing at Files
+    const chat = await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "computers-live-chat" });
+    assert.equal(chat.status, 200, JSON.stringify(chat.data));
+    const threadId = (chat.data.thread?.threadId ?? chat.data.threadId) as string;
+    const { DatabaseSync } = await import("node:sqlite");
+    const mdb = new DatabaseSync(path.join(dir, "modules.db"));
+    mdb.prepare("INSERT INTO computers_timeline (step_id, computer_id, idx, at, by_who, caption, tool, thread_id) VALUES (?, ?, 9000, ?, 'agent', 'Writing the report', 'screen', ?)").run("stp_madefiles1", computerId, Date.now(), threadId);
+    mdb.close();
+    assert.equal((await inBox(`printf report-body > ${HOME}/Q3-report.txt`)).code, 0);
+    const card = await until("a file card in the chat", async () => {
+      const page = (await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { fileId: string; name: string } }> }> };
+      return page.messages.flatMap((m) => m.blocks ?? []).find((b) => b.type === "file" && b.data.name === "Q3-report.txt");
+    }, 100_000);
+    const q3 = (await filesIn(folderId)).files.find((f) => f.name === "Q3-report.txt");
+    assert.equal(card.data.fileId, q3?.fileId, "the card points at the file in Files");
+    await new Promise<void>((r) => setTimeout(r, 8_000));
+    const cards = ((await call(d, "chat.messages.list", { threadId })).data as { messages: Array<{ blocks?: Array<{ type: string; data: { name: string } }> }> }).messages.flatMap((m) => m.blocks ?? []).filter((b) => b.type === "file" && b.data.name === "Q3-report.txt");
+    assert.equal(cards.length, 1, "said once");
+
     // a file saved in Vyre shows on the computer
     const fromVyre = await call(d, "files.create", { folderId, name: "from-vyre.txt", content: { text: "from-vyre" }, idempotencyKey: "home-from-vyre" });
     assert.equal(fromVyre.status, 200, JSON.stringify(fromVyre.data));
