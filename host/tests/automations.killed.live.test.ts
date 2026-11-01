@@ -80,7 +80,7 @@ function hold(dir: string): Promise<{ child: ChildProcess; url: string }> {
   return new Promise((resolve, reject) => {
     let buf = "";
     let err = "";
-    const timer = setTimeout(() => reject(new Error(`daemon did not listen\n${buf}\n${err}`)), 20_000);
+    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`daemon did not listen\n${buf}\n${err}`)); }, 45_000);   // the same bound as the vyred smoke boot: every runner boots daemons at once. The kill stops a late daemon holding the file open past its cap
     child.stdout?.on("data", (chunk: Buffer) => {
       buf += chunk.toString();
       const found = /listening (http\S+)/.exec(buf);
