@@ -13,7 +13,17 @@ test("a tool's name is said the way a person would", () => {
   assert.equal(stepWords("mcp__vyre__records_search"), "Searching records");
   assert.equal(stepWords("mcp__vyre__tasks_create"), "Creating tasks");
   assert.equal(stepWords("something_odd"), "Using something odd");
+  assert.equal(stepWords("ToolSearch"), "Looking for tools");
+  assert.equal(stepWords("SomeNewTool"), "Using some new tool");
   assert.equal(stepWords(""), "Working");
+});
+
+test("a step says what it touches when the host said so", async () => {
+  const { stepLabel } = await import("./activity.ts");
+  assert.equal(stepLabel("Read", "model.ts"), "Reading model.ts");
+  assert.equal(stepLabel("WebSearch", "stream pacing"), "Searching the web: stream pacing");
+  assert.equal(stepLabel("Bash"), "Running a command");
+  assert.equal(stepLabel("Read"), "Reading");
 });
 
 test("the line: a step in progress wins, then the thinking, else just Thinking; never a made-up word", () => {

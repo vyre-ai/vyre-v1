@@ -7,10 +7,10 @@ export function stepWords(name: string): string {
   const key = n.toLowerCase();
   const table: Record<string, string> = {
     read: "Reading", glob: "Looking for files", grep: "Searching", bash: "Running a command", edit: "Editing", multiedit: "Editing", write: "Writing a file", notebookedit: "Editing a notebook",
-    websearch: "Searching the web", webfetch: "Reading a page", task: "Working with a helper", todowrite: "Planning", exitplanmode: "Planning", askuserquestion: "Asking you",
+    websearch: "Searching the web", toolsearch: "Looking for tools", webfetch: "Reading a page", task: "Working with a helper", todowrite: "Planning", exitplanmode: "Planning", askuserquestion: "Asking you",
   };
   if (table[key]) return table[key]!;
-  const words = key.split(/[_\s-]+/).filter(Boolean);
+  const words = n.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[_\s-]+/).filter(Boolean);
   if (words.length === 0) return "Working";
   const verb: Record<string, string> = { search: "Searching", list: "Looking through", get: "Reading", read: "Reading", create: "Creating", update: "Updating", delete: "Removing", send: "Sending", run: "Running", draft: "Drafting" };
   const first = words[0]!;
@@ -27,12 +27,19 @@ export function thinkingExcerpt(text: string, max = 72): string {
   return one.length > max ? `…${one.slice(one.length - max).trimStart()}` : one;
 }
 
+/** A step in words, with what it touches when the host said so: "Reading model.ts", "Searching the web: stream pacing". */
+export function stepLabel(name: string, detail?: string): string {
+  const words = name !== "" ? stepWords(name) : "Working";
+  if (!detail) return words;
+  return /^(Read|Edit|MultiEdit|Write|NotebookEdit)$/.test(name) ? `${words} ${detail}` : `${words}: ${detail}`;
+}
+
 export interface ActivityLine { label: string; detail: string }
 
 /** The one line: a step in progress wins, then what is being thought, else "Thinking". `elapsed` seconds are added by the caller once they matter. */
 export function activityLine(s: ActivitySnapshot): ActivityLine {
   const live = [...s.steps].reverse().find((x) => x.state === "live");
-  if (live) return { label: live.name !== "" ? stepWords(live.name) : "Working", detail: "" };
+  if (live) return { label: stepLabel(live.name, live.detail), detail: "" };
   const t = thinkingExcerpt(s.thinking);
   return { label: "Thinking", detail: t };
 }

@@ -38,7 +38,7 @@ export type StreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string; /** the message that started the turn, so a screen puts the reply after it and before what is sent meanwhile */ triggerId?: string }
   | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number }
   /** A step of the turn (a tool call or its result): what the agent is doing, for the line under its reply. Names only; no input. */
-  | { kind: "step"; threadId: string; turnId: string; agentId: string; phase: "call" | "result"; id: string; name?: string; ok?: boolean }
+  | { kind: "step"; threadId: string; turnId: string; agentId: string; phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string }
   /** A piece of the thinking the provider sent. It goes only to the people who may read the thread, over the live link; it is never logged and never saved. */
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string }
   | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
@@ -228,6 +228,11 @@ export function createBridge(o: BridgeOptions): Bridge {
       for await (const ev of s.send(input)) {
         if (ev.type === "text") { const at = seg.text.length; seg.text += ev.text; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text, at }); }
         else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text }); }
+        else if (ev.type === "block" && ev.kind === "tool_input") {
+          // what a call touches goes to the live line only, over the same gated link as the words: it is never saved with the reply
+          const p = (ev.payload ?? {}) as { id?: unknown; detail?: unknown };
+          if (typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "") emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "input", id: p.id, detail: p.detail });
+        }
         else if (ev.type === "block") {
           const p = (ev.payload ?? {}) as { id?: unknown; name?: unknown; ok?: unknown };
           const id = typeof p.id === "string" ? p.id : "";

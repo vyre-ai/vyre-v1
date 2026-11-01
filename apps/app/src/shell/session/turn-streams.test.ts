@@ -158,6 +158,8 @@ test("step and thinking frames build what the turn is doing, in order, and are g
   s.onFrame(f("trn_a", { kind: "step", phase: "call", id: "t1", name: "Read" }));
   assert.equal(act.get().thinking, "Let me look at the file.");
   assert.deepEqual(act.get().steps, [{ id: "t1", name: "Read", state: "live" }]);
+  s.onFrame(f("trn_a", { kind: "step", phase: "input", id: "t1", detail: "model.ts" }));
+  assert.equal(act.get().steps[0]?.detail, "model.ts");
   s.onFrame(f("trn_a", { kind: "step", phase: "result", id: "t1", name: "Read", ok: true }));
   s.onFrame(f("trn_a", { kind: "step", phase: "call", id: "t2", name: "Bash" }));
   s.onFrame(f("trn_a", { kind: "step", phase: "result", id: "t2", ok: false }));

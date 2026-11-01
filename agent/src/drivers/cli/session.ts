@@ -173,7 +173,9 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           case "tool":
             yield item.phase === "call"
               ? { type: "block", kind: "tool_call", payload: { id: item.id, name: item.name } }
-              : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok } };
+              : item.phase === "input"
+                ? { type: "block", kind: "tool_input", payload: { id: item.id, detail: item.detail } }
+                : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok } };
             break;
           case "usage": yield { type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens }; break;
           case "limits": yield { type: "limits", window: item.window, pct: item.pct, ...(item.resetsAt !== undefined ? { resetsAt: item.resetsAt } : {}) }; break;

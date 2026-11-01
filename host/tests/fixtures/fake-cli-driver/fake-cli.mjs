@@ -169,12 +169,20 @@ async function think(prompt) {
   await thought("I should look at the notes first and then compare them with the plan.");
   await wait(ms);
   out({ type: "stream_event", event: { type: "content_block_start", index: 1, content_block: { type: "tool_use", id: `toolu_a_${process.pid}`, name: "Read" } } });
+  // the whole message arrives with the call's input, as the real CLI's does
+  out({ type: "assistant", message: { id: `m_ta_${process.pid}`, content: [{ type: "tool_use", id: `toolu_a_${process.pid}`, name: "Read", input: { file_path: "/work/notes/model.ts" } }] } });
   await wait(ms * 2);
   out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_a_${process.pid}`, content: "ok" }] } });
   await thought("That covers the first part, now the second file.");
   out({ type: "stream_event", event: { type: "content_block_start", index: 2, content_block: { type: "tool_use", id: `toolu_b_${process.pid}`, name: "WebSearch" } } });
+  out({ type: "assistant", message: { id: `m_tb_${process.pid}`, content: [{ type: "tool_use", id: `toolu_b_${process.pid}`, name: "WebSearch", input: { query: "stream pacing" } }] } });
   await wait(ms * 2);
   out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_b_${process.pid}`, content: "ok" }] } });
+  // a command with a secret in it: it must never be shown, only "Running a command"
+  out({ type: "stream_event", event: { type: "content_block_start", index: 2, content_block: { type: "tool_use", id: `toolu_c_${process.pid}`, name: "Bash" } } });
+  out({ type: "assistant", message: { id: `m_tc_${process.pid}`, content: [{ type: "tool_use", id: `toolu_c_${process.pid}`, name: "Bash", input: { command: "curl -H 'Authorization: Bearer sk-ant-FAKESECRETFAKESECRET123456' https://example.com/x?token=abc" } }] } });
+  await wait(ms * 2);
+  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_c_${process.pid}`, content: "ok" }] } });
   await wait(ms);
   const words = ["The", "notes", "agree", "with", "the", "plan."];
   for (const w of words) { out({ type: "stream_event", event: { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: `${w} ` } } }); await wait(120); }

@@ -5,11 +5,11 @@ import { createElement, useEffect, useState, useSyncExternalStore } from "react"
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ActivityStore } from "../../../shell/session/turn-streams.ts";
-import { activityLine, elapsedWords, stepWords, thinkingExcerpt } from "./activity.ts";
+import { activityLine, elapsedWords, stepLabel, thinkingExcerpt } from "./activity.ts";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { useStream } from "../../../../../../ui/src/stream/useStream.ts";
-import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
+import { StreamText, createStreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 
 const CSS = [
@@ -30,6 +30,13 @@ const NO_STREAM = createStreamStore();
 
 const web = (cls: string, children: string): ReactElement | string => (Platform.OS === "web" ? createElement("span", { className: cls }, children) : children);
 
+/** The body of a reply being written. Before its first word, while the activity line says what the agent is doing, it draws nothing: the line takes that spot and there is no lone caret on an empty line. */
+export function LiveBody({ store, hideEmpty, testID, style }: { store: StreamStore; hideEmpty: boolean; testID: string; style: object }): ReactElement | null {
+  const snap = useStream(store);
+  if (hideEmpty && snap.blocks.length === 0 && !snap.done) return null;
+  return <View testID={testID} style={style}><StreamText store={store} /></View>;
+}
+
 export function ActivityLine({ store, stream }: { store: ActivityStore; stream?: StreamStore | undefined }): ReactElement {
   ensureCss();
   const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
@@ -44,7 +51,7 @@ export function ActivityLine({ store, stream }: { store: ActivityStore; stream?:
   const state = snap.done ? "done" : words ? "writing" : "thinking";
   const text = clock === "" ? line.label : `${line.label} · ${clock}`;
   const rows: ReactElement[] = [];
-  for (const s of snap.steps) rows.push(<Text key={s.id} testID={`activity-step-${s.id}`} style={st.step}>{`${s.state === "live" ? "•" : s.state === "failed" ? "×" : "✓"}  ${s.name !== "" ? stepWords(s.name) : "A step"}`}</Text>);
+  for (const s of snap.steps) rows.push(<Text key={s.id} testID={`activity-step-${s.id}`} style={st.step}>{`${s.state === "live" ? "•" : s.state === "failed" ? "×" : "✓"}  ${s.name !== "" ? stepLabel(s.name, s.detail) : "A step"}`}</Text>);
   const thought = thinkingExcerpt(snap.thinking, 420);
   const inner = (
     <View testID="activity" accessibilityLiveRegion="polite" style={st.root}>

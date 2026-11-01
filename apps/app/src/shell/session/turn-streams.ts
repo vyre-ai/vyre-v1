@@ -20,7 +20,7 @@ export interface LiveTurn {
 }
 
 /** What a turn is doing right now, from the host's step and thinking frames: for the live line under a reply being written. Never persisted, never logged. */
-export interface ActivityStep { id: string; name: string; state: "live" | "done" | "failed" }
+export interface ActivityStep { id: string; name: string; state: "live" | "done" | "failed"; /** what it touches, from the host in safe words ("model.ts", "stream pacing") */ detail?: string }
 export interface ActivitySnapshot { startedAt: number; thinking: string; steps: readonly ActivityStep[]; version: number; /** the turn has ended: the mark settles */ done?: boolean }
 export interface ActivityStore { get(): ActivitySnapshot; subscribe(l: () => void): () => void }
 
@@ -177,7 +177,8 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         } else {
           const id = str(d["id"]), name = str(d["name"]);
           if (id === "") return;
-          if (d["phase"] === "call") touchAct(turnId, (s) => (s.steps.some((x) => x.id === id) ? s : { ...s, steps: [...s.steps, { id, name, state: "live" as const }] }));
+          if (d["phase"] === "input") { const detail = str(d["detail"]); if (detail !== "") touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, detail } : x)) })); }
+          else if (d["phase"] === "call") touchAct(turnId, (s) => (s.steps.some((x) => x.id === id) ? s : { ...s, steps: [...s.steps, { id, name, state: "live" as const }] }));
           else touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, state: d["ok"] === false ? ("failed" as const) : ("done" as const) } : x)) }));
         }
         return;
