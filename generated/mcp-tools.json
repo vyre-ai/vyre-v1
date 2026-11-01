@@ -46349,7 +46349,7 @@
       "blocks": [],
       "cap": "settings.pages",
       "deferred": false,
-      "description": "The ten settings pages in their two groups (named after the Space, and Everywhere) with row counts",
+      "description": "The settings pages a person has, with row counts",
       "effects": "read",
       "inputSchema": {
         "properties": {},
