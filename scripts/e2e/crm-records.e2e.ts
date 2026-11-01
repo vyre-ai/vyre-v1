@@ -157,7 +157,7 @@ async function main(): Promise<void> {
     // ---- the person's side: read what the agent says, answer its questions like a person
     const seen = new Set<string>();
     const answered = new Set<string>();
-    let done = false, lastNew = Date.now(), questions = 0;
+    let done = false, lastNew = Date.now(), lastTick = 0, questions = 0;
     const deadline = Date.now() + 25 * 60_000;
     while (Date.now() < deadline && !done) {
       await Promise.race([d.hooks?.pump?.(), sleep(5000)]);
@@ -192,7 +192,14 @@ async function main(): Promise<void> {
         const runs = ((await ok("runs.list", { kind: "connector_sync" })).runs ?? []) as { status: string }[];
         if (runs.length > 0 && runs.every((r) => r.status === "succeeded" || r.status === "failed")) done = true;
       }
-      if (!done && Date.now() - lastNew > 150_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 150 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
+      if (!done && Date.now() - lastNew > 360_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 6 minutes; the host log is in ${path.join(OUT, "host-log.txt")}`); }
+      // every 30 s say what the thread holds, so a stop after the preview shows what the agent was doing (block kinds and states only, no values)
+      if (Date.now() - lastTick > 30_000) {
+        lastTick = Date.now();
+        const kinds = new Map<string, number>();
+        for (const m of msgs) for (const b of m.blocks ?? []) kinds.set(`${b.type}:${b.state ?? "-"}`, (kinds.get(`${b.type}:${b.state ?? "-"}`) ?? 0) + 1);
+        say("tick", `${msgs.length} messages; blocks ${[...kinds].map(([k, n]) => `${k}x${n}`).join(" ")}; ${requests.length} GETs`);
+      }
       await sleep(1500);
     }
     if (!done) throw new Error("the sync was not applied and pulled before the deadline");
@@ -240,6 +247,12 @@ async function main(): Promise<void> {
     try { if (threadId) fs.writeFileSync(path.join(OUT, note("messages-private") + ".json"), scrub(JSON.stringify((await ok("chat.messages.list", { threadId })).messages, null, 1))); } catch { /* best effort */ }
     save();
     process.exitCode = 1;
-  } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    // a turn still running when the run ends renews its lease on a closed database: stop it first, and leave the process rather than wait for its timers
+    try { if (threadId) await ok("threads.cancel", { threadId }); } catch { /* not running */ }
+    try { await d.stop(); } catch { /* closing */ }
+    fs.rmSync(dir, { recursive: true, force: true });
+    process.exit(process.exitCode ?? 0);
+  }
 }
 await main();

@@ -444,3 +444,21 @@ test("connectors.read runs a list and refuses an action that writes", async () =
     await assert.rejects(read("update_people"), (e: any) => e.error?.code === "validation.bad_input");
   } finally { await w.close(); }
 });
+
+test("an asker who cannot set the audience: apply refuses in plain words, imports nothing and leaves no type, connector or connection behind", async () => {
+  const w = await boot("team");
+  try {
+    const refusing = w.ctx.call;
+    w.ctx.call = async (cap: string, input: unknown) => {
+      if (cap === "access.audience_set") throw { error: { code: "permission.no_grant", message: "changing who it is open to needs manage on this" } };
+      return refusing(cap, input);
+    };
+    const spec = JSON.parse(JSON.stringify(ledgerSpec())) as any;
+    spec.plan.audience = "added";
+    await assert.rejects(w.hs["sync_specs.apply"](w.ctx, { spec, idempotencyKey: "nope" }), (e: any) => e.error?.code === "permission.no_grant" && /Nothing was brought in/.test(e.error.message));
+    const types = ((await w.schema.handlers["schema.describe"]({ trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: () => undefined, actor: "usr_dana" } as never, {})) as { types: { key: string }[] }).types.map((t) => t.key);
+    assert.ok(!types.includes("person") && !types.includes("org"), "no record type left behind");
+    assert.equal(w.schema.tx.get("SELECT 1 AS x FROM cn_connections WHERE connector = 'crm_ledger'"), undefined, "no connection");
+    assert.equal(w.schema.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = 'crm_ledger'"), undefined, "no connector");
+  } finally { await w.close(); }
+});
