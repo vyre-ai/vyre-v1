@@ -7,30 +7,14 @@ import { orbitSpec } from "../modules/connectors/fixtures/crm.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-test("journey 3, Team: an admin asks in chat, the app is told where to call, a call starts a pass at once, the person narrows who the types are open to", async () => {
+test("journey 3, Team: an admin asks in chat, the app is told where to call, a call starts a pass at once, the types are open to people added only from the first moment", async () => {
   const s = await startSpace({ kind: "team", name: "Firm", address: "https://firm.example" });
   try {
     await session(s, "team", async (page) => {
-      const known = (h: string) => ledgerKnow(h, { webhook: true, audience: "added" });
-      // the assistant holds edit, not the right to choose who a type is open to: the apply stops, says why, and brings in nothing (no fallback to the whole Space)
-      const first = await chatSetup(s, known);
-      await until("the agent says why", async () => /Nothing was brought in/.test(await agentSaid(s, first.threadId)), 60_000);
-      assert.deepEqual(await rows(s, "person").catch(() => []), [], "no person was imported");
-      assert.equal(s.crm.c.state.requests.filter((r) => r.path.startsWith("/api/v2/people")).length > 0, true, "the agent only read to propose");
-      assert.ok(!(await ok(s, "sync_types.list", {})).syncedTypes.some((t: { type: string }) => t.type === "person"), "nothing was bound");
-      assert.deepEqual(((await ok(s, "connectors.list", {})).connectors as { key: string }[]).filter((c) => c.key === "crm_ledger"), [], "no connector was left behind");
-      assert.deepEqual((await ok(s, "connections.list", {})).connections, [], "no connection was left behind");
-      assert.ok(!((await ok(s, "schema.describe", {})).types as { key: string }[]).some((t) => t.key === "person" || t.key === "org"), "no record type was left behind");
-      // the person themself (an admin who can manage the types) brings it in with the same choice: the types are open to people added from the first moment, before anyone is imported
-      const { ledgerSpec } = await import("../modules/connectors/fixtures/crm.ts");
-      const spec = withHandle(ledgerSpec(), first.item.handle) as { objects: { remote: string; webhook?: unknown }[]; plan: Record<string, unknown> };
-      spec.objects.find((o) => o.remote === "people")!.webhook = { events: ["person.updated"], subscribePath: "/api/v2/webhooks", evidence: "https://docs.crm-a.test/webhooks" };
-      spec.plan["audience"] = "added";
-      await ok(s, "sync_specs.apply", { spec, idempotencyKey: "j3-person-apply" });
-      assert.equal((await ok(s, "access.shares_of", { resource: { type: "record_type", id: "person" } })).audience, "added");
-      assert.equal((await ok(s, "access.shares_of", { resource: { type: "record_type", id: "org" } })).audience, "added");
-      assert.deepEqual(await rows(s, "person").catch(() => []), [], "set before anyone was imported");
+      // an admin asks in chat with the choice "people added only": the assistant makes the types for them, so it may narrow them, and the types are narrow from the first moment
+      await chatSetup(s, (h) => ledgerKnow(h, { webhook: true, audience: "added" }));
       await until("people arrive", async () => (await rows(s, "person").catch(() => [])).length === 4, 60_000);
+      for (const type of ["person", "org"]) assert.equal((await ok(s, "access.shares_of", { resource: { type: "record_type", id: type } })).audience, "added", `${type} is open to people added only`);
       // telling the app where to call is a write to it, so the first pass a person runs makes the call (the agent's own passes would only wait at the Gate)
       await afterPass(s, "person");
       await until("the Space registered its address with the app", async () => s.crm.c.state.webhooks.length >= 1);
