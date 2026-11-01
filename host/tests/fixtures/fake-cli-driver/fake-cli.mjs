@@ -154,6 +154,35 @@ async function slow(prompt) {
   out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: n } });
 }
 
+/**
+ * "think <ms>": a reply that works before it speaks, the way a real one does: it thinks (thinking deltas), reads a file (a Read tool call and its result), thinks again, reads another, then answers in words.
+ * The line under the reply must say so while it happens, and "Worked for N s" must stay under the finished reply.
+ */
+async function think(prompt) {
+  const m = /^\s*think\s+(\d+)/.exec(prompt);
+  const ms = m ? Number(m[1]) : 600;
+  const wait = (n) => new Promise((res) => setTimeout(res, n));
+  init();
+  const mid = `m_think_${process.pid}_${Date.now()}`;
+  out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
+  const thought = async (text) => { for (const w of text.split(" ")) { out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: `${w} ` } } }); await wait(60); } };
+  await thought("I should look at the notes first and then compare them with the plan.");
+  await wait(ms);
+  out({ type: "stream_event", event: { type: "content_block_start", index: 1, content_block: { type: "tool_use", id: `toolu_a_${process.pid}`, name: "Read" } } });
+  await wait(ms * 2);
+  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_a_${process.pid}`, content: "ok" }] } });
+  await thought("That covers the first part, now the second file.");
+  out({ type: "stream_event", event: { type: "content_block_start", index: 2, content_block: { type: "tool_use", id: `toolu_b_${process.pid}`, name: "WebSearch" } } });
+  await wait(ms * 2);
+  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_b_${process.pid}`, content: "ok" }] } });
+  await wait(ms);
+  const words = ["The", "notes", "agree", "with", "the", "plan."];
+  for (const w of words) { out({ type: "stream_event", event: { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: `${w} ` } } }); await wait(120); }
+  const full = words.map((w) => `${w} `).join("");
+  out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: words.length } } });
+  out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
+}
+
 /** "askhold <ms> <json>": asks the question over MCP (ask_question), then keeps its turn open for <ms> as a model does while it finishes its sentence, and only then ends it. */
 async function askHold(prompt) {
   const m = /^\s*askhold\s+(\d+)\s+(.*)$/s.exec(prompt);
@@ -204,6 +233,7 @@ async function run(raw) {
   const holdLine = prompt.split("\n").reverse().find((l) => /^askhold\s+\d+/.test(l));   // the instruction may follow other lines the person's messages brought
   if (holdLine) { await askHold(holdLine.trim()); return; }
   if (first === "slow") { await slow(prompt.trim()); return; }
+  if (first === "think") { await think(prompt.trim()); return; }
   switch (first) {
     case "hello": reply(["Hello", " from the fake engine."]); break;
     case "envcheck": {

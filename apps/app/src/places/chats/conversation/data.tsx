@@ -69,6 +69,8 @@ export interface ConversationData {
   newKey(): string;
   /** The stream of a message that is still being written; none once it is complete. A row id `turn:<id>` is a reply that has no saved message yet. */
   streamOf(messageId: string): StreamStore | undefined;
+  /** What the turn behind a reply being written is doing (steps, thinking): the live line under it. Absent where nothing streams. */
+  activityOf?(rowId: string): import("../../../shell/session/turn-streams.ts").ActivityStore | undefined;
   /** Put bytes at a one-time upload address (files.upload_url). Left out where the shell cannot: a large file is then refused with a clear line. */
   putBlob?(url: string, bytes: Uint8Array): Promise<void>;
   /** Hand the person a file: a download in the browser, a save sheet on a phone. Left out: the text is copied instead. */

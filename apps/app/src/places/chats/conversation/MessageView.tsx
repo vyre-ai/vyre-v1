@@ -9,6 +9,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
+import { ActivityLine } from "./ActivityLine.tsx";
 import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
@@ -73,6 +74,8 @@ export interface MessageActions {
   makeTask?(messageId: string): void;
   /** Share this message to a channel or a person: opens the list of places at the point given. */
   share?(messageId: string, x: number, y: number): void;
+  /** What the turn behind a reply being written is doing: the live line under it (steps, thinking). */
+  activityOf?(rowId: string): import("../../../shell/session/turn-streams.ts").ActivityStore | undefined;
   /** The chat has two or more people in it: an agent's answer is for all of them, and carries the buttons that turn it into work (Make task, Remember). */
   withPeople?: boolean;
   /** A person's or agent's name for an id; a plain word where there is none. */
@@ -319,6 +322,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         </Fold>
       ) : null}
       {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink ? { renderLink: subjects.renderLink } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
+      {stream && !stream.getSnapshot().done && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} />}
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}

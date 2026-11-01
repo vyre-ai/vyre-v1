@@ -1,0 +1,1 @@
+- The chat's static Working is a live line under the reply: Thinking with the last of its thinking, then the real steps (Reading, Searching the web, Running a command), with a soft crossfade and a calm mark; press it for the trail. The finished reply folds its steps into Worked for N s. The header keeps a small dot. Reduced motion stops the animation.

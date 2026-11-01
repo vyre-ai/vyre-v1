@@ -145,3 +145,26 @@ test("text so far (a chat opened mid-turn) is shown at once, not paced", () => {
   s.seed("thr_a", [{ turnId: "trn_s", agentId: "agt_x", text: "already written so far" }]);
   assert.deepEqual(pushes, ["already written so far"]);
 });
+
+test("step and thinking frames build what the turn is doing, in order, and are gone with the turn", () => {
+  const t = timers();
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear });
+  s.onFrame(f("trn_a", { kind: "start" }));
+  const act = s.activityOf(turnRowId("trn_a"))!;
+  let heard = 0;
+  act.subscribe(() => heard++);
+  s.onFrame(f("trn_a", { kind: "thinking", text: "Let me look " }));
+  s.onFrame(f("trn_a", { kind: "thinking", text: "at the file." }));
+  s.onFrame(f("trn_a", { kind: "step", phase: "call", id: "t1", name: "Read" }));
+  assert.equal(act.get().thinking, "Let me look at the file.");
+  assert.deepEqual(act.get().steps, [{ id: "t1", name: "Read", state: "live" }]);
+  s.onFrame(f("trn_a", { kind: "step", phase: "result", id: "t1", name: "Read", ok: true }));
+  s.onFrame(f("trn_a", { kind: "step", phase: "call", id: "t2", name: "Bash" }));
+  s.onFrame(f("trn_a", { kind: "step", phase: "result", id: "t2", ok: false }));
+  assert.deepEqual(act.get().steps.map((x) => x.state), ["done", "failed"]);
+  assert.ok(heard >= 5, "each change tells the line");
+  s.onFrame(f("trn_a", { kind: "step", phase: "call", id: "t1", name: "Read" }));
+  assert.equal(act.get().steps.length, 2, "a repeated call frame adds nothing");
+  s.onFrame(f("trn_a", { kind: "final", messageId: null }));
+  assert.equal(s.activityOf(turnRowId("trn_a")), undefined, "gone with the turn");
+});
