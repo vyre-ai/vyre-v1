@@ -68,24 +68,23 @@ export function AskBox(): ReactElement {
           )}
         </View>
         <View style={local.box}>
+          <Composer
+            testID="ask-box"
+            whoWillAnswer={`${picked.name} will reply`}
+            hideWho
+            symbols={["at", "hash"]}
+            placeholder={ASK_PLACEHOLDER}
+            label="Ask your assistant"
+            lead={picked.name}
+            density="compact"
+            onSubmit={send}
+          />
           {locked ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={ASK_LOCKED} onPress={() => extras.go("ai")} testID="ask-locked" style={({ hovered }: { hovered?: boolean }) => [local.lock, hovered === true && local.lockOver]}>
-              <Icon name="lock" size={14} />
+            <Pressable accessibilityRole="button" accessibilityLabel={ASK_LOCKED} onPress={() => extras.go("ai")} testID="ask-locked" style={({ hovered }: { hovered?: boolean }) => [local.connect, hovered === true && local.lockOver]}>
+              <Icon name="lock" size={12} />
               <Text style={local.lockText}>{ASK_LOCKED}</Text>
             </Pressable>
-          ) : (
-            <Composer
-              testID="ask-box"
-              whoWillAnswer={`${picked.name} will reply`}
-              hideWho
-              symbols={["at", "hash"]}
-              placeholder={ASK_PLACEHOLDER}
-              label="Ask your assistant"
-              lead={picked.name}
-              density="compact"
-              onSubmit={send}
-            />
-          )}
+          ) : null}
         </View>
       </View>
     </View>
@@ -102,7 +101,8 @@ const local = StyleSheet.create({
   box: { flex: 1, minWidth: 0 },
   lock: { height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
   lockOver: { backgroundColor: "var(--hover)" as string },
-  lockText: { fontSize: 13.5, color: "var(--ink-3)" as string },
+  lockText: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  connect: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
 });
 
 /** The dock the page keeps at its foot (sticky on web); exported for the test. */
