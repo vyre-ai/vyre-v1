@@ -282,6 +282,8 @@ export async function recordFilesFolder(ctx: ProjectsCtx, given: { type?: string
   const key = `record-files:${input.recordId}`;
   const made = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: home, name, idempotencyKey: key }, { idempotencyKey: key })).folder.folderId;
   ctx.db.run("INSERT OR REPLACE INTO projects_record_files (record_id, folder_id) VALUES (?, ?)", input.recordId, made);
+  // the folder follows the record's access, so a deal set apart takes its files with it
+  await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: made }, follows: input.recordId }, {});
   await syncAccess(ctx, input.type, input.recordId, made, by, fields);
   return { folderId: made };
 }

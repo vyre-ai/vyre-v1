@@ -633,11 +633,23 @@ function addGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, subject: 
   ctx.emit("grant.created", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, level: g.level, source: AUDIENCE_SOURCE });
 }
 
-export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean }) {
+export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean; follows?: string }) {
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
   const res = resourceOf(ctx, store, input.resource);
+  if (input.follows !== undefined) {
+    // a record's Files folder hangs under the record, so it is open to exactly who may see the record, and goes with it when the record is set apart
+    if (res.type !== "folder") raise(trace, "validation.bad_input", "only a Files folder can follow a record");
+    const rec = store.resources.get(input.follows);
+    if (!rec || rec.type !== "record") raise(trace, "validation.not_found", "no such record");
+    must(ctx, store, res, "manage", "attaching the folder to its record");
+    const wasFresh = isFresh(ctx, store, ss);
+    res.parentId = rec.id;
+    changed(ctx, store, "assignment");
+    commit(ctx, store, ss, false && wasFresh, [res.id], false);
+    return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
+  }
   if (!RECORDS.has(res.type)) raise(trace, "validation.bad_input", "who it is open to is set on a record type or a record");
   must(ctx, store, res, "manage", "changing who it is open to");
   if ((input.exporters !== undefined || input.outside !== undefined) && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export and links outside the Space are set on the record type");

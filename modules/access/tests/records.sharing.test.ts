@@ -200,3 +200,19 @@ test("links outside the Space are off for a type until its sheet turns them on",
   assert.equal((await audienceSet(r.ctx, { resource: deal, outside: false })).outside, false);
   assert.equal(await code(audienceSet(r.ctx, { resource: one, outside: true })), "validation.bad_input", "a type setting, not a record's");
 });
+
+test("a record's Files folder follows its record: who cannot see the record cannot open the folder, and it goes with the record when it is set apart", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", { id: "fld_deal", type: "folder", parentId: "spc_test", label: "public", ownerId: "usr_ada", holds: 0, row: { name: "Acme files", itemType: "file", scope: "space" } });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  assert.ok(r.can("usr_dee", folder), "a Space folder is open to the Space until it follows a record");
+  await audienceSet(r.ctx, { resource: folder, follows: "rec_one" });
+  assert.ok(r.can("usr_dee", folder), "it follows rec_one, which follows the Space");
+  await audienceSet(r.ctx, { resource: deal, audience: "added" });
+  await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view" });
+  assert.ok(!r.can("usr_dee", folder) && r.can("usr_cal", folder), "Dee was not added, Cal was");
+  await audienceSet(r.ctx, { resource: one, audience: "me" });
+  assert.ok(!r.can("usr_cal", folder) && r.can("usr_ada", folder), "the record is Only me, so is its folder");
+  assert.equal(await code(audienceSet(r.ctx, { resource: one, follows: "rec_two" })), "validation.bad_input");
+});

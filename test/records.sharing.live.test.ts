@@ -4,7 +4,7 @@
 // at once. The model stand-in turns "TOOL <name> <json>" into a real tool call, run as the person who asked.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boot, call, hostLog, seededDir } from "./memory-live-kit.ts";
+import { boot, call, connect, hostLog, seededDir, waitFor } from "./memory-live-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 const PASSWORD = "correct horse battery staple 9";
@@ -34,6 +34,7 @@ async function join(d: Daemon, owner: ReturnType<typeof as>, roleId: string, use
 test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee sees nothing; Cal exports once allowed; one deal goes Only me", async () => {
   const d = await boot(seededDir());
   try {
+    await connect(d);
     const everyone = (await call(d, "access.principals.list", {})).data.principals as Array<{ id: string; kind: string; roles: string[] }>;
     const ada: Person = { id: everyone.find((p) => p.kind === "person" && p.roles.includes("rol_owner") || p.roles.includes("rol_admin"))!.id, token: d.token!, name: "Ada" };
     const A = as(d, ada);
@@ -43,6 +44,17 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     const cal = await join(d, A, member, "cal", "Cal Cruz");
     const dee = await join(d, A, member, "dee", "Dee Dunn");
     const B = as(d, bea), C = as(d, cal), D = as(d, dee);
+
+    // a Space account in a Shared Vault folder, so every member's turn can run on it (the model vendor is the stand-in)
+    const sharedFolder = await A("vault.folders.create", { name: "Space accounts", scope: "shared" });
+    assert.equal(sharedFolder.status, 200, JSON.stringify(sharedFolder.data));
+    assert.equal((await A("access.share", { resource: { type: "vault_folder", id: sharedFolder.data.folder.id }, subject: { kind: "group", id: "grp_everyone" }, level: "use" })).status, 200, "the members may use the folder's accounts");
+    const account = await A("providers.add", { providerKey: "anthropic", connection: "api_key", apiKey: "sk-ant-api03-TESTsecretVALUE0123456789abcdefXYZ", scope: "shared", folderId: sharedFolder.data.folder.id });   // secret-scan: fake
+    assert.equal(account.status, 200, JSON.stringify(account.data));
+    const listed = (await D("providers.list")).data.providers as Array<{ id: string; state?: string }>;
+    assert.ok(listed.some((p) => p.id === account.data.provider.id), `a member sees the Space account: ${JSON.stringify(listed).slice(0, 200)}`);
+    const handle = (account.data.provider.handle ?? account.data.provider.itemId) as string;
+    assert.equal((await A("providers.set_space_use", { providerId: account.data.provider.id, allow: true })).status, 200);
 
     // Deals, three of them
     const made = await A("schema.apply", { ops: [{ op: "type.create", type: "rt_deal", def: { title: "Deal", plural: "Deals", icon: "invoice", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "stage", type: "text", title: "Stage" }] } }] });
@@ -68,7 +80,7 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     // Ada sets Only people added and adds Bea as Can edit and Cal as Can view
     const set = await A("access.audience_set", { resource: deal, audience: "added" });
     assert.equal(set.status, 200, JSON.stringify(set.data));
-    assert.deepEqual(set.data, { audience: "added", exporters: "admins" });
+    assert.deepEqual(set.data, { audience: "added", exporters: "admins", outside: false });
     assert.equal((await A("access.share", { resource: deal, subject: { kind: "person", id: bea.id }, level: "edit" })).status, 200);
     assert.equal((await A("access.share", { resource: deal, subject: { kind: "person", id: cal.id }, level: "view" })).status, 200);
 
@@ -97,6 +109,34 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     assert.ok(((await C("schema.types.list")).data.types as Array<{ key: string }>).some((t) => t.key === "rt_deal"), "Cal sees the type");
     assert.ok(((await A("schema.types.list")).data.types as Array<{ key: string }>).some((t) => t.key === "rt_deal"), "Ada sees the type");
 
+    // a real chat turn for Dee: her agent runs a real tool call as her, and finds nothing; Bea's agent, asked the same, finds the deals
+    const sayAs = async (who: Person, agentId: string, body: string): Promise<string> => {
+      const ask = as(d, who);
+      const started = await ask("chat.start", { kind: "chat", agentIds: [agentId] });
+      assert.equal(started.status, 200, JSON.stringify(started.data));
+      const threadId = started.data.thread.threadId as string;
+      assert.equal((await ask("chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }] })).status, 200);
+      return waitFor(async () => {
+        await d.hooks?.pump?.();
+        const r = await ask("chat.messages.list", { threadId });
+        return (r.data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined)?.find((x) => x.author?.kind === "agent" && (x.body ?? "") !== "")?.body ?? null;
+      }, 40_000, () => hostLog(d));
+    };
+    const deeAgent = (await D("agents.create", { name: "Dee helper", role: "You answer questions." })).data.agent.agentId as string;
+    const pin = await D("agents.update", { agentId: deeAgent, patch: { accountPolicy: "key", accountKey: handle } });
+    assert.equal(pin.status, 200, JSON.stringify(pin.data));
+    const beaAgent = (await B("agents.create", { name: "Bea helper", role: "You answer questions." })).data.agent.agentId as string;
+    assert.equal((await B("agents.update", { agentId: beaAgent, patch: { accountPolicy: "key", accountKey: handle } })).status, 200);
+    // both agents are added to the Deals sheet like people, so the only difference left is whose access they act with
+    for (const agentId of [deeAgent, beaAgent]) assert.equal((await A("access.share", { resource: deal, subject: { kind: "agent", id: agentId }, level: "edit" })).status, 200);
+    for (const [tool, input] of [["records_query", { type: "rt_deal" }], ["records_get", { type: "rt_deal", recordId: deals["Acme renewal"] }], ["search_query", { q: "Acme" }], ["schema_describe", {}], ["schema_map", {}]] as const) {
+      const reply = await sayAs(dee, deeAgent, `TOOL ${tool} ${JSON.stringify(input)}`);
+      assert.doesNotMatch(reply, /Acme renewal|Birch lease|Cedar upsell|Dune expansion|rt_deal/, `${tool} through Dee's agent: ${reply.slice(0, 300)}`);
+    }
+    const beaReply = await sayAs(bea, beaAgent, `TOOL records_query ${JSON.stringify({ type: "rt_deal" })}`);
+    assert.match(beaReply, /TOOL RESULT ok/, beaReply);
+    assert.match(beaReply, /Birch lease/);
+
     // her agent acts with her access and no more (the unit test in modules/access proves the agent leg), so global search for Dee is the same wall
     const dSearch = "search.query";
     const found = await D(dSearch, { q: "Acme" });
@@ -123,6 +163,23 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
       if (r.status === 200 && /rt_deal|Acme|Birch|Cedar|Dune|\bDeals?\b/.test(JSON.stringify(r.data))) leaks.push(`${cap} ${JSON.stringify(input).slice(0, 60)} -> ${JSON.stringify(r.data).slice(0, 160)}`);
     }
     assert.deepEqual(leaks, [], "Dee sees nothing of Deals anywhere");
+
+    // the deal's folder in Files follows the deal: Dee cannot find it by id, in the tree, in Shared with me or in search
+    const folderMade = await A("projects.files_folder", { type: "rt_deal", recordId: rec });
+    assert.equal(folderMade.status, 200, JSON.stringify(folderMade.data));
+    const dealFolder = folderMade.data.folderId as string;
+    assert.ok(dealFolder);
+    assert.equal((await A("files.create", { folderId: dealFolder, name: "Acme-contract-secret.txt", content: { text: "Acme renewal terms" } })).status, 200);
+    for (const [cap, input] of [["files.folder.get", { folderId: dealFolder }], ["files.list", { folder: dealFolder }], ["files.list", { section: "shared" }], ["files.list", { section: "space" }], ["search.query", { q: "Acme-contract-secret" }], ["search.query", { q: "Acme renewal terms" }], ["files.tree", {}], ["projects.files_folder", { type: "rt_deal", recordId: rec, create: false }], ["access.lists", { type: "file", section: "shared" }], ["access.lists", { type: "folder", section: "space" }]] as const) {
+      const r = await D(cap, input as never);
+      assert.ok(r.status !== 200 || !/Acme|rt_deal/.test(JSON.stringify(r.data)), `${cap} shows Dee the deal's folder: ${JSON.stringify(r.data).slice(0, 200)}`);
+    }
+    assert.notEqual((await D("files.list", { folder: dealFolder })).status, 200, "the folder is refused to Dee");
+    assert.equal((await C("files.list", { folder: dealFolder })).status, 200, "Cal, who can view the deal, can open its folder");
+
+    // MCP and agent tool descriptions: what an agent is told it can use names no hidden type or record
+    const desc = await D("schema.describe", {});
+    assert.ok(!JSON.stringify(desc.data).includes("rt_deal"));
 
     // one deal is Only me before the export, so the export has a row Cal cannot see
     assert.equal((await A("access.audience_set", { resource: { type: "record", id: deals["Cedar upsell"] }, audience: "me" })).status, 200);
