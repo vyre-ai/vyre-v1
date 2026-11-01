@@ -322,7 +322,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         </Fold>
       ) : null}
       {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink ? { renderLink: subjects.renderLink } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
-      {stream && !stream.getSnapshot().done && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} /> : null}
+      {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} />}
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}

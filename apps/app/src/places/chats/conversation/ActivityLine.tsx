@@ -6,42 +6,50 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ActivityStore } from "../../../shell/session/turn-streams.ts";
 import { activityLine, elapsedWords, stepWords, thinkingExcerpt } from "./activity.ts";
+import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
+import { injectCss } from "../../../../../../ui/src/theme/css.ts";
+import { useStream } from "../../../../../../ui/src/stream/useStream.ts";
+import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
+import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 
-const CSS = `
-@keyframes vy-shimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
-@keyframes vy-fade { from { opacity: 0; transform: translateY(2px) } to { opacity: 1; transform: none } }
-@keyframes vy-breathe { 0%, 100% { opacity: .35; transform: scale(.85) } 50% { opacity: 1; transform: scale(1) } }
-.vy-shimmer { background: linear-gradient(90deg, var(--ink-3) 0%, var(--ink) 50%, var(--ink-3) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: vy-shimmer 2.6s linear infinite; }
-.vy-fade { animation: vy-fade 220ms ease-out; display: inline-block; white-space: nowrap; padding-right: 1px; }
-.vy-breathe { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: vy-breathe 1.8s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .vy-shimmer { animation: none; background: none; -webkit-text-fill-color: currentColor; } .vy-fade { animation: none } .vy-breathe { animation: none; opacity: .8 } }
-`;
-let injected = false;
+const CSS = [
+  "@keyframes vy-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}",
+  "@keyframes vy-fade{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}",
+  ".vy-shimmer{background:linear-gradient(90deg,var(--ink-3) 0%,var(--ink) 50%,var(--ink-3) 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:vy-shimmer 2.6s linear infinite}",
+  ".vy-fade{animation:vy-fade 220ms ease-out;display:inline-block;white-space:nowrap;padding-right:1px}",
+  ".vy-done-wrap{overflow:hidden;animation:vy-out 600ms ease-in 500ms 1 forwards}",
+  "@keyframes vy-out{to{opacity:0;max-height:0;margin-top:0}}",
+  "@media (prefers-reduced-motion:reduce){.vy-shimmer{animation:none;background:none;-webkit-text-fill-color:currentColor}.vy-fade{animation:none}.vy-done-wrap{animation:none}}",
+].join("\n");
 function ensureCss(): void {
-  if (injected || Platform.OS !== "web" || typeof document === "undefined") return;
-  injected = true;
-  try { const el = document.createElement("style"); el.setAttribute("data-vyre", "activity"); el.textContent = CSS; document.head.appendChild(el); } catch { /* a page that will not take a style gets the plain line */ }
+  if (Platform.OS !== "web") return;
+  injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-chat-activity", CSS);
 }
+
+const NO_STREAM = createStreamStore();
 
 const web = (cls: string, children: string): ReactElement | string => (Platform.OS === "web" ? createElement("span", { className: cls }, children) : children);
 
-export function ActivityLine({ store }: { store: ActivityStore }): ReactElement {
+export function ActivityLine({ store, stream }: { store: ActivityStore; stream?: StreamStore | undefined }): ReactElement {
   ensureCss();
   const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [now, setNow] = useState(() => Date.now());
   const [open, setOpen] = useState(false);
+  const words = useStream(stream ?? NO_STREAM).blocks.length > 0;
   useEffect(() => { const h = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(h); }, []);
   const secs = Math.max(0, Math.round((now - snap.startedAt) / 1000));
   const line = activityLine(snap);
-  const clock = elapsedWords(secs);
+  const clock = snap.done ? "" : elapsedWords(secs);
+  const stepSig = snap.steps.map((s) => `${s.id}${s.state[0]}`).join(",");
+  const state = snap.done ? "done" : words ? "writing" : "thinking";
   const text = clock === "" ? line.label : `${line.label} · ${clock}`;
   const rows: ReactElement[] = [];
   for (const s of snap.steps) rows.push(<Text key={s.id} testID={`activity-step-${s.id}`} style={st.step}>{`${s.state === "live" ? "•" : s.state === "failed" ? "×" : "✓"}  ${s.name !== "" ? stepWords(s.name) : "A step"}`}</Text>);
   const thought = thinkingExcerpt(snap.thinking, 420);
-  return (
+  const inner = (
     <View testID="activity" accessibilityLiveRegion="polite" style={st.root}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${text}. ${open ? "Hide" : "Show"} what it is doing`} testID="activity-line" onPress={() => setOpen((o) => !o)} style={st.row}>
-        {Platform.OS === "web" ? createElement("span", { className: "vy-breathe", "aria-hidden": true }) : <View style={st.dot} />}
+        <WorkingMark state={state} step={stepSig} size={16} testID="working-mark" />
         <Text style={st.label} key={line.label}>{web("vy-shimmer vy-fade", text)}</Text>
         {line.detail !== "" ? <Text numberOfLines={1} testID="activity-excerpt" style={st.detail}>{line.detail}</Text> : null}
       </Pressable>
@@ -53,6 +61,7 @@ export function ActivityLine({ store }: { store: ActivityStore }): ReactElement 
       ) : null}
     </View>
   );
+  return Platform.OS === "web" ? createElement("div", { className: snap.done ? "vy-done-wrap" : undefined }, inner) : inner;
 }
 
 const st = StyleSheet.create({

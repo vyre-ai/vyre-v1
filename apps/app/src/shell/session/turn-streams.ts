@@ -21,7 +21,7 @@ export interface LiveTurn {
 
 /** What a turn is doing right now, from the host's step and thinking frames: for the live line under a reply being written. Never persisted, never logged. */
 export interface ActivityStep { id: string; name: string; state: "live" | "done" | "failed" }
-export interface ActivitySnapshot { startedAt: number; thinking: string; steps: readonly ActivityStep[]; version: number }
+export interface ActivitySnapshot { startedAt: number; thinking: string; steps: readonly ActivityStep[]; version: number; /** the turn has ended: the mark settles */ done?: boolean }
 export interface ActivityStore { get(): ActivitySnapshot; subscribe(l: () => void): () => void }
 
 const THINKING_KEPT = 1_200;
@@ -205,6 +205,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         if (!t || t.state === "ended") return;
         showAll(t);
         t.store.end();
+        if (acts.has(turnId)) touchAct(turnId, (s) => ({ ...s, done: true }));
         turns.set(turnId, { ...t, state: "ended" });
         arm(turnId, settleMs);
         tell(threadId);

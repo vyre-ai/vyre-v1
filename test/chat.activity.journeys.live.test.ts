@@ -55,7 +55,7 @@ test("a reply being written says what the agent is doing, from its real steps an
 
     // the reply arrives and the line goes; the finished reply keeps "Worked for N s" with the steps
     await me.page.getByText(/The notes agree with the plan/).first().waitFor({ timeout: 30_000 });
-    await me.page.getByTestId("activity").waitFor({ state: "detached", timeout: 10_000 });
+    await me.page.getByTestId("activity").waitFor({ state: "hidden", timeout: 10_000 });   // the mark settles and fades away
     const fold = me.page.locator('[data-testid^="work-"]').first();
     await fold.waitFor({ timeout: 10_000 });
     assert.match(await fold.innerText(), /Worked/);
