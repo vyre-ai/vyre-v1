@@ -36,3 +36,16 @@ test("any other failure is not waited on", async () => {
   await assert.rejects(h.source.lookup("#Claude_Code.setup_token", who), (e: { code?: string }) => e.code === "engine.vault_unreadable");
   assert.deepEqual(slept, []);
 });
+
+test("a field that is not in the item, or an item that is gone, is said in plain words and logged by field name (never a value); it is not a locked Vault", async () => {
+  const logs: Array<[string, Record<string, unknown> | undefined]> = [];
+  const h = createEngineSessionHost({
+    invoke: (async () => { throw Object.assign(new Error("This item has no field setup_token."), { code: "validation.bad_input" }); }) as never,
+    vault: { secret: async () => "x" } as never, space: "spc_1", log: (m, a) => logs.push([m, a]),
+  });
+  const r = await h.source.lookup("#Claude_Code.setup_token", who);
+  assert.deepEqual(r, { kind: "unknown" }, "the caller sees the same refusal as before");
+  assert.match(String(logs[0]![1]!["why"]), /no setup_token field/);
+  assert.deepEqual([logs[0]![1]!["field"], logs[0]![1]!["handle"]], ["setup_token", "Claude_Code"]);
+  assert.equal(JSON.stringify(logs).includes("x\""), false);
+});

@@ -14,7 +14,7 @@ import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
 import { makeBundle } from "../client/src/crypto/keys.ts";
 import { claimOwner } from "../apps/app/src/claim/claim.ts";
 import { createCapCaller } from "../apps/app/src/shell/session/caps.ts";
-import { unlockWithPassword, hasPasswordKey } from "../apps/app/src/shell/session/KeyGate.tsx";
+import { unlockWithPassword, hasPasswordKey } from "../apps/app/src/shell/session/key-unlock.ts";
 import { holdKeyOnOwnNode, keyStatusOnOwnNode } from "../client/src/gateway/local-key.ts";
 import { forgetKey, rehandKey } from "../client/src/gateway/key-keeper.ts";
 

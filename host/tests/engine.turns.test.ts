@@ -25,7 +25,7 @@ function world(answer: (cap: string, input: unknown) => unknown = () => ({ statu
     return r as Awaited<ReturnType<Invoke>>;
   };
   const vault: VaultPort = { secret: async (handle, space) => { reads.push({ handle, space }); return SECRET; }, signRs256: async () => "" };
-  return { calls, reads, host: createEngineSessionHost({ invoke, vault, space: SPACE }) };
+  return { calls, reads, host: createEngineSessionHost({ invoke, vault, space: SPACE, lockedWaitMs: 0 }) };
 }
 
 test("a handle is looked up through vault.use as the agent acting for the asker, and only then is the value read", async () => {
@@ -92,14 +92,14 @@ test("a locked Vault key is engine.vault_locked, whether the Vault module or the
   // the key port throws a plain error in its own words when the person's key is not open on this computer
   const invoke: Invoke = async () => ({ status: "ok", output: { handle: "#X", itemId: "vit_1", fields: [] }, traceId: TRACE });
   const vault: VaultPort = { secret: async () => { throw new Error("Your vault key is locked on this computer."); }, signRs256: async () => "" };
-  const host = createEngineSessionHost({ invoke, vault, space: SPACE });
+  const host = createEngineSessionHost({ invoke, vault, space: SPACE, lockedWaitMs: 0 });
   await assert.rejects(host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => (e as { code?: string }).code === "engine.vault_locked" && (e as Error).message === "Your Vault is locked on this computer.");
 });
 
 test("a Vault port that fails after access was granted does not leak what it said", async () => {
   const invoke: Invoke = async () => ({ status: "ok", output: { handle: "#X", itemId: "vit_1", fields: [] }, traceId: TRACE });
   const vault: VaultPort = { secret: async () => { throw new Error(`could not open ${SECRET}`); }, signRs256: async () => "" };
-  const host = createEngineSessionHost({ invoke, vault, space: SPACE });
+  const host = createEngineSessionHost({ invoke, vault, space: SPACE, lockedWaitMs: 0 });
   await assert.rejects(host.source.lookup("#Dana_Claude.setup_token", WHO), (e: unknown) => e instanceof Error && !e.message.includes(SECRET));
 });
 
