@@ -38,7 +38,7 @@ const LINE_STYLE = { margin: "5px 6px", width: "calc(100% - 12px)" } as const;
 export function lineMenuEntries(
   lines: readonly Line[],
   inTrash: boolean,
-  h: { open(l: Line): void; quickLook(l: Line): void; share(l: Line): void; rename(l: Line): void; trash(ls: readonly Line[]): void; restore(ls: readonly Line[]): void; star?(l: Line): void; resolve?(l: Line): void; openIn?(l: Line): void },
+  h: { open(l: Line): void; quickLook(l: Line): void; share?(l: Line): void; rename(l: Line): void; trash(ls: readonly Line[]): void; restore(ls: readonly Line[]): void; star?(l: Line): void; resolve?(l: Line): void; openIn?(l: Line): void },
 ): MenuEntry[] {
   const one = lines.length === 1 ? lines[0] : undefined;
   const out: MenuEntry[] = [];
@@ -50,7 +50,7 @@ export function lineMenuEntries(
     const app = one.type === "file" && h.openIn ? openInLabel(one) : null;
     if (app !== null) out.push({ label: openInWords(app), onSelect: () => h.openIn?.(one) });
     if (one.type === "file" && h.star) out.push({ label: one.starred === true ? "Remove Star" : "Star", onSelect: () => h.star?.(one) });
-    if (one.type === "folder") out.push({ label: "Share…", onSelect: () => h.share(one) });
+    if (one.type === "folder" && h.share) out.push({ label: "Share…", onSelect: () => h.share?.(one) });
     out.push({ label: "Rename…", onSelect: () => h.rename(one) });
     out.push({ separator: true });
   }
@@ -151,7 +151,7 @@ function List(): ReactElement {
     dispatch({ type: "context", key: l.key });
     const picked = state.selection.includes(l.key) ? selectedLines() : [l];
     menu.show(lineMenuEntries(picked, inTrash, {
-      open, quickLook: (t) => dispatch({ type: "quicklook", key: t.key }), share: (t) => data.nav.shareFolder(t.id), rename: (t) => data.nav.renameEntry(t.type, t.id, t.name), trash: toTrash, restore,
+      open, quickLook: (t) => dispatch({ type: "quicklook", key: t.key }), ...(data.nav.shareFolder ? { share: (t: Line) => data.nav.shareFolder?.(t.id) } : {}), rename: (t) => data.nav.renameEntry(t.type, t.id, t.name), trash: toTrash, restore,
       star: (t) => void data.call("files.star", { fileId: t.id, starred: t.starred !== true }),
       ...(data.nav.resolveConflict ? { resolve: (t: Line) => data.nav.resolveConflict?.(t.id) } : {}),
       ...(data.nav.openExternal ? { openIn: (t: Line) => void openInProvider(data.call, data.nav.openExternal as (url: string) => void, t.id) } : {}),

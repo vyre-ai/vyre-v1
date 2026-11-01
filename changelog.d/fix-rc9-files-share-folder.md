@@ -1,0 +1,1 @@
+Files: Share on a folder now opens the same Share sheet Records uses, on that folder, titled with its name. It opened a screen nothing read before. In a Personal Space, where there is no one to share with, the folder menus no longer show Share.
