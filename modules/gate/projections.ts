@@ -152,7 +152,7 @@ export interface Effective {
 }
 
 /** The effective rule for a principal and an act: the strictest of the Space policy, the owner floor and the agent's own rule. An agent rule can only tighten; an `allow` anywhere cannot
- *  loosen a `hold` elsewhere; nothing here reads a local tool-prompt mode, so Auto cannot suppress a Gate hold (spec 2.14). A person's own act skips the Gate unless the act is a human-too kind. */
+ *  loosen a `hold` elsewhere; nothing here reads a mode (spec 2.14): the one thing that lifts a default hold is a grant, matched by the Gate hook. A person's own act skips the Gate unless the act is a human-too kind. */
 export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: Policy = readPolicy(db), adminOnly = false): Effective {
   const a = actOf(actKey);
   const rows = allRules(db).filter((r) => r.act === a.key);

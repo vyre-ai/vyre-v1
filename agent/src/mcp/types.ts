@@ -2,6 +2,7 @@
 // Everything the server needs from outside is a port here, so the same code runs against the real invoke pipeline and against fakes in tests.
 import type { Invoke } from "../../../host/src/invoke.ts";
 import type { AgentRules, Catalog } from "../tools/types.ts";
+import type { ModePair } from "../tools/local.ts";
 
 /** What an outside actor may do: read, post in threads, read changesets, write on a branch (off by default; writes there need approval at the Gate). */
 export interface Scopes { read: boolean; post: boolean; readChangesets: boolean; writeBranch: boolean }
@@ -29,6 +30,8 @@ export interface McpCaller {
   /** AI provider of the engine behind this session, for label-vs-provider checks inside authorize. */
   provider?: string;
   planMode?: boolean;
+  /** Driver sessions: the owner's floor on local tools, read when the session opens. */
+  localFloor?: ModePair;
   /** Deferred tools to list from the first turn. A CLI engine lists its tools once when it starts, so a tool found later with tool_search is not callable there; a chat that is known to need some lists them up front. */
   preload?: readonly string[];
   /** The chat's mode when this session opened (a mode change opens a new engine session, so a new token). Plan also sets planMode. */

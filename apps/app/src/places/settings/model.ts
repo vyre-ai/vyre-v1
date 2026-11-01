@@ -174,8 +174,8 @@ export const ROW_LABELS: Readonly<Record<string, string>> = {
 /** What a long title used to say in brackets: shown on hover, never as a line of its own. */
 export const ROW_HELP: Readonly<Record<string, string>> = {
   "chrome.agents_use_my_browser": "One switch per Space. Only that Space's agents, with a visible indicator.",
-  "security.chrome_mode": "Ask, Allow or Auto. One value per Space.",
-  "security.terminal_mode": "Ask, Allow or Auto. One value per Space.",
+  "security.chrome_mode": "For work outside a chat. In a chat, the chat's mode decides. One value per Space.",
+  "security.terminal_mode": "For work outside a chat. In a chat, the chat's mode decides. One value per Space.",
   "security.team_agents_on_my_computer": "One switch per Space. Locked to a work folder.",
   "notifications.working_hours": "Outside them only calls, urgent approvals and incidents interrupt.",
   "notifications.push_idle_minutes": "Minutes idle on the computer before pushes go to the phone.",

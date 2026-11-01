@@ -5,6 +5,8 @@
 //               what was never offered, and the invoke pipeline intersects access, applies the Gate and writes the audit row
 // Nothing here decides access. A tool being listed grants nothing.
 import { createToolSession } from "../tools/call.ts";
+import { decideLocal, dialFor } from "../tools/local.ts";
+import { localFacts } from "../tools/local-facts.ts";
 import type { ToolSession } from "../tools/call.ts";
 import type { ToolCtx, ToolDef } from "../tools/types.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
@@ -82,6 +84,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       catalog: deps.catalog, defaults: deps.defaults, invoke,
       levelFor: () => null,
       canEngineer: () => caller.engineer === true,
+      // A CLI engine's session works for one chat, so a local tool follows that chat's mode, under the owner's floor. An outside tool has none: its scopes refuse local tools before they get here.
+      ...(caller.kind === "driver" ? { localPolicy: (t: ToolDef, c: ToolCtx, input: unknown) => { const dial = dialFor(c.thread.mode, caller.localFloor); return decideLocal(t, dial.person, dial.floor, localFacts(t, input)); } } : {}),
     });
     const threadId = caller.threadId ?? caller.sessionId;
     if (caller.preload) tools.preload(threadId, caller.preload);

@@ -7,9 +7,9 @@ import { readFileSync } from "node:fs";
 import { createApiTools } from "../../agent/src/drivers/open/api-tools.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
 import { createToolSession } from "../../agent/src/tools/call.ts";
-import { decideLocal } from "../../agent/src/tools/local.ts";
+import { decideLocal, dialFor, modePair } from "../../agent/src/tools/local.ts";
 import { localFacts } from "../../agent/src/tools/local-facts.ts";
-import type { SecurityMode } from "../../agent/src/tools/local.ts";
+import type { ModePair } from "../../agent/src/tools/local.ts";
 import { buildCatalog, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
 import type { AgentToolRow, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
@@ -20,19 +20,7 @@ import type { SystemBlock } from "../../agent/src/drivers/api/types.ts";
 import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 interface SettingRow { value?: unknown; floor?: unknown }
-interface ModePair { person: SecurityMode; floor: SecurityMode }
-const MODES: readonly string[] = ["ask", "allow", "auto"];
-const asMode = (v: unknown): SecurityMode | undefined => (typeof v === "string" && MODES.includes(v) ? (v as SecurityMode) : undefined);
-/** A mode setting is { base, spaces: { <space>: mode } } (or a bare mode, as a floor may be). The person's mode here is this Space's entry, else the base; no floor means anyone may pick Auto; nothing readable means Ask. */
-export function modePair(row: SettingRow | undefined, space: string): ModePair {
-  if (!row) return { person: "ask", floor: "ask" };
-  const pick = (v: unknown): SecurityMode | undefined => {
-    if (asMode(v)) return asMode(v);
-    const o = (v !== null && typeof v === "object" ? v : {}) as { base?: unknown; spaces?: Record<string, unknown> };
-    return asMode(o.spaces?.[space]) ?? asMode(o.base);
-  };
-  return { person: pick(row.value) ?? "ask", floor: row.floor === undefined ? "auto" : pick(row.floor) ?? "ask" };
-}
+export { modePair };
 
 const read = (rel: string): string => readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
 
@@ -65,13 +53,13 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   const modes = new Map<string, { terminal: ModePair; chrome: ModePair }>();
   const levelKey = (asker: string, scope: { type: string; id: string }): string => `${asker}|${scope.type}|${scope.id}`;
   const session = createToolSession({ invoke: d.invoke, catalog, defaults, levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null, canEngineer: () => false,
-    // A local tool (terminal, Chrome, screen, files on the agent computer) follows the person's own security mode for it (Settings, This computer: Terminal prompts, Chrome prompts), held to the owner's floor,
+    // A local tool (terminal, Chrome, screen, files on the agent computer) follows the chat's mode, held to the owner's floor (the floor of Settings, This computer: Terminal prompts, Chrome prompts),
     // with the hard walls of the call itself (a path that leaves the work folder is refused, a delete outside it always asks). A "prompt" is not a refusal and not a silent run: the call is held at the Gate and
     // the person answers it in the chat. Settings are read as the asker before the turn (the tool session asks synchronously); one that cannot be read means the strictest mode.
     localPolicy: (t, ctx, input) => {
       const m = modes.get(ctx.asker);
-      const one = t.local === "chrome" || t.local === "screen" ? m?.chrome : m?.terminal;
-      return decideLocal(t, one?.person ?? "ask", one?.floor ?? "ask", localFacts(t, input));
+      const dial = dialFor(ctx.thread.mode, t.local === "chrome" || t.local === "screen" ? m?.chrome : m?.terminal);
+      return decideLocal(t, dial.person, dial.floor, localFacts(t, input));
     },
     ...(d.plugins ? { dynamic: d.plugins.dynamic, hooks: d.plugins.hooks } : {}) });
   const primed = new Set<string>();

@@ -82,17 +82,17 @@ export default defineManifest({
     write('engine.crew.stop', 'Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch', {
       in: { jobId: t.str() }, out: { job: crewJob }, level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_stop', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found'],
     }),
-    write('engine.crew.merge', 'Land a teammate\'s branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate', {
+    write('engine.crew.merge', 'Land a teammate\'s branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed', {
       in: { jobId: t.str() }, out: { job: crewJob, landed: t.bool(), ref: t.str(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high',
-      gate: { act: 'push_protected', when: "actor.kind != 'person'" }, emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_merge', agent: { planMode: 'blocked', blocks: [] },
-      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
+      emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_merge', agent: { planMode: 'blocked', blocks: [] },
+      errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     write('engine.crew.wait', 'Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish', {
       in: { ...threadT, repo: t.str({ examples: ['acme/site'] }), number: t.int({ minimum: 1 }) }, out: { wait: crewWait }, on: ['thread', '/threadId'], level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_wait',
       agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.bad_input'],
     }),
-    write('engine.crew.push', 'Push the project repository\'s base branch, with a teammate\'s merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person\'s approval', {
-      in: { jobId: t.str() }, out: { job: crewJob, pushed: t.bool(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high', gate: { act: 'push_protected' },
+    write('engine.crew.push', 'Push the project repository\'s base branch, with a teammate\'s merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person\'s own message this turn asked for it, else it holds at the Gate', {
+      in: { jobId: t.str() }, out: { job: crewJob, pushed: t.bool(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high', gate: { act: 'push_protected', when: "actor.kind != 'person'" },
       emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_push', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
     }),
     read('engine.crew.workspace', 'System: the repository copy a teammate thread works in, so the engine can make it before the first turn', {
