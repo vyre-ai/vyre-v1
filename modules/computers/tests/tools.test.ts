@@ -101,6 +101,11 @@ test("while a person has the controls the agent's tools wait, and give back lets
   // Looking at whether Chrome is paused is how the agent finds out; stop is allowed to stop it.
   assert.equal((await tool["computers.chrome.status"]!(agent.ctx, {})).connected, true);
   assert.deepEqual(await tool["computers.chrome.stop"]!(agent.ctx, {}), { stopped: true });
+  // the person at the controls is not held back by their own take-over: their click through the live view reaches the desktop; another person's does not
+  assert.equal((await tool["computers.screen.click"]!(w.h.ctx, { computerId: w.id, x: 5, y: 5 })).ok, true);
+  assert.equal(w.d.calls.filter((c) => c.tool === "screen_click").length, 1);
+  const other = asPerson(w.h, { kind: "person", id: "usr_other" });
+  await refused("computers.screen.click", () => tool["computers.screen.click"]!(other.ctx, { computerId: w.id, x: 1, y: 1 }), "validation.bad_input", "someone else's click during a take-over");
   await giveBack(w.h.ctx, { computerId: w.id });
   assert.equal((await tool["computers.chrome.click"]!(w.agent().ctx, { ref: "e1" })).ok, true);
   bindHost(null);

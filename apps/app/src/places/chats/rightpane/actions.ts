@@ -142,7 +142,7 @@ export async function giveBack(d: PaneDeps, computerId: string, name: string, ba
   const ok = await attempt(d, "give control back", async () => { await d.call("computers.give_back", { computerId }); d.note(`Control given back to ${name}`); });
   if (ok && back) {
     await attempt(d, "tell it to carry on", async () => {
-      await d.call("chat.post", { threadId: back.threadId, body: "I took care of it. Carry on.", mentions: [{ kind: "agent", id: back.agentId }], clientId: key("handback", computerId), idempotencyKey: key("handback", computerId) });
+      await d.call("chat.post", { threadId: back.threadId, body: "I took care of it. Carry on.", mentions: [{ kind: "agent", id: back.agentId }], idempotencyKey: key("handback", computerId) });
     });
   }
   return ok;

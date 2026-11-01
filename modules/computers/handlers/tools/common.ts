@@ -142,7 +142,9 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   needTeam(ctx);
   let c = computerFor(ctx, computerId);
   mayUse(ctx, c);
-  if (c.state === "takeover" && !spec.duringTakeover) raise(ctx, "validation.bad_input", "A person has the controls. The tools wait until they give them back.", { takeoverBy: c.takeoverBy });
+  // The controls are the person's: the tools wait for an agent, never for the person at the controls (their own click or key through the live view is a tool call as them).
+  const atTheControls = ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
+  if (c.state === "takeover" && !spec.duringTakeover && !atTheControls) raise(ctx, "validation.bad_input", "A person has the controls. The tools wait until they give them back.", { takeoverBy: c.takeoverBy });
   if (c.state === "asleep" && spec.noWake) return null;
   if (c.state === "asleep" || c.state === "error") c = await awaken(ctx, c, actorOf(ctx));
   if (c.state === "provisioning" || c.state === "waking") raise(ctx, "provider.unavailable", "This computer is still starting.");
