@@ -9696,6 +9696,9 @@
             "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
+          "governance": {
+            "type": "boolean"
+          },
           "limit": {
             "maximum": 500,
             "minimum": 1,
@@ -10295,6 +10298,48 @@
         "type": "object"
       },
       "name": "chat_edit",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.flow_card",
+      "deferred": false,
+      "description": "Leave the card of a drafted Flow in its chat: its name, what it does in plain words and Turn on and Test buttons. Written by the server from the draft itself; only a draft gets one",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "automationId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_flow_card",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -27913,6 +27958,9 @@
             "pattern": "^cnv_[a-z0-9]+$",
             "type": "string"
           },
+          "fileAttachments": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -27922,6 +27970,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "replyTask": {
+            "type": "boolean"
           },
           "type": {
             "enum": [

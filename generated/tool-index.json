@@ -1382,6 +1382,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_flow_card",
+      "summary": "Leave the card of a drafted Flow in its chat: its name, what it does in plain words and Turn on and Test buttons. Written by the server from the draft itself; only a draft gets one",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_fork",
       "summary": "Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back",
       "toolset": "chats"

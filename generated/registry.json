@@ -5052,17 +5052,6 @@
       },
       "type": "array"
     },
-    "s_3a34865d2b": {
-      "properties": {
-        "channel": {
-          "$ref": "#/$defs/s_fa2657e139"
-        }
-      },
-      "required": [
-        "channel"
-      ],
-      "type": "object"
-    },
     "s_3a79e91fdd": {
       "properties": {
         "calendarId": {
@@ -8247,6 +8236,89 @@
         "createdAt",
         "handles",
         "filled"
+      ],
+      "type": "object"
+    },
+    "s_5d8a0dda44": {
+      "properties": {
+        "agents": {
+          "$ref": "#/$defs/s_18a5df4b3d"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "channelId": {
+          "examples": [
+            "chn_a1b2c3"
+          ],
+          "pattern": "^chn_[a-z0-9]+$",
+          "type": "string"
+        },
+        "createdAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "folderId": {
+          "examples": [
+            "fld_a1b2c3"
+          ],
+          "pattern": "^fld_[a-z0-9]+$",
+          "type": "string"
+        },
+        "mainThreadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "members": {
+          "$ref": "#/$defs/s_39a2155802"
+        },
+        "name": {
+          "examples": [
+            "intake"
+          ],
+          "type": "string"
+        },
+        "recordId": {
+          "examples": [
+            "rec_a1b2c3"
+          ],
+          "pattern": "^rec_[a-z0-9]+$",
+          "type": "string"
+        },
+        "restricted": {
+          "type": "boolean"
+        },
+        "topic": {
+          "type": "string"
+        },
+        "unread": {
+          "type": "integer"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "invite"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "channelId",
+        "mainThreadId",
+        "name",
+        "visibility",
+        "archived",
+        "members",
+        "agents",
+        "unread",
+        "createdAt"
       ],
       "type": "object"
     },
@@ -20094,6 +20166,17 @@
       ],
       "type": "object"
     },
+    "s_ead55fe1b6": {
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/s_5d8a0dda44"
+        }
+      },
+      "required": [
+        "channel"
+      ],
+      "type": "object"
+    },
     "s_eadfaeed07": {
       "items": {
         "properties": {
@@ -21119,86 +21202,6 @@
         "type": "object"
       },
       "type": "array"
-    },
-    "s_fa2657e139": {
-      "properties": {
-        "agents": {
-          "$ref": "#/$defs/s_18a5df4b3d"
-        },
-        "archived": {
-          "type": "boolean"
-        },
-        "channelId": {
-          "examples": [
-            "chn_a1b2c3"
-          ],
-          "pattern": "^chn_[a-z0-9]+$",
-          "type": "string"
-        },
-        "createdAt": {
-          "description": "Milliseconds since the Unix epoch",
-          "examples": [
-            1760000000000
-          ],
-          "minimum": 0,
-          "type": "integer"
-        },
-        "folderId": {
-          "examples": [
-            "fld_a1b2c3"
-          ],
-          "pattern": "^fld_[a-z0-9]+$",
-          "type": "string"
-        },
-        "mainThreadId": {
-          "examples": [
-            "thr_a1b2c3"
-          ],
-          "pattern": "^thr_[a-z0-9]+$",
-          "type": "string"
-        },
-        "members": {
-          "$ref": "#/$defs/s_39a2155802"
-        },
-        "name": {
-          "examples": [
-            "intake"
-          ],
-          "type": "string"
-        },
-        "recordId": {
-          "examples": [
-            "rec_a1b2c3"
-          ],
-          "pattern": "^rec_[a-z0-9]+$",
-          "type": "string"
-        },
-        "topic": {
-          "type": "string"
-        },
-        "unread": {
-          "type": "integer"
-        },
-        "visibility": {
-          "enum": [
-            "public",
-            "invite"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "channelId",
-        "mainThreadId",
-        "name",
-        "visibility",
-        "archived",
-        "members",
-        "agents",
-        "unread",
-        "createdAt"
-      ],
-      "type": "object"
     },
     "s_fa5a4a68fb": {
       "properties": {
@@ -23585,6 +23588,9 @@
             ],
             "pattern": "^fil_[a-z0-9]+$",
             "type": "string"
+          },
+          "live": {
+            "type": "boolean"
           },
           "stepId": {
             "examples": [
@@ -47793,6 +47799,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -47832,7 +47839,7 @@
       "module": "chat",
       "name": "channels.agent_watch.set",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": "channels.agents",
       "resource": {
@@ -47898,6 +47905,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -47940,7 +47948,7 @@
       "module": "chat",
       "name": "channels.agents.add",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": "channels.agents",
       "resource": {
@@ -48005,6 +48013,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -48020,7 +48029,7 @@
       "module": "chat",
       "name": "channels.agents.remove",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": "channels.agents",
       "resource": {
@@ -48082,6 +48091,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -48109,7 +48119,7 @@
       "module": "chat",
       "name": "channels.archive",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": null,
       "resource": {
@@ -48304,6 +48314,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -48384,7 +48395,7 @@
       "name": "channels.create",
       "offline": "queue",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": "channels.create",
       "resource": {
@@ -48519,6 +48530,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -48547,7 +48559,7 @@
       "module": "chat",
       "name": "channels.get",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": null,
       "resource": {
@@ -48609,6 +48621,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -48636,7 +48649,7 @@
       "module": "chat",
       "name": "channels.join",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": null,
       "resource": {
@@ -48737,6 +48750,7 @@
           "input": {
             "cursor": "example",
             "folderId": "fld_a1b2c3",
+            "governance": true,
             "limit": 1,
             "section": "personal"
           },
@@ -48768,6 +48782,7 @@
                 ],
                 "name": "intake",
                 "recordId": "rec_a1b2c3",
+                "restricted": true,
                 "topic": "example",
                 "unread": 1,
                 "visibility": "public"
@@ -48780,7 +48795,35 @@
       ],
       "idempotency": "natural",
       "input": {
-        "$ref": "#/$defs/s_574cc4b511"
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "governance": {
+            "type": "boolean"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "section": {
+            "enum": [
+              "personal",
+              "shared",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
       },
       "label": "filter",
       "level": "view",
@@ -48790,7 +48833,7 @@
         "properties": {
           "channels": {
             "items": {
-              "$ref": "#/$defs/s_fa2657e139"
+              "$ref": "#/$defs/s_5d8a0dda44"
             },
             "type": "array"
           },
@@ -48870,6 +48913,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -48918,7 +48962,7 @@
       "module": "chat",
       "name": "channels.members.add",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": null,
       "resource": {
@@ -48981,6 +49025,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -49016,7 +49061,7 @@
       "module": "chat",
       "name": "channels.members.remove",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": null,
       "resource": {
@@ -49511,6 +49556,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -49538,7 +49584,7 @@
       "module": "chat",
       "name": "channels.unarchive",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": null,
       "resource": {
@@ -49603,6 +49649,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -49644,7 +49691,7 @@
       "name": "channels.update",
       "offline": "patch",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": null,
       "resource": {
@@ -50665,6 +50712,99 @@
       "since": "1.0.0",
       "summary": "Edit the text of a message you wrote",
       "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "automationId": "aut_a1b2c3",
+            "idempotencyKey": "idem_1",
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "messageId": "msg_a1b2c3"
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "automationId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "chat",
+      "name": "chat.flow_card",
+      "offline": "online",
+      "output": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "Leave the card of a drafted Flow in its chat: its name, what it does in plain words and Turn on and Test buttons. Written by the server from the draft itself; only a draft gets one",
+      "surfaces": {
+        "agent": {
+          "planMode": "blocked"
+        },
         "http": "auto",
         "mcp": {
           "toolset": "chats"
@@ -109973,8 +110113,10 @@
         {
           "input": {
             "conversationId": "cnv_a1b2c3",
+            "fileAttachments": true,
             "idempotencyKey": "idem_1",
             "name": "example",
+            "replyTask": true,
             "type": "contact"
           },
           "name": "example",
@@ -110003,7 +110145,10 @@
               "unmatched": true,
               "unreadCount": 1
             },
-            "recordId": "rec_a1b2c3"
+            "filed": 1,
+            "recordId": "rec_a1b2c3",
+            "skipped": 1,
+            "taskId": "tsk_a1b2c3"
           }
         }
       ],
@@ -110017,6 +110162,9 @@
             "pattern": "^cnv_[a-z0-9]+$",
             "type": "string"
           },
+          "fileAttachments": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -110027,20 +110175,15 @@
           "name": {
             "type": "string"
           },
+          "replyTask": {
+            "type": "boolean"
+          },
           "type": {
             "enum": [
               "contact",
               "company"
             ],
             "type": "string"
-          },
-          "fileAttachments": {
-            "description": "Also copy the attachments of its mails into the record's folder",
-            "type": "boolean"
-          },
-          "replyTask": {
-            "description": "Also put a Reply task on my list, linked to the record",
-            "type": "boolean"
           }
         },
         "required": [
@@ -110058,16 +110201,16 @@
           "conversation": {
             "$ref": "#/$defs/s_323acdeb06"
           },
+          "filed": {
+            "minimum": 0,
+            "type": "integer"
+          },
           "recordId": {
             "examples": [
               "rec_a1b2c3"
             ],
             "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
-          },
-          "filed": {
-            "minimum": 0,
-            "type": "integer"
           },
           "skipped": {
             "minimum": 0,
@@ -192027,6 +192170,7 @@
               ],
               "name": "intake",
               "recordId": "rec_a1b2c3",
+              "restricted": true,
               "topic": "example",
               "unread": 1,
               "visibility": "public"
@@ -192073,7 +192217,7 @@
       "module": "chat",
       "name": "threads.make_channel",
       "output": {
-        "$ref": "#/$defs/s_3a34865d2b"
+        "$ref": "#/$defs/s_ead55fe1b6"
       },
       "permission": "channels.create",
       "resource": {

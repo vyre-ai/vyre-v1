@@ -32,6 +32,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.composer.suggest": async (ctx) => { throw new VyreErr(notImplemented("chat.composer.suggest", ctx.trace)); },
   "chat.delete_message": async (ctx) => { throw new VyreErr(notImplemented("chat.delete_message", ctx.trace)); },
   "chat.edit": async (ctx) => { throw new VyreErr(notImplemented("chat.edit", ctx.trace)); },
+  "chat.flow_card": async (ctx) => { throw new VyreErr(notImplemented("chat.flow_card", ctx.trace)); },
   "chat.fork": async (ctx) => { throw new VyreErr(notImplemented("chat.fork", ctx.trace)); },
   "chat.handoff": async (ctx) => { throw new VyreErr(notImplemented("chat.handoff", ctx.trace)); },
   "chat.helper.start": async (ctx) => { throw new VyreErr(notImplemented("chat.helper.start", ctx.trace)); },

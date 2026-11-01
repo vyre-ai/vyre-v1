@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine.
 
-## Capabilities (81)
+## Capabilities (82)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -33,6 +33,7 @@ Requires: engine.
 - [chat.composer.suggest](../capabilities/chat.composer.suggest.md): Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates
 - [chat.delete_message](../capabilities/chat.delete_message.md): Delete a message you wrote (kept in the audit trail)
 - [chat.edit](../capabilities/chat.edit.md): Edit the text of a message you wrote
+- [chat.flow_card](../capabilities/chat.flow_card.md): Leave the card of a drafted Flow in its chat: its name, what it does in plain words and Turn on and Test buttons. Written by the server from the draft itself; only a draft gets one
 - [chat.fork](../capabilities/chat.fork.md): Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back
 - [chat.handoff](../capabilities/chat.handoff.md): Hand work to another agent: opens that agent thread linked from this one, counted against the hop limit
 - [chat.helper.start](../capabilities/chat.helper.start.md): Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only

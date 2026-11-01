@@ -366,6 +366,7 @@ export function stubs(ctx: CallCtx) {
       },
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
+      flow_card: call("chat.flow_card"),
       fork: call("chat.fork"),
       handoff: call("chat.handoff"),
       helper: {

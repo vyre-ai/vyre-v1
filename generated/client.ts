@@ -366,6 +366,7 @@ export function createClient(transport: Transport) {
       },
       delete_message: call("chat.delete_message", 1),
       edit: call("chat.edit", 1),
+      flow_card: call("chat.flow_card", 1),
       fork: call("chat.fork", 1),
       handoff: call("chat.handoff", 1),
       helper: {

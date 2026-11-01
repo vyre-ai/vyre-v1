@@ -5210,6 +5210,7 @@ export type ChannelsAgentWatchSetOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsAgentsAddIn = {
@@ -5242,6 +5243,7 @@ export type ChannelsAgentsAddOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsAgentsRemoveIn = {
@@ -5273,6 +5275,7 @@ export type ChannelsAgentsRemoveOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsArchiveIn = {
@@ -5303,6 +5306,7 @@ export type ChannelsArchiveOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsConnectOutsideAgentIn = {
@@ -5357,6 +5361,7 @@ export type ChannelsCreateOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsEraseIn = {
@@ -5394,6 +5399,7 @@ export type ChannelsGetOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsJoinIn = {
@@ -5424,6 +5430,7 @@ export type ChannelsJoinOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsLeaveIn = {
@@ -5437,6 +5444,7 @@ export type ChannelsListIn = {
   folderId?: string;
   cursor?: string;
   limit?: number;
+  governance?: boolean;
 };
 export type ChannelsListOut = {
   channels: Array<{
@@ -5463,6 +5471,7 @@ export type ChannelsListOut = {
         }>;
       unread: number;
       createdAt: number;
+      restricted?: boolean;
     }>;
   next?: string;
   total?: number;
@@ -5497,6 +5506,7 @@ export type ChannelsMembersAddOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsMembersRemoveIn = {
@@ -5528,6 +5538,7 @@ export type ChannelsMembersRemoveOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsStreamIn = {
@@ -5603,6 +5614,7 @@ export type ChannelsUnarchiveOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChannelsUpdateIn = {
@@ -5636,6 +5648,7 @@ export type ChannelsUpdateOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ChatAnswerBlockIn = {
@@ -5814,6 +5827,14 @@ export type ChatEditOut = {
     createdAt: number;
     enc?: number;
   };
+};
+export type ChatFlowCardIn = {
+  threadId: string;
+  automationId: string;
+  idempotencyKey: string;
+};
+export type ChatFlowCardOut = {
+  messageId: string;
 };
 export type ChatForkIn = {
   threadId: string;
@@ -15264,9 +15285,7 @@ export type InboxMatchNewIn = {
   conversationId: string;
   type: "contact" | "company";
   name?: string;
-  /** Also copy the attachments of its mails into the record's folder */
   fileAttachments?: boolean;
-  /** Also put a Reply task on my list, linked to the record */
   replyTask?: boolean;
   idempotencyKey: string;
 };
@@ -30849,6 +30868,7 @@ export type ThreadsMakeChannelOut = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 export type ThreadsMarkReadIn = {
@@ -32956,6 +32976,7 @@ export interface CapMap {
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
+  "chat.flow_card": { in: ChatFlowCardIn; out: ChatFlowCardOut };
   "chat.fork": { in: ChatForkIn; out: ChatForkOut };
   "chat.handoff": { in: ChatHandoffIn; out: ChatHandoffOut };
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };

@@ -32,6 +32,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.composer.suggest": Handler<"chat.composer.suggest", X>;
   "chat.delete_message": Handler<"chat.delete_message", X>;
   "chat.edit": Handler<"chat.edit", X>;
+  "chat.flow_card": Handler<"chat.flow_card", X>;
   "chat.fork": Handler<"chat.fork", X>;
   "chat.handoff": Handler<"chat.handoff", X>;
   "chat.helper.start": Handler<"chat.helper.start", X>;
