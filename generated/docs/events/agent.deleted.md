@@ -19,6 +19,7 @@ An agent moved to Trash
 ```ts
 type Payload = {
   agentId: string;
+  name?: string;
   by: string;
 };
 ```

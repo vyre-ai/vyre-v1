@@ -1177,6 +1177,7 @@ export type AgentsCreateOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1223,6 +1224,7 @@ export type AgentsGetOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1289,6 +1291,7 @@ export type AgentsListOut = {
   agents: Array<{
       agentId: string;
       name: string;
+      kind?: "assistant" | "teammate" | "agent";
       face: string;
       role?: string;
       status: "awake" | "working" | "asleep" | "paused";
@@ -1339,6 +1342,7 @@ export type AgentsPauseOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1379,6 +1383,7 @@ export type AgentsRestoreOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1421,6 +1426,7 @@ export type AgentsRestoreVersionOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1461,6 +1467,7 @@ export type AgentsResumeOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1502,6 +1509,7 @@ export type AgentsRoleLineSetOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1661,6 +1669,7 @@ export type AgentsSetOwnerOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1851,6 +1860,7 @@ export type AgentsUpdateOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -5832,6 +5842,7 @@ export type ChatEditOut = {
     via?: {
       routineOwner: string;
     };
+    paidBy?: string;
     depth: number;
     attachments: Array<string>;
     reactions: Array<{
@@ -6073,6 +6084,7 @@ export type ChatMessageGetOut = {
     via?: {
       routineOwner: string;
     };
+    paidBy?: string;
     depth: number;
     attachments: Array<string>;
     reactions: Array<{
@@ -6114,6 +6126,7 @@ export type ChatMessagesListOut = {
       via?: {
         routineOwner: string;
       };
+      paidBy?: string;
       depth: number;
       attachments: Array<string>;
       reactions: Array<{
@@ -6212,6 +6225,7 @@ export type ChatPinsListOut = {
       via?: {
         routineOwner: string;
       };
+      paidBy?: string;
       depth: number;
       attachments: Array<string>;
       reactions: Array<{
@@ -6326,6 +6340,7 @@ export type ChatPostOut = {
     via?: {
       routineOwner: string;
     };
+    paidBy?: string;
     depth: number;
     attachments: Array<string>;
     reactions: Array<{
@@ -9253,6 +9268,7 @@ export type EngineAccountResolveOut = {
   reason: "starter" | "steerer" | "step_key" | "backup_key" | "none";
   allowed: boolean;
   itemId?: string;
+  fellBack?: boolean;
 };
 export type EngineAccountsListIn = Record<string, unknown>;
 export type EngineAccountsListOut = {
@@ -9295,7 +9311,7 @@ export type EngineCrewListOut = {
       title: string;
       branch: string;
       base: string;
-      state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+      state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
       startedAt: number;
       endedAt?: number;
       result?: Record<string, unknown>;
@@ -9325,7 +9341,7 @@ export type EngineCrewMergeOut = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
@@ -9357,7 +9373,7 @@ export type EngineCrewPushOut = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
@@ -9411,7 +9427,7 @@ export type EngineCrewStartOut = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
@@ -9432,7 +9448,7 @@ export type EngineCrewStopOut = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
@@ -34619,6 +34635,7 @@ export type AgentCreatedPayload = {
 };
 export type AgentDeletedPayload = {
   agentId: string;
+  name?: string;
   by: string;
 };
 export type AgentDisengagedPayload = {
@@ -37794,6 +37811,7 @@ export type ThreadUnarchivedPayload = {
 export type ThreadUpdatedPayload = {
   threadId: string;
   fields: Array<string>;
+  starter?: string;
 };
 export type TokenIssuedPayload = {
   tokenId: string;

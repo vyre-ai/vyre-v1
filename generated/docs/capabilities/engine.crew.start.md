@@ -51,7 +51,7 @@ type Out = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;

@@ -56,6 +56,7 @@ type Out = {
     via?: {
       routineOwner: string;
     };
+    paidBy?: string;
     depth: number;
     attachments: Array<string>;
     reactions: Array<{
@@ -113,6 +114,7 @@ type Out = {
       "enc": 1,
       "kind": "text",
       "messageId": "msg_a1b2c3",
+      "paidBy": "usr_a1b2c3",
       "pinned": true,
       "reactions": [
         {

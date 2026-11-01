@@ -132,5 +132,5 @@ Requires: engine.
 - [thread.restored](../events/thread.restored.md): A person undid the delete of their chat
 - [thread.started](../events/thread.started.md): A thread, chat or channel main thread was started
 - [thread.unarchived](../events/thread.unarchived.md): A chat came back into a person's list: they unarchived it, or someone @mentioned them in it
-- [thread.updated](../events/thread.updated.md): A thread title, folder or listing changed
+- [thread.updated](../events/thread.updated.md): A thread title, folder, listing or owner changed
 - [transcripts.purged](../events/transcripts.purged.md): Chat transcripts past their retention were removed (a count)
