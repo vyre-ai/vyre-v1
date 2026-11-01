@@ -43,6 +43,8 @@ export interface OpenThread {
 export interface IncomingMessage {
   threadId: string;
   author: Author;
+  /** The person whose message this replies to: a reply to someone else's message is for them, not the lead. */
+  replyToPerson?: string | undefined;
   mentions?: readonly RouteMention[];
   /** Agent-to-agent hops since the last person message. Persons reset it to 0. */
   depth?: number;

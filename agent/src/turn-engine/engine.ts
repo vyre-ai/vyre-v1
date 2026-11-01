@@ -199,11 +199,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
-    return dispatch(st, store(st, m), interrupt);
+    return dispatch(st, store(st, m), interrupt, m.replyToPerson);
   }
 
-  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean): ReceiveResult {
-    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth }, opts.policy);
+  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string): ReceiveResult {
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson }, opts.policy);
     let responders = r.responders;
     let routine = false;
     if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });

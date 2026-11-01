@@ -208,8 +208,9 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   }
 
   // "@Billing, sum this up" in a chat of their own: a person who @mentions an agent that is not in the chat brings it in as a listener (it answers when mentioned, and the person who mentioned it pays for
-  // the turn it causes). Only for a person's own chat and only for an agent they may see (refused above); a channel's agents are its managers' to add.
-  if (author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) {
+  // the turn it causes). Only for a person's own chat and only for an agent they may see (refused above); a channel's agents are its managers' to add. A thread hangs off a message or a task, and anyone in it,
+  // person or agent, may bring an agent into that one thread, wherever the thread hangs.
+  if ((author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) || ((author.kind === "person" || author.kind === "agent") && thread.kind === "thread")) {
     const here = new Set(agentsOf(ctx.db, thread.id).map((a) => a.agentId));
     for (const mention of mentions) {
       if (mention.kind !== "agent" || here.has(mention.id)) continue;

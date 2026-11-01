@@ -475,7 +475,9 @@ export async function handoff(ctx: ChatCtx, input: { threadId: string; toAgentId
   if (depth > limit) raise(ctx, "validation.precondition_failed", `The agents have handed this on ${limit} times. A person has to reply before they go on.`, { limit, depth });
 
   const asker = askerOf(ctx);
-  const t = insertThread(ctx, { kind: "thread", title: note.replace(/\s+/g, " ").slice(0, 60), starter: asker, parentThreadId: source.id, listed: false });
+  // the thread hangs off the message the work was handed over at, so the agent it goes to reads what it was handed
+  const at = lastMessage(ctx.db, source.id);
+  const t = insertThread(ctx, { kind: "thread", title: note.replace(/\s+/g, " ").slice(0, 60), starter: asker, parentThreadId: source.id, ...(at ? { parentMessageId: at.id } : {}), listed: false });
   if (asker.startsWith("usr_")) addMember(ctx, t.id, asker, "owner");
   addAgent(ctx, t.id, { agentId: input.toAgentId, mode: "lead", addedBy: asker });
   const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: authorKind(ctx), body: note, depth });

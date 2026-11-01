@@ -281,7 +281,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   }
 
   type ThreadGet = { thread: { kind?: string; starter?: string; agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } };
-  type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
+  type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; replyTo?: string; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
 
   /**
    * What a message points at, as plain lines after its words, so the agent sees the files and links the person sent: "[Attached: brief.docx (file fil_1)]", "[Linked: Rivera Holdings (record rec_2)]".
@@ -375,6 +375,14 @@ export function createBridge(o: BridgeOptions): Bridge {
     const authorId = str(a.id) || got.message.author.id;
     const note = await pointers(reader(ctx, readAs, threadId), got.message);
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
+    // a reply to a person is for that person: the engine routes it past the lead
+    let replyToPerson: string | undefined;
+    if (got.message.replyTo) {
+      try {
+        const parent = ((await reader(ctx, readAs, threadId)("chat.message.get", { threadId, messageId: got.message.replyTo })) as { message: Row }).message.author;
+        if (parent.kind === "person") replyToPerson = parent.id;
+      } catch { /* the message it answers is gone: an ordinary message */ }
+    }
     const eng = engine;
     // an agent added to the chat after it was opened here (a Space agent @mentioned in a chat between people joins as a listener) is not yet known to the engine: read the chat's line-up once and let
     // the engine know the ones this message names, so the mention reaches them
@@ -389,7 +397,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
     }
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note,
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson,
     }));
     return { receivedAs: res.responders };
   }

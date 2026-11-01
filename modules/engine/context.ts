@@ -133,6 +133,10 @@ export function taskSection(t: Obj, agentId: string, names: Readonly<Record<stri
   return out.join("\n\n");
 }
 
+/** What an agent in a thread reads of the conversation around it, when that conversation has no summary yet. */
+const PARENT_LINES = 8;
+const PARENT_LINE = 300;
+
 const handoffs = new Map<string, string>();
 /** Remember what the next turn of a thread is told after a model switch. Taken once. */
 export function noteHandoff(threadId: string, text: string): void { handoffs.set(threadId, text); }
@@ -257,6 +261,31 @@ export function createContextBuilder(d: ContextDeps) {
     return out;
   }
 
+  /** A thread hangs off a message in a conversation. An agent in it reads what it hangs off and the conversation around it, as the person it works for: what they cannot read gives nothing. */
+  async function parentOf(th: Obj | undefined, asker: string): Promise<string> {
+    const threadId = str(th?.["parentThreadId"]);
+    if (!threadId) return "";
+    const messageId = str(th?.["parentMessageId"]);
+    const [parent, summary, recent, nameMap] = await Promise.all([
+      messageId ? read<Obj>("chat.message.get", { threadId, messageId }, asker) : undefined,
+      read<Obj>("chat.transcript.summary", { threadId }, asker),
+      read<Obj>("chat.messages.list", { threadId, limit: PARENT_LINES }, asker),
+      names(asker),
+    ]);
+    const speaker = (m: Obj | undefined): string => { const id = str((m?.["author"] as Obj | undefined)?.["id"]) ?? ""; return nameMap[id] ?? (id.startsWith("agt_") ? "An agent" : "A teammate"); };
+    const words = (m: Obj | undefined): string => one(str(m?.["body"]) ?? "", PARENT_LINE);
+    const out: string[] = [];
+    const m = parent?.["message"] as Obj | undefined;
+    if (m && words(m) !== "") out.push(`This thread hangs off this message by ${speaker(m)}:\n${cutTo(str(m["body"]) ?? "", 2_000)}`);
+    const older = str(summary?.["summary"]);
+    if (older) out.push(`The conversation it came from, in short:\n${cutTo(older, 1_500)}`);
+    else {
+      const lines = arr(recent?.["messages"]).filter((x) => words(x) !== "" && str(x["messageId"]) !== messageId).map((x) => `${speaker(x)}: ${words(x)}`);
+      if (lines.length > 0) out.push(`The conversation it came from, most recent lines:\n${lines.join("\n")}`);
+    }
+    return out.join("\n\n");
+  }
+
   async function build(input: TurnInput): Promise<TurnContext> {
     const asker = input.asker;
     const agentId = input.agent.id;
@@ -370,6 +399,8 @@ export function createContextBuilder(d: ContextDeps) {
       const t = await taskOf(taskId, asker);
       if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker)));
     }
+
+    add("parent", false, await parentOf(th, asker));
 
     const older = str(summary?.["summary"]);
     if (older) add("earlier", false, `${cutTo(older, 8_000)}\nThe full transcript is chats/${input.threadId}/transcript.md; transcript_search finds an exact line.`);

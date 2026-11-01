@@ -2,7 +2,7 @@
 // and the server (engine enqueue), so the label can never disagree with what happens.
 //
 //   1. m @mentions agents A: responders = A (minus the author).
-//   2. else m is addressed to a person (@person, no agent mention): nobody.
+//   2. else m is addressed to a person (@person, or a reply to someone else's message, no agent mention): nobody.
 //   3. else: the one lead agent of the thread, if any.
 // Listeners never run inference per message: no rule above ever returns one unless it was @mentioned. A message from an agent counts one hop (message.depth);
 // at the agent_hops limit (default 4) nothing runs until a person replies.
@@ -15,6 +15,8 @@ export interface RouteMessage {
   mentions: readonly RouteMention[];
   /** Agent-to-agent hops since the last person message. Persons reset it to 0. */
   depth?: number;
+  /** The person whose message this replies to, when it is a reply to a person. */
+  replyToPerson?: string | undefined;
 }
 export interface RoutePolicy { agentHops?: number }
 export type RouteReason = "mention" | "person_addressed" | "lead" | "no_lead" | "hop_limit";
@@ -41,6 +43,8 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
   if (m.mentions.some((x) => x.kind === "agent")) return done([], "mention");   // only self-mentions: an agent never answers itself
 
   if (m.mentions.some((x) => x.kind === "person")) return done([], "person_addressed");
+  // two people talking: a reply to the other person is for them, and the lead stays out of it
+  if (m.replyToPerson !== undefined && m.replyToPerson !== m.author.id) return done([], "person_addressed");
 
   // the only agent in a person's chat answers that person whatever its mode says: listening means nothing with no one else to lead. Not a message the host posts (a nudge, a baton line, svc_...),
   // not an agent's, not a run, helper, channel or console thread, and never a watcher.
