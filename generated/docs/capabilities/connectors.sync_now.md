@@ -27,7 +27,6 @@ Start a sync Run for a synced type or a connection; modes: incremental, reconcil
 type In = {
   syncTypeId?: string;
   type?: string;
-  account?: string;
   connectionId?: string;
   mode?: "incremental" | "reconcile" | "backfill" | "dry_run";
   runAutomations?: boolean;
@@ -56,7 +55,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "account": "example",
     "connectionId": "con_a1b2c3",
     "idempotencyKey": "idem_1",
     "mode": "incremental",

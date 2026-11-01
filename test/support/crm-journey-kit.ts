@@ -198,7 +198,7 @@ async function createAssistant(s: Space): Promise<string> {
 }
 
 /** The person asks in chat to bring the CRM in; the agent proposes; the person taps Looks good. Returns the thread id. */
-export async function bringInByChat(s: Space, agentId: string, know: Know, item: { id: string; handle: string; name: string }): Promise<string> {
+export async function bringInByChat(s: Space, agentId: string, know: Know, item: { id: string; handle: string; name: string }, tap?: (threadId: string) => Promise<void>): Promise<string> {
   s.model.know = know;
   // a person in a chat with the assistant, set to Auto (new chats ask before a change; this one is about what the assistant does)
   const threadId = (await ok(s, "chat.start", { kind: "chat", agentIds: [agentId] })).thread.threadId as string;
@@ -214,7 +214,8 @@ export async function bringInByChat(s: Space, agentId: string, know: Know, item:
     const msgs = (await ok(s, "chat.messages.list", { threadId })).messages as { kind: string; body: string; blocks?: unknown[] }[];
     throw new Error(`${e.message}; tools ${s.model.tools.join(",")}; messages ${JSON.stringify(msgs.map((m) => ({ k: m.kind, b: String(m.body).slice(0, 200), bl: JSON.stringify(m.blocks).slice(0, 300) })))}`);
   });
-  await ok(s, "chat.answer_block", { threadId, blockId: q.id, answer: { keys: [q.go] } });
+  // the tap: through the question card in the browser when there is one, else the capability the card calls
+  if (tap) await tap(threadId); else await ok(s, "chat.answer_block", { threadId, blockId: q.id, answer: { keys: [q.go] } });
   return threadId;
 }
 
@@ -222,4 +223,25 @@ export async function untilValue<T>(what: string, check: () => Promise<T | null>
   const end = Date.now() + ms;
   while (Date.now() < end) { const v = await check(); if (v) return v; await sleep(200); }
   throw new Error(`never happened: ${what}`);
+}
+
+/** Everything the chat setup needs in one call: the person's AI, the key in the Vault, the assistant with its permissions, and the ask in chat. */
+export async function chatSetup(s: Space, know: (handle: string) => Know, app: "Ledger" | "Orbit" = "Ledger", tap?: (threadId: string) => Promise<void>): Promise<{ agentId: string; item: { id: string; handle: string; name: string }; threadId: string }> {
+  await connectAi(s);
+  const item = await vaultItemOf(s, app);
+  const agentId = await trustAssistant(s, item.id);
+  const threadId = await bringInByChat(s, agentId, know(item.handle), item, tap);
+  return { agentId, item, threadId };
+}
+
+/** A person invited to the Space, as the Console's invite makes them. Returns their id and the token their browser holds. */
+export async function joinMember(s: Space, username: string, displayName: string): Promise<{ personId: string; token: string }> {
+  const roles = (await ok(s, "access.roles.list", {})).roles as { id: string; name: string }[];
+  const member = roles.find((r) => r.name === "Member")!;
+  const inv = await ok(s, "members.invites.create", { role: member.id });
+  const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
+  const keys = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
+  const r = await fetch(`${s.d.url}/v1/members/accept`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, username, displayName, password: "fixture password 123", deviceName: `${displayName}'s laptop`, deviceClass: "desktop", keys }) });
+  if (r.status !== 200) throw new Error(`accept ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  return ((await r.json()) as { data: { personId: string; token: string } }).data;
 }

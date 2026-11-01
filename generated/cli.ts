@@ -406,21 +406,6 @@ export const cliCommands: Array<{ command: string; cap: string; v: number }> = [
     "v": 1
   },
   {
-    "command": "vyre sync-spec apply",
-    "cap": "sync_specs.apply",
-    "v": 1
-  },
-  {
-    "command": "vyre sync-spec sample",
-    "cap": "sync_specs.sample",
-    "v": 1
-  },
-  {
-    "command": "vyre sync-spec validate",
-    "cap": "sync_specs.validate",
-    "v": 1
-  },
-  {
     "command": "vyre tasks create",
     "cap": "tasks.create",
     "v": 1

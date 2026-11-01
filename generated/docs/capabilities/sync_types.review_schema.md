@@ -26,7 +26,6 @@ Accept or ignore remote schema changes; accepted ones go through schema.apply
 ```ts
 type In = {
   type: string;
-  account?: string;
   accept: Array<string>;
   ignore: Array<string>;
 };
@@ -59,7 +58,6 @@ type Out = {
     "accept": [
       "example"
     ],
-    "account": "example",
     "ignore": [
       "example"
     ],

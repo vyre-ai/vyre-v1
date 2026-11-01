@@ -38,7 +38,6 @@ type Out = {
   syncedTypes: Array<{
       syncTypeId: string;
       type: string;
-      account?: string;
       connector: string;
       connectionId: string;
       remote: string;
@@ -48,9 +47,6 @@ type Out = {
           remote: string;
           dir: "pull" | "push" | "both" | "off";
           transform?: string;
-          relation?: string;
-          inverse?: string;
-          constant?: string;
         }>;
       match: Array<string>;
       createAtSource: boolean;
@@ -66,10 +62,6 @@ type Out = {
       pending: number;
       conflicts: number;
       schemaChanges: number;
-      app?: {
-        title: string;
-        domain?: string;
-      };
     }>;
   next?: string;
   total?: number;
@@ -97,11 +89,6 @@ type Out = {
     "next": "example",
     "syncedTypes": [
       {
-        "account": "example",
-        "app": {
-          "domain": "example",
-          "title": "example"
-        },
         "conflict": "newest",
         "conflicts": 1,
         "connectionId": "con_a1b2c3",
@@ -110,11 +97,8 @@ type Out = {
         "deletes": "off",
         "fields": [
           {
-            "constant": "example",
             "dir": "pull",
-            "inverse": "email",
             "key": "email",
-            "relation": "contact",
             "remote": "example",
             "transform": "example"
           }

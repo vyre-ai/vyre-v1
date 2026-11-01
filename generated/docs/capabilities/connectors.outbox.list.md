@@ -26,7 +26,6 @@ Pending, failed and recent pushes with their idempotency keys
 ```ts
 type In = {
   type?: string;
-  account?: string;
   state?: "pending" | "sent" | "failed" | "canceled" | "undone";
   cursor?: string;
   limit?: number;
@@ -68,7 +67,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "account": "example",
     "cursor": "example",
     "limit": 1,
     "state": "pending",

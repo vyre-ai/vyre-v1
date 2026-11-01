@@ -7724,7 +7724,6 @@ export type ConnectorsGetOut = {
         create?: string;
         update?: string;
         delete?: string;
-        since?: boolean;
       }>;
     sourceFolderId?: string;
   };
@@ -7777,7 +7776,6 @@ export type ConnectorsListOut = {
           create?: string;
           update?: string;
           delete?: string;
-          since?: boolean;
         }>;
       sourceFolderId?: string;
     }>;
@@ -7792,7 +7790,6 @@ export type ConnectorsOutboxCancelOut = {
 };
 export type ConnectorsOutboxListIn = {
   type?: string;
-  account?: string;
   state?: "pending" | "sent" | "failed" | "canceled" | "undone";
   cursor?: string;
   limit?: number;
@@ -7874,7 +7871,6 @@ export type ConnectorsRunOut = {
 export type ConnectorsSyncNowIn = {
   syncTypeId?: string;
   type?: string;
-  account?: string;
   connectionId?: string;
   mode?: "incremental" | "reconcile" | "backfill" | "dry_run";
   runAutomations?: boolean;
@@ -7882,20 +7878,6 @@ export type ConnectorsSyncNowIn = {
 };
 export type ConnectorsSyncNowOut = {
   runId: string;
-};
-export type ConnectorsSyncPollIn = {
-  type: string;
-};
-export type ConnectorsSyncPollOut = {
-  ran: boolean;
-  summary?: string;
-};
-export type ConnectorsSyncRunIn = {
-  runId: string;
-};
-export type ConnectorsSyncRunOut = {
-  ok: boolean;
-  summary: string;
 };
 export type ConnectorsTestIn = {
   key: string;
@@ -26409,636 +26391,8 @@ export type SyncStatusOut = {
   openConflicts: number;
   mode: "live" | "update_required" | "resync" | "purge";
 };
-export type SyncSpecsApplyIn = {
-  spec: {
-    app: {
-      name: string;
-      domain: string;
-      docsUrl?: string;
-      logoHint?: string;
-      account?: string;
-    };
-    auth: {
-      vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
-      header?: string;
-      prefix?: string;
-      headers?: Record<string, string>;
-    };
-    objects: Array<{
-        remote: string;
-        label: string;
-        count?: number;
-        list: {
-          path: string;
-          query?: Record<string, string>;
-          cursor?: {
-            kind: "none" | "page" | "cursor" | "offset" | "link";
-            param?: string;
-            next?: string;
-            size?: number;
-            sizeParam?: string;
-            start?: number;
-          };
-          updatedSince?: {
-            param: string;
-            format?: string;
-          };
-          filter?: {
-            param: string;
-            value: string;
-          };
-        };
-        get?: {
-          path: string;
-        };
-        create?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        update?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        delete?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        id: string;
-        updatedAt?: string;
-        itemsAt: string;
-        openUrl?: string;
-        fields: Array<{
-            path: string;
-            label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
-            choices?: Array<{
-                value: string;
-                label?: string;
-              }>;
-            relationTo?: string;
-            readOnly?: boolean;
-          }>;
-        webhook?: {
-          events: Array<string>;
-          subscribePath?: string;
-          evidence?: string;
-          manualUrl?: boolean;
-          signature?: string;
-        };
-      }>;
-    mapping: Array<{
-        remote: string;
-        recordType: string;
-        title?: string;
-        fields: Array<{
-            path: string;
-            field?: string;
-            direction: "both" | "pull" | "push" | "off";
-          }>;
-        match?: Array<string>;
-        stagesFrom?: string;
-        titleField?: string;
-        deletes?: "off" | "soft" | "travel";
-        createAtSource?: boolean;
-      }>;
-    plan: {
-      firstPull: {
-        words: string;
-      };
-      backfill: "later" | "now";
-      conflicts: "newest";
-      audience?: "space" | "added" | "me";
-    };
-  };
-  idempotencyKey: string;
-};
-export type SyncSpecsApplyOut = {
-  connector: string;
-  connectionId: string;
-  version: string;
-  types: Array<{
-      type: string;
-      syncTypeId: string;
-      runId?: string;
-    }>;
-  live: "polling" | "webhook";
-  webhookUrl?: string;
-};
-export type SyncSpecsBackfillIn = {
-  type: string;
-  account?: string;
-  idempotencyKey: string;
-};
-export type SyncSpecsBackfillOut = {
-  runId?: string;
-};
-export type SyncSpecsGetIn = {
-  type?: string;
-  account?: string;
-  connector?: string;
-};
-export type SyncSpecsGetOut = {
-  spec: {
-    app: {
-      name: string;
-      domain: string;
-      docsUrl?: string;
-      logoHint?: string;
-      account?: string;
-    };
-    auth: {
-      vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
-      header?: string;
-      prefix?: string;
-      headers?: Record<string, string>;
-    };
-    objects: Array<{
-        remote: string;
-        label: string;
-        count?: number;
-        list: {
-          path: string;
-          query?: Record<string, string>;
-          cursor?: {
-            kind: "none" | "page" | "cursor" | "offset" | "link";
-            param?: string;
-            next?: string;
-            size?: number;
-            sizeParam?: string;
-            start?: number;
-          };
-          updatedSince?: {
-            param: string;
-            format?: string;
-          };
-          filter?: {
-            param: string;
-            value: string;
-          };
-        };
-        get?: {
-          path: string;
-        };
-        create?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        update?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        delete?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        id: string;
-        updatedAt?: string;
-        itemsAt: string;
-        openUrl?: string;
-        fields: Array<{
-            path: string;
-            label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
-            choices?: Array<{
-                value: string;
-                label?: string;
-              }>;
-            relationTo?: string;
-            readOnly?: boolean;
-          }>;
-        webhook?: {
-          events: Array<string>;
-          subscribePath?: string;
-          evidence?: string;
-          manualUrl?: boolean;
-          signature?: string;
-        };
-      }>;
-    mapping: Array<{
-        remote: string;
-        recordType: string;
-        title?: string;
-        fields: Array<{
-            path: string;
-            field?: string;
-            direction: "both" | "pull" | "push" | "off";
-          }>;
-        match?: Array<string>;
-        stagesFrom?: string;
-        titleField?: string;
-        deletes?: "off" | "soft" | "travel";
-        createAtSource?: boolean;
-      }>;
-    plan: {
-      firstPull: {
-        words: string;
-      };
-      backfill: "later" | "now";
-      conflicts: "newest";
-      audience?: "space" | "added" | "me";
-    };
-  };
-  connector: string;
-  connectionId: string;
-  appliedAt: number;
-  types: Array<{
-      type: string;
-      remote: string;
-    }>;
-};
-export type SyncSpecsPreviewIn = {
-  spec: {
-    app: {
-      name: string;
-      domain: string;
-      docsUrl?: string;
-      logoHint?: string;
-      account?: string;
-    };
-    auth: {
-      vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
-      header?: string;
-      prefix?: string;
-      headers?: Record<string, string>;
-    };
-    objects: Array<{
-        remote: string;
-        label: string;
-        count?: number;
-        list: {
-          path: string;
-          query?: Record<string, string>;
-          cursor?: {
-            kind: "none" | "page" | "cursor" | "offset" | "link";
-            param?: string;
-            next?: string;
-            size?: number;
-            sizeParam?: string;
-            start?: number;
-          };
-          updatedSince?: {
-            param: string;
-            format?: string;
-          };
-          filter?: {
-            param: string;
-            value: string;
-          };
-        };
-        get?: {
-          path: string;
-        };
-        create?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        update?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        delete?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        id: string;
-        updatedAt?: string;
-        itemsAt: string;
-        openUrl?: string;
-        fields: Array<{
-            path: string;
-            label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
-            choices?: Array<{
-                value: string;
-                label?: string;
-              }>;
-            relationTo?: string;
-            readOnly?: boolean;
-          }>;
-        webhook?: {
-          events: Array<string>;
-          subscribePath?: string;
-          evidence?: string;
-          manualUrl?: boolean;
-          signature?: string;
-        };
-      }>;
-    mapping: Array<{
-        remote: string;
-        recordType: string;
-        title?: string;
-        fields: Array<{
-            path: string;
-            field?: string;
-            direction: "both" | "pull" | "push" | "off";
-          }>;
-        match?: Array<string>;
-        stagesFrom?: string;
-        titleField?: string;
-        deletes?: "off" | "soft" | "travel";
-        createAtSource?: boolean;
-      }>;
-    plan: {
-      firstPull: {
-        words: string;
-      };
-      backfill: "later" | "now";
-      conflicts: "newest";
-      audience?: "space" | "added" | "me";
-    };
-  };
-};
-export type SyncSpecsPreviewOut = {
-  ok: boolean;
-  problems: Array<{
-      level: "error" | "warn";
-      at: string;
-      message: string;
-    }>;
-  objects: Array<{
-      remote: string;
-      items: number;
-      hasNext: boolean;
-      fieldsFound: number;
-      fieldsMissing: Array<string>;
-      status: number;
-    }>;
-  summary: string;
-  size: {
-    records: number;
-    bytes: number;
-    text: string;
-  };
-  types: Array<{
-      type: string;
-      remote: string;
-      isNew: boolean;
-      title: string;
-      existing: number;
-      fields: Array<{
-          key: string;
-          label: string;
-          type: string;
-          dir: string;
-        }>;
-    }>;
-  samples: Array<{
-      type: string;
-      remote: string;
-      title: string;
-      fields: Array<{
-          key: string;
-          label: string;
-          value: unknown;
-        }>;
-    }>;
-};
-export type SyncSpecsRemoveIn = {
-  type: string;
-  account?: string;
-  records: "keep" | "remove";
-};
-export type SyncSpecsRemoveOut = {
-  detached: Array<string>;
-  removed: Array<string>;
-};
-export type SyncSpecsSampleIn = {
-  auth: {
-    vaultHandle: string;
-    style: "bearer" | "header" | "basic";
-    header?: string;
-    prefix?: string;
-    headers?: Record<string, string>;
-  };
-  domain: string;
-  path: string;
-  query?: Record<string, string>;
-  url?: string;
-  items?: number;
-};
-export type SyncSpecsSampleOut = {
-  status: number;
-  ok: boolean;
-  reason?: string;
-  nextLink?: string;
-  items?: Array<unknown>;
-  preview?: string;
-  shape?: {
-    kind: "object" | "array" | "empty" | "text";
-    lists: Array<{
-        itemsAt: string;
-        count: number;
-        idAt?: string;
-        updatedAtGuess?: string;
-        fields: Array<{
-            path: string;
-            type: string;
-            seen: number;
-            example?: string;
-          }>;
-      }>;
-    cursors: Array<{
-        pointer: string;
-        value: string;
-      }>;
-    totals: Array<{
-        pointer: string;
-        value: number;
-      }>;
-    keys?: Array<string>;
-  };
-  estimate?: {
-    count: number;
-    source: string;
-  };
-};
-export type SyncSpecsSurveyIn = {
-  auth: {
-    vaultHandle: string;
-    style: "bearer" | "header" | "basic";
-    header?: string;
-    prefix?: string;
-    headers?: Record<string, string>;
-  };
-  domain: string;
-  paths: Array<string>;
-};
-export type SyncSpecsSurveyOut = {
-  results: Array<{
-      path: string;
-      status: number;
-      reason?: string;
-      lists: Array<{
-          itemsAt: string;
-          count: number;
-          idAt?: string;
-          fields: number;
-        }>;
-      total?: number;
-      nextLink?: boolean;
-    }>;
-};
-export type SyncSpecsValidateIn = {
-  spec: {
-    app: {
-      name: string;
-      domain: string;
-      docsUrl?: string;
-      logoHint?: string;
-      account?: string;
-    };
-    auth: {
-      vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
-      header?: string;
-      prefix?: string;
-      headers?: Record<string, string>;
-    };
-    objects: Array<{
-        remote: string;
-        label: string;
-        count?: number;
-        list: {
-          path: string;
-          query?: Record<string, string>;
-          cursor?: {
-            kind: "none" | "page" | "cursor" | "offset" | "link";
-            param?: string;
-            next?: string;
-            size?: number;
-            sizeParam?: string;
-            start?: number;
-          };
-          updatedSince?: {
-            param: string;
-            format?: string;
-          };
-          filter?: {
-            param: string;
-            value: string;
-          };
-        };
-        get?: {
-          path: string;
-        };
-        create?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        update?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        delete?: {
-          path: string;
-          method?: "POST" | "PUT" | "PATCH" | "DELETE";
-          evidence: string;
-          bodyAt?: string;
-          idAt?: string;
-        };
-        id: string;
-        updatedAt?: string;
-        itemsAt: string;
-        openUrl?: string;
-        fields: Array<{
-            path: string;
-            label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
-            choices?: Array<{
-                value: string;
-                label?: string;
-              }>;
-            relationTo?: string;
-            readOnly?: boolean;
-          }>;
-        webhook?: {
-          events: Array<string>;
-          subscribePath?: string;
-          evidence?: string;
-          manualUrl?: boolean;
-          signature?: string;
-        };
-      }>;
-    mapping: Array<{
-        remote: string;
-        recordType: string;
-        title?: string;
-        fields: Array<{
-            path: string;
-            field?: string;
-            direction: "both" | "pull" | "push" | "off";
-          }>;
-        match?: Array<string>;
-        stagesFrom?: string;
-        titleField?: string;
-        deletes?: "off" | "soft" | "travel";
-        createAtSource?: boolean;
-      }>;
-    plan: {
-      firstPull: {
-        words: string;
-      };
-      backfill: "later" | "now";
-      conflicts: "newest";
-      audience?: "space" | "added" | "me";
-    };
-  };
-};
-export type SyncSpecsValidateOut = {
-  ok: boolean;
-  problems: Array<{
-      level: "error" | "warn";
-      at: string;
-      message: string;
-    }>;
-  objects: Array<{
-      remote: string;
-      items: number;
-      hasNext: boolean;
-      fieldsFound: number;
-      fieldsMissing: Array<string>;
-      status: number;
-    }>;
-};
 export type SyncTypesConfirmDeletesIn = {
   type: string;
-  account?: string;
   decision: "mark_removed" | "keep";
 };
 export type SyncTypesConfirmDeletesOut = {
@@ -27046,7 +26400,6 @@ export type SyncTypesConfirmDeletesOut = {
 };
 export type SyncTypesCreateIn = {
   type: string;
-  account?: string;
   connectionId: string;
   remote: string;
   fields: Array<{
@@ -27054,9 +26407,6 @@ export type SyncTypesCreateIn = {
       remote: string;
       dir: "pull" | "push" | "both" | "off";
       transform?: string;
-      relation?: string;
-      inverse?: string;
-      constant?: string;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -27074,7 +26424,6 @@ export type SyncTypesCreateOut = {
   syncedType: {
     syncTypeId: string;
     type: string;
-    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -27084,9 +26433,6 @@ export type SyncTypesCreateOut = {
         remote: string;
         dir: "pull" | "push" | "both" | "off";
         transform?: string;
-        relation?: string;
-        inverse?: string;
-        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -27102,10 +26448,6 @@ export type SyncTypesCreateOut = {
     pending: number;
     conflicts: number;
     schemaChanges: number;
-    app?: {
-      title: string;
-      domain?: string;
-    };
   };
 };
 export type SyncTypesDiscoverIn = {
@@ -27125,30 +26467,13 @@ export type SyncTypesDiscoverOut = {
         }>;
     }>;
 };
-export type SyncTypesFieldHistoryIn = {
-  type: string;
-  recordId: string;
-  field: string;
-};
-export type SyncTypesFieldHistoryOut = {
-  entries: Array<{
-      historyId: string;
-      value: unknown;
-      at?: number;
-      replacedBy: "app" | "you" | "push";
-      by?: string;
-      actor: string;
-    }>;
-};
 export type SyncTypesGetIn = {
   type: string;
-  account?: string;
 };
 export type SyncTypesGetOut = {
   syncedType: {
     syncTypeId: string;
     type: string;
-    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -27158,9 +26483,6 @@ export type SyncTypesGetOut = {
         remote: string;
         dir: "pull" | "push" | "both" | "off";
         transform?: string;
-        relation?: string;
-        inverse?: string;
-        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -27176,10 +26498,6 @@ export type SyncTypesGetOut = {
     pending: number;
     conflicts: number;
     schemaChanges: number;
-    app?: {
-      title: string;
-      domain?: string;
-    };
   };
 };
 export type SyncTypesListIn = {
@@ -27191,7 +26509,6 @@ export type SyncTypesListOut = {
   syncedTypes: Array<{
       syncTypeId: string;
       type: string;
-      account?: string;
       connector: string;
       connectionId: string;
       remote: string;
@@ -27201,9 +26518,6 @@ export type SyncTypesListOut = {
           remote: string;
           dir: "pull" | "push" | "both" | "off";
           transform?: string;
-          relation?: string;
-          inverse?: string;
-          constant?: string;
         }>;
       match: Array<string>;
       createAtSource: boolean;
@@ -27219,17 +26533,12 @@ export type SyncTypesListOut = {
       pending: number;
       conflicts: number;
       schemaChanges: number;
-      app?: {
-        title: string;
-        domain?: string;
-      };
     }>;
   next?: string;
   total?: number;
 };
 export type SyncTypesLogIn = {
   type: string;
-  account?: string;
   cursor?: string;
   limit?: number;
 };
@@ -27246,21 +26555,18 @@ export type SyncTypesLogOut = {
 };
 export type SyncTypesMakeNativeIn = {
   type: string;
-  account?: string;
 };
 export type SyncTypesMakeNativeOut = {
   ok: boolean;
 };
 export type SyncTypesPauseIn = {
   type: string;
-  account?: string;
 };
 export type SyncTypesPauseOut = {
   ok: boolean;
 };
 export type SyncTypesPreviewIn = {
   type: string;
-  account?: string;
   direction?: "pull" | "push" | "both";
 };
 export type SyncTypesPreviewOut = {
@@ -27281,31 +26587,6 @@ export type SyncTypesPreviewOut = {
       changes: Record<string, unknown>;
     }>;
 };
-export type SyncTypesRecordStateIn = {
-  type: string;
-  recordId: string;
-};
-export type SyncTypesRecordStateOut = {
-  synced: boolean;
-  state: "synced" | "saving" | "failed" | "local";
-  lastSyncAt?: number;
-  remoteId?: string;
-  openUrl?: string;
-  app?: {
-    key: string;
-    title: string;
-    domain?: string;
-  };
-  fields: Array<{
-      key: string;
-      dir: "pull" | "push" | "both" | "off";
-      state: "synced" | "saving" | "failed" | "local";
-      at?: number;
-      error?: string;
-      outboxId?: string;
-      history: number;
-    }>;
-};
 export type SyncTypesReplayConflictIn = {
   conflictId: string;
 };
@@ -27324,26 +26605,14 @@ export type SyncTypesResolveConflictIn = {
 export type SyncTypesResolveConflictOut = {
   recordId: string;
 };
-export type SyncTypesRestoreFieldIn = {
-  type: string;
-  recordId: string;
-  field: string;
-  historyId: string;
-};
-export type SyncTypesRestoreFieldOut = {
-  ok: boolean;
-  runId?: string;
-};
 export type SyncTypesResumeIn = {
   type: string;
-  account?: string;
 };
 export type SyncTypesResumeOut = {
   ok: boolean;
 };
 export type SyncTypesReviewSchemaIn = {
   type: string;
-  account?: string;
   accept: Array<string>;
   ignore: Array<string>;
 };
@@ -27353,7 +26622,6 @@ export type SyncTypesReviewSchemaOut = {
 };
 export type SyncTypesSchemaChangesIn = {
   type: string;
-  account?: string;
 };
 export type SyncTypesSchemaChangesOut = {
   changes: Array<{
@@ -27362,55 +26630,6 @@ export type SyncTypesSchemaChangesOut = {
       remote: string;
       summary: string;
     }>;
-};
-export type SyncTypesStatusIn = {
-  type: string;
-  account?: string;
-};
-export type SyncTypesStatusOut = {
-  type: string;
-  app: {
-    key: string;
-    title: string;
-    domain?: string;
-  };
-  state: "initial" | "syncing" | "paused" | "needs_review" | "error";
-  paused: boolean;
-  deletes: "off" | "soft" | "travel";
-  conflict: "newest" | "source" | "vyre" | "ask";
-  account?: string;
-  accounts?: Array<{
-      account: string;
-      state: string;
-      records: number;
-      estimate?: number;
-      pending: number;
-    }>;
-  polling: {
-    activeSec: number;
-    idleSec: number;
-    dormantSec: number;
-  };
-  records: number;
-  estimate?: number;
-  filter?: string;
-  canBackfill: boolean;
-  catchingUp?: boolean;
-  lastRun?: {
-    at: number;
-    summary: string;
-  };
-  pending: number;
-  failedPushes: number;
-  conflicts: number;
-  schemaChanges: number;
-  failures: Array<{
-      at: number;
-      summary: string;
-    }>;
-  sentToday: number;
-  nextPollAt?: number;
-  spec: boolean;
 };
 export type SyncTypesUndoPushIn = {
   outboxId: string;
@@ -27421,15 +26640,11 @@ export type SyncTypesUndoPushOut = {
 };
 export type SyncTypesUpdateIn = {
   type: string;
-  account?: string;
   fields?: Array<{
       key: string;
       remote: string;
       dir: "pull" | "push" | "both" | "off";
       transform?: string;
-      relation?: string;
-      inverse?: string;
-      constant?: string;
     }>;
   match?: Array<string>;
   createAtSource?: boolean;
@@ -27446,7 +26661,6 @@ export type SyncTypesUpdateOut = {
   syncedType: {
     syncTypeId: string;
     type: string;
-    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -27456,9 +26670,6 @@ export type SyncTypesUpdateOut = {
         remote: string;
         dir: "pull" | "push" | "both" | "off";
         transform?: string;
-        relation?: string;
-        inverse?: string;
-        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -27474,10 +26685,6 @@ export type SyncTypesUpdateOut = {
     pending: number;
     conflicts: number;
     schemaChanges: number;
-    app?: {
-      title: string;
-      domain?: string;
-    };
   };
 };
 export type TasksActIn = {
@@ -32801,8 +32008,6 @@ export interface CapMap {
   "connectors.rollback": { in: ConnectorsRollbackIn; out: ConnectorsRollbackOut };
   "connectors.run": { in: ConnectorsRunIn; out: ConnectorsRunOut };
   "connectors.sync_now": { in: ConnectorsSyncNowIn; out: ConnectorsSyncNowOut };
-  "connectors.sync_poll": { in: ConnectorsSyncPollIn; out: ConnectorsSyncPollOut };
-  "connectors.sync_run": { in: ConnectorsSyncRunIn; out: ConnectorsSyncRunOut };
   "connectors.test": { in: ConnectorsTestIn; out: ConnectorsTestOut };
   "connectors.versions": { in: ConnectorsVersionsIn; out: ConnectorsVersionsOut };
   "console.activity": { in: ConsoleActivityIn; out: ConsoleActivityOut };
@@ -33958,32 +33163,20 @@ export interface CapMap {
   "sync.snapshot.begin": { in: SyncSnapshotBeginIn; out: SyncSnapshotBeginOut };
   "sync.snapshot.page": { in: SyncSnapshotPageIn; out: SyncSnapshotPageOut };
   "sync.status": { in: SyncStatusIn; out: SyncStatusOut };
-  "sync_specs.apply": { in: SyncSpecsApplyIn; out: SyncSpecsApplyOut };
-  "sync_specs.backfill": { in: SyncSpecsBackfillIn; out: SyncSpecsBackfillOut };
-  "sync_specs.get": { in: SyncSpecsGetIn; out: SyncSpecsGetOut };
-  "sync_specs.preview": { in: SyncSpecsPreviewIn; out: SyncSpecsPreviewOut };
-  "sync_specs.remove": { in: SyncSpecsRemoveIn; out: SyncSpecsRemoveOut };
-  "sync_specs.sample": { in: SyncSpecsSampleIn; out: SyncSpecsSampleOut };
-  "sync_specs.survey": { in: SyncSpecsSurveyIn; out: SyncSpecsSurveyOut };
-  "sync_specs.validate": { in: SyncSpecsValidateIn; out: SyncSpecsValidateOut };
   "sync_types.confirm_deletes": { in: SyncTypesConfirmDeletesIn; out: SyncTypesConfirmDeletesOut };
   "sync_types.create": { in: SyncTypesCreateIn; out: SyncTypesCreateOut };
   "sync_types.discover": { in: SyncTypesDiscoverIn; out: SyncTypesDiscoverOut };
-  "sync_types.field_history": { in: SyncTypesFieldHistoryIn; out: SyncTypesFieldHistoryOut };
   "sync_types.get": { in: SyncTypesGetIn; out: SyncTypesGetOut };
   "sync_types.list": { in: SyncTypesListIn; out: SyncTypesListOut };
   "sync_types.log": { in: SyncTypesLogIn; out: SyncTypesLogOut };
   "sync_types.make_native": { in: SyncTypesMakeNativeIn; out: SyncTypesMakeNativeOut };
   "sync_types.pause": { in: SyncTypesPauseIn; out: SyncTypesPauseOut };
   "sync_types.preview": { in: SyncTypesPreviewIn; out: SyncTypesPreviewOut };
-  "sync_types.record_state": { in: SyncTypesRecordStateIn; out: SyncTypesRecordStateOut };
   "sync_types.replay_conflict": { in: SyncTypesReplayConflictIn; out: SyncTypesReplayConflictOut };
   "sync_types.resolve_conflict": { in: SyncTypesResolveConflictIn; out: SyncTypesResolveConflictOut };
-  "sync_types.restore_field": { in: SyncTypesRestoreFieldIn; out: SyncTypesRestoreFieldOut };
   "sync_types.resume": { in: SyncTypesResumeIn; out: SyncTypesResumeOut };
   "sync_types.review_schema": { in: SyncTypesReviewSchemaIn; out: SyncTypesReviewSchemaOut };
   "sync_types.schema_changes": { in: SyncTypesSchemaChangesIn; out: SyncTypesSchemaChangesOut };
-  "sync_types.status": { in: SyncTypesStatusIn; out: SyncTypesStatusOut };
   "sync_types.undo_push": { in: SyncTypesUndoPushIn; out: SyncTypesUndoPushOut };
   "sync_types.update": { in: SyncTypesUpdateIn; out: SyncTypesUpdateOut };
   "tasks.act": { in: TasksActIn; out: TasksActOut };

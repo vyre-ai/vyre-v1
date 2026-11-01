@@ -26,7 +26,6 @@ Read the sync binding of a record type (the header line, mapping and rules)
 ```ts
 type In = {
   type: string;
-  account?: string;
 };
 ```
 
@@ -37,7 +36,6 @@ type Out = {
   syncedType: {
     syncTypeId: string;
     type: string;
-    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -47,9 +45,6 @@ type Out = {
         remote: string;
         dir: "pull" | "push" | "both" | "off";
         transform?: string;
-        relation?: string;
-        inverse?: string;
-        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -65,10 +60,6 @@ type Out = {
     pending: number;
     conflicts: number;
     schemaChanges: number;
-    app?: {
-      title: string;
-      domain?: string;
-    };
   };
 };
 ```
@@ -87,16 +78,10 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "account": "example",
     "type": "contact"
   },
   "output": {
     "syncedType": {
-      "account": "example",
-      "app": {
-        "domain": "example",
-        "title": "example"
-      },
       "conflict": "newest",
       "conflicts": 1,
       "connectionId": "con_a1b2c3",
@@ -105,11 +90,8 @@ type Out = {
       "deletes": "off",
       "fields": [
         {
-          "constant": "example",
           "dir": "pull",
-          "inverse": "email",
           "key": "email",
-          "relation": "contact",
           "remote": "example",
           "transform": "example"
         }

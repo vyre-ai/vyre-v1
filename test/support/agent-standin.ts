@@ -6,7 +6,7 @@ import type { ConnectorsCtx } from "../../modules/connectors/projections.ts";
 
 type Hs = ConnectorsHandle["handlers"];
 interface Auth { vaultHandle: string; style: "bearer" | "header"; header?: string }
-export interface Know { name: string; domain: string; auth: Auth; objects: { remote: string; path: string; label: string; recordType: string; write?: { path: string; evidence: string } }[]; fieldsEndpoint?: { path: string; forRemote: string }; firstPullFilter?: { remote: string; param: string; value: string; words: string }; backfill?: "now" | "later"; /** Which account of the app this is (a location, a tenant). */ account?: string; /** Query parameters the docs name for one object's list (a tenant, a sort). */ query?: Record<string, Record<string, string>> }
+export interface Know { name: string; domain: string; auth: Auth; objects: { remote: string; path: string; label: string; recordType: string; write?: { path: string; evidence: string } }[]; fieldsEndpoint?: { path: string; forRemote: string }; firstPullFilter?: { remote: string; param: string; value: string; words: string }; backfill?: "now" | "later"; /** Which account of the app this is (a location, a tenant). */ account?: string; /** Query parameters the docs name for one object's list (a tenant, a sort). */ query?: Record<string, Record<string, string>>; /** The docs' subscribe call for one object, when the app can call the Space. */ webhook?: { remote: string; subscribePath: string; evidence: string }; /** Who the new record types are open to (asked in a Team Space). */ audience?: "space" | "added" | "me" }
 
 const leaf = (p: string): string => p.split("/").pop() ?? p;
 const title = (s: string): string => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -71,6 +71,7 @@ export async function fillSpec(hs: Hs, ctx: ConnectorsCtx, know: Know): Promise<
     objects.push({
       remote: o.remote, label: o.label, ...(s.estimate ? { count: s.estimate.count } : {}), id: l.idAt ?? "/id", itemsAt: l.itemsAt, ...(l.updatedAtGuess ? { updatedAt: l.updatedAtGuess } : {}),
       list: { path: o.path, ...(know.query?.[o.remote] ? { query: know.query[o.remote] } : {}), cursor, ...(filter ? { filter } : {}) },
+      ...(know.webhook?.remote === o.remote ? { webhook: { events: ["updated"], subscribePath: know.webhook.subscribePath, evidence: know.webhook.evidence } } : {}),
       ...(o.write ? { update: { path: o.write.path, method: "PATCH", evidence: o.write.evidence } } : {}),
       fields,
     });
@@ -86,7 +87,7 @@ export async function fillSpec(hs: Hs, ctx: ConnectorsCtx, know: Know): Promise<
     app: { name: know.name, domain: know.domain, ...(know.account ? { account: know.account } : {}) },
     auth: know.auth,
     objects, mapping,
-    plan: { firstPull: { words: know.firstPullFilter?.words ?? "Everything" }, backfill: know.backfill ?? "later", conflicts: "newest" },
+    plan: { firstPull: { words: know.firstPullFilter?.words ?? "Everything" }, backfill: know.backfill ?? "later", conflicts: "newest", ...(know.audience ? { audience: know.audience } : {}) },
   };
 }
 

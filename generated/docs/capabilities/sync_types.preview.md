@@ -26,7 +26,6 @@ Dry run: what a sync would do, such as will update 34 records in HubSpot, and th
 ```ts
 type In = {
   type: string;
-  account?: string;
   direction?: "pull" | "push" | "both";
 };
 ```
@@ -69,7 +68,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "account": "example",
     "direction": "pull",
     "type": "contact"
   },

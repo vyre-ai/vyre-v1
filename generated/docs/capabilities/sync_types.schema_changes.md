@@ -26,7 +26,6 @@ Remote schema changes waiting for review (for example 3 changes to review)
 ```ts
 type In = {
   type: string;
-  account?: string;
 };
 ```
 
@@ -58,7 +57,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "account": "example",
     "type": "contact"
   },
   "output": {
