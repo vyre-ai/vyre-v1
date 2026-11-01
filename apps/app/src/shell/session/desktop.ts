@@ -146,6 +146,19 @@ export async function previewDesktopJoin(route: Extract<DesktopRoute, { kind: "j
   return { route, preview: previewOf(await preauth(anonymous, "members.invites.preview", { code: route.code }, "This invite is unavailable. Ask for a new one.")) };
 }
 
+/** A join the Space refused for a reason the person can fix on an earlier step. `step` is the join step to go back to. */
+export class JoinRefused extends Error {
+  readonly step: 1;
+  constructor(message: string) { super(message); this.name = "JoinRefused"; this.step = 1; }
+}
+
+async function acceptOnSpace(call: AnonymousCall, input: unknown): Promise<unknown> {
+  try { return await call("members.accept", input); } catch (e) {
+    if ((e as { code?: string } | null)?.code === "validation.duplicate") throw new JoinRefused("That username is taken.");
+    throw new Error("Could not finish joining this Space. Try again.");
+  }
+}
+
 /** Creates a real client key bundle, sends only wrapped fields, and persists only after post-accept Space-ID agreement. */
 export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: JoinValues, deps: DesktopSessionDeps): Promise<StoredSession> {
   const { makeBundle, wipe } = await loadCryptoKeys();
@@ -153,7 +166,7 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
   try {
     if (!made.spaceKeys?.length) throw new Error("This device could not create the Space key. Try again.");
     const { personKey: _personKey, personKeyByRecovery, spaceKeys, ...wrappedKeys } = made;
-    const answer = await preauth(deps.anonymous, "members.accept", {
+    const answer = await acceptOnSpace(deps.anonymous, {
       code: join.route.code,
       username: values.username,
       displayName: values.displayName,
@@ -161,7 +174,7 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
       deviceName: values.deviceName || (deps.deviceClass === "web" ? "Web browser" : "Vyre desktop"),
       deviceClass: deps.deviceClass ?? "desktop",
       keys: { ...wrappedKeys, ...(values.recoveryCode ? { personKeyByRecovery } : {}), spaceKeys },
-    }, "Could not finish joining this Space. Try again.");
+    });
     const accepted = object(answer);
     const stored = await verifyAndPersist(join.route.address, { status: "ok", session: { token: accepted?.["token"] } }, join.preview.spaceId, deps);
     // This helper sends nothing to a remote Space. Only the person's own loopback node may hold their Mine key.

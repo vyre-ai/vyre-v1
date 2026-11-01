@@ -12,6 +12,6 @@ test('recovery failures are told apart: rate limit, outage, unreachable and a wr
  assert.equal(new Set(lines).size,lines.length);
  assert.match(lines[0]!,/Too many/);assert.match(lines[1]!,/problem on its side/);assert.match(lines[2]!,/reach the Space/);for(const i of [1,2])assert.doesNotMatch(lines[i]!,/Nothing was changed/,'a 5xx or dropped connection can follow a committed recovery');assert.match(lines[1]!,/new password already works/);assert.match(recoveryFailureLine(keyError('bad_blob')),/Nothing was changed/,'bad_blob fails before anything is sent');
  assert.equal(recoveryFailureLine(keyError('bad_secret')),recoveryFailureLine(cap(401,'auth.invalid_code')),'a wrong code and a refused account read the same');
- assert.match(recoveryFailureLine(cap(401,'auth.invalid_code')),/username and saved code/);
+ assert.match(recoveryFailureLine(cap(401,'auth.invalid_code')),/username and recovery code/);
  for(const line of [...lines,recoveryFailureLine(new Error('x'))])assert.ok(line.length<=130,'bounded line');
 });

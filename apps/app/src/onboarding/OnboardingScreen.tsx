@@ -4,8 +4,9 @@
 // Every step can be skipped; Finish later leaves, and the Home checklist reopens it. Colours are skin tokens, so light and dark both work.
 import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
+import { Mark } from "../join/kit.tsx";
 import { injectCss } from "../../../../ui/src/theme/css.ts";
 import type { CardKind, FlowKind, Progress, StepDef, StepState } from "./flow.ts";
 import { countsOn, detectDevice, nextOn, resumeOn, stateOn, visibleSteps } from "./device.ts";
@@ -51,18 +52,15 @@ export interface OnboardingScreenProps {
 const BREAK = 900;
 const COLUMN = 640;
 const web = Platform.OS === "web";
-const ICON = "/icons/icon-192.png";
 
-// the motion: the icon pops in, a finished tile pops, the ring fills. Rules go through the sheet, so a page that drops injected style text still gets them.
+// the one motion of the entry screens: a soft fade between steps. Rules go through the sheet, so a page that drops injected style text still gets them.
 function ensureCss(): void {
   injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-onboard-motion",
-    "@keyframes vyre-ob-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}"
-    + "@keyframes vyre-ob-icon{from{transform:scale(.5) rotate(-10deg);opacity:0}to{transform:none;opacity:1}}"
-    + "@keyframes vyre-ob-pop{0%{transform:scale(.4)}55%{transform:scale(1.28)}100%{transform:scale(1)}}"
-    + "@keyframes vyre-ob-sheet{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}"
+    "@keyframes vyre-ob-in{from{opacity:0}to{opacity:1}}"
+    + "[data-vyre-ob]{animation:vyre-ob-in 220ms ease both}"
     + "@media (prefers-reduced-motion: reduce){[data-vyre-ob]{animation:none!important;transition:none!important}}");
 }
-const anim = (spec: string): object => (web ? ({ animation: spec } as object) : {});
+const fade = web ? { dataSet: { vyreOb: "1" } } : {};
 
 /** The last step of the flow on this device: skipping it ends the walk, even when an earlier step was put off. */
 const isLast0 = (flow: FlowKind, key: string, device: Device): boolean => { const st = visibleSteps(flow, device); return st[st.length - 1]?.key === key; };
@@ -70,57 +68,21 @@ const isLast0 = (flow: FlowKind, key: string, device: Device): boolean => { cons
 /** "Set up N of M" counts a step as handled when it is done or skipped, so the number matches the rail. */
 const counted = (flow: FlowKind, progress: Progress, device: Device): { done: number; later: number; total: number } => { const c = countsOn(flow, progress, device); return { ...c, done: c.done + c.later }; };
 
-/** The Assistant's one line. It types itself in on the web; the full text is always what a test or a screen reader gets first. */
-function Typed({ text }: { text: string }): ReactElement {
-  const [shown, setShown] = useState(text);
-  useEffect(() => {
-    const reduce = web && typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!web || reduce || text.length === 0) { setShown(text); return undefined; }
-    let i = 0;
-    setShown("");
-    const t = setInterval(() => { i += 2; setShown(text.slice(0, i)); if (i >= text.length) clearInterval(t); }, 16);
-    return () => clearInterval(t);
-  }, [text]);
-  return <Text style={s.saidText} accessibilityLabel={text}>{shown}</Text>;
-}
-
-/** A soft shower of dots when the setup is done. */
-function Confetti(): ReactElement | null {
-  useEffect(() => {
-    if (!web) return undefined;
-    const cv = document.getElementById("vyre-ob-confetti") as HTMLCanvasElement | null;
-    if (!cv || (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches)) return undefined;
-    const w = (cv.width = cv.offsetWidth), h = (cv.height = cv.offsetHeight), x = cv.getContext("2d");
-    if (!x) return undefined;
-    const cols = ["#8B8BFF", "#4CC38A", "#F7C25E", "#7DBBFF", "#FFA3C0", "#B8A4FF"];
-    const P = Array.from({ length: 90 }, () => ({ x: w / 2 + (Math.random() - 0.5) * 120, y: h * 0.26, vx: (Math.random() - 0.5) * 11, vy: -Math.random() * 11 - 3, r: 3 + Math.random() * 4, c: cols[Math.floor(Math.random() * cols.length)]! }));
-    let f = 0, raf = 0;
-    const tick = (): void => {
-      x.clearRect(0, 0, w, h);
-      for (const p of P) { p.vy += 0.32; p.x += p.vx; p.y += p.vy; p.vx *= 0.99; x.globalAlpha = Math.max(0, 1 - f / 110); x.fillStyle = p.c; x.beginPath(); x.arc(p.x, p.y, p.r, 0, 6.283); x.fill(); }
-      if (++f < 120) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  return web ? createElement("canvas", { id: "vyre-ob-confetti", style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none" } }) : null;
-}
-
 function ProgressBar({ done, total }: { done: number; total: number }): ReactElement {
   return <View style={s.bar} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: done }}><View style={[s.barFill, { width: `${total === 0 ? 0 : Math.round((done / total) * 100)}%` as `${number}%` }]} /></View>;
 }
 
 /** The segmented bar on a narrow screen: one segment per step, green when done, the step on show in its colour. */
-function Segs({ flow, steps, progress, current, device }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; current: string | null; device: Device }): ReactElement {
+function Segs({ steps, progress, current, device }: { steps: readonly StepDef[]; progress: Progress; current: string | null; device: Device }): ReactElement {
   const segs: ReactElement[] = [];
   for (const st of steps) {
-    const state = stateOn(progress, st, device), look = stepLook(flow, st.key);
-    segs.push(<View key={st.key} style={[s.seg, state === "done" && s.segDone, state === "later" && s.segLater, st.key === current && ({ backgroundImage: `linear-gradient(90deg, ${look.from}, ${look.to})` } as object)]} />);
+    const state = stateOn(progress, st, device);
+    segs.push(<View key={st.key} style={[s.seg, state === "done" && s.segDone, state === "later" && s.segLater, st.key === current && s.segOn]} />);
   }
   return <View style={s.segs}>{segs}</View>;
 }
 
-function Rail({ flow, steps, progress, current, device, onOpen, pops }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; current: string | null; device: Device; onOpen(key: string): void; pops: ReadonlySet<string> }): ReactElement {
+function Rail({ flow, steps, progress, current, device, onOpen }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; current: string | null; device: Device; onOpen(key: string): void }): ReactElement {
   const c = counted(flow, progress, device);
   const rows: ReactElement[] = [];
   for (const st of steps) {
@@ -132,7 +94,7 @@ function Rail({ flow, steps, progress, current, device, onOpen, pops }: { flow: 
         key={st.key} testID={`row-step-${st.key}`} accessibilityRole="button" accessibilityLabel={`${st.title}${state === "done" ? ", done" : state === "later" ? ", skipped" : ""}`} accessibilityState={{ selected: on }}
         onPress={() => onOpen(st.key)} style={({ hovered }: { hovered?: boolean }) => [s.step, on && s.stepOn, hovered === true && !on && s.stepOver]}
       >
-        <View testID={`mark-${state}`} {...(web ? { dataSet: { vyreOb: "1" } } : {})} style={pops.has(st.key) ? anim("vyre-ob-pop 640ms cubic-bezier(.34,1.56,.64,1)") : undefined}>
+        <View testID={`mark-${state}`}>
           <StepTile flow={flow} k={st.key} size={24} state={state === "done" ? "done" : on ? "open" : "dim"} />
         </View>
         <View style={s.stepText}>
@@ -145,7 +107,7 @@ function Rail({ flow, steps, progress, current, device, onOpen, pops }: { flow: 
   return (
     <View testID="onboarding-rail" style={s.rail}>
       <View style={s.railHeadRow}>
-        <Image source={{ uri: ICON }} style={s.railIcon} accessibilityLabel="Vyre" />
+        <Mark size={28} />
         <Text style={s.railHead} accessibilityRole="header">{`Set up  ${c.done} of ${c.total}`}</Text>
       </View>
       <ProgressBar done={c.done} total={c.total} />
@@ -157,7 +119,7 @@ function Rail({ flow, steps, progress, current, device, onOpen, pops }: { flow: 
 /** The Assistant's line: its face, then one short sentence. */
 function Said({ lines }: { lines: readonly ChatLine[] }): ReactElement {
   const out: ReactElement[] = [];
-  for (const l of lines) out.push(<View key={l.id} testID={`line-${l.id}`} style={s.sayRow}><Typed text={l.text} /></View>);
+  for (const l of lines) out.push(<View key={l.id} testID={`line-${l.id}`} style={s.sayRow}><Text style={s.saidText}>{l.text}</Text></View>);
   return (
     <View testID="assistant-said" style={s.group}>
       <Avatar name="Assistant" kind="agent" size={28} />
@@ -167,13 +129,13 @@ function Said({ lines }: { lines: readonly ChatLine[] }): ReactElement {
 }
 
 /** The Space filling in: a ring around the app icon, a tile per step that turns to a check as it is done, then what the step on show does. */
-function Preview({ flow, steps, progress, current, device, spaceName, body, pops, onOpen }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; current: string | null; device: Device; spaceName: string; body: ReactNode; pops: ReadonlySet<string>; onOpen(key: string): void }): ReactElement {
+function Preview({ flow, steps, progress, current, device, spaceName, body, onOpen }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; current: string | null; device: Device; spaceName: string; body: ReactNode; onOpen(key: string): void }): ReactElement {
   const c = counted(flow, progress, device), R = 46, C = 2 * Math.PI * R, off = C * (1 - (c.total === 0 ? 0 : c.done / c.total));
   const tiles: ReactElement[] = [];
   for (const st of steps) {
     const state = stateOn(progress, st, device), on = st.key === current;
     tiles.push(
-      <Pressable key={st.key} accessibilityRole="button" accessibilityLabel={st.title} onPress={() => onOpen(st.key)} style={[s.tile, on && s.tileOn, state === "later" && s.tileLater, pops.has(st.key) && anim("vyre-ob-pop 640ms cubic-bezier(.34,1.56,.64,1)")]}>
+      <Pressable key={st.key} accessibilityRole="button" accessibilityLabel={st.title} onPress={() => onOpen(st.key)} style={[s.tile, on && s.tileOn, state === "later" && s.tileLater]}>
         <StepTile flow={flow} k={st.key} size={40} state={state === "done" ? "done" : on ? "open" : "dim"} />
       </Pressable>,
     );
@@ -184,7 +146,7 @@ function Preview({ flow, steps, progress, current, device, spaceName, body, pops
   return (
     <ScrollView testID="onboarding-preview" style={s.preview} contentContainerStyle={s.previewIn}>
       <View style={s.hero}>
-        <View style={s.ringBox}>{ring}<Image source={{ uri: ICON }} style={s.heroIcon} accessibilityLabel="Vyre" /></View>
+        <View style={s.ringBox}>{ring}<Mark size={56} /></View>
         <Text style={s.heroName}>{spaceName}</Text>
         <View style={s.tiles}>{tiles}</View>
       </View>
@@ -197,10 +159,10 @@ function Preview({ flow, steps, progress, current, device, spaceName, body, pops
 function Finished({ flow, steps, progress, device, onOpen, onHome, onChats, two }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; device: Device; onOpen(key: string): void; onHome?: () => void; onChats?: () => void; two: boolean }): ReactElement {
   const left = steps.filter((st) => stateOn(progress, st, device) !== "done").length;
   const rows: ReactElement[] = [];
-  steps.forEach((st, i) => {
+  steps.forEach((st) => {
     const state = stateOn(progress, st, device);
     rows.push(
-      <View key={st.key} testID={`done-row-${st.key}`} style={[s.gr, two && s.grHalf, state === "later" && s.grLater, web ? anim(`vyre-ob-in 480ms ${i * 50}ms cubic-bezier(.2,.8,.2,1) both`) : null]}>
+      <View key={st.key} testID={`done-row-${st.key}`} style={[s.gr, two && s.grHalf, state === "later" && s.grLater]}>
         <StepTile flow={flow} k={st.key} size={36} state={state === "done" ? "done" : state === "later" ? "dim" : "dim"} />
         <View style={s.stepText}><Text style={s.grTitle} numberOfLines={1}>{st.title}</Text>{state === "later" ? <Text style={s.stepSub}>Skipped</Text> : null}{st.card === "import_sessions" && state === "done" && rememberedImported() > 0 ? <Text testID="done-imported" style={s.stepSub}>{importedNote(rememberedImported())}</Text> : null}</View>
         {st.card === "import_sessions" && state === "done" && rememberedImported() > 0 && onChats ? <Pressable testID="done-open-chats" accessibilityRole="link" onPress={onChats} style={s.setUp}><Text style={s.setUpText}>Open Chats</Text></Pressable> : null}
@@ -210,9 +172,8 @@ function Finished({ flow, steps, progress, device, onOpen, onHome, onChats, two 
   });
   return (
     <View testID="onboarding-finished" style={s.endWrap}>
-      <Confetti />
       <ScrollView style={s.flex} contentContainerStyle={s.endIn}>
-        <Image source={{ uri: ICON }} style={s.endIcon} accessibilityLabel="Vyre" />
+        <Mark size={40} />
         <Text style={s.endTitle} accessibilityRole="header">You are set up</Text>
         <Text style={s.endLead}>{left > 0 ? `${left} left for later` : "All done"}</Text>
         <View style={s.grid}>{rows}</View>
@@ -247,12 +208,6 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [leave]);
-  // a step that just became done pops once
-  const seen = useRef<Set<string> | null>(null);
-  const doneNow = new Set(steps.filter((st) => stateOn(p.progress, st, device) === "done").map((st) => st.key));
-  const pops = new Set<string>();
-  if (seen.current !== null) for (const k of doneNow) if (!seen.current.has(k)) pops.add(k);
-  useEffect(() => { seen.current = doneNow; });
   const gateRef = useRef<(() => Promise<boolean>) | null>(null);
   const [armed, setArmed] = useState(false);
   const ctx: CardContext | null = def ? {
@@ -288,8 +243,8 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const previewBody = def && ctx ? (p.renderPreview ? p.renderPreview(def.card, ctx) : null) : null;
   const lock = def ? LOCK[def.card] : undefined;
   const head = def ? (
-    <View style={s.head} key={def.key}>
-      <View {...(web ? { dataSet: { vyreOb: "1" } } : {})} style={anim("vyre-ob-icon 560ms cubic-bezier(.34,1.56,.64,1) both")}><StepTile flow={p.flow} k={def.key} size={phone ? 44 : 48} /></View>
+    <View style={s.head} key={def.key} {...fade}>
+      <StepTile flow={p.flow} k={def.key} size={40} />
       <Text style={[s.title, phone && s.titlePhone]} accessibilityRole="header">{def.title}</Text>
       {lock ? <View accessible accessibilityLabel={lock} {...(web ? ({ title: lock } as object) : {})} style={s.lock}><Glyph paths={["M3.500 7h9v6.500h-9z", "M5.500 7V5a2.500 2.500 0 015 0v2"]} size={14} color="var(--ink-4)" /></View> : null}
     </View>
@@ -297,23 +252,25 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const footBtns = def && ctx ? (
     <>
       <Pressable testID="step-later" accessibilityRole="button" onPress={skip} style={({ hovered }: { hovered?: boolean }) => [s.ghost, phone && s.btnTall, hovered === true && s.ghostOver]}><Text style={s.ghostText}>Skip</Text></Pressable>
-      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext }} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, phone && s.flexBtn, !canNext && s.off, hovered === true && isDone && s.primaryOver]}><Text style={s.primaryText}>{isLast ? "Done" : "Continue"}</Text></Pressable>
+      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext }} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, phone && s.flexBtn, !canNext && s.off, hovered === true && canNext && s.primaryOver]}><Text style={s.primaryText}>{isLast ? "Done" : "Continue"}</Text></Pressable>
     </>
   ) : null;
   const laterBtn = p.onClose && !finished ? <Pressable testID="onboarding-close" accessibilityRole="link" onPress={p.onClose} style={({ hovered }: { hovered?: boolean }) => [s.later, hovered === true && s.laterOver]}><Text style={s.finishLater}>Finish later</Text></Pressable> : null;
   const closeBtn = p.onClose ? <Pressable testID="onboarding-x" accessibilityRole="button" accessibilityLabel="Close" onPress={p.onClose} style={({ hovered }: { hovered?: boolean }) => [s.x, hovered === true && s.laterOver]}><Text style={s.xText}>{"\u00d7"}</Text></Pressable> : null;
   const top = narrow || phone ? (
     <View style={s.narrowHead}>
-      <View style={s.railHeadRow}><Image source={{ uri: ICON }} style={s.railIcon} accessibilityLabel="Vyre" /><Text style={s.railHead} testID="onboarding-progress">{`Set up  ${c.done} of ${c.total}`}</Text></View>
-      <Segs flow={p.flow} steps={steps} progress={p.progress} current={current} device={device} />
+      <View style={s.railHeadRow}><Mark size={28} /><Text style={s.railHead} testID="onboarding-progress">{`Set up  ${c.done} of ${c.total}`}</Text></View>
+      <Segs steps={steps} progress={p.progress} current={current} device={device} />
     </View>
-  ) : <Rail flow={p.flow} steps={steps} progress={p.progress} current={current} device={device} onOpen={open} pops={pops} />;
+  ) : <Rail flow={p.flow} steps={steps} progress={p.progress} current={current} device={device} onOpen={open} />;
 
   if (finished) {
     return (
-      <View testID="onboarding" style={[s.page, (narrow || phone) && s.pageNarrow]}>
-        {closeBtn}
-        <View testID="onboarding-chat" style={s.chat}><Finished flow={p.flow} steps={steps} progress={p.progress} device={device} onOpen={open} two={!phone && width >= 640} {...(p.onClose ? { onHome: p.onClose } : {})} {...(p.onOpenChats ? { onChats: p.onOpenChats } : {})} /></View>
+      <View style={[s.ground, (narrow || phone) && s.groundFlush]}>
+        <View testID="onboarding" style={[s.page, (narrow || phone) && s.pageNarrow]}>
+          {closeBtn}
+          <View testID="onboarding-chat" style={s.chat}><Finished flow={p.flow} steps={steps} progress={p.progress} device={device} onOpen={open} two={!phone && width >= 640} {...(p.onClose ? { onHome: p.onClose } : {})} {...(p.onOpenChats ? { onChats: p.onOpenChats } : {})} /></View>
+        </View>
       </View>
     );
   }
@@ -324,6 +281,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
     </>
   );
   return (
+    <View style={[s.ground, (narrow || phone) && s.groundFlush]}>
     <View testID="onboarding" style={[s.page, (narrow || phone) && s.pageNarrow]}>
       {closeBtn}
       {top}
@@ -340,7 +298,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
               {body}
               {previewBody ? <View style={s.pCard}>{previewBody}</View> : null}
             </ScrollView>
-            <View style={[s.sheet, anim("vyre-ob-sheet 460ms cubic-bezier(.2,.8,.2,1) both")]}>
+            <View style={s.sheet} {...fade}>
               <View style={s.grab} />
               <ScrollView style={s.sheetScroll}><View testID="onboarding-card" style={s.sheetCard}>{card}</View></ScrollView>
               <View style={s.sheetFoot}>{laterBtn}<View style={s.flex} />{footBtns}</View>
@@ -350,24 +308,26 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
           <>
             <ScrollView style={s.flex} contentContainerStyle={s.body}>
               {body}
-              {card ? <View testID="onboarding-card" style={[s.card, web ? anim("vyre-ob-in 320ms cubic-bezier(.2,.8,.2,1) both") : null]}>{card}</View> : null}
+              {card ? <View key={def?.key} testID="onboarding-card" style={s.card} {...fade}>{card}</View> : null}
             </ScrollView>
             <View style={s.footer}><View style={s.actions}>{laterBtn}<View style={s.flex} />{footBtns}</View></View>
           </>
         )}
       </View>
-      {narrow || phone ? null : <Preview flow={p.flow} steps={steps} progress={p.progress} current={current} device={device} spaceName={p.spaceName} body={previewBody} pops={pops} onOpen={open} />}
+      {narrow || phone ? null : <Preview flow={p.flow} steps={steps} progress={p.progress} current={current} device={device} spaceName={p.spaceName} body={previewBody} onOpen={open} />}
+    </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
-  pageNarrow: { flexDirection: "column" },
+  ground: { flex: 1, padding: 24, alignItems: "center", justifyContent: "center", backgroundColor: "var(--rail)" as string },
+  groundFlush: { padding: 0 },
+  page: { flex: 1, width: "100%", maxWidth: 1080, maxHeight: 720, flexDirection: "row", backgroundColor: "var(--win)" as string, borderRadius: 20, overflow: "hidden", boxShadow: "var(--sh-pop)" } as object,
+  pageNarrow: { flexDirection: "column", maxWidth: "100%", maxHeight: "100%", borderRadius: 0 } as object,
   flex: { flex: 1, minWidth: 0, minHeight: 0 },
   rail: { width: 264, paddingTop: 20, paddingBottom: 20, paddingHorizontal: 12, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   railHeadRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, marginBottom: 12 },
-  railIcon: { width: 28, height: 28, borderRadius: 7 },
   railHead: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   bar: { height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string, marginHorizontal: 8, marginBottom: 14, overflow: "hidden" },
   barFill: { height: 4, borderRadius: 2, backgroundColor: "var(--accent)" as string },
@@ -383,14 +343,15 @@ const s = StyleSheet.create({
   narrowHead: { paddingTop: 14, paddingHorizontal: 20, paddingBottom: 2, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   segs: { flexDirection: "row", gap: 4, paddingBottom: 14 },
   seg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string },
+  segOn: { backgroundColor: "var(--accent)" as string },
   segDone: { backgroundColor: "var(--ok)" as string },
   segLater: { backgroundColor: "var(--ink-4)" as string },
   chat: { flex: 1, minWidth: 0, minHeight: 0 },
   body: { width: "100%", maxWidth: COLUMN, alignSelf: "center", paddingTop: 44, paddingHorizontal: 32, paddingBottom: 32, gap: 20 },
   bodyPhone: { paddingTop: 24, paddingHorizontal: 20, paddingBottom: 380 },
   head: { flexDirection: "row", alignItems: "center", gap: 16 },
-  title: { flexShrink: 1, fontSize: 28, lineHeight: 34, fontWeight: "600", letterSpacing: -0.6, color: "var(--ink)" as string },
-  titlePhone: { fontSize: 24, lineHeight: 30 },
+  title: { flexShrink: 1, fontSize: 22, lineHeight: 28, fontWeight: "600", letterSpacing: -0.4, color: "var(--ink)" as string },
+  titlePhone: { fontSize: 22, lineHeight: 28 },
   lock: { width: 26, height: 26, alignItems: "center", justifyContent: "center" },
   group: { flexDirection: "row", gap: 12, alignItems: "center" },
   groupText: { flex: 1, minWidth: 0 },
@@ -399,21 +360,21 @@ const s = StyleSheet.create({
   dim: { fontSize: 12.5, color: "var(--ink-3)" as string, lineHeight: 18 },
   liveCol: { flex: 1 },
   live: { flex: 1, minHeight: 240, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
-  card: { padding: 20, borderRadius: 14, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, gap: 14, boxShadow: "var(--sh-1)" } as object,
+  card: { gap: 14 },
   footer: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  actions: { width: "100%", maxWidth: COLUMN, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 14, paddingHorizontal: 32 },
-  x: { position: "absolute", top: 12, right: 14, zIndex: 5, width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  actions: { width: "100%", maxWidth: COLUMN, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 32 },
+  x: { position: "absolute", top: 8, right: 8, zIndex: 5, width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   xText: { fontSize: 22, lineHeight: 24, color: "var(--ink-2)" as string },
-  later: { height: 32, paddingHorizontal: 10, marginLeft: -10, borderRadius: 8, justifyContent: "center" },
+  later: { height: 44, paddingHorizontal: 10, marginLeft: -10, borderRadius: 8, justifyContent: "center" },
   laterOver: { backgroundColor: "var(--hover)" as string },
-  finishLater: { fontSize: 13, fontWeight: "500", color: "var(--ink-2)" as string },
-  ghost: { height: 32, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, alignItems: "center", justifyContent: "center" },
+  finishLater: { fontSize: 13, fontWeight: "500", color: "var(--ink-3)" as string },
+  ghost: { height: 44, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, alignItems: "center", justifyContent: "center" },
   ghostOver: { backgroundColor: "var(--hover)" as string },
-  ghostText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
-  primary: { height: 32, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
-  primaryLg: { height: 40, paddingHorizontal: 26, borderRadius: 10, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
+  ghostText: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
+  primary: { height: 44, paddingHorizontal: 18, borderRadius: 10, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
+  primaryLg: { height: 44, paddingHorizontal: 26, borderRadius: 10, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
   primaryOver: { opacity: 0.9 },
-  primaryText: { fontSize: 13.5, fontWeight: "600", color: "var(--accent-ink, #fff)" as string },
+  primaryText: { fontSize: 15, fontWeight: "600", color: "var(--accent-ink)" as string },
   off: { opacity: 0.4 },
   btnTall: { height: 44, borderRadius: 12 },
   flexBtn: { flex: 1 },
@@ -424,19 +385,17 @@ const s = StyleSheet.create({
   sheetFoot: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   preview: { width: 320, flexGrow: 0, flexShrink: 0, flexBasis: 320, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   previewIn: { paddingTop: 20, paddingBottom: 28, paddingHorizontal: 20, gap: 22 },
-  hero: { alignItems: "center", gap: 14, paddingTop: 24, paddingBottom: 20, paddingHorizontal: 16, borderRadius: 16, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, boxShadow: "var(--sh-1)" } as object,
+  hero: { alignItems: "center", gap: 14, paddingTop: 24, paddingBottom: 20, paddingHorizontal: 16 },
   ringBox: { width: 108, height: 108, alignItems: "center", justifyContent: "center" },
-  heroIcon: { width: 64, height: 64, borderRadius: 15 },
   heroName: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   tiles: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8, maxWidth: 264 },
   tile: { borderRadius: 12 },
   tileOn: { boxShadow: "0 0 0 2px var(--accent), 0 0 0 5px var(--accent-wash)" } as object,
   tileLater: { opacity: 0.6 },
-  pCard: { padding: 14, borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  pCard: { padding: 14, borderRadius: 12, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   endWrap: { flex: 1, backgroundColor: "var(--win)" as string },
   endIn: { width: "100%", maxWidth: 680, alignSelf: "center", alignItems: "center", paddingTop: 40, paddingHorizontal: 24, paddingBottom: 28 },
-  endIcon: { width: 60, height: 60, borderRadius: 15 },
-  endTitle: { marginTop: 18, fontSize: 28, lineHeight: 34, fontWeight: "600", letterSpacing: -0.6, color: "var(--ink)" as string },
+  endTitle: { marginTop: 18, fontSize: 22, lineHeight: 28, fontWeight: "600", letterSpacing: -0.4, color: "var(--ink)" as string },
   endLead: { marginTop: 4, fontSize: 15, color: "var(--ink-3)" as string },
   grid: { marginTop: 24, width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10 },
   gr: { width: "100%", flexDirection: "row", alignItems: "center", gap: 12, padding: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },

@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { copyAccount } from "./same-account.ts";
 import type { CopyableAccount } from "./same-account.ts";
+import { CARD } from "./card-style.ts";
 
 export function SameAccountOffer({ personal, team, accounts, onCopied, onDeclined }: { personal: CapCall; team: CapCall; accounts: readonly CopyableAccount[]; onCopied(providerId: string): void; onDeclined?(): void }): ReactElement | null {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
@@ -35,10 +36,10 @@ const s = StyleSheet.create({
   col: { gap: 10 },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   line: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string },
-  err: { fontSize: 13, color: "var(--danger, #c0392b)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
-  ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
-  ghostText: { fontSize: 13.5, color: "var(--ink)" as string },
+  err: CARD.err,
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
+  ghost: CARD.ghost,
+  ghostText: CARD.ghostText,
   off: { opacity: 0.45 },
 });

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { connections, createInviteLink, directory, draftInvites, importable, importPeople, invites, memberRoleId, ownMailbox, sendDrafts, ssoProviders, ssoWorks, ssoLine, stepDoneBy, testSso } from "./suite.ts";
 import type { DirectoryPage, DirectoryPerson, ImportResult, MailSender, Probe, SendOutcome } from "./suite.ts";
+import { CARD } from "./card-style.ts";
 
 const NOT_YET = "This part is not set up yet. You can come back to it from the checklist.";
 
@@ -158,13 +159,13 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   line: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string },
   dim: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
-  err: { fontSize: 13, color: "var(--danger, #c0392b)" as string },
+  err: CARD.err,
   link: { fontSize: 13, color: "var(--ink)" as string, padding: 10, borderRadius: 8, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   person: { padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, gap: 2 },
   personOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
-  input: { height: 40, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, color: "var(--ink)" as string, fontSize: 14 },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
-  ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
-  ghostText: { fontSize: 13.5, color: "var(--ink)" as string },
+  input: CARD.input,
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
+  ghost: CARD.ghost,
+  ghostText: CARD.ghostText,
 });

@@ -1,4 +1,4 @@
-// A step's icon: the 16 px stroke path from stepStyle on a gradient tile (or the bare glyph), drawn as plain SVG on the web.
+// A step's icon: the 16 px stroke path from stepStyle on a tile of the accent (or the bare glyph), drawn as plain SVG on the web.
 import { createElement } from "react";
 import type { ReactElement } from "react";
 import { Platform, View } from "react-native";
@@ -16,14 +16,14 @@ export function Glyph({ paths, size = 16, color = "#fff", width = 1.6 }: { paths
 
 export const CHECK_PATH = CHECK, DASH_PATH = DASH;
 
-/** The step's tile: gradient with its icon, or the plain-fill states (done green with a check, dim for a step not reached). */
+/** The step's tile: the accent with its icon, or the plain states (done green with a check, dim for a step not reached). */
 export function StepTile({ flow, k, size = 28, state = "open", testID }: { flow: FlowKind; k: string; size?: number; state?: "open" | "done" | "dim"; testID?: string }): ReactElement {
   const look = stepLook(flow, k);
-  const fill = state === "done" ? { backgroundColor: "var(--ok)" } : state === "dim" ? { backgroundColor: "var(--sunk)", borderWidth: 1, borderColor: "var(--line)" } : { backgroundImage: `linear-gradient(180deg, ${look.from}, ${look.to})` };
+  const fill = state === "done" ? { backgroundColor: "var(--ok)" } : state === "dim" ? { backgroundColor: "var(--field)", borderWidth: 1, borderColor: "var(--field-line)" } : { backgroundColor: "var(--accent)" };
   const glyph = Math.round(size * 0.54);
   return (
     <View testID={testID} style={[{ width: size, height: size, borderRadius: Math.round(size * 0.29), alignItems: "center", justifyContent: "center" }, fill as object]}>
-      <Glyph paths={state === "done" ? CHECK : look.icon} size={glyph} color={state === "dim" ? "var(--ink-4)" : "#fff"} width={state === "done" ? 2.2 : 1.6} />
+      <Glyph paths={state === "done" ? CHECK : look.icon} size={glyph} color={state === "dim" ? "var(--ink-3)" : state === "done" ? "var(--win)" : "var(--accent-ink)"} width={state === "done" ? 2.2 : 1.6} />
     </View>
   );
 }

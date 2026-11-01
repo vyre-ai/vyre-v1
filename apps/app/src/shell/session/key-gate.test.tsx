@@ -29,7 +29,7 @@ test("the lock screen has a quiet way out: Forgot password and Sign out; an acco
   assert.match(t, /Forgot password/);
   assert.match(t, /Sign out/);
   const n = text(renderToStaticMarkup(<NoPasswordKey onContinue={() => undefined} onSignOut={() => undefined} />));
-  assert.match(n, /no password here/);
+  assert.match(n, /No password here/);
   assert.match(n, /Continue/);
 });
 

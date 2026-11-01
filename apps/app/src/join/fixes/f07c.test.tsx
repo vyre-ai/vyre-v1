@@ -12,8 +12,8 @@ const INVITE: JoinInvite = {
   names: { first: "Dana", last: "Whitfield" }, deviceName: "Dana's MacBook",
   starting: { agents: ["Intake"], projects: ["Rivera matter"] }, sso: ["Google"], github: true, adminKey: false,
 };
-const flow = (initial: Partial<FlowState>, mode: "light" | "dark" = "light", actions=false): string =>
-  renderToStaticMarkup(<JoinFlow invite={INVITE} initial={initial} mode={mode} hold {...(actions?{onOpenApp:()=>undefined,onDownload:()=>undefined}:{})} />).replaceAll("<!-- -->", "");
+const flow = (initial: Partial<FlowState>, actions=false): string =>
+  renderToStaticMarkup(<JoinFlow invite={INVITE} initial={initial} hold {...(actions?{onOpenApp:()=>undefined,onDownload:()=>undefined}:{})} />).replaceAll("<!-- -->", "");
 const ITEMS = [
   { key: "photo_and_title" as const, title: "Add a photo and title", done: false },
   { key: "connect_mailbox_and_calendar" as const, title: "Connect your mailbox and calendar", done: false },
@@ -43,22 +43,17 @@ test("the checklist's rows are the shared Row with a check circle at the left an
   assert.equal((locked.match(/data-testid="check-open"/g) ?? []).length, 6);
 });
 
-test("the Open button on the finish page sits after the dots, once, with its whole label, in both modes", () => {
-  for (const mode of ["light", "dark"] as const) {
-    const out = flow({ stage: "done", step: 3 }, mode);
-    assert.ok(out.includes("You&#x27;re all set") && out.includes("Welcome, Dana."), mode);
-    const bar = out.slice(out.indexOf('data-testid="join-bar"'));
-    assert.ok(bar.indexOf('data-testid="dots"') < bar.indexOf('data-testid="open-space"'), "dots first, the button after");
-    assert.equal(bar.match(/data-testid="open-space"/g)?.length, 1);
-    assert.ok(bar.includes(">Open Northwind<"), "the whole label is one text node");
-    assert.ok(!bar.includes('data-testid="back"'), "no Back on the finish");
-  }
+test("the Open button on the finish page sits after the progress line, once, with its whole label", () => {
+  const out = flow({ stage: "done", step: 3 });
+  assert.ok(out.includes("You&#x27;re all set") && out.includes("Welcome, Dana."));
+  assert.ok(out.indexOf('data-testid="dots"') >= 0 && out.indexOf('data-testid="dots"') < out.indexOf('data-testid="open-space"'), "progress first, the button after");
+  const bar = out.slice(out.indexOf('data-testid="join-bar"'));
+  assert.equal(bar.match(/data-testid="open-space"/g)?.length, 1);
+  assert.ok(bar.includes(">Open Northwind<"), "the whole label is one text node");
+  assert.ok(!out.includes('data-testid="back"'), "no Back on the finish");
 });
-
-test("the landing renders for both modes with its three actions", () => {
-  for (const mode of ["light", "dark"] as const) {
-    const out = flow({}, mode, true);
-    assert.ok(out.includes("Join Northwind") && tag(out, "open-app") !== "" && out.includes("View downloads") && out.includes("Continue in the browser"), mode);
-    const unsupported=flow({},mode);assert.equal(tag(unsupported,"open-app"),"");assert.equal(tag(unsupported,"download"),"");assert.ok(unsupported.includes("Continue in the browser"));
-  }
+test("the landing renders with its three actions", () => {
+  const out = flow({}, true);
+  assert.ok(out.includes("Join Northwind") && tag(out, "open-app") !== "" && out.includes("Get Vyre") && out.includes("Continue in the browser"));
+  const unsupported = flow({}); assert.equal(tag(unsupported, "open-app"), ""); assert.equal(tag(unsupported, "download"), ""); assert.ok(unsupported.includes("Accept invite"));
 });

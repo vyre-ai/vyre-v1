@@ -9,6 +9,7 @@ import type { SessionSource } from "../../../../client/src/session-import/parse.
 import { confirmedSessionInput } from "../places/settings/session-import-model.ts";
 import { Mark } from "./ProviderLogo.tsx";
 import { folderChoices, folderName, importedNote, modifiedAt, newestFirst, relativeDate, rememberImported, selectState, sessionName } from "./sessions-model.ts";
+import { CARD } from "./card-style.ts";
 
 const label = (src: SessionSource): string => `${src.provider === "codex" ? "Codex" : "Claude Code"}`;
 const hover = (text: string): object => ({ title: text });
@@ -133,8 +134,8 @@ const s = StyleSheet.create({
   chipOn: { borderColor: "var(--accent-line)" as string, backgroundColor: "var(--accent-wash)" as string },
   chipText: { fontSize: 12, color: "var(--ink)" as string },
   note: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
-  err: { fontSize: 13, color: "var(--danger)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
+  err: CARD.err,
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
   off: { opacity: 0.45 },
 });

@@ -147,6 +147,6 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
 }
 
 const s = StyleSheet.create({
-  fill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 50, backgroundColor: "var(--win)" as string },
+  fill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 50, backgroundColor: "var(--rail)" as string },
   dim: { fontSize: 13, color: "var(--ink-3)" as string },
 });

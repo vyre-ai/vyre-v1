@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { baseName, mountLocalFolder, mountPlace, parentOf, pickFolders, shellInvoke, unmountFolder } from "../shell/providers/local-folder-mount.ts";
 import type { Invoke, MountPlace } from "../shell/providers/local-folder-mount.ts";
+import { CARD } from "./card-style.ts";
 
 export { shellInvoke };
 
@@ -87,8 +88,8 @@ const s = StyleSheet.create({
   ok: { fontSize: 12.5, color: "var(--accent)" as string },
   retry: { height: 28, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
   retryText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
-  err: { fontSize: 13, color: "var(--danger)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
+  err: CARD.err,
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
   off: { opacity: 0.45 },
 });

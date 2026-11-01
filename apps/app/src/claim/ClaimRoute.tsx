@@ -14,7 +14,7 @@ import { storeClaimedOwnerSession } from "./session.ts";
 import { ClaimOwner } from "./ClaimOwner.tsx";
 import { prefillFor, rememberClaimed } from "../onboarding/doors.ts";
 
-export function ClaimRoute({ token, onDone, onSignIn, address, fragment, deviceClass="web" }: { token: string; onDone(): void; onSignIn(): void; address?:string; fragment?:string;deviceClass?:"web"|"desktop" }): ReactElement | null {
+export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment, deviceClass="web" }: { token: string; onDone(): void; onSignIn(): void; onBack?():void; address?:string; fragment?:string;deviceClass?:"web"|"desktop" }): ReactElement | null {
   const baseUrl = address ?? spaceAddress();
   const call = useMemo(() => (baseUrl ? createCapCaller({ baseUrl, token: () => null }) : null), [baseUrl]);
 
@@ -41,5 +41,5 @@ export function ClaimRoute({ token, onDone, onSignIn, address, fragment, deviceC
     rememberClaimed({ name: v.name, username: v.username, address: baseUrl });
     onDone();
   };
-  return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} fingerprint={fingerprintOf(hash)} prefill={prefillFor(baseUrl)} />;
+  return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} {...(onBack ? { onBack } : {})} fingerprint={fingerprintOf(hash)} prefill={prefillFor(baseUrl)} />;
 }

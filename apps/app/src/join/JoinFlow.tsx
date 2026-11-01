@@ -7,7 +7,7 @@ import { Welcome } from "./Welcome.tsx";
 import { JoinFrame } from "./kit.tsx";
 import { RUN_STEPS, createSpaceResolutionGate, fullName, initialState, normalizeSpaceAddress, reduce, refreshJoinInvite, resolveSpaceInvite, signInValid } from "./logic.ts";
 import type { Action, ConnectIntent, FlowState, JoinInvite } from "./logic.ts";
-import type { JoinMode } from "./palette.ts";
+import { MANY_TRIES, TOO_MANY, isMiss, signInLine } from "./failure.ts";
 
 export interface JoinValues {
   username: string;
@@ -23,7 +23,6 @@ export interface JoinFlowProps {
   expired?: boolean;
   initial?: Partial<FlowState>;
   isTaken?: (username: string) => boolean;
-  mode?: JoinMode;
   /** freeze the setup run where it is (screenshots) */
   hold?: boolean;
   /** members.accept: resolves when the account exists, rejects with an Error whose message is shown on the AI step */
@@ -81,6 +80,7 @@ function JoinFlowForHost(props: JoinFlowProps) {
   const [invite, setInvite] = useState(props.invite);
   const [signingIn, setSigningIn] = useState(false);
   const signInInFlight = useRef(false);
+  const misses = useRef(0);
   const spaceRequests = useRef(createSpaceResolutionGate());
   const resolvingSpace = useRef(false);
   const rules = useMemo(() => ({ isTaken: props.isTaken ?? ((): boolean => false) }), [props.isTaken]);
@@ -102,7 +102,7 @@ function JoinFlowForHost(props: JoinFlowProps) {
       username: state.user, displayName: fullName(state), password: state.pw, deviceName: state.device, trustDevice: state.trust,
       ...(state.rec ? { recoveryCode: state.code } : {}), ai: { choice: state.ai, providerKey: state.aiProvider, ...(state.ai === "key" ? { key: state.key } : {}) },
     };
-    const joined = props.onJoin ? props.onJoin(values).catch((e: unknown) => { failed = true; if (!off) dispatch({ t: "failed", message: messageOf(e) }); }) : Promise.resolve();
+    const joined = props.onJoin ? props.onJoin(values).catch((e: unknown) => { failed = true; if (!off) dispatch({ t: "failed", message: messageOf(e), ...((e as { step?: FlowState["step"] }).step === undefined ? {} : { step: (e as { step: FlowState["step"] }).step }) }); }) : Promise.resolve();
     void (async () => {
       for (let i = 0; i < total - 1; i++) {
         await sleep(900);
@@ -143,7 +143,8 @@ function JoinFlowForHost(props: JoinFlowProps) {
       if (r === "second_factor_required" && state.si === "pw") dispatch({ t: "next" });
       else dispatch({ t: "set", patch: { stage: "done", error: "" } });
     } catch (e) {
-      dispatch({ t: "set", patch: { error: messageOf(e) } });
+      misses.current = isMiss(e) ? misses.current + 1 : misses.current;
+      dispatch({ t: "set", patch: { error: misses.current >= MANY_TRIES ? TOO_MANY : signInLine(e), ...(state.si === "pw" ? { siPw: "" } : { siCode: "" }) } });
     } finally { signInInFlight.current = false; setSigningIn(false); }
   };
 
@@ -187,5 +188,5 @@ function JoinFlowForHost(props: JoinFlowProps) {
         newCode={props.newCode ?? makeRecoveryCode} {...(props.onEmail?{onEmail:props.onEmail}:{})} {...(props.onOpen?{onOpen:props.onOpen}:{})}
       />
     );
-  return <JoinFrame {...(props.mode ? { mode: props.mode } : {})} halftoneIntensity={state.stage === "connect" ? "full" : "calm"}>{page}</JoinFrame>;
+  return <JoinFrame>{page}</JoinFrame>;
 }

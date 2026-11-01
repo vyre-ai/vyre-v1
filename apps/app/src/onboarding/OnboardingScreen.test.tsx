@@ -68,7 +68,7 @@ test("first launch shows the three doors and a way in for people who already hav
   const { FirstLaunch } = await import("./FirstLaunch.tsx");
   const out = renderToStaticMarkup(<FirstLaunch onDoor={async () => undefined} existing={<span>sign in</span>} />);
   for (const id of ["door-me", "door-invited", "door-team", "door-existing"]) assert.ok(out.includes(`data-testid="${id}"`), id);
-  assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("My team") && out.includes("Welcome to Vyre") && out.includes("Used Vyre on another computer?"));
+  assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("My team") && out.includes("Welcome to Vyre") && out.includes(">Sign in<"));
 });
 
 test("a browser offers two doors and no Just me, a phone offers to join or to email the app, a PC offers all three (journeys, table D)", async () => {

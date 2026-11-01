@@ -2,9 +2,9 @@
 // Every step is one decision. Escape goes back, Enter submits a field, and a step that starts a server shows what is happening and why it takes a moment.
 import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import { Text, View } from 'react-native';
-import { Bar, Button, Choice, CodeBlock, Door, ErrorLine, Field, Foot, JoinFrame, Panel, Step, Title, Working, baseText, useJoin } from './kit.tsx';
-import { Art } from './art.tsx';
+import { View } from 'react-native';
+import { Bar, Button, Choice, CodeBlock, ErrorLine, Field, Foot, JoinFrame, Panel, Step, Title, Working } from './kit.tsx';
+import { NOT_AN_INVITE } from './failure.ts';
 import { entryTarget } from '../shell/session/entry.ts';
 import type { EntryTarget } from '../shell/session/entry.ts';
 
@@ -19,7 +19,6 @@ type Page = 'choice' | 'join' | 'create';
 type Where = 'mac' | 'linux';
 
 function SpaceEntryBody({ onTarget, onBack, onCreatePersonal, onCreateMacServer, startAt }: { onTarget(target: EntryTarget): void | Promise<void>; onBack(): void; onCreatePersonal?: () => Promise<void>; onCreateMacServer?: () => Promise<void>; startAt: 'choice' | 'join' | 'team' }): ReactElement {
-  const { p } = useJoin();
   const [page, setPage] = useState<Page>(startAt === 'team' ? 'create' : startAt);
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
@@ -46,7 +45,7 @@ function SpaceEntryBody({ onTarget, onBack, onCreatePersonal, onCreateMacServer,
   const submit = async (): Promise<void> => {
     if (busy) return;
     const target = entryTarget(value);
-    if (!target) { setError(page === 'create' ? 'Paste the owner link from your server.' : 'That is not an invite link or a Space address.'); return; }
+    if (!target) { setError(page === 'create' ? 'Paste the owner link from your server.' : NOT_AN_INVITE); return; }
     if (page === 'create' && target.kind !== 'claim') { setError('Paste the owner link your server printed.'); return; }
     setBusy('target'); setError('');
     try { await onTarget(target); } catch (failure) { setError(failure instanceof Error ? failure.message : 'Couldn’t open this Space. Try again.'); } finally { setBusy(null); }
@@ -63,61 +62,61 @@ function SpaceEntryBody({ onTarget, onBack, onCreatePersonal, onCreateMacServer,
   };
 
   const needsLink = page === 'join' || (page === 'create' && kind === 'team' && where === 'linux');
-  const submitLabel = busy === 'target' ? 'Verifying…' : page === 'create' ? 'Continue' : 'Continue';
+  const submitLabel = busy === 'target' ? 'Opening' : 'Continue';
 
   // The waiting states replace the page: nothing to press while a server starts.
-  if (busy === 'personal') return <Panel bar={<Bar hideBack cont={null} />}><Step id="space-entry-personal-starting"><Working testID="space-entry-starting" title="Creating your Space" line="Starting your Space…" /></Step></Panel>;
-  if (busy === 'mac') return <Panel bar={<Bar hideBack cont={null} />}><Step id="space-entry-mac-starting"><Working testID="space-entry-starting" title="Starting the server" line="Starting the server on this Mac…" /></Step></Panel>;
+  if (busy === 'personal') return <Panel wait><Step id="space-entry-personal-starting"><Working testID="space-entry-starting" title="Creating your Space" line="Starting your Space" /></Step></Panel>;
+  if (busy === 'mac') return <Panel wait><Step id="space-entry-mac-starting"><Working testID="space-entry-starting" title="Starting the server" line="Starting on this Mac" /></Step></Panel>;
 
-  const title = page === 'choice' ? 'Your Space' : page === 'join' ? 'Join your team' : kind === null ? 'Create a Space' : kind === 'personal' ? 'Personal Space' : where === 'linux' ? 'Run this on your server' : 'Where does it run?';
+  const title = page === 'choice' ? 'Add a Space' : page === 'join' ? 'Join a team' : kind === null ? 'Create a Space' : kind === 'personal' ? 'Personal Space' : where === 'linux' ? 'Run this on your server' : 'Where does it run?';
   return (
-    <Panel bar={<Bar onBack={() => { if (!busy) back(); }} cont={needsLink ? <Button testID="space-entry-continue" label={submitLabel} onPress={() => void submit()} disabled={!!busy || !value.trim()} /> : null} />}>
+    <Panel bar={<Bar onBack={() => { if (!busy) back(); }} cont={needsLink ? <Button testID="space-entry-continue" label={submitLabel} busy={busy === 'target'} onPress={() => void submit()} disabled={!!busy || !value.trim()} /> : null} />}>
       <Step id={`space-entry-${page}`}>
         <Title title={title} />
 
         {page === 'choice' ? (
-          <View style={{ gap: 12, marginTop: 28 }}>
-            <Choice testID="space-entry-join" icon="link" title="Join a Space" help="An invite link or a Space address" onPress={() => setPage('join')} />
+          <View style={{ gap: 6, marginTop: 22 }}>
+            <Choice testID="space-entry-join" icon="link" title="Join a Space" help="An invite link or an address" onPress={() => setPage('join')} />
             <Choice testID="space-entry-create" icon="team" title="Create a Space" help="Personal, or for a team" onPress={() => setPage('create')} />
           </View>
         ) : null}
 
         {page === 'create' && kind === null ? (
-          <View style={{ flexDirection: 'row', gap: 16, marginTop: 28, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Door testID="space-entry-personal" art={<Art kind="me" />} title="Personal" hint="On this computer" onPress={() => setKind('personal')} />
-            <Door testID="space-entry-team" art={<Art kind="team" />} title="Team" hint="On a server" onPress={() => { setKind('team'); if (!onCreateMacServer) setWhere('linux'); }} />
+          <View style={{ gap: 6, marginTop: 22 }}>
+            <Choice testID="space-entry-personal" icon="person" title="Personal" help="On this computer" onPress={() => setKind('personal')} />
+            <Choice testID="space-entry-team" icon="team" title="Team" help="On a server" onPress={() => { setKind('team'); if (!onCreateMacServer) setWhere('linux'); }} />
           </View>
         ) : null}
 
         {page === 'create' && kind === 'personal' ? (
           onCreatePersonal
-            ? <View style={{ marginTop: 28 }}><Button large testID="create-personal-native" label="Create Personal Space" onPress={() => void createPersonal()} /></View>
-            : <View style={{ marginTop: 24, gap: 14 }}><Foot>A Personal Space needs the desktop app.</Foot><Button quiet testID="space-personal-desktop" label="Join an existing Space" onPress={() => { setPage('join'); setKind(null); setValue(''); setError(''); }} /></View>
+            ? <View style={{ marginTop: 22 }}><Button testID="create-personal-native" label="Create Personal Space" onPress={() => void createPersonal()} /></View>
+            : <View style={{ marginTop: 22, gap: 12 }}><Foot top={0}>A Personal Space needs the desktop app</Foot><Button quiet testID="space-personal-desktop" label="Join a Space" onPress={() => { setPage('join'); setKind(null); setValue(''); setError(''); }} /></View>
         ) : null}
 
         {page === 'create' && kind === 'team' && where === null ? (
-          <View style={{ flexDirection: 'row', gap: 16, marginTop: 28, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Door testID="space-where-mac" art={<Art kind="mac" />} title="This Mac" hint="While Vyre is open" onPress={() => { setWhere('mac'); void runMacServer(); }} />
-            <Door testID="space-where-linux" art={<Art kind="server" />} title="A Linux server" hint="Always on" onPress={() => setWhere('linux')} />
+          <View style={{ gap: 6, marginTop: 22 }}>
+            <Choice testID="space-where-mac" icon="laptop" title="This Mac" help="While Vyre is open" onPress={() => { setWhere('mac'); void runMacServer(); }} />
+            <Choice testID="space-where-linux" icon="server" title="A Linux server" help="Always on" onPress={() => setWhere('linux')} />
           </View>
         ) : null}
 
         {page === 'create' && kind === 'team' && where === 'linux' ? (
-          <View style={{ marginTop: 24, gap: 14 }}>
+          <View style={{ marginTop: 22 }}>
             <CodeBlock testID="space-setup-command" text={INSTALL_COMMAND} />
           </View>
         ) : null}
 
         {needsLink ? (
-          <View style={{ marginTop: page === 'join' ? 28 : 8 }}>
+          <View style={{ marginTop: page === 'join' ? 22 : 12 }}>
             <Field
               testID="space-entry-address" disabled={busy === 'target'} autoFocus={page === 'join'} label={page === 'create' ? 'Owner link' : 'Invite link or address'}
-              value={value} onChange={(next) => { setValue(next); setError(''); }} placeholder={page === 'create' ? 'https://…/claim/…' : 'https://your-space.example'} onSubmit={() => void submit()}
+              value={value} onChange={(next) => { setValue(next); setError(''); }} placeholder={page === 'create' ? 'https://your-server/claim/' : 'your-space.vyre.run'} onSubmit={() => void submit()} error={!!error}
             />
           </View>
         ) : null}
 
-        {error ? <ErrorLine testID="space-entry-error">{error}</ErrorLine> : null}
+        <ErrorLine testID="space-entry-error">{error}</ErrorLine>
       </Step>
     </Panel>
   );
@@ -127,8 +126,8 @@ function SpaceEntryBody({ onTarget, onBack, onCreatePersonal, onCreateMacServer,
 export function MacServerOffer({ busy, onPress }: { busy: boolean; onPress(): void }): ReactElement {
   return (
     <View>
-      <Button large testID="create-mac-server" label={busy ? 'Starting the server…' : 'Run this Mac as the Space server'} disabled={busy} onPress={onPress} />
-      <Foot top={12}>Your team reaches it through Vyre’s relay while Vyre is open on this Mac. For a Mac that stays on, use the Mac installer instead.</Foot>
+      <Button testID="create-mac-server" label={busy ? 'Starting the server' : 'Run this Mac as the Space server'} busy={busy} onPress={onPress} />
+      <Foot top={12}>Your team reaches it through Vyre’s relay while Vyre is open on this Mac.</Foot>
     </View>
   );
 }

@@ -5,6 +5,7 @@ import { TextField } from "../../../../ui/src/TextField/index.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
 import { installKit, listKits, sheetFor, sheetLine } from "./kit-pick.ts";
 import type { KitRow, KitSheet } from "./kit-pick.ts";
+import { CARD } from "./card-style.ts";
 
 export function KitPickCard({ call, spaceName = "", onInstalled, gate }: { call: CapCall; spaceName?: string; onInstalled(kitId: string): void; gate?(save: (() => Promise<boolean>) | null): void }): ReactElement {
   const [name, setName] = useState(spaceName);
@@ -54,11 +55,11 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   line: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string },
   dim: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
-  err: { fontSize: 13, color: "var(--danger, #c0392b)" as string },
+  err: CARD.err,
   tile: { minHeight: 40, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--win)" as string },
   tileOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   tileText: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
   off: { opacity: 0.45 },
 });

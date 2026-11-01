@@ -84,13 +84,18 @@ export function strength(p: string): number {
 }
 /** The meter has three segments. */
 export const meter = (s: number): 0 | 1 | 2 | 3 => (s >= 3 ? 3 : (s as 0 | 1 | 2));
+/** The one password rule of every entry form: the server's own minimum. Strength is advice, never a gate. */
+export const PASSWORD_MIN = 8;
 export const usernameOk = (u: string): boolean => /^[a-z][a-z0-9._-]{2,23}$/.test(u);
 export const cleanUsername = (raw: string): string => raw.toLowerCase().replace(/\s/g, "");
 
-/** A Space is always reached through an explicit HTTP(S) address, never through the Tauri device daemon. */
+/** The zone every person's Space address lives under unless they bring their own domain. */
+const SPACE_ZONE = "vyre.run";
+/** A Space is always reached through an explicit HTTP(S) address, never through the Tauri device daemon. A bare name is that name under vyre.run. */
 export function normalizeSpaceAddress(raw: string): string | null {
-  const value = raw.trim();
-  if (!value) return null;
+  const typed = raw.trim();
+  if (!typed) return null;
+  const value = /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/i.test(typed) && typed.toLowerCase() !== "localhost" ? `${typed.toLowerCase()}.${SPACE_ZONE}` : typed;
   if (/^[a-z][a-z\d+.-]*:/i.test(value) && !/^https?:\/\//i.test(value)) return null;
   const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : `https://${value}`;
   try {
@@ -103,9 +108,6 @@ export function normalizeSpaceAddress(raw: string): string | null {
     return null;
   }
 }
-
-/** The greeting is intentionally deterministic for testable, calm first-run copy. */
-export const welcomeGreeting = (hour: number): "Good morning" | "Good afternoon" | "Good evening" => hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
 /** Resolving is the boundary between a typed address and a verified Space identity. */
 export async function resolveSpaceInvite(address: string, resolve: (normalizedAddress: string) => Promise<JoinInvite>): Promise<JoinInvite> {
@@ -148,7 +150,7 @@ export interface Rules { isTaken: (username: string) => boolean }
 export function valid(s: FlowState, r: Rules): boolean {
   if (s.stage !== "steps") return false;
   if (s.step === 0) return !!s.first.trim() && !!s.last.trim();
-  if (s.step === 1) return usernameOk(s.user) && !r.isTaken(s.user) && strength(s.pw) >= 2 && s.pw2 === s.pw;
+  if (s.step === 1) return usernameOk(s.user) && !r.isTaken(s.user) && s.pw.length >= PASSWORD_MIN && s.pw2 === s.pw;
   if (s.step === 2) return !!s.device.trim() && (!s.rec || s.saved);
   return s.ai === "none" || s.ai === "admin" || (s.ai === "key" && s.key.trim().length >= 8) || s.ai === "sub";
 }
@@ -166,7 +168,7 @@ export type Action =
   | { t: "pick_ai"; ai: AiChoice }
   | { t: "space_resolving"; intent: ConnectIntent } | { t: "space_resolved" } | { t: "space_failed"; message: string }
   | { t: "run_tick"; total: number } | { t: "run_done" }
-  | { t: "failed"; message: string };
+  | { t: "failed"; message: string; step?: FlowState["step"] };
 
 /** The one transition function. `next` on the last step starts the run; on sign-in it moves to the second factor or finishes. */
 export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
@@ -187,7 +189,7 @@ export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
       }
       if (s.stage !== "steps" || s.sheet || !valid(s, r)) return s;
       if (s.step === 3) return { ...s, stage: "run", run: 0, dir: 1, error: "" };
-      return { ...s, step: (s.step + 1) as FlowState["step"], dir: 1 };
+      return { ...s, step: (s.step + 1) as FlowState["step"], dir: 1, error: "" };
     }
     case "recovery_open": return { ...s, sheet: true, rec: s.rec || "new", code: s.code || a.code };
     case "recovery_close": return s.rec === "new" ? { ...s, sheet: false, rec: false, saved: false, code: "" } : { ...s, sheet: false };
@@ -198,7 +200,7 @@ export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
     case "space_failed": return s.stage === "connect" ? { ...s, spaceResolving: false, spaceError: a.message } : s;
     case "run_tick": return s.stage === "run" ? { ...s, run: Math.min(a.total, s.run + 1) } : s;
     case "run_done": return s.stage === "run" ? { ...s, stage: "done", dir: 1 } : s;
-    case "failed": return { ...s, stage: "steps", step: 3, error: a.message, run: 0, dir: -1 };
+    case "failed": return { ...s, stage: "steps", step: a.step ?? 3, error: a.message, run: 0, dir: -1 };
   }
 }
 

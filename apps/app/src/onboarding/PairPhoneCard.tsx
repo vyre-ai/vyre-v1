@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { phoneCanReach, pairLink } from "../shell/session/desktop.ts";
 import { QrCode } from "./QrCode.tsx";
+import { CARD } from "./card-style.ts";
 
 /** This computer's phone address (Settings > Computers > Phone access), when it has claimed one: the https name and the box key its link carries. */
 export interface PhoneAddress { url: string; boxKey: string }
@@ -78,11 +79,11 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   link: { fontSize: 13, color: "var(--ink)" as string, padding: 10, borderRadius: 8, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   dim: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  err: { fontSize: 13, color: "var(--danger, #c0392b)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
-  ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
-  ghostText: { fontSize: 13.5, color: "var(--ink)" as string },
+  err: CARD.err,
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
+  ghost: CARD.ghost,
+  ghostText: CARD.ghostText,
   choice: { gap: 4, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   choiceTitle: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   off: { opacity: 0.45 },

@@ -7,6 +7,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { desktopBrowsers } from "../shell/providers/vault.tsx";
 import { Glyph } from "./StepGlyph.tsx";
+import { CARD } from "./card-style.ts";
 
 export const EXTENSION_ZIP_URL = "https://github.com/vyre-ai/vyre-v1/releases/latest/download/vyre-chrome.zip";
 const CHROME = ["M8 2.500a5.500 5.500 0 100 11 5.500 5.500 0 000-11z", "M8 6a2 2 0 100 4 2 2 0 000-4z", "M8 6h5.200M5.600 9.500L3 5M10.400 9.500L7.800 14"];
@@ -97,10 +98,10 @@ const s = StyleSheet.create({
   big: { flexDirection: "row", alignItems: "center", gap: 12 },
   chromeTile: { width: 40, height: 40, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(135deg,#ea4335,#fbbc05 55%,#34a853)" } as object,
   bigText: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
-  primaryText: { fontSize: 13.5, fontWeight: "600", color: "var(--accent-ink, #fff)" as string },
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
   off: { opacity: 0.45 },
-  err: { fontSize: 13, color: "var(--danger)" as string },
+  err: CARD.err,
   steps: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   step: { flexGrow: 1, flexBasis: 150, gap: 10, padding: 10, borderRadius: 12, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   stepOn: { borderColor: "var(--ok)" as string },
@@ -122,8 +123,8 @@ const s = StyleSheet.create({
   copyText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   okSmall: { fontSize: 12.5, color: "var(--ok)" as string, paddingRight: 8 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" },
-  ghost: { height: 32, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, justifyContent: "center" },
-  ghostText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
+  ghost: CARD.ghost,
+  ghostText: CARD.ghostText,
   wait: { flexDirection: "row", alignItems: "center", gap: 8 },
   pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   waitText: { fontSize: 12.5, color: "var(--ink-3)" as string },

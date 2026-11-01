@@ -3,9 +3,8 @@
 // Presentational over ./claim.ts; it uses the join kit so it reads like the rest of Join (Setup Assistant style).
 import { useReducer, useState } from "react";
 import type { ReactElement } from "react";
-import { Text, View } from "react-native";
-import { AppIcon, Bar, Button, CheckBox, ErrorLine, Field, Foot, JoinFrame, Meter, Panel, Step, Title, Working, baseText, useJoin } from "../join/kit.tsx";
-import { MONO } from "../join/palette.ts";
+import { View } from "react-native";
+import { Bar, Button, CheckBox, CodeShown, ErrorLine, Field, Foot, Group, JoinFrame, Meter, Panel, Step, Title, Working } from "../join/kit.tsx";
 import { FAILURE_LINE, PASSWORD_MIN, cleanUsername, isDeadLink, meter, problemOf, strength, usernameOk } from "./logic.ts";
 import type { ClaimFailure, Details, Problem } from "./logic.ts";
 
@@ -29,6 +28,8 @@ export interface ClaimOwnerProps {
   prefill?: { name: string; username: string } | null;
   /** Sign in instead (the link was used by the owner already). */
   onSignIn?(): void;
+  /** Leave before anything is claimed: back to the first screen. */
+  onBack?(): void;
 }
 
 type Stage = "details" | "recovery" | "run" | "dead";
@@ -52,14 +53,8 @@ function reduce(s: State, a: Action): State {
 
 const LINES: Record<Problem, string> = { name: "", username: "Use 3 to 24 letters or digits, starting with a letter.", password: "Use at least 8 characters.", mismatch: "The passwords do not match." };
 
-function Dead({ failure, onSignIn }: { failure: ClaimFailure; onSignIn?: () => void }): ReactElement {
-  return (
-    <Step id="dead">
-      <AppIcon kind="clock" />
-      <Title title={FAILURE_LINE[failure]} sub={failure === "expired" ? "Ask whoever set up this Space for a new link." : failure === "invalid" ? "Open the link exactly as the server printed it." : "If this was you, sign in. Otherwise ask whoever set up this Space."} />
-      {onSignIn ? <View style={{ alignItems: "center", marginTop: 24 }}><Button large testID="claim-sign-in" label="Sign in" onPress={onSignIn} /></View> : null}
-    </Step>
-  );
+function Dead({ failure }: { failure: ClaimFailure }): ReactElement {
+  return <Step id="dead"><Title title={FAILURE_LINE[failure]} sub={failure === "expired" ? "Ask whoever set up this Space for a new link" : failure === "invalid" ? "Open the link exactly as the server printed it" : undefined} /></Step>;
 }
 
 function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; space: string | null; fingerprint?: string | null; dispatch: (a: Action) => void; next: () => void }): ReactElement {
@@ -68,49 +63,31 @@ function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; spac
   const userBad = !!s.username && !usernameOk(s.username);
   const passShort = !!s.password && s.password.length < PASSWORD_MIN;
   const mism = !!s.confirm && s.confirm !== s.password;
+  const line = userBad ? LINES.username : passShort ? LINES.password : mism ? LINES.mismatch : s.error;
   return (
     <Step id="claim-details" dir={s.dir}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-        <AppIcon kind="space" letter={space ?? "V"} compact />
-        <View style={{ flex: 1, minWidth: 0 }}><Title title={`Set up ${space ?? "your Space"}`} /></View>
-      </View>
-      <View style={{ gap: 14, marginTop: 20 }}>
+      <Title title={space ? `Set up ${space}` : "Create your account"} />
+      <Group>
         <Field testID="claim-name" label="Name" value={s.name} onChange={(v) => set({ name: v })} placeholder="Your name" onSubmit={next} autoComplete="name" autoFocus valid={!!s.name.trim()} />
-        <Field
-          testID="claim-username" label="Username" value={s.username} onChange={(v) => set({ username: cleanUsername(v) })} placeholder="name" onSubmit={next} autoComplete="username" valid={usernameOk(s.username)}
-          {...(userBad ? { error: LINES.username, noteTestID: "claim-username-error" } : { hint: "3 to 24 letters or digits, starting with a letter." })}
-        />
-        <View style={{ gap: 10 }}>
-          <Field
-            testID="claim-password" label="Password" value={s.password} onChange={(v) => set({ password: v })} placeholder="At least 8 characters" secure autoComplete="new-password" onSubmit={next} visibilityTestID="claim-password-toggle"
-            {...(passShort ? { error: LINES.password } : {})}
-          />
-          <Meter level={meter(strength(s.password))} />
-        </View>
-        <Field
-          testID="claim-confirm" label="Confirm password" value={s.confirm} onChange={(v) => set({ confirm: v })} placeholder="Type it again" secure autoComplete="new-password" onSubmit={next} valid={!!s.confirm && !mism}
-          {...(mism ? { error: LINES.mismatch, noteTestID: "claim-mismatch" } : {})}
-        />
-      </View>
-      {s.error ? <ErrorLine testID="claim-error">{s.error}</ErrorLine> : null}
-      {fingerprint ? <Foot testID="claim-fingerprint" top={14}>{`Space fingerprint ${fingerprint}. It should match what the server printed.`}</Foot> : null}
-      <Foot top={14}>Forget your password? Your recovery code gets you back in.</Foot>
+        <Field testID="claim-username" label="Username" value={s.username} onChange={(v) => set({ username: cleanUsername(v) })} placeholder="name" onSubmit={next} autoComplete="username" valid={usernameOk(s.username)} error={userBad} />
+        <Field testID="claim-password" label="Password" value={s.password} onChange={(v) => set({ password: v })} placeholder="At least 8 characters" secure autoComplete="new-password" onSubmit={next} visibilityTestID="claim-password-toggle" error={passShort} />
+        <Meter level={meter(strength(s.password))} />
+        <Field testID="claim-confirm" label="Confirm" value={s.confirm} onChange={(v) => set({ confirm: v })} placeholder="Type it again" secure autoComplete="new-password" onSubmit={next} valid={!!s.confirm && !mism} error={mism} />
+      </Group>
+      <ErrorLine testID={userBad ? "claim-username-error" : mism ? "claim-mismatch" : "claim-error"}>{line}</ErrorLine>
+      {fingerprint ? <Foot testID="claim-fingerprint" top={4}>{`Fingerprint ${fingerprint}`}</Foot> : null}
     </Step>
   );
 }
 
 function RecoveryStep({ s, dispatch, onCopyCode, onSaveCode }: { s: State; dispatch: (a: Action) => void } & Pick<ClaimOwnerProps, "onCopyCode" | "onSaveCode">): ReactElement {
-  const { p } = useJoin();
   return (
     <Step id="claim-recovery" dir={s.dir}>
-      <AppIcon kind="key" />
-      <Title title="Keep your recovery code" sub="It is the only way back in if you forget your password. Store it somewhere safe, apart from your password." />
-      <View style={{ marginTop: 28, borderRadius: 14, borderWidth: 1, borderColor: p.hair, backgroundColor: p.grp, paddingVertical: 22, paddingHorizontal: 16, alignItems: "center" }}>
-        <Text selectable testID="claim-code" style={[baseText(p), { textAlign: "center", fontFamily: MONO, fontSize: 22, lineHeight: 30, fontWeight: "500", letterSpacing: 1.6 }]}>{s.code}</Text>
-      </View>
-      <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+      <Title title="Your recovery code" />
+      <CodeShown code={s.code} testID="claim-code" />
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
         <View style={{ flex: 1 }}><Button quiet testID="claim-copy" label="Copy" onPress={() => onCopyCode?.(s.code)} /></View>
-        <View style={{ flex: 1 }}><Button quiet testID="claim-save" label="Save…" onPress={() => onSaveCode?.(s.code)} /></View>
+        <View style={{ flex: 1 }}><Button quiet testID="claim-save" label="Save" onPress={() => onSaveCode?.(s.code)} /></View>
       </View>
       <CheckBox testID="claim-saved" checked={s.saved} label="I saved it" onChange={(v) => dispatch({ t: "saved", on: v })} />
     </Step>
@@ -118,7 +95,7 @@ function RecoveryStep({ s, dispatch, onCopyCode, onSaveCode }: { s: State; dispa
 }
 
 export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
-  const [s, dispatch] = useReducer(reduce, undefined, () => ({ ...first(props.newCode(), props.dead ?? null), ...(props.prefill ? { name: props.prefill.name, username: props.prefill.username } : {}), ...(props.stage === "recovery" ? { stage: "recovery" as const, name: "Irfad Imtiaz", username: "irfad", password: "correct horse", confirm: "correct horse" } : {}) }));
+  const [s, dispatch] = useReducer(reduce, undefined, () => ({ ...first(props.newCode(), props.dead ?? null), ...(props.prefill ? { name: props.prefill.name, username: props.prefill.username } : {}), ...(props.stage === "recovery" ? { stage: "recovery" as const, name: "Dana Wills", username: "dana", password: "correct horse", confirm: "correct horse" } : {}) }));
   const [busy, setBusy] = useState(false);
   const problem = problemOf(s);
 
@@ -137,13 +114,13 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
     }
   };
 
-  if (s.stage === "dead") return <JoinFrame><Panel center><Dead failure={s.dead ?? "used"} {...(props.onSignIn ? { onSignIn: props.onSignIn } : {})} /></Panel></JoinFrame>;
+  if (s.stage === "dead") return <JoinFrame><Panel {...(props.space ? { space: props.space } : {})} bar={props.onSignIn ? <Bar cont={<Button testID="claim-sign-in" label="Sign in" onPress={props.onSignIn} />} /> : undefined}><Dead failure={s.dead ?? "used"} /></Panel></JoinFrame>;
   if (s.stage === "run") {
     return (
       <JoinFrame>
-        <Panel center bar={<Bar hideBack cont={null} />}>
+        <Panel wait>
           <Step id="claim-run">
-            <Working testID="claim-run-working" lineTestID="claim-working" title={`Setting up ${props.space ?? "your Space"}`} note="Vyre is creating your account and your Vault. On a new computer this can take a few seconds while the server starts." line="Creating your account…" />
+            <Working testID="claim-run-working" lineTestID="claim-working" title={props.space ? `Setting up ${props.space}` : "Creating your Space"} line="Creating your account" />
           </Step>
         </Panel>
       </JoinFrame>
@@ -153,7 +130,7 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
   const cont = onDetails
     ? <Button testID="claim-next" label="Continue" disabled={problem !== null} onPress={() => dispatch({ t: "to", stage: "recovery", dir: 1 })} />
     : <Button testID="claim-create" label="Create my Space" disabled={!s.saved || busy} onPress={() => void submit()} />;
-  const bar = <Bar hideBack={onDetails} onBack={() => dispatch({ t: "to", stage: "details", dir: -1 })} step={onDetails ? 0 : 1} steps={2} cont={cont} />;
+  const bar = <Bar hideBack={onDetails && !props.onBack} onBack={onDetails ? props.onBack : () => dispatch({ t: "to", stage: "details", dir: -1 })} step={onDetails ? 0 : 1} steps={2} cont={cont} />;
   return (
     <JoinFrame>
       <Panel bar={bar}>

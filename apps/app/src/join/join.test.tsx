@@ -4,11 +4,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Checklist } from "./Checklist.tsx";
-import { HalftoneField, syncHalftoneCanvasSize } from "./HalftoneField.tsx";
 import { JoinFlow, makeRecoveryCode } from "./JoinFlow.tsx";
 import { aiOptions } from "./ConnectAI.tsx";
-import { DARK, LIGHT, paletteOf } from "./palette.ts";
-import { RUN_STEPS, createSpaceResolutionGate, initialState, meter, normalizeSpaceAddress, reduce, refreshJoinInvite, resolveSpaceInvite, signInValid, strength, suggestions, usernameOk, valid, welcomeGreeting } from "./logic.ts";
+import { ENTRY } from "./palette.ts";
+import { RUN_STEPS, createSpaceResolutionGate, initialState, meter, normalizeSpaceAddress, reduce, refreshJoinInvite, resolveSpaceInvite, signInValid, strength, suggestions, usernameOk, valid } from "./logic.ts";
 import type { Action, FlowState, JoinInvite } from "./logic.ts";
 import { Shell } from "../shell/spaces/Shell.tsx";
 import { createSampleShell, samplePlace } from "../shell/spaces/sample.tsx";
@@ -20,8 +19,8 @@ const INVITE: JoinInvite = {
 const TAKEN = ["irfad", "maya", "admin"];
 const rules = { isTaken: (u: string) => TAKEN.includes(u) };
 const step = (s: FlowState, ...actions: Action[]): FlowState => actions.reduce((acc, a) => reduce(acc, a, rules), s);
-const html = (initial: Partial<FlowState>, extra: Partial<Parameters<typeof JoinFlow>[0]> = {}, mode: "light" | "dark" = "light"): string =>
-  renderToStaticMarkup(<JoinFlow invite={INVITE} initial={initial} isTaken={rules.isTaken} hold mode={mode} {...extra} />);
+const html = (initial: Partial<FlowState>, extra: Partial<Parameters<typeof JoinFlow>[0]> = {}): string =>
+  renderToStaticMarkup(<JoinFlow invite={INVITE} initial={initial} isTaken={rules.isTaken} hold {...extra} />);
 /** The opening tag that carries a test id. */
 const tagOf = (out: string, id: string): string => out.match(new RegExp(`<[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? "";
 const FILLED = { user: "dana", pw: "harbor-lamp-ninety", pw2: "harbor-lamp-ninety" };
@@ -47,10 +46,13 @@ test("Space addresses require HTTPS outside explicit local development", () => {
   }
 });
 
-test("the Welcome greeting is deterministic for morning, afternoon, and evening", () => {
-  assert.equal(welcomeGreeting(0), "Good morning");
-  assert.equal(welcomeGreeting(12), "Good afternoon");
-  assert.equal(welcomeGreeting(18), "Good evening");
+test("a bare Space name is that name under vyre.run; an address or localhost is left as typed", () => {
+  assert.equal(normalizeSpaceAddress("northwind"), "https://northwind.vyre.run");
+  assert.equal(normalizeSpaceAddress(" Northwind "), "https://northwind.vyre.run");
+  assert.equal(normalizeSpaceAddress("north-wind2"), "https://north-wind2.vyre.run");
+  assert.equal(normalizeSpaceAddress("northwind.example"), "https://northwind.example");
+  assert.equal(normalizeSpaceAddress("localhost"), "https://localhost");
+  assert.equal(normalizeSpaceAddress("a"), "https://a", "too short to be a name, left to the address rules");
 });
 
 test("the connect reducer owns the address, failure, and distinct resolved destinations", () => {
@@ -112,50 +114,20 @@ test("editing a Space address invalidates its stale deferred response and lets t
   assert.equal(invite.space, "Beta", "unmounted flows never commit a verified Space");
 });
 
-test("a fresh connection starts at the one-column Welcome back screen before credentials", () => {
+test("a fresh connection names the Space first, in the one sheet, before any credentials", () => {
   const out = html({ stage: "connect" });
-  for (const text of ["Welcome back", "Connect a Space", "Space address", "Sign in", "Get started"]) assert.ok(out.includes(text), text);
+  for (const text of ["Sign in", "Space", "New here?"]) assert.ok(out.includes(text), text);
   assert.match(out, /data-testid="space-address"/);
-  assert.doesNotMatch(out, /Sign in to Northwind/, "credentials wait for a verified Space");
-  assert.doesNotMatch(out, /data-testid="join-panel"/, "the 0.6.8 welcome sits on the open canvas, outside the setup panel");
-  assert.match(out, /data-testid="welcome-hero"/);
-  assert.match(out, /The command center for AI-native teams/);
+  assert.doesNotMatch(out, /data-testid="si-user"/, "credentials wait for a verified Space");
+  assert.doesNotMatch(out, /data-testid="si-password"/);
+  assert.match(out, /data-testid="join-panel"/, "the same sheet as every other entry screen");
+  assert.match(out, /data-testid="auth-form-mark"/);
   assert.equal(out.match(/data-testid="step-/g)?.length, 1);
   assert.doesNotMatch(tagOf(out, "get-started"), /aria-disabled="true"/, "creating or joining a Space does not require an existing address");
   assert.match(tagOf(out, "resolve-space"), /aria-disabled="true"/, "sign-in still requires a valid address");
   const ready = html({ stage: "connect", spaceAddress: "northwind.example" });
   assert.doesNotMatch(tagOf(ready, "get-started"), /aria-disabled="true"/);
-});
-
-test("the exported welcome markup stays identical across a local midnight before hydration", (t) => {
-  const hour = t.mock.method(Date.prototype, "getHours", () => 23);
-  const before = html({ stage: "connect" });
-  hour.mock.mockImplementation(() => 0);
-  assert.equal(html({ stage: "connect" }), before);
-});
-
-test("auth-only halftone gives Welcome its full field and keeps forms calm", () => {
-  const welcome = html({ stage: "connect" });
-  const form = html({ stage: "signin" });
-  const still = renderToStaticMarkup(<HalftoneField intensity="calm" reducedMotion />);
-  assert.equal(welcome.match(/data-testid="auth-halftone"/g)?.length, 1);
-  assert.match(welcome, /data-intensity="full"/);
-  assert.match(form, /data-testid="auth-halftone"[^>]*data-intensity="calm"/);
-  assert.match(still, /data-static="true"/);
-});
-
-test("the static halftone resizes its backing canvas for viewport and display changes", () => {
-  const canvas = { width: 0, height: 0 };
-  assert.equal(syncHalftoneCanvasSize(canvas, 390, 844, 1), true);
-  assert.deepEqual(canvas, { width: 390, height: 844 });
-  assert.equal(syncHalftoneCanvasSize(canvas, 390, 844, 1), false, "an unchanged canvas is not repainted");
-  assert.equal(syncHalftoneCanvasSize(canvas, 844, 390, 2), true, "resize and device-pixel ratio changes repaint the static field");
-  assert.deepEqual(canvas, { width: 1688, height: 780 });
-});
-
-test("the signed-in shell has no auth halftone", () => {
-  const shell = renderToStaticMarkup(<Shell hub={createSampleShell()} renderPlace={samplePlace} />);
-  assert.doesNotMatch(shell, /auth-halftone/);
+  assert.doesNotMatch(tagOf(ready, "resolve-space"), /aria-disabled="true"/);
 });
 
 test("each step enables Continue only when it can go on", () => {
@@ -167,7 +139,8 @@ test("each step enables Continue only when it can go on", () => {
   assert.equal(valid({ ...s1, ...FILLED }, rules), true);
   assert.equal(valid({ ...s1, ...FILLED, user: "irfad" }, rules), false, "a taken username");
   assert.equal(valid({ ...s1, ...FILLED, pw2: "different" }, rules), false, "passwords differ");
-  assert.equal(valid({ ...s1, ...FILLED, pw: "short", pw2: "short" }, rules), false, "too weak");
+  assert.equal(valid({ ...s1, ...FILLED, pw: "short", pw2: "short" }, rules), false, "too short");
+  assert.equal(valid({ ...s1, ...FILLED, pw: "abcdefgh", pw2: "abcdefgh" }, rules), true, "the same rule as the owner's form: eight characters; strength advises, it does not block with no reason");
   const s2 = { ...s0, step: 2 as const, device: "Dana's MacBook" };
   assert.equal(valid(s2, rules), true);
   assert.equal(valid({ ...s2, rec: true, saved: false }, rules), false, "a recovery code that was made must be saved");
@@ -238,17 +211,18 @@ test("sign-in goes username and password, then the code, then in; Back unwinds",
 
 test("the invite landing offers supported app/download actions, browser and sign-in", () => {
   const out = html({}, {onOpenApp:()=>undefined,onDownload:()=>undefined});
-  for (const text of ["Join Northwind", "Irfad Imtiaz invited you to join as a Member.", "Open in Vyre", "View downloads", "Releases", "Continue in the browser", "Already have an account?", "Sign in"]) {
+  for (const text of ["Join Northwind", "Irfad Imtiaz invited you", "Member", "Open in Vyre", "Get Vyre", "Continue in the browser", "I have an account"]) {
     assert.ok(out.includes(text), text);
   }
   assert.equal(out.match(/data-testid="step-accept"/g)?.length, 1);
   assert.ok(!html({}).includes('data-testid="open-app"'));assert.ok(!html({}).includes('data-testid="download"'));
-  assert.doesNotMatch(out, /data-testid="join-bar"/, "the landing has no Back and Continue bar");
+  assert.ok(!out.includes('data-testid="back"'), "the landing has no Back");
+  assert.ok(html({}).includes(">Accept invite<"), "in the desktop app the one action is to accept");
 });
 
 test("step 1: welcome, name and photo, what the person starts with", () => {
   const out = html({ stage: "steps", step: 0 });
-  for (const text of ["Welcome to Northwind", "Irfad Imtiaz invited you to join.", "First name", "Last name", "You&#x27;ll start with", "Intake, Billing", "Rivera matter", "Change photo"]) {
+  for (const text of ["Welcome to Northwind", "First name", "Last name", "You start with", "Intake, Billing", "Rivera matter", "Change photo"]) {
     assert.ok(out.includes(text) || out.includes(text.replace("&#x27;", "'")), text);
   }
   assert.match(out, /value="Dana"/);
@@ -262,7 +236,7 @@ test("step 1: welcome, name and photo, what the person starts with", () => {
 
 test("step 2: the username at the Space address, the strength meter and the messages", () => {
   const ok = html({ stage: "steps", step: 1, ...FILLED });
-  for (const text of ["Your sign-in", "Username", "Your username", "Password", "Confirm", "Your password protects your private keys"]) assert.ok(ok.includes(text), text);
+  for (const text of ["Your account", "Username", "Password", "Confirm"]) assert.ok(ok.includes(text), text);
   assert.match(ok, /data-testid="username-ok"/);
   assert.match(ok, /aria-label="Password strength 3 of 3"/);
   const taken = html({ stage: "steps", step: 1, ...FILLED, user: "irfad" });
@@ -270,21 +244,20 @@ test("step 2: the username at the Space address, the strength meter and the mess
   assert.match(taken, /data-testid="suggest-dana.whitfield"/);
   assert.doesNotMatch(taken, /data-testid="username-ok"/);
   const mism = html({ stage: "steps", step: 1, ...FILLED, pw2: "nope" });
-  assert.match(mism, /Make both passwords match to continue\./);
+  assert.match(mism, /The passwords do not match\./);
   assert.match(html({ stage: "steps", step: 1, user: "9x" }), /Use 3 to 24 letters or digits, starting with a letter\./);
+  assert.match(html({ stage: "steps", step: 1, user: "dana", pw: "short", pw2: "short" }), /Use at least 8 characters\./, "a greyed Continue always says why");
 });
 
-test("the clean account form keeps the approved promise, useful guidance, and local password controls", () => {
+test("the account form and sign-in each have a show-password control and one error line", () => {
   const create = html({ stage: "steps", step: 1, ...FILLED });
   const signIn = html({ stage: "signin", si: "pw" });
-  assert.match(create, /Your space, your username and your password\. That is all it takes, on any device\./);
   assert.match(create, /data-testid="password-visibility"/);
-  assert.match(create, />Show</);
+  assert.match(create, /aria-label="Show password"/);
   assert.match(signIn, /data-testid="si-password-visibility"/);
-  assert.match(signIn, />Show</);
-  assert.match(create, /Keep your recovery code safe, and use a signed-in device to change your password\./);
-  assert.doesNotMatch(create, /Vyre never sees your password/);
-  assert.match(html({ stage: "steps", step: 1, ...FILLED, pw2: "nope" }), /Make both passwords match to continue\./);
+  assert.match(signIn, /aria-label="Show password"/);
+  assert.match(html({ stage: "steps", step: 1, ...FILLED, pw2: "nope" }), /role="alert"/);
+  assert.doesNotMatch(create, /role="alert"/);
 });
 
 test("auth choices stay distinct and every phone row has a 44px touch target", () => {
@@ -294,7 +267,7 @@ test("auth choices stay distinct and every phone row has a 44px touch target", (
   assert.match(signIn, /data-testid="sign-in-github"/);
   assert.doesNotMatch(tagOf(signIn, "sign-in-sso"), /GitHub/);
   assert.match(signIn, /height:44px/);
-  assert.match(ai, /min-height:56px/);
+  assert.match(ai, /min-height:44px/);
 });
 
 test("every compact phone control keeps a 44px hit target without enlarging its visual", () => {
@@ -305,8 +278,7 @@ test("every compact phone control keeps a 44px hit target without enlarging its 
     const out = id === "next" || id === "si-password-visibility" ? signIn : id === "trust" ? device : sheet;
     assert.match(tagOf(out, id), /(?:min-)?height:44px/, id);
   }
-  assert.match(signIn, /height:32px/, "the visual button stays compact within its larger hit target");
-  assert.match(device, /height:31px/, "the switch stays visually compact within its larger hit target");
+  assert.match(device, /height:24px/, "the switch stays visually compact within its larger hit target");
 });
 
 test("GitHub-only sign-in does not render an empty single sign-on section", () => {
@@ -323,33 +295,33 @@ test("taken usernames give a truthful fallback when no suggestions are available
 
 test("step 3: this device, and the recovery code sheet with the code and the box", () => {
   const dev = html({ stage: "steps", step: 2, ...FILLED });
-  for (const text of ["Set up this device", "Device name", "Trust this device", "Recovery code", "Create…"]) assert.ok(dev.includes(text), text);
+  for (const text of ["This device", "Device name", "Trust this device", "Recovery code", "Create"]) assert.ok(dev.includes(text), text);
   assert.match(dev, /role="switch"/);
   assert.doesNotMatch(dev, /data-testid="join-sheet"/);
   const sheet = html({ stage: "steps", step: 2, ...FILLED, rec: "new", sheet: true, code: "K7QM-4TXD-92HB-WPLE" });
-  for (const text of ["Your recovery code", "K7QM-4TXD-92HB-WPLE", "Copy", "Save…", "I saved it", "Cancel", "Done"]) assert.ok(sheet.includes(text), text);
+  for (const text of ["Your recovery code", "K7QM-4TXD-92HB-WPLE", "Copy", "Save", "I saved it", "Cancel", "Done"]) assert.ok(sheet.includes(text), text);
   assert.match(sheet, /role="dialog"/);
   const box = tagOf(sheet, "saved");
   assert.ok(box.includes('role="checkbox"') && box.includes('aria-checked="false"'), box);
   const saved = html({ stage: "steps", step: 2, ...FILLED, rec: true, saved: true });
   assert.match(saved, /Saved/);
-  assert.match(saved, /View…/);
+  assert.match(saved, />View</);
 });
 
 test("step 4: ConnectAI shows the ways in, the key field only for a key, and the lock when it is Not now", () => {
   assert.deepEqual(aiOptions({ space: "Northwind", adminKey: false }).map((o) => o.id), ["sub", "key"]);
   assert.deepEqual(aiOptions({ space: "Northwind", adminKey: true }).map((o) => o.id), ["sub", "key", "admin"]);
   const base = html({ stage: "steps", step: 3, ...FILLED });
-  for (const text of ["Connect an AI account", "Use my subscription", "Use my own key", "Use the key from Northwind", "Not now"]) assert.ok(base.includes(text), text);
+  for (const text of ["Connect your AI", "Claude, ChatGPT or Grok", "API key", "The key from Northwind", "Not now"]) assert.ok(base.includes(text), text);
   assert.ok(tagOf(base, "ai-admin").includes('aria-checked="true"'));
   assert.ok(tagOf(base, "ai-sub").includes('aria-checked="false"'));
   assert.doesNotMatch(base, /data-testid="ai-key-field"/);
   assert.match(html({ stage: "steps", step: 3, ...FILLED, ai: "key" }), /data-testid="ai-key-field"/);
   const sub = html({ stage: "steps", step: 3, ...FILLED, ai: "sub", note: "subok" });
-  assert.match(sub, /Sign in after joining/);
+  assert.match(sub, /You sign in after joining/);
   assert.doesNotMatch(sub, /Connected as/);
   const none = html({ stage: "steps", step: 3, ...FILLED, ai: "none" });
-  assert.match(none, /Your assistant is locked/);
+  assert.match(none, /Your assistant waits until you connect one/);
   assert.doesNotMatch(none, /data-testid="ai-none"/);
   assert.match(html({ stage: "steps", step: 3, ...FILLED, error: "That username was taken a moment ago." }), /That username was taken a moment ago\./);
 });
@@ -357,30 +329,34 @@ test("step 4: ConnectAI shows the ways in, the key field only for a key, and the
 test("setup shows a progress bar and the current line; done says welcome and offers to open the Space", () => {
   const run = html({ stage: "run", step: 3, run: 2, ...FILLED });
   assert.match(run, /Setting up Northwind/);
-  assert.match(run, /Syncing your projects…/);
+  assert.match(run, /Syncing your projects/);
   assert.match(run, /role="progressbar"/);
   assert.doesNotMatch(run, /Open Northwind/);
   const done = html({ stage: "done", step: 3, ...FILLED });
   assert.match(done, /You&#x27;re all set|You're all set/);
   assert.match(done, /Welcome, Dana\./);
   assert.match(done, /Open Northwind/);
-  assert.match(html({ stage: "done", step: 3, ...FILLED, ai: "none" }), /Your assistant is locked until you connect an AI account\./);
+  assert.match(html({ stage: "done", step: 3, ...FILLED, ai: "none" }), /Your assistant waits until you connect an AI\./);
 });
 
 test("an expired invite says who to ask and offers their address", () => {
   const out = html({}, { expired: true });
-  for (const text of ["This invite has expired", "Ask Irfad Imtiaz for a new one.", "Email Irfad", "irfad@northwind.example"]) assert.ok(out.includes(text), text);
+  for (const text of ["This invite expired", "Ask Irfad for a new one", "Email Irfad", "irfad@northwind.example"]) assert.ok(out.includes(text), text);
+  const noAddress = html({}, { expired: true, invite: { ...INVITE, email: undefined } as never });
+  assert.ok(noAddress.includes("Ask Irfad for a new one"));
+  assert.doesNotMatch(noAddress, /data-testid="email-inviter"/, "no button that can do nothing");
 });
 
 test("sign-in lists single sign-on and GitHub and no passkey; the second factor asks for six digits", () => {
   const pw = html({ stage: "signin", si: "pw" });
-  for (const text of ["Sign in to Northwind", "Username", "Password", "Single sign-on", "Google", "Okta", "OpenID Connect", "GitHub"]) assert.ok(pw.includes(text), text);
+  for (const text of ["Sign in to Northwind", "Username", "Password", "Or continue with", "Google", "Okta", "GitHub"]) assert.ok(pw.includes(text), text);
   assert.doesNotMatch(pw, /passkey/i);
   assert.match(pw, /disabled/, "Continue waits for a username and password");
   const noGithub = renderToStaticMarkup(<JoinFlow invite={{ ...INVITE, github: false, sso: [] }} initial={{ stage: "signin" }} hold />);
   assert.doesNotMatch(noGithub, /Or continue with/);
-  const totp = html({ stage: "signin", si: "totp", siUser: "dana", siPw: "x" });
-  for (const text of ["Enter the code", "6 digit code for Northwind", "Code", "Use a recovery code", "Sign in"]) assert.ok(totp.includes(text), text);
+  const totp = html({ stage: "signin", si: "totp", siUser: "dana", siPw: "x" }, { onRecoveryCode: () => undefined });
+  assert.doesNotMatch(html({ stage: "signin", si: "totp", siUser: "dana", siPw: "x" }), /recovery-code-link/, "no link with nothing behind it");
+  for (const text of ["Enter the code", "6 digit code", "Use a recovery code", "Sign in"]) assert.ok(totp.includes(text), text);
   assert.match(totp, /maxlength="6"/i);
 });
 
@@ -402,24 +378,17 @@ test("the checklist counts what is done, locks the assistant behind the AI accou
   assert.match(renderToStaticMarkup(<Checklist space="Northwind" items={items} visible={false} />), /All set/);
 });
 
-test("the pages are flat: one column, no gradients, blurs or split panes, in light and dark", () => {
+test("the pages are one sheet: one column, no gradients or blurs, and tokens only, so no page has a theme of its own", () => {
   const pages: Partial<FlowState>[] = [{}, { stage: "steps", step: 0 }, { stage: "steps", step: 1, ...FILLED }, { stage: "steps", step: 2, ...FILLED, rec: "new", sheet: true, code: "A" }, { stage: "steps", step: 3, ...FILLED }, { stage: "run", step: 3, run: 1 }, { stage: "done", step: 3 }, { stage: "signin" }];
-  for (const mode of ["light", "dark"] as const) {
-    for (const p of pages) {
-      const out = html(p, {}, mode);
-      assert.doesNotMatch(out, /gradient|blur\(|backdrop-filter/i, JSON.stringify(p));
-      assert.equal(out.match(/data-testid="join-panel"/g)?.length, 1, "one panel");
-      assert.equal(out.match(/data-testid="step-/g)?.length, 1, "one centred column");
-    }
+  for (const p of pages) {
+    const out = html(p, {});
+    assert.doesNotMatch(out, /gradient|blur\(|backdrop-filter/i, JSON.stringify(p));
+    assert.equal(out.match(/data-testid="join-panel"/g)?.length, 1, "one sheet");
+    assert.equal(out.match(/data-testid="step-/g)?.length, 1, "one centred column");
+    if (p.step !== 0) assert.doesNotMatch(out, /#[0-9a-fA-F]{3,8}\b|rgba?\(/, `tokens only: ${JSON.stringify(p)}`); // step 0 holds the person's generated face, which has its own colours
   }
-  // the palettes are the system's own and differ by mode
-  assert.notEqual(paletteOf("light").panel, paletteOf("dark").panel);
-  assert.equal(paletteOf("light"), LIGHT);
-  assert.equal(paletteOf("dark"), DARK);
-  assert.equal(LIGHT.blue, "#5B5BD6");
-  assert.equal(DARK.blue, "#8B8BFF");
+  for (const value of Object.values(ENTRY)) assert.match(value, /^var\(--[a-z0-9-]+\)$/, "every role is one token");
 });
-
 test("recovery codes are four groups of four from an alphabet with no look-alikes", () => {
   const seen = new Set<string>();
   for (let i = 0; i < 50; i++) {
@@ -430,13 +399,13 @@ test("recovery codes are four groups of four from an alphabet with no look-alike
   assert.equal(seen.size, 50);
 });
 
-test("auth forms use the reference mark and top Back before the reading column", () => {
+test("auth forms carry the Space's tile and top Back before the column, the primary after the fields", () => {
   const out = html({ stage: "signin", siUser: "dana" });
-  assert.match(out, /data-testid="auth-form-header"/);
   assert.match(out, /data-testid="auth-form-mark"/);
+  assert.match(out, /data-testid="entry-space-tile"/);
   assert.ok(out.indexOf('data-testid="back"') < out.indexOf('data-testid="step-sign-in"'), "Back belongs above the fields");
   assert.ok(out.indexOf('data-testid="join-bar"') > out.indexOf('data-testid="si-password"'), "the primary action follows the fields");
-  assert.doesNotMatch(out, /data-testid="icon-space"/, "the small reference brand replaces the decorative tile");
+  assert.ok(html({ stage: "connect" }).includes('data-icon="vyre-mark"'), "before a Space is known it is the Vyre mark");
 });
 
 test("late invite metadata cannot replace a resolved destination or reuse another host’s credential flow", () => {

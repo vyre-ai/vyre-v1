@@ -1,0 +1,3 @@
+- Every way into Vyre is now one system: lock screen, install, sign-in, register, create and join a Space, recovery and onboarding share one soft sheet on the rail ground, the mark with its coral spark, one field, one button, one error line and one progress line, in tokens only, with one soft fade between steps.
+- Sign-in goes Space, then username and password. A bare name means name.vyre.run.
+- Forgot password on the lock screen opens recovery directly. A Space that does not answer no longer reads as "no password", a Personal Space that fails to start says so with Try again, and a link into a Space you are already in offers to open it.
