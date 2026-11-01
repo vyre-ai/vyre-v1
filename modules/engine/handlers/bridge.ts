@@ -260,8 +260,10 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (store.recent(threadId, 1).length === 0) {
       // First time this host sees the thread: copy the window the agent will read as history, oldest first, under chat's own ids.
       const list = (await read("chat.messages.list", { threadId, limit: HISTORY })) as { messages: Row[] };
+      // only what came before this message: a message that arrived after it has its own event coming, and copying it now would make that event read "known" and the message never reach an agent
+      const upto = list.messages.find((r) => r.messageId === skipId)?.threadSeq ?? Number.MAX_SAFE_INTEGER;
       for (const r of [...list.messages].sort((a, b) => (a.threadSeq ?? 0) - (b.threadSeq ?? 0))) {
-        if (r.messageId === skipId || store.get(r.messageId)) continue;
+        if (r.messageId === skipId || (r.threadSeq ?? 0) > upto || store.get(r.messageId)) continue;
         const body = r.body + await pointers(read, r);
         withMessageId(r.messageId, () => store.append({ id: r.messageId, threadId, author: { kind: r.author.id.startsWith("agt_") ? "agent" : "person", id: r.author.id }, mentions: [], depth: r.depth ?? 0, body }));
       }

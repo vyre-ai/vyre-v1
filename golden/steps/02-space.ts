@@ -72,7 +72,7 @@ export interface FlowSpace {
 }
 
 /** Boots a daemon on the `core` seed with `live` flipped in a temporary code root. Rejects with the host's own refusal text when the boot is refused. */
-export async function bootFlowSpace(live: readonly string[], opts: { engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; realClock?: boolean; fetch?: FetchFn & SeamFetch; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
+export async function bootFlowSpace(live: readonly string[], opts: { engineOpenSession?: unknown; engineCli?: unknown; spaceKind?: "personal" | "team"; relay?: string; realClock?: boolean; fetch?: FetchFn & SeamFetch; vault?: { secret(handle: string): Promise<string>; signRs256(): Promise<string> } } = {}): Promise<FlowSpace> {
   const dir = await seededDir();
   // Every flow runs on a clock that reads a weekday at 10:00 UTC when the Space boots and then ticks as real time does, so no flow depends on the hour CI runs at (windows, hours, expiries)
   // `realClock`: a flow whose far end is a real process with a clock of its own (the relay) stays on real time
@@ -94,6 +94,7 @@ export async function bootFlowSpace(live: readonly string[], opts: { engineCli?:
     // the provider modules (Resend, Twilio) reach the network through ctx.http (`http`) and their host seams through `seams.fetch`; a flow that fakes the providers hands the same function to both
     ...(opts.fetch ? { http: opts.fetch, seams: { fetch: opts.fetch } } : {}),
     ...(opts.engineCli !== undefined ? { engineCli: opts.engineCli } : {}),
+    ...(opts.engineOpenSession !== undefined ? { engineOpenSession: opts.engineOpenSession as never } : {}),
     ...(opts.vault ? { vault: opts.vault } : {}),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
   });

@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { bootFlowSpace, expectStatus } from "./02-space.ts";
+import { scriptedModel } from "../../test/support/live.ts";
 
 const LIVE = ["agents", "access", "devices", "chat", "engine", "files", "vault", "tasks", "runs", "memory"];
 
@@ -68,47 +69,67 @@ test("flow 2, remember that decision: a message becomes a fact (in the project's
   } finally { await s.stop(); }
 });
 
-test("flow 4, @agent in a chat between people: the agent joins when mentioned, the person who mentioned it pays on their own key, and both people see the answer", async () => {
-  const { vendor } = await import("../../fixtures/model-vendor.ts");
-  const v = await vendor();
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = ((u: unknown, i?: RequestInit) => { const url = String((u as { url?: string })?.url ?? u); return realFetch(url.startsWith("https://api.openai.com") ? url.replace("https://api.openai.com", v.base) : (u as string), i); }) as typeof fetch;
-  const s = await bootFlowSpace(LIVE);
+test("flow 4, @agent in a chat between people: the agent joins when mentioned, the mentioner is the asker, both people see the answer; a chat opened mid-turn shows the turn so far", async () => {
+  const askers: string[] = [];
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((r) => { release = r; });
+  const model = scriptedModel(async function* (input) {
+    askers.push(input.asker);
+    yield { type: "text", text: "Three invoices are paid" };
+    if (/slowly/.test(input.trigger?.body ?? "")) await gate;
+    yield { type: "text", text: ", two are open." };
+  });
+  const s = await bootFlowSpace(LIVE, { engineOpenSession: model });
   try {
     const olivia = s.d.token;
     const noah = s.signedIn("usr_noah");
-    // each person unlocks their own person key on this node and connects their own OpenAI key
-    for (const token of [olivia, noah]) {
-      const unlock = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
-      assert.equal(unlock.status, 204);
-    }
-    const keys = { [olivia]: "sk-test-OLIVIA0123456789abcdef", [noah]: "sk-test-NOAH00123456789abcdef" };   // secret-scan: fake
-    for (const token of [olivia, noah]) {
-      const added = expectStatus(await s.call("providers.add", token, { idempotencyKey: `f4-key-${token.slice(-6)}`, providerKey: "openai", connection: "api_key", apiKey: keys[token], scope: "mine" }), 200, "providers.add").provider as { id: string };
-      expectStatus(await s.call("providers.set_space_use", token, { idempotencyKey: `f4-use-${token.slice(-6)}`, providerId: added.id, allow: true }), 200, "providers.set_space_use");
-    }
-    const agent = expectStatus(await s.call("agents.create", olivia, { idempotencyKey: "f4-agent", name: "Billing", role: "Sums up invoices", model: "gpt-4o-mini" }), 200, "agents.create").agent.agentId as string;
-    const dm = expectStatus(await s.call("chat.start", olivia, { idempotencyKey: "f4-dm", kind: "chat", agentIds: [], personId: "usr_noah" }), 200, "chat.start").thread.threadId as string;
-    expectStatus(await s.call("chat.post", olivia, { idempotencyKey: "f4-hi", threadId: dm, body: "Noah, how are the invoices?" }), 200, "chat.post hi");
+    // an account the Space may run work on (Olivia's), as in every live chat test
+    const unlock = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${olivia}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
+    assert.equal(unlock.status, 204);
+    const folder = expectStatus(await s.call("vault.folders.create", olivia, { idempotencyKey: "f4-folder", name: "Accounts", scope: "mine" }), 200, "vault.folders.create");
+    const flow = expectStatus(await s.call("providers.subscription_start", olivia, { idempotencyKey: "f4-flow", providerKey: "claude-code" }), 200, "subscription_start");
+    expectStatus(await s.call("vault.item.put", olivia, { idempotencyKey: "f4-item", folderId: folder.folder.id, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ", secret: true }] }), 200, "vault.item.put");   // secret-scan: fake
+    const prov = expectStatus(await s.call("providers.subscription_complete", olivia, { flowId: flow.flowId }), 200, "subscription_complete");
+    expectStatus(await s.call("providers.set_space_use", olivia, { idempotencyKey: "f4-use", providerId: prov.provider.id, allow: true }), 200, "set_space_use");
+    expectStatus(await s.call("engine.pool.status", olivia, {}), 200, "engine.pool.status");
 
-    // Noah brings Billing in with an @mention
-    v.script.push({ text: "Three invoices are paid, two are open." });
-    expectStatus(await s.call("chat.post", noah, { idempotencyKey: "f4-ask", threadId: dm, body: "@Billing sum this up for us", mentions: [{ kind: "agent", id: agent }] }), 200, "chat.post mention");
-    const end = Date.now() + 40_000;
-    let answer: { author?: { kind?: string }; body?: string } | undefined;
-    for (;;) {
-      await s.d.hooks?.pump?.();
-      const msgs = expectStatus(await s.call("chat.messages.list", olivia, { threadId: dm }), 200, "chat.messages.list").messages as Array<{ author?: { kind?: string }; body?: string }>;
-      answer = msgs.find((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Three invoices are paid"));
-      if (answer || Date.now() > end) break;
-      await new Promise((r) => setTimeout(r, 150));
-    }
-    assert.ok(answer, "the answer lands in the chat for Olivia");
-    const seen = expectStatus(await s.call("chat.messages.list", noah, { threadId: dm }), 200, "chat.messages.list noah").messages as Array<{ body?: string }>;
-    assert.ok(seen.some((m) => (m.body ?? "").includes("Three invoices are paid")), "and for Noah");
-    assert.equal(v.requests.length, 1, "one turn reached the vendor");
-    assert.equal(v.auth[0], `Bearer ${keys[noah]}`, "on Noah's key: the person who mentioned it pays");
+    const agent = expectStatus(await s.call("agents.create", olivia, { idempotencyKey: "f4-agent", name: "Billing", role: "Sums up invoices" }), 200, "agents.create").agent.agentId as string;
+    const dm = expectStatus(await s.call("chat.start", noah, { idempotencyKey: "f4-dm", kind: "chat", agentIds: [], personId: "usr_olivia" }), 200, "chat.start").thread.threadId as string;
+    expectStatus(await s.call("chat.post", noah, { idempotencyKey: "f4-hi", threadId: dm, body: "Olivia, how are the invoices?" }), 200, "chat.post hi");
+
+    const answerIn = async (token: string, needle: RegExp, ms = 40_000): Promise<boolean> => {
+      for (const end = Date.now() + ms; Date.now() < end;) {
+        await s.d.hooks?.pump?.();
+        const msgs = expectStatus(await s.call("chat.messages.list", token, { threadId: dm }), 200, "chat.messages.list").messages as Array<{ author?: { kind?: string }; body?: string }>;
+        if (msgs.some((m) => m.author?.kind === "agent" && needle.test(m.body ?? ""))) return true;
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      return false;
+    };
+    // Olivia brings Billing in with an @mention in the chat Noah started: it joins as a listener, answers, and Olivia (not the starter) is the asker
+    expectStatus(await s.call("chat.post", olivia, { idempotencyKey: "f4-ask", threadId: dm, body: "@Billing sum this up for us", mentions: [{ kind: "agent", id: agent }] }), 200, "chat.post mention");
+    assert.ok(await answerIn(olivia, /Three invoices are paid, two are open\./), "the answer lands for Olivia");
+    assert.ok(await answerIn(noah, /Three invoices are paid, two are open\./), "and for Noah");
+    assert.deepEqual(askers, ["usr_olivia"], "the person who mentioned it is the asker, not the one who started the chat, so the turn runs on their account");
     const thread = expectStatus(await s.call("threads.get", olivia, { threadId: dm }), 200, "threads.get").thread as { agents: Array<{ agentId: string; mode: string }> };
     assert.deepEqual(thread.agents.map((a) => [a.agentId, a.mode]), [[agent, "listen"]], "it joined as a listener");
-  } finally { globalThis.fetch = realFetch; v.close(); await s.stop(); }
+
+    // mid-turn: a slow answer is running; anyone who may read the chat gets the text so far at once, and a stranger gets nothing
+    expectStatus(await s.call("chat.post", olivia, { idempotencyKey: "f4-slow", threadId: dm, body: "@Billing answer slowly", mentions: [{ kind: "agent", id: agent }] }), 200, "chat.post slow");
+    let seen: Array<{ turnId: string; text: string }> = [];
+    for (const end = Date.now() + 30_000; Date.now() < end && !seen.some((x) => x.text.includes("Three invoices are paid"));) {
+      await s.d.hooks?.pump?.();
+      seen = expectStatus(await s.call("engine.live_turns", noah, { threadId: dm }), 200, "engine.live_turns").turns as typeof seen;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(seen.length, 1, "one turn is being written");
+    assert.equal(seen[0]!.text, "Three invoices are paid", "its text so far, before it ends");
+    release();
+    assert.ok(await answerIn(noah, /Three invoices are paid, two are open\./), "the turn finishes and is saved");
+    for (const end = Date.now() + 10_000; Date.now() < end;) {
+      const after = expectStatus(await s.call("engine.live_turns", noah, { threadId: dm }), 200, "engine.live_turns after").turns as unknown[];
+      if (after.length === 0) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  } finally { release(); await s.stop(); }
 });

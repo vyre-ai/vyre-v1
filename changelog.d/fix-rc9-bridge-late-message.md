@@ -1,0 +1,1 @@
+- A message sent while a chat was still being opened for the one before it no longer vanishes: the second message used to be copied in as history and then skipped as known, so an @mentioned agent never answered it.
