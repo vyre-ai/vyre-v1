@@ -1,0 +1,1 @@
+The lead uses Claude's own subagents for research and side tasks (shown as named rows), keeps crew_start for code, can search the web, and the Agents head hides when empty; helpers started through Vyre are left for the next release.

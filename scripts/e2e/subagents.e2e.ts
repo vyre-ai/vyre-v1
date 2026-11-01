@@ -146,15 +146,16 @@ async function main(): Promise<void> {
     await ok("threads.set_mode", { threadId: plain, mode: "auto" });
     chat = plain;
     await openPage(plain);
-    const ask = "Launch a subagent or two to research two things in parallel: what a sourdough starter is, and what a poolish is. Then give me one line on each.";
+    const ask = "Launch a subagent or two to read about sourdough starters and about poolish, then give me one line on each.";
     await ok("chat.post", { threadId: plain, body: ask, mentions: [{ kind: "agent", id: lead }] });
     say("person", ask);
-    await waitFor("the lead to finish", async () => { const m = await msgs(plain); return m.some((x) => x.author?.kind === "agent" && String(x.body ?? "").length > 40 && !(x.blocks ?? []).some((b) => b.state === "live")) ? true : null; }, 300_000).catch(() => undefined);
+    await waitFor("the lead to finish", async () => { const m = await msgs(plain); return m.some((x) => x.author?.kind === "agent" && String(x.body ?? "").length > 150 && !(x.blocks ?? []).some((b) => b.state === "live")) ? true : null; }, 300_000).catch(() => undefined);
     await sleep(8000);
     const helpers = ((await ok("chat.helpers.list", { threadId: plain })).helpers as any[]);   // eslint-disable-line @typescript-eslint/no-explicit-any
     const all = await msgs(plain);
     const calls = all.flatMap((m) => (m.blocks ?? []).filter((b) => b.type === "tool_call").map((b) => `${b.data?.name}${b.data?.detail ? `: ${b.data.detail}` : ""}`));
     say("RESULT1", `Vyre helpers started: ${helpers.length} (${helpers.map((h) => h.title).join("; ")}); tool calls in the chat: ${calls.join(" | ")}`);
+    say("FINAL", JSON.stringify(all.filter((m) => m.author?.kind === "agent").at(-1)?.body));
     say("RESULT2", `lead's words: ${JSON.stringify(all.filter((m) => m.author?.kind === "agent").map((m) => String(m.body).slice(0, 400)))}`);
     if (page) { const t = await page.locator("body").innerText(); say("UI", `"Using agent" shown: ${/Using agent/.test(t)}; "Working with a helper" shown: ${/Working with a helper/.test(t)}`); try { await page.getByText(/steps?/).first().click({ timeout: 3000 }); } catch { /* none */ } await sleep(800); say("shot", await shot("subagents-chat")); }
     d.sink.flush();
