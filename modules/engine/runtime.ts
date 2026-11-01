@@ -25,6 +25,7 @@ import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
 import { createKeepAwake } from "./keep-awake.ts";
+import { coalesceLive } from "./live-coalesce.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
@@ -76,7 +77,7 @@ export interface EngineHostSeam {
 }
 
 interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean }
-interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string }
+interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean }
 
 /** The provider a driver belongs to, for the session spec; the CLI engines run their vendor's models. */
 const PROVIDER_OF_DRIVER: Readonly<Record<string, string>> = Object.freeze({ claude_code: "anthropic", codex: "openai", grok: "xai" });
@@ -117,7 +118,7 @@ async function resolveOne(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedA
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
-  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
+  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
 }
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
@@ -173,6 +174,19 @@ export async function closeNoAccountTasks(db: Db): Promise<string[]> {
     } catch (e) { h.log?.("could not close a no-account task", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }); }
   }
   return closed;
+}
+
+/** The Need behind a paid fallback: one per chat, agent and key. Marking it Done is the yes: the row it leaves lets the key answer here, and the agent carries on (wakeAfterUnblock). */
+async function askToPay(h: EngineHostSeam, db: Db, q: AccountQuery, to: ResolvedAccount): Promise<void> {
+  const list = (await h.call("engine.accounts.list", {}, to.payer)) as { accounts: Array<{ ref: string; name?: string; title?: string }> };
+  const row = list.accounts.find((a) => a.ref === to.ref);
+  const name = row?.name ?? row?.title ?? to.ref;
+  const made = (await h.call("tasks.create", {
+    kind: "unblock", title: `Use ${name}?`, summary: `The account this chat runs on is out for now. ${name} could answer, and it bills for what it uses. Mark this done to let it, for this chat.`,
+    assigned: { kind: "person", id: q.askerId }, source: { kind: "chat", id: q.threadId }, idempotencyKey: `paid-fallback:${q.threadId}:${q.agentId}:${to.ref}`,
+  }, q.askerId)) as { task?: { id?: string } };
+  const taskId = made.task?.id;
+  if (taskId) db.run("INSERT OR REPLACE INTO engine_unblock (task_id, thread_id, agent_id, asker, at, paid_ref) VALUES (?, ?, ?, ?, ?, ?)", taskId, q.threadId, q.agentId, q.askerId, (h.now ?? Date.now)(), to.ref);
 }
 
 async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: ResolvedAccount | null): Promise<void> {
@@ -240,16 +254,19 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   building ??= (async () => {
     const now = h.now ?? Date.now;
     const crewWatch = h.postAs ? createCrewWatcher({ db: ctx.db, host: h, now }) : null;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { h.stream?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    const live = h.stream ? coalesceLive(h.stream, { now }) : null;
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { live?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
-    let live: TurnEngine | null = null;
+    let running: TurnEngine | null = null;
     const turnContext = createContextBuilder({
       call: h.call, skills: h.skills ?? diskSkills(), now, handoff: takeHandoff,
-      waiting: (threadId, agentId) => (live?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
+      waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const limitSwitch = createLimitSwitch({
       call: h.call, accountFor: runnableAccount(h), now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
-      modelOf: (threadId, agentId) => { try { return live?.agents(threadId).find((a) => a.id === agentId)?.model; } catch { return undefined; } },
+      paidOk: (q, ref) => ctx.db.all("SELECT 1 AS x FROM engine_paid_ok WHERE thread_id = ? AND agent_id = ? AND ref = ?", q.threadId, q.agentId, ref).length > 0,
+      askToPay: (q, to) => askToPay(h, ctx.db, q, to),
+      modelOf: (threadId, agentId) => { try { return running?.agents(threadId).find((a) => a.id === agentId)?.model; } catch { return undefined; } },
       providerOf: async (ref, payer) => {
         const list = (await h.call("engine.accounts.list", {}, payer)) as { accounts: Array<{ ref: string; driver: string }> };
         const row = list.accounts.find((a) => a.ref === ref);
@@ -271,7 +288,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       ...(apiTools ? { callTool: apiTools.runner } : {}),
     });
-    live = engine;
+    running = engine;
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();
@@ -371,10 +388,11 @@ async function admission(h: EngineHostSeam, q: { threadId: string; agentId: stri
 
 /** The person answered an Unblock (the task is done): wake the agent that had no account, in the same thread. */
 export async function wakeAfterUnblock(ctx: EngineCtx, taskId: string): Promise<boolean> {
-  const row = (ctx.db.all("SELECT thread_id, agent_id, asker FROM engine_unblock WHERE task_id = ?", taskId) as Array<{ thread_id: string; agent_id: string; asker: string }>)[0];
+  const row = (ctx.db.all("SELECT thread_id, agent_id, asker, paid_ref FROM engine_unblock WHERE task_id = ?", taskId) as Array<{ thread_id: string; agent_id: string; asker: string; paid_ref: string | null }>)[0];
   if (!row) return false;
   const asker = row.asker;
   ctx.db.run("DELETE FROM engine_unblock WHERE task_id = ?", taskId);
+  if (row.paid_ref) ctx.db.run("INSERT OR REPLACE INTO engine_paid_ok (thread_id, agent_id, ref, by_person, at) VALUES (?, ?, ?, ?, ?)", row.thread_id, row.agent_id, row.paid_ref, asker, ctx.now());
   const engine = await ensureRuntime(ctx);
   if (!engine) return false;
   await open(ctx, row.thread_id, asPerson(ctx.db, row.thread_id, asker));

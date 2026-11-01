@@ -4,3 +4,7 @@
 - A paused agent stops and takes no new turn, with the reason in the chat, and a teammate's job follows it (running, paused, lost, stopped). A lost job offers Run again. The Crew tab no longer crashes in a Personal Space.
 - A Mac stays awake while a turn runs.
 - An outward automation step a server restart cut off is never sent twice by itself: the run fails into Needs you with what to check. Retry goes on from the step that did not finish instead of repeating what already went out, and a Retry or Replay pressed on the Runs pages now really runs (it used to stay queued for ever).
+- A subscription that runs out no longer moves to a metered key by itself: one task asks, and a yes covers that chat. A key on the agent's fallback list was already chosen and does not ask. In a chat with more than one person, each reply says whose account it ran on.
+- In a chat with more than one person, recall leaves out what one person told their agent, quotes from their private chats stay out, and the agent's thinking goes only to whoever asked.
+- A busy turn's live steps gather to about one frame a second.
+- Vyre no longer says any chat is end to end: agents have to read what they answer, and no app seals a chat today.

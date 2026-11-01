@@ -1,7 +1,7 @@
 // Chat reach (chat UX): the two things that cross thread lines.
 //   chat.fork    a new private chat that holds a copy of one chat up to a message, with the same agents and a line that links back
 //   chat.search  the words and the meaning of messages across every chat and channel the asker is in, each hit naming its message
-// Both read only what the asker may read. A sealed chat (end to end) is not the server's to read: fork refuses it, search leaves it out and says how many.
+// Both read only what the asker may read. A sealed chat is not the server's to read: fork refuses it, search leaves it out and says how many.
 import {
   agentsOf, askerOf, channelBy, ensure, addAgent, addMember, insertMessage, insertThread, messageBy, messageOf, mintId, raise, refOf, threadBy, threadOut, membersOf,
 } from "../projections.ts";
@@ -46,7 +46,7 @@ export async function fork(ctx: ChatCtx, input: { threadId: string; messageId?: 
   const src = openThread(ctx, input.threadId);
   ensurePrivate(ctx.db);
   if (sealedThread(ctx, src.id)) {
-    raise(ctx, "validation.precondition_failed", "This chat is end-to-end encrypted, so the server cannot copy it. Fork it from a device that holds the key.", { reason: "sealed_thread" });
+    raise(ctx, "validation.precondition_failed", "This chat is sealed under your key, so the server cannot copy it. Fork it from a device that holds the key.", { reason: "sealed_thread" });
   }
   const asker = askerOf(ctx);
   ensureFork(ctx.db);

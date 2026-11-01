@@ -13,7 +13,7 @@ export { setEmbedder, setLister, setSource, forgetVectors, DEFAULT_SOURCES };
 export type { Embedder, Source };
 export { ensure } from "./projections.ts";
 
-/** What a consumer reads of an event: its name, its sequence, whether it is end-to-end (enc = 2) and the payload. */
+/** What a consumer reads of an event: its name, its sequence, whether it is private (enc = 2) and the payload. */
 /** What the host hands a consumer (`name`, `subject` as entity/id), as opposed to the stored shape (`type`, `entityId`) the index logic and its tests use. */
 export interface HostEvent { name: string; seq: number; subject?: string; payload: Record<string, unknown> }
 /** Accept either shape: the live host's event is turned into the stored one, so what the host sends reaches the index. */
@@ -47,7 +47,7 @@ export const WATCHED: Readonly<Record<string, { entity: string; idKey: string; r
 
 export interface IndexTarget { entity: string; id: string; op: "upsert" | "delete"; seq: number }
 
-/** The entity rows an event is about, or none when it is not one the index follows or it is end-to-end. A merge has two: the merged-away record leaves, the survivor is read again. */
+/** The entity rows an event is about, or none when it is not one the index follows or it is private. A merge has two: the merged-away record leaves, the survivor is read again. */
 export function targetsOf(e: IndexEvent): IndexTarget[] {
   const w = WATCHED[e.type];
   if (!w || e.enc === 2) return [];
@@ -67,7 +67,7 @@ export function targetOf(e: IndexEvent): IndexTarget | null {
 }
 
 export const consumers = {
-  /** A changed row is read again and put in the full text index (or taken out when it was removed, hidden or turned out to be end-to-end). */
+  /** A changed row is read again and put in the full text index (or taken out when it was removed, hidden or turned out to be private). */
   "search.fts": {
     on: Object.keys(WATCHED),
     run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {

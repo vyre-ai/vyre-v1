@@ -78,7 +78,7 @@ export const RESOURCE_OF_KIND: Readonly<Record<Kind, string>> = {
   person: "space", agent: "agent", chat: "thread", inbox: "space", record: "record", file: "file", automation: "automation", app: "space", setting: "space", memory: "space", task: "task", channel: "channel",
 };
 
-/** One thing the index holds. `enc` is never stored: end-to-end content never reaches this module. */
+/** One thing the index holds. `enc` is never stored: private content never reaches this module. */
 export interface IndexDoc {
   entity: string;
   id: string;
@@ -386,7 +386,7 @@ export function decodeVector(b: Uint8Array): Float32Array {
 
 // ---- sources: how the index learns what an entity row says
 
-/** What a source answers for one row: the document, or why there is none. `e2e` means the row is end-to-end and must never be indexed; `gone` means it no longer exists or is hidden. */
+/** What a source answers for one row: the document, or why there is none. `e2e` means the row is private and must never be indexed; `gone` means it no longer exists or is hidden. */
 export type Resolved = { doc: IndexDoc } | { skip: "e2e" | "gone" };
 export type Source = (ctx: SearchCtx, id: string, sub: string | undefined) => Promise<Resolved>;
 

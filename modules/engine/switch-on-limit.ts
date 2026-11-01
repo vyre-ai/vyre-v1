@@ -18,12 +18,21 @@ export interface LimitSwitchDeps {
   modelOf?(threadId: string, agentId: string): string | undefined;
   /** The provider an account belongs to (engine.accounts.list), by its ref. */
   providerOf?(ref: string, payer: string): Promise<string | undefined>;
+  /** Has someone said this paid key may answer here (hole 7)? Absent: nobody has, so it asks. */
+  paidOk?(q: AccountQuery, ref: string): boolean;
+  /** Raise the Need: one per chat, agent and key. */
+  askToPay?(q: AccountQuery, to: ResolvedAccount): Promise<void>;
   now?: () => number;
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
 }
 
 /** How long a chat leaves an account alone after it ran out. A usage limit resets in hours; a short rest keeps the next message from paying for the same failure. */
 export const LIMIT_REST_MS = 10 * 60_000;
+
+/** A key billed by use, unlike a subscription already paid for or a local model. */
+export const isPaid = (a: Pick<ResolvedAccount, "kind" | "keyless">): boolean => a.kind === "api_key" && a.keyless !== true;
+/** The turn ends with this: the next account would cost money and nobody has said yes. */
+export const PAID_FALLBACK = "paid_fallback";
 
 export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery): Promise<ResolvedAccount | null>; next(q: AccountQuery): Promise<ResolvedAccount | null> } {
   const now = d.now ?? Date.now;
@@ -48,6 +57,19 @@ export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery
     } catch { return true; }
   }
 
+  /**
+   * Falling back to a paid key is a person's call (hole 7): the turn stops and they get one Need. It only applies to a fallback: an API key that is the person's first choice is simply what they use, and a key
+   * on the agent's fallback list or in their own fallback order (reason backup_key) was already chosen for this.
+   */
+  async function mustAsk(q: AccountQuery, to: ResolvedAccount): Promise<boolean> {
+    const fellBack = to.fellBack === true || (q.unavailable ?? []).length > 0;
+    return isPaid(to) && fellBack && to.reason !== "backup_key" && d.paidOk?.(q, to.ref) !== true;
+  }
+  async function stopFor(q: AccountQuery, to: ResolvedAccount): Promise<never> {
+    try { await d.askToPay?.(q, to); } catch (e) { d.log?.("the paid key could not be offered", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
+    throw Object.assign(new Error("A paid key could answer, and that is yours to decide."), { code: PAID_FALLBACK });
+  }
+
   async function announce(q: AccountQuery, failed: string, to: ResolvedAccount): Promise<void> {
     if (!d.postAs) return;
     try {
@@ -64,13 +86,20 @@ export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery
 
   return {
     /** Before every turn: the account that pays, skipping the ones that just ran out in this chat. */
-    resolve: async (q) => (await d.accountFor(withResting(q))) ?? (restingRefs(q).length > 0 ? d.accountFor(q) : null),   // nothing else left: try the resting account again rather than stop
+    resolve: async (q) => {
+      const first = (await d.accountFor(withResting(q))) ?? (restingRefs(q).length > 0 ? await d.accountFor(q) : null);   // nothing else left: try the resting account again rather than stop
+      if (!first || !(await mustAsk(q, first))) return first;
+      // the account that ran out may be back: try it before asking anyone to pay
+      if (restingRefs(q).length > 0) { const rested = await d.accountFor(q); if (rested && !(await mustAsk(q, rested))) return rested; }
+      return stopFor(q, first);
+    },
     /** After a limit or sign-in failure: the next usable account, or null when the agent keeps to one account or none is left. */
     async next(q) {
       const failed = (q.unavailable ?? []).at(-1);
       if (failed === undefined || !(await mayAct(q))) return null;
       const to = await d.accountFor(withResting(q));
       if (!to) return null;
+      if (await mustAsk(q, to)) return stopFor(q, { ...to, fellBack: true });
       const m = resting.get(key(q)) ?? new Map<string, number>();
       m.set(failed, now() + LIMIT_REST_MS);
       resting.set(key(q), m);

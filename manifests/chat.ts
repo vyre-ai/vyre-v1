@@ -35,7 +35,7 @@ const reaction = t.obj({ emoji: t.str({ examples: ['thumbs_up'] }), by: t.arr(t.
 const messageRow = t.obj({
   messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef,
   kind: t.enm('text', 'agent', 'system', 'quiet'), body: t.str(), blocks: t.arr(blockSchema), replyTo: t.opt(id.message),
-  via: t.opt(t.obj({ routineOwner: id.user })), depth: t.int({ minimum: 0 }), attachments: t.arr(id.file), reactions: t.arr(reaction),
+  via: t.opt(t.obj({ routineOwner: id.user })), paidBy: t.opt(id.user), depth: t.int({ minimum: 0 }), attachments: t.arr(id.file), reactions: t.arr(reaction),
   pinned: t.bool(), editedAt: t.opt(t.ts()), createdAt: t.ts(), enc: t.opt(t.int({ minimum: 0, maximum: 2 })),
 });
 const channelRow = t.obj({
@@ -294,7 +294,7 @@ export default defineManifest({
     }),
     read('chat.search', 'Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it', {
       in: { q: t.str(), mode: t.opt(t.enm('keyword', 'meaning', 'hybrid')), threadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
-      out: { hits: t.arr(searchHit), meaning: t.bool(), sealedChats: t.int({ minimum: 0, description: 'End-to-end chats the server cannot read, left out' }), tookMs: t.int({ minimum: 0 }) },
+      out: { hits: t.arr(searchHit), meaning: t.bool(), sealedChats: t.int({ minimum: 0, description: 'Chats sealed under their owner key, which the server cannot read, left out' }), tookMs: t.int({ minimum: 0 }) },
       tool: 'chats', label: 'filter', mcpName: 'chat_search', agent: { planMode: 'allowed' }, rate: { n: 60, perSeconds: 60, scope: 'principal' },
     }),
     // ---- native blocks, plan mode

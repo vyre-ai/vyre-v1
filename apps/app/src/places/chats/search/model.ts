@@ -69,5 +69,5 @@ export function statusLine(out: SearchOut | null, loading: boolean, query: strin
   const n = out.hits.length;
   const how = out.meaning ? "by words and meaning" : "by words";
   const head = n === 0 ? `Nothing found ${how}` : `${n} ${n === 1 ? "result" : "results"} ${how}`;
-  return out.sealedChats > 0 ? `${head}. ${out.sealedChats} end-to-end ${out.sealedChats === 1 ? "chat is" : "chats are"} not searched here.` : head;
+  return out.sealedChats > 0 ? `${head}. ${out.sealedChats} sealed ${out.sealedChats === 1 ? "chat is" : "chats are"} not searched here.` : head;
 }

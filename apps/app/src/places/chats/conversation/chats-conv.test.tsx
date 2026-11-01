@@ -412,3 +412,16 @@ test("a message the engine has handed to the agent is no longer shown as waiting
   assert.deepEqual(stillWaiting(["m1", "m2", "m3"], items), ["m2"]);
   assert.deepEqual(stillWaiting(["m1"], []), [], "the engine holds nothing: nothing is waiting");
 });
+
+test("in a chat with more than one person each reply says whose account it ran on; alone it says nothing", () => {
+  const s = createSample("idle");
+  const reply = { ...msgs(s).find((m) => m.author.kind === "agent")!, kind: "agent" as const, body: "Done." };
+  const line = (shared: boolean, paidBy = "usr_sara"): string | undefined => {
+    const items = timeline([{ ...reply, paidBy }], { meId: "usr_irfad", nameOf: () => "Sara Khan", kindOf: () => "agent", clock: s.data.clock(), shared });
+    const other = items.find((i) => i.kind === "other");
+    return other?.kind === "other" ? other.paidLine : undefined;
+  };
+  assert.equal(line(true), "On Sara’s account");
+  assert.equal(line(true, "usr_irfad"), "On your account");
+  assert.equal(line(false), undefined);
+});

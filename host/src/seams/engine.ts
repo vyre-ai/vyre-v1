@@ -20,6 +20,8 @@ export type EngineSessionPorts = EngineSessionHost;
 export type EngineStreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string }
   | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string }
+  | { kind: "steps"; threadId: string; turnId: string; agentId: string; steps: unknown[] }
+  | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
   | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting"; code?: string }
   | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
 
@@ -129,7 +131,9 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     const pub = d.publishTurn?.();
     if (!pub) return;
     const { turnId, kind, ...rest } = e;
-    pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => mayRead(e.threadId, person));
+    // what the model thought may rest on what only the person who asked can read: in a shared chat it goes to them and nobody else (hole 8)
+    const onlyAsker = kind === "thinking" ? e.asker ?? "" : null;
+    pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
   };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}) }) : undefined;
   return { holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };

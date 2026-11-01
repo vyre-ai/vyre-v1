@@ -90,7 +90,7 @@ export function sealedThread(ctx: ChatCtx, threadId: string): boolean {
 export function refuseWhenSealed<I extends { threadId: string }, O>(inner: (ctx: ChatCtx, input: I) => Promise<O>): (ctx: ChatCtx, input: I) => Promise<O> {
   return async (ctx, input) => {
     if (sealedThread(ctx, input.threadId)) {
-      raise(ctx, "validation.bad_input", "This chat is end-to-end encrypted, so the server cannot write this message in it. Post it from a device that holds the key.", { reason: "sealed_thread" });
+      raise(ctx, "validation.bad_input", "This chat is sealed under your key, so the server cannot write this message in it. Post it from a device that holds the key.", { reason: "sealed_thread" });
     }
     return inner(ctx, input);
   };

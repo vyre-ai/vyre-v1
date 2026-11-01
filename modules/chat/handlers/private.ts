@@ -1,5 +1,7 @@
 // @reads /modules/chat/migrations/0002_private.sql
-// Private chats are end to end (spec 5 b7, ARCH 4.13, 5.10, 6.3): a private thread and an Ask pane are enc=2, sealed under a key only the owner's devices hold.
+// Sealing a private chat under its owner's key (spec 5 b7, ARCH 4.13, 5.10, 6.3). What is true today (decision 2 Nov, hole 14): no app seals a chat yet, so an ordinary chat is stored as plain text on the
+// Space's server and the claim "end to end" is retired. It could never hold for a chat with an agent in it, because an agent has to read what it answers. This is the machinery for a chat that has been sealed:
+// a private thread or Ask pane is enc=2, and the first envelope from its owner seals it under a key only the owner's devices hold.
 //
 //   envelope     what a sealed body or block looks like at rest: `enc2.1.<keyId>.<iv>.<ciphertext>.<tag>` (AES-256-GCM, the thread and message in the authenticated data, so a ciphertext cannot be moved
 //                to another message or thread). The thread key is HKDF of the owner's personKey; the key tag is a one-way tag of it.
@@ -131,7 +133,7 @@ export function guardPrivate(inner: (ctx: ChatCtx, input: PostInput) => Promise<
       }
       if (row) {
         if (!sealedOk(input.body, row.keyId) || !blocks.every((b) => parseEnvelope(b.data)?.keyId === row.keyId)) {
-          raise(ctx, "validation.bad_input", "This chat is end-to-end encrypted. Messages in it are stored sealed under your key, and plain text is not accepted.", { reason: "sealed_thread" });
+          raise(ctx, "validation.bad_input", "This chat is sealed under your key. Messages in it are stored sealed, and plain text is not accepted.", { reason: "sealed_thread" });
         }
       } else {
         const first = parseEnvelope(input.body);

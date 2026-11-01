@@ -18,8 +18,7 @@ import { excerpt } from "../../../lib/md.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import {
   actorOf, autoMergeKinds, bm25, ensure, factOut, liveNow, loadFact, makeAccess, mintId, num, orNull, ownerOfLayer, pageOf, raise, readFact, recencyBoost, rowsOf, sealText, snippet, sourceLinkOf,
-  str, tokens, trigramSim,
-} from "../projections.ts";
+  str, tokens, trigramSim, seenByOthers } from "../projections.ts";
 import type { Access, Fact, FactStatus, Layer, MemCtx, Row, SourceKind } from "../projections.ts";
 
 const LAYERS: readonly Layer[] = ["person", "agent", "project", "space"];
@@ -468,6 +467,8 @@ export async function search(
   if (q === "") raise(ctx, "validation.bad_input", "Ask for something to look up.");
   const access = makeAccess(ctx);
   const layers = new Set<Layer>(input.layers && input.layers.length > 0 ? input.layers : LAYERS);
+  const privateLeaks = ctx.principal.kind === "agent" && ctx.thread !== undefined && await seenByOthers(ctx, ctx.thread);
+  if (privateLeaks) layers.delete("person");
   const docs = [...(await factDocs(ctx, access, input.agentId, input.projectId)), ...(await noteDocs(ctx, access, input.agentId, input.projectId)), ...(await pageDocs(ctx, access, input.agentId, input.projectId))].filter((d) => layers.has(d.layer));
   const mode = input.mode ?? "hybrid";
   const ranked = bm25(docs, q);
@@ -531,7 +532,9 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
     ctx.db.run("INSERT OR REPLACE INTO memory_pointer_state (thread_id, last_idx) VALUES (?, ?)", input.threadId, input.sinceIdx);
   }
   const access = makeAccess(ctx);
-  const docs = [...(await factDocs(ctx, access, input.agentId, undefined)), ...(await noteDocs(ctx, access, input.agentId, undefined))];
+  const everything = [...(await factDocs(ctx, access, input.agentId, undefined)), ...(await noteDocs(ctx, access, input.agentId, undefined))];
+  // what one person told their agent never reaches a chat other people read (hole 8)
+  const docs = everything.some((d) => d.layer === "person") && await seenByOthers(ctx, input.threadId) ? everything.filter((d) => d.layer !== "person") : everything;
   const ranked = bm25(docs, text);
   const order = docs
     .map((d, i) => ({ d, r: ranked[i]! }))

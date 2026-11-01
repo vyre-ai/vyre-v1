@@ -206,16 +206,24 @@ export interface TimelineCtx {
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
   clock: Clock;
+  /** More than one person is here, so whose turn each reply ran on is worth saying (hole 7). */
+  shared?: boolean;
 }
 
 export type Item =
   | { kind: "day"; key: string; label: string }
   | { kind: "event"; key: string; message: Message; text: string; time: string }
   | { kind: "me"; key: string; message: Message; time: string; newgroup: boolean }
-  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean };
+  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string };
 
 /** System and quiet messages are one-line events ("Switched to Codex, picked up from the summary and the last 20 turns"). */
 export const isEvent = (m: Message): boolean => m.kind === "system" || m.kind === "quiet";
+
+const paidLine = (person: string, ctx: Pick<TimelineCtx, "meId" | "nameOf">): string => {
+  if (person === ctx.meId) return "On your account";
+  const name = ctx.nameOf(person).split(" ")[0] ?? "";
+  return `On ${/s$/i.test(name) ? `${name}’` : `${name}’s`} account`;
+};
 
 /** Day separators, then each message: a line for an event, a bubble for yours, a header-and-body for anyone else. A header shows when the author changes. */
 export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[] {
@@ -237,7 +245,7 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
     }
     const newgroup = prev === null || prev.author.id !== m.author.id || prev.author.kind !== m.author.kind;
     if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, newgroup });
-    else out.push({ kind: "other", key: m.messageId, message: m, who: { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) }, time, newgroup });
+    else out.push({ kind: "other", key: m.messageId, message: m, who: { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) }, time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}) });
     prev = m;
   }
   return out;

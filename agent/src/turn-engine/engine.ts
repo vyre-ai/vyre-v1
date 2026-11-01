@@ -101,6 +101,8 @@ async function* guarded<T>(src: AsyncIterable<T>, stop: Promise<never>): AsyncGe
 }
 
 /** Provider errors that mean this account cannot serve the turn (agent/src/accounts/fallback.ts holds the same list). */
+const KEEP_EVENTS = 20_000;
+const KEEP_TURNS = 5_000;
 const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited"]);
 const MAX_FALLBACKS = 8;
 
@@ -180,7 +182,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   let counter = 0;
   const nextId = opts.newId ?? ((p: string): string => `${p}_${++counter}`);
 
-  const emit = (e: EngineEvent): void => { journal.push(e); for (const l of listeners) l(e); };
+  // what is kept here is for reads of recent turns; a server that runs for months must not hold every event it ever saw
+  const emit = (e: EngineEvent): void => { journal.push(e); if (journal.length > KEEP_EVENTS) journal.splice(0, journal.length - KEEP_EVENTS); for (const l of listeners) l(e); };
   const need = (id: string): ThreadState => {
     const st = threads.get(id);
     if (!st) throw new RangeError(`unknown thread ${id}`);
@@ -301,6 +304,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   function recordSpend(turn: TurnRow): void {
     if (turn.tokensIn + turn.tokensOut > 0) spendRows.push({ agentId: turn.agentId, turnId: turn.id, payer: turn.asker, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut });
+    if (spendRows.length > KEEP_TURNS) spendRows.splice(0, spendRows.length - KEEP_TURNS);
   }
 
   async function runTurn(st: ThreadState, item: QueueItem): Promise<void> {
@@ -310,8 +314,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const payer = payerOf(st, item);
     // The account that pays comes from engine.account.resolve when the host wires it; without it the engine keeps its own starter/steerer choice (unit tests).
     let resolveFailed = false;
+    let resolveCode: string | undefined;
     const refused = opts.admit ? await opts.admit({ threadId: st.thread.id, agentId: item.agentId, asker: wait?.asker ?? payer.asker }).catch(() => null) : null;
-    const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker }).catch(() => { resolveFailed = true; return null; }) : undefined;
+    const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker }).catch((e: unknown) => { resolveFailed = true; resolveCode = (e as { code?: unknown } | null)?.code as string | undefined; return null; }) : undefined;
     const asker = wait?.asker ?? (account ? account.payer : payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
     const turn: TurnRow = {
@@ -320,6 +325,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       tokensIn: 0, tokensOut: 0, error: null, firstTokenOverheadMs: null, injected: 0,
     };
     turnRows.push(turn);
+    if (turnRows.length > KEEP_TURNS) turnRows.splice(0, turnRows.length - KEEP_TURNS);
     const run: Running = { turnId: turn.id, agentId: item.agentId, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
     st.running = run;
     leases.setTurn(st.thread.id, opts.holder, turn.id);
@@ -355,7 +361,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     try {
       if (refused) throw Object.assign(new Error(refused.message), { code: refused.code });
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
-      if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
+      if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
       if (account === null) {
         // Nobody has a usable key for this turn: no session, the turn ends as failed (no_account) until they add one.
         try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, routine: item.routine }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
@@ -424,7 +430,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "error": {
             // A key that is refused or out of quota, before the turn said anything: the next account in the agent's order takes it, and the failed one is skipped.
             if (opts.nextAccount && paying && ACCOUNT_FAILURE.has(ev.code) && reply === "" && blockIdx === 0 && failedRefs.length < MAX_FALLBACKS) {
-              try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref] }); } catch { switchTo = null; }
+              try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref] }); }
+              catch (e) {
+                // the next account is there but a person has to say yes first: the turn ends saying that, not with the limit it hit
+                const code = (e as { code?: unknown } | null)?.code;
+                if (typeof code === "string") { flush("text"); turn.error = { code, message: e instanceof Error ? e.message : code }; ended = true; break; }
+                switchTo = null;
+              }
               if (switchTo) { failedRefs.push(paying.ref); ended = true; break; }
             }
             flush("text");

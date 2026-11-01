@@ -27,6 +27,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "sandbox.unavailable": { message: "Your server cannot sandbox the engine.", retryable: true },
   "engine.post_failed": { message: "The reply was written but could not be shown.", cause: "Try again.", retryable: true },
   turn_timeout: { message: "That took too long, so it was stopped.", retryable: true },
+  paid_fallback: { message: "This account is out for now.", cause: "A paid key could answer. It is in your Tasks for you to say yes.", retryable: false },
   host_lost: { message: "The server stopped while this was running.", cause: "It may have done part of the work. Check before running it again.", retryable: true },
   agent_paused: { message: "This agent is paused, so it did not answer.", cause: "Resume it from its page, then try again.", retryable: true },
   agent_gone: { message: "This agent was deleted, so it did not answer.", retryable: false },

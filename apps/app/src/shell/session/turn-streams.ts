@@ -167,7 +167,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       const threadId = str(d["threadId"]), agentId = str(d["agentId"]), kind = str(d["kind"]);
       if (threadId === "" || agentId === "") return;
       const turnId = f.turn;
-      if (kind === "step" || kind === "thinking") {
+      if (kind === "step" || kind === "steps" || kind === "thinking") {
         const t = ensure(turnId, threadId, agentId);
         if (t.state === "ended") return;
         arm(turnId, quietMs);
@@ -175,11 +175,14 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
           const text = str(d["text"]);
           if (text !== "") touchAct(turnId, (s) => ({ ...s, thinking: (s.thinking + text).slice(-THINKING_KEPT) }));
         } else {
-          const id = str(d["id"]), name = str(d["name"]);
-          if (id === "") return;
-          if (d["phase"] === "input") { const detail = str(d["detail"]); if (detail !== "") touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, detail } : x)) })); }
-          else if (d["phase"] === "call") touchAct(turnId, (s) => (s.steps.some((x) => x.id === id) ? s : { ...s, steps: [...s.steps, { id, name, state: "live" as const }] }));
-          else touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, state: d["ok"] === false ? ("failed" as const) : ("done" as const) } : x)) }));
+          // the server gathers a busy turn's steps into one frame a second (modules/engine/live-coalesce.ts)
+          for (const raw of kind === "steps" && Array.isArray(d["steps"]) ? (d["steps"] as Array<Record<string, unknown>>) : [d]) {
+            const id = str(raw["id"]), name = str(raw["name"]);
+            if (id === "") continue;
+            if (raw["phase"] === "input") { const detail = str(raw["detail"]); if (detail !== "") touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, detail } : x)) })); }
+            else if (raw["phase"] === "call") touchAct(turnId, (s) => (s.steps.some((x) => x.id === id) ? s : { ...s, steps: [...s.steps, { id, name, state: "live" as const }] }));
+            else touchAct(turnId, (s) => ({ ...s, steps: s.steps.map((x) => (x.id === id ? { ...x, state: raw["ok"] === false ? ("failed" as const) : ("done" as const) } : x)) }));
+          }
         }
         return;
       }

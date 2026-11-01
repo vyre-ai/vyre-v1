@@ -1,4 +1,4 @@
-// What an untitled chat is called in the list. The server never writes any part of a message into a thread title (a chat's text is sealed), so an unnamed chat reads from who is in it and the
+// What an untitled chat is called in the list. The server never writes any part of a message into a thread title, so an unnamed chat reads from who is in it and the
 // day it began ("Mailer · Oct 31"). The device that sent the first message also keeps that message's first line, in its own storage, and shows it in place of the default on that device only.
 // A title someone gave on purpose always wins over both.
 import type { ChatRow } from "./model.ts";

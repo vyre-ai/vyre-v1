@@ -364,3 +364,36 @@ test("a Job with nothing running for it for a minute reads as lost, not as worki
   h.db.run("INSERT INTO engine_waits (task_id, thread_id, turn_id, agent_id, call_id, tool_name, asker, run_id, at, resolution, wake_qseq) VALUES ('tsk_p', 'thr_parked', 'trn_o', 'agt_intake', 'c1', 'x', 'usr_dana', NULL, 1, NULL, NULL)");
   assert.deepEqual(markLostJobs(h.ctx), ["crw_old"]);
 });
+
+test("a paid key is offered once, and marking the Need done lets it answer in that chat", async () => {
+  bindEngine(null);
+  const h = harness({ threads: THREADS });
+  const p = scriptedProvider({ script: say });
+  const f: Fake = { calls: [], haveKey: true, accountsDown: false };
+  const base = recording(f, p, h);
+  let allowed = false;
+  const created: Array<Record<string, unknown>> = [];
+  hostSeams.setEngineHost({
+    ...base,
+    async call(cap, input, as) {
+      if (cap === "engine.account.resolve") return { accountRef: "#Dana_Key", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_bbbbbbbbbbbb", fellBack: true };
+      if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Dana_Key", driver: "anthropic", kind: "api_key", name: "Dana's key", status: "ok" }] };
+      if (cap === "tasks.create") { created.push(input as Record<string, unknown>); return { task: { id: "tsk_paid" } }; }
+      if (cap === "engine.turn.record") { allowed = allowed || false; return {}; }
+      return base.call(cap, input, as);
+    },
+  });
+  const engine = (await ensureRuntime(h.ctx))!;
+  await handlers["engine.stop"]!(h.ctx as never, { threadId: THREAD } as never).catch(() => undefined);
+  engine.receive({ threadId: THREAD, author: { kind: "person", id: "usr_dana" }, body: "hello" });
+  await engine.idle(THREAD);
+  assert.equal(p.sessions.length, 0, "no paid session before the yes");
+  assert.equal(engine.turns(THREAD)[0]?.error?.code, "paid_fallback");
+  assert.equal(created.length, 1);
+  assert.equal(created[0]!["title"], "Use Dana's key?");
+  await consumers["engine.unblock"].run(h.ctx as never, { payload: { taskId: "tsk_paid" } } as never);
+  await until(() => p.sessions.length === 1);
+  await engine.idle(THREAD);
+  assert.equal(engine.turns(THREAD).at(-1)?.state, "completed");
+  hostSeams.setEngineHost(null);
+});

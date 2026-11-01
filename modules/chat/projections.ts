@@ -142,7 +142,7 @@ export function insertThread(ctx: Pick<ChatCtx, "db" | "now">, t: NewThread): Th
   return threadBy(ctx.db, id)!;
 }
 
-/** Private chats and Ask panes (and what hangs under them) are enc=2 rows: owner key, end to end. */
+/** Private chats and Ask panes (and what hangs under them) are enc=2 rows: they stay out of the search index and out of thread previews. A row is sealed only once a device has sealed it (handlers/private.ts); enc=2 alone says nothing about encryption. */
 export function encOf(db: Db, t: ThreadRec): number {
   let cur: ThreadRec | null = t;
   for (let i = 0; cur && i < 4; i++) {
@@ -219,7 +219,7 @@ export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
 
 export interface MessageRec {
   id: string; thread: string; seq: number; author: string; kind: "text" | "agent" | "system" | "quiet"; body: string; blocks: Array<Record<string, unknown>>; replyTo?: string;
-  via?: { routineOwner: string }; depth: number; attachments: string[]; reactions: Array<{ emoji: string; by: string[] }>; pinned: boolean; editedAt?: number; createdAt: number;
+  via?: { routineOwner: string }; /** The person whose turn this reply was: the one whose account the turn ran on. */ paidBy?: string; depth: number; attachments: string[]; reactions: Array<{ emoji: string; by: string[] }>; pinned: boolean; editedAt?: number; createdAt: number;
 }
 const parseJson = <T>(raw: unknown, fallback: T): T => { try { return raw === null || raw === undefined ? fallback : (JSON.parse(str(raw)) as T); } catch { return fallback; } };
 
@@ -229,7 +229,7 @@ export function messageOf(r: Row): MessageRec {
     blocks: parseJson(r["blocks"], []), depth: num(r["depth"] ?? 0), attachments: parseJson(r["attachments"], []), reactions: parseJson(r["reactions"], []), pinned: flag(r["pinned"]), createdAt: num(r["createdAt"]),
   };
   const replyTo = optStr(r["replyTo"]); if (replyTo !== undefined) o.replyTo = replyTo;
-  const via = parseJson<{ routineOwner?: string } | null>(r["via"], null); if (via?.routineOwner) o.via = { routineOwner: via.routineOwner };
+  const via = parseJson<{ routineOwner?: string; paidBy?: string } | null>(r["via"], null); if (via?.routineOwner) o.via = { routineOwner: via.routineOwner }; if (via?.paidBy) o.paidBy = via.paidBy;
   const editedAt = optNum(r["editedAt"]); if (editedAt !== undefined) o.editedAt = editedAt;
   return o;
 }
@@ -243,7 +243,7 @@ export function messageBy(db: Db, id: string): MessageRec | null {
 export function messageOut(m: MessageRec, enc: number): Record<string, unknown> {
   return {
     messageId: m.id, threadId: m.thread, threadSeq: m.seq, author: refOf(m.author), kind: m.kind, body: m.body, blocks: m.blocks,
-    ...(m.replyTo !== undefined ? { replyTo: m.replyTo } : {}), ...(m.via !== undefined ? { via: m.via } : {}), depth: m.depth, attachments: m.attachments, reactions: m.reactions,
+    ...(m.replyTo !== undefined ? { replyTo: m.replyTo } : {}), ...(m.via !== undefined ? { via: m.via } : {}), ...(m.paidBy !== undefined ? { paidBy: m.paidBy } : {}), depth: m.depth, attachments: m.attachments, reactions: m.reactions,
     pinned: m.pinned, ...(m.editedAt !== undefined ? { editedAt: m.editedAt } : {}), createdAt: m.createdAt, enc,
   };
 }
@@ -276,7 +276,7 @@ export function nextSeq(db: Db, thread: string): number {
 
 export interface NewMessage {
   id?: string | undefined; author: string; kind: MessageRec["kind"]; body: string; blocks?: Array<Record<string, unknown>>; replyTo?: string | undefined;
-  via?: { routineOwner: string } | undefined; depth?: number; attachments?: string[];
+  via?: { routineOwner: string } | undefined; paidBy?: string | undefined; depth?: number; attachments?: string[];
 }
 /** Insert one message with the next sequence number. Validate everything before this call: it must not fail half way. */
 export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, m: NewMessage): MessageRec {
@@ -286,7 +286,7 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
   ctx.db.run(
     `INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, replyTo, via, depth, attachments, pinned, reactions, editedAt, createdAt, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', NULL, ?, 0, ?, NULL)`,
-    id, thread, seq, m.author, m.kind, m.body, JSON.stringify(m.blocks ?? []), m.replyTo ?? null, m.via ? JSON.stringify(m.via) : null, m.depth ?? 0, JSON.stringify(m.attachments ?? []), now, now,
+    id, thread, seq, m.author, m.kind, m.body, JSON.stringify(m.blocks ?? []), m.replyTo ?? null, m.via || m.paidBy ? JSON.stringify({ ...m.via, ...(m.paidBy ? { paidBy: m.paidBy } : {}) }) : null, m.depth ?? 0, JSON.stringify(m.attachments ?? []), now, now,
   );
   return messageBy(ctx.db, id)!;
 }

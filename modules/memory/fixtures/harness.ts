@@ -50,7 +50,8 @@ export function harness(o: HarnessOptions = {}) {
   const clock = o.clock ?? { t: NOW };
   const emitted: Emitted[] = [];
   const called: Called[] = [];
-  const respond: Record<string, Responder> = { ...(o.respond ?? {}) };
+  // by default a chat holds the one person asking; a test of a shared chat answers threads.get itself
+  const respond: Record<string, Responder> = { "threads.get": () => ({ thread: { kind: "chat", members: [{ kind: "person", id: "usr_dana" }] } }), ...(o.respond ?? {}) };
   const deny = new Set(o.deny ?? []);
   const readOnly = new Set(o.readOnly ?? []);
   const settings: Record<string, unknown> = { ...(o.settings ?? {}) };

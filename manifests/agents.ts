@@ -24,7 +24,7 @@ const agentRow = t.obj({
   model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
   accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
   memoryKey: t.opt(t.str({ description: 'Vault handle that pays for this agent memory upkeep; never a value', examples: ['#Team_Anthropic_Key'] })),
-  switchOnLimit: t.opt(t.bool()),  // on unless false: switch to the next usable account when this one runs out of its limit
+  switchOnLimit: t.opt(t.bool()),  // on unless false: switch to the next usable account when this one runs out of its limit; a paid key that is not on a fallback list asks first
   toolsAllowed: t.arr(t.str()), toolsDenied: t.arr(t.str()), vaultKeys: t.arr(t.str()), limits, captureMode, hasComputer: t.bool(), templateVersion: t.int(),
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
   teammateOf: t.opt(id.project),
