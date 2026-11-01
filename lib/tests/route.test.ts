@@ -37,10 +37,16 @@ test("an agent mention beats a person mention in the same message", () => {
   assert.deepEqual(r.responders, ["docs"]);
 });
 
-test("no lead: nobody answers an unaddressed message", () => {
-  const r = route({ agents: [{ id: "docs", mode: "listen" }] }, say());
+test("no lead: nobody answers an unaddressed message when several agents only listen", () => {
+  const r = route({ agents: [{ id: "docs", mode: "listen" }, { id: "ops", mode: "listen" }] }, say());
   assert.deepEqual(r.responders, []);
   assert.equal(r.reason, "no_lead");
+});
+
+test("the only agent in a chat answers even when it is set to listen", () => {
+  const r = route({ agents: [{ id: "docs", mode: "listen" }] }, say());
+  assert.deepEqual(r.responders, ["docs"]);
+  assert.equal(r.reason, "lead");
 });
 
 test("hop limit: an agent message at depth 4 starts nothing, at depth 3 it still may", () => {

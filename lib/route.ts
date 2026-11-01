@@ -7,7 +7,7 @@
 // Listeners never run inference per message: no rule above ever returns one unless it was @mentioned. A message from an agent counts one hop (message.depth);
 // at the agent_hops limit (default 4) nothing runs until a person replies.
 
-export interface RouteAgent { id: string; mode: "lead" | "listen" }
+export interface RouteAgent { id: string; mode: "lead" | "listen"; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean }
 export interface RouteThread { agents: readonly RouteAgent[] }
 export interface RouteMention { kind: "agent" | "person"; id: string }
 export interface RouteMessage {
@@ -41,7 +41,8 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
 
   if (m.mentions.some((x) => x.kind === "person")) return done([], "person_addressed");
 
-  const lead = thread.agents.find((a) => a.mode === "lead");
+  // the only agent in a chat answers whatever its mode says: listening means nothing with no one else to lead
+  const lead = thread.agents.find((a) => a.mode === "lead") ?? (thread.agents.length === 1 && thread.agents[0]!.watching !== true ? thread.agents[0] : undefined);
   if (!lead || (fromAgent && lead.id === m.author.id)) return done([], "no_lead");
   return done([lead.id], "lead");
 }
