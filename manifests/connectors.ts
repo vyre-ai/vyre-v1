@@ -186,7 +186,7 @@ export default defineManifest({
     }),
     outward('connectors.read', 'Run one read action (a GET) of a connector against the live app, for the sync engine: reads are not held at the Gate for the person or agent the pass runs as, writes never go through here', {
       in: { key: id.connector, action: t.str(), connectionId: id.connection, input: t.json() }, out: { output: t.json() },
-      on: ['connector', '/key'], perm: 'connectors.manage', emits: ['connection.needs_reconnect'], tool: 'engineer', errors: ['validation.precondition_failed', 'permission.no_grant', 'provider.auth_failed'],
+      on: ['connector', '/key'], perm: 'connectors.manage', gate: { act: 'none', reason: 'Reads a list for a sync pass and refuses every write; the sync engine is its only caller, so it carries no tool.' }, emits: ['connection.needs_reconnect'], errors: ['validation.precondition_failed', 'permission.no_grant', 'provider.auth_failed'],
     }),
     read('connectors.diff', 'Diff a draft against the live version of a connector', {
       in: { key: id.connector, draftId: t.opt(draftId) }, out: { files: t.arr(t.obj({ path: t.str(), added: t.int(), removed: t.int() })), breaking: t.bool() }, on: ['connector', '/key'], perm: 'connectors.manage', tool: 'engineer',
