@@ -14,10 +14,12 @@ interface Props {
   /** Remove the code and state from the address bar and history. Called once, before anything is sent. */
   scrub(): void;
   go(path: string): void;
+  /** Where Back goes: the Console's Connections page in a Team Space; Home in a Personal Space, which has no Console. */
+  back?: { path: string; label: string };
 }
 
 /** The signed-in page that finishes an OAuth connection. The code and state are read once, taken out of the address, and sent to the Space only as the signed-in person. */
-export function OAuthCallback({ call, search, scrub, go }: Props): ReactElement {
+export function OAuthCallback({ call, search, scrub, go, back: backTo }: Props): ReactElement {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [attempt, setAttempt] = useState(0);
   const params = useRef<CallbackParams | null>(null);
@@ -32,11 +34,12 @@ export function OAuthCallback({ call, search, scrub, go }: Props): ReactElement 
     void completeCallback(call, params.current!).then((o) => { if (alive) setOutcome(o); });
     return () => { alive = false; };
   }, [attempt, call, scrub]);
-  const back = <Pressable accessibilityRole="button" onPress={() => go(BACK_TO_CONNECTIONS)} testID="oauth-back" style={styles.back}><Text style={styles.backText}>Back to Connections</Text></Pressable>;
+  const target = backTo ?? { path: BACK_TO_CONNECTIONS, label: "Back to Connections" };
+  const back = <Pressable accessibilityRole="button" onPress={() => go(target.path)} testID="oauth-back" style={styles.back}><Text style={styles.backText}>{target.label}</Text></Pressable>;
   let body: ReactElement;
   if (call === null) body = <States kind="error" message="Sign in to this Space first" cause="This page finishes a connection as the person who started it, and nobody is signed in here." next="Sign in, open Connections and connect the account again. The link you came from cannot be reused." />;
   else if (outcome === null) body = <States kind="empty" title="Finishing the connection…" icon="search" />;
-  else if (outcome.kind === "connected") body = <States kind="empty" title="Account connected" icon="done" action={{ label: "Open Connections", onPress: () => go(BACK_TO_CONNECTIONS) }} />;
+  else if (outcome.kind === "connected") body = <States kind="empty" title="Account connected" icon="done" action={{ label: backTo ? "Open Vyre" : "Open Connections", onPress: () => go(target.path) }} />;
   else if (outcome.kind === "declined") body = <States kind="error" message="The connection was declined" cause="You did not allow access, so nothing was connected." next="Open Connections and connect the account again if you want to." />;
   else body = <States kind="error" message={outcome.message} cause={outcome.cause} next={outcome.next} retryable={outcome.retryable} onRetry={() => setAttempt((n) => n + 1)} {...(outcome.code ? { code: outcome.code } : {})} {...(outcome.traceId ? { traceId: outcome.traceId } : {})} />;
   return <View style={styles.page} testID="oauth-callback"><View style={styles.head}><Text style={styles.title}>Connecting an account</Text>{outcome?.kind === "connected" ? null : back}</View><View style={styles.body}>{body}</View></View>;

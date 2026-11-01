@@ -1,8 +1,9 @@
 // The production root, without a router. Every place is registered behind its dynamic loader before the first render; the session gate shows sign-in or the shell with the
 // Space's real data, and the address follows the shell through window.history (UrlSync). On the web index.web.tsx mounts this directly; the static export renders it through
 // expo-router (app/_layout.tsx), which only makes a page per route for deep links and the daemon.
-import { Suspense, lazy, useEffect, useState } from "react";
-import type { ReactElement } from "react";
+import { Component, Suspense, lazy, useEffect, useState } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { States } from "../../../../ui/src/States/index.tsx";
 import { claimToken } from "../claim/logic.ts";
 import { SessionGate } from "../shell/session/SessionGate.tsx";
 import { hydrationBaseUrl } from "../shell/session/hydration.ts";
@@ -25,7 +26,22 @@ function replacePath(path: string): void {
   h?.replaceState(h.state, "", path);
 }
 
+/** The last net under the whole app: a crash outside any place (sign-in, the shell itself) is one themed page with a way to start over, never a blank window. */
+class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } { return { failed: true }; }
+  override componentDidCatch(error: Error): void { console.error(`vyre root crashed: ${error.message.slice(0, 160)}`); }
+  override render(): ReactNode {
+    if (!this.state.failed) return this.props.children;
+    return <States kind="error" message="Couldn't open Vyre" cause="Something went wrong while it started." retryable onRetry={() => (globalThis as { location?: { assign(url: string): void } }).location?.assign("/")} />;
+  }
+}
+
 export function AppRoot(): ReactElement {
+  return <RootBoundary><AppRoute /></RootBoundary>;
+}
+
+function AppRoute(): ReactElement {
   const [hub, setHub] = useState<ShellHub | null>(null);
   // The static export is one page per route and the daemon serves the root page for any address (a claim link included), so the first client render must be the page's own first frame;
   // the address decides what to draw only after mount (a hydration mismatch, React #418, otherwise).

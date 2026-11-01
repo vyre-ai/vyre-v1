@@ -230,7 +230,7 @@ function DesktopPairScreen({ route, open, onSignedIn }: { route: Extract<Desktop
     return () => { alive = false; };
   }, [onSignedIn, open, route]);
   return failed
-    ? <States kind="error" message="Couldn’t finish pairing" cause="The pairing link is unavailable or expired." />
+    ? <States kind="error" message="Couldn’t finish pairing" cause="The pairing link is unavailable or expired." retryable onRetry={() => (globalThis as { location?: { assign(url: string): void } }).location?.assign("/")} />
     : <States kind="empty" title="Pairing this desktop" icon="search" />;
 }
 
