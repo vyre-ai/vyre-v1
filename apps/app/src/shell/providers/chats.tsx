@@ -7,7 +7,8 @@ import { StyleSheet, View } from "react-native";
 import { ChatsSidebarLoading } from "../../places/chats/sidebar/ChatsSidebar.tsx";
 import { ConversationLoading } from "../../places/chats/conversation/Conversation.tsx";
 import { ChatsMounted, PANE_W, SIDEBAR_W } from "../../places/chats/mounts/ChatsMounted.tsx";
-import { useOptionalHub } from "../spaces/context.tsx";
+import { useHubState, useOptionalHub } from "../spaces/context.tsx";
+import type { ShellHub } from "../spaces/hub.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 
 export { newestThread } from "../../places/chats/mounts/route.ts";
@@ -26,9 +27,13 @@ export function ChatsLoading(): ReactElement {
 export default function ChatsPlace(): ReactElement {
   const rt = useOptionalShellRuntime();
   const hub = useOptionalHub();
-  // The shell keys the place by its link, so the link read here is the one this instance was opened with.
-  const hash = hub ? hub.state().hash : "";
-  return rt ? <ChatsMounted rt={rt} hash={hash} /> : <ChatsLoading />;
+  if (!rt) return <ChatsLoading />;
+  return hub ? <ChatsLinked rt={rt} hub={hub} /> : <ChatsMounted rt={rt} hash="" />;
+}
+
+// The shell keys the place by the Space and the place, not the link, so a link that arrives while Chats is open comes through here.
+function ChatsLinked({ rt, hub }: { rt: NonNullable<ReturnType<typeof useOptionalShellRuntime>>; hub: ShellHub }): ReactElement {
+  return <ChatsMounted rt={rt} hash={useHubState(hub).hash} />;
 }
 
 const st = StyleSheet.create({

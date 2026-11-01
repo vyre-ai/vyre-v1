@@ -114,7 +114,7 @@ export function Shell(props: ShellProps): ReactElement {
     props.onSpaceAction?.(action);
     const name = session.def.name;
     if (action === "settings") hub.go("settings");
-    else if (action === "terminal") hub.go("chats", "terminal");
+    else if (action === "terminal") hub.go("chats", `screen=chats.terminal-list&at=${Date.now()}`);
     else if (action === "add-server") { requestAddServer(); hub.go("settings"); }
     else if (action === "profile") hub.go("settings", "profile");
     else if (action === "away") {

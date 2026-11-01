@@ -106,7 +106,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
         state.offline = !state.offline;
         nav.setOnline(!state.offline && rt.connection.get() === "online", 0);
         nav.flash(state.offline ? "Working offline" : "Back online");
-      } else if (a.key === "terminal.open") nav.go("chats", "terminal");
+      } else if (a.key === "terminal.open") nav.go("chats", `screen=chats.terminal-list&at=${Date.now()}`);
       else if (a.key === "task.new") nav.go("home");
       else if (a.key === "channel.new") { nav.go("chats"); requestChannelSheet("new"); }
       else if (a.key === SKIN) nav.go("settings", "page=appearance");

@@ -4,7 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
-import { CrewResultCard, cardOf, isCrewResult, statsLine } from "./crew-card.tsx";
+import { CrewResultCard, CrewStartLine, cardOf, isCrewResult, isCrewStart, statsLine } from "./crew-card.tsx";
+import { workingAgents } from "./model.ts";
 
 installDom();
 
@@ -132,4 +133,22 @@ test("a push that lands says so, one that cannot says why", async () => {
   await press(find(no, "crew-push-crw_1"));
   await flush();
   assert.match(textOf(find(no, "crew-line-crw_1")), /no remote called origin/);
+});
+
+test("a teammate start is one line that names who is on what and opens its thread", async () => {
+  const start = { id: "blk_s", type: "helper", v: 1, state: "live", traceId: "t", data: { title: "Dark mode", agentId: "agt_ember", crew: true, helperThreadId: "thr_mate" } } as never;
+  assert.equal(isCrewStart(start), true);
+  assert.equal(isCrewStart({ id: "b", type: "helper", v: 1, state: "live", traceId: "t", data: { title: "x" } } as never), false);
+  const opened: string[] = [];
+  const root = await mount(createRoot, <CrewStartLine block={start} name="Ember" onOpen={(id) => opened.push(id)} />);
+  assert.match(textOf(root), /Ember is on Dark mode/);
+  assert.doesNotMatch(textOf(root), /Started a helper/);
+  await press(find(root, "crew-start-blk_s"));
+  assert.deepEqual(opened, ["thr_mate"]);
+});
+
+test("a crew teammate's live line does not keep the lead marked Working; an ordinary helper still does", () => {
+  const msg = (crew: boolean) => ({ messageId: "msg_1", author: { kind: "agent", id: "agt_lead" }, blocks: [{ id: "b", type: "helper", v: 1, state: "live", traceId: "t", data: { title: "x", ...(crew ? { crew: true } : {}) } }] }) as never;
+  assert.deepEqual(workingAgents([msg(true)]), []);
+  assert.deepEqual(workingAgents([msg(false)]), ["agt_lead"]);
 });
