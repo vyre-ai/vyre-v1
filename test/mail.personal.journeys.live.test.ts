@@ -21,7 +21,8 @@ async function guidedSetup(s: Screens, who: Seat, dir: string): Promise<void> {
   await who.page.getByTestId("signin-google").click();
   await who.page.getByTestId("signin-google-redirect").waitFor({ timeout: 15_000 });
   assert.equal(await who.page.getByTestId("signin-google-redirect").innerText(), `${s.web.origin}/oauth/callback`, "the exact redirect address to register");
-  await shoot(who.page, dir, "guided-setup");
+  const reopen = async (): Promise<void> => { if (await who.page.getByTestId("signin-google-redirect").count() === 0) await who.page.getByTestId("signin-google").click(); await who.page.getByTestId("signin-google-redirect").waitFor({ timeout: 15_000 }); };
+  await shoot(who.page, dir, "guided-setup", { restore: reopen });
   await who.page.getByTestId("signin-google-id").fill(CLIENT.id);
   await who.page.getByTestId("signin-google-id").press("Tab");
   await who.page.getByTestId("signin-google-secret").fill(CLIENT.secret);
@@ -35,7 +36,7 @@ async function guidedSetup(s: Screens, who: Seat, dir: string): Promise<void> {
 async function signInThroughSheet(who: Seat, email: string, dir: string, step: string): Promise<void> {
   who.setEmail(email);
   await who.page.getByTestId("connect-signin").waitFor({ timeout: 15_000 });
-  await shoot(who.page, dir, `${step}-sheet`);
+  await shoot(who.page, dir, `${step}-sheet`, { phone: false });
   const popup = who.ctx.waitForEvent("page");
   await who.page.getByTestId("connect-signin").click();
   const approved = await popup;
@@ -63,7 +64,7 @@ test("journey 1, Personal first hour: guided setup, connect, mail appears, reply
     // no sign-in app yet: the sheet says so in one line and links to the guided setup
     await me.page.getByTestId("connect-gmail").click();
     await me.page.getByTestId("connect-unavailable").waitFor({ timeout: 15_000 });
-    await shoot(me.page, dir, "connect-needs-app");
+    await shoot(me.page, dir, "connect-needs-app", { restore: async () => { if (await me.page.getByTestId("connect-setup").count() === 0) await me.page.getByTestId("connect-gmail").click(); await me.page.getByTestId("connect-setup").waitFor({ timeout: 15_000 }); } });
     await me.page.getByTestId("connect-setup").click();
     await guidedSetup(s, me, dir);
 
@@ -79,15 +80,15 @@ test("journey 1, Personal first hour: guided setup, connect, mail appears, reply
     // reply, in the Inbox, as a person does: open the conversation, write, send
     await me.page.getByText("Lunch on Friday").first().click();
     await me.page.getByTestId("contact-composer-field").waitFor({ timeout: 20_000 });
-    await shoot(me.page, dir, "conversation");
+    await shoot(me.page, dir, "conversation", { phone: false });
     await me.page.getByTestId("contact-composer-field").fill("Yes, noon works.");
-    await shoot(me.page, dir, "reply-written");
+    await shoot(me.page, dir, "reply-written", { phone: false });
     await me.page.getByTestId("composer-send").click();
     await until(async () => (w.fake.sent.length > 0 ? true : null), "the reply reaching Gmail");
     assert.deepEqual(w.fake.sent.map((m) => [m.email, m.to]), [["olivia@gmail.test", ["pat@acme.test"]]]);
     assert.match(w.fake.sent[0]!.text, /Yes, noon works\./);
     await me.page.waitForTimeout(800);
-    await shoot(me.page, dir, "replied");
+    await shoot(me.page, dir, "replied", { phone: false });
 
     // quit; mail arrives while nothing runs; open again hours later
     await me.ctx.close();
@@ -185,7 +186,7 @@ test("journey 3, a revoked sign-in: Home shows one Fix item, Fix opens Connect a
     await shoot(me.page, dir, "home-fix-item");
     await me.page.getByText(/Sign in to olivia@gmail.test again/).first().click();
     await me.page.getByTestId("needs-mailfix").waitFor({ timeout: 20_000 });
-    await shoot(me.page, dir, "needs-you-detail");
+    await shoot(me.page, dir, "needs-you-detail", { phone: false });
     w.fake.restore("olivia@gmail.test");
     await me.page.getByTestId("needs-mailfix").click();
     await signInThroughSheet(me, "olivia@gmail.test", dir, "fix");
