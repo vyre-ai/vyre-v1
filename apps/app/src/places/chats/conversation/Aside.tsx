@@ -4,7 +4,7 @@
 import { createElement, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { StreamText, createStreamStore } from "../../../../../../ui/src/stream/index.ts";
+import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { Glyph, IconButton } from "./parts.tsx";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
