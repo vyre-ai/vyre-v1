@@ -36,7 +36,7 @@ export async function withChatMode(o: RuntimeOptions, caller: McpCaller): Promis
     const thread = r.status === "ok" ? (r.output as { thread?: { mode?: unknown; title?: unknown; kind?: unknown; scopeType?: unknown } } | null)?.thread : undefined;
     const mode = thread?.mode;
     // a chat that builds a connector lists the builder's tools from the start: the CLI cannot pick up a tool found later with tool_search
-    const preload = typeof thread?.title === "string" && CONNECTOR_CHAT.test(thread.title) ? { preload: CONNECTOR_TOOLS } : typeof thread?.title === "string" && CRM_CHAT.test(thread.title) ? { preload: CRM_TOOLS } : thread?.kind === "chat" && thread.scopeType === "project" ? { preload: CREW_TOOLS } : {};
+    const preload = typeof thread?.title === "string" && CONNECTOR_CHAT.test(thread.title) ? { preload: CONNECTOR_TOOLS } : typeof thread?.title === "string" && CRM_CHAT.test(thread.title) ? { preload: CRM_TOOLS } : thread?.kind === "chat" ? { preload: CREW_TOOLS } : {};
     if (mode === "ask" || mode === "auto" || mode === "plan") return { ...caller, mode, planMode: mode === "plan", ...preload };
     if ("preload" in preload) return { ...caller, ...preload };
   } catch { /* the chat is not readable here: no mode is applied */ }

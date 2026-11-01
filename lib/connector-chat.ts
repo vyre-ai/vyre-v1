@@ -21,4 +21,4 @@ export const CRM_TOOLS: readonly string[] = [
 ];
 
 /** The crew tools, listed from the start in a chat inside a project: a person says "give it to a teammate", never a tool name, and the CLI cannot pick up a tool found later with tool_search. */
-export const CREW_TOOLS: readonly string[] = ["crew_start", "crew_list", "crew_message", "crew_stop", "crew_wait", "crew_merge", "crew_push"];
+export const CREW_TOOLS: readonly string[] = ["crew_start", "crew_list", "crew_message", "crew_stop", "crew_wait", "crew_merge", "crew_push", "projects_list", "projects_teammates_list"];

@@ -192,6 +192,18 @@ async function main(): Promise<void> {
     say("STEP6", `after "just merge it": job merged ${flipped}; Gate holds: ${holds.join(", ") || "none"}; repo log: ${git(repo, "log", "--oneline").trim().replace(/\n/g, " | ")}`);
     await sleep(6000); say("shot", await shot("after-just-merge-it"));
     if (!flipped) {
+      // the lead's merge is held for the person: approving it is what lets it land, and the open card must flip by itself
+      const held = ((await ok("gate.holds.list", {})).holds as any[]).find((h) => h.act === "push_protected" && h.state === "held");   // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (held?.taskId) {
+        await ok("tasks.act", { taskId: held.taskId, action: "approve" }).catch((e) => say("DIAG", `approve failed: ${String(e).slice(0, 200)}`));
+        for (let i = 0; i < 30 && !flipped; i++) { await sleep(2000); flipped = ((await ok("engine.crew.list", { threadId: chat })).jobs as any[]).find((j) => j.jobId === job.jobId)?.state === "merged"; }   // eslint-disable-line @typescript-eslint/no-explicit-any
+        await sleep(6000);
+        const t3 = page ? await page.locator("body").innerText() : "";
+        say("STEP6", `person approved the held merge: job merged ${flipped}; open page shows Merged without a refresh: ${/Merged · /.test(t3)}`);
+        say("shot", await shot("approved-merge-flipped"));
+      }
+    }
+    if (!flipped) {
       const merged = await ok("engine.crew.merge", { jobId: job.jobId });
       say("STEP6", `(fallback) a person pressed Merge: landed ${merged.landed}`);
     }
@@ -231,6 +243,18 @@ async function main(): Promise<void> {
     say("STEP8", `merged by hand in a terminal: job state merged ${seen}; open page shows Merged without a refresh: ${/Merged · /.test(t2)}`);
     say("shot", await shot("merged-in-terminal"));
     if (!seen) fail("a branch merged by hand was not noticed");
+    // ---- step 9: a plain chat, no project: "give it to a teammate" must not dead-end
+    const plain = (await ok("chat.start", { kind: "chat", agentIds: [lead], title: "Quick ask" })).thread.threadId as string;
+    await ok("threads.set_mode", { threadId: plain, mode: "auto" });
+    const ask3 = "Add a contact page to the bakery site. Give it to a teammate.";
+    await ok("chat.post", { threadId: plain, body: ask3, mentions: [{ kind: "agent", id: lead }] });
+    say("person", `(plain chat, no project) ${ask3}`);
+    const j3 = await waitFor("a teammate from a plain chat", async () => ((await ok("engine.crew.list", { threadId: plain })).jobs as any[])[0] ?? null, 200_000).catch(async () => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+      say("STEP9", `no teammate started. the lead said: ${JSON.stringify((await msgs(plain)).filter((m) => m.author?.kind === "agent").map((m) => String(m.body).slice(0, 500)))}`);
+      return null;
+    });
+    if (j3) say("STEP9", `plain chat: the lead found the project and started ${j3.name} on "${j3.title}" (${j3.branch})`);
+    try { await ok("threads.cancel", { threadId: plain }); } catch { /* idle */ }
     d.sink.flush();
     const logs = JSON.stringify(new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT msg, attrs FROM logs").all());
     if (logs.includes(TOKEN)) fail("the token is in the host logs");

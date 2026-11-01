@@ -224,9 +224,16 @@ export function createBridge(o: BridgeOptions): Bridge {
   function wrap(s: EngineSession): EngineSession {
     const send = (input: TurnInput): AsyncIterable<DriverEvent> => (async function* () {
       const seg: Segment = { blocks: [], text: "", mentions: 0, t0: (o.now ?? Date.now)(), calls: new Map() };
+      let afterBlock = false;
       live.set(input.turnId, seg);
       for await (const ev of s.send(input)) {
-        if (ev.type === "text") { const at = seg.text.length; seg.text += ev.text; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text, at }); }
+        if (ev.type === "text") {
+          // words that come after a tool call are a new paragraph, not a continuation of the sentence before it
+          const t = afterBlock && ev.text !== "" && seg.text !== "" && !/\s$/.test(seg.text) && !/^\s/.test(ev.text) ? `\n\n${ev.text}` : ev.text;
+          if (ev.text !== "") afterBlock = false;
+          const at = seg.text.length; seg.text += t; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: t, at });
+          if (t !== ev.text) { yield { ...ev, text: t }; continue; }
+        }
         else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text }); }
         else if (ev.type === "block" && ev.kind === "tool_input") {
           // what a call touches goes to the live line only, over the same gated link as the words: it is never saved with the reply
@@ -234,6 +241,7 @@ export function createBridge(o: BridgeOptions): Bridge {
           if (typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "") emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "input", id: p.id, detail: p.detail });
         }
         else if (ev.type === "block") {
+          afterBlock = true;
           const p = (ev.payload ?? {}) as { id?: unknown; name?: unknown; ok?: unknown };
           const id = typeof p.id === "string" ? p.id : "";
           const now = (o.now ?? Date.now)();

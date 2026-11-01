@@ -1,0 +1,1 @@
+In a plain chat, the lead looks for a project with teammates and a repository instead of asking who; a card's narration gets paragraph breaks after tool calls; the lead answers a result card in one short line.
