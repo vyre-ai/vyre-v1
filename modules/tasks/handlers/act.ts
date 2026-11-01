@@ -25,6 +25,11 @@ export const ACT_KEYS: Record<Task["kind"], readonly string[]> = {
   unblock: ["resolved", "cannot"],
   signature: ["cancel", "reopen"],
 };
+/** What a stale press hears: someone decided already. The words are the contract the cards read. */
+export const ALREADY_DECIDED = "Already decided.";
+/** Working notes of a request a chat asked: the block it stands for, and the plan when it is one. */
+export const CHAT_BLOCK = "chat.block";
+export const CHAT_PLAN = "chat.plan";
 const OWN_CAPABILITY: Record<string, string> = { delegate: "tasks.delegate", snooze: "tasks.snooze", take: "tasks.take" };
 export const TOKEN_MINUTES = 10;
 
@@ -80,7 +85,8 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
 
   if (!isOpen(t.state) && key !== "reopen") {
     if (t.handledBy !== undefined && t.handledBy !== who.id) raise(ctx, "validation.precondition_failed", `Handled by ${t.handledBy}.`, { reason: "handled", handledBy: t.handledBy });
-    raise(ctx, "validation.precondition_failed", `This task is ${t.state === "done" ? "done" : "canceled"} already.`, { reason: "closed" });
+    // a press on a card that is behind the truth: the decision stands, and the person is told so
+    raise(ctx, "validation.precondition_failed", isRequest(t.kind) ? ALREADY_DECIDED : `This task is ${t.state === "done" ? "done" : "canceled"} already.`, { reason: "closed" });
   }
   if (isOpen(t.state) && t.expiresAt !== undefined && ctx.now() > t.expiresAt) raise(ctx, "permission.expired", "This request expired. Ask for it again.", { expiresAt: t.expiresAt });
   const own = OWN_CAPABILITY[key];
@@ -90,7 +96,9 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   if (!allowed.includes(key)) raise(ctx, "validation.precondition_failed", `A ${t.kind} task has no action called ${key}.`, { reason: "unknown_action", allowed });
   const def = t.actions.find((a) => a.key === key) ?? KIND_ACTIONS[t.kind].find((a) => a.key === key);
   if (def?.note === "required" && !note) raise(ctx, "validation.precondition_failed", "Add a note so the sender knows what to change.", { reason: "note_required" });
-  const to = targetFor(t, key);
+  const asked = chatAsk(t);
+  // a plan sent back is finished as a request: the agent hears why and proposes again, as a new task
+  const to = asked?.planId !== undefined && key === "reject" ? "canceled" : targetFor(t, key);
   if (to === null) raise(ctx, "validation.precondition_failed", `That cannot be done while the task is ${t.state}.`, { reason: "illegal_transition", state: t.state, action: key });
 
   const gate = t.source?.kind === "gate" ? t.source : undefined;
@@ -114,6 +122,8 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
       result.denied = true;
     }
   }
+  // a question or a plan is decided in its chat, one way wherever the press came from: the block closes, the card follows, and the agent that asked is woken
+  if (asked) result.answered = await decideInChat(ctx, t, asked, key, input.answer, note);
   if (input.answer !== undefined && (t.kind === "answer" || t.kind === "unblock")) {
     t.workingNotes = { ...t.workingNotes, answer: JSON.stringify(input.answer) };
     result.answer = input.answer;
@@ -134,6 +144,39 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
     catch (e) { result.resumed = false; result.resumeError = (e as { error?: { code?: string } }).error?.code ?? "internal.unexpected"; }
   }
   return { task: out(ctx, t), result };
+}
+
+// ---- a question or a plan from a chat ----
+
+interface ChatAsk { threadId: string; blockId: string; planId?: string }
+
+/** The block a request stands for, when a chat asked it (chat.question.ask, chat.plan.propose). */
+export function chatAsk(t: Task): ChatAsk | undefined {
+  const blockId = t.workingNotes[CHAT_BLOCK];
+  if (t.source?.kind !== "chat" || !blockId) return undefined;
+  const planId = t.workingNotes[CHAT_PLAN];
+  return { threadId: t.source.id, blockId, ...(planId ? { planId } : {}) };
+}
+
+/** Words typed against a question become its answer shape: an option named by its label or key is picked, anything else is the typed answer the question may or may not take. */
+function answerOf(t: Task, given: unknown, note: string): unknown {
+  if (given !== undefined) return given;
+  const q = (t.blocks[0]?.data ?? {}) as { options?: Array<{ key?: unknown; label?: unknown }> };
+  const typed = note.toLowerCase();
+  const hit = (q.options ?? []).find((o) => String(o.key).toLowerCase() === typed || String(o.label).toLowerCase() === typed);
+  return hit ? { keys: [hit.key] } : { keys: [], text: note };
+}
+
+async function decideInChat(ctx: TasksCtx, t: Task, a: ChatAsk, key: string, given: unknown, note: string): Promise<boolean> {
+  if (!ctx.call) raise(ctx, "internal.unavailable", "Chats are not available right now.", { service: "call" });
+  if (a.planId !== undefined) {
+    if (key === "approve") await ctx.call("chat.approve_plan", { threadId: a.threadId, planId: a.planId });
+    else await ctx.call("chat.plan.reject", clean({ threadId: a.threadId, planId: a.planId, note: note || undefined }));
+    return true;
+  }
+  if (given === undefined && note === "") raise(ctx, "validation.precondition_failed", "Write the answer.", { reason: "answer_required" });
+  await ctx.call("chat.answer_block", { threadId: a.threadId, blockId: a.blockId, answer: answerOf(t, given, note) });
+  return true;
 }
 
 // ---- tasks.delegate and tasks.escalate ----

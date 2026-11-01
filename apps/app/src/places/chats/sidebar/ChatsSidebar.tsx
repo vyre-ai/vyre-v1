@@ -233,7 +233,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     { label: "Star", onSelect: () => guard(api.star("channel", c.channelId, true)) },
   ];
   const needMenu = (n: NeedsItem): MenuEntry[] => [
-    ...n.task.actions.map((a) => ({ label: a.label, onSelect: () => guard(data.call("tasks.act", { taskId: n.task.id, action: a.key })) })),
+    // an action that needs words (an answer, a reason) opens the item, where the words are written
+    ...n.task.actions.map((a) => ({ label: a.label, onSelect: () => { if (a.note === "required") { data.nav.openNeedsYou(n.task.id); leave(); } else guard(data.call("tasks.act", { taskId: n.task.id, action: a.key })); } })),
     ...(n.task.actions.length ? [{ separator: true } as MenuEntry] : []),
     { label: "Open in Needs you", onSelect: () => { data.nav.openNeedsYou(n.task.id); leave(); } },
   ];
@@ -359,7 +360,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
               <Row
                 id={e.key} title={e.item.task.title} selected={sel} onPress={() => open(e)}
                 leading={<View style={{ marginRight: 6 }}><Face name={who} seedId={e.item.task.createdBy} kind="agent" size={18} /></View>}
-                trailing={over && e.item.task.actions.length && k.tone === "accent"
+                trailing={over && e.item.task.actions.length && k.tone === "accent" && e.item.task.actions[0]!.note !== "required"
                   ? <Tool icon="check" label={`${e.item.task.actions[0]!.label} ${e.item.task.title}`} onPress={() => guard(api.act(e.item))} testID={`need-act-${e.item.task.id}`} />
                   : <Text style={[st.kind, k.tone === "warn" && st.kindWarn]}>{k.label}</Text>}
               />

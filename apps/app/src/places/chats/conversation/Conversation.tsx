@@ -2,6 +2,7 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
+import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 import { rememberFirstLine } from "../sidebar/titles.ts";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -164,7 +165,7 @@ function ConversationView(): ReactElement {
 
   const say = useCallback((text: string) => { setLine(text); setUndo(null); }, []);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
-  const fail = (what: string) => (): void => say(`${what} Try again.`);
+  const fail = (what: string) => (e?: unknown): void => say(isDecided(e) ? DECIDED_LINE : `${what} Try again.`);
 
   /* ---------- sending: the message is on the page before chat.post answers ---------- */
   const run = useCallback((p: Pending) => {

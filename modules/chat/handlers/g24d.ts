@@ -13,6 +13,7 @@ import {
 import type { ChatCtx, Db, PlanStep, ThreadRec } from "../projections.ts";
 import { mayRecall } from "./history.ts";
 import { canSpeak, deliver } from "./post.ts";
+import { ALREADY_DECIDED, openAsk, tellAgent } from "./waiting.ts";
 
 type Row = Record<string, unknown>;
 
@@ -299,7 +300,9 @@ export async function questionAsk(
     }
   }
   const blockId = mintId("blk", ctx.now());
-  const data = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false, ...(input.card ? { card: input.card } : {}) };
+  const data: Record<string, unknown> = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false, ...(input.card ? { card: input.card } : {}) };
+  const taskId = await openAsk(ctx, t, { kind: "answer", blockId, block: { type: "question", data }, title: prompt, summary: prompt });
+  if (taskId !== undefined) data["taskId"] = taskId;
   const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: authorKind(ctx), body: "", blocks: [{ type: "question", v: 1, id: blockId, data, state: "waiting", traceId: ctx.trace.traceId }] });
   insertBlock(ctx, { id: blockId, thread: t.id, message: m.id, type: "question", data });
   deliver(ctx, t, m, [], author(ctx), { notify: false });
@@ -325,7 +328,9 @@ export async function planPropose(
   });
   const planId = mintId("pln", now);
   const blockId = mintId("blk", now);
-  const data = { threadId: t.id, blockId, planId, title, steps, state: "proposed", ...(input.docFileId !== undefined ? { docFileId: input.docFileId } : {}) };
+  const data: Record<string, unknown> = { threadId: t.id, blockId, planId, title, steps, state: "proposed", ...(input.docFileId !== undefined ? { docFileId: input.docFileId } : {}) };
+  const taskId = await openAsk(ctx, t, { kind: "approve", blockId, planId, block: { type: "plan", data }, title, summary: steps.map((s, i) => `${i + 1}. ${s.text}`).join("\n") });
+  if (taskId !== undefined) data["taskId"] = taskId;
   const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: authorKind(ctx), body: "", blocks: [{ type: "plan", v: 1, id: blockId, data, state: "waiting", traceId: ctx.trace.traceId }] });
   insertBlock(ctx, { id: blockId, thread: t.id, message: m.id, type: "plan", data });
   insertPlan(ctx, { id: planId, thread: t.id, block: blockId, title, steps, docFileId: input.docFileId });
@@ -347,7 +352,7 @@ export async function planReject(ctx: ChatCtx, input: { threadId: string; planId
   const { t, plan } = planOf(ctx, input.threadId, input.planId);
   if (ctx.principal.kind !== "person") raise(ctx, "validation.bad_input", "A person sends a plan back, not an agent.");
   if (plan.state === "rejected") return { ok: true };
-  if (plan.state !== "proposed") raise(ctx, "validation.bad_input", `This plan was already ${plan.state}.`);
+  if (plan.state !== "proposed") raise(ctx, "validation.bad_input", ALREADY_DECIDED, { reason: "closed", state: plan.state });
   const note = input.note?.trim() || undefined;
   if (note !== undefined && note.length > 4_000) raise(ctx, "validation.bad_input", "A note can be at most 4000 characters.");
   const by = askerOf(ctx);
@@ -361,6 +366,7 @@ export async function planReject(ctx: ChatCtx, input: { threadId: string; planId
   }
   ctx.emit("plan.rejected", t.id, { planId: plan.id, threadId: t.id, by });
   ctx.emit("block.answered", t.id, { threadId: t.id, blockId: plan.block, by });
+  if (block) await tellAgent(ctx, t, block, note !== undefined ? `Plan sent back: ${note}` : "Plan sent back.");
   return { ok: true };
 }
 

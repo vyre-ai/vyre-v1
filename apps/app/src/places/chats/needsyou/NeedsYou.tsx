@@ -11,14 +11,14 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { act, snooze, take } from "./actions.ts";
+import { act, pick, snooze, take } from "./actions.ts";
 import { HeldMailCard } from "./HeldMail.tsx";
 import { heldMail, labelOf } from "./heldmail.ts";
 import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
 import type { NeedsYouData } from "./data.tsx";
 import {
-  FILTERS, SNOOZES, arrivedLabel, assignedName, accessRequestOf, connectionFixOf, fixOf, footerHint, keyRequestOf, fromName, hasComputer, originOf, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
+  FILTERS, SNOOZES, arrivedLabel, assignedName, accessRequestOf, connectionFixOf, fixOf, footerHint, keyRequestOf, fromName, hasComputer, originOf, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, questionOf, roleWord, rowNote, sortItems,
   isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
@@ -222,6 +222,9 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   // a held send shows the draft with its record; the raw block would show only its type
   if (mail) blockNodes.push(<HeldMailCard key="held-mail" mail={mail} call={data.call} onOpenRecord={(id) => data.nav.openSource("record", id)} />);
   else for (const [i, b] of t.blocks.entries()) if (b.type !== "vault_request" && b.type !== "access_request" && b.type !== "connection_fix") blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
+  const question = questionOf(t);
+  const picks: ReactElement[] = [];
+  for (const o of question?.options ?? []) picks.push(<Button key={o.key} label={o.label} onPress={() => void pick(deps, t, o.key, who)} testID={`needs-pick-${o.key}`} />);
   const moreButtons: ReactElement[] = [];
   for (const m of actions.more) moreButtons.push(<Button key={m.key} label={labelOf(mail, m)} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />);
   const noAccount = isNoAccount(t);
@@ -276,6 +279,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
       ) : null}
       {held.kind === "free" && !compose ? (
         <View testID="needs-actions" style={st.acts}>
+          {picks}
           {mustTake ? <Button label="Take" primary onPress={() => void take(deps, t)} testID="needs-take" /> : null}
           {connFix ? <Button label="Reconnect" primary onPress={() => void Promise.resolve(data.call("connections.reconnect", { connectionId: connFix.connectionId })).then((out) => {
             const url = (out as { authUrl?: string } | undefined)?.authUrl;
@@ -288,7 +292,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
           {fix === "replace_key" ? <Button label="Replace key" primary onPress={() => setReplacing(true)} testID="needs-replace-key" /> : null}
           {!mustTake && noAccount ? <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" /> : null}
           {!mustTake && mailSignIn ? <Button label="Sign in again" primary onPress={() => void openConnect?.({ kind: "mailbox", provider: mailSignIn })} testID="needs-mailfix" /> : null}
-          {!mustTake && !noAccount && fix === null && keyReq === null && accessReq === null && connFix === null && !mailSignIn && primary ? <Button label={labelOf(mail, primary)} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
+          {!mustTake && !noAccount && fix === null && keyReq === null && accessReq === null && connFix === null && !mailSignIn && primary && (question === null || question.words) ? <Button label={labelOf(mail, primary)} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
           {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null && sendBack ? <Button label={mail ? labelOf(mail, sendBack) : "Send back"} hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
           {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null ? moreButtons : null}
           {hasComputer(t) && !noAccount ? <Button label="Open its computer" onPress={() => data.nav.openComputer(t.createdBy)} testID="needs-computer" /> : null}

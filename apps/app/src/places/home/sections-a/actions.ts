@@ -1,6 +1,7 @@
 // What a press does on Home, apart from drawing: each action is one capability call, then one quiet line with Undo where the change can be taken back.
 // The components call these through `useActions`; the tests call them directly against the sample replica.
 import { useMemo } from "react";
+import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 import { useHomeData, useHomeLine, usePrincipals } from "./data.tsx";
 import type { DigestItem, NeedsItem, Ref, Task } from "./model.ts";
 
@@ -14,7 +15,7 @@ export interface ActionDeps {
 
 /** A write that can fail: a failure becomes the quiet line "Could not ...", never a thrown error from a click. */
 async function attempt(d: ActionDeps, what: string, fn: () => Promise<void>): Promise<boolean> {
-  try { await fn(); return true; } catch { d.note(`Could not ${what}. Try again.`, () => undefined); return false; }
+  try { await fn(); return true; } catch (e) { d.note(isDecided(e) ? DECIDED_LINE : `Could not ${what}. Try again.`, () => undefined); return false; }
 }
 
 /** Approve (or any inline action) on a Needs you item. The task leaves Needs you and the next one moves up. Undo puts it back where it was. */
