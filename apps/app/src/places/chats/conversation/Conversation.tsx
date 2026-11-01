@@ -402,7 +402,7 @@ function ConversationView(): ReactElement {
   const chooseChatMode = (m: ChatMode): void => {
     setModeOver(m);
     void setChatMode(data, m).then(
-      () => say(m === "plan" ? "Plan mode is on: the agent plans and changes nothing until you approve" : m === "auto" ? "Auto: the agent acts on its own and still asks before anything leaves Vyre" : "Ask first: the agent asks before it changes or sends anything"),
+      () => say(m === "plan" ? "Plan mode is on: the agent plans and changes nothing until you approve" : m === "auto" ? "Auto: the agent acts on its own. What others would see goes only if you asked for it" : "Ask first: the agent asks before it changes or sends anything"),
       () => { setModeOver(null); say("Could not change the mode. Try again."); },
     );
   };
