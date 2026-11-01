@@ -41,7 +41,7 @@ const messageRow = t.obj({
 const channelRow = t.obj({
   channelId: id.channel, mainThreadId: id.thread, name: t.str({ examples: ['intake'] }), topic: t.opt(t.str()), visibility: t.enm('public', 'invite'),
   folderId: t.opt(id.folder), recordId: t.opt(id.record), archived: t.bool(), members: t.arr(principalRef), agents: t.arr(threadAgent),
-  unread: t.int(), createdAt: t.ts(),
+  unread: t.int(), createdAt: t.ts(), restricted: t.opt(t.bool()),   // Console only: an invite-only channel the admin is not in; they can archive it and change who is in it, not read it
 });
 const recentRow = t.obj({
   threadId: id.thread, kind: threadKind, title: t.str(), agents: t.arr(id.agent), unread: t.int(), working: t.bool(), starred: t.bool(),
@@ -74,6 +74,8 @@ const streamItem = t.obj({
   groupKey: t.opt(t.str({ description: 'Same flow, runs next to each other' })), count: t.opt(t.int({ minimum: 2 })), anyFailed: t.opt(t.bool()), runIds: t.opt(t.arr(id.run)),
 });
 const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), ...pageIn };
+// `governance`: Console also lists the invite-only channels the caller is not in but may govern, marked restricted
+const channelListIn = { ...listIn, governance: t.opt(t.bool()) };
 
 export default defineManifest({
   id: 'chat',
@@ -367,7 +369,7 @@ export default defineManifest({
       out: { channel: channelRow }, perm: 'channels.create', emits: ['channel.created', 'thread.started', 'channel.agent_added', 'channel.member_added'], tool: 'chats', offline: 'queue', cli: 'vyre channels create',
     }),
     read('channels.list', 'List channels by section and folder (the items capability of the Channels list)', {
-      in: listIn, out: { channels: t.arr(channelRow), ...pageOut }, tool: 'chats', label: 'filter',
+      in: channelListIn, out: { channels: t.arr(channelRow), ...pageOut }, tool: 'chats', label: 'filter',
     }),
     read('channels.get', 'Read one channel with members, agents and unread count', {
       in: channelT, out: { channel: channelRow }, on: ['channel', '/channelId'], tool: 'chats', label: 'check',

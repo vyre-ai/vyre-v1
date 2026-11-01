@@ -34,6 +34,15 @@ export function rootOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): ThreadRec {
 const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root.kind === "ask";
 
 /**
+ * Governance of an invite-only channel: a person with manage on the channel (an admin) can see that it exists, archive it and change who is in it, and never reads or writes in it unless they are added.
+ * The host's own authorize decides; a hand-built test context without it grants no one.
+ */
+export function mayGovernChannel(ctx: ChatCtx, channelId: string): boolean {
+  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+  return typeof host.authorize === "function" && host.authorize({ perm: null, level: "manage" }, { type: "channel", id: channelId }).effect === "allow";
+}
+
+/**
  * An invite-only channel is for the people in it, for reading and writing alike (its threads, messages, reactions and pins follow). The pipeline's grants are role wide, so the channel's own member
  * list is the check: its members, the person who started it, the agents added to it, and the host's own services. A public channel is open to the Space.
  */

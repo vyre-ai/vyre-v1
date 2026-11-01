@@ -61,3 +61,37 @@ test("invite-only channel: a member of the Space who is not in it can do nothing
     assert.ok(names((await s.call("channels.list", noah, {})).body).includes("secret"), "and the list shows it");
   } finally { await s.stop(); }
 });
+
+test("an admin governs an invite-only channel they are not in: sees it in Console as restricted, archives it and changes who is in it, and reads nothing in it", async () => {
+  const s = await bootFlowSpace(LIVE);
+  try {
+    const olivia = s.d.token;
+    const adam = s.signedIn("usr_adam");   // an admin, not in the channel
+    const noah = s.signedIn("usr_noah");   // a member, not in the channel
+    const secret = expectStatus(await s.call("channels.create", olivia, { idempotencyKey: "ag-secret", name: "secret", visibility: "invite" }), 200, "channels.create").channel as { channelId: string; mainThreadId: string };
+    expectStatus(await s.call("chat.post", olivia, { idempotencyKey: "ag-m", threadId: secret.mainThreadId, body: "hush hush plan" }), 200, "chat.post");
+    const names = (r: { body: any }): string[] => ((r.body.data?.channels ?? []) as Array<{ name: string }>).map((c) => c.name);
+
+    // the sidebar list hides it from him; Console lists it, restricted
+    assert.deepEqual(names(await s.call("channels.list", adam, {})), []);
+    const gov = (await s.call("channels.list", adam, { governance: true })).body.data.channels as Array<{ name: string; restricted?: boolean; unread: number }>;
+    assert.deepEqual(gov.map((c) => [c.name, c.restricted, c.unread]), [["secret", true, 0]]);
+    // an ordinary member asking the same gets nothing
+    assert.deepEqual(names(await s.call("channels.list", noah, { governance: true })), []);
+
+    // he governs: sees it, changes who is in it, archives it, brings it back
+    expectStatus(await s.call("channels.get", adam, { channelId: secret.channelId }), 200, "channels.get as admin");
+    expectStatus(await s.call("threads.members.add", adam, { threadId: secret.mainThreadId, personId: "usr_sana" }), 200, "members.add as admin");
+    expectStatus(await s.call("threads.members.remove", adam, { threadId: secret.mainThreadId, personId: "usr_sana" }), 200, "members.remove as admin");
+    expectStatus(await s.call("channels.archive", adam, { channelId: secret.channelId }), 200, "archive as admin");
+    expectStatus(await s.call("channels.unarchive", adam, { channelId: secret.channelId }), 200, "unarchive as admin");
+    // and reads and writes nothing
+    for (const [cap, body] of [["chat.messages.list", { threadId: secret.mainThreadId }], ["threads.get", { threadId: secret.mainThreadId }], ["chat.post", { idempotencyKey: "ag-post", threadId: secret.mainThreadId, body: "hi" }]] as const) {
+      const r = await s.call(cap, adam, body);
+      assert.ok(r.status >= 400 && r.status < 500, `${cap}: the admin still cannot, got ${r.status}`);
+    }
+    // an ordinary member cannot govern
+    const r = await s.call("channels.archive", noah, { channelId: secret.channelId });
+    assert.ok(r.status >= 400 && r.status < 500, "a member cannot archive it");
+  } finally { await s.stop(); }
+});

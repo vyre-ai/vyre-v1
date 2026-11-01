@@ -10,6 +10,7 @@ import {
   MAX_NAME, askerOf, channelBy, channelByName, channelOfRecord, channelOut, ensure, membersOf, agentsOf, isMember, addAgent, addMember, messageOf, nameKey, raise, threadBy, threadOf,
 } from "../projections.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
+import { mayGovernChannel } from "./post.ts";
 
 type Row = Record<string, unknown>;
 const KINDS = ["people", "agents", "runs"] as const;
@@ -21,13 +22,14 @@ function tables(db: Db): void {
 }
 function prepare(ctx: ChatCtx): void { ensure(ctx.db); tables(ctx.db); }
 
-function load(ctx: ChatCtx, channelId: string, o: { anyone?: boolean } = {}): ChannelRec {
+function load(ctx: ChatCtx, channelId: string, o: { anyone?: boolean; govern?: boolean } = {}): ChannelRec {
   prepare(ctx);
   const ch = channelBy(ctx.db, channelId);
   if (!ch) raise(ctx, "validation.not_found", "That channel does not exist.");
   // an invite-only channel is not there for someone who is not in it (the same answer as a channel that does not exist); Join alone says why it cannot be entered
   if (o.anyone !== true && ch.visibility === "invite" && ctx.principal.kind !== "service" && !isMember(ctx.db, ch.mainThread, askerOf(ctx)) && ch.createdBy !== askerOf(ctx)
-    && !(ctx.principal.kind === "agent" && agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === ctx.principal.id))) {
+    && !(ctx.principal.kind === "agent" && agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === ctx.principal.id))
+    && !(o.govern === true && mayGovernChannel(ctx, ch.id))) {
     raise(ctx, "validation.not_found", "That channel does not exist.");
   }
   return ch;
@@ -68,10 +70,10 @@ function dropMember(ctx: ChatCtx, thread: string, person: string): boolean {
 // ---- read ---------------------------------------------------------------------------------------------------------------------------------------------
 
 export async function channelsGet(ctx: ChatCtx, input: { channelId: string }) {
-  return view(ctx, load(ctx, input.channelId));
+  return view(ctx, load(ctx, input.channelId, { govern: true }));
 }
 
-export async function channelsList(ctx: ChatCtx, input: { section?: "personal" | "shared" | "space"; folderId?: string; limit?: number; cursor?: string }) {
+export async function channelsList(ctx: ChatCtx, input: { section?: "personal" | "shared" | "space"; folderId?: string; governance?: boolean; limit?: number; cursor?: string }) {
   prepare(ctx);
   const asker = askerOf(ctx);
   let offset = 0;
@@ -82,18 +84,23 @@ export async function channelsList(ctx: ChatCtx, input: { section?: "personal" |
   const limit = input.limit ?? 100;
   const rows = ctx.db.all("SELECT id FROM chat_channel ORDER BY archived, createdAt, id") as Row[];
   const seen: ChannelRec[] = [];
+  const restricted = new Set<string>();
   for (const r of rows) {
     const ch = channelBy(ctx.db, String(r["id"]))!;
     if (input.folderId !== undefined && ch.folderId !== input.folderId) continue;
     const mine = isMember(ctx.db, ch.mainThread, asker);
-    if (ch.visibility === "invite" && !mine) continue;
+    // Console asks with `governance`: an admin sees that an invite-only channel exists (name, members, archived), marked restricted, and still cannot open it
+    if (ch.visibility === "invite" && !mine) {
+      if (input.governance !== true || !mayGovernChannel(ctx, ch.id)) continue;
+      restricted.add(ch.id);
+    }
     const section = ch.visibility === "public" ? "space" : humans(ctx.db, ch.mainThread).length <= 1 ? "personal" : "shared";
     if (input.section !== undefined && input.section !== section) continue;
     seen.push(ch);
   }
   const page = seen.slice(offset, offset + limit);
   const next = offset + limit < seen.length ? String(offset + limit) : undefined;
-  return { channels: page.map((c) => row(ctx, c)), total: seen.length, ...(next !== undefined ? { next } : {}) };
+  return { channels: page.map((c) => (restricted.has(c.id) ? { ...channelOut(ctx.db, c), restricted: true } : row(ctx, c))), total: seen.length, ...(next !== undefined ? { next } : {}) };
 }
 
 // ---- me in and out -------------------------------------------------------------------------------------------------------------------------------
@@ -150,7 +157,7 @@ export async function channelsUpdate(ctx: ChatCtx, input: { channelId: string; n
 }
 
 export async function channelsArchive(ctx: ChatCtx, input: { channelId: string }) {
-  const ch = load(ctx, input.channelId);
+  const ch = load(ctx, input.channelId, { govern: true });
   if (!ch.archived) {
     ctx.db.run("UPDATE chat_channel SET archived = 1, updatedAt = ? WHERE id = ?", ctx.now(), ch.id);
     ctx.emit("channel.archived", ch.id, { channelId: ch.id });
@@ -159,7 +166,7 @@ export async function channelsArchive(ctx: ChatCtx, input: { channelId: string }
 }
 
 export async function channelsUnarchive(ctx: ChatCtx, input: { channelId: string }) {
-  const ch = load(ctx, input.channelId);
+  const ch = load(ctx, input.channelId, { govern: true });
   if (ch.archived) {
     // The name and the record may have been taken while it slept.
     const named = channelByName(ctx.db, ch.name);

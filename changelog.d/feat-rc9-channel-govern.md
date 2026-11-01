@@ -1,0 +1,1 @@
+- An admin can see an invite-only channel exists in Console (restricted), archive it and change who is in it, and never reads or writes in it unless added.

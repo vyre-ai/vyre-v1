@@ -5,7 +5,7 @@ import {
   addAgent, addMember, agentsOf, askerOf, ensure, isMember, membersOf, raise, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
-import { canSpeak, rootOf } from "./post.ts";
+import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
 import { applyMode } from "./modes.ts";
 
 type Row = Record<string, unknown>;
@@ -42,10 +42,12 @@ export function unreadOf(ctx: Pick<ChatCtx, "db">, threadId: string, person: str
 // ---- shared -----------------------------------------------------------------------------------------------------------------------------------------
 
 /** The thread, or "not found" when it does not exist or is a private chat of other people. */
-export function load(ctx: ChatCtx, threadId: string): ThreadRec {
+export function load(ctx: ChatCtx, threadId: string, o: { govern?: boolean } = {}): ThreadRec {
   ensure(ctx.db);
   const t = threadBy(ctx.db, threadId);
-  if (!t || !canSpeak(ctx, t)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours.");
+  // governance of an invite-only channel (adding or removing people) reaches the channel's main thread only, and nothing in it to read
+  const governing = o.govern === true && t !== null && t.kind === "channel" && t.channelId !== undefined && mayGovernChannel(ctx, t.channelId);
+  if (!t || (!canSpeak(ctx, t) && !governing)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours.");
   return t;
 }
 
@@ -194,7 +196,7 @@ export async function removeAgent(ctx: ChatCtx, input: { threadId: string; agent
 // ---- members ----------------------------------------------------------------------------------------------------------------------------------------
 
 export async function membersAdd(ctx: ChatCtx, input: { threadId: string; personId: string }) {
-  const t = load(ctx, input.threadId);
+  const t = load(ctx, input.threadId, { govern: true });
   if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { personId: input.personId });
   if (isPrivateRoot(rootOf(ctx, t))) {
     raise(ctx, "validation.precondition_failed", "A private chat never gains people. Make it a channel to bring someone in.", { offer: "threads.make_channel", threadId: t.id });
@@ -206,13 +208,14 @@ export async function membersAdd(ctx: ChatCtx, input: { threadId: string; person
 }
 
 export async function membersRemove(ctx: ChatCtx, input: { threadId: string; personId: string }) {
-  const t = load(ctx, input.threadId);
+  const t = load(ctx, input.threadId, { govern: true });
   if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { personId: input.personId });
   if (!isMember(ctx.db, t.id, input.personId)) raise(ctx, "validation.not_found", "That person is not in this thread.");
   const asker = askerOf(ctx);
   if (input.personId !== asker) {
     const mine = (ctx.db.all("SELECT role FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL", t.id, asker) as Row[])[0];
-    if (String(mine?.["role"]) !== "owner") raise(ctx, "permission.no_grant", "Only the owner removes other people.");
+    const governs = t.kind === "channel" && t.channelId !== undefined && mayGovernChannel(ctx, t.channelId);
+    if (String(mine?.["role"]) !== "owner" && !governs) raise(ctx, "permission.no_grant", "Only the owner removes other people.");
   }
   if (membersOf(ctx.db, t.id).filter((p) => p.startsWith("usr_")).length <= 1) raise(ctx, "validation.bad_input", "A thread keeps at least one person.");
   ctx.db.run("UPDATE chat_thread_member SET deleted_at = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), t.id, input.personId);
