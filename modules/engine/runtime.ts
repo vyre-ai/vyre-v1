@@ -296,17 +296,25 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     bindStepOpen(openSession);
     bindBridge(bridge);
     // threads with work a dead host left: queued or running rows with no live lease
-    const stale = ctx.db.all("SELECT DISTINCT thread_id FROM engine_thread_queue WHERE state IN ('queued', 'running')") as Array<{ thread_id: string }>;
-    for (const r of stale) {
-      try {
-        await open(ctx as EngineCtx, r.thread_id);
-        engine.recover(r.thread_id);
-      } catch { /* a thread that cannot be opened now is opened by its next message */ }
-    }
+    await recoverStale(ctx, engine, ["queued", "running"]);
     void closeNoAccountTasks(ctx.db).catch((e) => h.log?.("the no-account sweep failed", { error: e instanceof Error ? e.message : String(e) }));
     return engine;
   })().catch((e) => { building = null; throw e; });
   return building;
+}
+
+/**
+ * Threads with work a dead host left: rows still marked running (or queued) whose lease nobody beats any more. At boot this runs once, but a restart inside the lease's 20 seconds finds the dead host's lease still
+ * alive and recover() answers false, so the sweep runs again from the periodic job until the lease has run out. A turn this host is running keeps its own lease, so it is never touched.
+ */
+export async function recoverStale(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, states: readonly string[] = ["running"]): Promise<void> {
+  const stale = ctx.db.all(`SELECT DISTINCT thread_id FROM engine_thread_queue WHERE state IN (${states.map(() => "?").join(", ")})`, ...states) as Array<{ thread_id: string }>;
+  for (const r of stale) {
+    try {
+      await open(ctx as EngineCtx, r.thread_id);
+      engine.recover(r.thread_id);
+    } catch { /* a thread that cannot be opened now is opened by its next message */ }
+  }
 }
 
 /** The person answered an Unblock (the task is done): wake the agent that had no account, in the same thread. */
