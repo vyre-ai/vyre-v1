@@ -18,7 +18,7 @@ function rig(thread: string | undefined) {
 
 test("the files land in the chat the computer last worked for, as file cards", async () => {
   const r = rig("thr_1");
-  await r.say({ agentId: "agt_a", computerId: "cmt_a", files: [file(1), file(2)] });
+  assert.equal(await r.say({ agentId: "agt_a", computerId: "cmt_a", files: [file(1), file(2)] }), true);
   assert.equal(r.posts.length, 1);
   assert.equal(r.posts[0]!.cap, "chat.post");
   assert.equal(r.posts[0]!.agentId, "agt_a");
@@ -42,4 +42,5 @@ test("work for no chat (a routine, a person at the keyboard) posts nothing and s
   await r.say({ agentId: "agt_a", computerId: "cmt_a", files: [file(1)] });
   assert.deepEqual(r.posts, []);
   assert.equal(r.logs.length, 1);
+  assert.equal(await r.say({ agentId: "agt_a", computerId: "cmt_a", files: [file(1)] }), false, "it answers that nothing was said, so the files stay held until a chat appears");
 });
