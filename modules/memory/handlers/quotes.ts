@@ -2,6 +2,7 @@
 // step is) that the ASKER could open themselves, and answers with the stored text, who wrote it, when, and a link that opens the chat scrolled to that line. Nothing is stored here and nothing
 // is paraphrased: no card, no recall. Access is the chat module's (chat.history.search), run as the asker, so a person who was not in a chat never gets a line from it, not even through an agent.
 import { actorOf, ensure, raise } from "../projections.ts";
+import { recallable } from "../../../lib/recall-intent.ts";
 import type { MemCtx } from "../projections.ts";
 
 interface HistoryHit {
@@ -33,13 +34,15 @@ export async function findQuotes(ctx: MemCtx, input: { q?: string; ref?: string;
   const quotes: Quote[] = [];
   // The same words said twice in one chat (a message and the turn row that repeats it, or an agent that echoes the person) are one quote, credited to whoever said them first.
   const first = new Map<string, HistoryHit>();
-  for (const h of out.hits ?? []) {
+  // a search by words never returns a greeting, a thanks or an imported session's pasted preamble: they say nothing. A line asked for by its ref is returned whatever it says.
+  const hits = (out.hits ?? []).filter((h) => input.ref !== undefined || h.role.startsWith("tool") || recallable(h.text));
+  for (const h of hits) {
     const key = `${h.threadId}\u0000${h.text.replace(/\s+/g, " ").trim().toLowerCase()}`;
     const at = first.get(key);
     if (!at || h.at < at.at) first.set(key, h);
   }
   const done = new Set<string>();
-  for (const h0 of out.hits ?? []) {
+  for (const h0 of hits) {
     const key = `${h0.threadId}\u0000${h0.text.replace(/\s+/g, " ").trim().toLowerCase()}`;
     if (done.has(key)) continue;
     done.add(key);

@@ -117,3 +117,31 @@ test("a chat opened mid-turn takes the text so far and follows from there, with 
   s.seed("thr_a", [{ turnId: "trn_2", agentId: "agt_x", text: "Already writing" }]);
   assert.equal(s.turnsOf("thr_a").length, 2);
 });
+
+test("a long piece from the provider is shown a few words at a time, and everything waiting is shown when the turn ends", () => {
+  const t = timers();
+  const pushes: string[] = [];
+  let ended = false;
+  const store = { push: (x: string) => { pushes.push(x); }, end: () => { ended = true; }, getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
+  s.onFrame(f("trn_p", { kind: "start" }));
+  const words = Array.from({ length: 30 }, (_, i) => `w${i + 1}`);
+  s.onFrame(f("trn_p", { kind: "delta", text: words.join(" "), at: 0 }));
+  assert.deepEqual(pushes, [], "nothing at once: the words wait for their beats");
+  const sizes: number[] = [];
+  for (let i = 0; i < 4; i++) { t.fire(45); sizes.push(pushes.join("").split(/\s+/).filter(Boolean).length); }
+  assert.ok(sizes[0]! >= 1 && sizes[0]! < 30, `the first beat shows a few words, not the sentence: ${JSON.stringify(sizes)}`);
+  assert.ok(sizes.every((n, i) => i === 0 || n > sizes[i - 1]!) && sizes.at(-1)! < 30, `and each beat adds more: ${JSON.stringify(sizes)}`);
+  s.onFrame(f("trn_p", { kind: "end", state: "done" }));
+  assert.equal(pushes.join(""), words.join(" "), "the turn ended: every word is there, once, in order");
+  assert.ok(ended);
+});
+
+test("text so far (a chat opened mid-turn) is shown at once, not paced", () => {
+  const t = timers();
+  const pushes: string[] = [];
+  const store = { push: (x: string) => { pushes.push(x); }, end: () => undefined, getSnapshot: () => ({ blocks: [], closedCount: 0, done: false, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
+  s.seed("thr_a", [{ turnId: "trn_s", agentId: "agt_x", text: "already written so far" }]);
+  assert.deepEqual(pushes, ["already written so far"]);
+});
