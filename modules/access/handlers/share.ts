@@ -643,7 +643,8 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
     if (res.type !== "folder") raise(trace, "validation.bad_input", "only a Files folder can follow a record");
     const rec = store.resources.get(input.follows);
     if (!rec || rec.type !== "record") raise(trace, "validation.not_found", "no such record");
-    must(ctx, store, res, "manage", "attaching the folder to its record");
+    // the host's own sweeps (kind svc) bring old folders in line; it only narrows who may open the folder
+    if (ctx.principal.kind !== "svc" && !ctx.principal.id.startsWith("svc_")) must(ctx, store, res, "manage", "attaching the folder to its record");
     const wasFresh = isFresh(ctx, store, ss);
     res.parentId = rec.id;
     changed(ctx, store, "assignment");

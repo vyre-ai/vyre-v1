@@ -3,6 +3,8 @@
 // Deals type, and her agent cannot read it in chat or in search. Ada turns Can export on for Cal: he exports a CSV with only the rows he can see. Ada sets one deal to Only me: Bea and Cal lose it
 // at once. The model stand-in turns "TOOL <name> <json>" into a real tool call, run as the person who asked.
 import test from "node:test";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import { boot, call, connect, hostLog, seededDir, waitFor } from "./memory-live-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
@@ -174,7 +176,8 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
       const r = await D(cap, input as never);
       assert.ok(r.status !== 200 || !/Acme|rt_deal/.test(JSON.stringify(r.data)), `${cap} shows Dee the deal's folder: ${JSON.stringify(r.data).slice(0, 200)}`);
     }
-    assert.notEqual((await D("files.list", { folder: dealFolder })).status, 200, "the folder is refused to Dee");
+    assert.notEqual((await D("files.folder.get", { folderId: dealFolder })).status, 200, "the folder is refused to Dee");
+    assert.equal(((await D("files.list", { folder: dealFolder })).data.files ?? []).length, 0, "and lists nothing to her");
     assert.equal((await C("files.list", { folder: dealFolder })).status, 200, "Cal, who can view the deal, can open its folder");
 
     // MCP and agent tool descriptions: what an agent is told it can use names no hidden type or record
@@ -256,17 +259,20 @@ test("records sharing: a record's files folder made before folders followed thei
     const folder = (await A("projects.files_folder", { type: "rt_deal", recordId: rec })).data.folderId as string;
     await A("files.create", { folderId: folder, name: "terms.txt", content: { text: "Acme renewal terms" } });
     await A("access.audience_set", { resource: { type: "record_type", id: "rt_deal" }, audience: "added" });
-    // put the folder back where the old code left it: under Records files, owned by the Space
     const home = ((await A("files.folder.get", { folderId: folder })).data.folder.parentId) as string;
-    const moved = await A("folders.move", { folderId: folder, parentId: home });
-    assert.equal(moved.status, 200, JSON.stringify(moved.data));
-    assert.equal((await D("files.list", { folder })).status, 200, "the old way: every member can open it");
+    assert.equal((await D("files.folder.get", { folderId: folder })).status, 403, "made today, it follows its record");
     await d.stop();
+    // the old way: the folder sits under Record files and nothing ties it to the record (what the access tables held before folders followed their records)
+    const db = new DatabaseSync(path.join(dir, "modules.db"));
+    const was = db.prepare("SELECT parent_id FROM access_resources WHERE id = ?").get(folder) as { parent_id: string } | undefined;
+    assert.equal(was?.parent_id, rec, "it followed its record");
+    db.prepare("UPDATE access_resources SET parent_id = ? WHERE id = ?").run(home, folder);
+    db.close();
     d = await boot(dir);
     await connect(d).catch(() => undefined);
     const D2 = as(d, { ...dee });
-    await waitFor(async () => { await d.hooks?.pump?.(); return (await D2("files.list", { folder })).status !== 200 ? true : null; }, 60_000);
-    assert.notEqual((await D2("files.list", { folder })).status, 200, "after the boot sweep Dee cannot open it");
-    assert.equal((await as(d, ada)("files.list", { folder })).status, 200, "Ada still can");
+    await waitFor(async () => { await d.hooks?.pump?.(); return (await D2("files.folder.get", { folderId: folder })).status !== 200 ? true : null; }, 20_000, () => hostLog(d));
+    assert.notEqual((await D2("files.folder.get", { folderId: folder })).status, 200, "after the boot sweep Dee cannot open it");
+    assert.equal((await as(d, ada)("files.folder.get", { folderId: folder })).status, 200, "Ada still can");
   } finally { await d.stop(); }
 });
