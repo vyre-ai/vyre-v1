@@ -46,3 +46,12 @@ test("the agent's own record, a task for its owner about files inside the home: 
   assert.equal(task({ kind: "agent", id: "usr_owner" }, []), false);
   assert.equal(ok("files.upload_url", { size: 10 }), true);
 });
+
+test("a node may name files it made, only inside the home, a few at a time", () => {
+  assert.equal(ok("made_files", { files: [{ fileId: "fil_in" }, { fileId: "fil_root" }] }), true);
+  assert.equal(ok("made_files", { files: [{ fileId: "fil_in" }, { fileId: "fil_out" }] }), false, "one outside the home refuses the whole call");
+  assert.equal(ok("made_files", { files: [] }), false);
+  assert.equal(ok("made_files", { files: Array.from({ length: 51 }, () => ({ fileId: "fil_in" })) }), false);
+  assert.equal(ok("made_files", { files: "fil_in" }), false);
+  assert.equal(ok("made_files", {}), false);
+});

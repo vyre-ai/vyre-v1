@@ -621,6 +621,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const scope = homeScopeOf(db!, check.agentId);
           if (!scope || !homeCallAllowed(db!, scope, a.cap, a.input)) return null;
         }
+        if (a.cap === "made_files") {
+          // the node names files; what the card shows (name, kind, size) is read here, from Files, never taken from the node. The computer is the verified one of the job's token.
+          const asAgent = createAgentHomeCaller({ db: db!, spaceId, invoke });
+          const ids = ((a.input as { files: Array<{ fileId: string }> }).files).map((f) => f.fileId);
+          const files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> = [];
+          for (const fileId of ids) {
+            const row = ((await asAgent(check.agentId, "files.get", { fileId })) as { file: { name: string; kind: string; size: number; version: number } }).file;
+            files.push({ fileId, name: row.name, kind: row.kind, size: row.size, version: row.version });
+          }
+          await createMadeFilesAnnouncer({ db: db!, call: asAgent, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }) })({ agentId: check.agentId, computerId: a.computerId, files });
+          return { ok: true, output: {} };
+        }
         if (a.cap === "put_upload") {
           const put = (a.input ?? {}) as { url?: unknown; base64?: unknown };
           await putToSlot(String(put.url ?? ""), Buffer.from(String(put.base64 ?? ""), "base64"));
