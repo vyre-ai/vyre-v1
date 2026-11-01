@@ -124,7 +124,7 @@ test("package scripts build the web export, stage the runtime, then run tauri", 
   const pkg = JSON.parse(fs.readFileSync(path.join(DESKTOP, "package.json"), "utf8")) as { name: string; scripts: Record<string, string>; dependencies?: object };
   assert.equal(pkg.name, "@vyre/desktop");
   assert.match(pkg.scripts["build"] ?? "", /npm run web && npm run stage && npm run tauri -- build/);
-  assert.match(pkg.scripts["web"] ?? "", /expo export --platform web --output-dir dist/);
+  assert.match(pkg.scripts["web"] ?? "", /scripts\/app-export\.mjs/, "the desktop export carries the registry hash, or the live socket is refused");
   assert.match(pkg.scripts["stage"] ?? "", /stage-runtime\.ts/);
   assert.equal(pkg.dependencies, undefined, "the Tauri CLI is fetched by the build, never installed into the workspace");
   const root = JSON.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8")) as { workspaces: string[] };

@@ -1,0 +1,1 @@
+- The Mac app gets its live connection: replies stream, and the Working line and animated mark show. Release builds were missing the build hash, so the server refused the live socket.

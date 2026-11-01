@@ -26,3 +26,10 @@ test("the bundle check finds the hash in an export and fails on one built withou
   fs.writeFileSync(path.join(dir, "_expo/static/js/web/entry.js"), `var h="";hello(h)`);
   assert.equal(filesWithHash(dir, registryHash()).length, 0);
 });
+
+test("every release export goes through the script that bakes the hash in and checks it", () => {
+  const read = (p: string): string => fs.readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+  for (const p of [".github/workflows/release.yml", ".github/workflows/desktop.yml", "apps/desktop/package.json"]) assert.doesNotMatch(read(p).replace(/EXPO_PUBLIC_VYRE_REGISTRY_HASH=\S+/g, "HASHED"), /(^|[^D] )npx expo export/m, p);
+  assert.match(read(".github/workflows/release.yml"), /node scripts\/app-export\.mjs/);
+  assert.match(read("apps/desktop/package.json"), /scripts\/app-export\.mjs/);
+});
