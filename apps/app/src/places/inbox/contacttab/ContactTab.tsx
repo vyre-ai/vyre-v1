@@ -269,7 +269,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         <View style={s.hid}>
           {unmatched ? <Ghost size={28} /> : <Face name={conv.displayName} seedId={conv.contactId ?? undefined} size={28} />}
           <Text accessibilityRole="header" aria-level={1} style={s.name} numberOfLines={1}>{conv.displayName}</Text>
-          {phone ? null : <Text style={s.co} numberOfLines={1}>{hdr?.company ?? conv.address}</Text>}
+          {phone || headSub(conv.displayName, conv.address, hdr?.company) === null ? null : <Text style={s.co} numberOfLines={1}>{headSub(conv.displayName, conv.address, hdr?.company)}</Text>}
         </View>
         {unmatched ? (
           <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID="head-match" onPress={() => data.nav.openMatch(conv.id)} style={s.mlink}>
@@ -371,6 +371,12 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
 export function sendersOf(out: unknown): ComposerSender[] {
   const rows = (out as { senders?: { id: string; channel: "email" | "text"; name: string; address: string; via: string; provider?: string; default?: boolean; usable?: boolean; why?: string }[] } | undefined)?.senders ?? [];
   return rows.map((x) => ({ id: x.id, channel: x.channel, name: x.name || x.address, address: x.address, via: x.via, ...(x.provider ? { provider: x.provider } : {}), ...(x.default ? { default: true } : {}), usable: x.usable !== false, ...(x.why ? { why: x.why } : {}) }));
+}
+
+/** The quiet line beside a contact's name: the company, else the address. A contact with no name is called by its address, and the line then says nothing rather than say it twice. */
+export function headSub(displayName: string, address: string, company: string | undefined): string | null {
+  if (company !== undefined && company !== "") return company;
+  return displayName.trim().toLowerCase() === address.trim().toLowerCase() ? null : address;
 }
 
 export function ContactTab(props: ContactTabProps): ReactElement {

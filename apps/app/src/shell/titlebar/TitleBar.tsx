@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import { ShellIcon } from "../rail/icons.tsx";
+import { useResume } from "../../onboarding/resume-context.ts";
 import type { StatusLine } from "../spaces/hub.ts";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
 import { SYSTEM_ICON, SYSTEM_SKIN, skinMenuEntries, skinName, skinSwatch, syncLabel } from "./model.ts";
@@ -35,6 +36,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
   const { title, status, online, waiting, compact = false } = props;
   const sync = syncLabel(online, waiting);
   const { element, show } = useMenu();
+  const resume = useResume();
   const toneColor = sync.tone === "offline" ? "var(--warn)" : sync.tone === "busy" ? "var(--accent)" : "var(--ok)";
   return (
     <View testID="shell-titlebar" style={styles.bar}>
@@ -50,6 +52,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
           </View>
         )}
       </View>
+      {resume?.pill ? <View testID="title-setup" style={styles.setup}>{resume.pill}</View> : null}
       {props.call ? <View testID="title-call" style={styles.call}>{props.call}</View> : null}
       <Chip
         testID="title-sync"
@@ -122,6 +125,7 @@ function Chip({ testID, label, hideLabel = false, hint, lead, tail, title, onPre
 
 const styles = StyleSheet.create({
   call: { marginRight: 8, justifyContent: "center" },
+  setup: { marginRight: 4, justifyContent: "center", flexShrink: 0 },
   bar: { height: TITLE_BAR_HEIGHT, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 14, paddingRight: 10, backgroundColor: "var(--rail)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   mid: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
