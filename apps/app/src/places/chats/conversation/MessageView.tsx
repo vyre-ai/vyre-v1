@@ -409,7 +409,8 @@ function useCardState(data: LinkCardData, actions: MessageActions): { state: Car
 }
 
 /** The glyph a link card's icon word asks for. */
-const linkGlyph = (icon: string): GlyphName => (icon === "task" ? "task" : icon === "file" || icon === "record" ? "file" : icon === "fact" ? "spark" : icon === "run" || icon === "computer" ? "term" : "reply");
+const LINK_GLYPH: Record<string, GlyphName> = { task: "task", file: "file", fact: "spark", record: "people", run: "term", routine: "spark", computer: "monitor", approval: "alert", thread: "reply" };
+export const linkGlyph = (icon: string): GlyphName => LINK_GLYPH[icon] ?? "reply";
 
 const CARD_ICON: Record<string, GlyphName> = { terminal: "term", plan: "plan", file: "file", changeset: "file", diff: "file", screenshot: "file", record_card: "file", question: "spark" };
 const OPENS = new Set(["terminal", "changeset", "diff", "file", "record_card", "tab_opened", "screenshot", "deploy", "mount"]);

@@ -27,7 +27,7 @@ test("work cards live: a record the agent makes is a card under its reply that n
     await ok(d, "threads.set_mode", { threadId, mode: "auto" });
     await ok(d, "chat.post", { threadId, body: `TOOL records_create ${JSON.stringify({ type: "contact", fields: { name: "Dana Fox" }, idempotencyKey: "wc-rec" })}`, mentions: [{ kind: "agent", id: agent.id }] });
     const cards = await waitFor(async () => { await d.hooks?.pump?.(); const c = await cardsOf(d, threadId); return c.length ? c : null; }, 40_000, () => hostLog(d));
-    assert.equal(cards[0]!.lead, "Record created");
+    assert.equal(cards[0]!.lead, "Record");
     assert.equal(cards[0]!.title, "Dana Fox");
     assert.equal(cards[0]!.target!.type, "record");
     // the card points at a record the person can read
@@ -37,7 +37,7 @@ test("work cards live: a record the agent makes is a card under its reply that n
     const flow = (await ok(d, "automations.create", { name: "Lead sweep", definition: { triggers: [{ key: "manual" }], nodes: [{ id: "t", key: "create_task", title: "Call the lead", input: { title: "Call the lead", assigned: { kind: "person", id: "usr_olivia" } } }] } })).automation.id as string;
     await ok(d, "automations.set_enabled", { automationId: flow, enabled: true });
     await ok(d, "chat.post", { threadId, body: `TOOL automations_run ${JSON.stringify({ automationId: flow, idempotencyKey: "wc-run" })}`, mentions: [{ kind: "agent", id: agent.id }] });
-    const run = await waitFor(async () => { await d.hooks?.pump?.(); return (await cardsOf(d, threadId)).find((c) => c.lead === "Run started") ?? null; }, 40_000, () => hostLog(d));
+    const run = await waitFor(async () => { await d.hooks?.pump?.(); return (await cardsOf(d, threadId)).find((c) => c.lead === "Run") ?? null; }, 40_000, () => hostLog(d));
     assert.equal(run.target!.type, "run");
     assert.equal((await call(d, "runs.get", { runId: run.target!.id })).status, 200, "the card points at a Run the person can read");
   } finally { await d.stop(); }

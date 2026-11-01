@@ -8,7 +8,7 @@ export interface LinkTarget { type: string; id: string }
 export interface LinkCardData {
   /** What kind of thing the card is about: the host picks its glyph (task, fact, file, record, summary, thread). */
   icon: string;
-  /** The verb, said as it happened: "Task created", "Remembered", "Summary". */
+  /** What the thing is, not what happened, so a card does not go stale: "Task", "Run", "Summary". */
   lead: string;
   /** The thing's own name: the task title, the fact, the file name. Opens the target when there is one. */
   title: string;
