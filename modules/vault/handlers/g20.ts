@@ -3,7 +3,7 @@
 // DECISION: health and match look only at items the caller can see; weak and reused need View on the item (a Use-only caller gets stale and rotation_due only), and a locked Mine item is skipped, not refused.
 // DECISION: match answers items whose non-secret url, website, site or uri field is the page host or a parent domain of it (login.example.com fits an item for example.com); only http and https pages are matched, and a host the person set to never-fill answers nothing.
 // DECISION: the Space policy lives in vault_policy (one row). Folder delete refuses a folder that holds any item row, trashed ones included, or a live child folder.
-// DECISION: export_mine is for the person themselves (their own turn, or a turn run for them) with their key unlocked; it covers live Mine items and those removed in the last 30 days, seals the .env text under the filler and gives one single-use pull link, like vault.export_env.
+// DECISION: export_mine is for the person themselves with their key unlocked; it covers live Mine items and those removed in the last 30 days, seals the .env text under the filler and gives one single-use pull link, like vault.export_env.
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -277,9 +277,9 @@ const REMOVED_KEPT = 30 * DAY;
 export async function exportMine(ctx: VaultCtx, input: { expiresIn: string }) {
   ensureG20(ctx);
   if (!(input.expiresIn in PULL_MS)) bad(ctx, "A pull link lasts 1 hour, 1 day or 7 days.");
-  // the person themselves, or a turn run for them; the key exists only on a node where they unlocked it, so nobody else's turn gets this far
-  const who = ctx.principal.kind === "person" ? ctx.principal.id : ctx.actingFor;
-  if (!who || (ctx.principal.kind !== "person" && ctx.actingFor !== who)) return denied(ctx, "Only a person can export their own Mine items.");
+  // the person themselves and nobody else: a turn run for them would put a link to every Mine value in front of the model, and agents never see values
+  if (ctx.principal.kind !== "person") return denied(ctx, "Only a person can export their own Mine items.");
+  const who = ctx.principal.id;
   if (!(await currentKeyPort()?.personKey(who))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to export your Mine items.", details: { reason: "vault_locked" } });
   if (PULL_MAX.indexOf(input.expiresIn) > PULL_MAX.indexOf(readPolicy(ctx).pullExpiryMax)) refuse(ctx, `This Space limits pull links to ${readPolicy(ctx).pullExpiryMax}.`);
   const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "owner" = ?`, who)).filter((r) => str(r, "scope") === "mine"

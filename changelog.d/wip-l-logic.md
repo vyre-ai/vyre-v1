@@ -8,3 +8,4 @@
 - In a chat with more than one person, recall leaves out what one person told their agent, quotes from their private chats stay out, and the agent's thinking goes only to whoever asked.
 - A busy turn's live steps gather to about one frame a second.
 - Vyre no longer says any chat is end to end: agents have to read what they answer, and no app seals a chat today.
+- A Vault pull link follows the rules of a reveal: an agent never gets one, a person gets only what they may view, an item set to the Space only stays out, and a folder's list of who may export is obeyed. Renaming a Vault item keeps its handle, so nothing that uses it breaks, and setting a new value counts as rotating it.

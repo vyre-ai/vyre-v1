@@ -242,6 +242,19 @@ async function expiryCap(ctx: VaultCtx): Promise<Expiry> {
   return "1d";
 }
 
+/** The folder's own rule, set in folders.update and until now never read: an empty list leaves it to the permission; a list means those people, and the groups and roles it names. */
+async function mayExport(ctx: VaultCtx, folder: Row): Promise<boolean> {
+  const who = parseJson<Array<{ kind?: string; id?: string }>>(folder["whoCanExport"], []);
+  if (who.length === 0 || str(folder, "owner") === ctx.principal.id) return true;
+  if (who.some((s) => s.kind === ctx.principal.kind && s.id === ctx.principal.id)) return true;
+  if (!who.some((s) => s.kind === "group" || s.kind === "role")) return false;
+  try {
+    const me = obj(obj(await ctx.call("access.principals.get", { principal: { kind: ctx.principal.kind, id: ctx.principal.id } }))["principal"]);
+    const mine = new Set([...(Array.isArray(me["roles"]) ? me["roles"] : []), ...(Array.isArray(me["groups"]) ? me["groups"] : [])].map(String));
+    return who.some((s) => s.id !== undefined && mine.has(s.id));
+  } catch { return false; }
+}
+
 const sha = (s: string): string => crypto.createHash("sha256").update(s).digest("hex");
 
 export async function exportEnv(ctx: VaultCtx, input: { folderId: string; expiresIn: string; itemIds?: string[]; idempotencyKey?: string }) {
@@ -250,9 +263,15 @@ export async function exportEnv(ctx: VaultCtx, input: { folderId: string; expire
   if (input.itemIds !== undefined && (!Array.isArray(input.itemIds) || input.itemIds.some((i) => !isId("vit", i)))) bad(ctx, "Item ids are not valid.");
   const cap = await expiryCap(ctx);
   if (EXPIRIES.indexOf(input.expiresIn as Expiry) > EXPIRIES.indexOf(cap)) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: `This Space limits pull links to ${cap}.` });
+  // a pull link hands over the values themselves: an agent never holds one, and neither does anyone below View, who may use a value but may not see it
+  if (ctx.principal.kind === "agent") return denied(ctx, "Agents use values by handle; they never see them.");
   const f = folderAt(ctx, input.folderId, "use");
-  let items = folderItems(ctx, str(f, "id"));
+  if (!(await mayExport(ctx, f))) return denied(ctx, "This folder names who may export it.");
+  const seeable = folderItems(ctx, str(f, "id")).filter((r) => atLeast(str(r, "owner") === ctx.principal.id ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "view"));
+  // an item set to fill on the Space only stays on the Space: a .env file is exactly what that rules out
+  let items = seeable.filter((r) => num(r, "spaceOnly") !== 1);
   if (input.itemIds) items = items.filter((r) => input.itemIds!.includes(str(r, "id")));
+  if (items.length === 0) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Nothing here can be exported by you." });
   const lines: string[] = [], used = new Set<string>();
   for (const r of items) {
     for (const fld of await openFields(ctx, r)) {

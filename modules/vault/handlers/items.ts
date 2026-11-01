@@ -267,8 +267,8 @@ export async function itemUpdate(ctx: VaultCtx, input: {
     const name = nameOf(ctx, input.name);
     if (name !== str(r, "name")) {
       if (nameTaken(ctx, str(r, "folderId"), name, str(r, "id"))) throw fail("validation.duplicate", ctx.trace.traceId, { message: "This folder already has an item with that name." });
+      // the handle stays: agents, chats and automations hold it, and renaming must not cut them off from the key
       changed["name"] = name;
-      changed["handle"] = uniqueHandle(ctx, name, str(r, "id"));
       settings.push("name");
     }
   }
@@ -298,6 +298,8 @@ export async function itemUpdate(ctx: VaultCtx, input: {
     ctx.db.run(`UPDATE vault_item_x SET "secrets" = ? WHERE "itemId" = ?`, JSON.stringify(Object.fromEntries(next.map((f) => [f.key, f.secret]))), str(r, "id"));
     fieldsChanged.push(...new Set([...set.map((f) => f.key), ...remove]));
     for (const k of fieldsChanged) record(ctx, str(r, "id"), "edited", { field: k });
+    // a new value is a rotation: a reminder that keeps nagging after the key was changed teaches people to ignore it
+    if (set.length > 0) ctx.db.run(`UPDATE vault_item_x SET "lastRotatedAt" = ? WHERE "itemId" = ?`, ctx.now(), str(r, "id"));
   }
   if (!fieldsChanged.length && !settings.length) return { item: metaOut(ctx, r) };
   patchMeta(ctx, str(r, "id"), changed);
