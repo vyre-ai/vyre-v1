@@ -10,7 +10,7 @@ import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuItem } from "../../../../../../ui/src/Menu/props.ts";
 import { harbor } from "../contactlist/sample.ts";
 import { InboxDataProvider, InboxStateProvider } from "../sidebar/index.ts";
-import { InboxUnmatched, matchMenuEntries, newestFirst, waitingLine } from "../unmatched/index.ts";
+import { InboxUnmatched, addedLine, matchMenuEntries, newestFirst, waitingLine } from "../unmatched/index.ts";
 import type { Suggestion, Unmatched } from "../unmatched/index.ts";
 import { createUnmatchedSample } from "../unmatched/sample.ts";
 import type { UnmatchedSample } from "../unmatched/sample.ts";
@@ -94,6 +94,16 @@ test("Create a Record turns the line into a new contact and it leaves Unmatched"
   assert.match(out.recordId, /^rec_new_/);
   assert.equal(out.conversation.needsMatch, false);
   assert.deepEqual(waiting(s).map((r) => r.id), []);
+});
+
+test("Add as a client is one tap: the line offers it, the call carries both extras, and the note says what happened", async () => {
+  const s = createUnmatchedSample();
+  assert.ok(html(s, <InboxUnmatched />).includes('data-testid="add-client-unk"'), "the button is on the line");
+  const out = (await s.data.call("inbox.match_new", { conversationId: "unk", type: "contact", fileAttachments: true, replyTask: true, idempotencyKey: "k3" })) as { recordId: string; filed?: number; skipped?: number; taskId?: string };
+  assert.deepEqual(s.matches.at(-1)!.input, { conversationId: "unk", type: "contact", fileAttachments: true, replyTask: true, idempotencyKey: "k3" });
+  assert.equal(addedLine("Dana", out), "Dana added as a client. 2 files filed. Reply task on your list");
+  assert.equal(addedLine("Dana", { filed: 1, skipped: 2 }), "Dana added as a client. 1 file filed. 2 could not be filed");
+  assert.equal(addedLine("Dana", {}), "Dana added as a client");
 });
 
 // ---- the softphone

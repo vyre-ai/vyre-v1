@@ -394,9 +394,54 @@ export async function unmatch(ctx: InboxCtx, input: { conversationId: string; un
   return { conversation: toConversation(ctx, getConversation(ctx, sourceId) as Row) };
 }
 
+/**
+ * Add as a client, the rest of the job: the attachments of every mail in the conversation are copied into the record's folder, and a Reply task is put on the person's list. Each step is
+ * its own call as the person, so their access decides (a file they cannot read is skipped and counted, never filed). A step that fails is reported in the answer and never undoes the match.
+ */
+async function followUp(ctx: InboxCtx, recordId: string, type: string, name: string, conversationId: string, o: { files: boolean; task: boolean }): Promise<{ filed: number; skipped: number; taskId?: string }> {
+  let filed = 0, skipped = 0, taskId: string | undefined;
+  if (o.files) {
+
+    const mails = rowsOf(ctx.db.all(`SELECT "refId" FROM inbox_item WHERE "conversationId" = ? AND kind = ? ORDER BY "at"`, conversationId, "email")).map((r) => str(r, "refId"));
+    let folderId: string | null = null;
+    for (const messageId of mails) {
+      let attachments: Json[] = [];
+      try { attachments = list(obj(await ctx.call("mail.message.get", { messageId })).attachments).map(obj); } catch (e) { ctx.log.warn("inbox: could not read a message to file its attachments", { code: codeOf(e) }); continue; }
+
+      for (const a of attachments) {
+        const fileId = text(a.fileId);
+        const attachmentId = text(a.attachmentId);
+        if (!fileId && !attachmentId) { skipped++; continue; }
+        try {
+          folderId ??= text(obj(await ctx.call("projects.files_folder", { type, recordId })).folderId) || null;
+          if (!folderId) { skipped++; continue; }
+          // a file Files already holds is copied; one that is still only in the message is saved straight into the record's folder
+          if (fileId) await ctx.call("files.copy", { fileId, toFolderId: folderId, ...(text(a.name) ? { name: text(a.name) } : {}), idempotencyKey: `inbox-file-${conversationId}-${fileId}` });
+          else await ctx.call("mail.attachment.save", { messageId, attachmentId, folderId, idempotencyKey: `inbox-file-${conversationId}-${messageId}-${attachmentId}` });
+          filed++;
+        } catch (e) {
+          if (codeOf(e) === "validation.duplicate") continue;   // the same name is already there from an earlier try
+          skipped++;
+          ctx.log.warn("inbox: an attachment could not be filed on the record", { code: codeOf(e) });
+        }
+      }
+    }
+  }
+  if (o.task) {
+    try {
+      const made = obj(obj(await ctx.call("tasks.create", {
+        title: `Reply to ${name}`, assigned: { kind: "person", id: ctx.actingFor ?? ctx.principal.id }, recordId, due: ctx.now() + 86_400_000, source: { kind: "manual", id: conversationId },
+        idempotencyKey: `inbox-reply-${conversationId}`,
+      })).task);
+      taskId = text(made.id) || undefined;
+    } catch (e) { ctx.log.warn("inbox: the reply task could not be made", { code: codeOf(e) }); }
+  }
+  return { filed, skipped, ...(taskId ? { taskId } : {}) };
+}
+
 export async function matchNew(
-  ctx: InboxCtx, input: { conversationId: string; type: "contact" | "company"; name?: string },
-): Promise<{ recordId: string; conversation: ConversationRow }> {
+  ctx: InboxCtx, input: { conversationId: string; type: "contact" | "company"; name?: string; fileAttachments?: boolean; replyTask?: boolean },
+): Promise<{ recordId: string; conversation: ConversationRow; filed?: number; skipped?: number; taskId?: string }> {
   ensure(ctx);
   if (!isId("cnv", input.conversationId)) bad(ctx, "That is not a conversation id.");
   if (input.type !== "contact" && input.type !== "company") bad(ctx, "Create a contact or a company.");
@@ -416,7 +461,9 @@ export async function matchNew(
   const rec: RecordLite = { id: recordId, type: input.type, fields: obj(made.fields).name ? obj(made.fields) : fields };
   const added = input.type === "company" || kind === "handle" ? await remember(ctx, recordId, address, input.conversationId) : undefined;
   const out = await attach(ctx, conv, rec, byOf(ctx), added);
-  return { recordId, conversation: toConversation(ctx, out.conversation) };
+  const more = input.fileAttachments === true || input.replyTask === true
+    ? await followUp(ctx, recordId, input.type, name, text(conv["id"]), { files: input.fileAttachments === true, task: input.replyTask === true }) : {};
+  return { recordId, conversation: toConversation(ctx, out.conversation), ...more };
 }
 
 export async function matchSuggestions(ctx: InboxCtx, input: { conversationId: string }): Promise<{ suggestions: Suggestion[] }> {

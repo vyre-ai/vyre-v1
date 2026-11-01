@@ -32,7 +32,7 @@ export interface Contact {
 export interface Emitted { name: string; subject: string; payload: Record<string, unknown>; vis?: string | undefined }
 export interface Called { cap: string; input: Record<string, unknown> }
 export interface Mailbox { id: string; kind: "personal" | "shared" | "agent" | "service"; address: string; title: string; provider: "google" | "microsoft" | "imap" | "inbound_only"; privacy: "private" | "space" | "people"; state: "pending" | "syncing" | "paused" | "error" | "disconnected" }
-export interface Mail { id: string; threadId: string; subject: string; from: string; to: string[]; cc?: string[] }
+export interface Mail { id: string; threadId: string; subject: string; from: string; to: string[]; cc?: string[]; attachments?: { attachmentId: string; name: string; mime: string; size: number; fileId?: string }[] }
 
 export interface HarnessOptions {
   principal?: InboxCtx["principal"];
@@ -150,11 +150,20 @@ export function harness(opts: HarnessOptions = {}) {
           if (taskFails) throw fail("internal.unavailable", trace);
           return { task: { id: `tsk_${++serial}`, kind: "work", title: body.title, state: "todo", blocked: false, blocks: [], actions: [], assigned: body.assigned, fileIds: [], dependsOn: [], followers: [], workingNotes: {}, reviewLoops: 0, createdBy: ctx.principal.id, createdAt: NOW, updatedAt: NOW } };
         }
+        case "projects.files_folder": return { folderId: `fld_${String(body.recordId).replace(/^rec_/, "")}` };
+        case "files.copy": {
+          if (String(body.fileId) === "fil_secret") throw fail("permission.no_grant", trace);
+          return { file: { fileId: `fil_copy${++serial}`, folderId: body.toFolderId, name: body.name ?? "copy" } };
+        }
+        case "mail.attachment.save": {
+          if (String(body.attachmentId) === "a_secret") throw fail("permission.no_grant", trace);
+          return { fileId: `fil_saved${++serial}` };
+        }
         case "follows.toggle": return { following: body.on === true };
         case "mail.message.get": {
           const m = mail.get(String(body.messageId));
           if (!m || mailGetFails) throw fail("validation.not_found", trace);
-          return { message: { id: m.id, threadId: m.threadId, subject: m.subject, from: { address: m.from }, to: m.to.map((address) => ({ address })), cc: (m.cc ?? []).map((address) => ({ address })) }, attachments: [] };
+          return { message: { id: m.id, threadId: m.threadId, subject: m.subject, from: { address: m.from }, to: m.to.map((address) => ({ address })), cc: (m.cc ?? []).map((address) => ({ address })) }, attachments: m.attachments ?? [] };
         }
         case "mail.drafts.list": {
           const c = typeof body.contactId === "string" ? contacts.get(body.contactId) : undefined;
@@ -170,7 +179,7 @@ export function harness(opts: HarnessOptions = {}) {
         default: throw new Error(`unexpected capability ${cap}`);
       }
     },
-    log: { info() {}, warn() {} },
+    log: { info() {}, warn(m, a) { if (process.env.INBOX_DEBUG) console.log(m, a); } },
   };
   ensure(ctx);
 

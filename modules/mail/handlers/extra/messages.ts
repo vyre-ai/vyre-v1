@@ -343,7 +343,7 @@ export async function attachmentSave(
   let fileId = "";
   for (let n = 1; n <= 20 && !fileId; n++) {
     try {
-      const made = (await ctx.call("files.create", { idempotencyKey: `mail-save:${ctx.trace.traceId}:${n}`, folderId, name: numbered(base, n), mime: found.mime, content: { blobId: found.blobId } })) as { file?: { fileId?: unknown } } | null;
+      const made = (await ctx.call("files.create", { idempotencyKey: `mail-save:${ctx.trace.traceId}:${input.messageId}:${input.attachmentId}:${n}`, folderId, name: numbered(base, n), mime: found.mime, content: { blobId: found.blobId } })) as { file?: { fileId?: unknown } } | null;
       if (typeof made?.file?.fileId === "string") fileId = made.file.fileId;
       else throw fail("provider.bad_response", ctx.trace.traceId, { message: "Files did not return the saved file." });
     } catch (e) {

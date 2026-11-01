@@ -104,7 +104,7 @@ const manifest = defineManifest({
       in: { conversationId: cnvId, undoToken: t.opt(t.str()) }, out: { conversation: conversationRow }, perm: 'records.edit', emits: ['conversation.unmatched'], tool: 'inbox', offline: 'queue',
     }),
     write('inbox.match_new', 'Create a contact or company from an unmatched sender and match it', {
-      in: { conversationId: cnvId, type: contactOrCompany, name: t.opt(t.str()) }, out: { recordId: id.record, conversation: conversationRow },
+      in: { conversationId: cnvId, type: contactOrCompany, name: t.opt(t.str()), fileAttachments: t.opt(t.bool({ description: 'Also copy the attachments of its mails into the record\'s folder' })), replyTask: t.opt(t.bool({ description: 'Also put a Reply task on my list, linked to the record' })) }, out: { recordId: id.record, conversation: conversationRow, filed: t.opt(t.int({ minimum: 0 })), skipped: t.opt(t.int({ minimum: 0 })), taskId: t.opt(id.task) },
       perm: 'records.create', emits: ['conversation.matched'], idem: 'key', tool: 'inbox',
     }),
     write('inbox.link_message', 'Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the campaign owner then the shared inbox', {

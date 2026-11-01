@@ -14973,6 +14973,10 @@ export type InboxMatchNewIn = {
   conversationId: string;
   type: "contact" | "company";
   name?: string;
+  /** Also copy the attachments of its mails into the record's folder */
+  fileAttachments?: boolean;
+  /** Also put a Reply task on my list, linked to the record */
+  replyTask?: boolean;
   idempotencyKey: string;
 };
 export type InboxMatchNewOut = {
@@ -14999,6 +15003,9 @@ export type InboxMatchNewOut = {
     unmatched?: boolean;
     draftReady?: boolean;
   };
+  filed?: number;
+  skipped?: number;
+  taskId?: string;
 };
 export type InboxMatchSuggestionsIn = {
   conversationId: string;

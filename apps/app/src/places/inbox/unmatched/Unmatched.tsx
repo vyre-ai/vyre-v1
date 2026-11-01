@@ -4,7 +4,7 @@
 // change queues while offline. Double click or Enter opens the conversation.
 import { useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -12,7 +12,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { listTime } from "../sidebar/model.ts";
 import { Ghost, Glyph, IconButton, pointOf } from "../sidebar/parts.tsx";
-import { EMPTY_LINE, OFFLINE_LINE, SCREEN, createdLine, matchedLine, newestFirst, scorePercent, suggestionLabel, waitingLine } from "./model.ts";
+import { EMPTY_LINE, OFFLINE_LINE, SCREEN, addedLine, createdLine, matchedLine, newestFirst, scorePercent, suggestionLabel, waitingLine } from "./model.ts";
 import type { CreateOut, MatchOut, Suggestion, Unmatched, UnmatchedOut } from "./model.ts";
 
 const DOUBLE_MS = 450;
@@ -45,7 +45,11 @@ function anchorOf(e: unknown): { x: number; y: number } {
   return r ? { x: r.left, y: r.bottom + 4 } : pointOf(e);
 }
 
-function Line({ u, selected, now, offsetMin, onPress, onMatch }: { u: Unmatched; selected: boolean; now: number; offsetMin: number; onPress(): void; onMatch(x: number, y: number): void }): ReactElement {
+/** Below this width the two actions are icons (their names stay as labels), so the sender's name keeps its room. */
+const NARROW = 560;
+
+function Line({ u, selected, now, offsetMin, onPress, onMatch, onAdd }: { u: Unmatched; selected: boolean; now: number; offsetMin: number; onPress(): void; onMatch(x: number, y: number): void; onAdd(): void }): ReactElement {
+  const narrow = useWindowDimensions().width < NARROW;
   return (
     <View testID={`unmatched-${u.id}`} style={s.slot} {...menuTrigger(onMatch)}>
       <Pressable accessibilityRole="button" accessibilityLabel={u.displayName || u.address} accessibilityState={{ selected }} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [s.block, WASH, (hovered === true || selected) && s.over]}>
@@ -56,9 +60,14 @@ function Line({ u, selected, now, offsetMin, onPress, onMatch }: { u: Unmatched;
         </View>
         <View style={s.right}>
           <Text style={[s.time, u.unreadCount > 0 && s.timeUnread]}>{listTime(u.lastMessageAt, now, offsetMin)}</Text>
-          <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID={`match-${u.id}`} onPress={(e) => { const p = anchorOf(e); onMatch(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
-            <Glyph name="link" size={12} color="var(--accent)" /><Text style={s.btnText}>Match to a record</Text>
+          <View style={s.btns}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Add ${u.displayName || u.address} as a client`} testID={`add-client-${u.id}`} onPress={onAdd} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+            <Glyph name="plus" size={12} color="var(--accent)" />{narrow ? null : <Text style={s.btnText}>Add as a client</Text>}
           </Pressable>
+          <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID={`match-${u.id}`} onPress={(e) => { const p = anchorOf(e); onMatch(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
+            <Glyph name="link" size={12} color="var(--accent)" />{narrow ? null : <Text style={s.btnText}>Match to a record</Text>}
+          </Pressable>
+          </View>
         </View>
       </Pressable>
     </View>
@@ -90,6 +99,11 @@ function List({ onSearchRecords, onShowAll }: UnmatchedProps): ReactElement {
     void out;
     return { text: createdLine(who(u), type) };
   });
+  // one tap: the contact, the conversation linked, the attachments filed in the record's folder and a Reply task on my list
+  const addClient = (u: Unmatched): Promise<void> => run(u, async () => {
+    const out = (await data.call("inbox.match_new", { conversationId: u.id, type: "contact", fileAttachments: true, replyTask: true, idempotencyKey: keyOf() })) as CreateOut;
+    return { text: addedLine(who(u), out) };
+  });
   const open = (u: Unmatched, x: number, y: number): void => {
     setSelected(u.id);
     void (async () => {
@@ -105,7 +119,7 @@ function List({ onSearchRecords, onShowAll }: UnmatchedProps): ReactElement {
     setSelected(u.id);
     if (dbl) data.nav.openConversation(u.id);
   };
-  const renderLine = (u: Unmatched): ReactElement => <Line u={u} selected={selected === u.id} now={clock.now} offsetMin={clock.offsetMin} onPress={() => press(u)} onMatch={(x, y) => open(u, x, y)} />;
+  const renderLine = (u: Unmatched): ReactElement => <Line u={u} selected={selected === u.id} now={clock.now} offsetMin={clock.offsetMin} onPress={() => press(u)} onMatch={(x, y) => open(u, x, y)} onAdd={() => { void addClient(u); }} />;
   const onKeyDown = (ev: { key?: string; preventDefault?: () => void }): void => {
     const at = rows.findIndex((r) => r.id === selected);
     if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault?.(); const n = rows[Math.max(0, Math.min(rows.length - 1, at + (ev.key === "ArrowDown" ? 1 : -1)))]; if (n) setSelected(n.id); }
@@ -177,6 +191,7 @@ const s = StyleSheet.create({
   right: { alignItems: "flex-end", gap: 2, marginLeft: 8 },
   time: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   timeUnread: { color: "var(--accent)" as string, fontWeight: "500" },
+  btns: { flexDirection: "row", alignItems: "center", gap: 2 },
   btn: { flexDirection: "row", alignItems: "center", gap: 5, height: 24, paddingHorizontal: 8, borderRadius: 6 },
   btnOver: { backgroundColor: "var(--win)" as string },
   btnText: { fontSize: 12, fontWeight: "600", color: "var(--accent)" as string },

@@ -71,13 +71,13 @@ export function createUnmatchedSample(space: SampleSpace = northwind, o: { onlin
       undos.set(token, { source, moved: moved.map((x) => String(x.id)), target });
       return { conversation: merged, undoToken: token };
     },
-    "inbox.match_new": (i: { conversationId: string; type: "contact" | "company"; name?: string }) => {
+    "inbox.match_new": (i: { conversationId: string; type: "contact" | "company"; name?: string; fileAttachments?: boolean; replyTask?: boolean }) => {
       matches.push({ cap: "inbox.match_new", input: i });
       const source = contacts().find((c) => c.id === i.conversationId);
       if (!source) throw new Error("that conversation is not here");
       const created = { ...source, contactId: `ct_${source.id}`, needsMatch: false, displayName: i.name ?? source.displayName } as ContactRow;
       replica.put("contacts", [created as unknown as Row]);
-      return { recordId: `rec_new_${source.id}`, conversation: created };
+      return { recordId: `rec_new_${source.id}`, conversation: created, ...(i.fileAttachments ? { filed: 2, skipped: 0 } : {}), ...(i.replyTask ? { taskId: `tsk_reply_${source.id}` } : {}) };
     },
     "inbox.unmatch": (i: { conversationId: string; undoToken?: string }) => {
       matches.push({ cap: "inbox.unmatch", input: i });
