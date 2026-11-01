@@ -111,8 +111,10 @@ export async function lastAgentMessage(d: Daemon, threadId: string, after = 0): 
   await d.hooks?.pump?.();
   const r = await call(d, "chat.messages.list", { threadId });
   const ms = (r.data.messages as Array<{ author?: { kind?: string }; body?: string; blocks?: Array<{ type: string }>; threadSeq?: number }> | undefined) ?? [];
-  const m = ms.filter((x) => x.author?.kind === "agent" && ((x.body ?? "") !== "" || (x.blocks ?? []).length > 0) && (x.threadSeq ?? 0) > after).at(-1);
-  return m ? (m.body && m.body !== "" ? m.body : `[${(m.blocks ?? []).map((b) => b.type).join(", ")}]`) : null;
+  // a turn_status card (a key the agent asked for, a turn that is waiting) is the host speaking beside the agent, not the agent's answer: it arrives before the words and must not be taken for them
+  const answer = (x: { blocks?: Array<{ type: string }> }): Array<{ type: string }> => (x.blocks ?? []).filter((b) => b.type !== "turn_status");
+  const m = ms.filter((x) => x.author?.kind === "agent" && ((x.body ?? "") !== "" || answer(x).length > 0) && (x.threadSeq ?? 0) > after).at(-1);
+  return m ? (m.body && m.body !== "" ? m.body : `[${answer(m).map((b) => b.type).join(", ")}]`) : null;
 }
 
 /** Start a chat with the agent, say something and wait for its reply. */

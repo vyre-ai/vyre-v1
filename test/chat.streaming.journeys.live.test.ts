@@ -1,17 +1,13 @@
 // The owner's report (rc.8): in a chat with Claude Code every reply arrived as one block after a pause, with no sign of work, and every reply was followed by "Used N memories" and big quote cards.
 // The real app in a real Chromium, the real daemon, engine, CLI driver and MCP, around the fake claude of host/tests/fixtures/fake-cli-driver: it pauses, then streams words as partial messages like the real
 // one (and repeats the text in its final message). What a person must see: a sign of work the moment they send, the words arriving in pieces, no word twice, and a reply with no recall cards.
-import test, { after } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import { cli, connectSubscription } from "./support/cli-world.ts";
 import { bootScreens, browserOrSkip, open, seat } from "./support/mail-browser.ts";
 import { shoot } from "./support/chat-shots.ts";
 
 const OUT = "shots-evidence/chat-streaming";
-// Known gap (see BACKLOG): the daemon's shutdown does not close the CLI session the engine opened (the CLI child, its MCP socket and egress proxy stay up), so this process would wait for the runner's
-// cap. When both journeys passed it ends once the results are out; if one failed or skipped it is left alone so a failure is never hidden.
-let passes = 0;
-after(() => { if (passes === 1) setTimeout(() => process.exit(0), 1_500); });
 test("a reply from the CLI shows a sign of work at once, streams in pieces, repeats nothing, and carries no recall cards", async (t) => {
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return; }
@@ -63,6 +59,5 @@ test("a reply from the CLI shows a sign of work at once, streams in pieces, repe
     assert.equal(await me.page.locator('[data-testid^="qcard-"]').count(), 0, "and no quote cards");
     await shoot(me.page, dir, "reply-done", { restore: async () => { await open(me, s, `/chat#screen=chats.conversation&threadId=${threadId}`); } });
     assert.deepEqual(me.errors, [], "no page errors");
-    passes++;
   } finally { await s.close(); }
 });

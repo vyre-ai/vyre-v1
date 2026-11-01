@@ -1,6 +1,6 @@
 // A greeting recalls nothing (owner report, rc.8): every reply was followed by "Used 3 memories" and quote cards of "hi", "hi'" and an imported session's preamble. The real app in a real Chromium, the real
 // daemon, engine, CLI driver and MCP around the fake claude. Its own file: two worlds in one process share the engine's module-level state.
-import test, { after } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import { until } from "./support/mail-world.ts";
 import { bootScreens, browserOrSkip, open, seat } from "./support/mail-browser.ts";
@@ -8,10 +8,6 @@ import { shoot } from "./support/chat-shots.ts";
 import { cli, connectSubscription } from "./support/cli-world.ts";
 
 const OUT = "shots-evidence/chat-streaming";
-// Known gap (see BACKLOG): the daemon's shutdown does not close the CLI session the engine opened (the CLI child, its MCP socket and egress proxy stay up), so this process would wait for the runner's
-// cap. When the journey passed it ends once the results are out; if it failed or skipped it is left alone so a failure is never hidden.
-let passes = 0;
-after(() => { if (passes === 1) setTimeout(() => process.exit(0), 1_500); });
 
 test("a greeting recalls nothing: a reply to \"hi\" carries no Used line and no quote cards, though earlier chats hold \"hi\" and an imported session's preamble", async (t) => {
   const env = await browserOrSkip();
@@ -45,6 +41,5 @@ test("a greeting recalls nothing: a reply to \"hi\" carries no Used line and no 
     assert.ok(!/did not finish/.test(feed), `the reply finished: ${feed.slice(0, 200)}`);
     await shoot(me.page, dir, "hi-reply", { restore: async () => { await open(me, s, `/chat#screen=chats.conversation&threadId=${threadId}`); } });
     assert.deepEqual(me.errors, [], "no page errors");
-    passes++;
   } finally { await s.close(); }
 });
