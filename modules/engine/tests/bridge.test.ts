@@ -206,6 +206,14 @@ test("a live turn streams start, each piece of text, end, then the message it be
   assert.equal(seen.every((e) => e.threadId === T && e.agentId === LEAD), true);
 });
 
+test("the start of a live turn names the message that started it, so a screen can put the reply after it", async () => {
+  const seen: StreamEvent[] = [];
+  const s = setup({ stream: (e) => seen.push(e), script: reply("Done.") });
+  const { id } = await s.say("Please draft it.");
+  const start = seen.find((e) => e.kind === "start") as Extract<StreamEvent, { kind: "start" }> | undefined;
+  assert.equal(start?.triggerId, id);
+});
+
 test("a stream listener that throws never fails the turn or the post", async () => {
   const s = setup({ stream: () => { throw new Error("socket gone"); }, script: reply("Fine.") });
   await s.say("hi");

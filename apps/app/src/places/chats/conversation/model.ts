@@ -342,14 +342,17 @@ export function pendingMessage(p: Pending, meId: string, threadId: string, seq: 
  * The rows for replies that are being written (or just finished and not yet saved). Each is a normal agent message with no words of its own: the words come from its stream. Once the host has said
  * which message the turn became, the row takes that id, so when the saved message arrives it lands on the same key and nothing remounts. A turn whose message is already in the list shows no row.
  */
-export function ghostMessages(turns: readonly { turnId: string; agentId: string; messageId?: string | null | undefined; startedAt: number }[], have: readonly Message[], threadId: string): Message[] {
+export function ghostMessages(turns: readonly { turnId: string; agentId: string; messageId?: string | null | undefined; startedAt: number; triggerId?: string | undefined }[], have: readonly Message[], threadId: string): Message[] {
   const ids = new Set(have.map((m) => m.messageId));
   const last = have.reduce((n, m) => Math.max(n, m.threadSeq), 0);
   const out: Message[] = [];
   for (const t of turns) {
     const id = t.messageId ?? `turn:${t.turnId}`;
     if (ids.has(id)) continue;
-    out.push({ messageId: id, threadId, threadSeq: last + 1 + out.length, author: { kind: "agent", id: t.agentId }, kind: "agent", body: "", blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: t.startedAt } as Message);
+    // The reply being written sits after the message that started it and before those sent while it writes (they are queued behind it). The host names the message that started the turn.
+    const trigger = t.triggerId === undefined ? undefined : have.find((m) => m.messageId === t.triggerId);
+    const seq = trigger !== undefined ? trigger.threadSeq + 0.5 + out.length / 100 : last + 1 + out.length;
+    out.push({ messageId: id, threadId, threadSeq: seq, author: { kind: "agent", id: t.agentId }, kind: "agent", body: "", blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: t.startedAt } as Message);
   }
   return out;
 }

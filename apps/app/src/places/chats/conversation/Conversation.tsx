@@ -39,7 +39,7 @@ import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import {
-  WINDOW, beforeCursor, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
+  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
   threadKindNote, timeline, titleOf, whoLine, workingAgents,
 } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
@@ -234,7 +234,8 @@ function ConversationView(): ReactElement {
   // the message a search result or a fork's link opened on is marked like the current find match, for a few seconds
   const matches = finding ? found : focusId !== null && all.some((m) => m.messageId === focusId) ? [focusId] : [];
   const activeId = finding ? (found.length > 0 ? found[Math.min(matchAt, found.length - 1)] : undefined) : matches[0];
-  const timelineMessages = [...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts];
+  // in the order the chat reads: a reply being written sits after the message that started it, before what was sent while it writes
+  const timelineMessages = byOrder([...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts]);
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
   const items = timeline(timelineMessages, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock() });
@@ -503,7 +504,7 @@ function ConversationView(): ReactElement {
 
       {data.waitingLine ?? null}
       <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
-      {q ? <View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text>{queuedIdsNow.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = queuedIdsNow[queuedIdsNow.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) setSeed((s) => ({ n: s.n + 1, value: words })); else say("It has already started, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{queuedIdsNow.length > 0 ? <TextButton link label="Send now" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, queuedIdsNow[0]!).catch(fail("Could not send it now."))} /> : null}</View> : null}
+      {q ? <View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text>{queuedIdsNow.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = queuedIdsNow[queuedIdsNow.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It has already started, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{queuedIdsNow.length > 0 ? <TextButton link label="Send now" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, queuedIdsNow[0]!).catch(fail("Could not send it now."))} /> : null}</View> : null}
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>

@@ -43,7 +43,7 @@ test("a message queued behind a running agent shows as queued; Edit takes it bac
     // Edit: it leaves the queue and the chat, and its words are back in the composer
     await me.page.getByTestId("queue-edit").click();
     await me.page.waitForFunction(() => (document.querySelector('[data-testid="composer-field"]') as HTMLTextAreaElement | null)?.value === "tell me the plan after this", undefined, { timeout: 10_000 });
-    assert.equal(await me.page.getByTestId("queue-note").count(), 0, "nothing is queued now");
+    await me.page.getByTestId("queue-note").waitFor({ state: "detached", timeout: 10_000 });   // nothing is queued now
     const msgs = (await w.owner.ok("chat.messages.list", { threadId })).messages as Array<{ body: string }>;
     assert.ok(!msgs.some((m) => /tell me the plan/.test(m.body)), "and the message is gone from the chat");
     await shoot(me.page, dir, "edit-back-in-composer", { phone: false });
