@@ -196,3 +196,18 @@ export const asOfFilter = (facts: readonly ChatFact[], asOf: number | null): Cha
 
 export const KNOWS_SCOPE = "In this chat and what it links to. Never more than you could open yourself.";
 export const KNOWS_FOOT = "Edit any line and the old wording is kept in history.";
+
+const STOP = new Set(["that", "this", "with", "from", "have", "your", "will", "what", "when", "they", "them", "there", "their", "about", "which", "would", "could", "should", "into", "than", "then", "also", "been", "were", "does", "just", "like", "some", "more", "most", "very", "here", "only"]);
+const wordsOf = (s: string): string[] => (s.toLowerCase().match(/[a-z\u00c0-\u024f0-9]{4,}/g) ?? []).filter((w) => !STOP.has(w));
+
+/**
+ * Did this memory shape the reply? Recall hands the model whatever matches the message a little, so most replies "used" something that had nothing to do with what was said. A fact counts only when the
+ * reply itself carries its substance: at least two of its significant words, or half of them for a short fact.
+ */
+export function shapedReply(fact: string, reply: string): boolean {
+  const f = [...new Set(wordsOf(fact))];
+  if (f.length === 0) return false;
+  const r = new Set(wordsOf(reply));
+  const hit = f.filter((w) => r.has(w)).length;
+  return hit >= 2 || (f.length <= 3 && hit >= Math.ceil(f.length / 2) && hit >= 1);
+}

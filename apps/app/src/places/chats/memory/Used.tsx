@@ -12,24 +12,25 @@ import { each } from "../../files/memory/model.ts";
 import { Icon } from "../../files/memory/parts.tsx";
 import { forgetFacts } from "./actions.ts";
 import { useChatMemory, useRead } from "./data.tsx";
-import { USED_FOOT, factLine, quoteDate, quoteSub, usedCount, usedLabel } from "./model.ts";
+import { USED_FOOT, factLine, quoteDate, quoteSub, shapedReply, usedCount, usedLabel } from "./model.ts";
 import type { ChatFact, ChatQuote, UsedOut } from "./model.ts";
 import { ChipLink, LinkButton, QuoteIcon, glyphOf, sourceLabel, useOpenSource, webProps, ownMenu, ownMenuKeys } from "./parts.tsx";
 import { useThreadMemory } from "./thread.tsx";
 import { recallable } from "../../../../../../lib/recall-intent.ts";
 
 /** The line, its list and the quote cards of one reply. Draws nothing without memory, while loading, or when the reply used nothing. */
-export function ReplyMemory({ messageId, threadId, startOpen = false }: { messageId: string; threadId: string; startOpen?: boolean }): ReactElement | null {
+export function ReplyMemory({ messageId, threadId, reply = "", startOpen = false, part = "all" }: { messageId: string; threadId: string; /** the reply's own words: a memory is shown only when it shaped them */ reply?: string; startOpen?: boolean; /** where it draws: the line and its list, the cards of exact quotes, or both */ part?: "all" | "line" | "cards" }): ReactElement | null {
   const mem = useChatMemory();
   const read = useRead<UsedOut>(mem?.store ?? null, "memory.used", mem ? { threadId, messageId } : null);
   if (!mem || read.status !== "ready") return null;
   // what an older reply recorded may include a greeting or an imported session's preamble matched as a quote: those say nothing and are not shown or counted
-  const used = { ...read.data, quotes: read.data.quotes.filter((q) => recallable(q.text)) };
+  // and a fact is shown only when the reply carries it (most replies match some memory a little and are not shaped by it); quotes are only recalled when the person asked to find words
+  const used = { ...read.data, quotes: read.data.quotes.filter((q) => recallable(q.text)), facts: read.data.facts.filter((f) => reply === "" || shapedReply(factLine(f), reply)) };
   if (usedCount(used) === 0) return null;
   return (
     <View testID={`used-${messageId}`} style={st.root}>
-      <UsedLine messageId={messageId} used={used} startOpen={startOpen} />
-      {each(used.quotes, (q) => <QuoteCard key={q.ref} quote={q} />)}
+      {part !== "cards" ? <UsedLine messageId={messageId} used={used} startOpen={startOpen} /> : null}
+      {part !== "line" ? each(used.quotes, (q) => <QuoteCard key={q.ref} quote={q} />) : null}
     </View>
   );
 }

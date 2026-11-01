@@ -13,3 +13,10 @@ test("the catch-up line says how many, from whom, what was decided or made a tas
   const full = { ...base, unread: 9, people: [{ id: "usr_maya", count: 5 }, { id: "usr_noah", count: 4 }], tasks: [{ messageId: "m1", title: "x" }], decisions: [{ messageId: "m2", text: "y" }, { messageId: "m3", text: "z" }] };
   assert.equal(catchUpLine(full, name, 1), "Maya and 1 other wrote. 2 decisions, 1 task, and you're mentioned.");
 });
+
+test("a person is never told they wrote: their own messages are dropped, and an agent replied", () => {
+  const c = { ...base, unread: 3, people: [{ id: "usr_me", count: 3 }] };
+  assert.equal(catchUpLine(c, name, 0, { meId: "usr_me" }), "", "only my own messages: nothing to say");
+  const mixed = { ...base, unread: 5, people: [{ id: "usr_me", count: 3 }, { id: "agt_x", count: 2 }] };
+  assert.equal(catchUpLine(mixed, name, 0, { meId: "usr_me", kindOf: (id) => (id.startsWith("agt_") ? "agent" : "person") }), "agt_x replied.");
+});

@@ -16,13 +16,19 @@ export interface CatchUp {
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
 /** The one line: "Maya and 1 other wrote. 2 decisions, 1 task, and you're mentioned." Message counts only when there is nothing else to say. Empty when there is nothing to catch up on. */
-export function catchUpLine(c: CatchUp, nameOf: (id: string) => string, mine: number): string {
+export function catchUpLine(c: CatchUp, nameOf: (id: string) => string, mine: number, o: { meId?: string; kindOf?: (id: string) => "person" | "agent" } = {}): string {
+  // A person is never told they wrote: their own messages are not news, whatever name the server counted them under
+  if (o.meId !== undefined) {
+    const others = c.people.filter((p) => p.id !== o.meId);
+    if (others.length === 0) return "";
+    c = { ...c, people: others, unread: others.reduce((n, p) => n + p.count, 0) };
+  }
   if (c.unread < 2) return "";
   const first = c.people[0];
   if (!first) return `${c.unread} new messages.`;
   const rest = c.people.length - 1;
   const who = nameOf(first.id).split(" ")[0]!;
-  const parts = [`${rest === 0 ? who : `${who} and ${plural(rest, "other", "others")}`} wrote.`];
+  const parts = [`${rest === 0 ? who : `${who} and ${plural(rest, "other", "others")}`} ${o.kindOf?.(first.id) === "agent" ? "replied" : "wrote"}.`];
   const work: string[] = [];
   if (c.decisions.length > 0) work.push(plural(c.decisions.length, "decision", "decisions"));
   if (c.tasks.length > 0) work.push(plural(c.tasks.length, "task", "tasks"));
@@ -43,7 +49,7 @@ export function CatchUpLine({ onJump }: { onJump: (messageId: string) => void })
   if (!c) return null;
   const me = [{ kind: "person" as const, id: data.me.id, name: data.me.name }];
   const mine = c.at.filter((m) => m.author !== data.me.id && mentionsIn(m.text, me).length > 0).length;
-  const line = catchUpLine(c, data.nameOf, mine);
+  const line = catchUpLine(c, data.nameOf, mine, { meId: data.me.id, kindOf: data.kindOf });
   if (line === "") return null;
   return (
     <View testID="catch-up" accessibilityRole="summary" style={s.box}>
