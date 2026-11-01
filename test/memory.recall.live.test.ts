@@ -22,7 +22,8 @@ const FAKE_CLI = fileURLToPath(new URL("../host/tests/fixtures/fake-cli-driver/f
 const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 const HEAVY = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const WORDS = "The Henderson retainer is capped at 4,500 dollars per month, no exceptions.";
-const ASK = "what is the Henderson retainer cap per month?";
+// asked the way a person asks to find what was said: only then do exact words of earlier chats come back (a plain question about the same thing recalls facts, not quotes)
+const ASK = "What did I say about the Henderson retainer cap per month?";
 const FACT = "Dana prefers all client calls scheduled before 10am Pacific.";
 const FACT_ASK = "when does Dana prefer client calls scheduled?";
 /** What the API-style engine answered in the first test, so the CLI test can hold its own answer against it. */
@@ -217,6 +218,10 @@ test("recall live: the words from chat 1 come back exactly in chat 2 with who sa
     assert.equal(quoted.fact, WORDS);
     assert.equal(quoted.sourceLink, `vyre://thread/${first.threadId}?m=${first.messageId}`);
     assert.equal(quoted.by, "you");
+
+    // the same thing asked as a plain question is not a request to find what was said: no exact words come back for it
+    const plain = await say(d, helper, "what is the Henderson retainer cap per month?", "rc2p");
+    assert.ok(!(JSON.parse(plain.reply.replace(/^\[api block\] /, "") || "[]") as RecallLine[]).some((l) => l.kind === "quote"), plain.reply);
 
     // "Used N memories": the recall for chat 2 is on record, by id, and reads back with the exact words and a link
     const msgs = (await call(d, "chat.messages.list", { threadId: second.threadId })).data.messages as Array<{ messageId: string; author: { kind: string } }>;
