@@ -32,7 +32,7 @@ import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
 import { pluginNames } from "./commands.ts";
 import { composerSuggest, previewOf } from "./suggest.ts";
-import { ChatBrain, modeOf, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
+import { ChatBrain, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
@@ -253,16 +253,19 @@ function ConversationView(): ReactElement {
   const leadFace = faceList.find((f) => f.mode === "lead") ?? faceList[0];
   const otherFaces = faceList.filter((f) => f !== leadFace);
   const modeMenu = (f: FaceModel, x: number, y: number): void => {
+    const many = faceList.length > 1;
     const items: MenuEntry[] = [
       { head: f.name },
-      { label: "Leads", checked: f.mode === "lead", onSelect: () => chooseMode(f, "lead", x, y) },
-      { label: "Listening", checked: f.mode === "listen", onSelect: () => chooseMode(f, "listen", x, y) },
-      { separator: true },
-      ...(f.model ? [{ head: `Model · ${f.model}` } as MenuEntry] : []),
+      // with one agent there is nothing to choose: it answers everything
+      ...(many ? [
+        { label: "Replies to everything", checked: f.mode === "lead", onSelect: () => chooseMode(f, "lead", x, y) },
+        { label: "Only when @mentioned", checked: f.mode === "listen", onSelect: () => chooseMode(f, "listen", x, y) },
+        { separator: true },
+      ] as MenuEntry[] : []),
+      ...(f.model ? [{ head: `Model · ${prettyModel(f.model)}` } as MenuEntry] : []),
       { label: `Ask ${f.name} to Review This`, onSelect: () => void act.askToReview(data, thread, f.agentId, data.newKey()).catch(fail("Could not ask.")) },
       { label: `Open ${f.name}'s Page`, onSelect: () => data.nav.openAgent(f.agentId) },
-      { separator: true },
-      { label: "Remove From Thread", danger: true, onSelect: () => void act.removeAgent(data, f.agentId).catch(fail("Could not remove it.")) },
+      ...(many ? [{ separator: true } as MenuEntry, { label: "Remove From Thread", danger: true, onSelect: () => void act.removeAgent(data, f.agentId).catch(fail("Could not remove it.")) } as MenuEntry] : []),
     ];
     menu.show(items, x, y, "other", { label: f.name });
   };
@@ -272,12 +275,12 @@ function ConversationView(): ReactElement {
     if (old) {
       menu.show([
         { head: `${nameOf(old.agentId)} leads this thread. Make ${f.name} lead instead? ${nameOf(old.agentId)} will keep listening.` },
-        { label: "Swap", onSelect: () => void act.setMode(data, f.agentId, "lead").then(() => say(`${f.name} now leads. ${nameOf(old.agentId)} is listening.`), fail("Could not change the mode.")) },
+        { label: "Swap", onSelect: () => void act.setMode(data, f.agentId, "lead").then(() => data.toast(`${f.name} now replies to everything. ${nameOf(old.agentId)} replies only when @mentioned.`), fail("Could not change the mode.")) },
         { label: "Cancel" },
       ], x, y, "other", { label: f.name });
       return;
     }
-    void act.setMode(data, f.agentId, mode).then(() => say(mode === "lead" ? `${f.name} now leads this thread` : `${f.name} is listening`), fail("Could not change the mode."));
+    void act.setMode(data, f.agentId, mode).then(() => data.toast(mode === "lead" ? `${f.name} replies to everything` : `${f.name} replies only when @mentioned`), fail("Could not change the mode."));
   };
   const addMenu = (x: number, y: number): void => {
     const inThread = new Set(collect(thread.agents, (a) => a.agentId));
