@@ -256,6 +256,18 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
     });
 
+    await step("Relaunch on a dead page: a saved Console address lands somewhere usable", async () => {
+      // the saved place is the Console, which a Personal Space has not: reopening there must reach the app with its rail, never a page with no way back
+      await page.goto(`${web.origin}/console`, { waitUntil: "load" });
+      await page.getByTestId("space-tile").waitFor({ timeout: 20_000 });
+      assert.equal(await page.getByText("Needs a Team Space").count(), 0, "no dead page after the relaunch");
+      await page.keyboard.press("Meta+k");
+      await page.getByTestId("cmdk-input").waitFor({ timeout: 10_000 });   // Search works from there
+      await page.keyboard.press("Escape");
+      // and it stays usable: a place opens
+      await go("chat", "chats-place");
+    });
+
     await step("Terminal: opens from the Space menu and from Search, and again", async () => {
       await go("chat", "chats-place");
       const list = page.getByTestId("terminal-list");
