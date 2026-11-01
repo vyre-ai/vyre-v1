@@ -308,6 +308,15 @@ export function createContextBuilder(d: ContextDeps) {
     if (chatMode === "plan" || (chatMode === undefined && th?.["planMode"] === true)) where.push("Mode: Plan. Read and plan, change nothing until the person approves a plan. Propose the plan with plan_propose, then wait.");
     else if (chatMode === "ask") where.push("Mode: Ask first. Before you change or send anything, say what you are about to do. A change that needs a yes waits for it: a held tool call is not a failure, tell the person it is waiting. Your own file-changing and shell tools are not available in this mode; if you need them, say so and the person can switch the chat to Auto.");
     else if (chatMode === "auto") where.push("Mode: Auto. Act on your own without asking. Anything that leaves Vyre (an email, a text, a post, a payment) is still held for a yes.");
+    // a chat in a project that has a repository and teammates: the agent is told how to hand work to one, in the person's words ("give it to a teammate"), so it never needs a tool name from them
+    if (kind === "chat" && str(th?.["scopeType"]) === "project" && str(th?.["scopeId"])) {
+      const projectId = str(th?.["scopeId"])!;
+      const [repoOut, mateOut] = await Promise.all([read<Obj>("engine.crew.repo.get", { projectId }, asker), read<Obj>("projects.teammates.list", { projectId }, asker)]);
+      const mates2 = (arr<Obj>(mateOut?.["teammates"])).filter((m) => str(m["agentId"]) && str(m["agentId"]) !== agentId);
+      if ((repoOut?.["repo"] as Obj | null | undefined)?.["path"] && mates2.length > 0) {
+        where.push(`This project has a code repository and teammates who each work on their own branch in their own copy of it: ${mates2.slice(0, 8).map((m) => `${str(m["name"]) ?? "a teammate"} (teammateId ${str(m["agentId"])}${str(m["role"]) ? `, ${str(m["role"])}` : ""})`).join(", ")}. projectId ${projectId}. When the person asks you to give work to a teammate, hand it off, or have someone else build it, do not do it yourself and do not ask who: start a teammate with crew_start {threadId ${input.threadId}, idempotencyKey, projectId, teammateId, title, brief} (find the crew tools with tool_search "crew"). The brief says what to build and what done looks like. One result card arrives in this chat when the teammate finishes; then say in a line what changed. A person presses Merge on the card; do not merge yourself.`);
+      }
+    }
     add("where", true, where.join("\n"));
 
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it

@@ -47,3 +47,10 @@ test("a chat that brings a CRM into Records lists the sync tools from its first 
     assert.ok(built.preload?.includes("sync_specs_sample") && built.preload.includes("sync_specs_apply"), t);
   }
 });
+
+test("a chat inside a project lists the crew tools from its first turn, so a plain \"give it to a teammate\" can start one; a chat outside a project does not", async () => {
+  const scoped = (scopeType: unknown, kind = "chat") => ({ ...runtime("auto"), invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title: "Bakery site", kind, scopeType } } })) as Invoke });
+  assert.ok((await withChatMode(scoped("project"), caller())).preload?.includes("crew_start"));
+  assert.equal((await withChatMode(scoped(undefined), caller())).preload, undefined);
+  assert.equal((await withChatMode(scoped("project", "helper"), caller())).preload, undefined, "a teammate's own thread does not start more teammates");
+});
