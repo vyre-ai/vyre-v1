@@ -280,7 +280,15 @@ test("computers live: an agent's computer on a booted daemon is asleep until wok
     const dlRow = (await filesIn((await filesIn(folderId)).folders.find((f) => f.name === "downloads")!.folderId)).files.find((f) => f.name === "dl.bin") as { size?: number } | undefined;
     assert.equal(dlRow?.size, 2097152, "a 2 MB download went through the upload path whole");
 
-    // take the wheel: the person's own click reaches the desktop, and giving back returns the controls to the agent with the time recorded in its steps (rc.9 flow 12)
+    // take the wheel: a live view ticket, then the person's own click reaches the desktop, and giving back returns the controls to the agent with the time recorded in its steps (rc.9 flow 12)
+    // the ticket behind the live view of the pane and the live card; a hang fails here, with this message, instead of using up the whole test
+    const view = await Promise.race([
+      call(d, "computers.stream", { computerId }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("computers.stream did not answer in 15 s: the live view of a working computer cannot open")), 15_000).unref()),
+    ]);
+    assert.equal(view.status, 200, JSON.stringify(view.data));
+    assert.ok(typeof view.data.ticket === "string" && view.data.ticket.length > 0, "a short-lived ticket for the live view");
+    assert.ok(view.data.transport === "mjpeg" || view.data.transport === "webrtc", `a transport: ${JSON.stringify(view.data)}`);
     const took = await call(d, "computers.take_over", { computerId });
     assert.equal(took.status, 200, JSON.stringify(took.data));
     assert.equal(took.data.computer.state, "takeover");
