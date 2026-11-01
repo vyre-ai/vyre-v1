@@ -43,7 +43,10 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
     const code = decodeURIComponent(new URL(space.claim!).pathname.split("/").pop() ?? "");
     const claimed = await post("identity.claim_owner", { code, spaceId: space.space, username: "ada", displayName: "Ada Archer", password: PASSWORD, deviceName: "Setup", deviceClass: "desktop", keys: await keysFor(PASSWORD) });
     assert.equal(claimed.status, 200, JSON.stringify(claimed.body));
-    const ada: Person = { id: claimed.body.data.principal.id, token: claimed.body.data.session.token, username: "ada", name: "Ada Archer" };
+    const adaToken = claimed.body.data.session.token as string;
+    const who = await post("identity.whoami", {}, adaToken);
+    assert.equal(who.status, 200, JSON.stringify(who.body));
+    const ada: Person = { id: who.body.data.principal.id, token: adaToken, username: "ada", name: "Ada Archer" };
     let n = 0;
     const api = async (who: Person, cap: string, input: Record<string, unknown> = {}): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
       const r = await post(cap, { idempotencyKey: `rs-e2e-${++n}`, ...input }, who.token);
