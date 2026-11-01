@@ -106,6 +106,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       const folder = (await api("vault.folders.create", { name: "Accounts", scope: "mine", idempotencyKey: "w-f1" })).data.folder.id as string;
       const flow = await api("providers.subscription_start", { providerKey: "claude-code", idempotencyKey: "w-flow" });
       assert.equal(flow.status, 200, `subscription_start ${JSON.stringify(flow.data).slice(0, 200)}`);
+      // secret-scan: fake
       const put = await api("vault.item.put", { folderId: folder, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ", secret: true }], idempotencyKey: "w-i1" });
       assert.equal(put.status, 200, `vault.item.put ai_subscription ${JSON.stringify(put.data).slice(0, 200)}`);
       const done = await api("providers.subscription_complete", { flowId: flow.data.flowId });
