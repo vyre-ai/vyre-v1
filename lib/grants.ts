@@ -52,3 +52,13 @@ export async function definitionHash(definition: unknown): Promise<string> {
   const d = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical(plain)));
   return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+/** Does what the person named cover what the call reaches? The same value, a name found in an address ("sarah" in sarah.jones@acme.com), a host or a repo's last part. */
+export function namedCovers(named: string, target: string): boolean {
+  if (named === target) return true;
+  const n = named.toLowerCase(), t = target.toLowerCase();
+  if (t.endsWith(`/${n}`) || t.endsWith(`.${n}`)) return true;
+  const [local, domain] = t.split("@");
+  if (domain === undefined) return false;
+  return (local ?? "").split(/[._+-]/).includes(n) || domain.split(".").includes(n);
+}

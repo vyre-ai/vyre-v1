@@ -7,6 +7,7 @@
 // One source of truth: chat_message holds the conversation. engine_messages is a mirror keyed by the SAME id (a person's message is stored under the id chat gave it, an agent reply is posted
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
+import { askedIn } from "../../../lib/asked.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
@@ -374,6 +375,11 @@ export function createBridge(o: BridgeOptions): Bridge {
     const got = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;
     const note = await pointers(reader(ctx, readAs, threadId), got.message);
+    // The only door for "asked this turn": the words a person typed, read here before the turn starts. Never the pointers, never an agent's post, never a line the server posted in a person's name.
+    if (a.kind === "person" && p["typed"] === true) {
+      try { await reader(ctx, authorId, threadId)("gate.grants.ask", { threadId, messageId, asked: askedIn(str(got.message.body)) }); }
+      catch (e) { warn("the request in a message was not read, so outward acts will ask", { threadId, messageId, error: e instanceof Error ? e.message : String(e) }); }
+    }
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
     const eng = engine;
     // an agent added to the chat after it was opened here (a Space agent @mentioned in a chat between people joins as a listener) is not yet known to the engine: read the chat's line-up once and let

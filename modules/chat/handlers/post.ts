@@ -115,6 +115,8 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
     ...(m.via ? { via: m.via.routineOwner } : {}),
     // an agent speaks for the person it works for: the engine reads a private thread as that person when nobody has spoken in it yet
     ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { actingFor: ctx.actingFor } : {}),
+    // a person typed this: not a line a module or the server posted in their name. Only these words can ask for an outward act (chat design, hole 3)
+    ...(author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") ? { typed: true } : {}),
   });
   if (opts.notify === false) return;
   const root = rootOf(ctx, thread);

@@ -70,6 +70,8 @@ export interface CtxSeed {
   step?: StepRef | undefined;
   /** Ask first (chat mode): a call that changes or sends something is parked for a yes before its handler runs. Set only by the tool session of a chat in Ask first mode; it follows no nested call. */
   askFirst?: boolean | undefined;
+  /** The chat's mode, set only by the tool session of a chat. In Auto a grant from the person's own message can lift a default hold (host/src/daemon/gate-hook.ts). */
+  chatMode?: "auto" | "ask" | "plan" | undefined;
 }
 
 export interface AuditRow {

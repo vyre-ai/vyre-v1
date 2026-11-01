@@ -728,6 +728,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
           unseal: (s) => seal.unseal(s), now,
           evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
+          threads: (id) => {
+            const chain = [id];
+            for (let cur = id, i = 0; i < 8; i++) {
+              const up = (db?.all("SELECT parentThreadId FROM chat_thread WHERE id = ?", cur)[0] as { parentThreadId?: string | null } | undefined)?.parentThreadId;
+              if (!up || chain.includes(up)) break;
+              chain.push(up); cur = up;
+            }
+            return chain;
+          },
           hold: (id) => {
             const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
               { state: string; principal_kind: string; principal_id: string; acting_for: string | null; run_id: string | null; thread_id: string | null; payload_hash: string } | undefined;

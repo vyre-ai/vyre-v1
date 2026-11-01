@@ -1,7 +1,9 @@
--- Grants (chat design, hole 1). One row is one permission for one act and one target. A grant lets an outward act go without a hold, so only a person's press writes one and any edit of what it
--- covers voids it: a standing row is bound to the hash of the automation's definition.
--- kind: standing (an automation holds it).
--- subject_id: the automation. step_id: the step of the definition the row covers. target: an address, repo or host, or * when the row covers whatever that step reaches.
+-- Grants (chat design, holes 1, 3 and 5). One row is one permission for one act and one target. A grant lets an act go without a hold, so only a person's press or a person's own message writes one.
+-- kind standing: an automation holds it. subject_id is the automation, def_hash the definition it was given for (any edit voids it), step_id the step, target an address, repo or host, or * for
+--   whatever a step a person wrote reaches.
+-- kind turn: the person's own message asked for it. Single use (used_at). message_id is that message, thread_id its thread; target "" means the message named none. expires_at is set, and a new message
+--   from the same person in that thread ends what the last one left unused.
+-- gate_taint: a thread where outside content entered the turn. Outward acts stop there even if asked until the person speaks again (cleared_at); a request that names no target stays stopped after that.
 -- gate_holds.step: the automation step a held call came from, so approving it can add the one target it reached.
 CREATE TABLE IF NOT EXISTS "gate_grants" (
   "id" TEXT PRIMARY KEY,
@@ -12,7 +14,19 @@ CREATE TABLE IF NOT EXISTS "gate_grants" (
   "def_hash" TEXT,
   "subject_id" TEXT,
   "step_id" TEXT,
+  "thread_id" TEXT,
+  "message_id" TEXT,
+  "expires_at" INTEGER,
+  "used_at" INTEGER,
   "created_at" INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "gate_grants_subject" ON "gate_grants" ("subject_id", "def_hash", "step_id");
+CREATE INDEX IF NOT EXISTS "gate_grants_person" ON "gate_grants" ("kind", "person", "act");
+CREATE UNIQUE INDEX IF NOT EXISTS "gate_grants_message" ON "gate_grants" ("message_id", "act", "target") WHERE "kind" = 'turn';
+CREATE TABLE IF NOT EXISTS "gate_taint" (
+  "thread_id" TEXT PRIMARY KEY,
+  "source" TEXT NOT NULL,
+  "at" INTEGER NOT NULL,
+  "cleared_at" INTEGER
+);
 ALTER TABLE "gate_holds" ADD COLUMN "step" TEXT;

@@ -19,6 +19,10 @@ export interface ChatCtx {
   principal: Principal;
   actingFor?: string | undefined;
   thread?: string | undefined;
+  /** 0 for a call from outside, above 0 for a call a capability made */
+  depth?: number | undefined;
+  /** where the call began: the gateway's callers are "user", a device's offline queue is "sync" */
+  origin?: string | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;

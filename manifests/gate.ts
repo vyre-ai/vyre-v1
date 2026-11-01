@@ -63,9 +63,13 @@ export default defineManifest({
       },
       out: { grants: t.arr(grantRow) }, on: ['automation', '/automationId'], level: 'use', audit: 'always', idem: 'natural', agent: false,
     }),
-    write('gate.grants.take', 'System: does a grant cover this call? Asked by the Gate hook at act time; only the server may call it', {
-      in: { act: actKey, targets: t.arr(t.str()), step: stepRef },
+    write('gate.grants.take', 'System: does a grant cover this call? Asked by the Gate hook at act time, it spends a single-use grant; only the server may call it', {
+      in: { act: actKey, targets: t.arr(t.str()), step: t.opt(stepRef), turn: t.opt(t.obj({ person: t.str(), threads: t.arr(id.thread, { minItems: 1 }) })) },
       out: { granted: t.bool() }, perm: null, level: 'view', idem: 'natural', agent: false,
+    }),
+    write('gate.grants.ask', 'What a person asks for in their own message: one single-use grant per act and target, read from their words by the server before the turn starts', {
+      in: { threadId: id.thread, messageId: id.message, asked: t.arr(t.obj({ act: actKey, target: t.str() })) },
+      out: { ok: t.bool() }, perm: null, level: 'view', idem: 'natural', agent: false,
     }),
     write('gate.release', 'Re-invoke the parked capability with an approval token bound to the payload hash, then resume the turn or step', {
       in: { holdId, taskId: id.task, approvalToken: t.str({ description: 'Approval token, valid 10 minutes, bound to the payload hash' }) },

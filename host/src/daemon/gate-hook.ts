@@ -26,6 +26,8 @@ export interface GateHookDeps {
    */
   evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal">) => boolean | Promise<boolean>>;
   /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
+  /** A thread and the threads above it, nearest first: a Job works under the chat that asked for it. */
+  threads?(id: string): string[];
   hold(id: string): { state: string; principalKind: string; principalId: string; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined; payloadHash: string } | null;
 }
 
@@ -80,8 +82,14 @@ export function createGateHook(d: GateHookDeps): GateHook {
         const g = (await d.call("gate.grants.take", { act, targets: targetsOf(input), step: seed.step })) as { granted?: unknown } | null;
         if (g?.granted !== true) return { act };
       }
-      const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act, ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}) })) as { hold?: unknown } | null;
-      return r?.hold === true ? { act } : null;
+      const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act, ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}) })) as { hold?: unknown; adminRule?: unknown } | null;
+      if (r?.hold !== true) return null;
+      // Auto, and the person's own message this turn asked for this act and target: the default hold lifts, once. A rule somebody wrote still holds. Money stays a Need in every mode (chat design, hole 3).
+      if (r.adminRule !== true && seed.chatMode === "auto" && act !== "pay" && OUTWARD_ACTS.has(act) && seed.actingFor?.startsWith("usr_") && seed.thread) {
+        const g = (await d.call("gate.grants.take", { act, targets: targetsOf(input), turn: { person: seed.actingFor, threads: d.threads?.(seed.thread) ?? [seed.thread] } })) as { granted?: unknown } | null;
+        if (g?.granted === true) return null;
+      }
+      return { act };
     },
     async park(a) {
       const input: Record<string, unknown> = {
