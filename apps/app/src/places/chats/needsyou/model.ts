@@ -285,6 +285,24 @@ export function assignedName(t: Task, nameOf: (id: string) => string): string {
   return t.assigned.kind === "role" ? ROLES[t.assigned.id] ?? "Everyone with that role" : nameOf(t.assigned.id);
 }
 
+/** A key request (vault.request): its id and the fields it wants, from its own card. Null for any other task. */
+export function keyRequestOf(t: Task): { requestId: string; name: string } | null {
+  const b = t.blocks.find((x) => x.type === "vault_request");
+  const d = b?.data;
+  if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
+  const r = d as Record<string, unknown>;
+  return typeof r["requestId"] === "string" ? { requestId: r["requestId"], name: typeof r["name"] === "string" ? r["name"] : "" } : null;
+}
+
+/** An access request (access.request): its id and the level asked for, from its own card. Approving it must grant, so the button calls access.requests.approve. Null for any other task. */
+export function accessRequestOf(t: Task): { requestId: string; level?: string } | null {
+  const b = t.blocks.find((x) => x.type === "access_request");
+  const d = b?.data;
+  if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
+  const r = d as Record<string, unknown>;
+  return typeof r["requestId"] === "string" ? { requestId: r["requestId"], ...(typeof r["level"] === "string" ? { level: r["level"] } : {}) } : null;
+}
+
 /** The fix a request is for, when pressing its main button does the fix itself rather than approving or taking it. */
 export function fixOf(t: Task): "replace_key" | null {
   return t.workingNotes["fix"] === "replace_key" && t.workingNotes["connection"] ? "replace_key" : null;
@@ -294,7 +312,7 @@ export function fixOf(t: Task): "replace_key" | null {
 export function footerHint(t: Task | undefined): string {
   const keys = ["\u2191 \u2193 to move"];
   if (!t) return keys.join(" \u00b7 ");
-  const a = fixOf(t) === null ? splitActions(t) : { primary: null, sendBack: null, more: [] };
+  const a = fixOf(t) === null && keyRequestOf(t) === null && accessRequestOf(t) === null ? splitActions(t) : { primary: null, sendBack: null, more: [] };
   if (a.primary) keys.push("A approve");
   if (a.sendBack) keys.push("B send back");
   if (!a.primary && !a.sendBack) keys.push("Enter to open");
