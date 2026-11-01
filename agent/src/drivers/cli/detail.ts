@@ -25,6 +25,7 @@ export function toolDetail(name: string, input: unknown): string {
       const base = p.split(/[\\/]/).filter(Boolean).pop() ?? "";
       return base === "" || SECRETY_FILE.test(base) ? "" : clean(base);
     }
+    case "Agent": case "Task": return clean(str(i["description"]));   // the one-line description the model gave the subagent
     case "Glob": return clean(str(i["pattern"]));
     case "Grep": return clean(str(i["pattern"]));
     case "WebSearch": return clean(str(i["query"]));

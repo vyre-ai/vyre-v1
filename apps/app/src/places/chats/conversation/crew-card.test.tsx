@@ -6,6 +6,7 @@ import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import { CrewResultCard, CrewStartLine, cardOf, isCrewResult, isCrewStart, statsLine } from "./crew-card.tsx";
 import { workingAgents } from "./model.ts";
+import { stepLabel, stepWords } from "./activity.ts";
 
 installDom();
 
@@ -151,4 +152,10 @@ test("a crew teammate's live line does not keep the lead marked Working; an ordi
   const msg = (crew: boolean) => ({ messageId: "msg_1", author: { kind: "agent", id: "agt_lead" }, blocks: [{ id: "b", type: "helper", v: 1, state: "live", traceId: "t", data: { title: "x", ...(crew ? { crew: true } : {}) } }] }) as never;
   assert.deepEqual(workingAgents([msg(true)]), []);
   assert.deepEqual(workingAgents([msg(false)]), ["agt_lead"]);
+});
+
+test("the trail names a helper or subagent call in words, never a bare \"Using agent\"", () => {
+  assert.equal(stepLabel("Agent", "Check the pricing page"), "Working with a helper: Check the pricing page");
+  assert.equal(stepLabel("Agent"), "Working with a helper");
+  assert.equal(stepWords("mcp__vyre__sub_task_model"), "Starting a helper");
 });

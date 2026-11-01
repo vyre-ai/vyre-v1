@@ -239,6 +239,9 @@ export function createBridge(o: BridgeOptions): Bridge {
           // what a call touches goes to the live line only, over the same gated link as the words: it is never saved with the reply
           const p = (ev.payload ?? {}) as { id?: unknown; detail?: unknown };
           if (typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "") emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "input", id: p.id, detail: p.detail });
+          // a subagent's own one-line description is saved on its call, so the trail names it ("Working with a helper: Check the pricing page") instead of a bare "Using agent"
+          const call = typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "" ? seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === p.id) : undefined;
+          if (call && /^(Agent|Task)$/.test(String((call.data as { name?: unknown }).name))) call.data = { ...(call.data as Record<string, unknown>), detail: p.detail };
         }
         else if (ev.type === "block") {
           afterBlock = true;

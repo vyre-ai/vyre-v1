@@ -320,6 +320,7 @@ export function createContextBuilder(d: ContextDeps) {
     if (kind === "chat" && str(th?.["scopeType"]) !== "project") {
       where.push("If the person asks you to hand work to a teammate and this chat is not in a project: call projects_list, then projects_teammates_list for the likely project, look for one they can see that has teammates and a code repository, and use it (crew_start says when a project has no repository). If there is exactly one, start the teammate there and say which project. If there are several, name them in one line and ask which. If none fits, say in one line that you can set up a project with a repository for this, or move this chat into one. Never answer with a bare question about who.");
     }
+    where.push("When the person asks you to launch subagents, helpers or teammates, do not use the built-in Agent tool: it runs out of sight. Start them the Vyre way so they show in the chat and stay: sub_task_model for a helper on research or a side task (it needs no repository), crew_start for a teammate who changes code in a project with a repository. Give each a short title.");
     add("where", true, where.join("\n"));
 
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it
