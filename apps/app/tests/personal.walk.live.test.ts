@@ -195,9 +195,10 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await page.getByText("Vyre created it").first().waitFor({ timeout: 10_000 });
       // edit a field: show the empty ones, give the contact a job title, and see it saved
       await page.getByText(/Show \d+ empty fields/).first().click({ timeout: 10_000 }).catch(() => { throw new Error("could not press Show empty fields"); });
-      const title = page.getByLabel(/job title/i).first();
-      await title.fill("Counsel", { timeout: 10_000 });
-      await title.press("Enter");
+      // fields are click-to-edit cells: the first Empty is Job title
+      await page.getByText("Empty", { exact: true }).first().click({ timeout: 10_000 });
+      await page.keyboard.type("Counsel");
+      await page.keyboard.press("Enter");
       await page.getByText(/Counsel/).first().waitFor({ timeout: 10_000 });
     });
 
