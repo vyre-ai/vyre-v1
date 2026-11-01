@@ -107,6 +107,55 @@ test("Team: two members sign in to their own Gmail; each mailbox is private to i
   } finally { await w.stop(); }
 });
 
+test("Team: the module's own door holds now that conversations and messages are registered in access: nobody but Ana reaches Ana's private mail through any path", async () => {
+  const w = await bootMailWorld({ kind: "team", engineOpenSession: standIn });
+  try {
+    await unlockVault(w);
+    w.fake.open("google", "ana@gmail.test", [{ from: "pat@acme.test", subject: "For Ana", text: "Ana's private note" }]);
+    w.fake.open("google", "bo@gmail.test", [{ from: "lee@acme.test", subject: "For Bo", text: "Bo's private note" }]);
+    await setSignInApp(w, "google", CLIENT);
+    const ana = await w.join("ana");
+    const bo = await w.join("bo");
+    const anaIn = await signInAs(w, ana, "google", "ana@gmail.test");
+    const boIn = await signInAs(w, bo, "google", "bo@gmail.test");
+    await waitCount(ana, anaIn.mailboxId!, 1);
+    await waitCount(bo, boIn.mailboxId!, 1);
+    const [mine] = (await ana.ok("mail.message.list", { mailboxId: anaIn.mailboxId })).messages as { id: string; threadId: string }[];
+    assert.ok(mine, "Ana has a message");
+    const ghost = "eml_0000000000000000000000000000ffff";
+    const denied = async (who: Person, cap: string, input: Record<string, unknown>): Promise<{ status: number; code: string | undefined; body: string }> => {
+      const r = await who.call(cap, { idempotencyKey: `door-${cap}-${who.username}`, ...input });
+      return { status: r.status, code: r.error?.code, body: JSON.stringify(r.data) };
+    };
+    for (const other of [bo, w.owner]) {
+      // a message by id: refused exactly as an id that does not exist is, so its existence is not leaked
+      const real = await denied(other, "mail.message.get", { messageId: mine.id });
+      const none = await denied(other, "mail.message.get", { messageId: ghost });
+      assert.notEqual(real.status, 200, `${other.username} cannot read Ana's message`);
+      assert.deepEqual([real.status, real.code], [none.status, none.code], "the same answer as for a message that is not there");
+      assert.ok(!real.body.includes("Ana's private note") && !real.body.includes("For Ana"));
+      // saving its attachment: the same refusal
+      const save = await denied(other, "mail.attachment.save", { messageId: mine.id, attachmentId: "att_1" });
+      const saveNone = await denied(other, "mail.attachment.save", { messageId: ghost, attachmentId: "att_1" });
+      assert.notEqual(save.status, 200);
+      assert.deepEqual([save.status, save.code], [saveNone.status, saveNone.code]);
+      // the Inbox: no conversation, thread or unmatched sender of Ana's mail appears
+      const unmatched = JSON.stringify((await other.call("inbox.unmatched", {})).data);
+      assert.ok(!unmatched.includes("pat@acme.test"), "Ana's sender is not in anyone's Unmatched");
+      const thread = await denied(other, "inbox.list_by_thread", { threadId: mine.threadId });
+      assert.ok(!thread.body.includes("For Ana"), `no thread of Ana's: ${thread.body.slice(0, 200)}`);
+      const byAddress = await denied(other, "inbox.thread", { conversationId: "cnv_0000000000000000000000000000ffff" });
+      assert.notEqual(byAddress.status, 200);
+      // search
+      assert.equal((await other.call("mail.message.search", { q: "Ana" })).data.messages?.length ?? 0, 0);
+      const found = JSON.stringify((await other.call("search.query", { q: "For Ana" })).data);
+      assert.ok(!found.includes("For Ana") && !found.includes("Ana's private note"), `search shows ${other.username} nothing of Ana's`);
+    }
+    // and Ana herself still reads it
+    assert.equal((await ana.call("mail.message.get", { messageId: mine.id })).status, 200, "Ana reads her own message");
+  } finally { await w.stop(); }
+});
+
 test("a revoked sign-in: the mailbox needs attention, the owner gets one Needs you item and nobody else does, and signing in again clears it", async () => {
   const w = await bootMailWorld({ kind: "team" });
   try {
