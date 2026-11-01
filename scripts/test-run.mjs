@@ -15,7 +15,7 @@ import { ensureDeps } from "./shots/ensure-deps.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RUNNER_VERSION = "2";
-const MAX_SLOW = 59;   // keep equal to MAX_ENTRIES in slow-check.ts (scripts/slow-check.test.ts fails when they differ)
+const MAX_SLOW = 60;   // keep equal to MAX_ENTRIES in slow-check.ts (scripts/slow-check.test.ts fails when they differ)
 const arg = (n) => process.argv.includes(n);
 const val = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
 
