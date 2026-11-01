@@ -6,6 +6,7 @@ HTTP 403. Retryable: no.
 
 ## Raised by
 
+- chat.remember
 - conflicts.assist
 - engine.set_model
 - engine.step_turn

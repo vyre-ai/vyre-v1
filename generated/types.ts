@@ -5969,6 +5969,17 @@ export type ChatHistorySearchOut = {
       score: number;
     }>;
 };
+export type ChatMakeTaskIn = {
+  threadId: string;
+  messageId: string;
+  title?: string;
+  assigneeId?: string;
+  idempotencyKey: string;
+};
+export type ChatMakeTaskOut = {
+  taskId: string;
+  messageId: string;
+};
 export type ChatMessageGetIn = {
   threadId: string;
   messageId: string;
@@ -6354,6 +6365,20 @@ export type ChatRecentOut = {
       preview?: string;
     }>;
   nextUnread: string | null;
+};
+export type ChatRememberIn = {
+  threadId: string;
+  messageId: string;
+  text?: string;
+  idempotencyKey: string;
+};
+export type ChatRememberOut = {
+  factId: string;
+  layer: "project" | "person";
+  merged: boolean;
+  projectId?: string;
+  projectTitle?: string;
+  by: string;
 };
 export type ChatScreenGetIn = {
   threadId: string;
@@ -31887,6 +31912,7 @@ export interface CapMap {
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
+  "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
@@ -31900,6 +31926,7 @@ export interface CapMap {
   "chat.question.ask": { in: ChatQuestionAskIn; out: ChatQuestionAskOut };
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
+  "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };

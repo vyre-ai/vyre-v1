@@ -376,6 +376,7 @@ export function stubs(ctx: CallCtx) {
       history: {
         search: call("chat.history.search"),
       },
+      make_task: call("chat.make_task"),
       message: {
         get: call("chat.message.get"),
       },
@@ -399,6 +400,7 @@ export function stubs(ctx: CallCtx) {
       },
       react: call("chat.react"),
       recent: call("chat.recent"),
+      remember: call("chat.remember"),
       screen: {
         get: call("chat.screen.get"),
       },
