@@ -188,6 +188,19 @@ async function run(raw) {
   const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) { await callTool(toolLine); return; }
   const first = prompt.trim().split(/\s+/)[0];
+  // a side question (/btw): its first message carries "The question: ..."; the answer streams a few words
+  const asked = /The question: ([^\n]*)/.exec(prompt);
+  if (asked && /A side question, asked while you may be busy/.test(prompt)) {
+    init();
+    const mid = `m_aside_${process.pid}_${Date.now()}`;
+    out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
+    const words = `Aside answer to ${asked[1].trim()} is short`.split(" ");
+    for (const w of words) { out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: `${w} ` } } }); await new Promise((res) => setTimeout(res, 250)); }
+    const full = words.map((w) => `${w} `).join("");
+    out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: words.length } } });
+    out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
+    return;
+  }
   const holdLine = prompt.split("\n").reverse().find((l) => /^askhold\s+\d+/.test(l));   // the instruction may follow other lines the person's messages brought
   if (holdLine) { await askHold(holdLine.trim()); return; }
   if (first === "slow") { await slow(prompt.trim()); return; }
