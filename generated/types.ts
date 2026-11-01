@@ -5680,6 +5680,22 @@ export type ChatApprovePlanOut = {
       }>;
   };
 };
+export type ChatAsideIn = {
+  threadId: string;
+  question: string;
+  idempotencyKey: string;
+};
+export type ChatAsideOut = {
+  asideThreadId: string;
+  messageId: string;
+};
+export type ChatAsideKeepIn = {
+  asideThreadId: string;
+  idempotencyKey: string;
+};
+export type ChatAsideKeepOut = {
+  messageId: string;
+};
 export type ChatAskLevelIn = {
   threadId: string;
 };
@@ -32969,6 +32985,8 @@ export interface CapMap {
   "channels.update": { in: ChannelsUpdateIn; out: ChannelsUpdateOut };
   "chat.answer_block": { in: ChatAnswerBlockIn; out: ChatAnswerBlockOut };
   "chat.approve_plan": { in: ChatApprovePlanIn; out: ChatApprovePlanOut };
+  "chat.aside": { in: ChatAsideIn; out: ChatAsideOut };
+  "chat.aside_keep": { in: ChatAsideKeepIn; out: ChatAsideKeepOut };
   "chat.ask_level": { in: ChatAskLevelIn; out: ChatAskLevelOut };
   "chat.ask_suggest": { in: ChatAskSuggestIn; out: ChatAskSuggestOut };
   "chat.asks_of": { in: ChatAsksOfIn; out: ChatAsksOfOut };

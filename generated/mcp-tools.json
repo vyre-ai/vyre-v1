@@ -10079,6 +10079,79 @@
     },
     {
       "blocks": [],
+      "cap": "chat.aside",
+      "deferred": false,
+      "description": "Ask a side question (/btw) while an agent works: it runs as a separate short read-only turn on your own account with what this chat knows, in a hidden thread; nothing is written into this chat and the agent working here does not see it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "question": {
+            "description": "The question, up to 2000 characters",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "question",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_aside",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.aside_keep",
+      "deferred": false,
+      "description": "Keep the answer of an aside: it is posted into the chat it came from as one card from you",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "asideThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "asideThreadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_aside_keep",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.ask_level",
       "deferred": false,
       "description": "The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it",

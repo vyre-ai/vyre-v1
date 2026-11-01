@@ -357,6 +357,8 @@ export function createClient(transport: Transport) {
     chat: {
       answer_block: call("chat.answer_block", 1),
       approve_plan: call("chat.approve_plan", 1),
+      aside: call("chat.aside", 1),
+      aside_keep: call("chat.aside_keep", 1),
       ask_level: call("chat.ask_level", 1),
       ask_suggest: call("chat.ask_suggest", 1),
       asks_of: call("chat.asks_of", 1),

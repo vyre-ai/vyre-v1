@@ -21,6 +21,8 @@
     "channels.update@1": "e34730d16bd3a6fb573f51eff5c0a65dd28805b31b5195cc6d4f9e6e4c548bdd",
     "chat.answer_block@1": "232fb6bfd1b2b4f9b2d07be9302e4b4d2c842b200ea55499535e0ddf2920165c",
     "chat.approve_plan@1": "5bf6ea378cefa7b01725f6211859f0ae4db7288083e23286d199421861f04adc",
+    "chat.aside@1": "fbb92be1f24dc25b0c268f38b458a05091ab8282225bb52f0c1f2febc35dc3de",
+    "chat.aside_keep@1": "f4cf98538477429aeed6fac207296047f355c7ecc5bf7607be6a6d81c56f2326",
     "chat.ask_level@1": "c2c4ca7068a0c97f37d5b760b8755fb12906eb2030995bdd32d9669b4f91dfa6",
     "chat.ask_suggest@1": "bfd22a482c476a15a21e70de957b45440375e7f3e44bc3e755cbcabfdc445bbb",
     "chat.asks_of@1": "7bf9cc8e19c8c50d0c657ad48d2c3793a8aebfbbe15b274c7409d2f87de726b1",

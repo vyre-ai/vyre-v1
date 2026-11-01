@@ -357,6 +357,8 @@ export function stubs(ctx: CallCtx) {
     chat: {
       answer_block: call("chat.answer_block"),
       approve_plan: call("chat.approve_plan"),
+      aside: call("chat.aside"),
+      aside_keep: call("chat.aside_keep"),
       ask_level: call("chat.ask_level"),
       ask_suggest: call("chat.ask_suggest"),
       asks_of: call("chat.asks_of"),

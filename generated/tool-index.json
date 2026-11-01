@@ -1340,6 +1340,18 @@
     },
     {
       "deferred": false,
+      "name": "chat_aside",
+      "summary": "Ask a side question (/btw) while an agent works: it runs as a separate short read-only turn on your own account with what this chat knows, in a hidden thread; nothing is written into this chat and the agent working here does not see it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_aside_keep",
+      "summary": "Keep the answer of an aside: it is posted into the chat it came from as one card from you",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_ask_level",
       "summary": "The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it",
       "toolset": "chats"

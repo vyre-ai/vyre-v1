@@ -26,8 +26,8 @@ HTTP 422. Retryable: no.
 - changesets.edit
 - chat.answer_block
 - chat.approve_plan
+- chat.aside_keep
 - chat.fork
 - chat.handoff
 - chat.share
 - comms.senders.set_default
-- computers.record_start

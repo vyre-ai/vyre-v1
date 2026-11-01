@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine.
 
-## Capabilities (82)
+## Capabilities (84)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -26,6 +26,8 @@ Requires: engine.
 - [channels.update](../capabilities/channels.update.md): Rename a channel or change its topic or visibility
 - [chat.answer_block](../capabilities/chat.answer_block.md): Answer a question or plan block; the answer is queued as a wake so the parked turn continues
 - [chat.approve_plan](../capabilities/chat.approve_plan.md): Approve a plan, optionally with edits; clears plan mode for those steps and the agent executes
+- [chat.aside](../capabilities/chat.aside.md): Ask a side question (/btw) while an agent works: it runs as a separate short read-only turn on your own account with what this chat knows, in a hidden thread; nothing is written into this chat and the agent working here does not see it
+- [chat.aside_keep](../capabilities/chat.aside_keep.md): Keep the answer of an aside: it is posted into the chat it came from as one card from you
 - [chat.ask_level](../capabilities/chat.ask_level.md): The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it
 - [chat.ask_suggest](../capabilities/chat.ask_suggest.md): Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used
 - [chat.asks_of](../capabilities/chat.asks_of.md): Ask panes opened on one object (the pane history of a record, file, event, page, site or automation)
