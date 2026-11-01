@@ -13,13 +13,13 @@ const agent = { principal: { kind: "agent" as const, id: "agt_a" }, actingFor: "
 const person = { principal: { kind: "person" as const, id: "usr_noah" } } as never;
 const step = { automationId: "aut_1", nodeId: "n", defHash: "h" };
 
-function hook(o: { granted?: boolean; rule?: { hold: boolean; adminRule?: boolean } } = {}) {
+function hook(o: { granted?: boolean; always?: boolean; rule?: { hold: boolean; adminRule?: boolean } } = {}) {
   const asked: { cap: string; input: Record<string, unknown> }[] = [];
   const h = createGateHook({
-    call: async (cap, i) => { asked.push({ cap, input: i as Record<string, unknown> }); return cap === "gate.effective_rule" ? (o.rule ?? { hold: true }) : { granted: o.granted === true }; },
+    call: async (cap, i) => { asked.push({ cap, input: i as Record<string, unknown> }); const j = i as { turn?: unknown; step?: unknown; always?: unknown }; return cap === "gate.effective_rule" ? (o.rule ?? { hold: true }) : { granted: (o.granted === true && (j.turn !== undefined || j.step !== undefined)) || (o.always === true && j.always !== undefined) }; },
     unseal: () => new Uint8Array(), now: () => 0, hold: () => null, threads: (id) => [id, "thr_chat"],
   });
-  return { h, asked, takes: () => asked.filter((a) => a.cap === "gate.grants.take") };
+  return { h, asked, takes: () => asked.filter((a) => a.cap === "gate.grants.take" && (a.input["turn"] !== undefined || a.input["step"] !== undefined)) };
 }
 
 test("a step's outward act with no grant holds, though the Run runs as a person", async () => {
@@ -48,7 +48,8 @@ test("a step set to ask holds without looking for a grant", async () => {
 test("in Auto a person's ask lifts the default hold, matched on the thread and the threads above it", async () => {
   const { h, takes } = hook({ granted: true });
   assert.equal(await h.applies(mail, input, agent), null);
-  assert.deepEqual(takes()[0]!.input, { act: "send", targets: ["lee@acme.test"], turn: { person: "usr_noah", threads: ["thr_job", "thr_chat"] } });
+  const asked = takes()[0]!.input;
+  assert.deepEqual([asked["act"], asked["targets"], asked["turn"]], ["send", ["lee@acme.test"], { person: "usr_noah", threads: ["thr_job", "thr_chat"] }]);
 });
 
 test("no match is a Need", async () => {
@@ -81,7 +82,7 @@ const terminal = { name: "terminal.run", v: 1, gate: { act: "approve", when: "te
 function shell(o: { granted?: boolean; rule?: { hold: boolean; adminRule?: boolean } } = {}) {
   const taken: Record<string, unknown>[] = [];
   const h = createGateHook({
-    call: async (cap, i) => { if (cap === "gate.grants.take") taken.push(i as Record<string, unknown>); return cap === "gate.effective_rule" ? (o.rule ?? { hold: true }) : { granted: o.granted === true }; },
+    call: async (cap, i) => { const j = i as { turn?: unknown }; if (cap === "gate.grants.take" && j.turn !== undefined) taken.push(i as Record<string, unknown>); return cap === "gate.effective_rule" ? (o.rule ?? { hold: true }) : { granted: o.granted === true && j.turn !== undefined }; },
     unseal: () => new Uint8Array(), now: () => 0, hold: () => null,
     evaluators: { "terminal.is_danger": (i) => /--force/.test(String((i as { command: string }).command)) },
     outward: (_cap, i) => (/git push/.test(String((i as { command: string }).command)) ? { act: "push_protected", targets: ["origin/main"] } : null),
@@ -94,7 +95,7 @@ test("an agent's outward command follows the outward rule; a plain command runs"
   assert.equal(await shell().h.applies(terminal, { command: "ls" }, agent), null);
   const asked = shell({ granted: true });
   assert.equal(await asked.h.applies(terminal, { command: "git push origin main" }, agent), null, "the person asked");
-  assert.deepEqual(asked.taken[0], { act: "push_protected", targets: ["origin/main"], turn: { person: "usr_noah", threads: ["thr_job"] } });
+  assert.deepEqual([asked.taken[0]!["act"], asked.taken[0]!["targets"], asked.taken[0]!["turn"]], ["push_protected", ["origin/main"], { person: "usr_noah", threads: ["thr_job"] }]);
 });
 
 test("a person's own command is their own act; a red command stays red even when asked", async () => {
@@ -132,8 +133,8 @@ test("a read of outside words marks the thread and the threads above it, with th
 });
 
 test("Always allow is read at act time and spends nothing", async () => {
-  const { h, takes } = hook({ granted: true });
+  const { h, asked } = hook({ always: true });
   assert.equal(await h.allowed!({ name: "files.write", v: 1 } as unknown as CapabilityDef, {}, agent), true);
-  assert.deepEqual(takes()[0]!.input, { act: "approve", targets: [], always: { person: "usr_noah", agentId: "agt_a", threads: ["thr_job", "thr_chat"], cap: "files.write" } });
+  assert.deepEqual(asked.at(-1)!.input, { act: "approve", targets: [], always: { person: "usr_noah", agentId: "agt_a", threads: ["thr_job", "thr_chat"], cap: "files.write" } });
   assert.equal(await h.allowed!({ name: "files.write", v: 1 } as unknown as CapabilityDef, {}, person), false, "only an agent acting for a person");
 });

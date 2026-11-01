@@ -178,7 +178,7 @@ test("Always allow is a row: scoped, with an expiry, read live, and taken back a
 test("Always allow: only a person, one agent or chat, an outward act needs an admin, money never", async () => {
   const h = harness();
   await assert.rejects(allow(h, as(bot, { actingFor: alice.id })), (e) => codeOf(e) === "permission.role_lacks_permission");
-  await assert.rejects(allow(h, alice, { threadId: undefined }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(h.call("gate.allow.set", { act: "approve", target: "files.write" }, alice as never), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(allow(h, alice, { act: "send", target: "lee@acme.test" }), (e) => codeOf(e) === "permission.role_lacks_permission");
   const admin = harness({ authorize: (_w, action) => action.perm === "policy.manage" });
   assert.equal((await allow(admin, alice, { act: "send", target: "lee@acme.test" })).rule.act, "send");

@@ -15,7 +15,7 @@ test("the session of a chat opens with the chat's mode, read as the agent for th
   const seen: Array<{ cap: string; principal: string; actingFor?: string }> = [];
   const c = await withChatMode(runtime("plan", seen), caller());
   assert.deepEqual([c.mode, c.planMode], ["plan", true]);
-  assert.deepEqual(seen, [{ cap: "threads.get", principal: "agt_1", actingFor: "usr_dana" }]);
+  assert.deepEqual(seen, [{ cap: "threads.get", principal: "agt_1", actingFor: "usr_dana" }, { cap: "settings.get", principal: "agt_1", actingFor: "usr_dana" }], "the chat, then the owner's floor on local tools");
   const ask = await withChatMode(runtime("ask"), caller());
   assert.deepEqual([ask.mode, ask.planMode], ["ask", false]);
   assert.equal((await withChatMode(runtime("auto"), caller())).mode, "auto");
