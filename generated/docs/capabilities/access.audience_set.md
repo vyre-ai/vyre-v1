@@ -1,6 +1,6 @@
 # access.audience_set
 
-Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people
+Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record
 
 | | |
 |---|---|
@@ -31,6 +31,8 @@ type In = {
   };
   audience?: "space" | "added" | "me";
   exporters?: "admins" | "viewers" | "chosen";
+  outside?: boolean;
+  follows?: string;
 };
 ```
 
@@ -40,6 +42,7 @@ type In = {
 type Out = {
   audience: "space" | "added" | "me";
   exporters: "admins" | "viewers" | "chosen";
+  outside: boolean;
 };
 ```
 
@@ -61,6 +64,8 @@ type Out = {
   "input": {
     "audience": "space",
     "exporters": "admins",
+    "follows": "rec_a1b2c3",
+    "outside": true,
     "resource": {
       "id": "rec_a1b2c3",
       "type": "space"
@@ -68,7 +73,8 @@ type Out = {
   },
   "output": {
     "audience": "space",
-    "exporters": "admins"
+    "exporters": "admins",
+    "outside": true
   }
 }
 ```

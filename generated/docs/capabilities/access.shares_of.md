@@ -69,6 +69,7 @@ type Out = {
   audience?: "space" | "added" | "me";
   exporters?: "admins" | "viewers" | "chosen";
   inherits?: string;
+  outside?: boolean;
   can?: {
     manage: boolean;
     share: boolean;
@@ -104,6 +105,7 @@ type Out = {
     },
     "exporters": "admins",
     "inherits": "example",
+    "outside": true,
     "shares": [
       {
         "grant": {

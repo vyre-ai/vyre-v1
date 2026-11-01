@@ -33,7 +33,7 @@
     {
       "deferred": false,
       "name": "access_audience_set",
-      "summary": "Choose who a record type or one record is open to: everyone in the Space (follows its container), only people added (admins keep it) or only me. A record type also says who may export: admins only, anyone who can view, or chosen people",
+      "summary": "Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record",
       "toolset": "meta"
     },
     {
