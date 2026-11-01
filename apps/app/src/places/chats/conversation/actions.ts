@@ -363,3 +363,11 @@ export async function dismissAside(data: ConversationData, asideThreadId: string
 export async function sendQueuedNow(data: ConversationData, threadId: string, messageId: string): Promise<void> {
   await data.call("engine.interrupt", { threadId, messageId } as CapMap["engine.interrupt"]["in"]);
 }
+
+/** Take a queued message back to edit it: it leaves the queue and the chat, and its words are returned for the composer. False when its turn had already started. */
+export async function takeBackQueued(data: ConversationData, threadId: string, messageId: string): Promise<boolean> {
+  const out = (await data.call("engine.drop_queued", { threadId, messageId } as CapMap["engine.drop_queued"]["in"])) as CapMap["engine.drop_queued"]["out"];
+  if (!out.dropped) return false;
+  await data.call("chat.delete_message", { threadId, messageId } as CapMap["chat.delete_message"]["in"]).catch(() => undefined);
+  return true;
+}

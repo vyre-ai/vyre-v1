@@ -117,6 +117,8 @@ export interface TurnEngine {
    * `clearQueue` stops everything in the thread: running, queued and parked (stop all).
    */
   stop(threadId: string, opts?: { agentId?: string; clearQueue?: boolean }): Promise<StopResult>;
+  /** Take a message that is waiting in the queue out of it (it stays in the chat; the agent will not answer it). Returns how many queued rows were cancelled: 0 when it is not waiting, as when its turn has started. */
+  dropQueued(threadId: string, messageId: string): number;
   /** "Stop and send" for a message that is already stored: cancel the running turn and queue the responders first. Without a message it only cancels. */
   interrupt(threadId: string, messageId?: string): Promise<InterruptResult>;
   /** A held tool call was answered (approved or denied): queue the wake that continues the parked turn. Null when the task is unknown or already answered. */
@@ -215,6 +217,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (interrupt && st.running) void cancelRunning(st);
     if (qseqs.length > 0) kick(st);
     return { responders, reason: r.reason, qseqs, messageId: msg.id };
+  }
+
+  /** Cancel the queued rows that would answer one message. Returns how many. */
+  function dropRows(threadId: string, messageId: string): number {
+    let n = 0;
+    for (const row of queue.list(threadId)) {
+      if (row.state === "queued" && row.messageId === messageId) { queue.setState(threadId, row.qseq, "cancelled"); n++; }
+    }
+    return n;
   }
 
   async function cancelRunning(st: ThreadState): Promise<void> {
@@ -494,6 +505,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (hit) await cancelRunning(st);
       return { stopped, released, dropped };
     },
+    dropQueued(threadId, messageId) { need(threadId); return dropRows(threadId, messageId); },
     async interrupt(threadId, messageId) {
       const st = need(threadId);
       const run = st.running !== null && !st.running.cancelled ? st.running : null;
@@ -504,6 +516,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       const msg = findMessage(st, messageId);
       if (!msg || msg.threadId !== threadId) throw new RangeError(`no message ${messageId} in thread ${threadId}`);
+      dropRows(threadId, messageId);   // a message that is already waiting in the queue goes first, not twice
       const r = dispatch(st, msg, true);
       return { cancelled, queued: r.qseqs.length > 0, qseqs: r.qseqs };
     },

@@ -121,6 +121,9 @@ export default defineManifest({
       in: { ...threadT, messageId: t.opt(id.message) }, out: { queued: t.bool() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled', 'turn.queued'],
       tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
     }),
+    write('engine.drop_queued', 'Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it', {
+      in: { ...threadT, messageId: id.message }, out: { dropped: t.bool() }, on: ['thread', '/threadId'], level: 'use', tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
+    }),
     write('engine.stop', 'Stop one agent working in a thread (per-agent Stop)', {
       in: { ...threadT, agentId: t.opt(id.agent) }, out: { stopped: t.int() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled'],
       tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',

@@ -13,6 +13,7 @@ export interface ChatCommandDef {
 }
 
 export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
+  { id: "btw", detail: "Ask a side question while the agent works", arg: "your question", argRequired: true },
   { id: "plan", detail: "Turn plan mode on or off for this chat", arg: "on or off" },
   { id: "helper", detail: "Start a helper chat for a side task", arg: "what it should do", argRequired: true },
   { id: "handoff", detail: "Hand the work to another agent", arg: "@agent and a note", argRequired: true },
@@ -25,7 +26,6 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "find", detail: "Find words in this chat" },
   { id: "search", detail: "Search every chat you can read", arg: "words" },
   { id: "model", detail: "Choose the model this chat answers with" },
-  { id: "btw", detail: "Ask a side question while the agent works", arg: "your question", argRequired: true },
   { id: "stop", detail: "Stop what the agent is doing" },
 ] satisfies readonly ChatCommandDef[]);
 

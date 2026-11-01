@@ -35,7 +35,7 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     await field.click();
     await field.fill("/");
     await me.page.getByText("Ask a side question while the agent works").first().waitFor({ timeout: 10_000 });
-    for (const known of ["Turn plan mode on or off for this chat", "Start a helper chat for a side task", "Stop what the agent is doing"]) assert.ok(await me.page.getByText(known).count() > 0, known);
+    for (const known of ["Turn plan mode on or off for this chat", "Start a helper chat for a side task", "Hand the work to another agent"]) assert.ok(await me.page.getByText(known).count() > 0, known);
     await shoot(me.page, dir, "slash-menu", { phone: false });
     await field.fill("");
 
@@ -49,13 +49,12 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     await field.click();
     await field.fill("/btw what is the deadline");
     await me.page.getByTestId("composer-send").click();
-    const card = me.page.locator('[data-testid^="aside-"][data-testid$=""]').filter({ has: me.page.locator('[data-testid^="aside-question-"]') }).first();
-    await card.waitFor({ timeout: 10_000 });
+    await me.page.locator('[data-testid^="aside-question-"]').first().waitFor({ timeout: 10_000 });
     assert.match(await me.page.locator('[data-testid^="aside-question-"]').first().innerText(), /what is the deadline/);
     assert.ok(await me.page.getByText("Aside", { exact: true }).first().isVisible(), "marked as an aside");
     assert.ok(await me.page.getByText(/Only you see this/).first().isVisible());
     await me.page.locator('[data-testid^="aside-answer-"]').getByText(/Aside answer/).first().waitFor({ timeout: 30_000 });
-    await shoot(me.page, dir, "aside-answering", { restore: async () => { await open(me, s, route); } });
+    await shoot(me.page, dir, "aside-answering", { phone: false });
 
     // the main reply goes on to the end, once, and the aside is not in the conversation
     await me.page.waitForTimeout(500);
@@ -72,11 +71,19 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     await me.page.locator('[data-testid^="aside-keep-"]').first().click();
     await me.page.getByText(/Aside: what is the deadline|Aside by/).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
     await me.page.waitForFunction(() => document.body.innerText.includes("Aside answer to what is the deadline"), undefined, { timeout: 15_000 });
-    await shoot(me.page, dir, "aside-kept", { restore: async () => { await open(me, s, route); } });
+    await shoot(me.page, dir, "aside-kept", { phone: false });
 
     // Dismiss puts the card away
     await me.page.locator('[data-testid^="aside-dismiss-"]').first().click();
     assert.equal(await me.page.locator('[data-testid^="aside-question-"]').count(), 0, "the aside card is gone");
+    // the same on a phone: its own pass at the end, because the phone width draws another shell and an aside lives in the chat on screen
+    await me.page.setViewportSize({ width: 390, height: 844 });
+    await open(me, s, route);
+    await me.page.getByTestId("composer-field").click();
+    await me.page.getByTestId("composer-field").fill("/btw and on a phone");
+    await me.page.getByTestId("composer-send").click();
+    await me.page.locator('[data-testid^="aside-answer-"]').getByText(/Aside answer/).first().waitFor({ timeout: 30_000 });
+    await shoot(me.page, dir, "aside-on-phone", { only: "phone" });
     assert.deepEqual(me.errors, [], "no page errors");
     passes++;
   } finally { await s.close(); }
