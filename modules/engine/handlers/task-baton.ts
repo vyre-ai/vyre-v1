@@ -18,7 +18,7 @@ type Obj = Record<string, unknown>;
 export interface Who { kind: string; id: string }
 export interface BatonTask {
   id: string; kind: string; title: string; state: string; assigned: Who; reviewer?: Who; approver?: Who; takenBy?: string; parentTaskId?: string; threadId?: string;
-  createdBy: string; reviewLoops: number; source?: { kind: string; id: string }; workingNotes: Record<string, string>; recordId?: string;
+  createdBy: string; reviewLoops: number; source?: { kind: string; id: string }; workingNotes: Record<string, string>; recordId?: string; blocked?: boolean; workerThread?: string;
 }
 /** What the baton needs of the server: a way to call a capability (as the server, or as a person), the clock, and a log. The consumer, the clock job and the turn-end hook all pass one, so none of them
  *  holds on to the ctx of a call that has finished. */
@@ -183,6 +183,8 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   let task = await readTask(host, taskId);
   if (!task) return [];
   let answeredChild: string | undefined;
+  // the children of a parent need its holder: all finished, or one is blocked or asks. Once per reason and child, however many times the event is read.
+  if (event.name === "task.children_settled") answeredChild = `settled:${str(event.payload["reason"])}:${str(event.payload["childId"])}`;
   // a question or a block that finished: the work it waited on goes on
   if ((task.kind === "answer" || task.kind === "unblock") && task.parentTaskId && (task.state === "done" || task.state === "canceled")) {
     answeredChild = task.id;
@@ -190,12 +192,19 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     if (!task) return [];
   }
   if (task.kind !== "work") return [];
+  // a task that waits on others starts when they are done (task.ready); nothing is recorded, so that event finds the baton new
+  if (task.blocked === true && answeredChild === undefined) return [];
+  // the parent of a plan is held by whoever made the plan, who is at work already: its children wake it, nothing else does
+  if (task.workingNotes["plan.parent"] === "1" && answeredChild === undefined) return [];
   const holder = holderOf(task);
   const before = batonRow(ctx.db, task.id);
   if (!holder) { if (before) dropBaton(ctx.db, task.id); return []; }
   const sig = signatureOf(task, holder);
   const fresh = before?.sig !== sig;
   if (!fresh && !(answeredChild && !before?.answered.includes(answeredChild))) return [];
+  // a crew job or a helper does this work in its own thread, and it is already running: the baton does not start a second turn
+  const worker = task.workingNotes["worker.kind"];
+  if (holder.role === "assigned" && worker !== undefined) return startWorker(ctx, host, task, holder.who, worker, sig, before);
   const targets = await agentsToWake(host, task, holder.who);
   const answered = [...(fresh ? [] : before?.answered ?? []), ...(answeredChild ? [answeredChild] : [])].slice(-50);
   const asker = await askerOf(host, task);
@@ -218,7 +227,48 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     woken.push(agentId);
   }
   saveBaton(ctx.db, { taskId: task.id, sig, woken, answered, threadId, asker, wokeAt: now });
+  // the work has started, and the status says so for everyone looking; only the state table moves it
+  if (holder.role === "assigned" && task.state === "todo" && woken.length > 0) await host.call("tasks.transition", { taskId: task.id, to: "doing", expectedFrom: "todo" }).catch((e: unknown) => host.log?.("a woken task could not be marked as started", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
   return woken;
+}
+
+/** The work of a task runs in a crew job or a helper thread. A planned crew child starts its job here; a job or helper that is bound already gets a baton row, so a turn that ends on it is noticed. */
+async function startWorker(ctx: Pick<EngineCtx, "db">, host: BatonHost, task: BatonTask, who: Who, worker: string, sig: string, before: BatonRow | undefined): Promise<string[]> {
+  if (before?.sig === sig) return [];
+  const asker = await askerOf(host, task);
+  if (!asker || who.kind !== "agent") return [];
+  if (task.workerThread) { saveBaton(ctx.db, { taskId: task.id, sig, woken: worker === "helper" ? [who.id] : [], answered: [], threadId: task.workerThread, asker, wokeAt: clockOf(host) }); return []; }
+  const projectId = task.workingNotes["worker.project"];
+  const origin = task.source?.kind === "chat" ? task.source.id : task.workingNotes["thread.origin"];
+  if (worker !== "crew" || !projectId || !origin) return [];
+  try {
+    await host.call("engine.crew.start", { threadId: origin, projectId, teammateId: who.id, title: task.title.slice(0, 120), brief: task.workingNotes["brief"] ?? task.title, taskId: task.id, idempotencyKey: `task-crew:${task.id}` }, asker);
+    return [who.id];
+  } catch (e) { host.log?.("a planned crew task could not start", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }); return []; }
+}
+
+/** After a restart: every open task an agent holds and nothing blocks is picked up from its own state. A baton never woken is woken now; one cut off mid-turn, with no turn left to recover, is woken again. No polling: this runs once, at boot. */
+export async function resumeTasks(ctx: Pick<EngineCtx, "db">, host: BatonHost, engine: TurnEngine): Promise<string[]> {
+  ensureBaton(ctx.db);
+  const out: string[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 40; page++) {
+    const got = (await host.call("tasks.list", { scope: "all", states: ["todo", "doing", "in_review", "awaiting_approval"], kinds: ["work"], limit: 500, ...(cursor ? { cursor } : {}) })) as { tasks?: BatonTask[]; next?: string };
+    for (const t of got.tasks ?? []) {
+      const holder = holderOf(t);
+      if (!holder || holder.who.kind !== "agent" || t.blocked === true) continue;
+      const row = batonRow(ctx.db, t.id);
+      if (!row) { out.push(...(await onTaskEvent(ctx, host, engine, { name: "task.ready", payload: { taskId: t.id } }))); continue; }
+      if (row.sig !== signatureOf(t, holder) || row.turnEndedAt !== undefined || !row.threadId) continue;
+      let busy = false;
+      try { busy = engine.turns(row.threadId).some((x) => x.state === "running" || x.state === "waiting" || x.state === "queued"); } catch { /* not open on this host yet */ }
+      if (busy) continue;
+      if (await openThread(ctx.db, host, engine, row.threadId, holder.who.id, row.asker ?? t.createdBy)) { engine.wake(row.threadId, holder.who.id); out.push(holder.who.id); }
+    }
+    cursor = got.next;
+    if (!cursor) break;
+  }
+  return out;
 }
 
 // ---- no silent stops ----
@@ -260,6 +310,8 @@ export async function onTurnEnded(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     if (ev.type === "turn.cancelled") { saveBaton(ctx.db, { ...row, nudgedAt: row.nudgedAt ?? now, escalatedAt: now }); result = "stopped"; continue; }
     const on = await stillOnAgent(host, row, ev.agentId);
     if (!on) { result = "moved"; continue; }
+    // a helper's answer is its hand-in: it runs one turn and the chat that started it has the result
+    if (on.task.workingNotes["worker.kind"] === "helper") { await host.call("tasks.submit", { taskId: on.task.id, summary: "The helper finished." }).catch((e: unknown) => host.log?.("a helper's task could not be handed in", { taskId: on.task.id, error: e instanceof Error ? e.message : String(e) })); result = "moved"; continue; }
     const next: BatonRow = { ...row, turnEndedAt: row.turnEndedAt ?? now };
     if (ev.type === "turn.failed" || row.nudgedAt !== undefined) {
       saveBaton(ctx.db, { ...next, nudgedAt: next.nudgedAt ?? now });

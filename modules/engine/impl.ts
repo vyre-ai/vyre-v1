@@ -73,7 +73,7 @@ export const consumers = {
   },
   /** The baton of a work task landed on an agent: wake it in the task's thread (handlers/task-baton.ts). */
   "engine.task_baton": {
-    on: ["task.created", "task.assigned", "task.transitioned", "task.delegated", "task.escalated", "task.taken", "task.released", "task.withdrawn"],
+    on: ["task.created", "task.assigned", "task.transitioned", "task.delegated", "task.escalated", "task.taken", "task.released", "task.withdrawn", "task.ready", "task.children_settled", "task.updated"],
     run: async (ctx: EngineCtx, event: Parameters<typeof onTaskEvent>[3]): Promise<string[]> => {
       const engine = await ensureRuntime(ctx);
       const host = engineHost();

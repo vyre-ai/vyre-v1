@@ -6,7 +6,19 @@ import {
   needsYouList, notesDelete, notesSet, release, snooze, take, transition, update, withdraw,
 } from "./state.ts";
 
+import { byKey, index, rev } from "./index-read.ts";
+import { digest } from "./digest.ts";
+import { plan } from "./plan.ts";
+import { remove, restore } from "./remove.ts";
+
 export const handlers = {
+  "tasks.by_key": byKey,
+  "tasks.delete": remove,
+  "tasks.digest": digest,
+  "tasks.index": index,
+  "tasks.plan": plan,
+  "tasks.restore": restore,
+  "tasks.rev": rev,
   "tasks.act": act,
   "tasks.ask": ask,
   "tasks.assign": assign,

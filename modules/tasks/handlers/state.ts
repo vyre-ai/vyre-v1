@@ -3,7 +3,7 @@
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
 import { isTrustedService } from "../../../lib/trust.ts";
 import {
-  actionableByMe, allTasks, clean, emitTask, findTask, getTask, historyOf, holds, isBlocked, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
+  actionableByMe, allTasks, clean, emitTask, ensurePrefix, findTask, getTask, historyOf, holds, isBlocked, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
   out, page, raise, readPolicy, sameAssignee, toOut, touch, visibleTo, whoIs,
 } from "../projections.ts";
 import { ensureThread, syncThread } from "./thread.ts";
@@ -154,7 +154,7 @@ function checkAssignee(ctx: TasksCtx, a: Assignee | undefined, what: string): vo
   if (a && !nonEmpty(a.id)) raise(ctx, "validation.precondition_failed", `The ${what} needs an id.`, { reason: "bad_assignee" });
 }
 
-function checkSlots(ctx: TasksCtx, kind: TaskKind, s: { assigned: Assignee; reviewer?: Assignee | undefined; approver?: Assignee | undefined }, policy: Policy): void {
+export function checkSlots(ctx: TasksCtx, kind: TaskKind, s: { assigned: Assignee; reviewer?: Assignee | undefined; approver?: Assignee | undefined }, policy: Policy): void {
   checkAssignee(ctx, s.assigned, "assignee"); checkAssignee(ctx, s.reviewer, "reviewer"); checkAssignee(ctx, s.approver, "approver");
   if (kind === "work" && !policy.allowSelfReview && (sameAssignee(s.reviewer, s.assigned) || sameAssignee(s.approver, s.assigned))) {
     raise(ctx, "validation.precondition_failed", "The reviewer and the approver cannot be the person doing the work.", { reason: "self_review" });
@@ -165,7 +165,7 @@ function checkSlots(ctx: TasksCtx, kind: TaskKind, s: { assigned: Assignee; revi
 }
 
 /** The person responsible for an agent: its owner, so a stuck or unanswered agent task has someone to land on. */
-async function responsibleFor(ctx: TasksCtx, a: Assignee): Promise<string | undefined> {
+export async function responsibleFor(ctx: TasksCtx, a: Assignee): Promise<string | undefined> {
   if (a.kind !== "agent" || !ctx.call) return undefined;
   try {
     const r = (await ctx.call("access.principals.get", { principal: { kind: "agent", id: a.id } })) as { principal?: { owner?: unknown } } | null;
@@ -212,10 +212,11 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   for (const d of dependsOn) if (!findTask(ctx.db, d)) raise(ctx, "validation.precondition_failed", "A task it waits on does not exist.", { reason: "dependency_missing", taskId: d });
   if (input.parentTaskId !== undefined && !findTask(ctx.db, input.parentTaskId)) raise(ctx, "validation.precondition_failed", "The parent task does not exist.", { reason: "parent_missing", taskId: input.parentTaskId });
 
+  await ensurePrefix(ctx);
   const now = ctx.now();
   const t: Task = {
     id: newTaskId(), kind, title, state: INITIAL_STATE[kind], blocks: (input.blocks as Block[] | undefined) ?? [], actions, assigned,
-    fileIds: [...new Set<string>(input.fileIds ?? [])], dependsOn, followers: [], workingNotes: {}, reviewLoops: 0,
+    fileIds: [...new Set<string>(input.fileIds ?? [])], dependsOn, followers: [], workingNotes: {}, reviewLoops: 0, labels: [...new Set<string>(input.labels ?? [])], fields: (input.fields as Record<string, unknown> | undefined) ?? {},
     createdBy: ctx.principal.id, createdAt: now, updatedAt: now, version: 0,
   };
   if (nonEmpty(input.summary)) t.summary = input.summary;
@@ -224,6 +225,9 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (approver) t.approver = approver;
   if (input.due !== undefined) t.due = input.due;
   if (input.effort !== undefined) t.effort = input.effort;
+  if (input.priority !== undefined) t.priority = input.priority;
+  if (input.start !== undefined) t.start = input.start;
+  if (input.recur !== undefined) t.recur = input.recur;
   if (input.recordId !== undefined) t.recordId = input.recordId;
   if (input.source) t.source = input.source as TaskSource;
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
@@ -288,7 +292,7 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Reopen the task before editing it.", { reason: "closed" });
   const locked = t.source?.kind === "gate" || t.payloadHash !== undefined;
   const changed: string[] = [];
-  const set = (k: "title" | "blocks" | "summary" | "why" | "due" | "effort", v: unknown): void => {
+  const set = (k: "title" | "blocks" | "summary" | "why" | "due" | "effort" | "priority" | "labels" | "start" | "fields" | "recur" | "parentTaskId" | "workerThread", v: unknown): void => {
     const rec = t as unknown as Record<string, unknown>;
     if (JSON.stringify(rec[k]) === JSON.stringify(v)) return;
     if (v === undefined) delete rec[k]; else rec[k] = v;
@@ -308,6 +312,27 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   if ("why" in input && input.why !== undefined) set("why", nonEmpty(input.why) ? input.why : undefined);
   if ("due" in input && input.due !== undefined) set("due", input.due === null ? undefined : (input.due as number));
   if ("effort" in input && input.effort !== undefined) set("effort", input.effort === null ? undefined : (input.effort as number));
+  if ("priority" in input && input.priority !== undefined) set("priority", input.priority ?? undefined);
+  if ("labels" in input && input.labels !== undefined) set("labels", [...new Set<string>(input.labels)]);
+  if ("start" in input && input.start !== undefined) set("start", input.start ?? undefined);
+  if ("recur" in input && input.recur !== undefined) set("recur", input.recur ?? undefined);
+  if ("fields" in input && input.fields !== undefined) {
+    const next: Record<string, unknown> = { ...t.fields };
+    for (const [k, v] of Object.entries(input.fields as Record<string, unknown>)) { if (v === null) delete next[k]; else next[k] = v; }
+    set("fields", next);
+  }
+  if ("parentTaskId" in input && input.parentTaskId !== undefined) {
+    const to: string | null = input.parentTaskId;
+    if (to !== null) {
+      // a child moves between parents: never under itself or one of its own children
+      for (let at: string | undefined = to, hops = 0; at !== undefined && hops < 100; at = findTask(ctx.db, at)?.parentTaskId, hops++) {
+        if (at === t.id) raise(ctx, "validation.precondition_failed", "A task cannot sit under itself.", { reason: "parent_loop" });
+      }
+      if (!findTask(ctx.db, to)) raise(ctx, "validation.precondition_failed", "The parent task does not exist.", { reason: "parent_missing", taskId: to });
+    }
+    set("parentTaskId", to ?? undefined);
+  }
+  if ("workerThread" in input && typeof input.workerThread === "string") set("workerThread", input.workerThread);
   // a task whose thread could not be made when it was created is linked to the one made later; a thread already linked is never replaced
   if ("threadId" in input && typeof input.threadId === "string" && t.threadId === undefined) { t.threadId = input.threadId; changed.push("threadId"); }
   if (changed.length) {
@@ -355,8 +380,8 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
 
 export async function snooze(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
-  if (!isRequest(t.kind) || !isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Only an open request can be snoozed.", { reason: "not_a_request" });
-  if (!actionableByMe(ctx, t) && !isTrustedService(ctx.principal)) raise(ctx, "validation.precondition_failed", "Only the person this request is waiting on can snooze it.", { reason: "wrong_actor" });
+  if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Only an open task can be snoozed.", { reason: "not_a_request" });
+  if (!actionableByMe(ctx, t) && !isTrustedService(ctx.principal)) raise(ctx, "validation.precondition_failed", "Only the person this task is waiting on can snooze it.", { reason: "wrong_actor" });
   const until: number | null = input.until ?? null;
   if (until !== null && until <= ctx.now()) raise(ctx, "validation.precondition_failed", "Pick a time in the future.", { reason: "past_time" });
   if (until === null) delete t.snoozedUntil; else t.snoozedUntil = until;
@@ -390,7 +415,10 @@ export async function release(ctx: TasksCtx, input: In): Promise<unknown> {
   return { task: out(ctx, t) };
 }
 
-/** Withdraw the open requests of a stopped chat or run, or one request, with a note. */
+const CANCELERS: readonly Actor[] = ["assigned", "reviewer", "approver", "creator", "responsible"];
+export const mayLetGo = (ctx: TasksCtx, t: Task): boolean => mayAct(t, { action: "cancel", to: "canceled", actors: CANCELERS, noteRequired: false }, whoIs(ctx));
+
+/** Withdraw the open requests of a stopped chat or run, or one request or task, with a note. */
 export async function withdraw(ctx: TasksCtx, input: In): Promise<unknown> {
   const hasSource = input.sourceKind !== undefined && input.sourceId !== undefined;
   if (input.taskId === undefined && !hasSource) raise(ctx, "validation.bad_input", "Say which request to withdraw: a task, or a source kind and id.", { errors: ["/taskId: required unless sourceKind and sourceId are given"] });
@@ -401,7 +429,12 @@ export async function withdraw(ctx: TasksCtx, input: In): Promise<unknown> {
     : allTasks(ctx.db, "m.source_kind = ? AND m.source_id = ?", input.sourceKind, input.sourceId);
   let n = 0;
   for (const t of rows) {
-    if (!isRequest(t.kind) || !isOpen(t.state)) continue;
+    if (!isOpen(t.state)) continue;
+    // a source that stopped takes its requests with it; plain work is let go one task at a time, by someone on it
+    if (!isRequest(t.kind)) {
+      if (input.taskId === undefined) continue;
+      if (!isTrustedService(ctx.principal) && !mayLetGo(ctx, t)) raise(ctx, "validation.precondition_failed", "Only someone on this task can let it go.", { reason: "wrong_actor" });
+    }
     if (input.taskId !== undefined && hasSource && (t.source?.kind !== input.sourceKind || t.source?.id !== input.sourceId)) continue;
     t.state = "canceled";
     delete t.snoozedUntil;

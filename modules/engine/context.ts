@@ -291,7 +291,9 @@ export function createContextBuilder(d: ContextDeps) {
     const who = (id: string): string => nameMap[id] ?? (id === agentId ? name : id.startsWith("agt_") ? "an agent" : "a teammate");
     const where: string[] = [];
     const spaceRow = space?.["space"] as Obj | undefined;
-    const taskId = str(th?.["scopeType"]) === "task" ? str(th?.["scopeId"]) : undefined;
+    // the tasks in hand; a crew job or helper thread learns here which task it is doing
+    const digest = await read<Obj>("tasks.digest", { agentId, threadId: input.threadId }, asker);
+    const taskId = (str(th?.["scopeType"]) === "task" ? str(th?.["scopeId"]) : undefined) ?? str(digest?.["workerTaskId"]);
     if (str(spaceRow?.["name"])) where.push(`Space: ${str(spaceRow?.["name"])}${str(spaceRow?.["kind"]) ? ` (${str(spaceRow?.["kind"])})` : ""}.`);
     const kind = str(th?.["kind"]) ?? "chat";
     const scope = await scopeLine(str(th?.["scopeType"]), str(th?.["scopeId"]), asker);
@@ -370,6 +372,7 @@ export function createContextBuilder(d: ContextDeps) {
       const t = await taskOf(taskId, asker);
       if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker)));
     }
+    if (str(digest?.["text"])) sections.push({ id: "digest", stable: false, once: true, text: `Tasks in hand (tasks_get has the detail):\n${str(digest?.["text"])}` });
 
     const older = str(summary?.["summary"]);
     if (older) add("earlier", false, `${cutTo(older, 8_000)}\nThe full transcript is chats/${input.threadId}/transcript.md; transcript_search finds an exact line.`);

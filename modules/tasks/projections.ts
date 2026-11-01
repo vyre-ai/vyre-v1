@@ -13,6 +13,8 @@ export interface Assignee { kind: AssigneeKind; id: string }
 export interface Block { type: string; v?: number; data: unknown }
 export interface ActionDef { key: string; label: string; note?: "required" | "optional" }
 export interface TaskSource { kind: "chat" | "run" | "gate" | "journey" | "manual"; id: string }
+export type Priority = "urgent" | "high" | "normal" | "low";
+export interface Recur { every: "day" | "week" | "month"; n?: number }
 
 export const KINDS: readonly TaskKind[] = ["work", "approve", "review", "answer", "unblock", "signature"];
 export const STATES: readonly TaskState[] = ["todo", "doing", "in_review", "awaiting_approval", "done", "canceled"];
@@ -55,6 +57,18 @@ export interface Task {
   handledAt?: number;
   /** The person responsible for an agent assignee (its owner), resolved when the slot was set. */
   responsible?: string;
+  /** The short key of the task in its Space ("VY-123"), and its number. Set once. */
+  key?: string;
+  keyNo?: number;
+  priority?: Priority;
+  labels: string[];
+  start?: number;
+  /** The values of the fields the Space added to the Task type. */
+  fields: Record<string, unknown>;
+  /** Comes back after it is Done. */
+  recur?: Recur;
+  /** The thread a crew job or a helper does this task in, when that is not the task's own thread. */
+  workerThread?: string;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -126,7 +140,8 @@ const SELECT = `SELECT c.id AS id, m.kind AS kind, c.title AS title, c.summary A
   m.parent_task AS parent_task, m.depends_on AS depends_on, m.followers AS followers, m.working_notes AS working_notes, m.thread_id AS thread_id,
   m.review_loops AS review_loops, m.snoozed_until AS snoozed_until, m.expires_at AS expires_at, m.decision_id AS decision_id,
   m.payload_hash AS payload_hash, c.handled_by AS handled_by, c.handled_at AS handled_at, c.responsible AS responsible,
-  c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at, m.version AS version
+  c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at, m.version AS version,
+  c.key AS key, c.key_no AS key_no, c.priority AS priority, c.labels AS labels, c.start_at AS start_at, c.fields AS fields, c.recur AS recur, c.worker_thread AS worker_thread
   FROM tasks_core c JOIN tasks_meta m ON m.id = c.id`;
 
 type Raw = Record<string, unknown>;
@@ -150,6 +165,8 @@ function rowToTask(r: Raw): Task {
     dependsOn: json<string[]>(r.depends_on, []),
     followers: json<string[]>(r.followers, []),
     workingNotes: json<Record<string, string>>(r.working_notes, {}),
+    labels: json<string[]>(r.labels, []),
+    fields: json<Record<string, unknown>>(r.fields, {}),
     reviewLoops: num(r.review_loops) ?? 0,
     createdBy: r.created_by as string,
     createdAt: r.created_at as number,
@@ -176,6 +193,12 @@ function rowToTask(r: Raw): Task {
   const handledBy = str(r.handled_by); if (handledBy !== undefined) t.handledBy = handledBy;
   const handledAt = num(r.handled_at); if (handledAt !== undefined) t.handledAt = handledAt;
   const responsible = str(r.responsible); if (responsible !== undefined) t.responsible = responsible;
+  const key = str(r.key); if (key !== undefined) t.key = key;
+  const keyNo = num(r.key_no); if (keyNo !== undefined) t.keyNo = keyNo;
+  const priority = str(r.priority); if (priority !== undefined) t.priority = priority as Priority;
+  const start = num(r.start_at); if (start !== undefined) t.start = start;
+  const recur = json<Recur | null>(r.recur, null); if (recur) t.recur = recur;
+  const worker = str(r.worker_thread); if (worker !== undefined) t.workerThread = worker;
   return t;
 }
 
@@ -184,11 +207,12 @@ const js = (v: unknown): string => JSON.stringify(v);
 
 /** Insert or replace both halves of the row. The caller sets updatedAt; version counts writes. */
 export function saveTask(db: Db, t: Task): void {
+  if (t.keyNo === undefined) mintKey(db, t);
   db.run(
-    `INSERT OR REPLACE INTO tasks_core (id, title, summary, state, actions, file_ids, record_id, created_by, created_at, updated_at, handled_by, handled_at, responsible)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO tasks_core (id, title, summary, state, actions, file_ids, record_id, created_by, created_at, updated_at, handled_by, handled_at, responsible, key, key_no, priority, labels, start_at, fields, recur, worker_thread)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     t.id, t.title, nul(t.summary), t.state, js(t.actions), js(t.fileIds), nul(t.recordId), t.createdBy, t.createdAt, t.updatedAt,
-    nul(t.handledBy), nul(t.handledAt), nul(t.responsible),
+    nul(t.handledBy), nul(t.handledAt), nul(t.responsible), nul(t.key), nul(t.keyNo), nul(t.priority), js(t.labels), nul(t.start), js(t.fields), t.recur ? js(t.recur) : null, nul(t.workerThread),
   );
   db.run(
     `INSERT OR REPLACE INTO tasks_meta (id, kind, assigned, reviewer, approver, taken_by, taken_at, snoozed_until, why, blocks, source_kind, source_id,
@@ -198,6 +222,31 @@ export function saveTask(db: Db, t: Task): void {
     nul(t.snoozedUntil), nul(t.why), js(t.blocks), nul(t.source?.kind), nul(t.source?.id), nul(t.parentTaskId), js(t.dependsOn), js(t.followers),
     js(t.workingNotes), t.reviewLoops, nul(t.decisionId), nul(t.payloadHash), nul(t.expiresAt), nul(t.due), nul(t.effort), nul(t.threadId), t.version, t.updatedAt,
   );
+}
+
+const PREFIX_KEY = "tasks.key_prefix";
+const DEFAULT_PREFIX = "VY";
+/** The letters of a Space's keys: the first two of its name, or the first letter of each of two words. */
+export function prefixOf(name: string): string {
+  const words = name.toUpperCase().split(/[^A-Z0-9]+/).filter((w) => w !== "");
+  const out = words.length > 1 ? words.slice(0, 2).map((w) => w[0]).join("") : (words[0] ?? "").slice(0, 2);
+  return out.length === 2 ? out : DEFAULT_PREFIX;
+}
+export function keyPrefix(db: Db): string | undefined {
+  const raw = (db.all("SELECT policy_value FROM tasks_policy WHERE policy_key = ?", PREFIX_KEY)[0] as { policy_value?: string } | undefined)?.policy_value;
+  return typeof raw === "string" ? json<string | undefined>(raw, undefined) : undefined;
+}
+/** Named once, the first time the Space makes a task, from the Space's name. A key already given never changes. */
+export async function ensurePrefix(ctx: TasksCtx): Promise<void> {
+  if (keyPrefix(ctx.db) !== undefined) return;
+  let name = "";
+  try { name = String(((await ctx.call?.("spaces.get", {})) as { space?: { name?: unknown } } | null)?.space?.name ?? ""); } catch { /* the default letters */ }
+  ctx.db.run("INSERT OR REPLACE INTO tasks_policy (policy_key, policy_value) VALUES (?, ?)", PREFIX_KEY, JSON.stringify(prefixOf(name)));
+}
+function mintKey(db: Db, t: Task): void {
+  const last = (db.all("SELECT MAX(key_no) AS n FROM tasks_core")[0] as { n?: number | null } | undefined)?.n ?? 0;
+  t.keyNo = Number(last) + 1;
+  t.key = `${keyPrefix(db) ?? DEFAULT_PREFIX}-${t.keyNo}`;
 }
 
 export function findTask(db: Db, id: string): Task | undefined {
@@ -268,6 +317,7 @@ export function toOut(t: Task, idx: OpenIndex): Record<string, unknown> {
     blocked: isBlocked(t, idx), blocks: t.blocks, actions: t.actions,
     assigned: t.assigned, reviewer: t.reviewer, approver: t.approver,
     takenBy: t.takenBy, due: t.due, effort: t.effort, recordId: t.recordId, fileIds: t.fileIds, source: t.source,
+    key: t.key, priority: t.priority, labels: t.labels, start: t.start, fields: t.fields, recur: t.recur, workerThread: t.workerThread,
     parentTaskId: t.parentTaskId, dependsOn: t.dependsOn, followers: t.followers, workingNotes: notes, threadId: t.threadId,
     reviewLoops: t.reviewLoops, snoozedUntil: t.snoozedUntil, createdBy: t.createdBy, createdAt: t.createdAt, updatedAt: t.updatedAt,
   });

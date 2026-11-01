@@ -396,9 +396,22 @@ function workerFor(ctx: ChatCtx, parent: ThreadRec, named: string | undefined): 
   return lead.agentId;
 }
 
+async function bindHelperTask(ctx: ChatCtx, h: { taskId: string | undefined; title: string; instruction: string; agentId: string; parentThreadId: string; helperThreadId: string; lineId: string; blockId: string }): Promise<void> {
+  if (!ctx.call) return;
+  try {
+    const taskId = h.taskId ?? ((await ctx.call("tasks.create", {
+      title: h.title, assigned: { kind: "agent", id: h.agentId }, source: { kind: "chat", id: h.parentThreadId }, notes: { brief: h.instruction, "worker.kind": "helper" }, idempotencyKey: `helper-task:${h.helperThreadId}`,
+    })) as { task?: { id?: string } }).task?.id;
+    if (!taskId) return;
+    if (h.taskId) await ctx.call("tasks.working_notes.set", { taskId, key: "worker.kind", value: "helper" });
+    await ctx.call("tasks.update", { taskId, workerThread: h.helperThreadId });
+    patchBlockInMessage(ctx.db, h.lineId, h.blockId, (b) => ({ ...b, data: { ...(b["data"] as Record<string, unknown>), taskId } }));
+  } catch { /* the helper goes on; only the task is missing */ }
+}
+
 export async function helperStart(
   ctx: ChatCtx,
-  input: { threadId: string; title: string; instruction: string; agentId?: string; model?: string; provider?: string; effort?: string; crew?: boolean; idempotencyKey?: string },
+  input: { threadId: string; title: string; instruction: string; agentId?: string; model?: string; provider?: string; effort?: string; crew?: boolean; taskId?: string; idempotencyKey?: string },
 ) {
   ensure(ctx.db);
   const parent = open(ctx, input.threadId);
@@ -422,6 +435,8 @@ export async function helperStart(
   if (asker.startsWith("usr_")) addMember(ctx, helper.id, asker, "owner");
   addAgent(ctx, helper.id, { agentId, mode: "lead", model: input.model, provider: input.provider, effort: input.effort, addedBy: asker });
 
+  // A worker that outlives the turn is a task: the one named, else a new one. A crew job binds its own (engine.crew.start). Best effort: the helper runs whether or not this lands.
+  if (input.crew !== true) await bindHelperTask(ctx, { taskId: input.taskId, title, instruction, agentId, parentThreadId: parent.id, helperThreadId: helper.id, lineId: line.id, blockId });
   const first = insertMessage(ctx, helper.id, { author: ctx.principal.id, kind: authorKind(ctx), body: instruction });
   ctx.emit("helper.started", helper.id, { helperThreadId: helper.id, parentThreadId: parent.id, agentId, ...(input.model !== undefined ? { model: input.model } : {}) });
   emitStarted(ctx, helper);

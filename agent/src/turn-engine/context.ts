@@ -9,6 +9,7 @@
 //   skills      the index of skills it may load, one line each
 //   can         a map of what it can do here: grants, routines and watchers, its computer, the Vault handles it may use
 //   task        in a task thread: your seat, the brief, what counts as done, the fixes asked for and the baton tools to finish with (modules/engine/context.ts)
+//   digest      the tasks in hand in about 300 tokens (tasks.digest): after every stable section so the prefix cache holds, and a resumed session gets it only when it changed
 //   earlier     a summary of the turns older than the recent ones shown word for word
 //   handoff     one turn only: the chat moved to this engine, with the summary it starts from
 //   screen      what the person has open (ScreenContext)
@@ -21,14 +22,16 @@
 import type { SystemBlock } from "../drivers/api/types.ts";
 import { fingerprint } from "../drivers/api/prefix.ts";
 
-export type SectionId = "identity" | "rules" | "where" | "memory" | "skills" | "can" | "task" | "earlier" | "handoff" | "screen" | "focus" | "now" | "waiting";
+export type SectionId = "identity" | "rules" | "where" | "memory" | "skills" | "can" | "task" | "digest" | "earlier" | "handoff" | "screen" | "focus" | "now" | "waiting";
 
-export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "memory", "skills", "can", "task", "earlier", "handoff", "screen", "focus", "now", "waiting"];
+export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "memory", "skills", "can", "task", "digest", "earlier", "handoff", "screen", "focus", "now", "waiting"];
 
 export interface ContextSection {
   id: SectionId;
   /** Does not change from turn to turn for the same agent, person and place: it goes first and carries the cache marker. */
   stable: boolean;
+  /** Changes from time to time, so it stays out of the cached prefix, but a session that holds it is not sent it again until it changes. */
+  once?: boolean;
   text: string;
 }
 
@@ -166,7 +169,7 @@ export function contextPrompt(ctx: TurnContext | undefined, fresh: boolean, sent
   const parts: string[] = [];
   for (const s of ordered(ctx.sections)) {
     const h = sectionHash(s);
-    if (!fresh && s.stable && sent?.get(s.id) === h) continue;
+    if (!fresh && (s.stable || s.once === true) && sent?.get(s.id) === h) continue;
     sent?.set(s.id, h);
     parts.push(bodyOf(s));
   }

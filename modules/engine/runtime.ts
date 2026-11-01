@@ -22,7 +22,7 @@ import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "
 import { withTranscript } from "./transcript.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
-import { onTurnEnded } from "./handlers/task-baton.ts";
+import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
@@ -302,6 +302,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // threads with work a dead host left: queued or running rows with no live lease
     await recoverStale(ctx, engine, ["queued", "running"]);
     void closeNoAccountTasks(ctx.db).catch((e) => h.log?.("the no-account sweep failed", { error: e instanceof Error ? e.message : String(e) }));
+    // the tasks agents hold pick up from their own state after a restart
+    void resumeTasks(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, engine).catch((e) => h.log?.("tasks could not be picked up after a restart", { error: e instanceof Error ? e.message : String(e) }));
     return engine;
   })().catch((e) => { building = null; throw e; });
   return building;
