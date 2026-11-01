@@ -1,0 +1,1 @@
+- An invite-only channel is now for the people in it: someone in the Space who is not in it cannot read it, post, react, pin, open threads under it, add people or agents, connect an outside agent, or find it in lists and search. Before, only the channel list hid it.
