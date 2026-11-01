@@ -128,12 +128,47 @@ async function callTool(prompt) {
   } finally { mcp?.close(); }
 }
 
+// A real claude merges a user message that arrives while it is mid-turn into that turn (one result for both) instead of answering it as a turn of its own. `holding` is the part of a turn where the fake does the same:
+// what arrives then is absorbed into the running turn's answer, and no second result follows.
+let holding = false;
+const absorbed = [];
+
+/** "askhold <ms> <json>": asks the question over MCP (ask_question), then keeps its turn open for <ms> as a model does while it finishes its sentence, and only then ends it. */
+async function askHold(prompt) {
+  const m = /^\s*askhold\s+(\d+)\s+(.*)$/s.exec(prompt);
+  if (!m) { reply(["askhold: say how long and what to ask"]); return; }
+  let args = {};
+  try { args = JSON.parse(m[2].trim()); } catch { reply(["askhold: the question is not JSON"]); return; }
+  let mcp;
+  try {
+    mcp = await mcpOpen();
+    const r = await mcp.call("ask_question", args);
+    holding = true;
+    init();
+    // while it finishes its work the model reads a few files: each is a tool call and its result, a step boundary the engine looks at for steering
+    const until = Date.now() + Number(m[1]);
+    for (let n = 1; Date.now() < until; n++) {
+      out({ type: "assistant", message: { id: `m_step${n}`, content: [{ type: "tool_use", id: `toolu_step${n}`, name: "Read", input: { file_path: "/tmp/x" } }] } });
+      await new Promise((res) => setTimeout(res, 150));
+      out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_step${n}`, content: "ok" }] } });
+      await new Promise((res) => setTimeout(res, 150));
+    }
+    holding = false;
+    const merged = absorbed.splice(0, absorbed.length);
+    reply([r?.error || r?.result?.isError ? `ask_question refused: ${JSON.stringify(r)}` : `I have asked; waiting for your answer.${merged.length ? ` Merged: ${merged.join(" | ")}` : ""}`]);
+  } catch (e) {
+    reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
+  } finally { mcp?.close(); }
+}
+
 async function run(raw) {
   const prompt = withoutContext(raw);
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
   const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) { await callTool(toolLine); return; }
   const first = prompt.trim().split(/\s+/)[0];
+  const holdLine = prompt.split("\n").reverse().find((l) => /^askhold\s+\d+/.test(l));   // the instruction may follow other lines the person's messages brought
+  if (holdLine) { await askHold(holdLine.trim()); return; }
   switch (first) {
     case "hello": reply(["Hello", " from the fake engine."]); break;
     case "envcheck": {
@@ -183,6 +218,7 @@ process.stdin.on("data", (d) => {
     if (line.trim() === "") continue;
     let prompt = "";
     try { prompt = JSON.parse(line).message.content.map((c) => c.text ?? "").join("\n"); } catch { continue; }
+    if (holding) { absorbed.push(withoutContext(prompt)); continue; }
     queue = queue.then(() => run(prompt));
   }
 });
