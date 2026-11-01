@@ -257,6 +257,17 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
     });
 
     await step("Relaunch on a dead page: a saved Console address lands somewhere usable", async () => {
+      // a tab list saved with the Console as the open tab (what an older build or a stale link left), then the app reopened at its own address
+      const rewrote = await page.evaluate(() => {
+        const keys = Object.keys(localStorage).filter((k) => k.startsWith("vyre.tabs.v1:"));
+        for (const k of keys) localStorage.setItem(k, JSON.stringify({ v: 1, active: "console", tabs: [{ key: "console", title: "Console", place: "console" }] }));
+        return keys.length;
+      });
+      assert.ok(rewrote > 0, "the Space had saved its tabs on this device");
+      await page.goto(`${web.origin}/`, { waitUntil: "load" });
+      await page.getByTestId("space-tile").waitFor({ timeout: 20_000 });
+      assert.equal(await page.getByText("Needs a Team Space").count(), 0, "a saved Console tab does not come back");
+      assert.equal(await page.getByText("Console", { exact: true }).count(), 0, "no Console tab in the strip");
       // the saved place is the Console, which a Personal Space has not: reopening there must reach the app with its rail, never a page with no way back
       await page.goto(`${web.origin}/console`, { waitUntil: "load" });
       await page.getByTestId("space-tile").waitFor({ timeout: 20_000 });
