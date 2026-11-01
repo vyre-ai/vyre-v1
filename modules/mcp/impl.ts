@@ -32,13 +32,20 @@ export interface RuntimeOptions {
 export async function withChatMode(o: RuntimeOptions, caller: McpCaller): Promise<McpCaller> {
   if (caller.kind !== "driver" || caller.threadId === undefined) return caller;
   try {
-    const r = await o.invoke("threads.get", { threadId: caller.threadId }, { space: o.space, principal: caller.principal, ...(caller.actingFor ? { actingFor: caller.actingFor } : {}), origin: "mcp" });
-    const thread = r.status === "ok" ? (r.output as { thread?: { mode?: unknown; title?: unknown; kind?: unknown; scopeType?: unknown } } | null)?.thread : undefined;
+    const seed = { space: o.space, principal: caller.principal, ...(caller.actingFor ? { actingFor: caller.actingFor } : {}), origin: "mcp" as const };
+    const r = await o.invoke("threads.get", { threadId: caller.threadId }, seed);
+    const thread = r.status === "ok" ? (r.output as { thread?: { mode?: unknown; title?: unknown; kind?: unknown; scopeType?: unknown; scopeId?: unknown } } | null)?.thread : undefined;
     const mode = thread?.mode;
+    // the same facts the API tools read for a turn (modules/engine/api-tools.ts), so an Ask or a task thread is the same on every driver
+    const facts: Partial<McpCaller> = typeof thread?.kind !== "string" ? {} : { threadKind: thread.kind as McpCaller["threadKind"], ...(typeof thread.scopeType === "string" && typeof thread.scopeId === "string" ? { scope: { type: thread.scopeType, id: thread.scopeId } } : {}) };
+    if (thread?.kind === "ask" && facts.scope) {
+      const l = await o.invoke("chat.ask_level", { threadId: caller.threadId }, seed).catch(() => null);
+      facts.askLevel = l?.status === "ok" ? ((l.output as { level?: McpCaller["askLevel"] } | null)?.level ?? null) : null;
+    }
     // a chat that builds a connector lists the builder's tools from the start: the CLI cannot pick up a tool found later with tool_search
     const preload = typeof thread?.title === "string" && CONNECTOR_CHAT.test(thread.title) ? { preload: CONNECTOR_TOOLS } : typeof thread?.title === "string" && CRM_CHAT.test(thread.title) ? { preload: CRM_TOOLS } : thread?.kind === "chat" ? { preload: CREW_TOOLS } : {};
-    if (mode === "ask" || mode === "auto" || mode === "plan") return { ...caller, mode, planMode: mode === "plan", ...preload };
-    if ("preload" in preload) return { ...caller, ...preload };
+    if (mode === "ask" || mode === "auto" || mode === "plan") return { ...caller, ...facts, mode, planMode: mode === "plan", ...preload };
+    if ("preload" in preload || facts.threadKind !== undefined) return { ...caller, ...facts, ...preload };
   } catch { /* the chat is not readable here: no mode is applied */ }
   return caller;
 }

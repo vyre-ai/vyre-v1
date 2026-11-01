@@ -80,14 +80,14 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const invoke: Invoke = (cap, input, seed) => deps.invoke(cap, input, { ...seed, principal: caller.principal, origin: "mcp", space: caller.space });
     const tools = createToolSession({
       catalog: deps.catalog, defaults: deps.defaults, invoke,
-      levelFor: () => null,
+      levelFor: () => caller.askLevel ?? null,
       canEngineer: () => caller.engineer === true,
     });
     const threadId = caller.threadId ?? caller.sessionId;
     if (caller.preload) tools.preload(threadId, caller.preload);
     const ctx: ToolCtx = {
       space: caller.space, agentId: caller.principal.id, asker,
-      thread: { threadId, kind: "chat", planMode: caller.planMode === true || caller.mode === "plan", ...(caller.mode !== undefined ? { mode: caller.mode } : {}) },
+      thread: { threadId, kind: caller.threadKind ?? "chat", planMode: caller.planMode === true || caller.mode === "plan", ...(caller.mode !== undefined ? { mode: caller.mode } : {}), ...(caller.scope ? { scope: caller.scope } : {}) },
       ...(caller.rules ? { rules: caller.rules } : {}),
       ...(caller.provider ? { provider: caller.provider } : {}),
       ...(caller.runId ? { runId: caller.runId } : {}),

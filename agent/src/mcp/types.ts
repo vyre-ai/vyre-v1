@@ -1,7 +1,7 @@
 // The MCP server for outside actors (Claude Code, Codex) and for CLI engine sessions (ARCH 6.6, 6.7; spec 2.2, 4.12, "native"). One server, two kinds of caller; only the token differs.
 // Everything the server needs from outside is a port here, so the same code runs against the real invoke pipeline and against fakes in tests.
 import type { Invoke } from "../../../host/src/invoke.ts";
-import type { AgentRules, Catalog } from "../tools/types.ts";
+import type { AgentRules, Catalog, Level, ThreadFacts } from "../tools/types.ts";
 
 /** What an outside actor may do: read, post in threads, read changesets, write on a branch (off by default; writes there need approval at the Gate). */
 export interface Scopes { read: boolean; post: boolean; readChangesets: boolean; writeBranch: boolean }
@@ -33,6 +33,10 @@ export interface McpCaller {
   preload?: readonly string[];
   /** The chat's mode when this session opened (a mode change opens a new engine session, so a new token). Plan also sets planMode. */
   mode?: "ask" | "auto" | "plan";
+  /** What the chat is, read when the session opened, so a tool here is the same tool on every driver: its kind, what it is about, and in an Ask the person's level on that (null when they hold none). */
+  threadKind?: ThreadFacts["kind"];
+  scope?: { type: string; id: string };
+  askLevel?: Level | null;
 }
 
 export interface McpServerDeps {

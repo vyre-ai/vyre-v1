@@ -4,7 +4,7 @@ import { ConnectInlineHost } from "../connect/ConnectInline.tsx";
 import { Component, Suspense, lazy, useCallback, useEffect, useRef } from "react";
 import type { ComponentType, ErrorInfo, LazyExoticComponent, ReactElement, ReactNode } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
-import { screenFromHash, setScreenContext } from "../ask/screen.ts";
+import { screenFromHash, screenOfAsk, setScreenContext } from "../ask/screen.ts";
 import { PlaceHashProvider } from "../hash/context.tsx";
 import type { PlaceHash } from "../hash/context.tsx";
 import { mark, takeStartupMs } from "../../startup/marks.ts";
@@ -68,9 +68,9 @@ function Usable({ place, spaceId }: { place: string; spaceId: string | null }): 
   return null;
 }
 
-/** The shell tells Ask Vyre where the person is whenever the place or its tab hash changes. Chats does not count: an Ask pane is about the place it was opened from. */
+/** The shell tells Ask Vyre where the person is whenever the place or its tab hash changes. In Chats an Ask names what it is about in its own address, and any other chat is about no screen: nothing is remembered from the page the person left. */
 function ScreenSignal({ place, hash }: { place: string; hash: string }): null {
-  useEffect(() => { if (place !== "chats") setScreenContext(screenFromHash(place, hash)); }, [place, hash]);
+  useEffect(() => { setScreenContext(place === "chats" ? screenOfAsk(hash) : screenFromHash(place, hash)); }, [place, hash]);
   return null;
 }
 
@@ -85,8 +85,8 @@ export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceI
     <PlaceHashProvider hash={hash} opened={stable}>
       <PlaceBoundary key={routeId} place={routeId}>
         <Suspense fallback={null}>
-          <Place place={routeId} />
           <ScreenSignal place={place} hash={hash} />
+          <Place place={routeId} />
           <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
         </Suspense>
       </PlaceBoundary>

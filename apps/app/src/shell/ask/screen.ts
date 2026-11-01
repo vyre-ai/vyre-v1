@@ -29,6 +29,13 @@ export function screenFromHash(place: string, hash: string): ScreenContext {
   };
 }
 
+/** An Ask opened in Chats: the object its address names. Null for any other chat. */
+export function screenOfAsk(hash: string): ScreenContext | null {
+  const about = parseHash(hash).args["about"];
+  const at = about === undefined ? -1 : about.indexOf(":");
+  return at > 0 && about !== undefined ? { place: "chats", open: [{ type: about.slice(0, at), id: about.slice(at + 1) }] } : null;
+}
+
 let base: ScreenContext | null = null;
 let extra: Partial<ScreenContext> = {};
 const listeners = new Set<() => void>();

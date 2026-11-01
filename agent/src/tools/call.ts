@@ -4,7 +4,7 @@ import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
-import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor } from "./access.ts";
+import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
@@ -82,6 +82,8 @@ export function createToolSession(deps: CallDeps): ToolSession {
         return fail("permission.plan_mode", traceId, { details: { tool: t.name } });
       case "ask_level":
         return fail("permission.role_lacks_permission", traceId, { message: "This pane only has view access to what you are looking at.", details: { tool: t.name, reason: "ask_level", needs: t.level }, next: askAccessNext(ctx, t) });
+      case "ask_scope":
+        return fail("permission.role_lacks_permission", traceId, { message: "This Ask changes only what it is about. Continue in a chat to change anything else.", details: { tool: t.name, reason: "ask_scope" } });
       case "no_access":
         return fail("permission.no_grant", traceId, { details: { tool: t.name, reason: "no_access" }, next: askAccessNext(ctx, t) });
       case "agent_denied":
@@ -99,6 +101,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
     const level = askLevel(deps, ctx.asker, ctx.thread);
     const why = refusalFor(deps, ctx, t, level);
     if (why !== null) return refused(why, ctx, t, traceId);
+    if (!reachesScope(t, ctx.thread, input)) return refused("ask_scope", ctx, t, traceId);
 
     const isDynamic = !deps.catalog.byName(name);
     if (!isDynamic && !deps.defaults.has(t.name) && !(ctx.thread.scope?.type === "task" && TASK_BATON_TOOLS.has(t.name)) && !loadedSet(ctx.thread.threadId).has(t.name)) {
@@ -143,7 +146,8 @@ export function createToolSession(deps: CallDeps): ToolSession {
       provider: ctx.provider,
       approval: opts.approval,
       // Ask first: a tool that changes or sends something is parked for a yes before it runs. Tools plan mode allows (reads, questions, plan proposals) never wait. Auto adds nothing and removes nothing: the Gate decides, as before.
-      ...((ctx.thread.mode === "ask" && t.effects !== "read" && t.planMode === "blocked") || (localAsk && t.effects !== "read") ? { askFirst: true } : {}),
+      // An Ask pane never sends anything out on its own, in any mode: what leaves Vyre from one always stops for a yes.
+      ...((ctx.thread.mode === "ask" && t.effects !== "read" && t.planMode === "blocked") || (localAsk && t.effects !== "read") || (ctx.thread.kind === "ask" && t.effects === "outward") ? { askFirst: true } : {}),
     };
     try {
       const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : input, seed);

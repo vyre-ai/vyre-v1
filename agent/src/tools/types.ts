@@ -25,10 +25,12 @@ export interface ToolDef {
   local: LocalKind;
   /** The capability has a Gate rule (outward or risky acts). */
   gated: boolean;
+  /** What the capability acts on: the resource type and the JSON pointer of its id in the input. Absent for a capability with no single target. */
+  resource?: { type: string; id: string };
 }
 
 /** The slices of generated/registry.json and generated/mcp-tools.json this module reads. */
-export interface RegistryCapRow { name: string; v: number; level: Level; effects: Effects; gate?: unknown }
+export interface RegistryCapRow { name: string; v: number; level: Level; effects: Effects; gate?: unknown; resource?: { type: string; id?: string } | null }
 export interface McpToolRow {
   name: string; cap: string | null; v: number; toolset: string; description: string; inputSchema: unknown;
   effects: Effects; planMode: PlanModeRule; deferred: boolean; blocks?: readonly string[]; local?: string;
@@ -40,7 +42,7 @@ export interface Catalog {
   byName(name: string): ToolDef | undefined;
 }
 
-export type Refusal = "plan_mode" | "ask_level" | "agent_denied" | "engineer" | "no_access";
+export type Refusal = "plan_mode" | "ask_level" | "ask_scope" | "agent_denied" | "engineer" | "no_access";
 
 export interface ThreadFacts {
   threadId: string;

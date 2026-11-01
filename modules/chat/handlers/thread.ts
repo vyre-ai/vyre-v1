@@ -118,6 +118,11 @@ export async function start(ctx: ChatCtx, input: StartInput) {
     const row = (ctx.db.all("SELECT id FROM chat_thread WHERE kind = 'thread' AND scopeType = 'task' AND scopeId = ? AND deleted_at IS NULL", input.scopeId) as Row[])[0];
     if (row) { const t = threadBy(ctx.db, String(row["id"]))!; return { thread: threadOut(ctx.db, t) }; }
   }
+  // One Ask per person, agent and object: opening it again from any door finds the same conversation. An opening message starts a session of its own, and a comment's pane is its own conversation (it names its record).
+  if (input.kind === "ask" && input.first === undefined && input.recordId === undefined) {
+    const row = (ctx.db.all("SELECT t.id AS id FROM chat_thread t JOIN chat_thread_agent a ON a.thread = t.id AND a.deleted_at IS NULL WHERE t.kind = 'ask' AND t.scopeType = ? AND t.scopeId = ? AND t.starter = ? AND a.agentId = ? AND t.closedAt IS NULL AND t.deleted_at IS NULL AND t.recordId IS NULL ORDER BY t.createdAt DESC LIMIT 1", input.scopeType, input.scopeId, asker, agentIds[0]) as Row[])[0];
+    if (row) return { thread: threadOut(ctx.db, threadBy(ctx.db, String(row["id"]))!) };
+  }
   // The same two people have one direct message.
   if (personId !== undefined && agentIds.length === 0 && input.scopeType === undefined) {
     const dm = directBetween(ctx, asker, personId);

@@ -126,3 +126,39 @@ test("preload lists deferred tools in a thread without a tool_search, and only t
   assert.ok(session.loaded("thr_pre").has("records_find"));
   assert.equal(session.loaded("thr_other").has("records_find"), false);
 });
+
+test("an Ask on one object changes that object and nothing else, at the person's real level", async () => {
+  const { session, calls } = makeSession({ levels: levels("edit") });
+  const c = askCtx();
+  const same = await session.call(c, "records_update", { type: "contact", recordId: "rec_1", fields: { name: "Dana" } });
+  assert.notEqual(same.kind, "error", "the object it is about");
+  const before = calls.length;
+  const other = await session.call(c, "records_update", { type: "contact", recordId: "rec_2", fields: { name: "Dana" } });
+  assert.equal(other.kind, "error");
+  if (other.kind === "error") assert.equal(other.error.details?.["reason"], "ask_scope");
+  assert.equal(calls.length, before, "the other record is never reached");
+  const read = await session.call(c, "records_get", { type: "contact", recordId: "rec_2" });
+  assert.notEqual(read.kind === "error" ? read.error.details?.["reason"] : "", "ask_scope", "reading anything the person can read is fine");
+});
+
+test("an Ask on a folder or a place is bounded by the level alone: it holds many things", async () => {
+  const { session } = makeSession({ levels: { "per_dana:folder:fld_1": "edit" } });
+  const c = ctx({ thread: thread({ kind: "ask", scope: { type: "folder", id: "fld_1" } }) });
+  const out = await session.call(c, "records_update", { type: "contact", recordId: "rec_2", fields: {} });
+  assert.notEqual(out.kind === "error" ? out.error.details?.["reason"] : "", "ask_scope");
+});
+
+test("what leaves Vyre from an Ask stops for a yes, in Auto too; a plain chat in Auto adds nothing", async () => {
+  const { session, calls, loaded } = makeSession({ levels: { "per_dana:folder:fld_1": "manage" } });
+  const outward = loaded.catalog.byName("campaigns_launch")!;
+  assert.equal(outward.effects, "outward");
+  const pane = ctx({ thread: thread({ kind: "ask", scope: { type: "folder", id: "fld_1" }, mode: "auto" }) });
+  session.search(pane, outward.name);
+  await session.call(pane, outward.name, {});
+  assert.equal(calls.at(-1)?.cap, outward.cap, "it reached the pipeline");
+  assert.equal(calls.at(-1)?.askFirst, true, "held before it runs");
+  const chat = ctx({ thread: thread({ kind: "chat", mode: "auto" }) });
+  session.search(chat, outward.name);
+  await session.call(chat, outward.name, {});
+  assert.notEqual(calls.at(-1)?.askFirst, true);
+});

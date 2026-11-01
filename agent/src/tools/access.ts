@@ -33,6 +33,26 @@ export function allowedAtLevel(level: Level, t: ToolDef): boolean {
   return true;
 }
 
+/** The objects an Ask can be pinned to: the pane changes that one thing and nothing else. A folder, a project or a place holds many things, so its Ask is bounded by the level alone. */
+const ONE_OBJECT: ReadonlySet<string> = new Set(["record", "file", "task", "run", "site", "form", "campaign", "automation", "agent"]);
+/** Writes that change nothing outside the pane: a drafted change for the editors, asking for access or a key. */
+const ASK_ANYWHERE: ReadonlySet<string> = new Set([...ASK_VIEW_EXTRAS, "access.request", "vault.request"]);
+
+function pointed(input: unknown, pointer: string): unknown {
+  let at = input;
+  for (const key of pointer.split("/").slice(1)) at = at !== null && typeof at === "object" ? (at as Record<string, unknown>)[key] : undefined;
+  return at;
+}
+
+/** May this call go ahead in an Ask pinned to one object? It reads anything the person can read, writes in the pane's own thread, and changes only the object the pane is about. */
+export function reachesScope(t: ToolDef, thread: ThreadFacts, input: unknown): boolean {
+  const scope = thread.scope;
+  if (thread.kind !== "ask" || !scope || !ONE_OBJECT.has(scope.type) || t.effects === "read" || ASK_ANYWHERE.has(t.cap)) return true;
+  if (!t.resource) return false;
+  const id = pointed(input, t.resource.id);
+  return t.resource.type === "thread" ? id === thread.threadId : t.resource.type === scope.type && id === scope.id;
+}
+
 /** Null when the tool may be offered, else why not. */
 export function refusalFor(deps: AccessDeps, ctx: ToolCtx, t: ToolDef, level: Level | null): Refusal | null {
   if (t.toolset === "engineer" && deps.canEngineer?.(ctx.asker) !== true) return "engineer";

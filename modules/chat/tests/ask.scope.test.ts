@@ -120,6 +120,9 @@ test("an object the person cannot see gets no answer and the Ask for access link
   assert.deepEqual((await A["chat.asks_of"]!(hn.ctx, { resourceType: "record", resourceId: "rec_open" })).threads, []);
 });
 
+/** A session of its own: an opening message. */
+const session = async (ctx: Harness["ctx"], scopeType: string, scopeId: string): Promise<any> => (await h["chat.start"]!(ctx, { kind: "ask", agentIds: [INTAKE], scopeType, scopeId, first: "Start here", idempotencyKey: `sess-${++n}` })).thread;
+
 test("objects that are not resources of their own are read through their own capability, which carries the refusal; no access check is made for them", async () => {
   const { hn, world } = rig();
   world.events["cev_1"] = { recordIds: [] };
@@ -140,11 +143,22 @@ test("Ask panes carry the object they are about as scope columns, and start out 
   assert.deepEqual(row, { kind: "ask", scopeType: "record", scopeId: "rec_a1", listed: 0, starter: DANA });
 });
 
+test("one Ask per person, agent and object: every door finds the same conversation, and a closed one starts a new one", async () => {
+  const { hn } = rig();
+  const a = await ask(hn.ctx, "record", "rec_key");
+  assert.equal((await ask(hn.ctx, "record", "rec_key")).threadId, a.threadId, "a second door, with its own key");
+  assert.notEqual((await ask(hn.person(MAYA), "record", "rec_key")).threadId, a.threadId, "another person has their own");
+  assert.notEqual((await ask(hn.ctx, "file", "rec_key")).threadId, a.threadId, "another scope is a new session");
+  assert.notEqual((await session(hn.ctx, "record", "rec_key")).threadId, a.threadId, "an opening message starts a session of its own");
+  const comment = (await h["chat.start"]!(hn.ctx, { kind: "ask", agentIds: [INTAKE], scopeType: "record", scopeId: "rec_key", recordId: "rec_key", title: "Comment replies", idempotencyKey: `rcm-${++n}` })).thread;
+  assert.notEqual(comment.threadId, a.threadId, "a comment's pane is its own conversation");
+});
+
 test("the pane history of an object is the caller's own Ask panes on it, newest first, listed or not, and nobody else's", async () => {
   const { hn } = rig();
   const first = await ask(hn.ctx, "record", "rec_a1");
   hn.advance(10);
-  const second = await ask(hn.ctx, "record", "rec_a1");
+  const second = await session(hn.ctx, "record", "rec_a1");
   hn.advance(10);
   await ask(hn.ctx, "record", "rec_a2");
   hn.advance(10);
@@ -168,7 +182,7 @@ test("the pane history of an object is the caller's own Ask panes on it, newest 
 test("the pane history pages with a cursor and counts all of it", async () => {
   const { hn } = rig();
   const ids: string[] = [];
-  for (let i = 0; i < 5; i++) { ids.unshift((await ask(hn.ctx, "record", "rec_p")).threadId); hn.advance(i === 2 ? 0 : 10); }
+  for (let i = 0; i < 5; i++) { ids.unshift((await session(hn.ctx, "record", "rec_p")).threadId); hn.advance(i === 2 ? 0 : 10); }
   const p1 = await A["chat.asks_of"]!(hn.ctx, { resourceType: "record", resourceId: "rec_p", limit: 2 });
   assert.equal(p1.threads.length, 2);
   assert.equal(p1.total, 5);

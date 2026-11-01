@@ -1,0 +1,1 @@
+- Ask now behaves the same on every AI engine: one conversation per person, agent and object, changes reach only the object it is about at your real level, anything leaving Vyre stops for a yes, and the Console and Home boxes send the screen you are on with each message.
