@@ -203,6 +203,8 @@ export function createBridge(o: BridgeOptions): Bridge {
         const r = ready.get(`${e.threadId}:${e.authorId}`);
         const msg = engine.messages(e.threadId).find((m) => m.id === e.messageId);
         if (!msg || msg.author.kind !== "agent") return;
+        // only a turn's own reply is posted from here; an agent message that chat already holds (a crew card, a brief, a tool's post) is not a reply to send again
+        if (!r) return;
         ready.delete(`${e.threadId}:${e.authorId}`);
         enqueuePost(e.threadId, e.authorId, {
           threadId: e.threadId, body: msg.body, blocks: r?.blocks ?? [], mentions: [...msg.mentions, ...askerMention(e.threadId, e.authorId).filter((m) => !msg.mentions.some((x) => x.id === m.id))], clientId: msg.id, ...(r?.routineOwner ? { via: { routineOwner: r.routineOwner } } : {}),
