@@ -179,7 +179,9 @@ async function main(): Promise<void> {
         const id = b.blockId ?? b.id;
         if (b.type !== "question" || !id || answered.has(id) || b.state === "done" || b.data?.answer !== undefined) continue;
         const data = b.data ?? {}; const opts = (data.options ?? []) as { key: string; label: string }[];
-        const go = opts.find((o) => /looks good|yes|go ahead|apply|continue|publish|start/i.test(o.label)) ?? opts.find((o) => !/change|show|add|no\b|cancel/i.test(o.label)) ?? opts[0];
+        // the smallest option: a trial of a handful, never everything; then the plain yes
+        const go = opts.find((o) => /trial|first 5|handful|small|sample/i.test(o.label) && !/\ball\b/i.test(o.label)) ?? opts.find((o) => /looks good|yes|go ahead|continue|publish|start/i.test(o.label) && !/\ball\b/i.test(o.label)) ?? opts.find((o) => !/change|show|add|no\b|cancel|\ball\b|bring in all/i.test(o.label)) ?? opts[0];
+        say("options", opts.map((o) => o.label).join(" | "));
         const pick = data.mode === "multi" ? opts.filter((o) => /read|contact/i.test(o.label)).slice(0, 2).map((o) => o.key) : go ? [go.key] : [];
         answered.add(id); questions++;
         say("person", `taps ${pick.map((k) => opts.find((o) => o.key === k)?.label ?? k).join(", ") || "(nothing)"}`);
@@ -189,10 +191,10 @@ async function main(): Promise<void> {
       const types = ((await ok("sync_types.list", {})).syncedTypes as { type: string; connector: string }[]);
       if (types.length > 0 && !applied) { applied = true; say("note", `the agent applied the sync: record types ${types.map((t) => t.type).join(", ")}`); }
       if (applied) {
-        const runs = ((await ok("runs.list", { kind: "connector_sync" })).runs ?? []) as { status: string }[];
+        const runs = ((await ok("runs.list", { scope: "all", kinds: ["connector_sync"] })).runs ?? []) as { status: string }[];
         if (runs.length > 0 && runs.every((r) => r.status === "succeeded" || r.status === "failed")) done = true;
       }
-      if (!done && Date.now() - lastNew > 360_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 6 minutes; the host log is in ${path.join(OUT, "host-log.txt")}`); }
+      if (!done && Date.now() - lastNew > 150_000) { fs.writeFileSync(path.join(OUT, "host-log.txt"), hostLines(400)); throw new Error(`the agent went quiet for 150 seconds; the host log is in ${path.join(OUT, "host-log.txt")}`); }
       // every 30 s say what the thread holds, so a stop after the preview shows what the agent was doing (block kinds and states only, no values)
       if (Date.now() - lastTick > 30_000) {
         lastTick = Date.now();
