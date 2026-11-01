@@ -6978,6 +6978,29 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "records.sync",
+    "module": "connectors",
+    "place": "records",
+    "slot": "main",
+    "builtin": "ui:SyncPage",
+    "caller": "principal",
+    "queries": {
+      "status": {
+        "cap": "sync_types.status",
+        "input": {
+          "type": "/state/type"
+        },
+        "live": true
+      }
+    },
+    "actions": {},
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "records.sync-conflict",
     "module": "connectors",
     "place": "records",
